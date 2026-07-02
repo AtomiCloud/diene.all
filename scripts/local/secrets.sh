@@ -10,3 +10,5 @@ else
   echo "→ Logging into Infisical..."
   infisical login
 fi
+
+echo "✅ Infisical secrets ready"

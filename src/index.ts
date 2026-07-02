@@ -1,3 +1,4 @@
+// ─── DOMAIN WIRING · the illustrative sample (delete through END to replace the sample) ──────────
 import type { IKeyValueStore, RedisConnection } from './adapters/kv-store';
 import { RedisKeyValueStore } from './adapters/redis-kv-store';
 import { namespacedKey } from './lib/slug';
@@ -52,3 +53,4 @@ async function main(): Promise<void> {
 if (import.meta.main) {
   await main();
 }
+// ─── END DOMAIN WIRING ────────────────────────────────────────────────────────────────────────────

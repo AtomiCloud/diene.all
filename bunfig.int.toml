@@ -4,6 +4,5 @@ timeout = 120000
 coverageReporter = ["text", "lcov"]
 coverageDir = "coverage/int"
 coverageSkipTestFiles = true
-# Integration coverage measures only the src/adapters boundary it exercises.
-# Exclude the composition-root entrypoint and pure src/lib units (covered by the unit suite).
-coveragePathIgnorePatterns = ["src/index.ts", "src/lib/**"]
+# Int ledger = the adapters tier only; the domain is the unit ledger, the glue is not an adapter, tests/** never counts.
+coveragePathIgnorePatterns = ["src/index.ts", "src/lib/**", "tests/**"]

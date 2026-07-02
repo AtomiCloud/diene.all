@@ -7,37 +7,16 @@ set -euo pipefail
 #
 # Usage: helm.sh <chart_path> [version]
 
-[[ -n ${DOMAIN:-} ]] || {
-  echo "❌ 'DOMAIN' env var not set"
-  exit 1
-}
-[[ -n ${DOCKER_USER:-} ]] || {
-  echo "❌ 'DOCKER_USER' env var not set"
-  exit 1
-}
-[[ -n ${DOCKER_PASSWORD:-} ]] || {
-  echo "❌ 'DOCKER_PASSWORD' env var not set"
-  exit 1
-}
-[[ -n ${GITHUB_SHA:-} ]] || {
-  echo "❌ 'GITHUB_SHA' env var not set"
-  exit 1
-}
-[[ -n ${GITHUB_BRANCH:-} ]] || {
-  echo "❌ 'GITHUB_BRANCH' env var not set"
-  exit 1
-}
-[[ -n ${GITHUB_REPO_REF:-} ]] || {
-  echo "❌ 'GITHUB_REPO_REF' env var not set"
-  exit 1
-}
+[ -z "${DOMAIN:-}" ] && echo "❌ 'DOMAIN' env var not set" >&2 && exit 1
+[ -z "${DOCKER_USER:-}" ] && echo "❌ 'DOCKER_USER' env var not set" >&2 && exit 1
+[ -z "${DOCKER_PASSWORD:-}" ] && echo "❌ 'DOCKER_PASSWORD' env var not set" >&2 && exit 1
+[ -z "${GITHUB_SHA:-}" ] && echo "❌ 'GITHUB_SHA' env var not set" >&2 && exit 1
+[ -z "${GITHUB_BRANCH:-}" ] && echo "❌ 'GITHUB_BRANCH' env var not set" >&2 && exit 1
+[ -z "${GITHUB_REPO_REF:-}" ] && echo "❌ 'GITHUB_REPO_REF' env var not set" >&2 && exit 1
 
 chart_path="${1:-}"
 version="${2:-}"
-[[ -n ${chart_path} ]] || {
-  echo "❌ chart path (first argument) not set"
-  exit 1
-}
+[ -z "${chart_path}" ] && echo "❌ chart path (first argument) not set" >&2 && exit 1
 
 SHA="$(echo "${GITHUB_SHA}" | head -c 6)"
 BRANCH="${GITHUB_BRANCH//[._]/-}"
