@@ -24,9 +24,9 @@ tasks:
     cmds:
       - rm -rf dist node_modules coverage
   build:
-    desc: Build the neutral sample bundle to dist/
+    desc: Build the bundle to dist/
     cmds:
-      - bun build ./src/index.ts --outdir ./dist --target bun
+      - ./scripts/local/build.sh
   lint:
     desc: Lints the whole code-base
     cmds:
