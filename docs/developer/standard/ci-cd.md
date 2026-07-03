@@ -202,8 +202,7 @@ This allows developers to:
 scripts/
 └── ci/
     ├── pre-commit.sh              # CI: pre-commit hooks
-    ├── test-unit.sh               # CI: unit tests
-    ├── test-int.sh                # CI: integration tests
+    ├── test.sh                    # CI: tests (unit|int|sit)
     └── build.sh                   # CI: build
 ```
 

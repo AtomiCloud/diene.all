@@ -20,7 +20,7 @@ jobs:
       - uses: AtomiCloud/actions.setup-nix@v3
       - uses: AtomiCloud/actions.cache-bun@v1
       - name: Run ${{ inputs.mode }} tests
-        run: nix develop .#ci -c ./scripts/ci/test-${{ inputs.mode }}.sh
+        run: nix develop .#ci -c ./scripts/ci/test.sh ${{ inputs.mode }}
       - name: Upload ${{ inputs.mode }} coverage artifact
         if: always()
         uses: actions/upload-artifact@v7

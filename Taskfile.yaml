@@ -17,16 +17,16 @@ tasks:
   setup:
     desc: Setup the repository
     cmds:
-      - ./scripts/ci/setup.sh
+      - ./scripts/local/setup.sh
       - ./scripts/local/secrets.sh
   clean:
     desc: Remove build, dependency, and coverage artifacts
     cmds:
       - rm -rf dist node_modules coverage
   build:
-    desc: Build the neutral sample bundle to dist/
+    desc: Build the bundle to dist/
     cmds:
-      - bun build ./src/index.ts --outdir ./dist --target bun
+      - ./scripts/local/build.sh
   lint:
     desc: Lints the whole code-base
     cmds:
@@ -36,14 +36,30 @@ tasks:
     cmds:
       - ./scripts/local/deadcode.sh
   test:
-    desc: Run unit + integration tests
+    desc: Run all suites without coverage (unit + int)
     cmds:
       - task: unit:default
       - task: int:default
+  test:unit:
+    desc: Run the unit suite without coverage
+    cmds:
+      - task: unit:default
+  test:int:
+    desc: Run the integration suite without coverage
+    cmds:
+      - task: int:default
   test:coverage:
-    desc: Run unit + integration tests, producing separate coverage artifacts
+    desc: Run every coverage-capable suite with coverage (unit + int)
     cmds:
       - task: unit:coverage
+      - task: int:coverage
+  test:unit:coverage:
+    desc: Run the unit suite with coverage
+    cmds:
+      - task: unit:coverage
+  test:int:coverage:
+    desc: Run the integration suite with coverage
+    cmds:
       - task: int:coverage
   test:watch:
     desc: Watch the fast unit suite (aggregate watch entry point)
