@@ -1,3 +1,16 @@
+## [1.3.0](https://github.com/AtomiCloud/diene.bun-base/compare/v1.2.0...v1.3.0) (2026-07-03)
+
+
+### ✨ Features ✨
+
+* local setup script for pls setup ([993d58f](https://github.com/AtomiCloud/diene.bun-base/commit/993d58f1728e8bc4afcbfd9231b7b4b6bf09f38a))
+
+
+### 🐛 Bug Fixes 🐛
+
+* **test:** keep helper files out of unit coverage ([3b9bdfd](https://github.com/AtomiCloud/diene.bun-base/commit/3b9bdfdfe97ead3ec746734dd0cf88f94e515908))
+* setup task calls setup.sh again ([c2a1f02](https://github.com/AtomiCloud/diene.bun-base/commit/c2a1f02945e050a5099bbfde0ba064e5782d2d2e))
+
 ## [1.2.0](https://github.com/AtomiCloud/diene.bun-base/compare/v1.1.1...v1.2.0) (2026-07-02)
 
 ## [1.1.1](https://github.com/AtomiCloud/diene.bun-base/compare/v1.1.0...v1.1.1) (2026-07-02)
