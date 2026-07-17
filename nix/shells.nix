@@ -1,4 +1,9 @@
-{ pkgs, packages, env, shellHook }:
+{
+  pkgs,
+  packages,
+  env,
+  shellHook,
+}:
 with env;
 {
   default = pkgs.mkShell {
