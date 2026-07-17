@@ -1,0 +1,22 @@
+[
+  {
+    "template": "atomi/nix",
+    "name": "binary-smoke",
+    "class": "smoke"
+  },
+  {
+    "template": "atomi/nix",
+    "name": "dev-shell",
+    "class": "smoke"
+  },
+  {
+    "template": "atomi/nix",
+    "name": "direnv",
+    "class": "smoke"
+  },
+  {
+    "template": "atomi/nix",
+    "name": "precommit-treefmt",
+    "class": "gate"
+  }
+]
