@@ -37,6 +37,12 @@ const definition: ProbeDefinition = {
       description:
         "A semantically invalid workflow expression must turn the actionlint member red.",
       kind: "mutation",
+      expectedImpact: [
+        "binary-smoke",
+        "precommit-treefmt-nixfmt",
+        "precommit-treefmt-prettier",
+        "precommit-treefmt-shfmt",
+      ],
       timeoutMs: 240000,
       async run(repo) {
         await repo.write(".github/workflows/probe-actionlint.yaml", workflow);
