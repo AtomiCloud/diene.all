@@ -18,10 +18,6 @@ See [docs/standards/ci-cd/index.md](docs/standards/ci-cd/index.md).
 
 See [docs/standards/conventional-commits/index.md](docs/standards/conventional-commits/index.md).
 
-## Docker build and publishing
-
-See [docs/standards/docker/index.md](docs/standards/docker/index.md).
-
 ## Helm charts and publishing
 
 See [docs/standards/helm/index.md](docs/standards/helm/index.md).
