@@ -41,13 +41,18 @@ const definition: ProbeDefinition = {
       timeoutMs: 240000,
       async run(repo) {
         await repo.write('.github/workflows/probe-actionlint.yaml', workflow);
-        const staged = await repo.exec('git add .github/workflows/probe-actionlint.yaml');
-        if (staged.exitCode !== 0) {
-          throw new Error(`failed to stage actionlint fixture: ${staged.stderr || staged.stdout}`);
-        }
-        const result = await repo.exec(gate, { timeoutMs: 240000 });
-        if (result.exitCode === 0) {
-          throw new Error('treefmt actionlint stayed green after an invalid workflow expression');
+        try {
+          const staged = await repo.exec('git add .github/workflows/probe-actionlint.yaml');
+          if (staged.exitCode !== 0) {
+            throw new Error(`failed to stage actionlint fixture: ${staged.stderr || staged.stdout}`);
+          }
+          const result = await repo.exec(gate, { timeoutMs: 240000 });
+          if (result.exitCode === 0) {
+            throw new Error('treefmt actionlint stayed green after an invalid workflow expression');
+          }
+        } finally {
+          await repo.exec('git reset -- .github/workflows/probe-actionlint.yaml');
+          await repo.remove('.github/workflows/probe-actionlint.yaml');
         }
       },
     },
