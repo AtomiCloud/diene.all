@@ -53,3 +53,29 @@ See [docs/standards/shell-scripts/index.md](docs/standards/shell-scripts/index.m
 ## Taskfile conventions
 
 See [docs/standards/taskfile/index.md](docs/standards/taskfile/index.md).
+
+<!-- ### shared -->
+<!-- #### source: shared -->
+
+## Shared engineering standards
+
+- [Authorization](docs/standards/authorization/index.md)
+- [Contributor documentation](docs/standards/contributor-docs/index.md)
+  ([checklist](docs/standards/contributor-docs/checklist.md),
+  [classification](docs/standards/contributor-docs/classification.md),
+  [frontmatter](docs/standards/contributor-docs/frontmatter.md), and
+  [structure](docs/standards/contributor-docs/structure.md))
+- [Date and time](docs/standards/datetime/index.md)
+- [Domain-driven design](docs/standards/domain-driven-design/index.md)
+- [Functional practices](docs/standards/functional-practices/index.md)
+- [Software design philosophy](docs/standards/software-design-philosophy/index.md)
+- [SOLID principles](docs/standards/solid-principles/index.md)
+- [Stateless OOP and dependency injection](docs/standards/stateless-oop-di/index.md)
+- [Testing](docs/standards/testing/index.md)
+- [Three-layer architecture](docs/standards/three-layer-architecture/index.md)
+- [Utility libraries](docs/standards/utilities/index.md)
+- [Data validation](docs/standards/validation/index.md)
+
+Domain-specific architecture and behavior belongs under
+[docs/domain/](docs/domain/README.md). The `docs/standards/contracts/` slot is
+reserved for the separately owned C0 contracts standard.
