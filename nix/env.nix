@@ -31,6 +31,7 @@ with packages;
   # ### workspace-main
   # #### source: workspace
   main = [
+    cyanprint
     docker-client
     git
     go-task

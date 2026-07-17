@@ -1,5 +1,40 @@
 [
   {
+    "template": "atomi/nix",
+    "name": "binary-smoke",
+    "class": "smoke"
+  },
+  {
+    "template": "atomi/nix",
+    "name": "dev-shell",
+    "class": "smoke"
+  },
+  {
+    "template": "atomi/nix",
+    "name": "direnv",
+    "class": "smoke"
+  },
+  {
+    "template": "atomi/nix",
+    "name": "precommit-treefmt-actionlint",
+    "class": "gate"
+  },
+  {
+    "template": "atomi/nix",
+    "name": "precommit-treefmt-nixfmt",
+    "class": "gate"
+  },
+  {
+    "template": "atomi/nix",
+    "name": "precommit-treefmt-prettier",
+    "class": "gate"
+  },
+  {
+    "template": "atomi/nix",
+    "name": "precommit-treefmt-shfmt",
+    "class": "gate"
+  },
+  {
     "template": "diene/workspace",
     "name": "dev-shell",
     "class": "smoke"
