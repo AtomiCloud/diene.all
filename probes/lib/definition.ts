@@ -1,11 +1,6 @@
-import type {
-  Probe,
-  ProbeDefinition,
-  ProbeSandboxConfig,
-  ProbeSetupConfig,
-} from "@cyanprint/contracts";
+import type { Probe, ProbeDefinition, ProbeSandboxConfig, ProbeSetupConfig } from '@cyanprint/contracts';
 
-export type EvidenceClass = "gate" | "smoke" | "presence";
+export type EvidenceClass = 'gate' | 'smoke' | 'presence';
 
 export type FeatureEntry = {
   template: string;
@@ -13,7 +8,7 @@ export type FeatureEntry = {
   class: EvidenceClass;
 };
 
-type ProbeBody = Omit<Probe, "kind">;
+type ProbeBody = Omit<Probe, 'kind'>;
 
 type DefinitionOptions = {
   sandbox?: ProbeSandboxConfig;
@@ -29,10 +24,7 @@ type BaselineOnlyOptions = DefinitionOptions & {
   baseline: ProbeBody;
 };
 
-function definition(
-  options: DefinitionOptions,
-  probes: Probe[],
-): ProbeDefinition {
+function definition(options: DefinitionOptions, probes: Probe[]): ProbeDefinition {
   return {
     contractVersion: 1,
     ...(options.sandbox ? { sandbox: options.sandbox } : {}),
@@ -43,15 +35,15 @@ function definition(
 
 export function defineGate(options: GateOptions): ProbeDefinition {
   return definition(options, [
-    { ...options.baseline, kind: "baseline" },
-    { ...options.mutation, kind: "mutation" },
+    { ...options.baseline, kind: 'baseline' },
+    { ...options.mutation, kind: 'mutation' },
   ]);
 }
 
 export function defineSmoke(options: BaselineOnlyOptions): ProbeDefinition {
-  return definition(options, [{ ...options.baseline, kind: "baseline" }]);
+  return definition(options, [{ ...options.baseline, kind: 'baseline' }]);
 }
 
 export function definePresence(options: BaselineOnlyOptions): ProbeDefinition {
-  return definition(options, [{ ...options.baseline, kind: "baseline" }]);
+  return definition(options, [{ ...options.baseline, kind: 'baseline' }]);
 }
