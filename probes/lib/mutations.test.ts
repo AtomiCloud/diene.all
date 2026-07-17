@@ -5,7 +5,6 @@ import {
   flipAssertion,
   invalidWorkflow,
   plantSecret,
-  staleHelmDocs,
   uncoverDomainFile,
   unformatFile,
 } from './mutations';
@@ -99,14 +98,6 @@ describe('structural probe mutators', () => {
     const result = await plantSecret(repo, { staged: true });
     expect(await repo.read(result.path)).toContain('PROBE_FAKE_GITHUB_TOKEN');
     expect(repo.commands).toEqual(["git add -- 'probe-secret.txt'"]);
-  });
-
-  test('makes helm-docs stale by adding a documented value', async () => {
-    const repo = new FakeRepo({
-      'infra/root_chart/values.yaml': 'service: app\n',
-    });
-    await staleHelmDocs(repo);
-    expect(await repo.read('infra/root_chart/values.yaml')).toContain('probeHelmDocsStale');
   });
 
   test('creates formatter-specific violations', async () => {
