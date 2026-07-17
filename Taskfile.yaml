@@ -1,0 +1,24 @@
+# ### workspace-root
+# #### source: workspace
+version: '3'
+
+includes:
+  docker: tasks/Taskfile.docker.yaml
+  helm: tasks/Taskfile.helm.yaml
+  secret: tasks/Taskfile.secret.yaml
+
+tasks:
+  setup:
+    desc: Set up generated workspace assets
+    cmds:
+      - ./scripts/local/skills-sync.sh
+
+  lint:
+    desc: Run all repository gates
+    cmds:
+      - pre-commit run --all-files
+
+  skills:sync:
+    desc: Synchronize installed diene package skills
+    cmds:
+      - ./scripts/local/skills-sync.sh

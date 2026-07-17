@@ -1,0 +1,137 @@
+conventionMarkdown:
+  path: docs/developer/CommitConventions.md
+  template: |
+    # Commit conventions
+
+    CONVENTION_DOCS_PLACEHOLDER
+
+keywords:
+  - BREAKING CHANGE
+  - BREAKING CHANGES
+  - BREAKING
+
+branches:
+  - main
+
+specialScopes:
+  no-release:
+    desc: Prevent release from happening
+    release: false
+
+plugins:
+  - module: '@semantic-release/changelog'
+    version: 6.0.3
+    config:
+      changelogFile: Changelog.md
+  - module: '@semantic-release/exec'
+    version: 6.0.3
+    config:
+      prepareCmd: './scripts/release/bump.sh ${nextRelease.version}'
+  - module: '@semantic-release/git'
+    version: 10.0.1
+    config:
+      message: "release: ${nextRelease.version}\n\n${nextRelease.notes}"
+      assets:
+        - Changelog.md
+        - VERSION
+        - docs/developer/CommitConventions.md
+  - module: '@semantic-release/github'
+    version: 10.3.5
+
+types:
+  - type: amend
+    desc: Small amendments and typo fixes
+    scopes:
+      default:
+        desc: Amend existing work
+        release: false
+  - type: build
+    desc: Build-system changes
+    scopes:
+      default:
+        desc: Update build machinery
+        release: false
+  - type: chore
+    desc: Repository chores
+    scopes:
+      default:
+        desc: Perform a chore
+        release: false
+  - type: ci
+    desc: CI/CD changes
+    scopes:
+      default:
+        desc: Update CI/CD
+        release: false
+  - type: config
+    desc: Configuration changes
+    scopes:
+      default:
+        desc: Update configuration
+        release: false
+  - type: dep
+    desc: Dependency updates
+    section: 🔼 Dependency Upstreams 🔼
+    scopes:
+      default:
+        desc: Update a dependency
+        release: false
+      patch:
+        desc: Patch dependency update
+        release: patch
+      minor:
+        desc: Minor dependency update
+        release: minor
+      major:
+        desc: Major dependency update
+        release: major
+  - type: docs
+    desc: Documentation changes
+    section: 📜 Documentation 📜
+    scopes:
+      default:
+        desc: Update documentation
+        release: false
+  - type: feat
+    desc: New features
+    section: ✨ Features ✨
+    scopes:
+      default:
+        desc: Add a feature
+        release: minor
+      breaking:
+        desc: Add a breaking feature
+        release: major
+  - type: fix
+    desc: Bug fixes
+    section: 🐛 Bug Fixes 🐛
+    scopes:
+      default:
+        desc: Fix a bug
+        release: patch
+  - type: perf
+    desc: Performance improvements
+    section: 🚀 Performance Improvement 🚀
+    scopes:
+      default:
+        desc: Improve performance
+        release: patch
+  - type: refactor
+    desc: Refactors
+    scopes:
+      default:
+        desc: Refactor implementation
+        release: minor
+  - type: style
+    desc: Non-functional style changes
+    scopes:
+      default:
+        desc: Update style
+        release: patch
+  - type: test
+    desc: Test changes
+    section: 🧪 Tests 🧪
+    scopes:
+      default:
+        desc: Add or correct tests
+        release: minor

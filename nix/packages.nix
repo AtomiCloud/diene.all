@@ -1,25 +1,54 @@
-{ atomi, pkgs, pkgs-2605, pkgs-unstable }:
+{
+  atomi,
+  pkgs,
+  pkgs-2605,
+  pkgs-unstable,
+}:
 let
   all = rec {
+    # ### nix-root
+    # #### source: main
     atomipkgs = (
       with atomi;
       {
         inherit
           atomiutils
-        ;
+          infralint
+          infrautils
+          pls
+          sg
+          ;
       }
     );
 
+    # ### workspace
+    # #### source: workspace
     nix-2605 = (
       with pkgs-2605;
       {
         inherit
+          actionlint
+          bash
+          docker-client
           git
+          go-task
+          infisical
+          jq
+          kubeconform
+          kubernetes-helm
+          kyverno
+          pre-commit
+          ripgrep
+          shellcheck
+          skopeo
           treefmt
-        ;
+          yq-go
+          ;
       }
     );
 
+    # ### nix-unstable
+    # #### source: main
     nix-unstable = (
       with pkgs-unstable;
       {
@@ -28,6 +57,4 @@ let
   };
 in
 with all;
-atomipkgs //
-nix-2605 //
-nix-unstable
+atomipkgs // nix-2605 // nix-unstable

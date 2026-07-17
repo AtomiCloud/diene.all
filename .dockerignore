@@ -1,0 +1,22 @@
+### workspace-build
+#### source: workspace
+.git
+.gitignore
+.direnv
+.env
+.env.*
+*.log
+
+### workspace-docs
+#### source: workspace
+.claude
+.github
+docs
+probes
+*.md
+!README.md
+
+### workspace-output
+#### source: workspace
+result
+result-*

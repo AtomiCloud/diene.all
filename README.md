@@ -1,27 +1,34 @@
-# Development Environment
+# Diene workspace baseline
 
-All binaries, tools, and PATH are managed by **Nix**. Do not install tools manually or modify PATH outside of the nix configuration.
+<!-- ### nix-root -->
+<!-- #### source: main -->
 
-## Prerequisites
+Diene's reproducible development environment is managed by Nix. Run `direnv allow` once, then use `pls` tasks from the loaded shell.
 
-1. **[Nix](https://nixos.org/download)** — package manager
-2. **[Docker](https://docs.docker.com/get-docker)** — container runtime
-3. **[direnv](https://direnv.net/docs/installation.html)** — auto-loads the nix shell on `cd`
+<!-- ### workspace -->
+<!-- #### source: workspace -->
 
-## Getting Started
+This branch is the all-features workspace baseline inherited by every downstream sample: split CI/CD, Docker, Helm, secrets, release configuration, validators, standards, and vendored agent-skill synchronization.
 
-```bash
-direnv allow    # first time only — loads the nix dev shell
-```
+## Commands
 
-Once allowed, direnv automatically loads the development environment whenever you enter the project directory.
+- `pls setup` — synchronize installed diene package skills.
+- `pls lint` — run every pre-commit gate.
+- `pls docker:build` — build the local stub image.
+- `pls helm:lint` / `pls helm:template` — validate or render the root chart.
+- `pls secret:scan` — scan tracked content for secrets.
+- `pls skills:sync` — rebuild `.claude/skills/vendor/` from installed packages.
 
-## Nix Configuration
+## Standards
 
-See [docs/developer/standard/nix.md](docs/developer/standard/nix.md) for the full guide on:
-
-- File structure (`flake.nix`, `nix/`, `.envrc`)
-- Adding/removing packages
-- Environment groups and shells
-- Formatters and pre-commit hooks
-- Adding registries
+- [CI/CD workflows](docs/standards/ci-cd/index.md)
+- [conventional commits](docs/standards/conventional-commits/index.md)
+- [Docker build and publishing](docs/standards/docker/index.md)
+- [Helm charts and publishing](docs/standards/helm/index.md)
+- [Infisical and secrets](docs/standards/infisical/index.md)
+- [linting and pre-commit](docs/standards/linting/index.md)
+- [Nix flakes and development shells](docs/standards/nix/index.md)
+- [release automation](docs/standards/semantic-release/index.md)
+- [service-tree identity](docs/standards/service-tree/index.md)
+- [shell scripts](docs/standards/shell-scripts/index.md)
+- [Taskfile conventions](docs/standards/taskfile/index.md)

@@ -1,3 +1,25 @@
-### nix-init
-.direnv
+### nix-root
+#### source: main
+.direnv/
 .pre-commit-config.yaml
+result
+result-*
+
+### workspace
+#### source: workspace
+.env
+.env.*
+!.env.example
+.kagent/
+.kloop/
+*.log
+*.swo
+*.swp
+*~
+.DS_Store
+._*
+.idea/
+.vscode/
+Thumbs.db
+desktop.ini
+infra/root_chart/uploads/

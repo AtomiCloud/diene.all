@@ -1,0 +1,178 @@
+[
+  {
+    "template": "diene/workspace",
+    "name": "dev-shell",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "direnv",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "fmt-actionlint",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "fmt-nixfmt",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "fmt-prettier",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "fmt-shfmt",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "binary-smoke",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "hook-shellcheck",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "hook-helm-docs",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "hook-helm-lint",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "hook-infisical-full",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "hook-infisical-staged",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "hook-enforce-exec",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "workflow-wiring",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "workflow-actionlint",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "docker-build",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "helm-lint",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "helm-render",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "secret-guards",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "secret-scan-command",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "skills-vendor-directory",
+    "class": "presence"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "skills-sync",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "skills-freshness",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "release-config-schema",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "release-type-vocabulary",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "release-workflow-trigger",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "release-workflow-concurrency",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "workflow-names",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "nixpkgs-pin",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "trusted-action-pins",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "non-trusted-action-pins",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "cache-tag-shape",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "many-owner-schema",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "releaser-hook-registration",
+    "class": "presence",
+    "deferredUntil": "tools/releaser step 2p publish"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "probe-artifacts",
+    "class": "presence"
+  }
+]

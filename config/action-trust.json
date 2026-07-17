@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "actions": {
+    "AtomiCloud/actions.setup-docker": "trusted",
+    "AtomiCloud/actions.setup-nix": "trusted",
+    "upsidr/merge-gatekeeper": "non-trusted"
+  }
+}
