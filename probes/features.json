@@ -234,5 +234,10 @@
     "template": "diene/shared",
     "name": "docs-prettier",
     "class": "gate"
+  },
+  {
+    "template": "diene/observability",
+    "name": "observability-standards-present",
+    "class": "presence"
   }
 ]
