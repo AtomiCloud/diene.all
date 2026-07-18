@@ -7,18 +7,18 @@ Docker conventions for containerized builds and deployments. Images are built fr
 
 Local work uses Taskfile one-liners (these never call the CI scripts):
 
-| Command            | What it does                                       |
-| ------------------ | -------------------------------------------------- |
-| `pls docker:build` | Build the image locally as `diene-workspace:local` |
-| `pls docker:run`   | Run the built image                                |
-| `pls docker:clean` | Remove the local image                             |
+| Command            | What it does                                     |
+| ------------------ | ------------------------------------------------ |
+| `pls docker:build` | Build the image locally as `diene-go-base:local` |
+| `pls docker:run`   | Run the built image                              |
+| `pls docker:clean` | Remove the local image                           |
 
 Pass an optional tag **suffix** after `--`; it is appended to the `:local` tag:
 
 ```bash
-pls docker:build            # -> diene-workspace:local
-pls docker:build -- 1       # -> diene-workspace:local-1
-pls docker:build -- hello   # -> diene-workspace:local-hello
+pls docker:build            # -> diene-go-base:local
+pls docker:build -- 1       # -> diene-go-base:local-1
+pls docker:build -- hello   # -> diene-go-base:local-hello
 ```
 
 `run` and `clean` take the same suffix so they act on the image you built.

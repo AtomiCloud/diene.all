@@ -23,3 +23,9 @@ result-*
 Thumbs.db
 desktop.ini
 infra/root_chart/uploads/
+
+### go-base
+#### source: go-base
+coverage/
+dist/
+reports/

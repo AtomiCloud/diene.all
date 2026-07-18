@@ -1,8 +1,10 @@
 {
   "schemaVersion": 1,
   "actions": {
+    "AtomiCloud/actions.cache-go": "trusted",
     "AtomiCloud/actions.setup-docker": "trusted",
     "AtomiCloud/actions.setup-nix": "trusted",
+    "codecov/codecov-action": "trusted",
     "upsidr/merge-gatekeeper": "non-trusted"
   }
 }

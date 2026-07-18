@@ -19,9 +19,9 @@ tasks:
   template:
     desc: Render the root chart
     cmds:
-      - helm template diene-workspace {{.CHART}} {{.CLI_ARGS}}
+      - helm template diene-go-base {{.CHART}} {{.CLI_ARGS}}
 
   debug:
     desc: Render the root chart with debug output
     cmds:
-      - helm template diene-workspace {{.CHART}} --debug {{.CLI_ARGS}}
+      - helm template diene-go-base {{.CHART}} --debug {{.CLI_ARGS}}

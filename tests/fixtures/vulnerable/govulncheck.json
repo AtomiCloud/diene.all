@@ -1,0 +1,9 @@
+{
+  "vulnerabilities": [
+    {
+      "id": "GO-2021-0113",
+      "module": "golang.org/x/text",
+      "version": "v0.3.0"
+    }
+  ]
+}

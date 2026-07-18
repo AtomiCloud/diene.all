@@ -45,6 +45,31 @@ let
     meta.mainProgram = "cyanprint";
   };
   all = rec {
+    # ### go-base
+    # #### source: go-base
+    go-base = (
+      with pkgs-2605;
+      {
+        deadcode = gotools;
+        staticcheck = go-tools;
+        go = pkgs-2605.go.overrideAttrs (
+          finalAttrs: _previousAttrs: {
+            version = "1.26.5";
+            src = pkgs-2605.fetchurl {
+              url = "https://go.dev/dl/go${finalAttrs.version}.src.tar.gz";
+              hash = "sha256-SVvkvIcXasVnOS5bQRar2YRm0z17SdQedkzMaXay3EI=";
+            };
+          }
+        );
+        inherit
+          gofumpt
+          golangci-lint
+          gotestsum
+          govulncheck
+          ;
+      }
+    );
+
     # ### nix-root
     # #### source: main
     atomipkgs = (
@@ -100,4 +125,4 @@ let
   };
 in
 with all;
-atomipkgs // nix-2605 // nix-unstable // root
+atomipkgs // nix-2605 // nix-unstable // root // go-base

@@ -5,6 +5,24 @@
   pre-commit-lib,
 }:
 let
+  go-deps = pkgs.buildGoModule {
+    pname = "diene-go-base-dependencies";
+    version = "0";
+    src = ../.;
+    vendorHash = "sha256-NbeafHrobDMronPIB3abd5J/8dPfNtGNuQsI6vcj820=";
+    proxyVendor = true;
+  };
+  go-lint-runtime = pkgs.buildEnv {
+    name = "go-base-lint-runtime";
+    paths = [
+      packages.bash
+      packages.git
+      packages.go
+      packages.golangci-lint
+      pkgs.coreutils
+    ];
+  };
+  go-lint = "${packages.bash}/bin/bash -c 'export PATH=${go-lint-runtime}/bin; export CGO_ENABLED=0; export GOPROXY=file://${go-deps.goModules}; export GOSUMDB=off; export GOMODCACHE=\"\${TMPDIR:-/tmp}/go-base-mod-cache\"; exec ${packages.golangci-lint}/bin/golangci-lint run --timeout 5m ./...'";
   validator-runtime = pkgs.buildEnv {
     name = "workspace-validator-runtime";
     paths = [
@@ -209,6 +227,26 @@ pre-commit-lib.run {
       language = "system";
     };
 
+    # ### go-base-hooks
+    # #### source: go-base
+    a-go-black-box = {
+      enable = true;
+      name = "Go black-box tests";
+      entry = validator "scripts/validate/go-black-box-tests.sh";
+      files = "(^|/).*(_test|export_test)\\.go$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-golangci-lint = {
+      enable = true;
+      name = "golangci-lint";
+      entry = go-lint;
+      files = "(^|/).*\\.go$|^go\\.(mod|sum)$|^\\.golangci\\.yaml$";
+      pass_filenames = false;
+      language = "system";
+    };
+
     # ### shared-hooks
     # #### source: shared
     a-claude-links = {
@@ -224,7 +262,7 @@ pre-commit-lib.run {
       enable = true;
       name = "Markdown lint";
       entry = "${pkgs.markdownlint-cli2}/bin/markdownlint-cli2";
-      files = "^(CLAUDE\\.md|README\\.md|docs/standards/(authorization|contracts|contributor-docs|datetime|domain-driven-design|functional-practices|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/.*\\.md|\\.claude/skills/(authorization|contributor-docs|datetime|domain-driven-design|functional-practices|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/SKILL\\.md)$";
+      files = "^(CLAUDE\\.md|README\\.md|docs/developer/go-baseline\\.md|docs/standards/(authorization|contracts|contributor-docs|datetime|domain-driven-design|functional-practices|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/.*\\.md|\\.claude/skills/(authorization|contributor-docs|datetime|domain-driven-design|functional-practices|go-baseline|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/SKILL\\.md)$";
       pass_filenames = true;
       language = "system";
     };

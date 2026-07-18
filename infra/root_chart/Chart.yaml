@@ -1,8 +1,8 @@
-# ### workspace-chart
-# #### source: workspace
+# ### go-base-chart
+# #### source: go-base
 apiVersion: v2
-name: diene-workspace
-description: Minimal workspace baseline chart
+name: diene-go-base
+description: Minimal Helm surface for the Diene Go language base
 type: application
 version: 0.1.0
 appVersion: '0.1.0'

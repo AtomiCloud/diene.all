@@ -18,10 +18,13 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        await repo.patch('infra/root_chart/Chart.yaml', {
-          find: 'description: Minimal workspace baseline chart',
-          replace: 'description: Changed probe description',
-        });
+        const path = 'infra/root_chart/Chart.yaml';
+        const source = await repo.read(path);
+        const description = source.match(/^description: .+$/m)?.[0];
+        if (!description) {
+          throw new Error('chart description target not found');
+        }
+        await repo.write(path, source.replace(description, 'description: Changed probe description'));
         await expectRed(repo, 'nix develop .#ci -c pre-commit run a-helm-docs --all-files', 'hook-helm-docs');
       },
     },

@@ -79,3 +79,14 @@ See [docs/standards/taskfile/index.md](docs/standards/taskfile/index.md).
 Domain-specific architecture and behavior belongs under
 [docs/domain/](docs/domain/README.md). The `docs/standards/contracts/` slot is
 reserved for the separately owned C0 contracts standard.
+
+<!-- ### go-base -->
+<!-- #### source: go-base -->
+
+## Go language baseline
+
+Read [docs/developer/go-baseline.md](docs/developer/go-baseline.md) before changing
+Go source, tests, coverage, deadcode, vulnerability scanning, Docker, Helm, or Go
+workflow machinery. The language variants live under each standard's
+`languages/go.md` path. Keep every Go test in an external `_test` package and never
+introduce `export_test.go`.

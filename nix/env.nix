@@ -11,6 +11,10 @@ with packages;
     pls
     sg
     skopeo
+
+    # ### go-base-dev
+    # #### source: go-base
+    gotestsum
   ];
 
   # ### workspace-lint
@@ -26,6 +30,13 @@ with packages;
     shellcheck
     treefmt
     yq-go
+
+    # ### go-base-lint
+    # #### source: go-base
+    deadcode
+    gofumpt
+    golangci-lint
+    staticcheck
   ];
 
   # ### workspace-main
@@ -45,6 +56,11 @@ with packages;
     shellcheck
     skopeo
     yq-go
+
+    # ### go-base-main
+    # #### source: go-base
+    go
+    govulncheck
   ];
 
   # ### workspace-releaser-bootstrap

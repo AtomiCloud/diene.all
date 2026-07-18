@@ -4,6 +4,9 @@ version: '3'
 
 includes:
   docker: tasks/Taskfile.docker.yaml
+  gotest:
+    taskfile: tasks/Taskfile.test.yaml
+    internal: true
   helm: tasks/Taskfile.helm.yaml
   secret: tasks/Taskfile.secret.yaml
 
@@ -12,6 +15,7 @@ tasks:
     desc: Set up generated workspace assets
     cmds:
       - ./scripts/local/skills-sync.sh
+      - go mod download
 
   lint:
     desc: Run all repository gates
@@ -22,3 +26,84 @@ tasks:
     desc: Synchronize installed diene package skills
     cmds:
       - ./scripts/local/skills-sync.sh
+
+  # ### go-base
+  # #### source: go-base
+  clean:
+    desc: Remove Go build, coverage, and report outputs
+    cmds:
+      - rm -rf dist coverage reports
+
+  build:
+    desc: Build the Go binary
+    cmds:
+      - ./scripts/local/build.sh
+
+  typecheck:
+    desc: Typecheck Go source packages
+    cmds:
+      - ./scripts/local/typecheck.sh
+
+  deadcode:
+    desc: Run strict Go deadcode passes and the LLM-lax report
+    cmds:
+      - ./scripts/local/deadcode.sh strict
+
+  test:
+    desc: Run unit and integration tiers
+    deps: [test:unit, test:int]
+
+  test:unit:
+    desc: Run black-box unit tests
+    cmds:
+      - task: gotest:run
+        vars: { MODE: unit }
+
+  test:int:
+    desc: Run adapter integration tests
+    cmds:
+      - task: gotest:run
+        vars: { MODE: int }
+
+  test:coverage:
+    desc: Run every coverage ledger
+    deps: [test:unit:coverage, test:int:coverage]
+
+  test:unit:coverage:
+    desc: Enforce the unit coverage ledger
+    cmds:
+      - task: gotest:run
+        vars: { MODE: unit, COVERAGE: 'true' }
+
+  test:int:coverage:
+    desc: Enforce the integration coverage ledger
+    cmds:
+      - task: gotest:run
+        vars: { MODE: int, COVERAGE: 'true' }
+
+  test:watch:
+    desc: Re-run unit tests when Go files change
+    cmds:
+      - task: gotest:run
+        vars: { MODE: unit, WATCH: 'true' }
+
+  run:
+    desc: Run the Go composition root in development mode
+    cmds:
+      - go run ./cmd/go-base -- {{.CLI_ARGS}}
+
+  preview:
+    desc: Run the compiled Go artifact
+    deps: [build]
+    cmds:
+      - ./dist/go-base {{.CLI_ARGS}}
+
+  up:
+    desc: Start every local dependency
+    cmds:
+      - ./scripts/local/up.sh
+
+  down:
+    desc: Stop every local dependency
+    cmds:
+      - ./scripts/local/down.sh

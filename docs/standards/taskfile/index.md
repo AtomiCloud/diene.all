@@ -15,7 +15,7 @@ tasks live under `tasks/` and are included by namespace.
 | `pls setup`         | synchronize generated vendored skills    |
 | `pls lint`          | run all pre-commit gates                 |
 | `pls skills:sync`   | rebuild `.claude/skills/vendor/`         |
-| `pls docker:build`  | build the local workspace image          |
+| `pls docker:build`  | build the local Go image                 |
 | `pls docker:run`    | run the local image                      |
 | `pls docker:clean`  | remove the local image                   |
 | `pls helm:deps`     | build chart dependencies                 |

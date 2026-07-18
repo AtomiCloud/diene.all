@@ -20,3 +20,9 @@ probes
 #### source: workspace
 result
 result-*
+
+### go-base-output
+#### source: go-base
+coverage
+dist
+reports

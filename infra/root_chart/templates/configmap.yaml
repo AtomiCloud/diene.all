@@ -1,8 +1,8 @@
-# ### workspace-template
-# #### source: workspace
+# ### go-base-template
+# #### source: go-base
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ .Release.Name }}-workspace
+  name: {{ .Release.Name }}-go-base
 data:
   message: {{ .Values.message | quote }}

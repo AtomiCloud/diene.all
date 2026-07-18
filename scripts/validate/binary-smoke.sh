@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-for binary in actionlint bash docker git gomplate hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pls pre-commit rg sg shellcheck skopeo task treefmt yq; do
+for binary in actionlint bash deadcode docker git go gofumpt golangci-lint gomplate gotestsum govulncheck hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pls pre-commit rg sg shellcheck skopeo staticcheck task treefmt yq; do
   command -v "${binary}" >/dev/null || {
     echo "❌ binary '${binary}' is missing" >&2
     exit 1
@@ -24,6 +24,30 @@ docker info --format '{{.ServerVersion}}' >/dev/null
 git --version >/dev/null
 git rev-parse --is-inside-work-tree >/dev/null
 
+# ### go-base
+# #### source: go-base
+go version >/dev/null
+go list ./... >/dev/null
+
+gofumpt -version >/dev/null
+printf '%s\n' 'package smoke' 'func Value( )int{return 1}' >"${tmp}/smoke.go"
+gofumpt -w "${tmp}/smoke.go"
+rg -q 'func Value\(\) int' "${tmp}/smoke.go"
+
+golangci-lint version >/dev/null
+golangci-lint run --timeout 5m ./lib/...
+
+gotestsum --version >/dev/null
+gotestsum --format pkgname -- --run '^$' ./lib/... >/dev/null
+
+govulncheck -version >/dev/null
+GOVULNCHECK_TARGET=./lib/... ./scripts/local/vuln.sh >/dev/null
+
+deadcode -json -test ./... >/dev/null
+
+staticcheck -version >/dev/null
+staticcheck -tests=true ./...
+
 gomplate --version >/dev/null
 [ "$(gomplate -i '{{ add 1 1 }}')" != "2" ] && echo "❌ gomplate failed a real template" >&2 && exit 1
 
@@ -34,7 +58,7 @@ helm-docs --version >/dev/null
 helm-docs --dry-run --chart-search-root infra/root_chart >/dev/null 2>&1
 
 helm version --short >/dev/null
-helm template diene-workspace infra/root_chart | kubeconform -strict -summary >/dev/null
+helm template diene-go-base infra/root_chart | kubeconform -strict -summary >/dev/null
 
 infisical --version >/dev/null
 git -C "${tmp}" init -q
@@ -69,7 +93,7 @@ pre-commit --version >/dev/null
 pre-commit validate-config .pre-commit-config.yaml
 
 rg --version >/dev/null
-rg -q 'Diene workspace baseline' README.md
+rg -q 'Diene Go language base' README.md
 
 sg --version >/dev/null
 printf '%s\n' '[general]' 'contrib=CT1' 'ignore=B6' '' '[contrib-title-conventional-commits]' 'types = amend' >"${tmp}/.gitlint"
