@@ -9,6 +9,9 @@ tasks:
   setup:
     desc: Set up generated workspace assets
     cmds:
+      # ### flutter-base-setup
+      # #### source: flutter-base
+      - flutter pub get
       - ./scripts/local/skills-sync.sh
 
   lint:
@@ -20,3 +23,45 @@ tasks:
     desc: Synchronize installed diene package skills
     cmds:
       - ./scripts/local/skills-sync.sh
+
+  # ### flutter-base-tasks
+  # #### source: flutter-base
+  mobile:analyze:
+    desc: Analyze Flutter source and tests
+    cmds:
+      - flutter analyze
+
+  mobile:test:
+    desc: Run Flutter unit and widget tests
+    cmds:
+      - flutter test
+
+  mobile:build-flavors:
+    desc: Build all four Android flavor smoke artifacts
+    cmds:
+      - ./scripts/validate/flavor-builds.sh
+
+  mobile:generate-sdk:
+    desc: Regenerate the typed OA3 client
+    cmds:
+      - ./scripts/local/generate-sdk.sh
+
+  mobile:generate-translations:
+    desc: Regenerate typed Slang translations
+    cmds:
+      - ./scripts/local/generate-translations.sh
+
+  mobile:generate-config:
+    desc: Regenerate the Flutter config schema
+    cmds:
+      - ./scripts/local/generate-config-schema.sh
+
+  mobile:doctor-signing:
+    desc: Run locally provable signing and stamp doctors
+    cmds:
+      - ./scripts/validate/signing-doctors.sh
+
+  mobile:register-apple:
+    desc: Register Apple identifiers, groups, capabilities, and app records
+    cmds:
+      - ./scripts/local/register-apple.sh

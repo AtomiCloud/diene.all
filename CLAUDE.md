@@ -46,6 +46,27 @@ See [docs/standards/shell-scripts/index.md](docs/standards/shell-scripts/index.m
 
 See [docs/standards/taskfile/index.md](docs/standards/taskfile/index.md).
 
+<!-- ### flutter-base -->
+<!-- #### source: flutter-base -->
+
+## Flutter application standards
+
+- [Flutter baseline](docs/developer/flutter-baseline.md)
+- [Frontend UX](docs/standards/frontend-ux/index.md)
+- [Frontend UI trend](docs/standards/frontend-ui-trend/index.md)
+- [Search bar](docs/standards/search-bar/index.md)
+- [Screen](docs/standards/screen/index.md)
+- [Protected screen](docs/standards/protected-screen/index.md)
+- [Onboarding-gated app](docs/standards/onboarding-gated-app/index.md)
+- [Form](docs/standards/form/index.md)
+- [Product identity](docs/domain/identity.md)
+- [Mobile store Layer C runbook](docs/developer/mobile-store-runbook.md)
+- [Template maintenance boundary](docs/developer/template-maintenance.md)
+
+Use the thin skills `frontend-ux-check`, `vision-loop`, `write-search-bar`,
+`write-screen`, `write-protected-screen`, `write-onboarding-gated-app`, and
+`write-form` when their surfaces are in scope.
+
 <!-- ### shared -->
 <!-- #### source: shared -->
 

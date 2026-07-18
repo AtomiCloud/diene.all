@@ -19,7 +19,17 @@ if [ "${mode}" = "wiring" ]; then
   for orchestrator in .github/workflows/ci.yaml .github/workflows/cd.yaml .github/workflows/release.yaml; do
     [ -f "${orchestrator}" ] || continue
     while IFS=$'\t' read -r job reusable; do
-      [ -z "${reusable}" ] && echo "❌ '${orchestrator}' job '${job}' must call a reusable workflow" >&2 && exit 1
+      if [ -z "${reusable}" ]; then
+        if [ "${orchestrator}" = ".github/workflows/cd.yaml" ] && [ "${job}" = "setup" ]; then
+          rg -q 'scripts/ci/cd-matrix.sh' "${orchestrator}" || {
+            echo "❌ CD setup job must call scripts/ci/cd-matrix.sh" >&2
+            exit 1
+          }
+          continue
+        fi
+        echo "❌ '${orchestrator}' job '${job}' must call a reusable workflow" >&2
+        exit 1
+      fi
       [[ ${reusable} == ./.github/workflows/* ]] || {
         echo "❌ '${orchestrator}' job '${job}' must call a repository-local reusable workflow" >&2
         exit 1

@@ -2,6 +2,11 @@
   "schemaVersion": 1,
   "actions": {
     "AtomiCloud/actions.setup-nix": "trusted",
+    "AtomiCloud/actions.cache-gradle": "trusted",
+    "actions/download-artifact": "trusted",
+    "actions/upload-artifact": "trusted",
+    "namespacelabs/nscloud-cache-action": "trusted",
+    "r0adkll/upload-google-play": "non-trusted",
     "upsidr/merge-gatekeeper": "non-trusted"
   }
 }

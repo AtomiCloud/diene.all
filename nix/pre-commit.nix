@@ -9,12 +9,16 @@ let
     name = "workspace-validator-runtime";
     paths = [
       packages.bash
+      packages.bun
+      packages.flutter
       packages.git
       packages.jq
       packages.ripgrep
       packages.yq-go
       pkgs.coreutils
+      pkgs.diffutils
       pkgs.findutils
+      pkgs.gawk
       pkgs.gnugrep
       pkgs.gnused
     ];
@@ -187,6 +191,143 @@ pre-commit-lib.run {
       name = "Workflow job-to-script wiring";
       entry = validator "scripts/validate/workflows.sh wiring";
       files = "^\\.github/workflows/.*\\.ya?ml$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    # ### flutter-base-hooks
+    # #### source: flutter-base
+    a-flutter-analyze = {
+      enable = true;
+      name = "Flutter analyze";
+      entry = "${packages.flutter}/bin/flutter analyze";
+      files = "^(lib|test)/.*[.]dart$|^(pubspec|analysis_options)[.]yaml$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-flutter-test = {
+      enable = true;
+      name = "Flutter unit and widget tests";
+      entry = "${packages.flutter}/bin/flutter test";
+      files = "^(lib|test)/.*[.]dart$|^pubspec[.]yaml$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-flutter-lpsm = {
+      enable = true;
+      name = "Flutter LPSM tokenization";
+      entry = validator "scripts/ci/lpsm-lint.sh";
+      files = "^(lpsm[.]yaml|pubspec[.]yaml|config/.*[.]yaml|android/.*|ios/.*)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-flutter-config = {
+      enable = true;
+      name = "Flutter config layering";
+      entry = validator "scripts/validate/config.sh";
+      files = "^(config/.*[.]yaml|lib/config/.*[.]dart|test/config_test[.]dart)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-flutter-config-schema = {
+      enable = true;
+      name = "Flutter config schema freshness";
+      entry = validator "scripts/validate/generated.sh config";
+      files = "^(config/schema[.]json|tool/generate-config-schema[.]ts)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-flutter-sdk-freshness = {
+      enable = true;
+      name = "Flutter OA3 SDK freshness";
+      entry = validator "scripts/validate/generated.sh sdk";
+      files = "^(openapi/.*|swagger_parser[.]yaml|lib/generated/.*)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-flutter-slang-freshness = {
+      enable = true;
+      name = "Flutter Slang freshness";
+      entry = validator "scripts/validate/generated.sh translations";
+      files = "^(slang[.]yaml|lib/i18n/.*)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-flutter-translation-compile = {
+      enable = true;
+      name = "Flutter translation compile";
+      entry = validator "scripts/validate/translations-compile.sh";
+      files = "^lib/i18n/.*";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-flutter-rebrand = {
+      enable = true;
+      name = "Flutter rebrand guard";
+      entry = validator "scripts/validate/rebrand.sh";
+      files = "^((lib|config|android|ios|assets)/.*|pubspec[.]yaml|lpsm[.]yaml)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-flutter-landscape-policy = {
+      enable = true;
+      name = "Flutter build-time landscape policy";
+      entry = validator "scripts/validate/landscape-policy.sh";
+      files = "^lib/.*[.]dart$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-flutter-build-numbers = {
+      enable = true;
+      name = "Flutter store build-number guards";
+      entry = validator "scripts/validate/build-numbers.sh";
+      files = "^scripts/ci/lib-(ios|android)[.]sh$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-flutter-signing-doctors = {
+      enable = true;
+      name = "Flutter signing and stamp doctors";
+      entry = validator "scripts/validate/signing-doctors.sh";
+      files = "^(lpsm[.]yaml|ios/.*|scripts/ci/(doctor-ios|stamp-ios|stamp-android|ios-signing-targets)[.]sh)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-flutter-mobile-workflows = {
+      enable = true;
+      name = "Flutter mobile workflow wiring";
+      entry = validator "scripts/validate/mobile-workflows.sh";
+      files = "^([.]github/workflows/.*[.]ya?ml|scripts/ci/.*[.]sh)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-flutter-cd-matrix = {
+      enable = true;
+      name = "Flutter CD matrix shape";
+      entry = validator "scripts/validate/cd-matrix.sh";
+      files = "^(lpsm[.]yaml|scripts/ci/cd-matrix[.]sh|[.]github/workflows/cd[.]yaml)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-flutter-release-pubspec = {
+      enable = true;
+      name = "Flutter release pubspec stamping";
+      entry = validator "scripts/validate/release-pubspec.sh";
+      files = "^(scripts/release/bump[.]sh|atomi_release[.]yaml|pubspec[.]yaml)$";
       pass_filenames = false;
       language = "system";
     };
