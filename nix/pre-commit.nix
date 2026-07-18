@@ -22,6 +22,52 @@ let
   validator =
     command:
     "${packages.bash}/bin/bash -c 'export PATH=${validator-runtime}/bin; exec ${packages.bash}/bin/bash ${command}'";
+  dotnetlint-dependencies =
+    (pkgs.buildDotnetModule {
+      pname = "dotnet-base-dependencies";
+      version = "0";
+      src = ../.;
+      projectFile = "dotnet-base.slnx";
+      nugetDeps = ./dotnet-deps.json;
+      dotnet-sdk = packages.dotnet-sdk_10;
+    }).nugetDeps;
+  dotnetlint-nuget-packages = pkgs.buildEnv {
+    name = "dotnetlint-nuget-packages";
+    paths = dotnetlint-dependencies;
+    pathsToLink = [ "/share/nuget/packages" ];
+  };
+  dotnetlint-empty-source = pkgs.runCommand "dotnetlint-empty-nuget-source" { } ''
+    mkdir -p "$out"
+  '';
+  # Upstream dotnetlint executes its source script with /usr/bin/env, which is
+  # unavailable in pure Nix builds. Preserve that script while patching its
+  # shebang until the package does so itself.
+  dotnetlint-pure = pkgs.runCommand "dotnetlint-pure" { } ''
+    mkdir -p "$out/bin" "$out/libexec"
+    wrapper=${packages.dotnetlint}/bin/dotnetlint
+    script=$(awk 'NF { line = $0 } END { print line }' "$wrapper")
+    cp "$script" "$out/libexec/dotnetlint"
+    patchShebangs "$out/libexec/dotnetlint"
+    substitute "$wrapper" "$out/bin/dotnetlint" \
+      --replace-fail "$script" "$out/libexec/dotnetlint"
+    chmod +x "$out/bin/dotnetlint"
+  '';
+  dotnetlint-precommit = pkgs.writeShellApplication {
+    name = "dotnetlint-precommit";
+    runtimeInputs = [
+      packages.dotnet-sdk_10
+      dotnetlint-pure
+    ];
+    text = ''
+      dotnet restore dotnet-base.slnx \
+        --no-cache \
+        --packages ${dotnetlint-nuget-packages}/share/nuget/packages \
+        --source ${dotnetlint-empty-source} \
+        -p:NuGetAudit=false \
+        >/dev/null
+      exec dotnetlint
+    '';
+  };
 in
 pre-commit-lib.run {
   src = ../.;
@@ -206,6 +252,35 @@ pre-commit-lib.run {
       entry = validator "scripts/validate/workflows.sh wiring";
       files = "^\\.github/workflows/.*\\.ya?ml$";
       pass_filenames = false;
+      language = "system";
+    };
+
+    # ### dotnet-base-hooks
+    # #### source: dotnet-base
+    dotnetlint = {
+      enable = true;
+      name = ".NET lint";
+      entry = "${dotnetlint-precommit}/bin/dotnetlint-precommit";
+      files = "^(.*\\.cs|.*\\.csproj|Directory\\.Build\\.props|Directory\\.Packages\\.props|dotnet-base\\.slnx|global\\.json)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-dotnet-release-types = {
+      enable = true;
+      name = ".NET release type vocabulary";
+      entry = validator "scripts/validate/dotnet-release.sh";
+      files = "^(atomi_release\\.yaml|\\.gitlint)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    gitlint = {
+      enable = true;
+      name = "Git commit message lint";
+      entry = "${packages.gitlint}/bin/gitlint --staged --msg-filename";
+      stages = [ "commit-msg" ];
+      pass_filenames = true;
       language = "system";
     };
 

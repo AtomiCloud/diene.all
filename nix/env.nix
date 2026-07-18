@@ -17,6 +17,14 @@ with packages;
   # #### source: workspace
   lint = [
     actionlint
+    # ### dotnet-base-lint
+    # #### source: dotnet-base
+    dn-inspect
+    dotnetlint
+    gitlint
+
+    # ### workspace-lint-packages
+    # #### source: workspace
     infralint
     kubeconform
     kubernetes-helm
@@ -33,6 +41,12 @@ with packages;
   main = [
     cyanprint
     docker-client
+    # ### dotnet-base-main
+    # #### source: dotnet-base
+    dotnet-sdk_10
+
+    # ### workspace-main-packages
+    # #### source: workspace
     git
     go-task
     infisical

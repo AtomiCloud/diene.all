@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-for binary in actionlint bash docker git gomplate hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pls pre-commit rg sg shellcheck skopeo task treefmt yq; do
+for binary in actionlint bash dn-inspect docker dotnet dotnetlint git gitlint gomplate hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pls pre-commit rg sg shellcheck skopeo task treefmt yq; do
   command -v "${binary}" >/dev/null || {
     echo "❌ binary '${binary}' is missing" >&2
     exit 1
@@ -21,8 +21,19 @@ bash --version >/dev/null
 docker --version >/dev/null
 docker info --format '{{.ServerVersion}}' >/dev/null
 
+dn-inspect --version >/dev/null
+
+dotnet --version >/dev/null
+dotnet sln dotnet-base.slnx list | rg -q 'App/App.csproj'
+
+dotnetlint --version >/dev/null
+
 git --version >/dev/null
 git rev-parse --is-inside-work-tree >/dev/null
+
+gitlint --version >/dev/null
+printf '%s\n' 'feat: binary smoke' >"${tmp}/commit-message"
+gitlint --msg-filename "${tmp}/commit-message"
 
 gomplate --version >/dev/null
 [ "$(gomplate -i '{{ add 1 1 }}')" != "2" ] && echo "❌ gomplate failed a real template" >&2 && exit 1
@@ -34,7 +45,7 @@ helm-docs --version >/dev/null
 helm-docs --dry-run --chart-search-root infra/root_chart >/dev/null 2>&1
 
 helm version --short >/dev/null
-helm template diene-workspace infra/root_chart | kubeconform -strict -summary >/dev/null
+helm template dotnet-base infra/root_chart | kubeconform -strict -summary >/dev/null
 
 infisical --version >/dev/null
 git -C "${tmp}" init -q
@@ -69,7 +80,7 @@ pre-commit --version >/dev/null
 pre-commit validate-config .pre-commit-config.yaml
 
 rg --version >/dev/null
-rg -q 'Diene workspace baseline' README.md
+rg -q 'Diene .NET base template' README.md
 
 sg --version >/dev/null
 printf '%s\n' '[general]' 'contrib=CT1' 'ignore=B6' '' '[contrib-title-conventional-commits]' 'types = amend' >"${tmp}/.gitlint"

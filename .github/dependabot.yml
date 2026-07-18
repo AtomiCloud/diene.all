@@ -14,3 +14,7 @@ updates:
     directory: /infra/root_chart
     schedule:
       interval: daily
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: daily

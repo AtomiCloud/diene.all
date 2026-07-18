@@ -3,20 +3,20 @@
 version: '3'
 
 vars:
-  IMAGE: diene-workspace:local
+  IMAGE: diene-dotnet-base:local
 
 tasks:
   build:
-    desc: Build the local workspace image
+    desc: Build the local .NET base image
     cmds:
       - docker build -f infra/Dockerfile -t {{.IMAGE}}{{if .CLI_ARGS}}-{{.CLI_ARGS}}{{end}} .
 
   run:
-    desc: Run the local workspace image
+    desc: Run the local .NET base image
     cmds:
       - docker run --rm {{.IMAGE}}{{if .CLI_ARGS}}-{{.CLI_ARGS}}{{end}}
 
   clean:
-    desc: Remove the local workspace image
+    desc: Remove the local .NET base image
     cmds:
       - docker image rm {{.IMAGE}}{{if .CLI_ARGS}}-{{.CLI_ARGS}}{{end}} || true

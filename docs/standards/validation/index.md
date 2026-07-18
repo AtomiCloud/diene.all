@@ -231,6 +231,8 @@ Return meaningful, actionable errors:
 Language bases add their implementation guides in their own branch deltas. This
 shared standard defines only the language-agnostic contract.
 
+- [C#/.NET](languages/csharp.md)
+
 ## Related Articles
 
 - [Three-Layer Architecture](../three-layer-architecture/index.md) — Where validation happens

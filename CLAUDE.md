@@ -79,3 +79,26 @@ See [docs/standards/taskfile/index.md](docs/standards/taskfile/index.md).
 Domain-specific architecture and behavior belongs under
 [docs/domain/](docs/domain/README.md). The `docs/standards/contracts/` slot is
 reserved for the separately owned C0 contracts standard.
+
+<!-- ### dotnet-base -->
+<!-- #### source: dotnet-base -->
+
+## .NET base template
+
+Read [the .NET baseline](docs/developer/dotnet-baseline.md) and use `pls` for
+setup, build, run, test, coverage, dead-code review, Docker, and Helm tasks.
+
+Language variants:
+
+- [C# date and time](docs/standards/datetime/languages/csharp.md)
+- [C# domain-driven design](docs/standards/domain-driven-design/languages/csharp.md)
+- [C# functional practices](docs/standards/functional-practices/languages/csharp.md)
+- [C# SOLID principles](docs/standards/solid-principles/languages/csharp.md)
+- [C# stateless OOP and DI](docs/standards/stateless-oop-di/languages/csharp.md)
+- [C# testing](docs/standards/testing/languages/csharp.md)
+- [C# utilities](docs/standards/utilities/languages/csharp.md)
+- [C# validation](docs/standards/validation/languages/csharp.md)
+
+Keep `dotnet-base.slnx`, `.config/dotnet-base.test.yaml`, and
+`AtomiCloud.DotnetBase.*` root namespaces base-named. Observability is absent on
+this branch.

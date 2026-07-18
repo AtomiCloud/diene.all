@@ -19,7 +19,7 @@ export default {
       expectedImpact: [],
       async run(repo: any) {
         await repo.patch('infra/root_chart/Chart.yaml', {
-          find: 'description: Minimal workspace baseline chart',
+          find: 'description: Helm chart for diene/dotnet-base',
           replace: 'description: Changed probe description',
         });
         await expectRed(repo, 'nix develop .#ci -c pre-commit run a-helm-docs --all-files', 'hook-helm-docs');

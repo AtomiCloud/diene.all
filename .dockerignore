@@ -20,3 +20,9 @@ probes
 #### source: workspace
 result
 result-*
+
+### dotnet-base-output
+#### source: dotnet-base
+**/bin
+**/obj
+TestResults

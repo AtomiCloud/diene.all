@@ -23,6 +23,7 @@ export default {
       expectedImpact: [],
       async run(repo: any) {
         await repo.patch('atomi_release.yaml', { find: '  - type: chore', replace: '  - type: chores' });
+        await repo.patch('.gitlint', { find: ',chore,', replace: ',chores,' });
         await expectRed(
           repo,
           'nix develop .#ci -c ./scripts/validate/release-config.sh types',

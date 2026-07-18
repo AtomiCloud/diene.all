@@ -15,6 +15,42 @@ jobs:
     uses: ./.github/workflows/⚡reusable-precommit.yaml
     secrets: inherit
 
+  # ### dotnet-base-ci
+  # #### source: dotnet-base
+  deadcode:
+    name: Dead Code
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-dead-code.yaml
+    secrets: inherit
+
+  unit:
+    name: Unit Tests
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-test.yaml
+    secrets: inherit
+    with:
+      mode: unit
+      name: Unit
+
+  int:
+    name: Integration Tests
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-test.yaml
+    secrets: inherit
+    with:
+      mode: int
+      name: Integration
+
+  build:
+    name: Build
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-build.yaml
+    secrets: inherit
+
   docker:
     name: Docker Image
     permissions:
@@ -24,7 +60,7 @@ jobs:
     uses: ./.github/workflows/⚡reusable-docker.yaml
     secrets: inherit
     with:
-      image_name: diene-workspace
+      image_name: diene-dotnet-base
       dockerfile: ./infra/Dockerfile
 
   helm:
