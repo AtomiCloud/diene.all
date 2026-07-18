@@ -12,6 +12,9 @@ with packages;
 
   lint = [
     actionlint
+    dn-inspect
+    dotnetlint
+    gitlint
     infralint
     kubeconform
     kyverno
@@ -23,6 +26,8 @@ with packages;
 
   main = [
     cyanprint
+    docker-client
+    dotnet-sdk_10
     git
     go-task
     infisical

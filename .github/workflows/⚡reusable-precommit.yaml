@@ -12,5 +12,6 @@ jobs:
       - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
     steps:
       - uses: AtomiCloud/actions.setup-nix@v3
+      - uses: AtomiCloud/actions.cache-nuget@v1
       - name: Run pre-commit
         run: nix develop .#ci -c ./scripts/ci/pre-commit.sh

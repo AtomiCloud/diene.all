@@ -214,5 +214,90 @@
     "template": "diene/shared",
     "name": "thin-skills",
     "class": "presence"
+  },
+  {
+    "template": "diene/dotnet-base",
+    "name": "dotnet-unit-tests",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-base",
+    "name": "dotnet-integration-tests",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-base",
+    "name": "dotnet-analyzers",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-base",
+    "name": "hook-dotnetlint",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-base",
+    "name": "dotnet-unit-coverage",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-base",
+    "name": "dotnet-integration-coverage",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-base",
+    "name": "dotnet-multi-project-coverage",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-base",
+    "name": "dotnet-deadcode-all",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-base",
+    "name": "dotnet-deadcode-production",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-base",
+    "name": "dotnet-deadcode-llm",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/dotnet-base",
+    "name": "dotnet-build",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/dotnet-base",
+    "name": "dotnet-dev",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/dotnet-base",
+    "name": "dotnet-run",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/dotnet-base",
+    "name": "dotnet-preview",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/dotnet-base",
+    "name": "dotnet-codecov-config",
+    "class": "presence"
+  },
+  {
+    "template": "diene/dotnet-base",
+    "name": "hook-dotnet-release-types",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-base",
+    "name": "hook-gitlint",
+    "class": "gate"
   }
 ]

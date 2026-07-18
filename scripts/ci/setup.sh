@@ -13,5 +13,6 @@ if compgen -G '*.slnx' >/dev/null; then
 fi
 
 ./scripts/local/skills-sync.sh
+./scripts/local/setup.sh
 
 echo "✅ Repository setup complete"
