@@ -10,3 +10,7 @@ updates:
     directory: /infra/root_chart
     schedule:
       interval: daily
+  - package-ecosystem: helm
+    directory: /chart
+    schedule:
+      interval: daily

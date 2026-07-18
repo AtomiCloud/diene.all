@@ -8,14 +8,12 @@ on:
       - 'v*.*.*'
 
 jobs:
-  helm:
-    name: Helm Chart
+  chart:
+    name: OCI Chart
     permissions:
       contents: read
-      id-token: write
       packages: write
-    uses: ./.github/workflows/⚡reusable-helm.yaml
+    uses: ./.github/workflows/⚡reusable-chart-publish.yaml
     secrets: inherit
     with:
-      chart_path: ./infra/root_chart
       version: ${{ github.ref_name }}

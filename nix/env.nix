@@ -5,7 +5,9 @@ with packages;
   # #### source: workspace
   dev = [
     git
+    gitlint
     go-task
+    helm-schema
     infisical
     jq
     pls
@@ -17,6 +19,8 @@ with packages;
   # #### source: workspace
   lint = [
     actionlint
+    gitlint
+    helm-schema
     infralint
     kubeconform
     kubernetes-helm

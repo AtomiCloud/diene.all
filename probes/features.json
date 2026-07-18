@@ -229,5 +229,130 @@
     "template": "diene/shared",
     "name": "docs-prettier",
     "class": "gate"
+  },
+  {
+    "template": "diene/helm-wrapper",
+    "name": "wrapper-helm-lint",
+    "class": "gate"
+  },
+  {
+    "template": "diene/helm-wrapper",
+    "name": "wrapper-helm-render",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/helm-wrapper",
+    "name": "wrapper-values-schema",
+    "class": "gate"
+  },
+  {
+    "template": "diene/helm-wrapper",
+    "name": "wrapper-schema-drift",
+    "class": "gate"
+  },
+  {
+    "template": "diene/helm-wrapper",
+    "name": "wrapper-lpsm-labels",
+    "class": "gate"
+  },
+  {
+    "template": "diene/helm-wrapper",
+    "name": "wrapper-rendered-manifests",
+    "class": "gate"
+  },
+  {
+    "template": "diene/helm-wrapper",
+    "name": "wrapper-reloader",
+    "class": "gate"
+  },
+  {
+    "template": "diene/helm-wrapper",
+    "name": "wrapper-config-vendoring",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/helm-wrapper",
+    "name": "wrapper-dependency-update",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/helm-wrapper",
+    "name": "wrapper-upstream-latest",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/helm-wrapper",
+    "name": "wrapper-publish-git",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/helm-wrapper",
+    "name": "wrapper-publish-oci",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/helm-wrapper",
+    "name": "wrapper-version-guard",
+    "class": "gate"
+  },
+  {
+    "template": "diene/helm-wrapper",
+    "name": "wrapper-k3d-install",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/helm-wrapper",
+    "name": "wrapper-external-secret",
+    "class": "gate"
+  },
+  {
+    "template": "diene/helm-wrapper",
+    "name": "wrapper-cluster-task-surface",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/helm-wrapper",
+    "name": "wrapper-gitlint-types",
+    "class": "gate"
+  },
+  {
+    "template": "diene/helm-wrapper",
+    "name": "wrapper-fullname",
+    "class": "gate"
+  },
+  {
+    "template": "diene/helm-wrapper",
+    "name": "wrapper-primordial-crs",
+    "class": "gate"
+  },
+  {
+    "template": "diene/helm-wrapper",
+    "name": "wrapper-lpsm-hostnames",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/helm-wrapper",
+    "name": "wrapper-loadbalancer-modes",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/helm-wrapper",
+    "name": "wrapper-gateway-webhook-scaffold",
+    "class": "presence"
+  },
+  {
+    "template": "diene/helm-wrapper",
+    "name": "wrapper-tokenization-surface",
+    "class": "presence"
+  },
+  {
+    "template": "diene/helm-wrapper",
+    "name": "wrapper-hook-helm-lint",
+    "class": "gate"
+  },
+  {
+    "template": "diene/helm-wrapper",
+    "name": "wrapper-hook-helm-docs",
+    "class": "gate"
   }
 ]

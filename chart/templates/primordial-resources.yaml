@@ -1,0 +1,92 @@
+{{- if .Values.primordial.enabled -}}
+{{- include "diene-helm-wrapper.validateServiceTree" . -}}
+apiVersion: {{ .Values.primordial.apiVersions.fleet }}
+kind: PlatformDependency
+metadata:
+  name: {{ include "diene-helm-wrapper.resourceName" (dict "root" . "token" "dependencies") }}
+  labels:
+    {{- include "diene-helm-wrapper.labels" . | nindent 4 }}
+  annotations:
+    {{- include "diene-helm-wrapper.annotations" . | nindent 4 }}
+spec:
+  platform: {{ .Release.Namespace }}
+  landscape: {{ .Values.primordial.targetLandscape }}
+  placement:
+    preferredHost: {{ .Values.primordial.placement.preferredHost }}
+  {{- toYaml .Values.primordial.platformDependency.modules | nindent 2 }}
+  deletionPolicy:
+    retainSecret: 168h
+---
+{{- if .Values.primordial.virtualLandscapeService.enabled }}
+apiVersion: {{ .Values.primordial.apiVersions.fleet }}
+kind: VirtualLandscapeService
+metadata:
+  name: {{ include "diene-helm-wrapper.resourceName" (dict "root" . "token" "vls") }}
+  labels:
+    {{- include "diene-helm-wrapper.labels" . | nindent 4 }}
+  annotations:
+    {{- include "diene-helm-wrapper.annotations" . | nindent 4 }}
+spec:
+  platform: {{ .Release.Namespace }}
+  vlandscape: {{ .Values.primordial.vlandscape }}
+  service: {{ .Values.serviceTree.service }}
+  module: {{ .Values.serviceTree.module }}
+  landscape: {{ .Values.primordial.targetLandscape }}
+  serve: {{ .Values.primordial.virtualLandscapeService.serve }}
+---
+{{- end }}
+{{- if .Values.primordial.logtoApp.enabled }}
+apiVersion: {{ .Values.primordial.apiVersions.identity }}
+kind: LogtoApp
+metadata:
+  name: {{ include "diene-helm-wrapper.resourceName" (dict "root" . "token" "identity") }}
+  labels:
+    {{- include "diene-helm-wrapper.labels" . | nindent 4 }}
+  annotations:
+    {{- include "diene-helm-wrapper.annotations" . | nindent 4 }}
+spec:
+  identityRef:
+    platform: {{ .Release.Namespace }}
+    vlandscape: {{ .Values.primordial.vlandscape }}
+  paths:
+    {{- toYaml .Values.primordial.logtoApp.paths | nindent 4 }}
+  extraRedirectUris:
+    {{- toYaml .Values.primordial.logtoApp.extraRedirectUris | nindent 4 }}
+  resourceRefs:
+    {{- toYaml .Values.primordial.logtoApp.resourceRefs | nindent 4 }}
+---
+{{- end }}
+{{- if .Values.primordial.problem.enabled }}
+apiVersion: {{ .Values.primordial.apiVersions.fleet }}
+kind: Problem
+metadata:
+  name: {{ include "diene-helm-wrapper.resourceName" (dict "root" . "token" "problems") }}
+  labels:
+    {{- include "diene-helm-wrapper.labels" . | nindent 4 }}
+  annotations:
+    {{- include "diene-helm-wrapper.annotations" . | nindent 4 }}
+spec:
+  platform: {{ .Release.Namespace }}
+  service: {{ .Values.serviceTree.service }}
+  landscape: {{ .Values.primordial.targetLandscape }}
+  version: {{ .Values.primordial.problem.version | quote }}
+  problems:
+    {{- toYaml .Values.primordial.problem.entries | nindent 4 }}
+---
+{{- end }}
+{{- if .Values.primordial.cloudflareDeploy.enabled }}
+apiVersion: {{ .Values.primordial.apiVersions.edge }}
+kind: CloudflareDeploy
+metadata:
+  name: {{ include "diene-helm-wrapper.resourceName" (dict "root" . "token" "edge") }}
+  labels:
+    {{- include "diene-helm-wrapper.labels" . | nindent 4 }}
+  annotations:
+    {{- include "diene-helm-wrapper.annotations" . | nindent 4 }}
+spec:
+  scriptName: {{ .Values.primordial.cloudflareDeploy.scriptName }}
+  desiredVersionFrom:
+    tag: {{ .Values.primordial.cloudflareDeploy.tag | quote }}
+  pin: {{ .Values.primordial.cloudflareDeploy.pin }}
+{{- end }}
+{{- end }}

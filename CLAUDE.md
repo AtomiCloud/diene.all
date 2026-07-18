@@ -75,3 +75,10 @@ See [docs/standards/taskfile/index.md](docs/standards/taskfile/index.md).
 Domain-specific architecture and behavior belongs under
 [docs/domain/](docs/domain/README.md). The `docs/standards/contracts/` slot is
 reserved for the separately owned C0 contracts standard.
+
+<!-- ### helm-wrapper -->
+<!-- #### source: helm-wrapper -->
+
+## Helm wrapper sample
+
+Read [docs/developer/helm-wrapper-baseline.md](docs/developer/helm-wrapper-baseline.md) before changing `chart/`, the stacked values, CR/LPSM helpers, provider LoadBalancer annotations, config vendoring, or chart publishing.
