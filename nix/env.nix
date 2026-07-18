@@ -31,6 +31,9 @@ with packages;
   # ### workspace-main
   # #### source: workspace
   main = [
+    # ### bun-base-main
+    # #### source: bun-base
+    bun
     cyanprint
     docker-client
     git

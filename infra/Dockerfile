@@ -1,13 +1,15 @@
-# ### workspace-dockerfile
-# #### source: workspace
-FROM alpine:3.21 AS build
+# ### bun-base-dockerfile
+# #### source: bun-base
+FROM oven/bun:1.3.13-alpine AS build
 WORKDIR /app
-COPY . .
-RUN printf 'diene workspace\n' > /app/message.txt
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile
+COPY tsconfig.json ./
+COPY src ./src
+RUN bun build ./src/index.ts --outdir ./dist --target bun
 
-FROM alpine:3.21 AS runtime
-RUN addgroup -S app && adduser -S -G app app
+FROM oven/bun:1.3.13-alpine AS runtime
 WORKDIR /app
-COPY --from=build --chown=app:app /app/message.txt ./message.txt
-USER app
-CMD ["cat", "/app/message.txt"]
+COPY --from=build /app/dist ./dist
+USER bun
+ENTRYPOINT ["bun", "dist/index.js"]

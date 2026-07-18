@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-for binary in actionlint bash docker git gomplate hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pls pre-commit rg sg shellcheck skopeo task treefmt yq; do
+if [ -f package.json ]; then
+  ./scripts/local/setup.sh
+  export PATH="${PWD}/node_modules/.bin:${PATH}"
+fi
+
+binaries=(actionlint bash cyanprint docker git gomplate hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pls pre-commit rg sg shellcheck skopeo task treefmt yq)
+[ -f package.json ] && binaries+=(bun biome knip tsc)
+
+for binary in "${binaries[@]}"; do
   command -v "${binary}" >/dev/null || {
     echo "❌ binary '${binary}' is missing" >&2
     exit 1
@@ -17,6 +25,39 @@ actionlint "${tmp}/workflow.yaml"
 
 bash --version >/dev/null
 [ "$(bash -c 'printf smoke')" != "smoke" ] && echo "❌ bash failed a real invocation" >&2 && exit 1
+
+cyanprint --version | rg -qx 'cyanprint 4.8.0'
+mkdir -p "${tmp}/cyanprint-cache"
+cyanprint cache inspect --cache-dir "${tmp}/cyanprint-cache" --json | jq -e '.status == "done" and .action == "inspect"' >/dev/null
+
+if [ -f package.json ]; then
+  bun --version >/dev/null
+  [ "$(bun -e 'process.stdout.write(String(1 + 1))')" != "2" ] && echo "❌ bun failed a real invocation" >&2 && exit 1
+
+  biome --version >/dev/null
+  mkdir -p "${tmp}/biome"
+  printf '%s\n' \
+    '{' \
+    '  "vcs": {"enabled": false},' \
+    '  "formatter": {"enabled": false},' \
+    '  "linter": {"enabled": true, "rules": {"recommended": true}}' \
+    '}' >"${tmp}/biome/biome.json"
+  printf '%s\n' 'export const smoke = 1;' >"${tmp}/biome/smoke.ts"
+  biome lint --config-path="${tmp}/biome/biome.json" "${tmp}/biome/smoke.ts" >/dev/null
+
+  knip --version >/dev/null
+  mkdir -p "${tmp}/knip/src"
+  printf '%s\n' '{"name":"binary-smoke","private":true,"type":"module"}' >"${tmp}/knip/package.json"
+  printf '%s\n' '{"entry":["src/index.ts"],"project":["src/**/*.ts"]}' >"${tmp}/knip/knip.json"
+  printf '%s\n' 'export const smoke = 1;' >"${tmp}/knip/src/index.ts"
+  knip --directory "${tmp}/knip" --config knip.json >/dev/null
+
+  tsc --version >/dev/null
+  mkdir -p "${tmp}/tsc"
+  printf '%s\n' '{"compilerOptions":{"strict":true,"noEmit":true},"files":["smoke.ts"]}' >"${tmp}/tsc/tsconfig.json"
+  printf '%s\n' 'const smoke: number = 1;' 'void smoke;' >"${tmp}/tsc/smoke.ts"
+  tsc --project "${tmp}/tsc/tsconfig.json"
+fi
 
 docker --version >/dev/null
 docker info --format '{{.ServerVersion}}' >/dev/null
@@ -69,7 +110,7 @@ pre-commit --version >/dev/null
 pre-commit validate-config .pre-commit-config.yaml
 
 rg --version >/dev/null
-rg -q 'Diene workspace baseline' README.md
+rg -q '^## Bun foundation$|^# Diene workspace baseline$' README.md
 
 sg --version >/dev/null
 printf '%s\n' '[general]' 'contrib=CT1' 'ignore=B6' '' '[contrib-title-conventional-commits]' 'types = amend' >"${tmp}/.gitlint"

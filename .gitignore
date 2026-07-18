@@ -23,3 +23,10 @@ result-*
 Thumbs.db
 desktop.ini
 infra/root_chart/uploads/
+
+### bun-base
+#### source: bun-base
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo

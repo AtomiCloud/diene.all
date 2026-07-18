@@ -234,5 +234,70 @@
     "template": "diene/shared",
     "name": "docs-prettier",
     "class": "gate"
+  },
+  {
+    "template": "diene/bun-base",
+    "name": "bun-unit-tests",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-base",
+    "name": "bun-integration-tests",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-base",
+    "name": "bun-typecheck",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-base",
+    "name": "bun-biome",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-base",
+    "name": "bun-unit-coverage",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-base",
+    "name": "bun-integration-coverage",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-base",
+    "name": "bun-deadcode",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-base",
+    "name": "bun-deadcode-production",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-base",
+    "name": "bun-deadcode-review",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/bun-base",
+    "name": "bun-build",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/bun-base",
+    "name": "bun-run",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/bun-base",
+    "name": "bun-preview",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/bun-base",
+    "name": "bun-codecov-config",
+    "class": "presence"
   }
 ]

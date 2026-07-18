@@ -33,6 +33,7 @@ plugins:
       message: "release: ${nextRelease.version}\n\n${nextRelease.notes}"
       assets:
         - Changelog.md
+        - package.json
         - VERSION
         - docs/developer/CommitConventions.md
   - module: '@semantic-release/github'

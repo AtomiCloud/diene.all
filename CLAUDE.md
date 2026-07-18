@@ -79,3 +79,13 @@ See [docs/standards/taskfile/index.md](docs/standards/taskfile/index.md).
 Domain-specific architecture and behavior belongs under
 [docs/domain/](docs/domain/README.md). The `docs/standards/contracts/` slot is
 reserved for the separately owned C0 contracts standard.
+
+<!-- ### bun-base -->
+<!-- #### source: bun-base -->
+
+## Bun and TypeScript
+
+Read [the Bun baseline](docs/developer/bun-baseline.md) before changing the Bun
+toolchain, task surface, test tiers, coverage ledgers, build, or illustrative
+sample. Follow the TypeScript variants linked from that baseline alongside the
+shared engineering standards.

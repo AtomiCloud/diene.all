@@ -5,6 +5,55 @@
   pre-commit-lib,
 }:
 let
+  bun-tooling = pkgs.stdenvNoCC.mkDerivation {
+    pname = "bun-base-pre-commit-tooling";
+    version = "1";
+    src = builtins.path {
+      path = ../.;
+      name = "bun-base-pre-commit-tooling-source";
+      filter =
+        path: type:
+        type == "directory"
+        || builtins.elem (baseNameOf path) [
+          "bun.lock"
+          "package.json"
+        ];
+    };
+    nativeBuildInputs = [
+      packages.bun
+      pkgs.cacert
+    ];
+    dontConfigure = true;
+    buildPhase = ''
+      runHook preBuild
+      export HOME="$TMPDIR"
+      export SSL_CERT_FILE="${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
+      bun install --frozen-lockfile --no-progress --backend=copyfile --cpu='*' --os='*'
+      runHook postBuild
+    '';
+    installPhase = ''
+      runHook preInstall
+      mkdir -p "$out"
+      cp -R node_modules "$out/node_modules"
+      runHook postInstall
+    '';
+    dontFixup = true;
+    outputHashMode = "recursive";
+    outputHashAlgo = "sha256";
+    outputHash = "sha256-dEFLB1Li7H8L6ppoLSQCGA5a63t0fFVeELAdWvRUuRE=";
+  };
+  bun-tool = name: "${packages.bun}/bin/bun ${bun-tooling}/node_modules/.bin/${name}";
+  biome-platform =
+    if pkgs.stdenv.hostPlatform.isLinux then
+      "linux-${if pkgs.stdenv.hostPlatform.isAarch64 then "arm64" else "x64"}-musl"
+    else
+      "darwin-${if pkgs.stdenv.hostPlatform.isAarch64 then "arm64" else "x64"}";
+  biome-tool = "${bun-tooling}/node_modules/@biomejs/cli-${biome-platform}/biome";
+  pre-commit-source = pkgs.runCommand "bun-base-pre-commit-source" { } ''
+    mkdir -p "$out"
+    cp -R ${../.}/. "$out/"
+    ln -s ${bun-tooling}/node_modules "$out/node_modules"
+  '';
   validator-runtime = pkgs.buildEnv {
     name = "workspace-validator-runtime";
     paths = [
@@ -24,7 +73,7 @@ let
     "${packages.bash}/bin/bash -c 'export PATH=${validator-runtime}/bin; exec ${packages.bash}/bin/bash ${command}'";
 in
 pre-commit-lib.run {
-  src = ../.;
+  src = pre-commit-source;
 
   # ### nix-root-format
   # #### source: main
@@ -205,6 +254,44 @@ pre-commit-lib.run {
       name = "Workflow job-to-script wiring";
       entry = validator "scripts/validate/workflows.sh wiring";
       files = "^\\.github/workflows/.*\\.ya?ml$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    # ### bun-base-hooks
+    # #### source: bun-base
+    a-biome = {
+      enable = true;
+      name = "Biome lint";
+      entry = "${biome-tool} lint --no-errors-on-unmatched";
+      files = "(^biome\\.json$|\\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$)";
+      pass_filenames = true;
+      language = "system";
+    };
+
+    a-deadcode = {
+      enable = true;
+      name = "Knip repository dead code";
+      entry = "${bun-tool "knip"} --config knip.json";
+      files = "(^package\\.json$|^tsconfig\\.json$|^knip\\.json$|\\.(ts|tsx)$)";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-deadcode-production = {
+      enable = true;
+      name = "Knip production dead code";
+      entry = "${bun-tool "knip"} --config knip.production.json";
+      files = "(^package\\.json$|^tsconfig\\.json$|^knip\\.production\\.json$|\\.(ts|tsx)$)";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    typecheck = {
+      enable = true;
+      name = "TypeScript typecheck";
+      entry = "${bun-tool "tsc"} --noEmit";
+      files = "(^package\\.json$|^tsconfig\\.json$|\\.(ts|tsx|mts|cts)$)";
       pass_filenames = false;
       language = "system";
     };

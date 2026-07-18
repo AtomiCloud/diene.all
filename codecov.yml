@@ -1,0 +1,28 @@
+# Coverage statuses are informational (non-blocking): they annotate PRs but never
+# fail CI. Thresholds are stated explicitly so the allowed drop is unambiguous.
+coverage:
+  status:
+    project:
+      default:
+        target: auto # compare against the base commit
+        threshold: 1% # tolerate up to a 1% project coverage drop
+        informational: true
+    patch:
+      default:
+        target: auto # coverage expected on the changed lines
+        threshold: 1% # tolerate up to a 1% patch coverage drop
+        informational: true
+
+flags:
+  unit:
+    paths:
+      - src/
+    carryforward: true
+  int:
+    paths:
+      - src/
+    carryforward: true
+
+comment:
+  layout: 'reach, diff, flags, files'
+  require_changes: false

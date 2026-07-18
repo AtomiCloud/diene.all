@@ -68,6 +68,9 @@ let
         inherit
           actionlint
           bash
+          # ### bun-base-packages
+          # #### source: bun-base
+          bun
           docker-client
           git
           go-task
