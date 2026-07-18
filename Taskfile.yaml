@@ -5,11 +5,23 @@ includes:
   helm: tasks/Taskfile.helm.yaml
   secret: tasks/Taskfile.secret.yaml
 
+  # ### dotnet-base-test-includes
+  # #### source: dotnet-base
+  unit:
+    taskfile: tasks/Taskfile.test.yaml
+    vars:
+      MODE: unit
+  int:
+    taskfile: tasks/Taskfile.test.yaml
+    vars:
+      MODE: int
+
 tasks:
   setup:
     desc: Set up generated workspace assets
     cmds:
       - ./scripts/local/skills-sync.sh
+      - ./scripts/local/setup.sh
 
   lint:
     desc: Run all repository gates
@@ -20,3 +32,84 @@ tasks:
     desc: Synchronize installed diene package skills
     cmds:
       - ./scripts/local/skills-sync.sh
+
+  # ### dotnet-base-tasks
+  # #### source: dotnet-base
+  clean:
+    desc: Remove .NET build and test artifacts
+    cmds:
+      - find . -mindepth 2 -maxdepth 2 -type d \( -name bin -o -name obj \) -prune -exec rm -rf {} +
+      - rm -rf TestResults
+
+  build:
+    desc: Build the .NET solution in Release
+    cmds:
+      - ./scripts/local/build.sh
+
+  dev:
+    desc: Watch and run the sample App in development mode
+    cmds:
+      - dotnet watch --project App/App.csproj run -- {{.CLI_ARGS}}
+
+  run:
+    desc: Run the sample App in development mode
+    cmds:
+      - dotnet run --project App/App.csproj -- {{.CLI_ARGS}}
+
+  preview:
+    desc: Build and run the compiled Release artifact
+    deps: [build]
+    cmds:
+      - dotnet App/bin/Release/net10.0/App.dll {{.CLI_ARGS}}
+
+  up:
+    desc: Start all local dependencies, detached
+    cmds:
+      - docker run -d --rm --name dotnet-base-redis -p 6379:6379 redis:8.2.1-alpine
+
+  down:
+    desc: Stop all local dependencies
+    cmds:
+      - docker stop dotnet-base-redis 2>/dev/null || true
+
+  deadcode:
+    desc: Emit the non-blocking LLM dead-code review
+    cmds:
+      - ./scripts/local/dotnet-dead-code.sh --llm
+
+  test:
+    desc: Run unit and integration tests
+    cmds:
+      - task: unit:default
+      - task: int:default
+
+  test:unit:
+    desc: Run unit tests
+    cmds:
+      - task: unit:default
+
+  test:int:
+    desc: Run integration tests
+    cmds:
+      - task: int:default
+
+  test:coverage:
+    desc: Run every test tier with merged blocking coverage
+    cmds:
+      - task: unit:coverage
+      - task: int:coverage
+
+  test:unit:coverage:
+    desc: Run unit tests with merged blocking coverage
+    cmds:
+      - task: unit:coverage
+
+  test:int:coverage:
+    desc: Run integration tests with merged blocking coverage
+    cmds:
+      - task: int:coverage
+
+  test:watch:
+    desc: Watch the fast unit suite
+    cmds:
+      - task: unit:watch

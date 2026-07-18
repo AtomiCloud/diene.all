@@ -262,6 +262,8 @@ This pattern applies regardless of whether you wire manually (as in TypeScript o
 Language bases add their implementation guides in their own branch deltas. This
 shared standard defines only the language-agnostic contract.
 
+- [C#/.NET](languages/csharp.md)
+
 ## Folder Structure
 
 Domain services follow the bounded context structure from [Domain-Driven Design](../domain-driven-design/index.md):

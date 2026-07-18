@@ -445,6 +445,8 @@ tests/
 Language bases add their implementation guides in their own branch deltas. This
 shared standard defines only the language-agnostic contract.
 
+- [C#/.NET](languages/csharp.md)
+
 ## Related Articles
 
 - [Software Design Philosophy](../software-design-philosophy/index.md) -- the foundational "why"
