@@ -35,6 +35,7 @@ plugins:
         - packages/diene_dart_lib/CHANGELOG.md
         - packages/diene_dart_lib/pubspec.yaml
         - VERSION
+        - pubspec.yaml
         - docs/developer/CommitConventions.md
   - module: '@semantic-release/github'
     version: 10.3.5
