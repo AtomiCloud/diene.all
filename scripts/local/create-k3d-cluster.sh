@@ -5,9 +5,12 @@ cluster_name="${K3D_CLUSTER_NAME:-diene-sulfur}"
 registry_name="${K3D_REGISTRY_NAME:-diene-sulfur-registry}"
 registry_port="${K3D_REGISTRY_PORT:-5001}"
 http_port="${K3D_HTTP_PORT:-18080}"
-# Strict ownership (opt-in via the isolated proof): never adopt a pre-existing
-# cluster/registry, and record what THIS run created so the caller's transactional
-# cleanup only ever tears down owned resources.
+# Strict ownership (opt-in via the isolated proof and the public lifecycle wrapper):
+# never adopt a pre-existing cluster/registry, and — once the preflight has proved
+# the exact names are absent — pre-reserve them in the marker BEFORE invoking k3d so
+# the caller's transactional cleanup tears down exactly what THIS attempt may have
+# built, even across a partial `k3d cluster create` that fails after creating some
+# resources.
 require_ownership="${K3D_REQUIRE_OWNERSHIP:-false}"
 ownership_marker="${K3D_OWNERSHIP_MARKER:-}"
 
@@ -39,9 +42,22 @@ yq eval '
   .ports[0].port = (strenv(K3D_HTTP_PORT) + ":80")
 ' infra/k3d.lapras.yaml >"${config}"
 
+# Transactional pre-reservation: under strict ownership the collision preflight above
+# already proved these exact names are absent, so claim them BEFORE creating anything.
+# If `k3d cluster create` builds the registry and/or cluster and then exits non-zero,
+# the marker still names exactly what this attempt may have created — so the caller's
+# transactional cleanup tears those (and only those) down and a partial create never
+# leaks.
+if [ "${require_ownership}" = "true" ] && [ -n "${ownership_marker}" ]; then
+  printf 'cluster=%s\nregistry=%s\n' "${cluster_name}" "${registry_name}" >"${ownership_marker}"
+fi
+
 k3d cluster create --config "${config}"
 
-# Claim ownership: record the exact resources created so the caller deletes ONLY these.
-[ -n "${ownership_marker}" ] && printf 'cluster=%s\nregistry=%s\n' "${cluster_name}" "${registry_name}" >"${ownership_marker}"
+# Non-strict callers (no preflight-proved absence) record ownership only on a
+# successful create.
+if [ "${require_ownership}" != "true" ] && [ -n "${ownership_marker}" ]; then
+  printf 'cluster=%s\nregistry=%s\n' "${cluster_name}" "${registry_name}" >"${ownership_marker}"
+fi
 
 echo "✅ k3d cluster ${cluster_name} created"

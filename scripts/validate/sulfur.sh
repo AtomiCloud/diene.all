@@ -384,8 +384,12 @@ k3d-guard)
   # Non-live guard for the held k3d proof's isolation/ownership/collision logic, using
   # a fake k3d backend. Proves: (1) the isolated proof rejects preset identity
   # overrides and passes an explicit --kube-context; (2) create refuses a pre-existing
-  # cluster/registry (collision) and claims ownership of exactly what it builds; and
-  # (3) delete tears down ONLY owned resources (nothing when no ownership was claimed).
+  # cluster/registry (collision), claims ownership of exactly what it builds, and — via
+  # (2d) — the held proof's trap cleans up a PARTIAL create-then-fail with no leak;
+  # (3) delete tears down ONLY owned resources (nothing when no ownership was claimed);
+  # and (4) the public start:cluster/stop:cluster lifecycle refuses to adopt an unowned
+  # cluster, records what it starts, tears down only what it owns, and no-ops a stop
+  # with no ownership marker.
   fakebin="${tmp}/fakebin"
   mkdir -p "${fakebin}"
   cat >"${fakebin}/k3d" <<'FAKE'
@@ -395,6 +399,14 @@ printf '%s\n' "$*" >>"${FAKE_K3D_LOG:-/dev/null}"
 case "${1:-} ${2:-}" in
 "cluster list") cat "${FAKE_K3D_CLUSTERS:-/dev/null}" 2>/dev/null || true ;;
 "registry list") cat "${FAKE_K3D_REGISTRIES:-/dev/null}" 2>/dev/null || true ;;
+"cluster create")
+  # Optionally model a PARTIAL create: leave the named cluster/registry behind, then
+  # fail — to exercise the caller's transactional cleanup. With none of the
+  # FAKE_CREATE_* vars set this is an ordinary successful create.
+  if [ -n "${FAKE_CREATE_LEAVES_CLUSTER:-}" ]; then printf '%s\n' "${FAKE_CREATE_LEAVES_CLUSTER}" >>"${FAKE_K3D_CLUSTERS}"; fi
+  if [ -n "${FAKE_CREATE_LEAVES_REGISTRY:-}" ]; then printf '%s\n' "${FAKE_CREATE_LEAVES_REGISTRY}" >>"${FAKE_K3D_REGISTRIES}"; fi
+  if [ -n "${FAKE_CREATE_FAIL:-}" ]; then exit 1; fi
+  ;;
 *) : ;;
 esac
 FAKE
@@ -463,6 +475,32 @@ FAKE
     exit 1
   }
 
+  # (2d) Transactional cleanup across a PARTIAL create failure: when `k3d cluster
+  # create` builds the registry and/or cluster then exits non-zero, the held proof's
+  # trap must still tear down exactly those resources (a failed create can never
+  # leak). Because strict create pre-reserves the proven-absent names BEFORE invoking
+  # k3d, the marker names what the attempt created and the trap cleans up only those.
+  # Drive the real sulfur-k3d.sh so its actual EXIT trap fires, with a fake k3d whose
+  # `cluster create` populates state then fails.
+  : >"${tmp}/clusters"
+  : >"${tmp}/registries"
+  : >"${tmp}/partial.log"
+  if PATH="${fakebin}:${PATH}" FAKE_K3D_CLUSTERS="${tmp}/clusters" FAKE_K3D_REGISTRIES="${tmp}/registries" \
+    FAKE_K3D_LOG="${tmp}/partial.log" FAKE_CREATE_LEAVES_CLUSTER=diene-sulfur \
+    FAKE_CREATE_LEAVES_REGISTRY=k3d-diene-sulfur-registry FAKE_CREATE_FAIL=1 \
+    bash ./scripts/validate/sulfur-k3d.sh >/dev/null 2>&1; then
+    echo "❌ held proof did not fail on a partial k3d cluster create" >&2
+    exit 1
+  fi
+  rg -qx 'cluster delete diene-sulfur' "${tmp}/partial.log" || {
+    echo "❌ transactional trap did not tear down the partially-created cluster" >&2
+    exit 1
+  }
+  rg -qx 'registry delete diene-sulfur-registry' "${tmp}/partial.log" || {
+    echo "❌ transactional trap did not tear down the partially-created registry" >&2
+    exit 1
+  }
+
   # (3a) Owned cleanup: delete tears down exactly the owned cluster+registry.
   printf 'diene-sulfur-fake\n' >"${tmp}/clusters"
   printf 'k3d-diene-sulfur-registry-fake\n' >"${tmp}/registries"
@@ -486,6 +524,70 @@ FAKE
     FAKE_K3D_LOG="${tmp}/noop.log" K3D_REQUIRE_OWNERSHIP=true K3D_OWNERSHIP_MARKER="${marker}" \
     bash ./scripts/local/delete-k3d-cluster.sh >/dev/null 2>&1
   rg -q 'delete' "${tmp}/noop.log" && echo "❌ cleanup with no ownership marker deleted a resource" >&2 && exit 1
+
+  # Public lifecycle (start:cluster / stop:cluster) ownership safety. The wrapper keeps
+  # a DURABLE private marker so stop tears down only what start built. K3D_OWNERSHIP_MARKER
+  # is overridden to a tmp path so the tests never touch real state.
+  lifemarker="${tmp}/life-owned"
+
+  # (4a) Adopt refusal: start must fail closed on a pre-existing UNOWNED cluster —
+  # never adopt it, write no ownership marker, and issue no create.
+  rm -f "${lifemarker}"
+  printf 'diene-sulfur\n' >"${tmp}/clusters"
+  : >"${tmp}/registries"
+  : >"${tmp}/adopt.log"
+  if PATH="${fakebin}:${PATH}" FAKE_K3D_CLUSTERS="${tmp}/clusters" FAKE_K3D_REGISTRIES="${tmp}/registries" \
+    FAKE_K3D_LOG="${tmp}/adopt.log" K3D_OWNERSHIP_MARKER="${lifemarker}" \
+    bash ./scripts/local/k3d-lifecycle.sh start 2>/dev/null; then
+    echo "❌ start:cluster adopted a pre-existing unowned cluster" >&2
+    exit 1
+  fi
+  [ -f "${lifemarker}" ] && echo "❌ start:cluster claimed ownership of an unowned cluster" >&2 && exit 1
+  rg -q 'cluster create' "${tmp}/adopt.log" && echo "❌ start:cluster issued a create despite an unowned collision" >&2 && exit 1
+
+  # (4b) Owned start records ownership; owned stop deletes exactly those resources and
+  # clears the durable marker.
+  rm -f "${lifemarker}"
+  : >"${tmp}/clusters"
+  : >"${tmp}/registries"
+  : >"${tmp}/life-start.log"
+  PATH="${fakebin}:${PATH}" FAKE_K3D_CLUSTERS="${tmp}/clusters" FAKE_K3D_REGISTRIES="${tmp}/registries" \
+    FAKE_K3D_LOG="${tmp}/life-start.log" K3D_OWNERSHIP_MARKER="${lifemarker}" \
+    bash ./scripts/local/k3d-lifecycle.sh start >/dev/null 2>&1
+  { rg -qx 'cluster=diene-sulfur' "${lifemarker}" && rg -qx 'registry=diene-sulfur-registry' "${lifemarker}"; } || {
+    echo "❌ start:cluster did not record ownership of the resources it built" >&2
+    exit 1
+  }
+  rg -q 'cluster create' "${tmp}/life-start.log" || {
+    echo "❌ start:cluster never issued a k3d create" >&2
+    exit 1
+  }
+  printf 'diene-sulfur\n' >"${tmp}/clusters"
+  printf 'k3d-diene-sulfur-registry\n' >"${tmp}/registries"
+  : >"${tmp}/life-stop.log"
+  PATH="${fakebin}:${PATH}" FAKE_K3D_CLUSTERS="${tmp}/clusters" FAKE_K3D_REGISTRIES="${tmp}/registries" \
+    FAKE_K3D_LOG="${tmp}/life-stop.log" K3D_OWNERSHIP_MARKER="${lifemarker}" \
+    bash ./scripts/local/k3d-lifecycle.sh stop >/dev/null 2>&1
+  rg -qx 'cluster delete diene-sulfur' "${tmp}/life-stop.log" || {
+    echo "❌ owned stop:cluster did not delete the owned cluster" >&2
+    exit 1
+  }
+  rg -qx 'registry delete diene-sulfur-registry' "${tmp}/life-stop.log" || {
+    echo "❌ owned stop:cluster did not delete the owned registry" >&2
+    exit 1
+  }
+  [ -f "${lifemarker}" ] && echo "❌ stop:cluster left the durable ownership marker behind" >&2 && exit 1
+
+  # (4c) Unowned stop no-op: with no durable marker, stop deletes nothing even though a
+  # same-named (unowned) cluster/registry is present.
+  rm -f "${lifemarker}"
+  printf 'diene-sulfur\n' >"${tmp}/clusters"
+  printf 'k3d-diene-sulfur-registry\n' >"${tmp}/registries"
+  : >"${tmp}/life-noop.log"
+  PATH="${fakebin}:${PATH}" FAKE_K3D_CLUSTERS="${tmp}/clusters" FAKE_K3D_REGISTRIES="${tmp}/registries" \
+    FAKE_K3D_LOG="${tmp}/life-noop.log" K3D_OWNERSHIP_MARKER="${lifemarker}" \
+    bash ./scripts/local/k3d-lifecycle.sh stop >/dev/null 2>&1
+  rg -q 'delete' "${tmp}/life-noop.log" && echo "❌ unowned stop:cluster deleted a resource with no ownership marker" >&2 && exit 1
   ;;
 
 *)

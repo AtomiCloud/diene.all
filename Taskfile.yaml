@@ -60,11 +60,11 @@ tasks:
       - ./scripts/validate/sulfur-k3d.sh
 
   start:cluster:
-    desc: Start the local k3d lapras proof cluster
+    desc: Start the local k3d lapras proof cluster (ownership-safe; never adopts an unowned cluster)
     cmds:
-      - ./scripts/local/create-k3d-cluster.sh
+      - ./scripts/local/k3d-lifecycle.sh start
 
   stop:cluster:
-    desc: Delete the local k3d lapras proof cluster
+    desc: Delete the local k3d lapras proof cluster (deletes only what start:cluster created)
     cmds:
-      - ./scripts/local/delete-k3d-cluster.sh
+      - ./scripts/local/k3d-lifecycle.sh stop
