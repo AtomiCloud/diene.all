@@ -5,13 +5,19 @@
 # Integration tier of the testing pyramid (S30/Q-I27): the SoS last hop — an
 # annotation-opt-in Deployment restarts when its Secret changes. Requires a
 # running k3d lapras cluster (scripts/local/create-k3d-cluster.sh). This is the
-# serialized live proof; it is NOT run in the local/static turn.
+# serialized live proof; it is NOT run in the local/static turn. The fixed-name
+# test Secret/Deployment are removed transactionally on exit (success or
+# failure) so a reused cluster never retains them; the cluster itself is torn
+# down by the required delete-k3d-cluster.sh step in the proof handoff.
 set -euo pipefail
 
 release="${RELEASE:-chlorine}"
 namespace="${NAMESPACE:-sample}"
 tmp="$(mktemp -d)"
-trap 'rm -rf "${tmp}"' EXIT
+# Transactional cleanup: delete the fixed Secret+Deployment together, then the
+# temp dir. --ignore-not-found keeps it idempotent; || true so a missing cluster
+# or namespace never masks the real result.
+trap 'kubectl delete --ignore-not-found -n "${namespace}" secret reload-trigger deployment reload-target >/dev/null 2>&1 || true; rm -rf "${tmp}"' EXIT
 
 # 1. Install the chlorine Reloader chart in the service namespace (platform == namespace).
 helm dependency build chart

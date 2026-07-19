@@ -9,18 +9,17 @@
 {{- end -}}
 
 {{/*
-Validate the LPSM projection. Platform always comes from the release namespace; a
-values file cannot stamp another platform. Required fields are service/module/layer;
-landscape and cluster arrive from independent overlays.
+Validate the LPSM projection. The platform slot is rendered directly from
+.Release.Namespace (see the platform label/annotation in values.yaml), so a values
+file cannot stamp another platform. Required input slots are service/module/layer;
+landscape and cluster arrive from independent overlays. Returns empty so the label
+helper can append the namespace-sourced platform value.
 */}}
 {{- define "diene-chlorine.validateServiceTree" -}}
 {{- $st := required "global.serviceTree is required" .Values.global.serviceTree -}}
 {{- $_ := required "global.serviceTree.service is required" $st.service -}}
 {{- $_ = required "global.serviceTree.module is required" $st.module -}}
 {{- $_ = required "global.serviceTree.layer is required" $st.layer -}}
-{{- if ne (default "" $st.platform) .Release.Namespace -}}
-{{- fail (printf "global.serviceTree.platform %q must equal release namespace %q" $st.platform .Release.Namespace) -}}
-{{- end -}}
 {{- "" -}}
 {{- end -}}
 

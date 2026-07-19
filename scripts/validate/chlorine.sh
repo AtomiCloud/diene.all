@@ -5,9 +5,12 @@
 # Ordinary testing pyramid — unit/static tier (S30/Q-I27). chlorine is a
 # materialized chart product, so it carries an ordinary validation script in
 # place of the helm-wrapper probe matrix. Positive modes assert the rendered
-# chart is conformant; the negative fixtures (vap-latest, schema-violation,
-# version-mismatch) prove each gate reddens on sabotage — exactly one caught
-# mutation per mechanism.
+# chart is conformant via reusable checkers (scripts/validate/check-*.sh); the
+# paired negative fixtures prove each checker reddens on its one targeted
+# sabotage — labels-violation, reloader-violation, fullname-violation,
+# vap-latest, schema-violation, version-mismatch. Exactly one caught mutation
+# per mechanism; the platform coordinate is namespace-sourced, so a non-sample
+# namespace render is part of the positive matrix.
 set -euo pipefail
 
 mode="${1:-}"
@@ -45,46 +48,59 @@ render)
   helm template "${release}" chart --namespace "${namespace}" >/dev/null
   helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml >/dev/null
   helm template "${release}" chart --namespace "${namespace}" "${full_values[@]}" >/dev/null
+  # The platform coordinate is namespace-sourced: a non-sample namespace must
+  # render cleanly (the old equality guard would have failed here).
+  helm template "${release}" chart --namespace nitroso "${full_values[@]}" >/dev/null
   ;;
 labels)
   # The workload carries the fleet service-tree identity (chlorine owns no
   # workload template; labels are injected through the subchart's tpl hooks).
+  # The reusable checker asserts all six LPSM labels + the instance annotations.
   render "${full_values[@]}"
-  yq eval-all -o=json '.' "${tmp}/rendered.yaml" |
-    jq -se 'map(select(.kind == "Deployment"))[0].metadata.labels
-      | (.["atomi.cloud/platform"] == "sample")
-        and (.["atomi.cloud/service"] == "chlorine")
-        and (.["atomi.cloud/module"] == "reloader")
-        and (.["atomi.cloud/layer"] == "1")
-        and (.["atomi.cloud/landscape"] == "example")
-        and (.["atomi.cloud/cluster"] == "lapras")' >/dev/null
-  yq eval-all -o=json '.' "${tmp}/rendered.yaml" |
-    jq -se 'map(select(.kind == "Deployment"))[0].spec.template.metadata.annotations
-      | (.["atomi.cloud/platform"] == "sample")
-        and (.["atomi.cloud/instance-original"] == "diene-chlorine:run-001")
-        and (.["atomi.cloud/instance-label"] == "diene-chlorine-run-001")' >/dev/null
+  bash ./scripts/validate/check-labels.sh "${tmp}/rendered.yaml" "${namespace}"
+  # Platform is namespace-sourced: a non-sample namespace stamps its own platform.
+  render "${full_values[@]}" --namespace nitroso
+  bash ./scripts/validate/check-labels.sh "${tmp}/rendered.yaml" nitroso
   # Prefix override: a single configurable labelPrefix flips every key.
   render "${full_values[@]}" --set global.labelPrefix=example.dev
   yq eval-all -o=json '.' "${tmp}/rendered.yaml" |
-    jq -se 'map(select(.kind == "Deployment"))[0].metadata.labels
-      | (.["example.dev/platform"] == "sample")
+    jq --arg ns "${namespace}" -se 'map(select(.kind == "Deployment"))[0].metadata.labels
+      | (.["example.dev/platform"] == $ns)
         and (.["atomi.cloud/platform"] == null)' >/dev/null
+  ;;
+labels-violation)
+  # NEGATIVE fixture: a wrong service-tree label value must redden the label checker.
+  render "${full_values[@]}" --set global.serviceTree.service=chloride
+  if bash ./scripts/validate/check-labels.sh "${tmp}/rendered.yaml" "${namespace}" >/dev/null 2>&1; then
+    echo "❌ label checker did NOT catch the wrong service-tree service value" >&2
+    exit 1
+  fi
   ;;
 reloader)
   # Reloader stays annotation OPT-IN: no auto-reload-all, strategy=annotations.
   render "${full_values[@]}"
-  yq eval-all -o=json '.' "${tmp}/rendered.yaml" |
-    jq -se 'map(select(.kind == "Deployment"))[0].spec.template.spec.containers[0].args // []
-      | (any(. == "--auto-reload-all=true") | not)
-        and (any(. == "--reload-strategy=annotations"))' >/dev/null
+  bash ./scripts/validate/check-reloader.sh "${tmp}/rendered.yaml"
+  ;;
+reloader-violation)
+  # NEGATIVE fixture: autoReloadAll=true must redden the opt-in checker.
+  render "${full_values[@]}" --set reloader.reloader.autoReloadAll=true
+  if bash ./scripts/validate/check-reloader.sh "${tmp}/rendered.yaml" >/dev/null 2>&1; then
+    echo "❌ reloader checker did NOT catch autoReloadAll=true" >&2
+    exit 1
+  fi
   ;;
 fullname)
   # Exactly-one-dash <service>-<token> on the fullname and the primary workload.
-  yq -e '.reloader.fullnameOverride | test("^[a-z0-9]+-[a-z0-9]+$")' chart/values.yaml >/dev/null
   render "${full_values[@]}"
-  yq eval-all -o=json '.' "${tmp}/rendered.yaml" |
-    jq -se 'map(select(.kind == "Deployment"))[0].metadata.name
-      | . == "chlorine-reloader"' >/dev/null
+  bash ./scripts/validate/check-fullname.sh "${tmp}/rendered.yaml"
+  ;;
+fullname-violation)
+  # NEGATIVE fixture: a multi-dash fullnameOverride must redden the fullname checker.
+  render "${full_values[@]}" --set reloader.fullnameOverride=chlorine-re-loader
+  if bash ./scripts/validate/check-fullname.sh "${tmp}/rendered.yaml" >/dev/null 2>&1; then
+    echo "❌ fullname checker did NOT catch the multi-dash fullname" >&2
+    exit 1
+  fi
   ;;
 rendered-manifests)
   # Inherited rendered-manifest validation stage (Q-G20): template → kubeconform → kyverno VAP eval.

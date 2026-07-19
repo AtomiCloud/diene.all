@@ -5,11 +5,10 @@ global:
   # -- Prefix used by every service-tree label and annotation helper.
   labelPrefix: atomi.cloud
 
-  # -- Stable four-slot service-tree projection. Landscape and cluster arrive from independent overlays.
+  # -- Stable four-slot service-tree projection. The platform slot is sourced from the
+  # release namespace (never a values entry); landscape and cluster arrive from
+  # independent overlays.
   serviceTree:
-    # @schema pattern:^[a-z0-9-]+$;required:true
-    # -- Platform identity. Always sourced from the release namespace.
-    platform: sample
     # @schema pattern:^[a-z0-9]+$;required:true
     # -- Service name.
     service: chlorine

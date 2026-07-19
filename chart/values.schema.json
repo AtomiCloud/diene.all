@@ -26,10 +26,9 @@
                     "minLength": 1
                 },
                 "serviceTree": {
-                    "description": "Stable four-slot service-tree projection. Landscape and cluster arrive from independent overlays.",
+                    "description": "Stable four-slot service-tree projection. The platform slot is sourced from the release namespace (never a values entry); landscape and cluster arrive from independent overlays.",
                     "type": "object",
                     "required": [
-                        "platform",
                         "service",
                         "module",
                         "layer"
@@ -44,11 +43,6 @@
                             "description": "Module name.",
                             "type": "string",
                             "pattern": "^[a-z0-9]+$"
-                        },
-                        "platform": {
-                            "description": "Platform identity. Always sourced from the release namespace.",
-                            "type": "string",
-                            "pattern": "^[a-z0-9-]+$"
                         },
                         "service": {
                             "description": "Service name.",
