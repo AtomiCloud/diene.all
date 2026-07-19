@@ -1,0 +1,16 @@
+# Landscape CR — FK anchor (T3-DESIGN.md §2). No reconciler; region immutable;
+# tier is metadata only. Human-PR-gated (registry/**, CODEOWNERS fleet-admin).
+#
+# lapras is the merged single-cluster profile landscape: it is where the
+# compiler chart's `delivery: local` modules (cnpg/minio) render as direct
+# Applications against the garden-supplied operators, instead of being stripped
+# as they are for every prod landscape.
+apiVersion: fleet.atomi.cloud/v1alpha1
+kind: Landscape
+metadata:
+  name: lapras
+  labels:
+    atomi.cloud/landscape: lapras
+spec:
+  region: ap-southeast-1
+  tier: dev

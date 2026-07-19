@@ -1,0 +1,60 @@
+{{- $platform := include "diene-platform.platform" . -}}
+{{- $deps := .Values.dependencies -}}
+{{- if $deps -}}
+{{- $lapras := .Values.profile.lapras -}}
+{{/*
+  Delivery-mode render split (Q-L10). fleet asserts only the split; the
+  type/delivery validity itself lives in dependency-operator.
+    external   → declared, fulfilled from Primordial, NOT on the AppSet rail
+    replicated → rides the g2 per-cluster rail on EVERY landscape cluster
+    local      → prod: STRIPPED; lapras profile: rendered
+  Here that means: local modules are dropped from the prod PlatformDependency
+  and kept only under the lapras profile; external modules are annotated as
+  off-rail so the split is inspectable in the render.
+*/}}
+{{- $external := list -}}
+{{- $replicated := list -}}
+{{- $stripped := list -}}
+apiVersion: {{ .Values.apiVersions.fleet }}
+kind: PlatformDependency
+metadata:
+  name: {{ printf "%s-%s" $platform $deps.landscape }}
+  namespace: {{ $platform }}
+  labels:
+    {{- include "diene-platform.labels" . | nindent 4 }}
+  annotations:
+    {{- $prefix := include "diene-platform.labelPrefix" . }}
+    {{ $prefix }}/profile: {{ ternary "lapras" "prod" $lapras | quote }}
+spec:
+  platform: {{ $platform }}
+  landscape: {{ required "dependencies.landscape is required" $deps.landscape }}
+  placement:
+    preferredHost: {{ required "dependencies.placement.preferredHost is required" $deps.placement.preferredHost }}
+{{- range $class := list "database" "kv" "cache" "store" }}
+{{- $modules := index $deps $class }}
+{{- if $modules }}
+{{- $kept := dict }}
+{{- range $name, $module := $modules }}
+{{- $delivery := include "diene-platform.deliveryRail" $module }}
+{{- if eq $delivery "external" }}{{- $external = append $external $name }}{{- end }}
+{{- if eq $delivery "replicated" }}{{- $replicated = append $replicated $name }}{{- end }}
+{{- if and (eq $delivery "local") (not $lapras) }}
+{{- $stripped = append $stripped $name }}
+{{- else }}
+{{- $_ := set $kept $name $module }}
+{{- end }}
+{{- end }}
+{{- if $kept }}
+  {{ $class }}:
+    {{- toYaml $kept | nindent 4 }}
+{{- end }}
+{{- end }}
+{{- end }}
+  deletionPolicy:
+    retainSecret: 168h
+{{- $prefix := include "diene-platform.labelPrefix" . }}
+  # render-split summary (compiler assertion surface):
+  # externalOffRail: {{ $external | sortAlpha | join "," | default "-" }}
+  # replicatedOnRail: {{ $replicated | sortAlpha | join "," | default "-" }}
+  # localStrippedFromProd: {{ $stripped | sortAlpha | join "," | default "-" }}
+{{- end -}}

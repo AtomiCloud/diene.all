@@ -1,0 +1,18 @@
+# ClusterRegistration CR (T3-DESIGN.md §2, §3.1). The cluster controller
+# provisions via provider APIs directly (Crossplane deprecated), ledger-backed.
+# spec.traffic is the explicit dial (false leaves the A-set in ~5s; the cluster
+# keeps running — destruction is a separate explicit act). The Argo
+# cluster-Secret label landscape=<name> the controller stamps is the SOLE
+# membership truth for replicated delivery; there is no pinned-mode override.
+apiVersion: fleet.atomi.cloud/v1alpha1
+kind: ClusterRegistration
+metadata:
+  name: pichu-opal
+  labels:
+    atomi.cloud/landscape: pichu
+spec:
+  landscape: pichu
+  mark: opal
+  provider: doks
+  originMode: loadbalancer
+  traffic: true

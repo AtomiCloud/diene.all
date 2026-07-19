@@ -1,0 +1,11 @@
+# Landscape CR — FK anchor (T3-DESIGN.md §2). No reconciler; region immutable;
+# tier is metadata only. Human-PR-gated (registry/**, CODEOWNERS fleet-admin).
+apiVersion: fleet.atomi.cloud/v1alpha1
+kind: Landscape
+metadata:
+  name: amphoros
+  labels:
+    atomi.cloud/landscape: amphoros
+spec:
+  region: eu-central-1
+  tier: prod

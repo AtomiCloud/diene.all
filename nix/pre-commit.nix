@@ -39,10 +39,12 @@ pre-commit-lib.run {
       package = formatter;
       excludes = [
         "^\\.claude/skills/vendor/"
+        "^\\.github/rulesets/"
         "^Changelog\\.md$"
         "^docs/developer/CommitConventions\\.md$"
         "^infra/root_chart/"
         "^chart/"
+        "^registry/charts/diene-platform/"
       ];
     };
 

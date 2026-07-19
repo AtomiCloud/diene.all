@@ -1,0 +1,161 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Diene Platform Compiler Values",
+    "description": "Generated schema for the diene-platform compiler chart (source A defaults + platform.yaml + services.yaml).",
+    "type": "object",
+    "properties": {
+        "apiVersions": {
+            "description": "Frozen T3 / upstream API groups the compiler renders against.",
+            "type": "object",
+            "properties": {
+                "applicationSet": {
+                    "type": "string"
+                },
+                "argoproj": {
+                    "type": "string"
+                },
+                "edge": {
+                    "type": "string"
+                },
+                "fleet": {
+                    "type": "string"
+                },
+                "identity": {
+                    "type": "string"
+                },
+                "kargo": {
+                    "type": "string"
+                }
+            }
+        },
+        "argocd": {
+            "description": "ArgoCD placement.",
+            "type": "object",
+            "properties": {
+                "namespace": {
+                    "type": "string"
+                },
+                "project": {
+                    "type": "string"
+                }
+            }
+        },
+        "cloudflareDeploy": {
+            "description": "CloudflareDeploy Worker version-pin blocks (frontend/erbium rail).",
+            "type": "array"
+        },
+        "dependencies": {
+            "description": "PlatformDependency modules by class (database/kv/cache/store). Each module carries type + explicit delivery: external|local|replicated.",
+            "type": "object"
+        },
+        "fleet": {
+            "description": "The fleet git repository (sources A and C live here).",
+            "type": "object",
+            "properties": {
+                "repoURL": {
+                    "type": "string"
+                },
+                "revision": {
+                    "type": "string"
+                }
+            }
+        },
+        "infisical": {
+            "description": "Infisical project wiring for the Platform CR.",
+            "type": "object",
+            "properties": {
+                "projectSlug": {
+                    "type": "string"
+                },
+                "serviceFolders": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "kargo": {
+            "description": "Kargo promotion bot identity (fixed git-update promotion template).",
+            "type": "object",
+            "properties": {
+                "bot": {
+                    "type": "object",
+                    "properties": {
+                        "email": {
+                            "type": "string"
+                        },
+                        "name": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "labelPrefix": {
+            "description": "Single configurable service-tree label/annotation prefix.",
+            "type": "string"
+        },
+        "landscapes": {
+            "description": "Declared landscape set (canary declares the FULL set).",
+            "type": "array"
+        },
+        "oci": {
+            "description": "OCI registry that publishes per-service app + primordial charts.",
+            "type": "object",
+            "properties": {
+                "registry": {
+                    "type": "string"
+                }
+            }
+        },
+        "platform": {
+            "description": "Explicit platform name (S16 single source of truth). Must equal the release namespace; the compiler refuses a mismatch.",
+            "type": "string"
+        },
+        "primordial": {
+            "description": "The Primordial central cluster (g1 primordial-app destination).",
+            "type": "object",
+            "properties": {
+                "server": {
+                    "type": "string"
+                }
+            }
+        },
+        "problems": {
+            "description": "Problem catalog fragments (RFC7807).",
+            "type": "array"
+        },
+        "profile": {
+            "description": "lapras profile toggle: when true, delivery: local modules render as direct single-cluster Applications; when false (prod) they are stripped.",
+            "type": "object",
+            "properties": {
+                "lapras": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "services": {
+            "description": "Machine roster: which \u003cp\u003e.\u003csvc\u003e repos exist. One Warehouse + one Kargo stage-chain + one AppSet fan-out is rendered per entry.",
+            "type": "array"
+        },
+        "sos": {
+            "description": "Self-onboarding-service registration.",
+            "type": "object",
+            "properties": {
+                "register": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "stages": {
+            "description": "Pipeline DAG. Each entry is a step: a bare landscape name, an object {landscape, gate: auto|manual, soak, verification:{analysisTemplates}}, or a list of either (a [parallel, set] step). Compiled 1:1 into Kargo Stages.",
+            "type": "array"
+        },
+        "virtualLandscapeServices": {
+            "description": "VirtualLandscapeService serve fragments (platform-level, canary exercises one).",
+            "type": "array"
+        },
+        "webhookEngine": {
+            "description": "WebhookEngine config (post-Q-WH1/WH3 shape; NO engine-version field).",
+            "type": "object"
+        }
+    }
+}

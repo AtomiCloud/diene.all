@@ -1,0 +1,90 @@
+{{- $platform := include "diene-platform.platform" . -}}
+{{- $registry := .Values.oci.registry -}}
+{{- $fleet := .Values.fleet -}}
+{{- $prefix := include "diene-platform.labelPrefix" . -}}
+{{- $files := printf "platforms/%s/landscapes/*/*.yaml" $platform -}}
+{{/*
+  ArgoCD ApplicationSet template placeholders below are Helm literal blocks
+  (`{{`...`}}`) emitted verbatim for ArgoCD to evaluate at refresh time; the
+  Helm-substituted constants (platform, registry) are baked in beside them.
+  Every placeholder-bearing scalar is quoted so Helm's own YAML parse does not
+  read a leading `{{` as a flow mapping. path.segments index 3 is {l}; the
+  filename (minus .yaml) is {svc} — the official git-files matched-field
+  exposure. The row `values:` override is passed through as a JSON values
+  string (layered LAST by ArgoCD/Helm).
+*/}}
+apiVersion: {{ .Values.apiVersions.applicationSet }}
+kind: ApplicationSet
+metadata:
+  name: {{ $platform }}
+  namespace: {{ .Values.argocd.namespace }}
+  labels:
+    {{- include "diene-platform.labels" . | nindent 4 }}
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    # g1 — git-files over landscapes/<l>/<svc>.yaml → one primordial Application
+    # per row, destined for the Primordial central cluster.
+    - git:
+        repoURL: {{ $fleet.repoURL }}
+        revision: {{ $fleet.revision }}
+        files:
+          - path: {{ $files }}
+        template:
+          metadata:
+            name: '{{ $platform }}-{{`{{ index .path.segments 3 }}`}}-{{`{{ trimSuffix ".yaml" .path.filename }}`}}-primordial'
+          spec:
+            project: {{ .Values.argocd.project }}
+            destination:
+              server: {{ .Values.primordial.server }}
+              namespace: {{ $platform }}
+            sources:
+              - repoURL: 'oci://{{ $registry }}/{{ $platform }}-{{`{{ trimSuffix ".yaml" .path.filename }}`}}-primordial'
+                targetRevision: '{{`{{ .pin.tag }}`}}'
+                helm:
+                  values: '{{`{{ .values | default dict | toRawJson }}`}}'
+    # g2 — g1 × cluster generator (label-selected by landscape) → one per-cluster
+    # Application per row per matching cluster. This is the SOLE membership
+    # mechanism, so delivery: replicated modules land on EVERY landscape cluster.
+    - matrix:
+        generators:
+          - git:
+              repoURL: {{ $fleet.repoURL }}
+              revision: {{ $fleet.revision }}
+              files:
+                - path: {{ $files }}
+          - clusters:
+              selector:
+                matchLabels:
+                  {{ $prefix }}/landscape: '{{`{{ index .path.segments 3 }}`}}'
+        template:
+          metadata:
+            name: '{{ $platform }}-{{`{{ index .path.segments 3 }}`}}-{{`{{ trimSuffix ".yaml" .path.filename }}`}}-{{`{{ .name }}`}}'
+          spec:
+            project: {{ .Values.argocd.project }}
+            destination:
+              server: '{{`{{ .server }}`}}'
+              namespace: {{ $platform }}
+            sources:
+              - repoURL: 'oci://{{ $registry }}/{{ $platform }}-{{`{{ trimSuffix ".yaml" .path.filename }}`}}'
+                targetRevision: '{{`{{ .pin.tag }}`}}'
+                helm:
+                  values: '{{`{{ .values | default dict | toRawJson }}`}}'
+  # Base template: the two generator-level templates above override per row.
+  template:
+    metadata:
+      name: {{ $platform }}-row
+      labels:
+        {{ $prefix }}/platform: {{ $platform | quote }}
+    spec:
+      project: {{ .Values.argocd.project }}
+      destination:
+        server: {{ .Values.primordial.server }}
+        namespace: {{ $platform }}
+      source:
+        repoURL: {{ $fleet.repoURL }}
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
