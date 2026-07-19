@@ -53,15 +53,11 @@ Domain-specific documentation belongs under [docs/domain/](docs/domain/README.md
 The `docs/standards/contracts/` location is reserved for the separately owned C0
 contracts standard.
 
-<!-- ### helm-wrapper -->
-<!-- #### source: helm-wrapper -->
+## Vanadium admission policies
 
-## Helm wrapper sample
+This branch ships native Kubernetes ValidatingAdmissionPolicies and bindings with
+an ordinary product testing pyramid.
 
-This branch adds the production-grade wrapper chart, stacked values, generated schema, rendered-manifest validation, k3d proof, and dual publish modes.
-
-- `pls build` — vendor external config and build pinned chart dependencies.
-- `pls test:unit` — run schema, lint, render, contracts, VAP, and publish dry-runs.
-- `pls test:int` — install on ephemeral k3d and round-trip the chart through a local OCI registry.
-- `pls example:lapras:template` — render the independent landscape + cluster stack.
-- [Helm wrapper baseline](docs/developer/helm-wrapper-baseline.md)
+- `pls test:unit` — run schema, lint, render, and CEL conformance fixtures.
+- `pls test:int` — run the reserved, isolated k3d admission proof.
+- [Vanadium baseline](docs/developer/vanadium-baseline.md)

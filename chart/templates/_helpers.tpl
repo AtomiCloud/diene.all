@@ -162,7 +162,9 @@ has(object.metadata) && has(object.metadata.labels) &&
 {{/* disallowLatest: every container image has an explicit non-latest tag. */}}
 {{- define "vanadium.cel.disallowLatest" -}}
 object.spec.template.spec.containers.all(c,
-  c.image.contains(':') && !c.image.endsWith(':latest'))
+  c.image.contains(':') && !c.image.endsWith(':latest')) &&
+(!has(object.spec.template.spec.initContainers) || object.spec.template.spec.initContainers.all(c,
+  c.image.contains(':') && !c.image.endsWith(':latest')))
 {{- end -}}
 
 {{/* requireResources: every container declares cpu+memory requests and limits. */}}
@@ -170,7 +172,11 @@ object.spec.template.spec.containers.all(c,
 object.spec.template.spec.containers.all(c,
   has(c.resources) && has(c.resources.requests) && has(c.resources.limits) &&
   has(c.resources.requests.cpu) && has(c.resources.requests.memory) &&
-  has(c.resources.limits.cpu) && has(c.resources.limits.memory))
+  has(c.resources.limits.cpu) && has(c.resources.limits.memory)) &&
+(!has(object.spec.template.spec.initContainers) || object.spec.template.spec.initContainers.all(c,
+  has(c.resources) && has(c.resources.requests) && has(c.resources.limits) &&
+  has(c.resources.requests.cpu) && has(c.resources.requests.memory) &&
+  has(c.resources.limits.cpu) && has(c.resources.limits.memory)))
 {{- end -}}
 
 {{/* disallowNodePort: services must not be NodePort. */}}
@@ -183,22 +189,27 @@ object.spec.template.spec.containers.all(c,
 has(object.spec.template.spec.securityContext) &&
 object.spec.template.spec.securityContext.runAsNonRoot == true &&
 object.spec.template.spec.containers.all(c,
-  has(c.securityContext) && c.securityContext.runAsNonRoot == true)
+  has(c.securityContext) && c.securityContext.runAsNonRoot == true) &&
+(!has(object.spec.template.spec.initContainers) || object.spec.template.spec.initContainers.all(c,
+  has(c.securityContext) && c.securityContext.runAsNonRoot == true))
 {{- end -}}
 
 {{/* disallowPrivEscalation: no container may allow privilege escalation. */}}
 {{- define "vanadium.cel.disallowPrivEscalation" -}}
 object.spec.template.spec.containers.all(c,
-  has(c.securityContext) && c.securityContext.allowPrivilegeEscalation == false)
+  has(c.securityContext) && c.securityContext.allowPrivilegeEscalation == false) &&
+(!has(object.spec.template.spec.initContainers) || object.spec.template.spec.initContainers.all(c,
+  has(c.securityContext) && c.securityContext.allowPrivilegeEscalation == false))
 {{- end -}}
 
-{{/* restrictVolumeTypes: hostPath forbidden except alloy's /var/log container-logs carve-out. */}}
+{{/* restrictVolumeTypes: PSS restricted source whitelist with a narrow alloy hostPath carve-out. */}}
 {{- define "vanadium.cel.restrictVolumeTypes" -}}
 !has(object.spec.template.spec.volumes) ||
 object.spec.template.spec.volumes.all(v,
-  !has(v.hostPath) ||
-  (has(object.spec.template.spec.serviceAccountName) &&
-   object.spec.template.spec.serviceAccountName == 'alloy-logs' &&
-   has(v.hostPath.path) &&
+  has(v.configMap) || has(v.csi) || has(v.downwardAPI) || has(v.emptyDir) ||
+  has(v.ephemeral) || has(v.persistentVolumeClaim) || has(v.projected) ||
+  has(v.secret) ||
+  (has(v.hostPath) && has(object.spec.template.spec.serviceAccountName) &&
+   object.spec.template.spec.serviceAccountName == 'alloy-logs' && has(v.hostPath.path) &&
    (v.hostPath.path == '/var/log' || v.hostPath.path.startsWith('/var/log/'))))
 {{- end -}}

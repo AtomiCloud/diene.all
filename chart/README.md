@@ -15,7 +15,7 @@ Kubernetes: `>=1.30.0-0`
 | exemption | object | `{"labelKey":"policy-exempt"}` | Namespace-label exemption convention. A namespace labeled `<prefix>/<labelKey>: "true"` is skipped by every binding. |
 | fullnameOverride | string | `"vanadium-admission"` | Chart release fullname. Admission objects are cluster-scoped; the value still follows the one-dash `<service>-<token>` convention used family-wide. |
 | labelPrefix | string | `"atomi.cloud"` | Prefix used by every service-tree label and annotation helper. |
-| params | object | `{"acceptedLayers":["0","1","2"],"acceptedPlatforms":["nitroso","sample"],"landscape":"example"}` | Cluster admission context rendered into the value-checking CEL expressions. The installed policy set carries no runtime params (paramKind), so the generic rendered-manifest validation stage (helm-wrapper Q-G20) can evaluate it offline. |
+| params | object | `{"acceptedLayers":["0","1","2"],"acceptedPlatforms":["nitroso","sample"],"landscape":"example"}` | Cluster admission context rendered into the value-checking CEL expressions. The installed policy set carries no runtime params (paramKind), so the generic rendered-manifest validation stage can evaluate it offline. |
 | params.acceptedLayers | list | `["0","1","2"]` | Architecture layers allowed by the layer-range rule (0 infrastructure, 1 service, 2 app). |
 | params.acceptedPlatforms | list | `["nitroso","sample"]` | Platforms permitted to deploy into the fleet. |
 | params.landscape | string | `"example"` | This cluster's landscape; the landscape-match rule renders it into CEL. |

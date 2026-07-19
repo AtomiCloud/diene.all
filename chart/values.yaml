@@ -21,7 +21,7 @@ serviceTree:
 
 # -- Cluster admission context rendered into the value-checking CEL expressions.
 # The installed policy set carries no runtime params (paramKind), so the generic
-# rendered-manifest validation stage (helm-wrapper Q-G20) can evaluate it offline.
+# rendered-manifest validation stage can evaluate it offline.
 params:
   # @schema pattern:^[a-z0-9-]+$;required:true
   # -- This cluster's landscape; the landscape-match rule renders it into CEL.

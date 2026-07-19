@@ -39,7 +39,7 @@ Each enabled policy renders one `ValidatingAdmissionPolicy` plus one
 `ValidatingAdmissionPolicyBinding`. CEL expressions are object-only — admission
 params (landscape, accepted platforms, accepted layers) are baked in as literals at
 render time, so the definitions carry no `paramKind` and the generic rendered-manifest
-validation stage (helm-wrapper Q-G20) can evaluate them offline with `kyverno apply`.
+validation stage can evaluate them offline with `kyverno apply`.
 
 | Policy key               | Enforces                                                                |
 | ------------------------ | ----------------------------------------------------------------------- |
@@ -120,7 +120,7 @@ The chart templates are the single source of truth for the policy set. Each enab
 rule renders one `ValidatingAdmissionPolicy` (the definition) plus one
 `ValidatingAdmissionPolicyBinding`; the definition objects carry no `paramKind`, so
 they are directly consumable by the generic rendered-manifest validation stage
-(helm-wrapper Q-G20). Inheriting repos extract the definition objects from a render of
+(Q-G20). Inheriting repos extract the definition objects from a render of
 this chart and run them through `kyverno apply`; they carry one wiring sabotage each
 and never per-rule fixtures.
 

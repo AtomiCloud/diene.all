@@ -76,9 +76,7 @@ Domain-specific architecture and behavior belongs under
 [docs/domain/](docs/domain/README.md). The `docs/standards/contracts/` slot is
 reserved for the separately owned C0 contracts standard.
 
-<!-- ### helm-wrapper -->
-<!-- #### source: helm-wrapper -->
+## Vanadium admission policies
 
-## Helm wrapper sample
-
-Read [docs/developer/helm-wrapper-baseline.md](docs/developer/helm-wrapper-baseline.md) before changing `chart/`, the stacked values, CR/LPSM helpers, provider LoadBalancer annotations, config vendoring, or chart publishing.
+Read [the Vanadium baseline](docs/developer/vanadium-baseline.md) before changing
+the ValidatingAdmissionPolicy chart, CEL rules, fixtures, or local proof.
