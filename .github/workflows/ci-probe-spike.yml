@@ -1,0 +1,165 @@
+name: CI Probe Spike
+
+# Feasibility spike: can CyanPrint STEP-6 strict-proof probes run on
+# GitHub-hosted CI runners? Two jobs:
+#   pure-bun  -> run 1-2 known-green focused bun-base probe cases (no docker)
+#   docker-k3d -> create + delete a k3d cluster to gauge helm/chart-probe viability
+#
+# runs-on is parameterizable (workflow_dispatch input `runner`) so the SAME
+# workflow can target GitHub-hosted runners today and self-hosted runners
+# (e.g. future DigitalOcean droplets) unchanged.
+
+on:
+  push:
+    branches:
+      - ci-probe-spike
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: Runner label(s) to target (comma-separated). Default ubuntu-latest.
+        required: false
+        default: ubuntu-latest
+
+permissions:
+  contents: read
+
+jobs:
+  pure-bun:
+    name: Pure-Bun Probe (no docker)
+    runs-on: ${{ github.event.inputs.runner || 'ubuntu-latest' }}
+    timeout-minutes: 30
+    env:
+      # Two cheapest known-green bun-base baselines (recorded local verdict:
+      #   codecov-config presence -> proven ; typecheck gate -> proven + caught)
+      PROBE_FEATURES: diene/bun-base#bun-codecov-config,diene/bun-base#bun-typecheck
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Mark before nix install
+        run: date +%s > /tmp/t_before_nix
+
+      - name: Install Nix (Determinate Systems)
+        uses: DeterminateSystems/nix-installer-action@e50d5f73bfe71c2dd0aa4218de8f4afa59f8f81d # v16
+        with:
+          extra-conf: |
+            accept-flake-config = true
+
+      - name: Record nix-install time
+        run: |
+          t0=$(cat /tmp/t_before_nix); t1=$(date +%s)
+          echo "nix_install_seconds=$((t1 - t0))" | tee -a "$GITHUB_STEP_SUMMARY" timings.txt
+          nix --version | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Prime toolchain (.#ci devshell + cyanprint)
+        run: |
+          t0=$(date +%s)
+          nix develop --no-write-lock-file .#ci -c cyanprint --version
+          nix develop --no-write-lock-file .#ci -c bun --version
+          t1=$(date +%s)
+          echo "toolchain_build_seconds=$((t1 - t0))" | tee -a "$GITHUB_STEP_SUMMARY" timings.txt
+
+      - name: Run focused probes
+        id: probe
+        run: |
+          set +e
+          t0=$(date +%s)
+          nix develop --no-write-lock-file .#ci -c \
+            cyanprint probe . \
+              --probes ./probes \
+              --features probes/features.json \
+              --feature "$PROBE_FEATURES" \
+              --report probe-report.json \
+              --parallel 1 \
+              --timeout 600 \
+            2>&1 | tee probe-run.log
+          rc=${PIPESTATUS[0]}
+          t1=$(date +%s)
+          echo "probe_run_seconds=$((t1 - t0))" | tee -a "$GITHUB_STEP_SUMMARY" timings.txt
+          echo "probe_exit_code=$rc" | tee -a timings.txt
+          exit "$rc"
+
+      - name: PASS/FAIL summary
+        if: always()
+        run: |
+          echo "## Pure-Bun Probe Result" >> "$GITHUB_STEP_SUMMARY"
+          if [ ! -f probe-report.json ]; then
+            echo "FAIL: no probe report produced" | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          proven=$(nix develop --no-write-lock-file .#ci -c jq -r '.counts.proven' probe-report.json)
+          caught=$(nix develop --no-write-lock-file .#ci -c jq -r '.counts.caught' probe-report.json)
+          missed=$(nix develop --no-write-lock-file .#ci -c jq -r '.counts.missed' probe-report.json)
+          invalid=$(nix develop --no-write-lock-file .#ci -c jq -r '.counts.invalid' probe-report.json)
+          broken=$(nix develop --no-write-lock-file .#ci -c jq -r '.counts.broken' probe-report.json)
+          echo "counts: proven=$proven caught=$caught missed=$missed invalid=$invalid broken=$broken" \
+            | tee -a "$GITHUB_STEP_SUMMARY" timings.txt
+          # Expected recorded-local baseline: proven=2 caught=1 missed=0 invalid=0 broken=0
+          if [ "$missed" = "0" ] && [ "$invalid" = "0" ] && [ "$broken" = "0" ] \
+             && [ "$proven" -ge 1 ] 2>/dev/null; then
+            echo "PROBE VERDICT: PASS (probes execute + prove on this runner)" \
+              | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            echo "PROBE VERDICT: FAIL (unresolved missed/invalid/broken verdicts)" \
+              | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pure-bun-probe-artifacts
+          path: |
+            probe-report.json
+            probe-run.log
+            timings.txt
+          if-no-files-found: warn
+
+  docker-k3d:
+    name: Docker + k3d viability
+    runs-on: ${{ github.event.inputs.runner || 'ubuntu-latest' }}
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Docker sanity
+        run: |
+          docker version | tee -a k3d-run.log
+          echo "docker_available=yes" | tee -a "$GITHUB_STEP_SUMMARY" k3d-timings.txt
+
+      - name: Install k3d
+        run: |
+          t0=$(date +%s)
+          curl -sfL https://raw.githubusercontent.com/k3d-io/k3d/v5.7.4/install.sh \
+            | TAG=v5.7.4 bash
+          k3d version | tee -a k3d-run.log
+          t1=$(date +%s)
+          echo "k3d_install_seconds=$((t1 - t0))" | tee -a "$GITHUB_STEP_SUMMARY" k3d-timings.txt
+
+      - name: Create + delete k3d cluster
+        run: |
+          set -euo pipefail
+          t0=$(date +%s)
+          k3d cluster create spike --wait --timeout 300s 2>&1 | tee -a k3d-run.log
+          t1=$(date +%s)
+          echo "k3d_create_seconds=$((t1 - t0))" | tee -a "$GITHUB_STEP_SUMMARY" k3d-timings.txt
+          kubectl get nodes -o wide 2>&1 | tee -a k3d-run.log
+          kubectl get pods -A 2>&1 | tee -a k3d-run.log
+          t2=$(date +%s)
+          k3d cluster delete spike 2>&1 | tee -a k3d-run.log
+          t3=$(date +%s)
+          echo "k3d_delete_seconds=$((t3 - t2))" | tee -a "$GITHUB_STEP_SUMMARY" k3d-timings.txt
+          echo "K3D VERDICT: PASS (cluster create+delete succeeded on this runner)" \
+            | tee -a "$GITHUB_STEP_SUMMARY" k3d-timings.txt
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-k3d-artifacts
+          path: |
+            k3d-run.log
+            k3d-timings.txt
+          if-no-files-found: warn
