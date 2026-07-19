@@ -53,15 +53,15 @@ Domain-specific documentation belongs under [docs/domain/](docs/domain/README.md
 The `docs/standards/contracts/` location is reserved for the separately owned C0
 contracts standard.
 
-<!-- ### helm-wrapper -->
-<!-- #### source: helm-wrapper -->
+<!-- ### xenon -->
+<!-- #### source: xenon -->
 
-## Helm wrapper sample
+## Xenon chart sample
 
-This branch adds the production-grade wrapper chart, stacked values, generated schema, rendered-manifest validation, k3d proof, and dual publish modes.
+This branch materializes the conditional metrics-server wrapper chart, its stacked values, generated schema, per-landscape enablement toggle, and rendered-manifest validation.
 
-- `pls build` — vendor external config and build pinned chart dependencies.
-- `pls test:unit` — run schema, lint, render, contracts, VAP, and publish dry-runs.
-- `pls test:int` — install on ephemeral k3d and round-trip the chart through a local OCI registry.
+- `pls build` — build the pinned chart dependencies.
+- `pls test:unit` — run schema, lint, render, toggle-map, VAP, and publish dry-runs.
+- `pls test:int` — install on a SIT landscape where xenon is enabled and verify `kubectl top` (orchestration-authorized).
 - `pls example:lapras:template` — render the independent landscape + cluster stack.
-- [Helm wrapper baseline](docs/developer/helm-wrapper-baseline.md)
+- [Xenon baseline](docs/developer/xenon-baseline.md)

@@ -1,8 +1,8 @@
-# diene-helm-wrapper
+# diene-xenon
 
-![Version: 0.1.0](https://img.shields.io/badge/Version-0.1.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 6.9.2](https://img.shields.io/badge/AppVersion-6.9.2-informational?style=flat-square)
+![Version: 0.1.0](https://img.shields.io/badge/Version-0.1.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.7.1](https://img.shields.io/badge/AppVersion-0.7.1-informational?style=flat-square)
 
-Minimal production-grade Helm wrapper template for AtomiCloud platform charts
+Conditional metrics-server wrapper chart for AtomiCloud platform landscapes
 
 ## Requirements
 
@@ -10,24 +10,47 @@ Kubernetes: `>=1.27.0-0`
 
 | Repository | Name | Version |
 |------------|------|---------|
-| oci://ghcr.io/stefanprodan/charts | upstream(podinfo) | 6.9.2 |
+| https://kubernetes-sigs.github.io/metrics-server | metricsServer(metrics-server) | 3.12.1 |
+
+## Per-cloud needed/provided matrix
+
+xenon is the resource metrics API (HPA + `kubectl top`). The whole chart is gated
+by `metricsServer.enabled` per landscape — **ON** where the managed offering lacks
+metrics-server, **OFF** only where the substrate bundles it.
+
+| Cloud | metrics-server preinstalled? | xenon enabled | kubelet TLS |
+|-------|------------------------------|---------------|-------------|
+| EKS classic | no (AtomiCloud clusters are T3/API-created; the community add-on is opt-in only) | ON | secure |
+| EKS Auto Mode | no (built-ins do not include metrics-server) | ON | secure |
+| DOKS | no (Marketplace 1-click is user-managed only) | ON | secure |
+| on-prem | no | ON | overlay (per-cluster kubelet TLS args) |
+| k3d / lapras | yes (k3s bundles it; disable via `--disable metrics-server`) | OFF | bundled |
+
+The chart stays installable on every landscape; flipping it OFF renders no
+resources. The k3d/insecure-TLS posture is an overlay decision, not a baseline
+default — secure TLS is shipped for cloud/on-prem.
+
+## Enablement toggle map
+
+`chart/toggle-map.yaml` is the source of truth for the unit-tier toggle gate:
+each committed overlay is rendered against `values.yaml` and its actual
+enablement is compared to the declared value. See
+[docs/developer/xenon-baseline.md](../docs/developer/xenon-baseline.md) for the
+full conditional-enablement contract.
 
 ## Values
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| contracts | object | `{"health":{"expectedStatus":"2xx","path":"/healthz"},"lpsm":{"instance":"run001","instanceZone":"local.example.invalid","landscape":"example","module":"api","ordinaryZone":"cluster.atomi.cloud","parseHostname":"","service":"wrapper"},"webhook":{"pathPrefix":"/internal/webhooks","provider":"example"}}` | Current health and webhook delivery conventions. |
-| fullnameOverride | string | `"wrapper-api"` | Primary workload fullname. It must be `<service>-<dashless-token>`. |
-| gateway | object | `{"aws":{"eipAllocationIds":[],"subnetIds":[]},"enabled":true,"oci":{"reservedPublicIp":""},"port":80,"provider":"digitalocean"}` | Provider-managed LoadBalancer service for the gateway. |
 | instance | object | `{"physicalId":"example-repository:run-001"}` | Optional physical-instance metadata. The instance remains outside LPSM. |
 | labelPrefix | string | `"atomi.cloud"` | Prefix used by every service-tree label and annotation helper. |
-| migration | object | `{"command":["sh","-c","echo migration-ready"],"enabled":true,"image":{"pullPolicy":"IfNotPresent","repository":"busybox","tag":"1.37.0-glibc"},"reloader":{"enabled":true},"resources":{"limits":{"cpu":"25m","memory":"32Mi"},"requests":{"cpu":"5m","memory":"8Mi"}}}` | Separate pre-sync migration hook. It never owns or recreates the Deployment. |
-| primordial | object | `{"apiVersions":{"edge":"edge.atomi.cloud/v1alpha1","fleet":"fleet.atomi.cloud/v1alpha1","identity":"identity.atomi.cloud/v1alpha1"},"cloudflareDeploy":{"enabled":true,"pin":true,"scriptName":"wrapper-web","tag":"0.1.0"},"enabled":true,"logtoApp":{"enabled":true,"extraRedirectUris":[],"paths":["/auth/callback"],"resourceRefs":["wrapper-api"]},"placement":{"preferredHost":"example-host"},"platformDependency":{"modules":{"cache":{"hot":{"credentialMode":"standard","delivery":"replicated","engine":{"dragonfly":{}},"ram":"128Mi","rotation":"on","type":"dragonfly"}},"database":{"maindb":{"backup":{"crossVendor":true},"cpu":1,"credentialMode":"standard","delivery":"external","engine":{"neon":{"tier":"example"}},"providerAccountRef":"example-neon","ram":"1Gi","rotation":"on","storage":"10Gi","type":"neon","version":"16"}},"kv":{"sessions":{"credentialMode":"standard","delivery":"external","engine":{"upstash":{}},"providerAccountRef":"example-upstash","ram":"128Mi","rotation":"on","type":"upstash"}},"store":{"assets":{"credentialMode":"standard","delivery":"external","engine":{"tigris":{}},"providerAccountRef":"example-tigris","rotation":"on","type":"tigris"}}}},"problem":{"enabled":true,"entries":[{"endpoints":[{"method":"GET","path":"/"}],"id":"example","recoverable":false,"schema":{},"status":500,"title":"Example problem","type":"https://errors.example.invalid/example"}],"version":"0.1.0"},"targetLandscape":"example","virtualLandscapeService":{"enabled":true,"serve":true},"vlandscape":"example-vlandscape"}` | Reusable primordial-chart CR helper inputs against the frozen T3 shapes. |
-| secret | object | `{"enabled":true,"refreshInterval":"1h","serviceFolder":"/wrapper","sharedFolder":"/shared","store":{"kind":"SecretStore","name":"sample-store"}}` | One service-scoped ExternalSecret with folder-prefix rewrites. |
-| serviceTree | object | `{"layer":"2","module":"api","platform":"sample","service":"wrapper"}` | Stable four-slot service-tree projection. Landscape and cluster are added by independent overlays. |
-| upstream | object | `{"enabled":false,"fullnameOverride":"wrapper-upstream","image":{"repository":"ghcr.io/stefanprodan/podinfo","tag":"6.9.2"},"podAnnotations":{"reloader.stakater.com/auto":"true"},"podSecurityContext":{"runAsGroup":10000,"runAsNonRoot":true,"runAsUser":10000},"resources":{"limits":{"cpu":"100m","memory":"128Mi"},"requests":{"cpu":"10m","memory":"32Mi"}},"securityContext":{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"readOnlyRootFilesystem":true,"runAsGroup":10000,"runAsNonRoot":true,"runAsUser":10000}}` | Pinned optional upstream chart. Every instantiated dependency must receive a conforming override. |
-| webhookRoute | object | `{"enabled":true,"parentGateway":"sample-gateway","parentNamespace":"gateway-system"}` | Optional Gateway API route scaffold for a webhook receiver. |
-| workload | object | `{"image":{"pullPolicy":"IfNotPresent","repository":"ghcr.io/stefanprodan/podinfo","tag":"6.9.2"},"podSecurityContext":{"fsGroup":10000,"runAsGroup":10000,"runAsNonRoot":true,"runAsUser":10000},"port":9898,"reloader":{"enabled":true},"replicas":1,"resources":{"limits":{"cpu":"100m","memory":"128Mi"},"requests":{"cpu":"10m","memory":"32Mi"}},"securityContext":{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"readOnlyRootFilesystem":true,"runAsGroup":10000,"runAsNonRoot":true,"runAsUser":10000}}` | Wrapper-owned sample workload. |
-
-----------------------------------------------
-Autogenerated from chart metadata using [helm-docs v1.14.2](https://github.com/norwoodj/helm-docs/releases/v1.14.2)
+| metricsServer | object | `{"args":[],"enabled":true,"fullnameOverride":"xenon-metrics","podAnnotations":{"atomi.cloud/module":"metrics","atomi.cloud/platform":"sample","atomi.cloud/service":"xenon","reloader.stakater.com/auto":"true"},"podLabels":{"atomi.cloud/layer":"1","atomi.cloud/module":"metrics","atomi.cloud/platform":"sample","atomi.cloud/service":"xenon"},"podSecurityContext":{"fsGroup":1000,"runAsGroup":1000,"runAsNonRoot":true,"runAsUser":1000},"replicas":2,"resources":{"limits":{"cpu":"200m","memory":"256Mi"},"requests":{"cpu":"50m","memory":"64Mi"}}}` | Per-landscape enablement toggle and the vendored metrics-server chart inputs. The whole chart is gated by `metricsServer.enabled`: it defaults ON here for every cloud and on-prem landscape (EKS classic/Auto, DOKS, and on-prem do not preinstall metrics-server) and is flipped OFF only by the k3d/lapras overlay, because k3s bundles metrics-server. Final per-profile ENV roster entries stay outside this node. |
+| metricsServer.args | list | `[]` | Kubelet scrape arguments. Secure TLS is the cloud/on-prem default; the k3d/insecure posture is an overlay decision documented in the README matrix. |
+| metricsServer.enabled | bool | `true` | Per-landscape toggle. ON for cloud/on-prem, OFF for k3d/lapras. |
+| metricsServer.fullnameOverride | string | `"xenon-metrics"` | Conforming metrics-server fullname (`<service>-<dashless-token>`). |
+| metricsServer.podAnnotations | object | `{"atomi.cloud/module":"metrics","atomi.cloud/platform":"sample","atomi.cloud/service":"xenon","reloader.stakater.com/auto":"true"}` | Reloader opt-in plus service-tree annotations on the metrics-server pod. Reloader is opt-in at the controller and baked ON here by the wrapper. Because the annotation reaches the pod through the metrics-server subchart's `podAnnotations` map (Helm coalesces subchart values and cannot drop a single key), a stateful/unsafe landscape opts out by overriding the value to 'false' — Reloader only reloads on the literal 'true', so any other value opts out. |
+| metricsServer.podLabels | object | `{"atomi.cloud/layer":"1","atomi.cloud/module":"metrics","atomi.cloud/platform":"sample","atomi.cloud/service":"xenon"}` | Service-tree identity stamped onto the metrics-server pod. |
+| metricsServer.podSecurityContext | object | `{"fsGroup":1000,"runAsGroup":1000,"runAsNonRoot":true,"runAsUser":1000}` | Pod-level security context satisfying the baseline-plus VAP policy. |
+| metricsServer.replicas | int | `2` | Highly available replica count for managed-cloud deployments. |
+| metricsServer.resources | object | `{"limits":{"cpu":"200m","memory":"256Mi"},"requests":{"cpu":"50m","memory":"64Mi"}}` | CPU and memory envelopes for the metrics-server container. |
+| serviceTree | object | `{"layer":"1","module":"metrics","platform":"sample","service":"xenon"}` | Stable four-slot service-tree projection. Landscape and cluster are added by independent overlays. |

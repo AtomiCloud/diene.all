@@ -1,6 +1,6 @@
 dependencies:
-- name: podinfo
-  repository: oci://ghcr.io/stefanprodan/charts
-  version: 6.9.2
-digest: sha256:9d1305090db49b16eabe426c36e15bd33cbf53ace496ecdc0e3c8d1ba7b8d57a
-generated: "2026-07-18T01:11:45.928074846Z"
+- name: metrics-server
+  repository: https://kubernetes-sigs.github.io/metrics-server
+  version: 3.12.1
+digest: sha256:b5ab78366d771bcd958484245d736e408c80b427e5297761b30998abfd1d2837
+generated: "2026-07-19T09:33:06.698839667Z"

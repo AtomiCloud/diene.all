@@ -1,13 +1,9 @@
-# Independent local-cluster overlay. It contains no landscape decision.
+# Independent local-cluster overlay. k3s bundles metrics-server, so xenon is OFF
+# on the lapras cluster: the whole chart renders nothing and stays installable.
+# This overlay contains no landscape decision; it is paired with a landscape
+# overlay (for example values.example.yaml) under the two-dimension stack.
 serviceTree:
   cluster: lapras
 
-# The local install proves the ordinary Kubernetes resources only; the CRDs are owned by later nodes.
-secret:
-  enabled: false
-
-webhookRoute:
-  enabled: false
-
-primordial:
+metricsServer:
   enabled: false

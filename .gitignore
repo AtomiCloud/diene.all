@@ -24,8 +24,7 @@ Thumbs.db
 desktop.ini
 infra/root_chart/uploads/
 
-### helm-wrapper
-#### source: helm-wrapper
-chart/files/config/
+### xenon
+#### source: xenon
 dist/
 probe-report.json

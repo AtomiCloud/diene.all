@@ -1,0 +1,18 @@
+{{- if .Values.metricsServer.enabled -}}
+{{- include "xenon.validateServiceTree" . -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "xenon.resourceName" (dict "root" . "token" "lpsm") }}
+  labels:
+    {{- include "xenon.labels" . | nindent 4 }}
+  annotations:
+    {{- include "xenon.serviceTreeAnnotations" . | nindent 4 }}
+data:
+  enabled: 'true'
+  layer: '1'
+  module: {{ .Values.serviceTree.module | quote }}
+  service: {{ .Values.serviceTree.service | quote }}
+  purpose: 'resource metrics API for HPA and kubectl top'
+  source: 'kubernetes-sigs/metrics-server'
+{{- end -}}

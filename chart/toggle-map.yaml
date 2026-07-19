@@ -1,0 +1,45 @@
+# Conditional enablement contract for xenon.
+#
+# This is the source of truth for the unit-tier toggle-map gate. The toggle test
+# renders `values.yaml` stacked with each committed overlay and compares the
+# ACTUAL enablement (resources render = on; empty render = off) against the
+# `enabled` value declared here. Xenon is ON for every cloud and on-prem
+# landscape (managed offerings do not preinstall metrics-server) and OFF only on
+# the k3d/lapras cluster (k3s bundles it). The chart stays installable
+# everywhere; flipping it off renders no resources.
+#
+# The final per-profile ENV roster (the seven Garden profiles lapras/ditto/
+# rotom/absol/eevee/plusle/minun and their posture matrices) is intentionally
+# excluded; it stays owned by the ENV round.
+
+clouds:
+  - cloud: eks-classic
+    preinstalled: false
+    enabled: true
+    kubeletTls: secure
+  - cloud: eks-auto
+    preinstalled: false
+    enabled: true
+    kubeletTls: secure
+  - cloud: doks
+    preinstalled: false
+    enabled: true
+    kubeletTls: secure
+  - cloud: onprem
+    preinstalled: false
+    enabled: true
+    kubeletTls: overlay
+  - cloud: k3d
+    preinstalled: true
+    enabled: false
+    kubeletTls: bundled
+
+overlays:
+  - environment: example
+    kind: landscape
+    overlay: chart/values.example.yaml
+    enabled: true
+  - environment: lapras
+    kind: cluster
+    overlay: chart/values.lapras.yaml
+    enabled: false
