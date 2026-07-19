@@ -17,4 +17,32 @@ spec:
       allowedRoutes:
         namespaces:
           from: Same
+    {{- if and .Values.registeredCertificates.enabled (not .Values.devHost.enabled) }}
+    - name: https-primary
+      hostname: {{ .Values.registeredCertificates.primary.domain | quote }}
+      protocol: HTTPS
+      port: {{ .Values.gateway.tlsPort }}
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - group: ""
+            kind: Secret
+            name: {{ include "diene-helm-wrapper.resourceName" (dict "root" . "token" "certprimary") }}-tls
+      allowedRoutes:
+        namespaces:
+          from: Same
+    - name: https-backup
+      hostname: {{ .Values.registeredCertificates.backup.domain | quote }}
+      protocol: HTTPS
+      port: {{ .Values.gateway.tlsPort }}
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - group: ""
+            kind: Secret
+            name: {{ include "diene-helm-wrapper.resourceName" (dict "root" . "token" "certbackup") }}-tls
+      allowedRoutes:
+        namespaces:
+          from: Same
+    {{- end }}
 {{- end }}

@@ -1,0 +1,50 @@
+# Golden contract extracted from kgateway v2.2.9's embedded Envoy chart and
+# test/deployer/testdata/base-gateway-tls-out.yaml. The controller substitutes
+# the Gateway name for the release/name labels and listener ports for both the
+# Service targetPort and proxy containerPort.
+apiVersion: v1
+kind: Service
+metadata:
+  name: platinum-gateway
+spec:
+  ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 80
+    - name: https-primary
+      port: 443
+      protocol: TCP
+      targetPort: 443
+  selector:
+    app.kubernetes.io/instance: platinum-gateway
+    app.kubernetes.io/name: platinum-gateway
+    gateway.networking.k8s.io/gateway-name: platinum-gateway
+  type: LoadBalancer
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: platinum-gateway
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: platinum-gateway
+      app.kubernetes.io/name: platinum-gateway
+      gateway.networking.k8s.io/gateway-name: platinum-gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: platinum-gateway
+        app.kubernetes.io/name: platinum-gateway
+        gateway.networking.k8s.io/gateway-name: platinum-gateway
+    spec:
+      containers:
+        - name: kgateway-proxy
+          ports:
+            - containerPort: 80
+              name: http
+              protocol: TCP
+            - containerPort: 443
+              name: https-primary
+              protocol: TCP

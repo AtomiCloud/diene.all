@@ -28,10 +28,12 @@ Two independent stacked dimensions, inherited from helm-wrapper:
 2. `chart/values.<landscape>.yaml` — landscape identity and provider behavior.
 3. `chart/values.<cluster>.yaml` — normally-thin cluster identity.
 
-The sample stacks are `values.yaml → values.example.yaml → values.lapras.yaml` (ordinary local) and
-`values.yaml → values.entei.yaml` (the ENTEI dev-host overlay). Landscape and cluster vocabularies
-are disjoint. Platinum is config-free and ExternalSecret-free, so there is no build-phase config
-vendoring and no pre-sync migration hook.
+The sample stacks are `values.yaml → values.example.yaml → values.lapras.yaml` (ordinary local),
+`values.yaml → values.example.yaml → values.aws.yaml|values.oci.yaml|values.digitalocean.yaml`
+(representative provider overlays), and `values.yaml → values.entei.yaml` (the ENTEI dev-host
+overlay). Landscape, cluster, and provider overlays remain independently stackable. Platinum is
+config-free and ExternalSecret-free, so there is no build-phase config vendoring and no pre-sync
+migration hook.
 
 ## Identity and naming
 
@@ -43,9 +45,15 @@ vendoring and no pre-sync migration hook.
 
 Platinum owns one shared edge per target cluster:
 
-- A `GatewayClass` named `platinum` bound to `gateway.kgateway.dev/kgateway` (configurable; the live controllerName adoption is verified in the k3d integration tier).
-- One shared `Gateway` (`platinum-gateway`) with a single HTTP listener on the configured port.
-- The LoadBalancer `Service` (`platinum-edge`), `type: LoadBalancer`, selecting the kgateway gateway-proxy pods via `gateway.proxy.selector` (wired per cluster at install).
+- A `GatewayClass` named `platinum` bound to v2.2.9's real controller,
+  `kgateway.dev/kgateway`. The schema pins this value and the live adoption is verified in k3d.
+- One shared `Gateway` (`platinum-gateway`) with HTTP plus terminating HTTPS listeners for the
+  selected primary and backup registered-fleet wildcard domains.
+- The LoadBalancer `Service` (`platinum-edge`), `type: LoadBalancer`, selecting the proxy generated
+  for `platinum-gateway` through kgateway v2.2.9's exact three stable labels. Its numeric
+  `targetPort`s 80 and 443 match the generated proxy listener container ports. A checked-in
+  v2.2.9 proxy golden and the enabled upstream render guard this binding; missing/mismatched
+  selector or port values fail rendering.
 
 ### Per-provider fixed-IP LoadBalancer annotations
 
@@ -75,6 +83,11 @@ landscape):
 - `platinum-certprimary` — the primary base-domain wildcard.
 - `platinum-certbackup` — the second R53 base-domain wildcard for cluster-endpoint failover TLS (S8 backup domain).
 
+Each wildcard is present in the Certificate's `dnsNames` SAN list (the apex may be an additional
+SAN). The shared Gateway consumes the matching generated Secrets through two explicit HTTPS
+listeners with `tls.mode: Terminate`; a missing wildcard SAN or broken Secret reference is a unit
+test failure.
+
 Zinc remains the issuer-definition owner. Platinum neither hand-authors nor infers per-host
 Certificates from Gateway listeners. Exact-host TLS ownership (one exact-name `Certificate` per
 approved Garden hostname, one-label wildcards rejected as coverage for a dotted hostname) belongs to
@@ -83,7 +96,9 @@ the exposure-materializer, not this chart.
 ## ENTEI dev-host overlay
 
 `values.entei.yaml` selects `devHost.enabled: true`. In this mode platinum renders the shared
-`GatewayClass`, the shared `Gateway`, and the provider `LoadBalancer` only. Per-host `Certificate`,
+`GatewayClass`, the shared `Gateway`, and the provider `LoadBalancer` only. The exact rendered
+object-set assertion rejects any additional object, including the ordinary health Deployment and
+its ClusterIP Service. Per-host `Certificate`,
 `ListenerSet`, and `HTTPRoute` are owned by the exposure materializer; this chart renders none of
 them, and the registered-fleet Certificates are disabled because ENTEI's exact-name certs come from
 the materializer. Garden submits the narrow owner-scoped exposure claim and needs no general ENTEI
@@ -117,7 +132,8 @@ Tokenize these isolated scalars when materializing an instance:
 
 ## Held boundaries
 
-The full k3d integration tier (Gateway `Programmed=True`, live `/healthz` 2xx through the LoadBalancer,
-kgateway adopting the `GatewayClass`, local OCI round-trip), the ENTEI exact-host TLS integration
+The full k3d integration tier (Gateway `Programmed=True`, real proxy Endpoints, live `/healthz` 2xx
+through a LoadBalancer ingress or isolated k3d host endpoint, and a durable local OCI round-trip
+archive + SHA-256), the ENTEI exact-host TLS integration
 scenarios, the `ListenerSet` API-version pin, and the final landscape/profile roster remain reserved
 for the serialized proof window or their owning nodes.

@@ -50,9 +50,11 @@
                     "pattern": "^[a-z0-9-]+$"
                 },
                 "controllerName": {
-                    "description": "kgateway controller binding for the GatewayClass.",
+                    "description": "Controller binding pinned to kgateway v2.2.9's real controller name.",
                     "type": "string",
-                    "pattern": "^[a-z0-9.-]+/[a-z0-9-]+$"
+                    "enum": [
+                        "kgateway.dev/kgateway"
+                    ]
                 },
                 "enabled": {
                     "type": "boolean"
@@ -94,11 +96,39 @@
                 "proxy": {
                     "type": "object",
                     "properties": {
+                        "httpTargetPort": {
+                            "description": "Generated v2.2.9 proxy container port for the HTTP listener.",
+                            "type": "integer",
+                            "maximum": 65535,
+                            "minimum": 1
+                        },
+                        "httpsTargetPort": {
+                            "description": "Generated v2.2.9 proxy container port for the HTTPS listeners.",
+                            "type": "integer",
+                            "maximum": 65535,
+                            "minimum": 1
+                        },
                         "selector": {
-                            "description": "Labels selecting the kgateway gateway-proxy pods the LoadBalancer forwards to. Wired per cluster at install.",
-                            "type": "object"
+                            "description": "Exact stable labels on the v2.2.9 proxy generated for Gateway platinum-gateway.",
+                            "type": "object",
+                            "properties": {
+                                "app.kubernetes.io/instance": {
+                                    "type": "string"
+                                },
+                                "app.kubernetes.io/name": {
+                                    "type": "string"
+                                },
+                                "gateway.networking.k8s.io/gateway-name": {
+                                    "type": "string"
+                                }
+                            }
                         }
                     }
+                },
+                "tlsPort": {
+                    "type": "integer",
+                    "maximum": 65535,
+                    "minimum": 1
                 }
             }
         },

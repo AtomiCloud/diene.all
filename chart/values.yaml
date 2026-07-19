@@ -27,19 +27,27 @@ gateway:
   # @schema pattern:^[a-z0-9-]+$
   # -- GatewayClass name platinum owns. Registered-fleet and local LAPRAS-class gateways reference it.
   classname: platinum
-  # @schema pattern:^[a-z0-9.-]+/[a-z0-9-]+$
-  # -- kgateway controller binding for the GatewayClass.
-  controllerName: gateway.kgateway.dev/kgateway
+  # @schema enum:[kgateway.dev/kgateway]
+  # -- Controller binding pinned to kgateway v2.2.9's real controller name.
+  controllerName: kgateway.dev/kgateway
   provider: digitalocean # @schema enum:[aws, oci, digitalocean]
   port: 80 # @schema minimum:1;maximum:65535
+  tlsPort: 443 # @schema minimum:1;maximum:65535
   aws:
     subnetIds: [] # @schema item:string;uniqueItems:true
     eipAllocationIds: [] # @schema item:string;uniqueItems:true
   oci:
     reservedPublicIp: ''
   proxy:
-    # -- Labels selecting the kgateway gateway-proxy pods the LoadBalancer forwards to. Wired per cluster at install.
-    selector: {}
+    # -- Exact stable labels on the v2.2.9 proxy generated for Gateway platinum-gateway.
+    selector:
+      app.kubernetes.io/name: platinum-gateway
+      app.kubernetes.io/instance: platinum-gateway
+      gateway.networking.k8s.io/gateway-name: platinum-gateway
+    # -- Generated v2.2.9 proxy container port for the HTTP listener.
+    httpTargetPort: 80 # @schema minimum:1;maximum:65535
+    # -- Generated v2.2.9 proxy container port for the HTTPS listeners.
+    httpsTargetPort: 443 # @schema minimum:1;maximum:65535
   health:
     # @schema pattern:^/.*
     # -- Fixed health path the traffic controller polls once per cluster per tick.
@@ -89,12 +97,12 @@ registeredCertificates:
     # @schema pattern:^\*\.[a-z0-9.-]+$
     # -- Primary registered-fleet base-domain wildcard (atomi.cloud).
     domain: '*.atomi.cloud'
-    dnsNames: ['atomi.cloud'] # @schema item:string;uniqueItems:true
+    dnsNames: ['*.atomi.cloud', 'atomi.cloud'] # @schema item:string;uniqueItems:true
   backup:
     # @schema pattern:^\*\.[a-z0-9.-]+$
     # -- Second R53 base-domain wildcard for cluster-endpoint failover TLS (S8 backup domain).
     domain: '*.atomi.cloud.failover'
-    dnsNames: ['atomi.cloud.failover'] # @schema item:string;uniqueItems:true
+    dnsNames: ['*.atomi.cloud.failover', 'atomi.cloud.failover'] # @schema item:string;uniqueItems:true
 
 # -- ENTEI dev-host shared-Gateway mode. When enabled, platinum renders the shared GatewayClass, Gateway, and LoadBalancer only; per-host Certificate, ListenerSet, and HTTPRoute are owned by the exposure materializer, not this chart.
 devHost:
