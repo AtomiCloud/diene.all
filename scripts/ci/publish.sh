@@ -21,9 +21,14 @@ manifest_version="$(yq -r '.version' chart/Chart.yaml)"
 bash ./scripts/ci/setup.sh
 helm-docs --chart-search-root chart
 mkdir -p "${output_dir}"
-helm dependency build chart
+# The cert-manager dependency is vendored (charts/*.tgz); only rebuild when it is
+# absent. The jetstack chart repo is unreachable in offline/local runs, and the
+# committed tarball is the reproducible source of truth.
+if ! ls chart/charts/*.tgz >/dev/null 2>&1; then
+  helm dependency build chart
+fi
 helm package chart --destination "${output_dir}" --version "${version}"
-package="${output_dir}/diene-helm-wrapper-${version}.tgz"
+package="${output_dir}/diene-sulfur-${version}.tgz"
 [ ! -s "${package}" ] && echo "❌ chart package was not created" >&2 && exit 1
 
 if [ "${mode}" = "git" ]; then

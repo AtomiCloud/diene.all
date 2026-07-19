@@ -1,18 +1,18 @@
-# ### helm-wrapper-reusable-ci
-# #### source: helm-wrapper
-name: ⚡ Reusable Helm Wrapper
+# ### sulfur-reusable-ci
+# #### source: sulfur
+name: ⚡ Reusable Sulfur Chart
 
 on:
   workflow_call:
 
 jobs:
   validate:
-    name: Validate Helm Wrapper
+    name: Validate Sulfur Chart
     runs-on:
       - nscloud-ubuntu-22.04-amd64-4x8-with-cache
       - nscloud-cache-size-50gb
       - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
     steps:
       - uses: AtomiCloud/actions.setup-nix@v3
-      - name: Run wrapper validation
-        run: nix develop .#ci -c ./scripts/ci/helm-wrapper.sh
+      - name: Run sulfur validation
+        run: nix develop .#ci -c ./scripts/ci/sulfur.sh

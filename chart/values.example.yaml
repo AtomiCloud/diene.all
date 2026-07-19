@@ -1,6 +1,9 @@
-# Independent landscape overlay example.
+# Independent landscape overlay example. Platform must match the install namespace.
 serviceTree:
   landscape: example
 
-primordial:
-  targetLandscape: example
+upstream:
+  global:
+    commonLabels:
+      atomi.cloud/landscape: example
+      atomi.cloud/platform: sample

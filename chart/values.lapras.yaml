@@ -2,12 +2,8 @@
 serviceTree:
   cluster: lapras
 
-# The local install proves the ordinary Kubernetes resources only; the CRDs are owned by later nodes.
-secret:
-  enabled: false
-
-webhookRoute:
-  enabled: false
-
-primordial:
-  enabled: false
+upstream:
+  global:
+    commonLabels:
+      atomi.cloud/cluster: lapras
+      atomi.cloud/platform: sample
