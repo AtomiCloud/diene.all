@@ -3,7 +3,6 @@
 # #### source: vanadium
 set -euo pipefail
 
-bash ./scripts/ci/setup.sh
 bash ./scripts/validate/vanadium.sh schema
 bash ./scripts/validate/vanadium.sh schema-drift
 bash ./scripts/validate/vanadium.sh lint

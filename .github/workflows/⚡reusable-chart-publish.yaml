@@ -1,5 +1,5 @@
-# ### helm-wrapper-reusable-publish
-# #### source: helm-wrapper
+# ### vanadium-reusable-publish
+# #### source: vanadium
 name: ⚡ Reusable Chart Publish
 
 on:

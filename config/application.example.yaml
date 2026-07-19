@@ -1,3 +1,0 @@
-$schema: ./application.schema.json
-logging:
-  level: debug

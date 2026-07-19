@@ -23,9 +23,3 @@ result-*
 Thumbs.db
 desktop.ini
 infra/root_chart/uploads/
-
-### helm-wrapper
-#### source: helm-wrapper
-chart/files/config/
-dist/
-probe-report.json

@@ -99,6 +99,12 @@ audit-enforce)
   yq eval-all -o=json '.' "${tmp}/deny.yaml" |
     jq -se 'map(select(.kind == "ValidatingAdmissionPolicyBinding" and .metadata.name == "vanadium-disallowlatest"))
       | all(.[]; .spec.validationActions == ["Deny"])' >/dev/null
+  invalid_values="${tmp}/invalid-actions.yaml"
+  yq '.policies.disallowLatest.actions = ["Deny", "Warn"]' chart/values.example.yaml >"${invalid_values}"
+  if helm lint chart --namespace "${namespace}" --values "${invalid_values}" >/dev/null 2>&1; then
+    echo "❌ invalid binding action combination passed schema validation" >&2
+    exit 1
+  fi
   ;;
 conformance)
   extract_definitions "${tmp}/defs"
@@ -111,6 +117,21 @@ conformance)
     kyverno apply "${vap}" --resource "${case_dir}good.yaml" --remove-color >/dev/null
     if kyverno apply "${vap}" --resource "${case_dir}bad.yaml" --remove-color >/dev/null 2>&1; then
       echo "❌ negative fixture for ${token} was not caught" >&2 && exit 1
+    fi
+  done
+  kyverno apply "${tmp}/defs/vanadium-restrictvolumetypes.yaml" --resource chart/tests/cases/restrictvolumetypes/good-allowed.yaml --remove-color >/dev/null
+  if kyverno apply "${tmp}/defs/vanadium-restrictvolumetypes.yaml" --resource chart/tests/cases/restrictvolumetypes/bad-nonhost.yaml --remove-color >/dev/null 2>&1; then
+    echo "❌ non-hostPath forbidden-volume fixture was not caught" >&2
+    exit 1
+  fi
+  for init_case in chart/tests/init-cases/*/; do
+    token="$(basename "${init_case}")"
+    policy="${token%%-init}"
+    vap="${tmp}/defs/vanadium-${policy}.yaml"
+    [ ! -s "${vap}" ] && echo "❌ no VAP definition for init case ${token}" >&2 && exit 1
+    kyverno apply "${vap}" --resource "${init_case}good.yaml" --remove-color >/dev/null
+    if kyverno apply "${vap}" --resource "${init_case}bad.yaml" --remove-color >/dev/null 2>&1; then
+      echo "❌ init-container negative fixture for ${policy} was not caught" >&2 && exit 1
     fi
   done
   ;;

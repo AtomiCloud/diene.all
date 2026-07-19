@@ -8,6 +8,7 @@ spec:
       labels:
         app: demo
     spec:
+      initContainers: []
       securityContext:
         runAsNonRoot: true
       containers:

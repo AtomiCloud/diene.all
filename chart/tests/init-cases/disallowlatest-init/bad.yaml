@@ -1,14 +1,13 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: tagged-image
+  name: latest-init
 spec:
   template:
-    metadata:
-      labels:
-        app: demo
     spec:
-      initContainers: []
+      initContainers:
+        - name: setup
+          image: busybox:latest
       containers:
         - name: app
           image: nginx:1.27.2

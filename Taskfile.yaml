@@ -2,17 +2,6 @@
 # #### source: workspace
 version: '3'
 
-includes:
-  helm: tasks/Taskfile.helm.yaml
-  secret: tasks/Taskfile.secret.yaml
-  example:lapras:
-    taskfile: tasks/Taskfile.cluster.yaml
-    vars:
-      RELEASE_NAME: helm-wrapper
-      NAMESPACE: sample
-      LANDSCAPE: example
-      CLUSTER: lapras
-
 tasks:
   setup:
     desc: Set up generated workspace assets
@@ -29,22 +18,6 @@ tasks:
     cmds:
       - ./scripts/local/skills-sync.sh
 
-  build:
-    desc: Vendor config and build chart dependencies
-    cmds:
-      - ./scripts/local/vendor-chart-config.sh
-      - helm dependency build chart
-
-  update:
-    desc: Refresh the pinned upstream chart dependency
-    cmds:
-      - helm dependency update chart
-
-  latest:
-    desc: Resolve the latest real upstream chart and image tags
-    cmds:
-      - ./scripts/local/latest-chart-upstreams.sh
-
   test:
     desc: Run the vanadium unit/static tier
     cmds:
@@ -58,14 +31,4 @@ tasks:
   test:int:
     desc: Run the local k3d admission-policy proof (reserved for the live window)
     cmds:
-      - ./scripts/validate/vanadium-k3d.sh
-
-  start:cluster:
-    desc: Start the local k3d lapras proof cluster
-    cmds:
-      - ./scripts/local/create-k3d-cluster.sh
-
-  stop:cluster:
-    desc: Delete the local k3d lapras proof cluster
-    cmds:
-      - ./scripts/local/delete-k3d-cluster.sh
+      - K3D_ISOLATE_BY_PATH=true VANADIUM_EVIDENCE_DIR="{{.ROOT_DIR}}/.vanadium-evidence" ./scripts/validate/vanadium-k3d.sh

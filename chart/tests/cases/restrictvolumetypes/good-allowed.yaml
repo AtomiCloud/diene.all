@@ -1,14 +1,16 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: latest-image
+  name: allowed-emptydir
 spec:
   template:
     metadata:
       labels:
         app: demo
     spec:
-      initContainers: []
       containers:
         - name: app
-          image: nginx:latest
+          image: nginx:1.27.2
+      volumes:
+        - name: cache
+          emptyDir: {}
