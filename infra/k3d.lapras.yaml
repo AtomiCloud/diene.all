@@ -1,7 +1,7 @@
 apiVersion: k3d.io/v1alpha5
 kind: Simple
 metadata:
-  name: diene-helm-wrapper
+  name: diene-cobalt
 servers: 1
 agents: 0
 image: rancher/k3s:v1.31.5-k3s1
@@ -11,7 +11,7 @@ ports:
       - loadbalancer
 registries:
   create:
-    name: diene-wrapper-registry
+    name: diene-cobalt-registry
     host: 0.0.0.0
     hostPort: '5001'
 options:

@@ -26,9 +26,9 @@ jobs:
     with:
       chart_path: ./infra/root_chart
 
-  helm-wrapper:
-    name: Helm Wrapper
+  cobalt:
+    name: Cobalt Chart
     permissions:
       contents: read
-    uses: ./.github/workflows/⚡reusable-helm-wrapper.yaml
+    uses: ./.github/workflows/⚡reusable-cobalt.yaml
     secrets: inherit

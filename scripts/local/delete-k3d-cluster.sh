@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cluster_name="${K3D_CLUSTER_NAME:-diene-helm-wrapper}"
-registry_name="${K3D_REGISTRY_NAME:-diene-wrapper-registry}"
+cluster_name="${K3D_CLUSTER_NAME:-diene-cobalt}"
+registry_name="${K3D_REGISTRY_NAME:-diene-cobalt-registry}"
 
 if k3d cluster list --no-headers | awk '{print $1}' | rg -qx "${cluster_name}"; then
   k3d cluster delete "${cluster_name}"

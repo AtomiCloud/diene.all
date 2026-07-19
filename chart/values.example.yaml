@@ -1,6 +1,9 @@
-# Independent landscape overlay example.
+# Independent landscape overlay. The landscape pins the ClusterSecretStore's SoS
+# environment (env == landscape); it is the only per-landscape delta.
 serviceTree:
   landscape: example
 
-primordial:
-  targetLandscape: example
+store:
+  infisical:
+    secretsScope:
+      environmentSlug: example
