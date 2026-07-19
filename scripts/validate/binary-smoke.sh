@@ -42,10 +42,8 @@ hadolint --version >/dev/null
 hadolint infra/Dockerfile
 
 helm-docs --version >/dev/null
-helm-docs --dry-run --chart-search-root infra/root_chart >/dev/null 2>&1
 
 helm version --short >/dev/null
-helm template dotnet-base infra/root_chart | kubeconform -strict -summary >/dev/null
 
 infisical --version >/dev/null
 git -C "${tmp}" init -q

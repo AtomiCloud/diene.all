@@ -22,7 +22,6 @@ result-*
 .vscode/
 Thumbs.db
 desktop.ini
-infra/root_chart/uploads/
 
 ### dotnet-base
 #### source: dotnet-base

@@ -8,14 +8,13 @@ Diene's reproducible development environment is managed by Nix. Run `direnv allo
 <!-- ### workspace -->
 <!-- #### source: workspace -->
 
-This branch is the all-features workspace baseline inherited by every downstream sample: split CI/CD, Docker, Helm, secrets, release configuration, validators, standards, and vendored agent-skill synchronization.
+This branch is the all-features workspace baseline inherited by every downstream sample: split CI/CD, Docker, secrets, release configuration, validators, standards, and vendored agent-skill synchronization.
 
 ## Commands
 
 - `pls setup` — synchronize installed diene package skills.
 - `pls lint` — run every pre-commit gate.
 - `pls docker:build` — build the local stub image.
-- `pls helm:lint` / `pls helm:template` — validate or render the root chart.
 - `pls secret:scan` — scan tracked content for secrets.
 - `pls skills:sync` — rebuild `.claude/skills/vendor/` from installed packages.
 
@@ -24,7 +23,6 @@ This branch is the all-features workspace baseline inherited by every downstream
 - [CI/CD workflows](docs/standards/ci-cd/index.md)
 - [conventional commits](docs/standards/conventional-commits/index.md)
 - [Docker build and publishing](docs/standards/docker/index.md)
-- [Helm charts and publishing](docs/standards/helm/index.md)
 - [Infisical and secrets](docs/standards/infisical/index.md)
 - [linting and pre-commit](docs/standards/linting/index.md)
 - [Nix flakes and development shells](docs/standards/nix/index.md)
@@ -67,14 +65,14 @@ contracts standard.
 
 This branch adds the .NET 10 toolchain, the `App`/`Lib`/`UnitTest`/`IntTest`
 sample, merged multi-project coverage, strict and LLM dead-code modes, and the
-complete Docker and Helm axes. See [the .NET baseline](docs/developer/dotnet-baseline.md).
+complete Docker axis. See [the .NET baseline](docs/developer/dotnet-baseline.md).
 
 Common commands:
 
 - `pls build`, `pls dev`, `pls run`, and `pls preview`
 - `pls test`, `pls test:unit`, `pls test:int`, and the coverage variants
 - `pls deadcode` for the non-blocking review; CI owns strict dn-inspect
-- `pls docker:build` and `pls helm:lint` / `pls helm:template`
+- `pls docker:build`
 
 The illustrative Note domain is documented in [docs/domain/note.md](docs/domain/note.md).
 Production observability is intentionally absent until the observability add-back.

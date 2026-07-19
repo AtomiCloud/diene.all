@@ -22,10 +22,6 @@ See [docs/standards/conventional-commits/index.md](docs/standards/conventional-c
 
 See [docs/standards/docker/index.md](docs/standards/docker/index.md).
 
-## Helm charts and publishing
-
-See [docs/standards/helm/index.md](docs/standards/helm/index.md).
-
 ## Infisical and secrets
 
 See [docs/standards/infisical/index.md](docs/standards/infisical/index.md).
@@ -86,7 +82,7 @@ reserved for the separately owned C0 contracts standard.
 ## .NET base template
 
 Read [the .NET baseline](docs/developer/dotnet-baseline.md) and use `pls` for
-setup, build, run, test, coverage, dead-code review, Docker, and Helm tasks.
+setup, build, run, test, coverage, dead-code review, and Docker tasks.
 
 Language variants:
 

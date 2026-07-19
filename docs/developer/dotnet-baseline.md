@@ -7,7 +7,7 @@ title: .NET Baseline
 
 `dotnet-base` is the .NET 10 foundation for the dotnet template family. It
 replays the real `AtomiCloud/diene.dotnet-base` sample while retaining the current
-shared workspace, standards, Docker, Helm, secret, and release surfaces.
+shared workspace, standards, Docker, secret, and release surfaces.
 
 ## Local commands
 
@@ -53,18 +53,17 @@ The SDK is pinned by `global.json`; packages use Central Package Management.
 `NuGetAuditMode=all`, analyzers, deterministic builds, and warnings-as-errors are
 enforced in Release builds.
 
-## Docker, Helm, and release
+## Docker and release
 
-The Dockerfile is a minimal non-root stub, and the Helm chart keeps an empty
-template directory for descendants to replace. The Helm axis is complete:
-lint/docs hooks, local tasks, OCI packaging, CI/CD jobs, and dependabot coverage
+The Dockerfile is a minimal non-root stub for descendants to replace. The Docker
+axis is complete: local tasks, OCI packaging, CI/CD jobs, and dependabot coverage
 are all active. Semantic release writes the repository `VERSION`; `.gitlint` and
 `atomi_release.yaml` share one commit-type vocabulary.
 
 ## Template-maintenance boundary
 
 Downstream nodes may adapt package/artifact identity, coverage thresholds, Docker
-runtime, chart contents, badges, and the illustrative Note source/tests. Keep
+runtime, badges, and the illustrative Note source/tests. Keep
 `dotnet-base.slnx`, `.config/dotnet-base.test.yaml`, and the
 `AtomiCloud.DotnetBase.*` root namespaces base-named for merge stability.
 
