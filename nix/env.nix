@@ -54,6 +54,12 @@ with packages;
   # #### source: workspace
   # C2: sg is retained only until tools/releaser is published at step 2p.
   releaser = [
+    dpkg
+    gh
+    git
+    go
+    goreleaser
+    rpm
     sg
   ];
 

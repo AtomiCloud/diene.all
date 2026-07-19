@@ -23,10 +23,6 @@ export default {
       expectedImpact: [],
       async run(repo: any) {
         await repo.write('src/lib/__probe_uncovered__.ts', 'export const probeUncovered = (): number => 1;\n');
-        await repo.write(
-          'src/index.ts',
-          `${await repo.read('src/index.ts')}\nexport { probeUncovered } from './lib/__probe_uncovered__';\n`,
-        );
         await expectBunRed(repo, command, 'bun-unit-coverage');
       },
     },

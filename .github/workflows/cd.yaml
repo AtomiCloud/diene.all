@@ -8,6 +8,29 @@ on:
       - 'v*.*.*'
 
 jobs:
+  # ### bun-cli-release
+  # #### source: bun-cli
+  goreleaser:
+    name: GoReleaser Publish
+    permissions:
+      contents: write
+    runs-on:
+      - nscloud-ubuntu-22.04-amd64-4x8-with-cache
+      - nscloud-cache-size-50gb
+      - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
+    steps:
+      - uses: AtomiCloud/actions.setup-nix@v3
+      - uses: AtomiCloud/actions.cache-bun@v2
+      - name: Validate the Nix CLI package
+        run: nix build .#bun-cli
+      - name: Compile, package, and publish all channels
+        env:
+          FURY_ENDPOINT: push.fury.io/atomicloud
+          FURY_TOKEN: ${{ secrets.FURY_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: nix develop .#releaser -c ./scripts/release/publish.sh
+
   docker:
     name: Docker Image
     permissions:
@@ -17,6 +40,6 @@ jobs:
     uses: ./.github/workflows/⚡reusable-docker.yaml
     secrets: inherit
     with:
-      image_name: diene-workspace
+      image_name: diene-bun-cli
       dockerfile: ./infra/Dockerfile
       version: ${{ github.ref_name }}

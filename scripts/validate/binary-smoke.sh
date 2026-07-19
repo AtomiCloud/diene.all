@@ -6,7 +6,7 @@ if [ -f package.json ]; then
   export PATH="${PWD}/node_modules/.bin:${PATH}"
 fi
 
-binaries=(actionlint bash cyanprint docker git gomplate hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pls pre-commit rg sg shellcheck skopeo task treefmt yq)
+binaries=(actionlint bash cyanprint docker dpkg gh git go gomplate goreleaser hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pls pre-commit rg rpm sg shellcheck skopeo task treefmt yq)
 [ -f package.json ] && binaries+=(bun biome knip tsc)
 
 for binary in "${binaries[@]}"; do
@@ -62,14 +62,26 @@ fi
 docker --version >/dev/null
 docker info --format '{{.ServerVersion}}' >/dev/null
 
+dpkg --version >/dev/null
+dpkg --print-architecture >/dev/null
+
+gh --version >/dev/null
+gh help >/dev/null
+
 git --version >/dev/null
 git rev-parse --is-inside-work-tree >/dev/null
+
+go version >/dev/null
+go env GOOS >/dev/null
 
 gomplate --version >/dev/null
 [ "$(gomplate -i '{{ add 1 1 }}')" != "2" ] && echo "❌ gomplate failed a real template" >&2 && exit 1
 
 hadolint --version >/dev/null
 hadolint infra/Dockerfile
+
+goreleaser --version >/dev/null
+goreleaser check >/dev/null
 
 helm-docs --version >/dev/null
 
@@ -109,6 +121,9 @@ pre-commit validate-config .pre-commit-config.yaml
 
 rg --version >/dev/null
 rg -q '^## Bun foundation$|^# Diene workspace baseline$' README.md
+
+rpm --version >/dev/null
+rpm --eval '%{_arch}' >/dev/null
 
 sg --version >/dev/null
 printf '%s\n' '[general]' 'contrib=CT1' 'ignore=B6' '' '[contrib-title-conventional-commits]' 'types = amend' >"${tmp}/.gitlint"

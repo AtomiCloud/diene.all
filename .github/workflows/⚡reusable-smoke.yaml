@@ -1,0 +1,32 @@
+# ### bun-cli-reusable-smoke
+# #### source: bun-cli
+name: ⚡ Reusable Smoke
+on:
+  workflow_call:
+    inputs:
+      binary:
+        description: Binary filename under dist/bin/ to smoke-test
+        required: true
+        type: string
+      runs_on:
+        description: JSON array of runner labels for this target
+        required: true
+        type: string
+jobs:
+  smoke:
+    name: Smoke
+    runs-on: ${{ fromJSON(inputs.runs_on) }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Download compiled binaries
+        uses: actions/download-artifact@v8
+        with:
+          name: cli-binaries
+          path: dist/bin
+      # `binary` goes through env: so caller input is never expanded into shell source.
+      - name: Smoke
+        env:
+          BINARY: ${{ inputs.binary }}
+        run: ./scripts/release/smoke.sh "dist/bin/${BINARY}"

@@ -49,6 +49,9 @@ Plugin versions are pinned in `atomi_release.yaml`. The exec plugin updates
 `VERSION`; the git plugin commits `Changelog.md`, `VERSION`, and the generated
 commit-conventions document.
 
+Compiled CLI variants prepend an exec step that snapshots `Changelog.old.md`
+and omit the GitHub plugin because GoReleaser owns the release and assets.
+
 The unified D3 commit-type vocabulary is:
 
 ```text

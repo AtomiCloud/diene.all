@@ -19,6 +19,12 @@ specialScopes:
     release: false
 
 plugins:
+  # ### bun-cli-release-variant
+  # #### source: bun-cli
+  - module: '@semantic-release/exec'
+    version: 6.0.3
+    config:
+      prepareCmd: ./scripts/release/backup-changelog.sh
   - module: '@semantic-release/changelog'
     version: 6.0.3
     config:
@@ -33,11 +39,10 @@ plugins:
       message: "release: ${nextRelease.version}\n\n${nextRelease.notes}"
       assets:
         - Changelog.md
+        - Changelog.old.md
         - package.json
         - VERSION
         - docs/developer/CommitConventions.md
-  - module: '@semantic-release/github'
-    version: 10.3.5
 
 types:
   - type: amend

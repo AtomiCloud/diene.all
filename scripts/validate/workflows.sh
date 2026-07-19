@@ -14,11 +14,18 @@ if [ "${mode}" = "wiring" ]; then
       echo "❌ workflow script '${script}' is not executable" >&2
       exit 1
     }
-  done < <(rg -o --no-filename 'scripts/ci/[A-Za-z0-9._-]+[.]sh' .github/workflows | sort -u)
+  done < <(rg -o --no-filename 'scripts/(ci|release)/[A-Za-z0-9._-]+[.]sh' .github/workflows | sort -u)
 
   for orchestrator in .github/workflows/ci.yaml .github/workflows/cd.yaml .github/workflows/release.yaml; do
     while IFS=$'\t' read -r job reusable; do
-      [ -z "${reusable}" ] && echo "❌ '${orchestrator}' job '${job}' must call a reusable workflow" >&2 && exit 1
+      if [ -z "${reusable}" ]; then
+        [ "${orchestrator}:${job}" != ".github/workflows/cd.yaml:goreleaser" ] && echo "❌ '${orchestrator}' job '${job}' must call a reusable workflow" >&2 && exit 1
+        rg -q 'scripts/release/publish[.]sh' "${orchestrator}" || {
+          echo "❌ direct GoReleaser job does not call scripts/release/publish.sh" >&2
+          exit 1
+        }
+        continue
+      fi
       [[ ${reusable} == ./.github/workflows/* ]] || {
         echo "❌ '${orchestrator}' job '${job}' must call a repository-local reusable workflow" >&2
         exit 1
@@ -28,8 +35,8 @@ if [ "${mode}" = "wiring" ]; then
         echo "❌ '${orchestrator}' references missing reusable workflow '${target}'" >&2
         exit 1
       }
-      rg -q 'scripts/ci/[A-Za-z0-9._-]+[.]sh' "${target}" || {
-        echo "❌ reusable workflow '${target}' does not call a scripts/ci entrypoint" >&2
+      rg -q 'scripts/(ci|release)/[A-Za-z0-9._-]+[.]sh' "${target}" || {
+        echo "❌ reusable workflow '${target}' does not call a repository script entrypoint" >&2
         exit 1
       }
     done < <(yq -r '.jobs | to_entries[] | [.key, (.value.uses // "")] | @tsv' "${orchestrator}")

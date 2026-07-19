@@ -1,0 +1,23 @@
+# ### bun-cli-reusable-compile
+# #### source: bun-cli
+name: ⚡ Reusable Compile
+on:
+  workflow_call:
+jobs:
+  compile:
+    name: Compile Binaries
+    runs-on:
+      - nscloud-ubuntu-22.04-amd64-4x8-with-cache
+      - nscloud-cache-size-50gb
+      - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
+    steps:
+      - uses: AtomiCloud/actions.setup-nix@v3
+      - uses: AtomiCloud/actions.cache-bun@v2
+      - name: Cross-compile standalone binaries
+        run: nix develop .#ci -c ./scripts/release/compile.sh
+      - name: Upload binaries
+        uses: actions/upload-artifact@v7
+        with:
+          name: cli-binaries
+          path: dist/bin/
+          if-no-files-found: error

@@ -1,8 +1,9 @@
 import { afterAll, beforeAll, describe, it } from 'bun:test';
 import should from 'should';
 import { GenericContainer, type StartedTestContainer, Wait } from 'testcontainers';
-import type { IKeyValueStore } from '../../src/adapters/kv-store';
-import { createRedisStore, persistSample } from '../../src/index';
+import { RedisKeyValueStore } from '../../src/adapters/kv/data/redis-kv-store';
+import type { IKeyValueStore } from '../../src/lib/kv/interfaces';
+import { namespacedKey } from '../../src/lib/kv/slug';
 
 describe('RedisKeyValueStore (Testcontainers)', () => {
   let container: StartedTestContainer | undefined;
@@ -13,7 +14,7 @@ describe('RedisKeyValueStore (Testcontainers)', () => {
       .withExposedPorts(6379)
       .withWaitStrategy(Wait.forLogMessage(/Ready to accept connections/))
       .start();
-    subject = createRedisStore({
+    subject = new RedisKeyValueStore({
       host: container.getHost(),
       port: container.getMappedPort(6379),
     });
@@ -27,9 +28,11 @@ describe('RedisKeyValueStore (Testcontainers)', () => {
   it('should persist and retrieve a namespaced value', async () => {
     // Arrange
     const expected = 'hello';
+    const key = namespacedKey('Bun Base', 'sample key');
 
     // Act
-    const actual = await persistSample(subject as IKeyValueStore, 'Bun Base', 'sample key', expected);
+    await (subject as IKeyValueStore).set(key, expected);
+    const actual = await (subject as IKeyValueStore).get(key);
 
     // Assert
     should(actual).equal(expected);

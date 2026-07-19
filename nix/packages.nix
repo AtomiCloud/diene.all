@@ -71,9 +71,13 @@ let
           # ### bun-base-packages
           # #### source: bun-base
           bun
+          dpkg
           docker-client
+          gh
           git
+          go
           go-task
+          goreleaser
           infisical
           jq
           kubeconform
@@ -81,6 +85,7 @@ let
           kyverno
           pre-commit
           ripgrep
+          rpm
           shellcheck
           skopeo
           treefmt
@@ -100,7 +105,73 @@ let
     root = {
       inherit cyanprint;
     };
+
+    # ### bun-cli-package
+    # #### source: bun-cli
+    cli =
+      let
+        bunPkg = pkgs-2605.bun;
+        manifest = builtins.fromJSON (builtins.readFile ../package.json);
+        cliName = builtins.head (builtins.attrNames manifest.bin);
+        entry = manifest.bin.${cliName};
+        src = pkgs.lib.cleanSourceWith {
+          src = ../.;
+          filter =
+            path: _type:
+            let
+              base = baseNameOf path;
+            in
+            !(builtins.elem base [
+              "node_modules"
+              "dist"
+              "prebuilt"
+              "coverage"
+              ".direnv"
+              "result"
+            ]);
+        };
+        deps = pkgs.stdenv.mkDerivation {
+          pname = "${cliName}-deps";
+          version = manifest.version;
+          inherit src;
+          nativeBuildInputs = [ bunPkg ];
+          dontConfigure = true;
+          buildPhase = ''
+            export HOME="$TMPDIR"
+            bun install --frozen-lockfile --no-progress
+          '';
+          installPhase = ''
+            mkdir -p "$out"
+            cp -r node_modules "$out/node_modules"
+          '';
+          dontFixup = true;
+          outputHashMode = "recursive";
+          outputHashAlgo = "sha256";
+          outputHash = "sha256-SpnLtJvmEIfnzXhU8odLN4Mj/2ap/TgxiX3VSOuDNnQ=";
+        };
+      in
+      {
+        bun-cli = pkgs.stdenv.mkDerivation {
+          pname = cliName;
+          version = manifest.version;
+          inherit src;
+          nativeBuildInputs = [ bunPkg ];
+          dontConfigure = true;
+          buildPhase = ''
+            export HOME="$TMPDIR"
+            cp -r ${deps}/node_modules ./node_modules
+            chmod -R u+w node_modules
+            bun build "./${entry}" --compile --outfile "${cliName}"
+          '';
+          installPhase = ''
+            mkdir -p "$out/bin"
+            cp "${cliName}" "$out/bin/${cliName}"
+          '';
+          dontFixup = true;
+          meta.mainProgram = cliName;
+        };
+      };
   };
 in
 with all;
-atomipkgs // nix-2605 // nix-unstable // root
+atomipkgs // nix-2605 // nix-unstable // root // cli

@@ -1,0 +1,22 @@
+# ### bun-cli-reusable-sit
+# #### source: bun-cli
+name: ⚡ Reusable SIT
+on:
+  workflow_call:
+jobs:
+  sit:
+    name: SIT
+    runs-on:
+      - nscloud-ubuntu-22.04-amd64-4x8-with-cache
+      - nscloud-cache-size-50gb
+      - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
+    steps:
+      - uses: AtomiCloud/actions.setup-nix@v3
+      - uses: AtomiCloud/actions.cache-bun@v2
+      - name: Download compiled binaries
+        uses: actions/download-artifact@v8
+        with:
+          name: cli-binaries
+          path: dist/bin
+      - name: Run SIT
+        run: nix develop .#ci -c ./scripts/ci/test.sh sit

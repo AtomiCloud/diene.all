@@ -1,6 +1,6 @@
 import { describe, it } from 'bun:test';
 import should from 'should';
-import { NamespacedKeyValidationError, namespacedKey, slugify } from '../../src/lib/slug';
+import { NamespacedKeyValidationError, namespacedKey, slugify } from '../../src/lib/kv/slug';
 
 describe('slugify', () => {
   it.each([
@@ -12,8 +12,6 @@ describe('slugify', () => {
     { input: 'mañana', expected: 'manana' },
     { input: 'résumé café', expected: 'resume-cafe' },
   ])('should slugify "$input" to "$expected"', ({ input, expected }) => {
-    // Arrange
-
     // Act
     const actual = slugify(input);
 
@@ -33,7 +31,6 @@ describe('slugify', () => {
     should(actual).equal(expected);
   });
 });
-
 describe('namespacedKey', () => {
   it('should join a slugified namespace and key with a colon', () => {
     // Arrange

@@ -279,5 +279,150 @@
     "template": "diene/bun-base",
     "name": "bun-codecov-config",
     "class": "presence"
+  },
+  {
+    "template": "diene/bun-cli",
+    "name": "cli-sit-journeys",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-cli",
+    "name": "cli-sit-coverage",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-cli",
+    "name": "cli-goreleaser-check",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-cli",
+    "name": "cli-architecture",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-cli",
+    "name": "cli-adapter-unit-seam",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-cli",
+    "name": "cli-adapter-integration-seam",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-cli",
+    "name": "cli-distroless-base",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-cli",
+    "name": "cli-nonroot",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-cli",
+    "name": "cli-release-backup-order",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-cli",
+    "name": "cli-changelog-asset",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-cli",
+    "name": "cli-release-artifacts",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-cli",
+    "name": "cli-nfpms-formats",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-cli",
+    "name": "cli-homebrew-cask",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-cli",
+    "name": "cli-fury-wiring",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-cli",
+    "name": "cli-docker-release-wiring",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-cli",
+    "name": "cli-installer-checksum",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-cli",
+    "name": "cli-installer-timeouts",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-cli",
+    "name": "cli-installer-platform-guard",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-cli",
+    "name": "cli-installation-parity",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-cli",
+    "name": "cli-nix-release-wiring",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-cli",
+    "name": "cli-compile",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/bun-cli",
+    "name": "cli-binary-answers",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/bun-cli",
+    "name": "cli-platform-smoke",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/bun-cli",
+    "name": "cli-goreleaser-snapshot",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/bun-cli",
+    "name": "cli-container-execution",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/bun-cli",
+    "name": "cli-installer-supported",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/bun-cli",
+    "name": "cli-version-stamped",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/bun-cli",
+    "name": "cli-nix-package",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/bun-cli",
+    "name": "cli-probe-inventory",
+    "class": "presence"
   }
 ]
