@@ -352,6 +352,142 @@ presence)
   rg -q '^## Tokenization surface$' docs/developer/sulfur-baseline.md
   ;;
 
+task-surface)
+  # Regression for the public cluster Taskfile surface. `example:<landscape>:template`
+  # must route through render-stacked.sh, generate the identity layer from the exact
+  # base+landscape+cluster stack, and append it LAST — so the mandatory validate.yaml
+  # guard passes and the generated LPSM identity labels reach the render. A Taskfile
+  # edit that drops the identity layer (the reviewer's blocker) turns this red.
+  command -v task >/dev/null || {
+    echo "❌ 'task' runner unavailable for the Taskfile-surface regression" >&2
+    exit 1
+  }
+  tree_before="$(git status --porcelain)"
+  task example:lapras:template >"${tmp}/task-render.yaml" 2>"${tmp}/task-render.err" || {
+    echo "❌ public 'example:lapras:template' task failed to render (identity layer missing?)" >&2
+    cat "${tmp}/task-render.err" >&2
+    exit 1
+  }
+  yq eval-all -o=json '.' "${tmp}/task-render.yaml" |
+    jq -s -e --arg p "${label_prefix}" \
+      'map(select(.kind != null)) | length > 0 and all(.[]; (.metadata.labels[$p + "/service"] == "sulfur") and (.metadata.labels[$p + "/platform"] == "sample") and (.metadata.labels[$p + "/landscape"] == "example") and (.metadata.labels[$p + "/cluster"] == "lapras"))' >/dev/null || {
+    echo "❌ public template task render is missing the generated LPSM identity labels (identity layer not appended)" >&2
+    exit 1
+  }
+  # The wrapper renders through a mktemp layer and must introduce no working-tree
+  # change (no leaked temp identity layer, no dirtied committed files). Compared to a
+  # pre-run snapshot so a legitimately dirty tree does not mask a real leak.
+  [ "$(git status --porcelain)" != "${tree_before}" ] && echo "❌ public template task changed the working tree (temp layer not isolated)" >&2 && git status --porcelain >&2 && exit 1
+  ;;
+
+k3d-guard)
+  # Non-live guard for the held k3d proof's isolation/ownership/collision logic, using
+  # a fake k3d backend. Proves: (1) the isolated proof rejects preset identity
+  # overrides and passes an explicit --kube-context; (2) create refuses a pre-existing
+  # cluster/registry (collision) and claims ownership of exactly what it builds; and
+  # (3) delete tears down ONLY owned resources (nothing when no ownership was claimed).
+  fakebin="${tmp}/fakebin"
+  mkdir -p "${fakebin}"
+  cat >"${fakebin}/k3d" <<'FAKE'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >>"${FAKE_K3D_LOG:-/dev/null}"
+case "${1:-} ${2:-}" in
+"cluster list") cat "${FAKE_K3D_CLUSTERS:-/dev/null}" 2>/dev/null || true ;;
+"registry list") cat "${FAKE_K3D_REGISTRIES:-/dev/null}" 2>/dev/null || true ;;
+*) : ;;
+esac
+FAKE
+  chmod +x "${fakebin}/k3d"
+  marker="${tmp}/marker"
+
+  # (1a) Override rejection: a preset identity var under path isolation must fail
+  # closed at the guard, before any k3d/helm call.
+  if PATH="${fakebin}:${PATH}" K3D_ISOLATE_BY_PATH=true K3D_CLUSTER_NAME=intruder \
+    bash ./scripts/validate/sulfur-k3d.sh 2>"${tmp}/reject.err"; then
+    echo "❌ isolated proof accepted a preset K3D_CLUSTER_NAME override" >&2
+    exit 1
+  fi
+  rg -q 'must not be preset when K3D_ISOLATE_BY_PATH=true' "${tmp}/reject.err" || {
+    echo "❌ isolated proof did not reject the preset identity override at the guard" >&2
+    exit 1
+  }
+
+  # (1b) Explicit-context invariant: the held proof installs into the isolated cluster.
+  rg -qF -- '--kube-context "k3d-${cluster_name}"' scripts/validate/sulfur-k3d.sh || {
+    echo "❌ held k3d proof does not pass an explicit --kube-context to helm install" >&2
+    exit 1
+  }
+
+  # (2a) Collision refusal (cluster): create must fail closed, write no marker, and
+  # never issue a create.
+  printf 'diene-sulfur-fake\n' >"${tmp}/clusters"
+  : >"${tmp}/registries"
+  : >"${tmp}/collide.log"
+  rm -f "${marker}"
+  if PATH="${fakebin}:${PATH}" FAKE_K3D_CLUSTERS="${tmp}/clusters" FAKE_K3D_REGISTRIES="${tmp}/registries" \
+    FAKE_K3D_LOG="${tmp}/collide.log" K3D_CLUSTER_NAME=diene-sulfur-fake K3D_REGISTRY_NAME=diene-sulfur-registry-fake \
+    K3D_REQUIRE_OWNERSHIP=true K3D_OWNERSHIP_MARKER="${marker}" \
+    bash ./scripts/local/create-k3d-cluster.sh 2>/dev/null; then
+    echo "❌ create adopted a pre-existing cluster under strict ownership" >&2
+    exit 1
+  fi
+  [ -f "${marker}" ] && echo "❌ create claimed ownership despite refusing a collision" >&2 && exit 1
+  rg -q 'cluster create' "${tmp}/collide.log" && echo "❌ create issued a k3d create despite a collision" >&2 && exit 1
+
+  # (2b) Collision refusal (k3d-prefixed registry) must also fail closed.
+  : >"${tmp}/clusters"
+  printf 'k3d-diene-sulfur-registry-fake\n' >"${tmp}/registries"
+  if PATH="${fakebin}:${PATH}" FAKE_K3D_CLUSTERS="${tmp}/clusters" FAKE_K3D_REGISTRIES="${tmp}/registries" \
+    FAKE_K3D_LOG="${tmp}/collide.log" K3D_CLUSTER_NAME=diene-sulfur-fake K3D_REGISTRY_NAME=diene-sulfur-registry-fake \
+    K3D_REQUIRE_OWNERSHIP=true K3D_OWNERSHIP_MARKER="${marker}" \
+    bash ./scripts/local/create-k3d-cluster.sh 2>/dev/null; then
+    echo "❌ create adopted a pre-existing (k3d-prefixed) registry under strict ownership" >&2
+    exit 1
+  fi
+
+  # (2c) Clean create claims ownership of exactly what it built.
+  : >"${tmp}/clusters"
+  : >"${tmp}/registries"
+  : >"${tmp}/create.log"
+  PATH="${fakebin}:${PATH}" FAKE_K3D_CLUSTERS="${tmp}/clusters" FAKE_K3D_REGISTRIES="${tmp}/registries" \
+    FAKE_K3D_LOG="${tmp}/create.log" K3D_CLUSTER_NAME=diene-sulfur-fake K3D_REGISTRY_NAME=diene-sulfur-registry-fake \
+    K3D_REQUIRE_OWNERSHIP=true K3D_OWNERSHIP_MARKER="${marker}" \
+    bash ./scripts/local/create-k3d-cluster.sh >/dev/null 2>&1
+  { rg -qx 'cluster=diene-sulfur-fake' "${marker}" && rg -qx 'registry=diene-sulfur-registry-fake' "${marker}"; } || {
+    echo "❌ create did not record ownership of the resources it built" >&2
+    exit 1
+  }
+  rg -q 'cluster create' "${tmp}/create.log" || {
+    echo "❌ clean create never issued a k3d create" >&2
+    exit 1
+  }
+
+  # (3a) Owned cleanup: delete tears down exactly the owned cluster+registry.
+  printf 'diene-sulfur-fake\n' >"${tmp}/clusters"
+  printf 'k3d-diene-sulfur-registry-fake\n' >"${tmp}/registries"
+  : >"${tmp}/delete.log"
+  PATH="${fakebin}:${PATH}" FAKE_K3D_CLUSTERS="${tmp}/clusters" FAKE_K3D_REGISTRIES="${tmp}/registries" \
+    FAKE_K3D_LOG="${tmp}/delete.log" K3D_REQUIRE_OWNERSHIP=true K3D_OWNERSHIP_MARKER="${marker}" \
+    bash ./scripts/local/delete-k3d-cluster.sh >/dev/null 2>&1
+  rg -q 'cluster delete diene-sulfur-fake' "${tmp}/delete.log" || {
+    echo "❌ owned cleanup did not delete the owned cluster" >&2
+    exit 1
+  }
+  rg -q 'registry delete diene-sulfur-registry-fake' "${tmp}/delete.log" || {
+    echo "❌ owned cleanup did not delete the owned registry" >&2
+    exit 1
+  }
+
+  # (3b) Unowned cleanup (no marker) must delete nothing.
+  rm -f "${marker}"
+  : >"${tmp}/noop.log"
+  PATH="${fakebin}:${PATH}" FAKE_K3D_CLUSTERS="${tmp}/clusters" FAKE_K3D_REGISTRIES="${tmp}/registries" \
+    FAKE_K3D_LOG="${tmp}/noop.log" K3D_REQUIRE_OWNERSHIP=true K3D_OWNERSHIP_MARKER="${marker}" \
+    bash ./scripts/local/delete-k3d-cluster.sh >/dev/null 2>&1
+  rg -q 'delete' "${tmp}/noop.log" && echo "❌ cleanup with no ownership marker deleted a resource" >&2 && exit 1
+  ;;
+
 *)
   echo "❌ unknown validation mode '${mode}'" >&2
   exit 1

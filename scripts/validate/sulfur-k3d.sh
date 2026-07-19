@@ -7,17 +7,31 @@
 # Reserved for the orchestrated quiet-host proof window; not run in the unit tier.
 set -euo pipefail
 
+# Isolated-by-path identity: derive a unique cluster/registry/port set from the
+# worktree path. With isolation enabled the identity is derived UNCONDITIONALLY —
+# any preset K3D_* identity override is rejected so the run cannot be pointed at
+# (and then destroy) a cluster/registry it does not own.
 if [ "${K3D_ISOLATE_BY_PATH:-false}" = "true" ]; then
+  [ -n "${K3D_CLUSTER_NAME:-}" ] && echo "❌ K3D_CLUSTER_NAME must not be preset when K3D_ISOLATE_BY_PATH=true (the isolated identity derives from the worktree path)" >&2 && exit 1
+  [ -n "${K3D_REGISTRY_NAME:-}" ] && echo "❌ K3D_REGISTRY_NAME must not be preset when K3D_ISOLATE_BY_PATH=true (the isolated identity derives from the worktree path)" >&2 && exit 1
+  [ -n "${K3D_REGISTRY_PORT:-}" ] && echo "❌ K3D_REGISTRY_PORT must not be preset when K3D_ISOLATE_BY_PATH=true (the isolated identity derives from the worktree path)" >&2 && exit 1
+  [ -n "${K3D_HTTP_PORT:-}" ] && echo "❌ K3D_HTTP_PORT must not be preset when K3D_ISOLATE_BY_PATH=true (the isolated identity derives from the worktree path)" >&2 && exit 1
   isolation_key="$(printf '%s' "${PWD}" | sha256sum | cut -c1-8)"
-  export K3D_CLUSTER_NAME="${K3D_CLUSTER_NAME:-diene-sulfur-${isolation_key}}"
-  export K3D_REGISTRY_NAME="${K3D_REGISTRY_NAME:-diene-sulfur-registry-${isolation_key}}"
-  export K3D_REGISTRY_PORT="${K3D_REGISTRY_PORT:-$((20000 + (16#${isolation_key:0:4} % 10000)))}"
-  export K3D_HTTP_PORT="${K3D_HTTP_PORT:-$((30000 + (16#${isolation_key:4:4} % 10000)))}"
+  export K3D_CLUSTER_NAME="diene-sulfur-${isolation_key}"
+  export K3D_REGISTRY_NAME="diene-sulfur-registry-${isolation_key}"
+  export K3D_REGISTRY_PORT="$((20000 + (16#${isolation_key:0:4} % 10000)))"
+  export K3D_HTTP_PORT="$((30000 + (16#${isolation_key:4:4} % 10000)))"
 fi
 
 cluster_name="${K3D_CLUSTER_NAME:-diene-sulfur}"
 registry_port="${K3D_REGISTRY_PORT:-5001}"
 tmp="$(mktemp -d)"
+# Ownership-scoped cleanup: create claims exactly what it builds in this marker and
+# refuses to adopt a pre-existing cluster/registry; delete tears down ONLY those
+# owned resources. A refused (colliding) run writes no marker, so the trap never
+# destroys a cluster/registry this run did not create.
+export K3D_REQUIRE_OWNERSHIP=true
+export K3D_OWNERSHIP_MARKER="${tmp}/owned"
 trap 'bash ./scripts/local/delete-k3d-cluster.sh >/dev/null 2>&1 || true; rm -rf "${tmp}"' EXIT
 
 bash ./scripts/local/create-k3d-cluster.sh
@@ -26,6 +40,7 @@ bash ./scripts/local/create-k3d-cluster.sh
 # path and the validate.yaml guard rejects an install without it.
 ./scripts/local/gen-identity-values.sh chart/values.example.yaml chart/values.lapras.yaml >"${tmp}/identity.yaml"
 helm upgrade --install sulfur chart --namespace sample --create-namespace \
+  --kube-context "k3d-${cluster_name}" \
   --values chart/values.example.yaml --values chart/values.lapras.yaml --values "${tmp}/identity.yaml" --wait --timeout 5m
 
 for dep in sulfur-upstream sulfur-upstream-webhook sulfur-upstream-cainjector; do

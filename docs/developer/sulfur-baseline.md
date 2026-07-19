@@ -57,7 +57,10 @@ sample` (the install namespace). Landscape and cluster are added by independent
   the `commonLabels` keys are **generated** from the single `labelPrefix` (default
   `atomi.cloud`) plus `serviceTree` by `scripts/local/gen-identity-values.sh`.
   That generated layer is the supported, **mandatory** render path: every
-  `helm template`/`helm install` appends it, and the zero-resource
+  supported render/install route appends it — the unit tier, the public
+  `example:*` cluster Taskfile (through `scripts/local/render-stacked.sh`, which
+  generates the layer from the exact base+landscape+cluster stack and appends it
+  as the final `--values`), and the k3d proof — and the zero-resource
   `templates/validate.yaml` guard fails rendering when the layer is absent or its
   platform key does not mirror `serviceTree.platform`. `labelPrefix` is therefore
   the only source of the prefix — overriding it re-keys the rendered labels
@@ -126,12 +129,20 @@ CyanPrint probe matrix.
   the namespace/platform identity guard (positive + mismatched-namespace and
   missing-identity-layer negatives), Reloader opt-out (nullable annotations), the
   Q-G20 rendered-manifest stage, the Q-G22 sequential-minor gate (positive/negative
-  fixtures plus the base-derived `--ci-gate` proof), and the contract negative
+  fixtures plus the base-derived `--ci-gate` proof), the contract negative
   fixtures (Gateway API enabled, no dead feature gate, no own Issuer, CRDs
-  enabled).
+  enabled), the public Taskfile render-surface regression (`task-surface`: the
+  `example:*` route renders with the appended identity layer and leaves the tree
+  clean), and the non-live k3d isolation/ownership guard (`k3d-guard`: a
+  fake-backend proof that the held proof rejects preset identities, refuses a
+  colliding cluster/registry, and tears down only owned resources).
 - **Integration tier** (`scripts/validate/sulfur-k3d.sh`): k3d install, the three
   cert-manager Deployments reach Available, and a self-signed Issuer + Certificate
-  round-trips to `Ready=True`. Reserved for the orchestrated proof window.
+  round-trips to `Ready=True`. The proof derives a path-isolated cluster/registry
+  identity (rejecting any preset `K3D_*` override), refuses to adopt a pre-existing
+  cluster/registry, claims ownership so its trap tears down only what this run
+  created, and installs with an explicit `--kube-context`. Reserved for the
+  orchestrated proof window.
 
 ListenerSet (alpha) is gated by `enableGatewayAPIListenerSet` +
 `featureGates.ListenerSets` and is intentionally **not** tested until the feature
