@@ -12,6 +12,7 @@ set -euo pipefail
   echo "❌ K3D_ISOLATE_BY_PATH=true is mandatory for the cobalt proof" >&2
   exit 1
 }
+export K3D_ISOLATE_BY_PATH=true
 package_path="${COBALT_K3D_PACKAGE_PATH:?set COBALT_K3D_PACKAGE_PATH to an absolute durable .tgz path}"
 [ "${package_path#/}" != "${package_path}" ] || {
   echo "❌ COBALT_K3D_PACKAGE_PATH must be absolute" >&2
@@ -49,6 +50,19 @@ bash ./scripts/local/create-k3d-cluster.sh
 if [ ! -s chart/charts/external-secrets-2.7.0.tgz ]; then
   helm dependency build chart
 fi
+# Two-phase Helm-managed CRD bootstrap. ESO ships its CRDs as ordinary Helm
+# templates (installCRDs=true), so both phases carry them via Helm and no
+# separate CRD apply is used. Phase 1 installs the release with the authored
+# ClusterSecretStore disabled: Helm never has to map an external-secrets.io/v1
+# custom resource before its CRD exists. We then wait for that CRD to be
+# Established so the API server serves it, and phase 2 runs the full
+# upgrade/install (store enabled by default) from a fresh Helm invocation whose
+# client re-discovers the API and maps cobalt-sos successfully.
+helm upgrade --install "${release}" chart --namespace "${namespace}" --create-namespace \
+  --values chart/values.example.yaml --values chart/values.lapras.yaml \
+  --set store.enabled=false --wait --timeout 5m
+kubectl --context "k3d-${cluster_name}" wait \
+  --for=condition=Established crd/clustersecretstores.external-secrets.io --timeout 2m
 helm upgrade --install "${release}" chart --namespace "${namespace}" --create-namespace \
   --values chart/values.example.yaml --values chart/values.lapras.yaml --wait --timeout 5m
 kubectl --context "k3d-${cluster_name}" --namespace "${namespace}" wait \
