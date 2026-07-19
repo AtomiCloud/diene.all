@@ -5,6 +5,7 @@
 # chart on an invocation-owned k3d cluster, prove collector readiness and real
 # OTLP/HTTP protobuf acceptance, then round-trip the OCI chart artifact.
 set -euo pipefail
+umask 077
 
 isolate_by_path="${K3D_ISOLATE_BY_PATH:-}"
 artifact_root="${ALUMINIUM_K3D_ARTIFACT_DIR:-/home/kirin/.kteam/mrrm2rhw-7c3a63dd/evidence/aluminium-k3d}"
@@ -19,8 +20,20 @@ run_stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 artifact_dir="${artifact_root}/${run_stamp}-${isolation_key}"
 run_log="${artifact_dir}/run.log"
 cleanup_log="${artifact_dir}/cleanup.log"
+kubeconfig="${artifact_dir}/kubeconfig.yaml"
+kubeconfig_tmp="${artifact_dir}/kubeconfig.yaml.tmp"
+caller_kubeconfig_set=false
+[ -n "${KUBECONFIG:-}" ] && caller_kubeconfig_set=true
 
 mkdir -p "${artifact_dir}"
+printf '%s\n' \
+  'apiVersion: v1' \
+  'kind: Config' \
+  'preferences: {}' \
+  'clusters: []' \
+  'contexts: []' \
+  'users: []' >"${kubeconfig}"
+export KUBECONFIG="${kubeconfig}"
 exec > >(tee -a "${run_log}") 2>&1
 
 export K3D_CLUSTER_NAME="diene-aluminium-${path_key}-${isolation_key:0:6}"
@@ -32,6 +45,7 @@ cluster_name="${K3D_CLUSTER_NAME}"
 registry_name="${K3D_REGISTRY_NAME}"
 registry_port="${K3D_REGISTRY_PORT}"
 kube_context="k3d-${cluster_name}"
+kubectl_args=(--kubeconfig "${kubeconfig}" --context "${kube_context}" --namespace "${namespace}")
 cluster_cleanup_eligible=false
 registry_cleanup_eligible=false
 cluster_created=false
@@ -42,25 +56,24 @@ cleanup_result=0
 final_result=0
 
 capture_diagnostics() {
-  local kubectl_args=(--context "${kube_context}" --request-timeout=15s --namespace "${namespace}")
   date -u +%Y-%m-%dT%H:%M:%SZ >"${artifact_dir}/diagnostics-captured-at.txt"
-  kubectl "${kubectl_args[@]}" \
+  kubectl "${kubectl_args[@]}" --request-timeout=15s \
     get pods -o wide >"${artifact_dir}/pods.txt" 2>&1
-  kubectl "${kubectl_args[@]}" \
+  kubectl "${kubectl_args[@]}" --request-timeout=15s \
     describe pods >"${artifact_dir}/pods-describe.txt" 2>&1
-  kubectl "${kubectl_args[@]}" \
+  kubectl "${kubectl_args[@]}" --request-timeout=15s \
     get alloy -o yaml >"${artifact_dir}/alloy-status.yaml" 2>&1
-  kubectl "${kubectl_args[@]}" \
+  kubectl "${kubectl_args[@]}" --request-timeout=15s \
     describe alloy/aluminium-alloy-metrics alloy/aluminium-alloy-logs >"${artifact_dir}/alloy-describe.txt" 2>&1
-  kubectl "${kubectl_args[@]}" \
+  kubectl "${kubectl_args[@]}" --request-timeout=15s \
     get deployments,statefulsets,daemonsets,jobs,services -o wide >"${artifact_dir}/workloads.txt" 2>&1
-  kubectl "${kubectl_args[@]}" \
+  kubectl "${kubectl_args[@]}" --request-timeout=15s \
     get events --sort-by=.lastTimestamp >"${artifact_dir}/events.txt" 2>&1
-  kubectl "${kubectl_args[@]}" \
+  kubectl "${kubectl_args[@]}" --request-timeout=15s \
     logs deployment/aluminium-alloy-operator --all-containers --tail=500 >"${artifact_dir}/alloy-operator.log" 2>&1
-  kubectl "${kubectl_args[@]}" \
+  kubectl "${kubectl_args[@]}" --request-timeout=15s \
     logs statefulset/aluminium-alloy-metrics --all-containers --tail=500 >"${artifact_dir}/alloy-metrics.log" 2>&1
-  kubectl "${kubectl_args[@]}" \
+  kubectl "${kubectl_args[@]}" --request-timeout=15s \
     logs daemonset/aluminium-alloy-logs --all-containers --tail=500 >"${artifact_dir}/alloy-logs.log" 2>&1
 }
 
@@ -75,11 +88,16 @@ trap '
   if [ "${cluster_cleanup_eligible}" = "true" ]; then
     capture_diagnostics
   fi
-  K3D_DELETE_CLUSTER="${cluster_cleanup_eligible}" \
+  KUBECONFIG="${kubeconfig}" \
+    K3D_DELETE_CLUSTER="${cluster_cleanup_eligible}" \
     K3D_DELETE_REGISTRY="${registry_cleanup_eligible}" \
     K3D_CLUSTER_NAME="${cluster_name}" \
     K3D_REGISTRY_NAME="${registry_name}" \
     bash ./scripts/local/delete-k3d-cluster.sh >>"${cleanup_log}" 2>&1 || cleanup_result=$?
+  rm -f "${kubeconfig_tmp}"
+  if [ -f "${kubeconfig}" ]; then
+    sha256sum "${kubeconfig}" >"${artifact_dir}/kubeconfig-after-cleanup.sha256"
+  fi
   final_result="${result}"
   if [ "${final_result}" -eq 0 ] && [ "${cleanup_result}" -ne 0 ]; then
     final_result="${cleanup_result}"
@@ -95,9 +113,10 @@ trap '
   exit "${final_result}"
 ' EXIT
 
-printf 'worktree=%s\nhead=%s\ntree=%s\npath_key=%s\nisolation_key=%s\ncluster=%s\nregistry=%s\nregistry_port=%s\nhttp_port=%s\nkube_context=%s\nnamespace=%s\n' \
+printf 'worktree=%s\nhead=%s\ntree=%s\npath_key=%s\nisolation_key=%s\ncluster=%s\nregistry=%s\nregistry_port=%s\nhttp_port=%s\nkube_context=%s\nkubeconfig=%s\ncaller_kubeconfig_set=%s\nnamespace=%s\n' \
   "${PWD}" "$(git rev-parse HEAD)" "$(git rev-parse 'HEAD^{tree}')" "${path_key}" "${isolation_key}" \
-  "${cluster_name}" "${registry_name}" "${registry_port}" "${K3D_HTTP_PORT}" "${kube_context}" "${namespace}" \
+  "${cluster_name}" "${registry_name}" "${registry_port}" "${K3D_HTTP_PORT}" "${kube_context}" "${kubeconfig}" \
+  "${caller_kubeconfig_set}" "${namespace}" \
   >"${artifact_dir}/invocation.env"
 
 if k3d cluster list --no-headers | awk -v name="${cluster_name}" '$1 == name { found = 1 } END { exit !found }'; then
@@ -117,9 +136,15 @@ registry_cleanup_eligible=true
 bash ./scripts/local/create-k3d-cluster.sh
 cluster_created=true
 registry_created=true
+k3d kubeconfig get "${cluster_name}" >"${kubeconfig_tmp}"
+test -s "${kubeconfig_tmp}"
+mv "${kubeconfig_tmp}" "${kubeconfig}"
+chmod 600 "${kubeconfig}"
+sha256sum "${kubeconfig}" >"${artifact_dir}/kubeconfig-before-cleanup.sha256"
 
 helm dependency build chart | tee "${artifact_dir}/helm-dependency-build.log"
 helm upgrade --install aluminium chart \
+  --kubeconfig "${kubeconfig}" \
   --kube-context "${kube_context}" \
   --namespace "${namespace}" \
   --create-namespace \
@@ -128,18 +153,18 @@ helm upgrade --install aluminium chart \
   --wait \
   --timeout 5m | tee "${artifact_dir}/helm-install.log"
 
-kubectl --context "${kube_context}" --namespace "${namespace}" \
+kubectl "${kubectl_args[@]}" \
   wait --for=condition=Available deployment/aluminium-alloy-operator --timeout=5m
-kubectl --context "${kube_context}" --namespace "${namespace}" \
+kubectl "${kubectl_args[@]}" \
   wait --for=condition=Deployed alloy/aluminium-alloy-metrics --timeout=5m
-kubectl --context "${kube_context}" --namespace "${namespace}" \
+kubectl "${kubectl_args[@]}" \
   wait --for=condition=Deployed alloy/aluminium-alloy-logs --timeout=5m
-kubectl --context "${kube_context}" --namespace "${namespace}" \
+kubectl "${kubectl_args[@]}" \
   rollout status statefulset/aluminium-alloy-metrics --timeout=5m
-kubectl --context "${kube_context}" --namespace "${namespace}" \
+kubectl "${kubectl_args[@]}" \
   rollout status daemonset/aluminium-alloy-logs --timeout=5m
 
-kubectl --context "${kube_context}" --namespace "${namespace}" get alloy -o json \
+kubectl "${kubectl_args[@]}" get alloy -o json \
   >"${artifact_dir}/alloy-status.json"
 jq -e '
   [.items[] |
@@ -151,7 +176,7 @@ jq -e '
       .type == "Deployed" and .status == "True")))
 ' "${artifact_dir}/alloy-status.json" >/dev/null
 
-kubectl --context "${kube_context}" --namespace "${namespace}" get service -o json \
+kubectl "${kubectl_args[@]}" get service -o json \
   >"${artifact_dir}/services.json"
 receiver_service="$(jq -er '
   [.items[] |
@@ -162,10 +187,10 @@ receiver_service="$(jq -er '
   end
 ' "${artifact_dir}/services.json")"
 printf '%s\n' "${receiver_service}" >"${artifact_dir}/receiver-service.txt"
-kubectl --context "${kube_context}" --namespace "${namespace}" \
+kubectl "${kubectl_args[@]}" \
   get "service/${receiver_service}" -o yaml >"${artifact_dir}/receiver-service.yaml"
 
-kubectl --context "${kube_context}" --namespace "${namespace}" \
+kubectl "${kubectl_args[@]}" \
   port-forward --address 127.0.0.1 "service/${receiver_service}" :4318 \
   >"${artifact_dir}/port-forward.log" 2>&1 &
 port_forward_pid=$!

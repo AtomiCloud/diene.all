@@ -237,6 +237,62 @@ latest-semver)
   rg -q '^📦 latest image tag:  grafana/alloy 1\.10\.0$' "${tmp}/latest.out"
   ;;
 
+kubeconfig-isolation)
+  mkdir -p "${tmp}/fake-bin"
+  cat >"${tmp}/fake-bin/k3d" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+{
+  printf 'kubeconfig=%s\t' "${KUBECONFIG:-}"
+  printf '%s' "${1:-}"
+  shift || true
+  printf ' %s' "$@"
+  printf '\n'
+} >>"${K3D_FAKE_LOG:?}"
+case "${1:-}" in
+list | create) exit 0 ;;
+*) exit 91 ;;
+esac
+SH
+  chmod +x "${tmp}/fake-bin/k3d"
+  local_kubeconfig="${tmp}/local-kubeconfig.yaml"
+  safe_log="${tmp}/safe-create.log"
+  PATH="${tmp}/fake-bin:${PATH}" \
+    K3D_FAKE_LOG="${safe_log}" \
+    KUBECONFIG="${local_kubeconfig}" \
+    K3D_CLUSTER_NAME=aluminium-fake \
+    K3D_REGISTRY_NAME=aluminium-fake-registry \
+    K3D_REGISTRY_PORT=25001 \
+    K3D_HTTP_PORT=35001 \
+    bash ./scripts/local/create-k3d-cluster.sh >/dev/null
+  bash ./scripts/validate/aluminium-assert.sh k3d-create-log "${safe_log}" "${local_kubeconfig}" >/dev/null
+
+  sed 's/--kubeconfig-update-default=false/--kubeconfig-update-default=true/' \
+    ./scripts/local/create-k3d-cluster.sh >"${tmp}/unsafe-create.sh"
+  unsafe_log="${tmp}/unsafe-create.log"
+  PATH="${tmp}/fake-bin:${PATH}" \
+    K3D_FAKE_LOG="${unsafe_log}" \
+    KUBECONFIG="${local_kubeconfig}" \
+    K3D_CLUSTER_NAME=aluminium-fake \
+    K3D_REGISTRY_NAME=aluminium-fake-registry \
+    K3D_REGISTRY_PORT=25001 \
+    K3D_HTTP_PORT=35001 \
+    bash "${tmp}/unsafe-create.sh" >/dev/null
+  if bash ./scripts/validate/aluminium-assert.sh k3d-create-log "${unsafe_log}" "${local_kubeconfig}" >/dev/null 2>&1; then
+    echo "❌ default-kubeconfig mutation was not caught" >&2
+    exit 1
+  fi
+
+  bash ./scripts/validate/aluminium-assert.sh k3d-proof-script ./scripts/validate/aluminium-k3d.sh >/dev/null
+  # shellcheck disable=SC2016 # The sabotage must match the literal shell expression.
+  sed 's/--kubeconfig "${kubeconfig}" //' \
+    ./scripts/validate/aluminium-k3d.sh >"${tmp}/unsafe-proof.sh"
+  if bash ./scripts/validate/aluminium-assert.sh k3d-proof-script "${tmp}/unsafe-proof.sh" >/dev/null 2>&1; then
+    echo "❌ missing local-kubeconfig propagation was not caught" >&2
+    exit 1
+  fi
+  ;;
+
 publish-git)
   PUBLISH_MODE=git PUBLISH_DRY_RUN=true RELEASE_VERSION=v0.1.0 PUBLISH_OUTPUT_DIR="${tmp}/git" bash ./scripts/ci/publish.sh >/dev/null
   [ ! -s "${tmp}/git/diene-charts-aluminium-0.1.0.tgz" ] && echo "❌ git chart package missing" >&2 && exit 1

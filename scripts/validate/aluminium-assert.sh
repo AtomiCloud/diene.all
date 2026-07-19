@@ -85,6 +85,72 @@ otlp-surface)
     ' >/dev/null
   ;;
 
+k3d-create-log)
+  [ -z "${expected_prefix}" ] && echo "❌ expected invocation-local kubeconfig path not set" >&2 && exit 1
+  awk -F '\t' -v kubeconfig="${expected_prefix}" '
+    {
+      if ($1 != "kubeconfig=" kubeconfig) {
+        invalid = 1
+      }
+      if ($2 ~ /^cluster create /) {
+        creates++
+        update_default = index($2, "--kubeconfig-update-default=false") > 0
+        switch_context = index($2, "--kubeconfig-switch-context=false") > 0
+      }
+    }
+    END {
+      exit !(NR == 3 && !invalid && creates == 1 && update_default && switch_context)
+    }
+  ' "${subject}"
+  ;;
+
+k3d-proof-script)
+  rg -Fqx 'umask 077' "${subject}" >/dev/null
+  rg -Fq 'kubeconfig="${artifact_dir}/kubeconfig.yaml"' "${subject}"
+  rg -Fq 'export KUBECONFIG="${kubeconfig}"' "${subject}"
+  rg -Fq 'k3d kubeconfig get "${cluster_name}" >"${kubeconfig_tmp}"' "${subject}"
+  rg -Fq 'chmod 600 "${kubeconfig}"' "${subject}"
+  rg -Fq 'kubectl_args=(--kubeconfig "${kubeconfig}" --context "${kube_context}" --namespace "${namespace}")' "${subject}"
+  rg -Fq '  KUBECONFIG="${kubeconfig}"' "${subject}"
+  awk '
+    index($0, "export KUBECONFIG=\"${kubeconfig}\"") > 0 {
+      export_line = NR
+    }
+    !first_k3d && $0 ~ /(^|[[:space:]])k3d (cluster|registry|kubeconfig) / {
+      first_k3d = NR
+    }
+    END {
+      exit !(export_line > 0 && first_k3d > export_line)
+    }
+  ' "${subject}"
+  awk '
+    /^[[:space:]]*kubectl / {
+      calls++
+      if (index($0, "kubectl \"${kubectl_args[@]}\"") == 0) {
+        unsafe++
+      }
+    }
+    END {
+      exit !(calls > 0 && unsafe == 0)
+    }
+  ' "${subject}"
+  awk '
+    /^helm upgrade --install aluminium chart/ {
+      upgrades++
+      block = 1
+    }
+    block && index($0, "--kubeconfig \"${kubeconfig}\"") > 0 {
+      local_kubeconfig = 1
+    }
+    block && /helm-install[.]log/ {
+      block = 0
+    }
+    END {
+      exit !(upgrades == 1 && local_kubeconfig)
+    }
+  ' "${subject}"
+  ;;
+
 lpsm-labels)
   [ -z "${expected_prefix}" ] && echo "❌ expected label prefix not set" >&2 && exit 1
   yq eval-all -o=json '.' "${subject}" |

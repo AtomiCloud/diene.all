@@ -62,7 +62,7 @@ OCI is the default (publish + consume via OCI); git-as-chart-repo is the seconda
 
 ## Serialized integration evidence
 
-The held k3d proof requires `K3D_ISOLATE_BY_PATH=true`. Each invocation derives collision-resistant cluster, registry, and port identities from the worktree plus a run nonce, refuses to reuse existing resources, records ownership, and deletes only names that were absent before its own provisioning attempt. Every cluster-facing Helm and kubectl call uses the derived `k3d-...` context explicitly.
+The held k3d proof requires `K3D_ISOLATE_BY_PATH=true`. Each invocation derives collision-resistant cluster, registry, and port identities from the worktree plus a run nonce, refuses to reuse existing resources, records ownership, and deletes only names that were absent before its own provisioning attempt. Cluster creation disables k3d's default-kubeconfig update and context switch. The proof creates a mode-`0600` kubeconfig inside its private durable artifact directory, exports it for k3d teardown bookkeeping, and passes it plus the derived `k3d-...` context explicitly to every cluster-facing Helm and kubectl call. The caller's default kubeconfig and current context are never read, updated, or switched.
 
 The proof waits for the operator Deployment, both Alloy `Deployed` conditions, and the generated StatefulSet/DaemonSet rollouts. It then discovers the sole `otlp-http` Service, uses an invocation-owned port-forward, and POSTs valid protobuf requests containing one span and one log to `/v1/traces` and `/v1/logs`. Timestamped artifacts retain command output, HTTP responses/codes, pod and Alloy status, descriptions, events, logs, receiver identity, OCI pull metadata, and SHA-256 through cleanup.
 

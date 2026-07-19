@@ -30,6 +30,9 @@ yq eval '
   .ports[0].port = (strenv(K3D_HTTP_PORT) + ":80")
 ' infra/k3d.lapras.yaml >"${config}"
 
-k3d cluster create --config "${config}"
+k3d cluster create \
+  --config "${config}" \
+  --kubeconfig-update-default=false \
+  --kubeconfig-switch-context=false
 
 echo "✅ k3d cluster ${cluster_name} created"
