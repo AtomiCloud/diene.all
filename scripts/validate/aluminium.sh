@@ -89,27 +89,50 @@ otlp-contract)
   ;;
 
 # Non-selected k8s-monitoring features stay OFF (events, beyla, profiling, cost,
-# selfReporting). Negative: enabling beyla -> red.
+# selfReporting). Every negative invokes the same rendered-manifest checker as
+# the production render.
 features-off)
   render >"${tmp}/rendered.yaml"
-  ! rg -n 'events:|beyla|profiling|opencost|cost:|selfReporting' "${tmp}/rendered.yaml" |
-    rg -v 'kube-state-metrics|node-exporter|annotations' || true
-  # The enabled feature surfaces must be exactly applicationObservability + clusterMetrics + podLogs.
-  rg -q 'applicationObservability' "${tmp}/rendered.yaml"
-  rg -q 'clusterMetrics' "${tmp}/rendered.yaml"
-  # Negative fixture: enabling beyla must surface the feature.
-  render --set 'upstream.telemetryServices.beyla.deploy=true' >"${tmp}/beyla.yaml" 2>/dev/null || true
-  rg -q 'beyla' "${tmp}/beyla.yaml"
+  bash ./scripts/validate/aluminium-assert.sh features-off "${tmp}/rendered.yaml" >/dev/null
+
+  render --set 'upstream.selfReporting.enabled=true' >"${tmp}/self-reporting.yaml"
+  if bash ./scripts/validate/aluminium-assert.sh features-off "${tmp}/self-reporting.yaml" >/dev/null 2>&1; then
+    echo "❌ self-reporting mutation was not caught" >&2
+    exit 1
+  fi
+
+  render --set 'upstream.telemetryServices.beyla.deploy=true' >"${tmp}/beyla.yaml"
+  if bash ./scripts/validate/aluminium-assert.sh features-off "${tmp}/beyla.yaml" >/dev/null 2>&1; then
+    echo "❌ beyla mutation was not caught" >&2
+    exit 1
+  fi
+
+  render \
+    --set 'upstream.costMetrics.enabled=true' \
+    --set 'upstream.costMetrics.collector=alloy-metrics' \
+    --set 'upstream.telemetryServices.opencost.deploy=true' \
+    --set 'upstream.telemetryServices.opencost.opencost.exporter.defaultClusterId=lapras' \
+    --set 'upstream.telemetryServices.opencost.metricsSource=custom' >"${tmp}/cost.yaml"
+  if bash ./scripts/validate/aluminium-assert.sh features-off "${tmp}/cost.yaml" >/dev/null 2>&1; then
+    echo "❌ cost-metrics mutation was not caught" >&2
+    exit 1
+  fi
   ;;
 
 # Destination naming uses gigapipe (never qryn — legacy Node repo) everywhere.
-# Negative: a qryn ref -> red.
+# The negative mutates a copied chart and invokes the same product-input checker.
 gigapipe-naming)
-  ! rg -ni 'qryn' "${chart_dir}/" README.md docs/ scripts/ 2>/dev/null || true
-  rg -q 'gigapipe' "${chart_dir}/values.yaml"
-  # Negative fixture: an injected qryn ref must be caught.
-  printf 'destination: qryn\n' >"${tmp}/qryn.yaml"
-  rg -q 'qryn' "${tmp}/qryn.yaml"
+  bash ./scripts/validate/aluminium-assert.sh gigapipe-naming . >/dev/null
+  mkdir -p "${tmp}/qryn-product/scripts"
+  cp -a "${chart_dir}" "${tmp}/qryn-product/chart"
+  cp Taskfile.yaml "${tmp}/qryn-product/"
+  cp -a scripts/local scripts/ci "${tmp}/qryn-product/scripts/"
+  cp -a .github "${tmp}/qryn-product/"
+  yq eval -i '.upstream.destinations.qryn = .upstream.destinations.gigapipe | del(.upstream.destinations.gigapipe)' "${tmp}/qryn-product/chart/values.yaml"
+  if bash ./scripts/validate/aluminium-assert.sh gigapipe-naming "${tmp}/qryn-product" >/dev/null 2>&1; then
+    echo "❌ legacy-destination mutation was not caught" >&2
+    exit 1
+  fi
   ;;
 
 # Backend creds via ESO only — no literal credentials in any values file.
@@ -118,11 +141,14 @@ secret)
   render --set secret.enabled=true >"${tmp}/secret.yaml"
   yq eval-all -o=json '.' "${tmp}/secret.yaml" |
     jq -s -e 'map(select(.kind == "ExternalSecret")) as $es | ($es | length == 1) and ($es[0].metadata.name == "aluminium-secrets") and (($es[0].spec.data // []) | length == 0) and ($es[0].spec.dataFrom | length >= 2) and ($es[0].spec.target.creationPolicy == "Owner")' >/dev/null
-  # No literal secret material in committed values.
-  ! rg -ni 'password|api[_-]?key|token|secret[:=].{8,}' "${chart_dir}"/values*.yaml || true
-  # Negative fixture: a literal credential string must be caught by the scan.
-  printf 'password: supersecret-value-123\n' >"${tmp}/leak.yaml"
-  rg -q 'password' "${tmp}/leak.yaml"
+  bash ./scripts/validate/aluminium-assert.sh literal-secrets "${chart_dir}" >/dev/null
+  mkdir -p "${tmp}/secret-chart"
+  cp "${chart_dir}"/values*.yaml "${tmp}/secret-chart/"
+  yq eval -i '.upstream.destinations.gigapipe.auth.password = "fixture-literal-credential"' "${tmp}/secret-chart/values.yaml"
+  if bash ./scripts/validate/aluminium-assert.sh literal-secrets "${tmp}/secret-chart" >/dev/null 2>&1; then
+    echo "❌ literal-credential mutation was not caught" >&2
+    exit 1
+  fi
   ;;
 
 # OTLP-everywhere outbound (Q-I28): endpoints-only destination config, no
@@ -132,32 +158,37 @@ otlp-everywhere)
   # Every configured destination speaks otlp/http.
   yq eval-all -o=json '.' "${tmp}/rendered.yaml" |
     jq -s -e '[.[] | select(.kind == "ConfigMap")] | map(.data // {}) | add | tostring | test("otelcol\\.exporter\\.otlphttp")' >/dev/null
-  # No per-signal protocol knob is exposed in the wrapper values.
-  ! rg -n 'protocol:\s*(grpc|tcp)' "${chart_dir}"/values*.yaml || true
+  bash ./scripts/validate/aluminium-assert.sh otlp-surface "${chart_dir}" >/dev/null
+  mkdir -p "${tmp}/protocol-chart"
+  cp "${chart_dir}"/values*.yaml "${tmp}/protocol-chart/"
+  yq eval -i '.upstream.destinations.gigapipe.logs.protocol = "grpc"' "${tmp}/protocol-chart/values.yaml"
+  if bash ./scripts/validate/aluminium-assert.sh otlp-surface "${tmp}/protocol-chart" >/dev/null 2>&1; then
+    echo "❌ per-signal protocol mutation was not caught" >&2
+    exit 1
+  fi
   ;;
 
 # Both collectors carry LPSM labels via the upstream alloy.labels injection.
 lpsm-labels)
-  render >"${tmp}/rendered.yaml"
-  yq eval-all -o=json '.' "${tmp}/rendered.yaml" |
-    jq -s -e '[.[] | select(.kind == "Alloy")] | all(.[]; (.spec.alloy.labels["atomi.cloud/platform"] // null) != null and (.spec.alloy.labels["atomi.cloud/service"] // null) == "aluminium")' >/dev/null
-  # aluminium's own ExternalSecret (when enabled) carries the same LPSM prefix.
-  render --set secret.enabled=true >"${tmp}/secret.yaml"
-  yq eval-all -o=json '.' "${tmp}/secret.yaml" |
-    jq -s -e '[.[] | select(.kind == "ExternalSecret")] | all(.[]; (.metadata.labels["atomi.cloud/platform"] // null) != null)' >/dev/null
+  render --set secret.enabled=true >"${tmp}/labels-default.yaml"
+  bash ./scripts/validate/aluminium-assert.sh lpsm-labels "${tmp}/labels-default.yaml" atomi.cloud >/dev/null
+  render --set global.labelPrefix=example.test --set secret.enabled=true >"${tmp}/labels-custom.yaml"
+  bash ./scripts/validate/aluminium-assert.sh lpsm-labels "${tmp}/labels-custom.yaml" example.test >/dev/null
   ;;
 
 # Inherited rendered-manifest validation stage (Q-G20): kubeconform over the full
-# render, then the kyverno VAP mechanism is proven via the ONE wiring sabotage
-# (`:latest`). The strict baseline conformance of k8s-monitoring's ancillary
-# workloads (alloy-operator, kube-state-metrics, node-exporter, hooks) is owned
-# by vanadium's scoped-allowance VAP policy set — see docs/developer/aluminium-baseline.md.
+# render, Kyverno VAP evaluation of every matched native object, then the ONE
+# `:latest` wiring sabotage.
 rendered-manifests)
   render >"${tmp}/rendered.yaml"
   kubeconform -strict -summary -schema-location "${schema_location_default}" -schema-location "${schema_location_local}" "${tmp}/rendered.yaml"
   # Collectors are configured conformant (resources + securityContext + labels).
   yq eval-all -o=json '.' "${tmp}/rendered.yaml" |
     jq -s -e '[.[] | select(.kind == "Alloy")] | all(.[]; (.spec.alloy.resources.requests.cpu // null) != null and (.spec.alloy.resources.limits.cpu // null) != null)' >/dev/null
+  # Kyverno's offline VAP evaluator cannot map unrelated CR GVRs. Feed it the
+  # exact native object kinds matched by the policy definitions.
+  yq eval-all 'select(.kind == "Deployment" or .kind == "StatefulSet" or .kind == "DaemonSet" or .kind == "Job" or .kind == "Service")' "${tmp}/rendered.yaml" >"${tmp}/vap-resources.yaml"
+  kyverno apply "${vap_dir}" --resource "${tmp}/vap-resources.yaml" --detailed-results --remove-color >"${tmp}/kyverno-baseline.out"
   # ONE wiring sabotage: a workload fixture carrying a `:latest` image MUST be
   # caught by the VAP (proves the stage cannot silently stop matching). Every
   # other baseline field is conformant, so :latest is the sole failure.
@@ -198,6 +229,14 @@ YAML
   rg -qi 'latest' "${tmp}/kyverno.out"
   ;;
 
+latest-semver)
+  ALUMINIUM_HELM_SEARCH_JSON='[{"name":"grafana/k8s-monitoring","version":"4.9.0"},{"name":"grafana/k8s-monitoring","version":"4.10.0"},{"name":"grafana/k8s-monitoring","version":"4.3.0"}]' \
+    ALUMINIUM_IMAGE_TAGS_JSON='{"Tags":["1.9.0","1.10.0","latest"]}' \
+    bash ./scripts/local/latest-chart-upstreams.sh >"${tmp}/latest.out"
+  rg -q '^📦 latest chart tag:  grafana/k8s-monitoring 4\.10\.0$' "${tmp}/latest.out"
+  rg -q '^📦 latest image tag:  grafana/alloy 1\.10\.0$' "${tmp}/latest.out"
+  ;;
+
 publish-git)
   PUBLISH_MODE=git PUBLISH_DRY_RUN=true RELEASE_VERSION=v0.1.0 PUBLISH_OUTPUT_DIR="${tmp}/git" bash ./scripts/ci/publish.sh >/dev/null
   [ ! -s "${tmp}/git/diene-charts-aluminium-0.1.0.tgz" ] && echo "❌ git chart package missing" >&2 && exit 1
@@ -219,6 +258,7 @@ presence)
   test -s .claude/skills/aluminium/SKILL.md
   test -s policies/vap/workload-baseline.yaml
   test -s schemas/alloy.json
+  test -x scripts/validate/aluminium-assert.sh
   ;;
 
 *)

@@ -6,8 +6,11 @@
 # OTLP-everywhere destination map, and the feature -> collector assignment that
 # pins the fleet OTLP receiver on :4318. No raw river config is shipped.
 
-# Single configurable LPSM label/annotation prefix (R16). Read by every helper.
-labelPrefix: atomi.cloud
+# Single configurable LPSM label/annotation prefix (R16). Helm propagates
+# global values into dependencies, so the wrapper helpers and the upstream
+# collector rendering consume this same value.
+global:
+  labelPrefix: atomi.cloud
 
 # Service-tree projection. platform is stamped from the release namespace by the
 # validateServiceTree helper; cluster.name is overlay-owned.
@@ -35,6 +38,15 @@ secret:
 upstream:
   alloy-operator:
     deploy: true
+    resources:
+      requests: { cpu: 10m, memory: 64Mi }
+      limits: { cpu: 200m, memory: 128Mi }
+    securityContext:
+      runAsNonRoot: true
+    waitForAlloyRemoval:
+      resources:
+        requests: { cpu: 10m, memory: 32Mi }
+        limits: { cpu: 100m, memory: 64Mi }
 
   cluster:
     # Default cluster identity; overlays (values.<landscape>.yaml,
@@ -65,8 +77,25 @@ upstream:
   telemetryServices:
     kube-state-metrics:
       deploy: true
+      resources:
+        requests: { cpu: 10m, memory: 32Mi }
+        limits: { cpu: 100m, memory: 128Mi }
+      containerSecurityContext:
+        runAsNonRoot: true
     node-exporter:
       deploy: true
+      resources:
+        requests: { cpu: 10m, memory: 32Mi }
+        limits: { cpu: 100m, memory: 64Mi }
+      containerSecurityContext:
+        runAsNonRoot: true
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: [ALL]
+
+  selfReporting:
+    enabled: false
 
   podLogsViaOpenTelemetry:
     enabled: true
@@ -95,10 +124,10 @@ upstream:
       alloy:
         clustering: { enabled: true }
         labels:
-          atomi.cloud/platform: telemetry
-          atomi.cloud/service: aluminium
-          atomi.cloud/module: telemetry
-          atomi.cloud/layer: '1'
+          platform: telemetry
+          service: aluminium
+          module: telemetry
+          layer: '1'
         resources:
           requests: { cpu: 100m, memory: 128Mi }
           limits: { cpu: 500m, memory: 512Mi }
@@ -109,10 +138,10 @@ upstream:
         stabilityLevel: public-preview
         mounts: { varlog: true }
         labels:
-          atomi.cloud/platform: telemetry
-          atomi.cloud/service: aluminium
-          atomi.cloud/module: telemetry
-          atomi.cloud/layer: '1'
+          platform: telemetry
+          service: aluminium
+          module: telemetry
+          layer: '1'
         resources:
           requests: { cpu: 50m, memory: 64Mi }
           limits: { cpu: 250m, memory: 256Mi }

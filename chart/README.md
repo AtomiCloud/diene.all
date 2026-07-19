@@ -16,7 +16,7 @@ Kubernetes: `>=1.27.0-0`
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| labelPrefix | string | `"atomi.cloud"` |  |
+| global.labelPrefix | string | `"atomi.cloud"` |  |
 | secret.enabled | bool | `false` |  |
 | secret.refreshInterval | string | `"1h"` |  |
 | secret.serviceFolder | string | `"/svc/aluminium"` |  |
@@ -28,6 +28,15 @@ Kubernetes: `>=1.27.0-0`
 | serviceTree.platform | string | `"telemetry"` |  |
 | serviceTree.service | string | `"aluminium"` |  |
 | upstream.alloy-operator.deploy | bool | `true` |  |
+| upstream.alloy-operator.resources.limits.cpu | string | `"200m"` |  |
+| upstream.alloy-operator.resources.limits.memory | string | `"128Mi"` |  |
+| upstream.alloy-operator.resources.requests.cpu | string | `"10m"` |  |
+| upstream.alloy-operator.resources.requests.memory | string | `"64Mi"` |  |
+| upstream.alloy-operator.securityContext.runAsNonRoot | bool | `true` |  |
+| upstream.alloy-operator.waitForAlloyRemoval.resources.limits.cpu | string | `"100m"` |  |
+| upstream.alloy-operator.waitForAlloyRemoval.resources.limits.memory | string | `"64Mi"` |  |
+| upstream.alloy-operator.waitForAlloyRemoval.resources.requests.cpu | string | `"10m"` |  |
+| upstream.alloy-operator.waitForAlloyRemoval.resources.requests.memory | string | `"32Mi"` |  |
 | upstream.applicationObservability.collector | string | `"alloy-metrics"` |  |
 | upstream.applicationObservability.destinations[0] | string | `"victoriametrics"` |  |
 | upstream.applicationObservability.destinations[1] | string | `"gigapipe"` |  |
@@ -38,10 +47,10 @@ Kubernetes: `>=1.27.0-0`
 | upstream.cluster.name | string | `"local"` |  |
 | upstream.clusterMetrics.collector | string | `"alloy-metrics"` |  |
 | upstream.clusterMetrics.enabled | bool | `true` |  |
-| upstream.collectors.alloy-logs.alloy.labels."atomi.cloud/layer" | string | `"1"` |  |
-| upstream.collectors.alloy-logs.alloy.labels."atomi.cloud/module" | string | `"telemetry"` |  |
-| upstream.collectors.alloy-logs.alloy.labels."atomi.cloud/platform" | string | `"telemetry"` |  |
-| upstream.collectors.alloy-logs.alloy.labels."atomi.cloud/service" | string | `"aluminium"` |  |
+| upstream.collectors.alloy-logs.alloy.labels.layer | string | `"1"` |  |
+| upstream.collectors.alloy-logs.alloy.labels.module | string | `"telemetry"` |  |
+| upstream.collectors.alloy-logs.alloy.labels.platform | string | `"telemetry"` |  |
+| upstream.collectors.alloy-logs.alloy.labels.service | string | `"aluminium"` |  |
 | upstream.collectors.alloy-logs.alloy.mounts.varlog | bool | `true` |  |
 | upstream.collectors.alloy-logs.alloy.resources.limits.cpu | string | `"250m"` |  |
 | upstream.collectors.alloy-logs.alloy.resources.limits.memory | string | `"256Mi"` |  |
@@ -50,10 +59,10 @@ Kubernetes: `>=1.27.0-0`
 | upstream.collectors.alloy-logs.alloy.stabilityLevel | string | `"public-preview"` |  |
 | upstream.collectors.alloy-logs.controller.type | string | `"daemonset"` |  |
 | upstream.collectors.alloy-metrics.alloy.clustering.enabled | bool | `true` |  |
-| upstream.collectors.alloy-metrics.alloy.labels."atomi.cloud/layer" | string | `"1"` |  |
-| upstream.collectors.alloy-metrics.alloy.labels."atomi.cloud/module" | string | `"telemetry"` |  |
-| upstream.collectors.alloy-metrics.alloy.labels."atomi.cloud/platform" | string | `"telemetry"` |  |
-| upstream.collectors.alloy-metrics.alloy.labels."atomi.cloud/service" | string | `"aluminium"` |  |
+| upstream.collectors.alloy-metrics.alloy.labels.layer | string | `"1"` |  |
+| upstream.collectors.alloy-metrics.alloy.labels.module | string | `"telemetry"` |  |
+| upstream.collectors.alloy-metrics.alloy.labels.platform | string | `"telemetry"` |  |
+| upstream.collectors.alloy-metrics.alloy.labels.service | string | `"aluminium"` |  |
 | upstream.collectors.alloy-metrics.alloy.resources.limits.cpu | string | `"500m"` |  |
 | upstream.collectors.alloy-metrics.alloy.resources.limits.memory | string | `"512Mi"` |  |
 | upstream.collectors.alloy-metrics.alloy.resources.requests.cpu | string | `"100m"` |  |
@@ -77,8 +86,22 @@ Kubernetes: `>=1.27.0-0`
 | upstream.podLogsViaOpenTelemetry.collector | string | `"alloy-logs"` |  |
 | upstream.podLogsViaOpenTelemetry.destinations[0] | string | `"gigapipe"` |  |
 | upstream.podLogsViaOpenTelemetry.enabled | bool | `true` |  |
+| upstream.selfReporting.enabled | bool | `false` |  |
+| upstream.telemetryServices.kube-state-metrics.containerSecurityContext.runAsNonRoot | bool | `true` |  |
 | upstream.telemetryServices.kube-state-metrics.deploy | bool | `true` |  |
+| upstream.telemetryServices.kube-state-metrics.resources.limits.cpu | string | `"100m"` |  |
+| upstream.telemetryServices.kube-state-metrics.resources.limits.memory | string | `"128Mi"` |  |
+| upstream.telemetryServices.kube-state-metrics.resources.requests.cpu | string | `"10m"` |  |
+| upstream.telemetryServices.kube-state-metrics.resources.requests.memory | string | `"32Mi"` |  |
+| upstream.telemetryServices.node-exporter.containerSecurityContext.allowPrivilegeEscalation | bool | `false` |  |
+| upstream.telemetryServices.node-exporter.containerSecurityContext.capabilities.drop[0] | string | `"ALL"` |  |
+| upstream.telemetryServices.node-exporter.containerSecurityContext.readOnlyRootFilesystem | bool | `true` |  |
+| upstream.telemetryServices.node-exporter.containerSecurityContext.runAsNonRoot | bool | `true` |  |
 | upstream.telemetryServices.node-exporter.deploy | bool | `true` |  |
+| upstream.telemetryServices.node-exporter.resources.limits.cpu | string | `"100m"` |  |
+| upstream.telemetryServices.node-exporter.resources.limits.memory | string | `"64Mi"` |  |
+| upstream.telemetryServices.node-exporter.resources.requests.cpu | string | `"10m"` |  |
+| upstream.telemetryServices.node-exporter.resources.requests.memory | string | `"32Mi"` |  |
 
 ----------------------------------------------
 Autogenerated from chart metadata using [helm-docs v1.14.2](https://github.com/norwoodj/helm-docs/releases/v1.14.2)

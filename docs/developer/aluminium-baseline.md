@@ -22,8 +22,8 @@ Read the linked Helm, service-tree, validation, testing, and release standards b
 ## Identity and naming
 
 - Chart name `diene-charts-aluminium`; LPSM projection `serviceTree` = `telemetry` platform/module, service `aluminium`, layer `1`.
-- `labelPrefix` is the single configurable service-tree prefix (default `atomi.cloud`), read by every `_helpers.tpl` helper. aluminium's own ExternalSecret carries the LPSM labels via those helpers.
-- Both collectors carry the LPSM labels via the upstream `collectors.<name>.alloy.labels` injection (the wrapper surface sets them in `values.yaml`).
+- `global.labelPrefix` is the single configurable service-tree prefix (default `atomi.cloud`). Helm propagates it into the dependency, so aluminium's helpers and the upstream collector-value bridge consume the same value.
+- Both collectors carry dynamically prefixed LPSM labels via the upstream `collectors.<name>.alloy.labels` injection. Rendering with `--set global.labelPrefix=example.test` changes the label-map keys on both Alloy CRs and aluminium's ExternalSecret.
 
 ## Secrets and config
 
@@ -34,7 +34,8 @@ Read the linked Helm, service-tree, validation, testing, and release standards b
 ## Workloads and policy
 
 - The collector Alloy CRs are configured conformant: resources (requests + limits), bounded securityContext, and LPSM labels at the `spec.alloy` level.
-- The strict baseline conformance of k8s-monitoring's **ancillary workloads** (alloy-operator Deployment, kube-state-metrics, node-exporter DaemonSet, helm hooks) is owned by **vanadium's** scoped-allowance VAP policy set (the `charts/vanadium` node). node-exporter legitimately requires hostNetwork + hostPath (`/proc`, `/sys`, `/`); the goal's design intent is that vanadium's CEL policy allows the specific host paths for alloy's ServiceAccount only — no blanket namespace exemption. Full ancillary-workload VAP conformance is therefore a serialized-proof tail, not a unit-tier assertion.
+- The rendered alloy-operator Deployment, kube-state-metrics Deployment, node-exporter DaemonSet, hook Jobs, and Services pass aluminium's resource, image, security, and service VAP baseline during the unit tier.
+- node-exporter's legitimate hostNetwork and scoped hostPath use (`/proc`, `/sys`, `/`) remains owned by **vanadium's** service-account-specific allowance set. That additional fleet-policy surface is checked in the serialized integration tail; aluminium never introduces a blanket namespace exemption.
 
 ## Rendered-manifest validation (Q-G20)
 
@@ -42,7 +43,8 @@ The inherited stage runs on every render:
 
 1. `helm template` over the stacked values (base → landscape → cluster).
 2. `kubeconform` (k8s + local CRD schemas, including `schemas/alloy.json`).
-3. Kyverno `apply` of `policies/vap` (VAP definitions only) — the ONE wiring sabotage (a `:latest` image fixture) is caught, proving the stage cannot silently stop matching.
+3. Kyverno `apply` of `policies/vap` (VAP definitions only) against the real rendered Deployments, StatefulSets, DaemonSets, Jobs, and Services. Custom resources are omitted only from the Kyverno input because its offline evaluator cannot resolve unrelated GVRs; kubeconform still validates the full render.
+4. The ONE wiring sabotage (a `:latest` image fixture) is caught, proving the stage cannot silently stop matching.
 
 Complements — does not replace — `helm lint`.
 
@@ -50,11 +52,19 @@ Complements — does not replace — `helm lint`.
 
 Every per-instance scalar in this chart:
 
-- chart/release name (`diene-charts-aluminium`) · serviceTree platform/service/module/layer · `labelPrefix` value · upstream dep name+version+repository (`grafana/k8s-monitoring` v4.x) · vendored tgz filename (`k8s-monitoring-<ver>.tgz`) · skopeo image refs in `latest` (grafana/alloy) · OCI/ghcr org path · git repo URL · landscape overlay filenames (`values.<landscape>.yaml`) · cluster overlay filenames (`values.<cluster>.yaml`) · k3d cluster name · destination endpoint hostnames (overlay-owned).
+- chart/release name (`diene-charts-aluminium`) · serviceTree platform/service/module/layer · `global.labelPrefix` value · upstream dep name+version+repository (`grafana/k8s-monitoring` v4.x) · vendored tgz filename (`k8s-monitoring-<ver>.tgz`) · skopeo image refs in `latest` (grafana/alloy) · OCI/ghcr org path · git repo URL · landscape overlay filenames (`values.<landscape>.yaml`) · cluster overlay filenames (`values.<cluster>.yaml`) · invocation-unique k3d cluster/registry names and ports · destination endpoint hostnames (overlay-owned).
 
 ## Publishing
 
 OCI is the default (publish + consume via OCI); git-as-chart-repo is the secondary mode. `scripts/ci/publish.sh` stamps the Chart.yaml version via yq (manifest == tag) and runs helm-docs.
+
+`latest` selects the final version-sorted Helm result rather than a lexical first entry; the unit tier exercises the production resolver with a `4.9.0`/`4.10.0` fixture.
+
+## Serialized integration evidence
+
+The held k3d proof requires `K3D_ISOLATE_BY_PATH=true`. Each invocation derives collision-resistant cluster, registry, and port identities from the worktree plus a run nonce, refuses to reuse existing resources, records ownership, and deletes only names that were absent before its own provisioning attempt. Every cluster-facing Helm and kubectl call uses the derived `k3d-...` context explicitly.
+
+The proof waits for the operator Deployment, both Alloy `Deployed` conditions, and the generated StatefulSet/DaemonSet rollouts. It then discovers the sole `otlp-http` Service, uses an invocation-owned port-forward, and POSTs valid protobuf requests containing one span and one log to `/v1/traces` and `/v1/logs`. Timestamped artifacts retain command output, HTTP responses/codes, pod and Alloy status, descriptions, events, logs, receiver identity, OCI pull metadata, and SHA-256 through cleanup.
 
 ## Held boundaries
 

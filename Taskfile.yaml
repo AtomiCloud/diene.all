@@ -57,7 +57,7 @@ tasks:
   test:int:
     desc: Run the local k3d installation proof (serialized)
     cmds:
-      - ./scripts/validate/aluminium-k3d.sh
+      - K3D_ISOLATE_BY_PATH=true ./scripts/validate/aluminium-k3d.sh
 
   start:cluster:
     desc: Start the local k3d lapras proof cluster

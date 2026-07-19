@@ -4,8 +4,13 @@
     "description": "Generated schema for the diene aluminium k8s-monitoring wrapper.",
     "type": "object",
     "properties": {
-        "labelPrefix": {
-            "type": "string"
+        "global": {
+            "type": "object",
+            "properties": {
+                "labelPrefix": {
+                    "type": "string"
+                }
+            }
         },
         "secret": {
             "type": "object",
@@ -60,6 +65,73 @@
                     "properties": {
                         "deploy": {
                             "type": "boolean"
+                        },
+                        "resources": {
+                            "type": "object",
+                            "properties": {
+                                "limits": {
+                                    "type": "object",
+                                    "properties": {
+                                        "cpu": {
+                                            "type": "string"
+                                        },
+                                        "memory": {
+                                            "type": "string"
+                                        }
+                                    }
+                                },
+                                "requests": {
+                                    "type": "object",
+                                    "properties": {
+                                        "cpu": {
+                                            "type": "string"
+                                        },
+                                        "memory": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "securityContext": {
+                            "type": "object",
+                            "properties": {
+                                "runAsNonRoot": {
+                                    "type": "boolean"
+                                }
+                            }
+                        },
+                        "waitForAlloyRemoval": {
+                            "type": "object",
+                            "properties": {
+                                "resources": {
+                                    "type": "object",
+                                    "properties": {
+                                        "limits": {
+                                            "type": "object",
+                                            "properties": {
+                                                "cpu": {
+                                                    "type": "string"
+                                                },
+                                                "memory": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        },
+                                        "requests": {
+                                            "type": "object",
+                                            "properties": {
+                                                "cpu": {
+                                                    "type": "string"
+                                                },
+                                                "memory": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 },
@@ -140,16 +212,16 @@
                                         "labels": {
                                             "type": "object",
                                             "properties": {
-                                                "atomi.cloud/layer": {
+                                                "layer": {
                                                     "type": "string"
                                                 },
-                                                "atomi.cloud/module": {
+                                                "module": {
                                                     "type": "string"
                                                 },
-                                                "atomi.cloud/platform": {
+                                                "platform": {
                                                     "type": "string"
                                                 },
-                                                "atomi.cloud/service": {
+                                                "service": {
                                                     "type": "string"
                                                 }
                                             }
@@ -221,16 +293,16 @@
                                         "labels": {
                                             "type": "object",
                                             "properties": {
-                                                "atomi.cloud/layer": {
+                                                "layer": {
                                                     "type": "string"
                                                 },
-                                                "atomi.cloud/module": {
+                                                "module": {
                                                     "type": "string"
                                                 },
-                                                "atomi.cloud/platform": {
+                                                "platform": {
                                                     "type": "string"
                                                 },
-                                                "atomi.cloud/service": {
+                                                "service": {
                                                     "type": "string"
                                                 }
                                             }
@@ -393,22 +465,117 @@
                         }
                     }
                 },
+                "selfReporting": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean"
+                        }
+                    }
+                },
                 "telemetryServices": {
                     "type": "object",
                     "properties": {
                         "kube-state-metrics": {
                             "type": "object",
                             "properties": {
+                                "containerSecurityContext": {
+                                    "type": "object",
+                                    "properties": {
+                                        "runAsNonRoot": {
+                                            "type": "boolean"
+                                        }
+                                    }
+                                },
                                 "deploy": {
                                     "type": "boolean"
+                                },
+                                "resources": {
+                                    "type": "object",
+                                    "properties": {
+                                        "limits": {
+                                            "type": "object",
+                                            "properties": {
+                                                "cpu": {
+                                                    "type": "string"
+                                                },
+                                                "memory": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        },
+                                        "requests": {
+                                            "type": "object",
+                                            "properties": {
+                                                "cpu": {
+                                                    "type": "string"
+                                                },
+                                                "memory": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         },
                         "node-exporter": {
                             "type": "object",
                             "properties": {
+                                "containerSecurityContext": {
+                                    "type": "object",
+                                    "properties": {
+                                        "allowPrivilegeEscalation": {
+                                            "type": "boolean"
+                                        },
+                                        "capabilities": {
+                                            "type": "object",
+                                            "properties": {
+                                                "drop": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "string"
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        "readOnlyRootFilesystem": {
+                                            "type": "boolean"
+                                        },
+                                        "runAsNonRoot": {
+                                            "type": "boolean"
+                                        }
+                                    }
+                                },
                                 "deploy": {
                                     "type": "boolean"
+                                },
+                                "resources": {
+                                    "type": "object",
+                                    "properties": {
+                                        "limits": {
+                                            "type": "object",
+                                            "properties": {
+                                                "cpu": {
+                                                    "type": "string"
+                                                },
+                                                "memory": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        },
+                                        "requests": {
+                                            "type": "object",
+                                            "properties": {
+                                                "cpu": {
+                                                    "type": "string"
+                                                },
+                                                "memory": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }

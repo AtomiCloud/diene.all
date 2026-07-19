@@ -5,7 +5,7 @@
 
 {{/* The one and only service-tree label/annotation prefix. */}}
 {{- define "diene-charts-aluminium.labelPrefix" -}}
-{{- required "labelPrefix is required" .Values.labelPrefix | trimSuffix "/" -}}
+{{- required "global.labelPrefix is required" .Values.global.labelPrefix | trimSuffix "/" -}}
 {{- end -}}
 
 {{/* Validate the base LPSM projection; platform must equal release namespace. */}}
@@ -71,3 +71,59 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{ printf "%s/%s" $prefix $key }}: {{ $value | quote }}
 {{- end }}
 {{- end -}}
+
+{{/*
+Extend the upstream collector-value bridge with the shared global labelPrefix.
+The dependency intentionally exposes collector labels as values, but Helm does
+not template values keys. These two namespaced overrides convert suffix-only
+collector label keys into fully qualified keys while preserving upstream image
+and pod-security global handling.
+*/}}
+{{- define "collector.alloy.values.global" }}
+{{- $globalValues := dict }}
+{{- if dig "image" "registry" "" .Values.global }}
+  {{- $globalValues = mergeOverwrite $globalValues (dict "global" (dict "image" (dict "registry" .Values.global.image.registry))) }}
+{{- end }}
+{{- if dig "image" "pullSecrets" "" .Values.global }}
+  {{- $globalValues = mergeOverwrite $globalValues (dict "global" (dict "image" (dict "pullSecrets" .Values.global.image.pullSecrets))) }}
+{{- end }}
+{{- if dig "image" "pullPolicy" "" .Values.global }}
+  {{- $globalValues = mergeOverwrite $globalValues (dict "global" (dict "image" (dict "pullPolicy" .Values.global.image.pullPolicy))) }}
+{{- end }}
+{{- if dig "podSecurityContext" "" .Values.global }}
+  {{- $globalValues = mergeOverwrite $globalValues (dict "global" (dict "podSecurityContext" .Values.global.podSecurityContext)) }}
+{{- end }}
+{{- if dig "labelPrefix" "" .Values.global }}
+  {{- $globalValues = mergeOverwrite $globalValues (dict "global" (dict "labelPrefix" .Values.global.labelPrefix)) }}
+{{- end }}
+{{- $globalValues | toYaml }}
+{{- end }}
+
+{{- define "collector.alloy.valuesToSpec" }}
+{{- $values := deepCopy . }}
+{{- $prefix := dig "global" "labelPrefix" "" $values | trimSuffix "/" }}
+{{- if $prefix }}
+  {{- $labels := dig "alloy" "labels" (dict) $values }}
+  {{- $qualifiedLabels := dict }}
+  {{- range $key, $value := $labels }}
+    {{- $qualifiedKey := $key }}
+    {{- if not (contains "/" $key) }}
+      {{- $qualifiedKey = printf "%s/%s" $prefix $key }}
+    {{- end }}
+    {{- $_ := set $qualifiedLabels $qualifiedKey $value }}
+  {{- end }}
+  {{- $_ := set $values.alloy "labels" $qualifiedLabels }}
+  {{- $_ := unset $values.global "labelPrefix" }}
+  {{- if eq (len $values.global) 0 }}
+    {{- $_ := unset $values "global" }}
+  {{- end }}
+{{- end }}
+{{- $fieldsToExclude := include "collector.alloy.extraFields" $values | fromYamlArray }}
+{{- $cleanValues := dict }}
+{{- range $key, $value := $values }}
+  {{- if not (has $key $fieldsToExclude) }}
+    {{- $_ := set $cleanValues $key $value }}
+  {{- end }}
+{{- end }}
+{{- $cleanValues | toYaml }}
+{{- end }}
