@@ -35,6 +35,17 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Stabilize git object store (avoid loose-object race, RB-40)
+        run: |
+          git config --global gc.auto 0
+          git config --global gc.autoDetach false
+          git config --global maintenance.auto false
+          git maintenance stop 2>/dev/null || true
+          git -C "$GITHUB_WORKSPACE" repack -Ad || true
+          git -C "$GITHUB_WORKSPACE" gc --quiet || true
 
       - name: Mark before nix install
         run: date +%s > /tmp/t_before_nix
