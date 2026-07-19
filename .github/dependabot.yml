@@ -6,10 +6,6 @@ updates:
     directory: /
     schedule:
       interval: daily
-  - package-ecosystem: docker
-    directory: /infra
-    schedule:
-      interval: daily
 
   # ### go-base-dependabot
   # #### source: go-base

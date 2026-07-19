@@ -3,7 +3,6 @@
 version: '3'
 
 includes:
-  docker: tasks/Taskfile.docker.yaml
   gotest:
     taskfile: tasks/Taskfile.test.yaml
     internal: true

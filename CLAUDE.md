@@ -18,10 +18,6 @@ See [docs/standards/ci-cd/index.md](docs/standards/ci-cd/index.md).
 
 See [docs/standards/conventional-commits/index.md](docs/standards/conventional-commits/index.md).
 
-## Docker build and publishing
-
-See [docs/standards/docker/index.md](docs/standards/docker/index.md).
-
 ## Infisical and secrets
 
 See [docs/standards/infisical/index.md](docs/standards/infisical/index.md).
@@ -82,7 +78,7 @@ reserved for the separately owned C0 contracts standard.
 ## Go language baseline
 
 Read [docs/developer/go-baseline.md](docs/developer/go-baseline.md) before changing
-Go source, tests, coverage, deadcode, vulnerability scanning, Docker, or Go
+Go source, tests, coverage, deadcode, vulnerability scanning, or Go
 workflow machinery. The language variants live under each standard's
 `languages/go.md` path. Keep every Go test in an external `_test` package and never
 introduce `export_test.go`.
