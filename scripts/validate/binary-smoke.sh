@@ -101,6 +101,10 @@ pre-commit validate-config .pre-commit-config.yaml
 
 rg --version >/dev/null
 rg -q 'operator-template' README.md
+! rg -q 'diene[.-]go-base' README.md || {
+  echo "❌ README retains the retired diene-go-base public product identity" >&2
+  exit 1
+}
 
 sg --version >/dev/null
 printf '%s\n' '[general]' 'contrib=CT1' 'ignore=B6' '' '[contrib-title-conventional-commits]' 'types = amend' >"${tmp}/.gitlint"

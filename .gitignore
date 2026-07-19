@@ -29,3 +29,7 @@ infra/root_chart/uploads/
 coverage/
 dist/
 reports/
+
+### operator-template
+#### source: operator-template
+/archcheck

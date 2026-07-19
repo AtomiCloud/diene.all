@@ -281,8 +281,8 @@ pre-commit-lib.run {
     a-operator-architecture = {
       enable = true;
       name = "Operator architecture boundary";
-      entry = validator "scripts/validate/operator-architecture.sh";
-      files = "^lib/operator/.*\\.go$";
+      entry = operator-codegen "scripts/validate/operator-architecture.sh";
+      files = "^(lib/operator/|adapters/operator/controllers/|tools/archcheck/).*\\.go$";
       pass_filenames = false;
       language = "system";
     };

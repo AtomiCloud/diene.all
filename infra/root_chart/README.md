@@ -32,11 +32,12 @@ Manager chart for the operator skeleton template (CRDs, RBAC, deployment, observ
 | replicas | int | `1` | Number of manager replicas. Leader election keeps a single active manager. |
 | resources | object | `{"limits":{"cpu":"500m","memory":"256Mi"},"requests":{"cpu":"50m","memory":"64Mi"}}` | Manager resource requests and limits. |
 | serviceAccount | object | `{"name":""}` | ServiceAccount name override; defaults to the release fullname. |
-| serviceMonitor | object | `{"enabled":true,"interval":"30s","scraper":{"create":true,"serviceAccountName":""}}` | present an authorized identity, not merely the manager's own token. |
+| serviceMonitor | object | `{"enabled":true,"interval":"30s","scraper":{"create":true,"externalSecret":{"key":"token","name":""},"serviceAccountName":""}}` | present an authorized identity, not merely the manager's own token. |
 | serviceMonitor.enabled | bool | `true` | Ship a ServiceMonitor. |
 | serviceMonitor.interval | string | `"30s"` | Scrape interval. |
-| serviceMonitor.scraper | object | `{"create":true,"serviceAccountName":""}` | Least-privilege scraper identity with get on the /metrics non-resource URL. |
+| serviceMonitor.scraper | object | `{"create":true,"externalSecret":{"key":"token","name":""},"serviceAccountName":""}` | Least-privilege scraper identity with get on the /metrics non-resource URL. |
 | serviceMonitor.scraper.create | bool | `true` | Create the scraper ServiceAccount, ClusterRole, binding, and token Secret. |
+| serviceMonitor.scraper.externalSecret | object | `{"key":"token","name":""}` | allowed. |
 | serviceMonitor.scraper.serviceAccountName | string | `""` | ServiceAccount name; defaults to <release>-metrics-reader when empty. |
 
 ----------------------------------------------

@@ -14,13 +14,23 @@ spec:
     - port: metrics
       scheme: https
       interval: {{ .Values.serviceMonitor.interval }}
+      # An enabled ServiceMonitor must always present an authorized identity: the
+      # chart-owned least-privilege scraper token, or an externally-provisioned
+      # authorized bearer-token Secret. Neither is a render-time error.
       {{- if .Values.serviceMonitor.scraper.create }}
-      # Present the authorized scraper identity's token, not the manager's own.
       authorization:
         type: Bearer
         credentials:
           name: {{ include "operator-template.scraperName" . }}-token
           key: token
+      {{- else if .Values.serviceMonitor.scraper.externalSecret.name }}
+      authorization:
+        type: Bearer
+        credentials:
+          name: {{ .Values.serviceMonitor.scraper.externalSecret.name }}
+          key: {{ .Values.serviceMonitor.scraper.externalSecret.key }}
+      {{- else }}
+      {{- fail "serviceMonitor.enabled requires serviceMonitor.scraper.create=true or serviceMonitor.scraper.externalSecret.name — an enabled ServiceMonitor must present an authorized identity for the authn/authz-filtered /metrics endpoint" }}
       {{- end }}
       tlsConfig:
         insecureSkipVerify: true

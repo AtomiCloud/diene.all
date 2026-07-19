@@ -68,6 +68,14 @@ serviceMonitor:
     create: true
     # -- ServiceAccount name; defaults to <release>-metrics-reader when empty.
     serviceAccountName: ''
+    # -- When create=false, an externally-provisioned authorized bearer-token
+    # -- Secret must be named here (with its key). An enabled ServiceMonitor with
+    # -- neither create=true nor an external secret is rejected at render time —
+    # -- an unauthenticated scrape of the authn/authz-filtered endpoint is never
+    # -- allowed.
+    externalSecret:
+      name: ''
+      key: token
 
 # -- Grafana alert pack (GrafanaAlertRuleGroup, never PrometheusRule).
 alerts:

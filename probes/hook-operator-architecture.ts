@@ -16,13 +16,14 @@ export default {
     },
     {
       name: 'mutation-hook-operator-architecture-caught',
-      description: 'Moving a domain decision (a brake dependency) into a controller must redden the hook.',
+      description:
+        'Inlining a real business decision into a controller (a magnitude comparison using only k8s APIs, no new import) must redden the AST boundary hook.',
       kind: 'mutation',
       async run(repo: any) {
         await repo.patch('adapters/operator/controllers/note_controller.go', {
-          find: '"github.com/AtomiCloud/diene.go-base/lib/operator/reconcile"',
+          find: 'desiredNames := reconcile.DesiredNames(note.Name, spec)',
           replace:
-            '"github.com/AtomiCloud/diene.go-base/lib/operator/brake"\n\t"github.com/AtomiCloud/diene.go-base/lib/operator/reconcile"',
+            'if note.Spec.Replicas > 3 {\n\t\tnote.Spec.Replicas = 3\n\t}\n\tdesiredNames := reconcile.DesiredNames(note.Name, spec)',
         });
         await expectRed(repo, cmd, 'hook-operator-architecture');
       },
