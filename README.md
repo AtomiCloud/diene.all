@@ -60,8 +60,8 @@ contracts standard.
 
 This branch materializes the conditional metrics-server wrapper chart, its stacked values, generated schema, per-landscape enablement toggle, and rendered-manifest validation.
 
-- `pls build` — build the pinned chart dependencies.
+- `pls build` — reproduce the pinned and patched metrics-server dependency.
 - `pls test:unit` — run schema, lint, render, toggle-map, VAP, and publish dry-runs.
-- `pls test:int` — install on a SIT landscape where xenon is enabled and verify `kubectl top` (orchestration-authorized).
-- `pls example:lapras:template` — render the independent landscape + cluster stack.
+- `pls test:int` — run the transactional SIT handoff on an enabled landscape (required context/namespace/release/evidence inputs; orchestration-authorized).
+- `pls lapras:k3d:template` — render the committed OFF landscape + cluster stack.
 - [Xenon baseline](docs/developer/xenon-baseline.md)

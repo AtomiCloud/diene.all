@@ -5,18 +5,18 @@
 
 {{/* The one and only service-tree label/annotation prefix. */}}
 {{- define "xenon.labelPrefix" -}}
-{{- required "labelPrefix is required" .Values.labelPrefix | trimSuffix "/" -}}
+{{- required "global.labelPrefix is required" .Values.global.labelPrefix | trimSuffix "/" -}}
 {{- end -}}
 
-{{/* Validate the base LPSM projection without requiring overlay-owned fields. */}}
+{{/* Validate namespace-sourced platform identity and the values-owned LSM slots. */}}
 {{- define "xenon.validateServiceTree" -}}
-{{- $platform := required "serviceTree.platform is required" .Values.serviceTree.platform -}}
-{{- $service := required "serviceTree.service is required" .Values.serviceTree.service -}}
-{{- $module := required "serviceTree.module is required" .Values.serviceTree.module -}}
-{{- $layer := required "serviceTree.layer is required" .Values.serviceTree.layer -}}
-{{- if ne $platform .Release.Namespace -}}
-{{- fail (printf "serviceTree.platform %q must equal release namespace %q" $platform .Release.Namespace) -}}
+{{- $serviceTree := required "global.serviceTree is required" .Values.global.serviceTree -}}
+{{- if hasKey $serviceTree "platform" -}}
+{{- fail "global.serviceTree.platform is forbidden; platform is sourced from the release namespace" -}}
 {{- end -}}
+{{- $_ := required "global.serviceTree.service is required" $serviceTree.service -}}
+{{- $_ = required "global.serviceTree.module is required" $serviceTree.module -}}
+{{- $_ = required "global.serviceTree.layer is required" $serviceTree.layer -}}
 {{- end -}}
 
 {{/* Normalize an arbitrary physical instance id into one DNS-1123 label. */}}
@@ -39,7 +39,7 @@
 {{/* Build an exactly-one-dash resource name from service + fused token. */}}
 {{- define "xenon.resourceName" -}}
 {{- $root := .root -}}
-{{- $service := required "serviceTree.service is required" $root.Values.serviceTree.service | lower -}}
+{{- $service := required "global.serviceTree.service is required" $root.Values.global.serviceTree.service | lower -}}
 {{- $token := required "resource token is required" .token | lower -}}
 {{- $token = regexReplaceAll "[^a-z0-9]+" $token "" -}}
 {{- if not (regexMatch "^[a-z0-9]+$" $service) -}}
@@ -54,7 +54,9 @@
 {{/* Service-tree labels only; every key uses labelPrefix. */}}
 {{- define "xenon.serviceTreeLabels" -}}
 {{- $prefix := include "xenon.labelPrefix" . -}}
-{{- range $key, $value := .Values.serviceTree }}
+{{- $serviceTree := required "global.serviceTree is required" .Values.global.serviceTree -}}
+{{ printf "%s/platform" $prefix }}: {{ .Release.Namespace | quote }}
+{{- range $key, $value := $serviceTree }}
 {{ printf "%s/%s" $prefix $key }}: {{ $value | quote }}
 {{- end }}
 {{- end -}}
@@ -62,10 +64,8 @@
 {{/* Service-tree and reversible instance metadata annotations. */}}
 {{- define "xenon.serviceTreeAnnotations" -}}
 {{- $prefix := include "xenon.labelPrefix" . -}}
-{{- range $key, $value := .Values.serviceTree }}
-{{ printf "%s/%s" $prefix $key }}: {{ $value | quote }}
-{{- end }}
-{{- with .Values.instance.physicalId }}
+{{- include "xenon.serviceTreeLabels" . }}
+{{- with .Values.global.instance.physicalId }}
 {{ printf "%s/instance-original" $prefix }}: {{ . | quote }}
 {{ printf "%s/instance-label" $prefix }}: {{ include "xenon.instanceLabel" . | quote }}
 {{- end }}

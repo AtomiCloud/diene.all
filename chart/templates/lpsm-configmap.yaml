@@ -11,8 +11,8 @@ metadata:
 data:
   enabled: 'true'
   layer: '1'
-  module: {{ .Values.serviceTree.module | quote }}
-  service: {{ .Values.serviceTree.service | quote }}
+  module: {{ .Values.global.serviceTree.module | quote }}
+  service: {{ .Values.global.serviceTree.service | quote }}
   purpose: 'resource metrics API for HPA and kubectl top'
   source: 'kubernetes-sigs/metrics-server'
 {{- end -}}

@@ -1,150 +1,157 @@
 # Xenon baseline
 
-xenon is the **conditional metrics-server wrapper chart** for AtomiCloud platform
-landscapes. It is a materialized product (S30) and an **edge chart** (Q-I32): it
-inherits the helm-wrapper _shape_ — configurable `labelPrefix`, LPSM labels, the
-exact-one-dash fullname convention, Reloader opt-in, and the rendered-manifest
-validation stage — but **not** the helm-wrapper probe obligation or its service-
-template surfaces. There is no `probes/`, no `features.json`, and no probe matrix.
+xenon is the **conditional metrics-server wrapper chart** for AtomiCloud
+landscapes. It is a materialized product (S30) and an **edge chart** (Q-I32):
+it inherits the helm-wrapper shape—one label prefix, namespace-sourced LPSM
+identity, exact-one-dash controllable names, Reloader opt-in, and rendered-
+manifest validation—but not the template's CyanPrint probe matrix.
 
-It wraps upstream `kubernetes-sigs/metrics-server` to provide the resource metrics
-API used by HPA and `kubectl top`. Three inherited helm-wrapper surfaces are
-**absent** here: the pre-sync hook Job (no db-init/migration), build-phase config
-vendoring (no external config), and ES folder-prefix mapping (no ExternalSecrets).
+It wraps `kubernetes-sigs/metrics-server` to provide the resource metrics API
+used by HPA and `kubectl top`. The service-template-only migration Job, config
+vendoring, and ExternalSecret surfaces are absent.
 
 ## Conditional enablement
 
-The whole chart is gated by a single value, `metricsServer.enabled`. The
-**per-landscape toggle is the real surface** of this chart:
+`metricsServer.enabled` gates the dependency and the wrapper ConfigMap, so an
+OFF stack renders no resources while the chart remains installable.
 
-- **ON** for every cloud and on-prem landscape — EKS classic, EKS Auto Mode,
-  DOKS, and on-prem. Verified from the managed-offering docs: none of these
-  preinstall metrics-server (EKS clusters are T3/API-created and get nothing;
-  DOKS offers it only as a Marketplace 1-click, user-managed; EKS Auto Mode
-  built-ins do not include it).
-- **OFF** only on k3d/lapras, because k3s bundles metrics-server (disable it via
-  `--disable metrics-server`).
+`chart/toggle-map.yaml` is the authoritative provider × named-landscape map:
 
-When OFF the chart renders **no resources** and remains installable everywhere —
-it is never fully dropped. The final per-profile ENV roster (the seven Garden
-profiles and their posture matrices) is intentionally excluded from this node and
-stays owned by the ENV round.
+| Provider      | Named landscapes       | Preinstalled | Xenon | Kubelet TLS                                   |
+| ------------- | ---------------------- | ------------ | ----- | --------------------------------------------- |
+| EKS classic   | pichu, pikachu, raichu | no           | ON    | secure                                        |
+| EKS Auto Mode | pichu, pikachu, raichu | no           | ON    | secure                                        |
+| DOKS          | pichu, pikachu, raichu | no           | ON    | secure                                        |
+| on-prem       | onprem                 | no           | ON    | secure baseline; cluster overlay may add args |
+| k3s/k3d       | lapras                 | yes          | OFF   | bundled                                       |
 
-### Toggle map
+Every provider entry references named landscapes. The unit gate renders each
+referenced committed stack and requires actual resource presence to equal both
+the provider and landscape expectations. It also requires the exact provider
+and landscape inventories above. A real negative rewrites the lapras overlay
+from OFF to ON and invokes the same checker, which must fail.
 
-`chart/toggle-map.yaml` is the source of truth for the unit-tier toggle gate. It
-declares, per committed overlay, the expected enablement. The gate renders
-`values.yaml` stacked with each overlay and asserts the ACTUAL enablement
-(resources render = on; empty render = off) matches the declared value. A
-negative fixture flips the lapras overlay from OFF to ON and confirms the
-baseline still declares OFF, so the gate reddens on a regression that accidentally
-enables xenon on k3d.
+The final Garden profile roster and membership decisions beyond this chart's
+named enablement contract remain outside xenon.
 
-### Per-cloud needed/provided matrix
+## Stacked values
 
-| Cloud         | metrics-server preinstalled? | xenon enabled | kubelet TLS                            |
-| ------------- | ---------------------------- | ------------- | -------------------------------------- |
-| EKS classic   | no                           | ON            | secure                                 |
-| EKS Auto Mode | no                           | ON            | secure                                 |
-| DOKS          | no                           | ON            | secure                                 |
-| on-prem       | no                           | ON            | overlay (per-cluster kubelet TLS args) |
-| k3d / lapras  | yes (k3s bundles it)         | OFF           | bundled                                |
+Values retain the independent landscape → cluster stacking model:
 
-Secure kubelet TLS is the cloud/on-prem default; the k3d/insecure posture
-(`--kubelet-insecure-tls`) is an overlay decision, never a baseline default.
+- `values.pichu.yaml`, `values.pikachu.yaml`, and `values.raichu.yaml` are the
+  named cloud landscape overlays; each explicitly keeps xenon ON and secure TLS.
+- `values.onprem.yaml` is the named on-prem posture; it stays ON, while a real
+  cluster overlay may add provider-specific kubelet arguments.
+- `values.lapras.yaml` owns the lapras OFF decision.
+- `values.k3d.yaml` is the thin cluster-identity overlay stacked after lapras.
 
-## Rendering model
+The local OFF stack is therefore base → `values.lapras.yaml` →
+`values.k3d.yaml`. `pls lapras:k3d:template` renders it as empty output.
 
-Two independent stacked dimensions, inherited from helm-wrapper: base
-`values.yaml` → landscape overlay `values.<landscape>.yaml` → cluster overlay
-`values.<cluster>.yaml`. Landscape and cluster name vocabularies are disjoint, so
-flat filenames are unambiguous. The shipped overlays are:
+## Identity propagation
 
-- `values.example.yaml` — a representative managed-cloud landscape (ON).
-- `values.lapras.yaml` — the local k3d cluster overlay; it contains no landscape
-  decision and disables xenon (OFF).
+Helm `global` values are the supported parent-to-subchart channel and the
+single identity source:
 
-`metricsServer.enabled` is read by the metrics-server subchart's `condition`, so
-toggling it off drops the entire subchart. The wrapper-owned LPSM projection
-ConfigMap is also gated by the same value, so an OFF landscape renders nothing.
+- `global.labelPrefix` defaults to `atomi.cloud`.
+- `global.serviceTree` owns service `xenon`, module `metrics`, and layer `1`;
+  landscape and cluster arrive from overlays.
+- platform is **never a value**. Every wrapper and dependency helper renders it
+  directly from `.Release.Namespace`; an attempted
+  `global.serviceTree.platform` value fails rendering.
 
-## Identity and naming
+The wrapper ConfigMap and the actual metrics-server Deployment metadata and pod
+template all carry the LPSM labels and annotations. Overriding
+`global.labelPrefix=example.dev` changes all four workload metadata maps and
+leaves no `atomi.cloud/*` LPSM key behind. Rendering to another namespace changes
+the workload platform metadata to that namespace.
 
-- `serviceTree`: platform `sample`, service `xenon`, module `metrics`, layer `1`.
-  Landscape and cluster are added by overlays only.
-- `labelPrefix` (default `atomi.cloud`) is the single configurable prefix read by
-  every `_helpers.tpl` label/annotation helper; it is never hard-coded.
-- **Fullname convention** (`<service>-<dashless-token>`, exactly one dash): the
-  metrics-server workload and the LPSM ConfigMap are stamped via
-  `metricsServer.fullnameOverride` (`xenon-metrics`) and the
-  `xenon.resourceName` helper (`xenon-lpsm`). Upstream metrics-server RBAC and
-  APIService objects keep their own conventional names (e.g.
-  `system:auth-delegator`, `v1beta1.metrics.k8s.io`); the fullname convention
-  scopes to the controllable workload and wrapper-owned names.
+The upstream chart does not expose templated LPSM metadata or configurable RBAC
+names. `scripts/local/vendor-metrics-server.sh` therefore applies the small,
+version-pinned `chart/patches/metrics-server-3.13.1-xenon.patch` after Helm
+dependency build/update. The patch uses Helm global values, touches only upstream
+helpers/names and Deployment metadata, is reverse-dry-run verified, and is packed
+deterministically. Source and patched SHA-256 values are recorded in
+`chart/upstream-evidence.yaml`.
 
-## Workloads
+## Naming
 
-- The metrics-server Deployment carries service-tree `podLabels` and
-  `podAnnotations` from `metricsServer.podLabels`/`podAnnotations`, so the
-  LPSM identity reaches the pod even though the subchart owns the template.
-- **Reloader opt-in** is baked ON by default via
-  `metricsServer.podAnnotations."reloader.stakater.com/auto": "true"`. The
-  annotation reaches the pod through the metrics-server subchart's `podAnnotations`
-  map; Helm coalesces subchart values and cannot drop a single key, so a
-  stateful/unsafe landscape opts out by overriding the value to `"false"`
-  (Reloader only reloads on the literal `"true"`). metrics-server is itself
-  stateless; the opt-out path is proven for the shape, not because metrics-server
-  needs it.
-- Pod and container security contexts satisfy the baseline-plus VAP policy
-  (non-root, dropped capabilities, read-only root filesystem, resource
-  requests+limits, no `:latest` image, ClusterIP Service).
+Every controllable rendered Kubernetes object's `metadata.name` is
+`<service>-<dashless-token>`:
 
-## Rendered-manifest validation
+- core Deployment, Service, ServiceAccount, ClusterRole, and binding:
+  `xenon-metrics`;
+- wrapper projection: `xenon-lpsm`;
+- additional RBAC tokens: `xenon-reader`, `xenon-authreader`, and
+  `xenon-authdelegator`;
+- optional upstream objects use fused tokens such as `xenon-nannybinding`.
 
-The generic rendered-manifest validation stage (Q-G20), defined once in
-helm-wrapper, is inherited as machinery: `helm template` (all stacked values) →
-`kubeconform` (k8s schemas) → VAP eval via `kyverno apply` against
-`policies/vap` (ValidatingAdmissionPolicy definitions only). The metrics-server
-Deployment and Service pass; **one wiring sabotage** (`metricsServer.image.tag=latest`)
-reddens the stage, proving the VAP wiring cannot silently stop matching.
+The one unavoidable exception is APIService `v1beta1.metrics.k8s.io`: Kubernetes
+API aggregation requires the object name to be `<version>.<group>`. The fullname
+gate enumerates every rendered object, permits exactly that one exception, and
+also verifies every controllable ClusterRoleBinding reference resolves to the
+renamed ClusterRole. Fixed external role references such as
+`system:auth-delegator` are Kubernetes contracts, not xenon-owned object names.
 
-## Publishing
+## Upstream version selection
 
-OCI is the default publish/consume path; git-as-chart-repo is the secondary mode.
-`scripts/ci/publish.sh` stamps the Chart.yaml version via the release tag
-(version==tag guard) and runs helm-docs. Both modes are exercised as dry-runs in
-the unit tier; the package is `diene-xenon-<version>.tgz`.
+The official repository selection observed on 2026-07-19 is metrics-server chart
+`3.13.1`, app/image `0.8.1`; the wrapper Kubernetes floor is consequently raised
+to 1.31, matching upstream's 0.8.x compatibility matrix. The source archive hash
+is pinned before the integration patch is applied.
+
+The registry also exposes image `v0.9.0`, released 2026-07-13. It is not selected:
+the official Helm repository still has no chart for it, and upstream documents
+0.9.x as Kubernetes 1.34+. `chart/upstream-evidence.yaml` records that exact
+fact rather than silently calling the older app image "latest". `pls latest`
+checks both official repositories against the committed evidence and identifies
+`3.13.1/0.8.1` as the newest released chart contract.
+
+## Workload and policy posture
+
+- Two replicas are the managed-cloud/on-prem default.
+- Reloader is ON through the upstream `podAnnotations` surface and can be set to
+  string `"false"`; the dependency integration supplies LPSM annotations
+  independently, so opt-out cannot erase identity.
+- Pod/container security contexts provide non-root execution, dropped
+  capabilities, a read-only root filesystem, and CPU/memory requests and limits.
+- The Q-G20 stage renders every enabled named landscape, validates Kubernetes
+  schemas with kubeconform, and evaluates the workload/Service against the VAP
+  definitions with Kyverno. Its `:latest` wiring mutation must fail.
 
 ## Testing pyramid
 
-xenon is a materialized product (S30) and edge chart (Q-I32) — it uses an ordinary
-testing pyramid, **not** a CyanPrint probe matrix.
+The non-live unit/static tier includes:
 
-- **Unit tier (static conformance):** helm lint per overlay; `values.schema.json`
-  validation + drift; LPSM label conformance + prefix override; Reloader
-  opt-out; fullname convention; toggle-map gate + negative fixture; rendered-
-  manifest validation (Q-G20, one `:latest` wiring sabotage); cluster Taskfile
-  include consistency; release-config consistency; CI wiring; publish version==tag.
-- **Integration / SIT tier:** install xenon on a landscape where it is enabled,
-  then verify `kubectl top nodes` answers. xenon is OFF on k3d/lapras, so there
-  is no local k3d probe stand-in; the SIT proof runs where the chart is actually
-  on (a cloud/on-prem landscape), under orchestration authorization.
+- Helm schema/lint/render over base and every committed named stack;
+- a real schema negative (`metricsServer.replicas: 0`) plus the independent
+  generated-schema drift gate;
+- patched dependency version/hash/application verification and official latest
+  evidence;
+- default and override LPSM metadata on Deployment and pod, namespace-sourced
+  platform rejection, Reloader default/opt-out, and exhaustive fullname checking;
+- every provider × landscape toggle entry plus the lapras OFF→ON negative;
+- kubeconform/VAP validation for each ON stack and the `:latest` sabotage;
+- git and OCI packaging dry-runs and version/tag mismatch rejection.
 
-## Tokenization surface
+The integration tier is reserved. `scripts/validate/xenon-sit.sh` requires an
+enabled cloud/on-prem context plus explicit namespace, release, and **absolute,
+empty** evidence directory. It refuses an existing release, installs with Helm
+`--atomic --cleanup-on-fail`, captures separate complete stdout/stderr files for
+install, rollout, status, both `kubectl top` calls, and cleanup, validates deployed
+status and data rows, and retains whole-run `sit.stdout`/`sit.stderr` transcripts.
+It then uses an ownership-claim-gated EXIT trap to uninstall. Cleanup failure is
+recorded and makes the run fail. The script must not run on lapras/k3d.
 
-Every per-instance scalar, enumerated:
+## Publishing and tokenization
 
-- chart/release name (fullname `<service>-<token>` = `xenon-metrics`, one dash)
-- chart publish name (`diene-xenon`) and OCI/git repository path
-- serviceTree platform/service/module/layer (`sample`/`xenon`/`metrics`/`1`)
-- `labelPrefix` value (`atomi.cloud`)
-- upstream dependency name + version + repository (`metrics-server` 3.12.1,
-  `https://kubernetes-sigs.github.io/metrics-server`)
-- vendored tgz filename (`charts/metrics-server-3.12.1.tgz`)
-- skopeo image ref in `latest` (`registry.k8s.io/metrics-server/metrics-server`)
-- landscape overlay filenames (`values.<landscape>.yaml`)
-- cluster overlay filenames (`values.<cluster>.yaml`)
-- k3d cluster name (`diene-xenon`) and registry name (`diene-xenon-registry`)
-- repository-qualified physical instance id and its normalized DNS-1123 label
-  (with the original recorded together in metadata for reversible shortening)
-- the per-landscape `enabled` toggle and the kubelet-TLS posture
+OCI is the default publish path; git-as-chart-repository remains secondary.
+`scripts/ci/publish.sh` reproduces the patched dependency before packaging, runs
+helm-docs, and enforces chart version = tag.
+
+Per-instance/tokenized values are: chart and release names; OCI/git repository;
+the namespace-derived platform plus service/module/layer; `global.labelPrefix`;
+named landscape and cluster overlay filenames; the enablement/TLS matrix;
+metrics-server chart/app/image versions, source and patched hashes, repository,
+patch filename, and vendored archive filename; k3d cluster/registry names; and
+the repository-qualified physical instance id plus normalized label.

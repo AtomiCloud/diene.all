@@ -1,21 +1,28 @@
-# @schema pattern:^[a-z0-9.-]+$;minLength:1
-# -- Prefix used by every service-tree label and annotation helper.
-labelPrefix: atomi.cloud
+# -- Values shared with the vendored metrics-server dependency through Helm's
+# supported parent-to-subchart global-values contract.
+global:
+  # @schema pattern:^[a-z0-9.-]+$;minLength:1;required:true
+  # -- Single prefix used by every service-tree label and annotation helper.
+  labelPrefix: atomi.cloud
 
-# -- Stable four-slot service-tree projection. Landscape and cluster are added by independent overlays.
-serviceTree:
-  # @schema pattern:^[a-z0-9]+$;required:true
-  platform: sample
-  # @schema pattern:^[a-z0-9]+$;required:true
-  service: xenon
-  # @schema pattern:^[a-z0-9]+$;required:true
-  module: metrics
-  # @schema pattern:^[0-9]+$;required:true
-  layer: '1'
+  # -- Stable service-tree projection. Platform is always the release namespace;
+  # landscape and cluster are added by independent overlays.
+  serviceTree:
+    # @schema pattern:^[a-z0-9]+$;required:true
+    # -- Service name.
+    service: xenon
+    # @schema pattern:^[a-z0-9]+$;required:true
+    # -- Module name.
+    module: metrics
+    # @schema pattern:^[0-9]+$;required:true
+    # -- Architecture layer.
+    layer: '1'
 
-# -- Optional physical-instance metadata. The instance remains outside LPSM.
-instance:
-  physicalId: example-repository:run-001
+  # -- Optional physical-instance metadata. The instance remains outside LPSM.
+  instance:
+    # @schema pattern:^[a-z0-9._:/-]+$;minLength:1
+    # -- Repository-qualified physical instance id.
+    physicalId: example-repository:run-001
 
 # -- Per-landscape enablement toggle and the vendored metrics-server chart inputs.
 # The whole chart is gated by `metricsServer.enabled`: it defaults ON here for every
@@ -32,23 +39,11 @@ metricsServer:
   # @schema minimum:1
   # -- Highly available replica count for managed-cloud deployments.
   replicas: 2
-  # -- Service-tree identity stamped onto the metrics-server pod.
-  podLabels:
-    atomi.cloud/platform: sample
-    atomi.cloud/service: xenon
-    atomi.cloud/module: metrics
-    atomi.cloud/layer: '1'
-  # -- Reloader opt-in plus service-tree annotations on the metrics-server pod.
-  # Reloader is opt-in at the controller and baked ON here by the wrapper. Because
-  # the annotation reaches the pod through the metrics-server subchart's
-  # `podAnnotations` map (Helm coalesces subchart values and cannot drop a single
-  # key), a stateful/unsafe landscape opts out by overriding the value to 'false'
-  # — Reloader only reloads on the literal 'true', so any other value opts out.
+  # -- Reloader opt-in on the metrics-server pod. The vendored integration patch
+  # independently projects the global service-tree metadata onto the Deployment
+  # and pod; this map retains only the upstream-supported opt-out surface.
   podAnnotations:
     reloader.stakater.com/auto: 'true'
-    atomi.cloud/platform: sample
-    atomi.cloud/service: xenon
-    atomi.cloud/module: metrics
   # -- Pod-level security context satisfying the baseline-plus VAP policy.
   podSecurityContext:
     runAsNonRoot: true

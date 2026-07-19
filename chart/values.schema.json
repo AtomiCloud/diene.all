@@ -4,20 +4,58 @@
     "description": "Generated schema for the diene xenon conditional metrics-server chart.",
     "type": "object",
     "properties": {
-        "instance": {
-            "description": "Optional physical-instance metadata. The instance remains outside LPSM.",
+        "global": {
+            "description": "Values shared with the vendored metrics-server dependency through Helm's supported parent-to-subchart global-values contract.",
             "type": "object",
+            "required": [
+                "labelPrefix"
+            ],
             "properties": {
-                "physicalId": {
-                    "type": "string"
+                "instance": {
+                    "description": "Optional physical-instance metadata. The instance remains outside LPSM.",
+                    "type": "object",
+                    "properties": {
+                        "physicalId": {
+                            "description": "Repository-qualified physical instance id.",
+                            "type": "string",
+                            "pattern": "^[a-z0-9._:/-]+$",
+                            "minLength": 1
+                        }
+                    }
+                },
+                "labelPrefix": {
+                    "description": "Single prefix used by every service-tree label and annotation helper.",
+                    "type": "string",
+                    "pattern": "^[a-z0-9.-]+$",
+                    "minLength": 1
+                },
+                "serviceTree": {
+                    "description": "Stable service-tree projection. Platform is always the release namespace; landscape and cluster are added by independent overlays.",
+                    "type": "object",
+                    "required": [
+                        "service",
+                        "module",
+                        "layer"
+                    ],
+                    "properties": {
+                        "layer": {
+                            "description": "Architecture layer.",
+                            "type": "string",
+                            "pattern": "^[0-9]+$"
+                        },
+                        "module": {
+                            "description": "Module name.",
+                            "type": "string",
+                            "pattern": "^[a-z0-9]+$"
+                        },
+                        "service": {
+                            "description": "Service name.",
+                            "type": "string",
+                            "pattern": "^[a-z0-9]+$"
+                        }
+                    }
                 }
             }
-        },
-        "labelPrefix": {
-            "description": "Prefix used by every service-tree label and annotation helper.",
-            "type": "string",
-            "pattern": "^[a-z0-9.-]+$",
-            "minLength": 1
         },
         "metricsServer": {
             "description": "Per-landscape enablement toggle and the vendored metrics-server chart inputs. The whole chart is gated by `metricsServer.enabled`: it defaults ON here for every cloud and on-prem landscape (EKS classic/Auto, DOKS, and on-prem do not preinstall metrics-server) and is flipped OFF only by the k3d/lapras overlay, because k3s bundles metrics-server. Final per-profile ENV roster entries stay outside this node.",
@@ -40,37 +78,10 @@
                     "pattern": "^[a-z0-9]+-[a-z0-9]+$"
                 },
                 "podAnnotations": {
-                    "description": "Reloader opt-in plus service-tree annotations on the metrics-server pod. Reloader is opt-in at the controller and baked ON here by the wrapper. Because the annotation reaches the pod through the metrics-server subchart's `podAnnotations` map (Helm coalesces subchart values and cannot drop a single key), a stateful/unsafe landscape opts out by overriding the value to 'false' — Reloader only reloads on the literal 'true', so any other value opts out.",
+                    "description": "Reloader opt-in on the metrics-server pod. The vendored integration patch independently projects the global service-tree metadata onto the Deployment and pod; this map retains only the upstream-supported opt-out surface.",
                     "type": "object",
                     "properties": {
-                        "atomi.cloud/module": {
-                            "type": "string"
-                        },
-                        "atomi.cloud/platform": {
-                            "type": "string"
-                        },
-                        "atomi.cloud/service": {
-                            "type": "string"
-                        },
                         "reloader.stakater.com/auto": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "podLabels": {
-                    "description": "Service-tree identity stamped onto the metrics-server pod.",
-                    "type": "object",
-                    "properties": {
-                        "atomi.cloud/layer": {
-                            "type": "string"
-                        },
-                        "atomi.cloud/module": {
-                            "type": "string"
-                        },
-                        "atomi.cloud/platform": {
-                            "type": "string"
-                        },
-                        "atomi.cloud/service": {
                             "type": "string"
                         }
                     }
@@ -125,34 +136,6 @@
                             }
                         }
                     }
-                }
-            }
-        },
-        "serviceTree": {
-            "description": "Stable four-slot service-tree projection. Landscape and cluster are added by independent overlays.",
-            "type": "object",
-            "required": [
-                "platform",
-                "service",
-                "module",
-                "layer"
-            ],
-            "properties": {
-                "layer": {
-                    "type": "string",
-                    "pattern": "^[0-9]+$"
-                },
-                "module": {
-                    "type": "string",
-                    "pattern": "^[a-z0-9]+$"
-                },
-                "platform": {
-                    "type": "string",
-                    "pattern": "^[a-z0-9]+$"
-                },
-                "service": {
-                    "type": "string",
-                    "pattern": "^[a-z0-9]+$"
                 }
             }
         }

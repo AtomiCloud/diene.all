@@ -5,13 +5,13 @@ version: '3'
 includes:
   helm: tasks/Taskfile.helm.yaml
   secret: tasks/Taskfile.secret.yaml
-  example:lapras:
+  lapras:k3d:
     taskfile: tasks/Taskfile.cluster.yaml
     vars:
       RELEASE_NAME: xenon
       NAMESPACE: sample
-      LANDSCAPE: example
-      CLUSTER: lapras
+      LANDSCAPE: lapras
+      CLUSTER: k3d
 
 tasks:
   setup:
@@ -32,12 +32,12 @@ tasks:
   build:
     desc: Build chart dependencies
     cmds:
-      - helm dependency build chart
+      - ./scripts/local/vendor-metrics-server.sh build
 
   update:
     desc: Refresh the pinned upstream chart dependency
     cmds:
-      - helm dependency update chart
+      - ./scripts/local/vendor-metrics-server.sh update
 
   latest:
     desc: Resolve the latest real upstream chart and image tags

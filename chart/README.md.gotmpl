@@ -12,13 +12,13 @@ xenon is the resource metrics API (HPA + `kubectl top`). The whole chart is gate
 by `metricsServer.enabled` per landscape — **ON** where the managed offering lacks
 metrics-server, **OFF** only where the substrate bundles it.
 
-| Cloud | metrics-server preinstalled? | xenon enabled | kubelet TLS |
-|-------|------------------------------|---------------|-------------|
-| EKS classic | no (AtomiCloud clusters are T3/API-created; the community add-on is opt-in only) | ON | secure |
-| EKS Auto Mode | no (built-ins do not include metrics-server) | ON | secure |
-| DOKS | no (Marketplace 1-click is user-managed only) | ON | secure |
-| on-prem | no | ON | overlay (per-cluster kubelet TLS args) |
-| k3d / lapras | yes (k3s bundles it; disable via `--disable metrics-server`) | OFF | bundled |
+| Provider | Named landscapes | metrics-server preinstalled? | xenon enabled | kubelet TLS |
+|----------|------------------|------------------------------|---------------|-------------|
+| EKS classic | pichu, pikachu, raichu | no (the community add-on is opt-in) | ON | secure |
+| EKS Auto Mode | pichu, pikachu, raichu | no (built-ins do not include metrics-server) | ON | secure |
+| DOKS | pichu, pikachu, raichu | no (Marketplace 1-click is user-managed) | ON | secure |
+| on-prem | onprem | no | ON | cluster overlay may supply kubelet args |
+| k3s / k3d | lapras | yes (k3s bundles it; disable via `--disable metrics-server`) | OFF | bundled |
 
 The chart stays installable on every landscape; flipping it OFF renders no
 resources. The k3d/insecure-TLS posture is an overlay decision, not a baseline
@@ -26,10 +26,19 @@ default — secure TLS is shipped for cloud/on-prem.
 
 ## Enablement toggle map
 
-`chart/toggle-map.yaml` is the source of truth for the unit-tier toggle gate:
-each committed overlay is rendered against `values.yaml` and its actual
-enablement is compared to the declared value. See
+`chart/toggle-map.yaml` is the authoritative provider × named-landscape map.
+The unit gate renders every referenced committed stack and compares actual
+resource presence with both expectations; its lapras OFF→ON mutation runs the
+same checker. See
 [docs/developer/xenon-baseline.md](../docs/developer/xenon-baseline.md) for the
 full conditional-enablement contract.
+
+## Upstream selection
+
+The vendored dependency is official metrics-server chart `3.13.1` / app
+`0.8.1`, with the wrapper integration applied reproducibly from the pinned
+source archive. `chart/upstream-evidence.yaml` records source and patched hashes,
+the latest-repository check, and why image `v0.9.0` is not selected (no released
+chart and Kubernetes 1.34+ versus this chart's 1.31 floor).
 
 {{ template "chart.valuesSection" . }}

@@ -1,45 +1,51 @@
-# Conditional enablement contract for xenon.
+# Authoritative xenon provider × named-landscape enablement matrix.
 #
-# This is the source of truth for the unit-tier toggle-map gate. The toggle test
-# renders `values.yaml` stacked with each committed overlay and compares the
-# ACTUAL enablement (resources render = on; empty render = off) against the
-# `enabled` value declared here. Xenon is ON for every cloud and on-prem
-# landscape (managed offerings do not preinstall metrics-server) and OFF only on
-# the k3d/lapras cluster (k3s bundles it). The chart stays installable
-# everywhere; flipping it off renders no resources.
-#
-# The final per-profile ENV roster (the seven Garden profiles lapras/ditto/
-# rotom/absol/eevee/plusle/minun and their posture matrices) is intentionally
-# excluded; it stays owned by the ENV round.
+# Every provider row names every landscape posture it supports. The validation
+# gate renders each referenced landscape's committed stack and compares actual
+# resource presence with both the provider and landscape expectations. This
+# makes every provider/landscape entry executable evidence rather than prose.
+# Final Garden profile membership beyond this chart contract remains deferred.
 
-clouds:
-  - cloud: eks-classic
+providers:
+  - provider: eks-classic
     preinstalled: false
     enabled: true
     kubeletTls: secure
-  - cloud: eks-auto
+    landscapes: [pichu, pikachu, raichu]
+  - provider: eks-auto
     preinstalled: false
     enabled: true
     kubeletTls: secure
-  - cloud: doks
+    landscapes: [pichu, pikachu, raichu]
+  - provider: doks
     preinstalled: false
     enabled: true
     kubeletTls: secure
-  - cloud: onprem
+    landscapes: [pichu, pikachu, raichu]
+  - provider: onprem
     preinstalled: false
     enabled: true
-    kubeletTls: overlay
-  - cloud: k3d
+    kubeletTls: cluster-overlay
+    landscapes: [onprem]
+  - provider: k3s
     preinstalled: true
     enabled: false
     kubeletTls: bundled
+    landscapes: [lapras]
 
-overlays:
-  - environment: example
-    kind: landscape
-    overlay: chart/values.example.yaml
+landscapes:
+  - landscape: pichu
     enabled: true
-  - environment: lapras
-    kind: cluster
-    overlay: chart/values.lapras.yaml
+    overlays: [chart/values.pichu.yaml]
+  - landscape: pikachu
+    enabled: true
+    overlays: [chart/values.pikachu.yaml]
+  - landscape: raichu
+    enabled: true
+    overlays: [chart/values.raichu.yaml]
+  - landscape: onprem
+    enabled: true
+    overlays: [chart/values.onprem.yaml]
+  - landscape: lapras
     enabled: false
+    overlays: [chart/values.lapras.yaml, chart/values.k3d.yaml]
