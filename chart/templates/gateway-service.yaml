@@ -12,7 +12,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "diene-helm-wrapper.resourceName" (dict "root" . "token" "gateway") }}
+  name: {{ include "diene-helm-wrapper.resourceName" (dict "root" . "token" "edge") }}
   labels:
     {{- include "diene-helm-wrapper.labels" . | nindent 4 }}
   annotations:
@@ -29,8 +29,10 @@ metadata:
 spec:
   type: LoadBalancer
   externalTrafficPolicy: Cluster
+  {{- with .Values.gateway.proxy.selector }}
   selector:
-    {{- include "diene-helm-wrapper.selectorLabels" . | nindent 4 }}
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   ports:
     - name: http
       port: {{ .Values.gateway.port }}

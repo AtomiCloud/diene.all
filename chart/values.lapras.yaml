@@ -2,12 +2,12 @@
 serviceTree:
   cluster: lapras
 
-# The local install proves the ordinary Kubernetes resources only; the CRDs are owned by later nodes.
-secret:
+# zinc's wildcard ClusterIssuer is absent on local k3d; the registered-fleet certs ride this chart only on real clusters.
+registeredCertificates:
   enabled: false
 
-webhookRoute:
-  enabled: false
-
-primordial:
-  enabled: false
+# Local proxy label selecting the kgateway gateway-proxy pods on lapras.
+gateway:
+  proxy:
+    selector:
+      app.kubernetes.io/name: kgateway

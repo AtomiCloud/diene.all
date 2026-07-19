@@ -1,13 +1,17 @@
 apiVersion: v2
-name: diene-helm-wrapper
-description: Minimal production-grade Helm wrapper template for AtomiCloud platform charts
+name: platinum
+description: AtomiCloud platform Gateway API ingress chart wrapping kgateway (element platinum)
 type: application
 version: 0.1.0
-appVersion: '6.9.2'
+appVersion: 'v2.2.9'
 kubeVersion: '>=1.27.0-0'
 dependencies:
-  - name: podinfo
+  - name: kgateway
     alias: upstream
-    version: 6.9.2
-    repository: oci://ghcr.io/stefanprodan/charts
+    version: v2.2.9
+    repository: oci://cr.kgateway.dev/kgateway-dev/charts
     condition: upstream.enabled
+  - name: kgateway-crds
+    version: v2.2.9
+    repository: oci://cr.kgateway.dev/kgateway-dev/charts
+    condition: kgatewayCrds.enabled

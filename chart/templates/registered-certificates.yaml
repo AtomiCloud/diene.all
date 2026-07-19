@@ -1,0 +1,38 @@
+{{- if and .Values.registeredCertificates.enabled (not .Values.devHost.enabled) -}}
+{{- include "diene-helm-wrapper.validateServiceTree" . -}}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "diene-helm-wrapper.resourceName" (dict "root" . "token" "certprimary") }}
+  labels:
+    {{- include "diene-helm-wrapper.labels" . | nindent 4 }}
+  annotations:
+    {{- include "diene-helm-wrapper.annotations" . | nindent 4 }}
+spec:
+  secretName: {{ include "diene-helm-wrapper.resourceName" (dict "root" . "token" "certprimary") }}-tls
+  issuerRef:
+    name: {{ .Values.registeredCertificates.issuerRef.name | quote }}
+    kind: {{ .Values.registeredCertificates.issuerRef.kind | quote }}
+    group: cert-manager.io
+  dnsNames:
+    {{- toYaml .Values.registeredCertificates.primary.dnsNames | nindent 4 }}
+  commonName: {{ .Values.registeredCertificates.primary.domain | quote }}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "diene-helm-wrapper.resourceName" (dict "root" . "token" "certbackup") }}
+  labels:
+    {{- include "diene-helm-wrapper.labels" . | nindent 4 }}
+  annotations:
+    {{- include "diene-helm-wrapper.annotations" . | nindent 4 }}
+spec:
+  secretName: {{ include "diene-helm-wrapper.resourceName" (dict "root" . "token" "certbackup") }}-tls
+  issuerRef:
+    name: {{ .Values.registeredCertificates.issuerRef.name | quote }}
+    kind: {{ .Values.registeredCertificates.issuerRef.kind | quote }}
+    group: cert-manager.io
+  dnsNames:
+    {{- toYaml .Values.registeredCertificates.backup.dnsNames | nindent 4 }}
+  commonName: {{ .Values.registeredCertificates.backup.domain | quote }}
+{{- end }}

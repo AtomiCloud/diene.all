@@ -1,80 +1,28 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "Diene Helm Wrapper Values",
-    "description": "Generated schema for the diene Helm wrapper sample.",
+    "title": "Platinum Values",
+    "description": "Generated schema for the platinum Gateway API chart.",
     "type": "object",
     "required": [
         "fullnameOverride"
     ],
     "properties": {
-        "contracts": {
-            "description": "Current health and webhook delivery conventions.",
+        "devHost": {
+            "description": "ENTEI dev-host shared-Gateway mode. When enabled, platinum renders the shared GatewayClass, Gateway, and LoadBalancer only; per-host Certificate, ListenerSet, and HTTPRoute are owned by the exposure materializer, not this chart.",
             "type": "object",
             "properties": {
-                "health": {
-                    "type": "object",
-                    "properties": {
-                        "expectedStatus": {
-                            "type": "string"
-                        },
-                        "path": {
-                            "type": "string",
-                            "pattern": "^/.*"
-                        }
-                    }
-                },
-                "lpsm": {
-                    "type": "object",
-                    "properties": {
-                        "instance": {
-                            "type": "string",
-                            "pattern": "^[a-z0-9-]+$"
-                        },
-                        "instanceZone": {
-                            "type": "string"
-                        },
-                        "landscape": {
-                            "type": "string",
-                            "pattern": "^[a-z0-9-]+$"
-                        },
-                        "module": {
-                            "type": "string",
-                            "pattern": "^[a-z0-9-]+$"
-                        },
-                        "ordinaryZone": {
-                            "type": "string"
-                        },
-                        "parseHostname": {
-                            "type": "string"
-                        },
-                        "service": {
-                            "type": "string",
-                            "pattern": "^[a-z0-9-]+$"
-                        }
-                    }
-                },
-                "webhook": {
-                    "type": "object",
-                    "properties": {
-                        "pathPrefix": {
-                            "type": "string",
-                            "pattern": "^/.*"
-                        },
-                        "provider": {
-                            "type": "string",
-                            "pattern": "^[a-z0-9-]+$"
-                        }
-                    }
+                "enabled": {
+                    "type": "boolean"
                 }
             }
         },
         "fullnameOverride": {
-            "description": "Primary workload fullname. It must be `\u003cservice\u003e-\u003cdashless-token\u003e`.",
+            "description": "Primary workload fullname (`\u003cservice\u003e-\u003ctoken\u003e`). The wrapper convention names the chart's primary served endpoint.",
             "type": "string",
             "pattern": "^[a-z0-9]+-[a-z0-9]+$"
         },
         "gateway": {
-            "description": "Provider-managed LoadBalancer service for the gateway.",
+            "description": "Gateway API edge: shared GatewayClass, shared Gateway, the LoadBalancer exposure, and the health route.",
             "type": "object",
             "properties": {
                 "aws": {
@@ -96,8 +44,31 @@
                         }
                     }
                 },
+                "classname": {
+                    "description": "GatewayClass name platinum owns. Registered-fleet and local LAPRAS-class gateways reference it.",
+                    "type": "string",
+                    "pattern": "^[a-z0-9-]+$"
+                },
+                "controllerName": {
+                    "description": "kgateway controller binding for the GatewayClass.",
+                    "type": "string",
+                    "pattern": "^[a-z0-9.-]+/[a-z0-9-]+$"
+                },
                 "enabled": {
                     "type": "boolean"
+                },
+                "health": {
+                    "type": "object",
+                    "properties": {
+                        "expectedStatus": {
+                            "type": "string"
+                        },
+                        "path": {
+                            "description": "Fixed health path the traffic controller polls once per cluster per tick.",
+                            "type": "string",
+                            "pattern": "^/.*"
+                        }
+                    }
                 },
                 "oci": {
                     "type": "object",
@@ -119,584 +90,25 @@
                         "oci",
                         "digitalocean"
                     ]
-                }
-            }
-        },
-        "instance": {
-            "description": "Optional physical-instance metadata. The instance remains outside LPSM.",
-            "type": "object",
-            "properties": {
-                "physicalId": {
-                    "type": "string"
-                }
-            }
-        },
-        "labelPrefix": {
-            "description": "Prefix used by every service-tree label and annotation helper.",
-            "type": "string",
-            "pattern": "^[a-z0-9.-]+$",
-            "minLength": 1
-        },
-        "migration": {
-            "description": "Separate pre-sync migration hook. It never owns or recreates the Deployment.",
-            "type": "object",
-            "properties": {
-                "command": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
                 },
-                "enabled": {
-                    "type": "boolean"
-                },
-                "image": {
+                "proxy": {
                     "type": "object",
                     "properties": {
-                        "pullPolicy": {
-                            "type": "string",
-                            "enum": [
-                                "Always",
-                                "IfNotPresent",
-                                "Never"
-                            ]
-                        },
-                        "repository": {
-                            "type": "string"
-                        },
-                        "tag": {
-                            "type": "string",
-                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
-                        }
-                    }
-                },
-                "reloader": {
-                    "type": "object",
-                    "properties": {
-                        "enabled": {
-                            "type": "boolean"
-                        }
-                    }
-                },
-                "resources": {
-                    "type": "object",
-                    "properties": {
-                        "limits": {
-                            "type": "object",
-                            "properties": {
-                                "cpu": {
-                                    "type": "string"
-                                },
-                                "memory": {
-                                    "type": "string"
-                                }
-                            }
-                        },
-                        "requests": {
-                            "type": "object",
-                            "properties": {
-                                "cpu": {
-                                    "type": "string"
-                                },
-                                "memory": {
-                                    "type": "string"
-                                }
-                            }
+                        "selector": {
+                            "description": "Labels selecting the kgateway gateway-proxy pods the LoadBalancer forwards to. Wired per cluster at install.",
+                            "type": "object"
                         }
                     }
                 }
             }
         },
-        "primordial": {
-            "description": "Reusable primordial-chart CR helper inputs against the frozen T3 shapes.",
-            "type": "object",
-            "properties": {
-                "apiVersions": {
-                    "type": "object",
-                    "properties": {
-                        "edge": {
-                            "type": "string"
-                        },
-                        "fleet": {
-                            "type": "string"
-                        },
-                        "identity": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "cloudflareDeploy": {
-                    "type": "object",
-                    "properties": {
-                        "enabled": {
-                            "type": "boolean"
-                        },
-                        "pin": {
-                            "type": "boolean"
-                        },
-                        "scriptName": {
-                            "type": "string"
-                        },
-                        "tag": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "enabled": {
-                    "type": "boolean"
-                },
-                "logtoApp": {
-                    "type": "object",
-                    "properties": {
-                        "enabled": {
-                            "type": "boolean"
-                        },
-                        "extraRedirectUris": {
-                            "type": "array",
-                            "uniqueItems": true,
-                            "items": {
-                                "type": "string"
-                            }
-                        },
-                        "paths": {
-                            "type": "array",
-                            "items": {
-                                "type": "string"
-                            }
-                        },
-                        "resourceRefs": {
-                            "type": "array",
-                            "uniqueItems": true,
-                            "items": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                },
-                "placement": {
-                    "type": "object",
-                    "properties": {
-                        "preferredHost": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "platformDependency": {
-                    "type": "object",
-                    "properties": {
-                        "modules": {
-                            "type": "object",
-                            "properties": {
-                                "cache": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "object",
-                                        "properties": {
-                                            "credentialMode": {
-                                                "type": "string"
-                                            },
-                                            "delivery": {
-                                                "type": "string"
-                                            },
-                                            "engine": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "dragonfly": {
-                                                        "type": "object"
-                                                    }
-                                                }
-                                            },
-                                            "ram": {
-                                                "type": "string"
-                                            },
-                                            "rotation": {
-                                                "type": "string"
-                                            },
-                                            "type": {
-                                                "type": "string"
-                                            }
-                                        }
-                                    }
-                                },
-                                "database": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "object",
-                                        "properties": {
-                                            "backup": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "crossVendor": {
-                                                        "type": "boolean"
-                                                    }
-                                                }
-                                            },
-                                            "cpu": {
-                                                "type": "integer"
-                                            },
-                                            "credentialMode": {
-                                                "type": "string"
-                                            },
-                                            "delivery": {
-                                                "type": "string"
-                                            },
-                                            "engine": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "neon": {
-                                                        "type": "object",
-                                                        "properties": {
-                                                            "tier": {
-                                                                "type": "string"
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            },
-                                            "providerAccountRef": {
-                                                "type": "string"
-                                            },
-                                            "ram": {
-                                                "type": "string"
-                                            },
-                                            "rotation": {
-                                                "type": "string"
-                                            },
-                                            "storage": {
-                                                "type": "string"
-                                            },
-                                            "type": {
-                                                "type": "string"
-                                            },
-                                            "version": {
-                                                "type": "string"
-                                            }
-                                        }
-                                    }
-                                },
-                                "kv": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "object",
-                                        "properties": {
-                                            "credentialMode": {
-                                                "type": "string"
-                                            },
-                                            "delivery": {
-                                                "type": "string"
-                                            },
-                                            "engine": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "upstash": {
-                                                        "type": "object"
-                                                    }
-                                                }
-                                            },
-                                            "providerAccountRef": {
-                                                "type": "string"
-                                            },
-                                            "ram": {
-                                                "type": "string"
-                                            },
-                                            "rotation": {
-                                                "type": "string"
-                                            },
-                                            "type": {
-                                                "type": "string"
-                                            }
-                                        }
-                                    }
-                                },
-                                "store": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "object",
-                                        "properties": {
-                                            "credentialMode": {
-                                                "type": "string"
-                                            },
-                                            "delivery": {
-                                                "type": "string"
-                                            },
-                                            "engine": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "tigris": {
-                                                        "type": "object"
-                                                    }
-                                                }
-                                            },
-                                            "providerAccountRef": {
-                                                "type": "string"
-                                            },
-                                            "rotation": {
-                                                "type": "string"
-                                            },
-                                            "type": {
-                                                "type": "string"
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                },
-                "problem": {
-                    "type": "object",
-                    "properties": {
-                        "enabled": {
-                            "type": "boolean"
-                        },
-                        "entries": {
-                            "type": "array",
-                            "items": {
-                                "type": "object",
-                                "properties": {
-                                    "endpoints": {
-                                        "type": "array",
-                                        "items": {
-                                            "type": "object",
-                                            "properties": {
-                                                "method": {
-                                                    "type": "string"
-                                                },
-                                                "path": {
-                                                    "type": "string"
-                                                }
-                                            }
-                                        }
-                                    },
-                                    "id": {
-                                        "type": "string"
-                                    },
-                                    "recoverable": {
-                                        "type": "boolean"
-                                    },
-                                    "schema": {
-                                        "type": "object"
-                                    },
-                                    "status": {
-                                        "type": "integer"
-                                    },
-                                    "title": {
-                                        "type": "string"
-                                    },
-                                    "type": {
-                                        "type": "string"
-                                    }
-                                }
-                            }
-                        },
-                        "version": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "targetLandscape": {
-                    "type": "string"
-                },
-                "virtualLandscapeService": {
-                    "type": "object",
-                    "properties": {
-                        "enabled": {
-                            "type": "boolean"
-                        },
-                        "serve": {
-                            "type": "boolean"
-                        }
-                    }
-                },
-                "vlandscape": {
-                    "type": "string"
-                }
-            }
-        },
-        "secret": {
-            "description": "One service-scoped ExternalSecret with folder-prefix rewrites.",
+        "healthBackend": {
+            "description": "Platinum-owned /healthz responder. It is the gateway health-route backend and the chart's primary workload.",
             "type": "object",
             "properties": {
                 "enabled": {
                     "type": "boolean"
                 },
-                "refreshInterval": {
-                    "type": "string"
-                },
-                "serviceFolder": {
-                    "type": "string"
-                },
-                "sharedFolder": {
-                    "type": "string"
-                },
-                "store": {
-                    "type": "object",
-                    "properties": {
-                        "kind": {
-                            "type": "string",
-                            "enum": [
-                                "SecretStore",
-                                "ClusterSecretStore"
-                            ]
-                        },
-                        "name": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "serviceTree": {
-            "description": "Stable four-slot service-tree projection. Landscape and cluster are added by independent overlays.",
-            "type": "object",
-            "required": [
-                "platform",
-                "service",
-                "module",
-                "layer"
-            ],
-            "properties": {
-                "layer": {
-                    "type": "string",
-                    "pattern": "^[0-9]+$"
-                },
-                "module": {
-                    "type": "string",
-                    "pattern": "^[a-z0-9]+$"
-                },
-                "platform": {
-                    "type": "string",
-                    "pattern": "^[a-z0-9]+$"
-                },
-                "service": {
-                    "type": "string",
-                    "pattern": "^[a-z0-9]+$"
-                }
-            }
-        },
-        "upstream": {
-            "description": "Pinned optional upstream chart. Every instantiated dependency must receive a conforming override.",
-            "type": "object",
-            "properties": {
-                "enabled": {
-                    "type": "boolean"
-                },
-                "fullnameOverride": {
-                    "type": "string",
-                    "pattern": "^[a-z0-9]+-[a-z0-9]+$"
-                },
-                "image": {
-                    "type": "object",
-                    "properties": {
-                        "repository": {
-                            "type": "string"
-                        },
-                        "tag": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "podAnnotations": {
-                    "type": "object",
-                    "properties": {
-                        "reloader.stakater.com/auto": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "podSecurityContext": {
-                    "type": "object",
-                    "properties": {
-                        "runAsGroup": {
-                            "type": "integer"
-                        },
-                        "runAsNonRoot": {
-                            "type": "boolean"
-                        },
-                        "runAsUser": {
-                            "type": "integer"
-                        }
-                    }
-                },
-                "resources": {
-                    "type": "object",
-                    "properties": {
-                        "limits": {
-                            "type": "object",
-                            "properties": {
-                                "cpu": {
-                                    "type": "string"
-                                },
-                                "memory": {
-                                    "type": "string"
-                                }
-                            }
-                        },
-                        "requests": {
-                            "type": "object",
-                            "properties": {
-                                "cpu": {
-                                    "type": "string"
-                                },
-                                "memory": {
-                                    "type": "string"
-                                }
-                            }
-                        }
-                    }
-                },
-                "securityContext": {
-                    "type": "object",
-                    "properties": {
-                        "allowPrivilegeEscalation": {
-                            "type": "boolean"
-                        },
-                        "capabilities": {
-                            "type": "object",
-                            "properties": {
-                                "drop": {
-                                    "type": "array",
-                                    "items": {
-                                        "type": "string"
-                                    }
-                                }
-                            }
-                        },
-                        "readOnlyRootFilesystem": {
-                            "type": "boolean"
-                        },
-                        "runAsGroup": {
-                            "type": "integer"
-                        },
-                        "runAsNonRoot": {
-                            "type": "boolean"
-                        },
-                        "runAsUser": {
-                            "type": "integer"
-                        }
-                    }
-                }
-            }
-        },
-        "webhookRoute": {
-            "description": "Optional Gateway API route scaffold for a webhook receiver.",
-            "type": "object",
-            "properties": {
-                "enabled": {
-                    "type": "boolean"
-                },
-                "parentGateway": {
-                    "type": "string"
-                },
-                "parentNamespace": {
-                    "type": "string"
-                }
-            }
-        },
-        "workload": {
-            "description": "Wrapper-owned sample workload.",
-            "type": "object",
-            "properties": {
                 "image": {
                     "type": "object",
                     "properties": {
@@ -808,6 +220,154 @@
                             "type": "integer"
                         }
                     }
+                }
+            }
+        },
+        "instance": {
+            "description": "Optional physical-instance metadata. The instance remains outside LPSM.",
+            "type": "object",
+            "properties": {
+                "physicalId": {
+                    "type": "string"
+                }
+            }
+        },
+        "kgatewayCrds": {
+            "description": "Standard-channel and kgateway CRD subchart. Enabled in the k3d integration tier; off for unit-tier static checks.",
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "labelPrefix": {
+            "description": "Prefix used by every service-tree label and annotation helper.",
+            "type": "string",
+            "pattern": "^[a-z0-9.-]+$",
+            "minLength": 1
+        },
+        "registeredCertificates": {
+            "description": "Registered-fleet wildcard Certificates. Zinc owns the DNS-01 ClusterIssuer definition (charts/zinc); this chart only issues against it.",
+            "type": "object",
+            "properties": {
+                "backup": {
+                    "type": "object",
+                    "properties": {
+                        "dnsNames": {
+                            "type": "array",
+                            "uniqueItems": true,
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        "domain": {
+                            "description": "Second R53 base-domain wildcard for cluster-endpoint failover TLS (S8 backup domain).",
+                            "type": "string",
+                            "pattern": "^\\*\\.[a-z0-9.-]+$"
+                        }
+                    }
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "issuerRef": {
+                    "type": "object",
+                    "properties": {
+                        "kind": {
+                            "type": "string",
+                            "enum": [
+                                "ClusterIssuer",
+                                "Issuer"
+                            ]
+                        },
+                        "name": {
+                            "description": "ClusterIssuer name owned by charts/zinc and instantiated once per cluster.",
+                            "type": "string"
+                        }
+                    }
+                },
+                "primary": {
+                    "type": "object",
+                    "properties": {
+                        "dnsNames": {
+                            "type": "array",
+                            "uniqueItems": true,
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        "domain": {
+                            "description": "Primary registered-fleet base-domain wildcard (atomi.cloud).",
+                            "type": "string",
+                            "pattern": "^\\*\\.[a-z0-9.-]+$"
+                        }
+                    }
+                }
+            }
+        },
+        "serviceTree": {
+            "description": "Stable four-slot service-tree projection. Landscape and cluster are added by independent overlays.",
+            "type": "object",
+            "required": [
+                "platform",
+                "service",
+                "module",
+                "layer"
+            ],
+            "properties": {
+                "layer": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$"
+                },
+                "module": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9]+$"
+                },
+                "platform": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9]+$"
+                },
+                "service": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9]+$"
+                }
+            }
+        },
+        "upstream": {
+            "description": "Pinned kgateway control-plane subchart. Enabled in the k3d integration tier; off for unit-tier static checks.",
+            "type": "object",
+            "properties": {
+                "controller": {
+                    "type": "object",
+                    "properties": {
+                        "image": {
+                            "type": "object",
+                            "properties": {
+                                "repository": {
+                                    "type": "string"
+                                },
+                                "tag": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "service": {
+                            "type": "object",
+                            "properties": {
+                                "type": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "fullnameOverride": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9]+-[a-z0-9]+$"
                 }
             }
         }
