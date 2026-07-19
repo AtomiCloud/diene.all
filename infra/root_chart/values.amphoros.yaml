@@ -1,0 +1,7 @@
+# Landscape overlay: amphoros (production landscape).
+ledger:
+  landscape: amphoros
+  endpoint: minio.amphoros.svc.cluster.local:9000
+  secure: true
+mode: active
+replicas: 2

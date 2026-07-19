@@ -9,7 +9,7 @@ let
     pname = "diene-go-base-dependencies";
     version = "0";
     src = ../.;
-    vendorHash = "sha256-NbeafHrobDMronPIB3abd5J/8dPfNtGNuQsI6vcj820=";
+    vendorHash = "sha256-GYXdzU7hUB3wRgt4/ZaSjt9hcf3roD6gXSnssnCeHi0=";
     proxyVendor = true;
   };
   go-lint-runtime = pkgs.buildEnv {
@@ -40,6 +40,25 @@ let
   validator =
     command:
     "${packages.bash}/bin/bash -c 'export PATH=${validator-runtime}/bin; exec ${packages.bash}/bin/bash ${command}'";
+  # ### operator-template-codegen
+  # #### source: operator-template
+  operator-codegen-runtime = pkgs.buildEnv {
+    name = "operator-codegen-runtime";
+    paths = [
+      packages.bash
+      packages.git
+      packages.go
+      packages.controller-gen
+      pkgs.coreutils
+      pkgs.diffutils
+      pkgs.findutils
+      pkgs.gnugrep
+      pkgs.gnused
+    ];
+  };
+  operator-codegen =
+    command:
+    "${packages.bash}/bin/bash -c 'export PATH=${operator-codegen-runtime}/bin; export CGO_ENABLED=0; export GOPROXY=file://${go-deps.goModules}; export GOSUMDB=off; export GOMODCACHE=\"\${TMPDIR:-/tmp}/operator-mod-cache\"; exec ${packages.bash}/bin/bash ${command}'";
 in
 pre-commit-lib.run {
   src = ../.;
@@ -243,6 +262,44 @@ pre-commit-lib.run {
       name = "golangci-lint";
       entry = go-lint;
       files = "(^|/).*\\.go$|^go\\.(mod|sum)$|^\\.golangci\\.yaml$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    # ### operator-template-hooks
+    # #### source: operator-template
+    a-operator-markers = {
+      enable = true;
+      name = "Operator marker lint";
+      entry = validator "scripts/validate/operator-markers.sh";
+      files = "^(api/|adapters/operator/controllers/).*\\.go$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-operator-architecture = {
+      enable = true;
+      name = "Operator architecture boundary";
+      entry = validator "scripts/validate/operator-architecture.sh";
+      files = "^lib/operator/.*\\.go$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-operator-rbac = {
+      enable = true;
+      name = "Operator RBAC minimality";
+      entry = operator-codegen "scripts/validate/operator-rbac.sh";
+      files = "^(adapters/operator/controllers/.*\\.go|infra/root_chart/templates/rbac/.*)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-operator-crd-drift = {
+      enable = true;
+      name = "Operator CRD drift";
+      entry = operator-codegen "scripts/validate/operator-crd-drift.sh";
+      files = "^(api/.*\\.go|infra/root_chart/templates/crds/.*)$";
       pass_filenames = false;
       language = "system";
     };

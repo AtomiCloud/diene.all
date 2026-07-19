@@ -61,6 +61,12 @@ with packages;
     # #### source: go-base
     go
     govulncheck
+
+    # ### operator-template-main
+    # #### source: operator-template
+    controller-gen
+    kubebuilder
+    setup-envtest
   ];
 
   # ### workspace-releaser-bootstrap

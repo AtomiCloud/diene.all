@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-for binary in actionlint bash deadcode docker git go gofumpt golangci-lint gomplate gotestsum govulncheck hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pls pre-commit rg sg shellcheck skopeo staticcheck task treefmt yq; do
+for binary in actionlint bash controller-gen deadcode docker git go gofumpt golangci-lint gomplate gotestsum govulncheck hadolint helm helm-docs infisical jq k3d kubebuilder kubeconform kubectl kyverno nix pls pre-commit rg setup-envtest sg shellcheck skopeo staticcheck task treefmt yq; do
   command -v "${binary}" >/dev/null || {
     echo "❌ binary '${binary}' is missing" >&2
     exit 1
@@ -45,6 +45,13 @@ GOVULNCHECK_TARGET=./lib/... ./scripts/local/vuln.sh >/dev/null
 
 deadcode -json -test ./... >/dev/null
 
+# ### operator-template
+# #### source: operator-template
+controller-gen --version >/dev/null
+kubebuilder version >/dev/null 2>&1
+setup-envtest --help >/dev/null 2>&1
+test -x "${KUBEBUILDER_ASSETS:-/nonexistent}/kube-apiserver"
+
 staticcheck -version >/dev/null
 staticcheck -tests=true ./...
 
@@ -58,7 +65,7 @@ helm-docs --version >/dev/null
 helm-docs --dry-run --chart-search-root infra/root_chart >/dev/null 2>&1
 
 helm version --short >/dev/null
-helm template diene-go-base infra/root_chart | kubeconform -strict -summary >/dev/null
+helm template operator-template infra/root_chart | kubeconform -strict -ignore-missing-schemas -summary >/dev/null
 
 infisical --version >/dev/null
 git -C "${tmp}" init -q

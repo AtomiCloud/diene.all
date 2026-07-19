@@ -34,16 +34,18 @@ synchronization.
 
 ## Go commands
 
-- `pls build` — create `dist/go-base`.
+- `pls build` — create `dist/manager`.
 - `pls typecheck` — compile every source package without running tests.
 - `pls test` / `pls test:coverage` — run both tiers normally or with scoped ledgers.
 - `pls deadcode` — run strict whole-repository and production passes plus the LLM-lax report.
-- `pls run -- slug "Hello World"` — execute from source.
-- `pls preview -- slug "Hello World"` — execute the compiled artifact.
-- `pls up` / `pls down` — start or stop local Redis.
+- `pls run -- --help` — run the manager from source.
+- `pls preview -- --help` — run the compiled manager artifact.
+- `pls operator:generate` — regenerate CRDs, RBAC, and deepcopy from the Go types.
+- `pls operator:e2e` — run the k3d end-to-end journey.
 
 See the [Go baseline](docs/developer/go-baseline.md) for the language contract and
-template-maintenance boundary.
+template-maintenance boundary, and the
+[operator conventions](docs/domain/operator-conventions.md) for the operator surface.
 
 ## Standards
 

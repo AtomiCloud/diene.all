@@ -98,3 +98,13 @@ introduce `export_test.go`.
 
 - [Observability](docs/standards/observability/index.md)
 - [Grafana dashboards](docs/standards/grafana-dashboards/index.md)
+
+<!-- ### operator-template -->
+<!-- #### source: operator-template -->
+
+## Operator conventions
+
+Read [docs/domain/operator-conventions.md](docs/domain/operator-conventions.md)
+before changing operator surface — controllers, CRDs, reconcile services, the
+durable ledger, blast-brake, observe mode, or the manager chart. The reusable
+machinery lives under `lib/operator/`, `adapters/operator/`, and `cmd/manager`.

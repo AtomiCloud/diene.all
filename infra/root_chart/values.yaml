@@ -1,5 +1,76 @@
 # ### go-base-values
 # #### source: go-base
 
-# -- Message proving the chart renders independently of the Go sample domain.
-message: diene go base
+# -- Manager container image repository.
+image:
+  repository: ghcr.io/atomicloud/operator-template
+  # -- Image tag; defaults to the chart appVersion when empty.
+  tag: ''
+  # -- Image pull policy.
+  pullPolicy: IfNotPresent
+
+# -- Number of manager replicas. Leader election keeps a single active manager.
+replicas: 1
+
+# -- Reconcile mode: observe (read-only, report the would-apply plan) or active.
+mode: active
+
+# -- Destructive-write percentage-per-tick blast-brake cap.
+blastBrakeCap: 20
+
+# -- Ledger coordinate scope and S3/MinIO backend.
+ledger:
+  # -- Platform coordinate.
+  platform: diene
+  # -- Landscape coordinate (overridden per landscape values file).
+  landscape: lapras
+  # -- S3/MinIO endpoint host:port.
+  endpoint: ''
+  # -- Ledger bucket name.
+  bucket: operator-template-ledger
+  # -- Use TLS for the ledger endpoint.
+  secure: true
+
+# -- Per-controller enablement flags.
+controllers:
+  # -- Enable the Note controller.
+  note: true
+  # -- Enable the Journal controller.
+  journal: true
+
+# -- Manager resource requests and limits.
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+# -- Secured metrics endpoint configuration.
+metrics:
+  # -- Metrics bind port (HTTPS, authn/authz filtered).
+  port: 8443
+
+# -- ServiceMonitor for Prometheus scraping of the secured metrics endpoint.
+serviceMonitor:
+  # -- Ship a ServiceMonitor.
+  enabled: true
+  # -- Scrape interval.
+  interval: 30s
+
+# -- Grafana alert pack (GrafanaAlertRuleGroup, never PrometheusRule).
+alerts:
+  # -- Ship the GrafanaAlertRuleGroup.
+  enabled: true
+  # -- Grafana folder UID the rule group is filed under.
+  folderUID: operator-template
+
+# -- Grafana dashboard shipped as a sidecar-labelled ConfigMap.
+dashboard:
+  # -- Ship the dashboard ConfigMap.
+  enabled: true
+
+# -- ServiceAccount name override; defaults to the release fullname.
+serviceAccount:
+  name: ''

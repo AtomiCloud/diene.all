@@ -1,0 +1,6 @@
+# Landscape overlay: pikachu.
+ledger:
+  landscape: pikachu
+  endpoint: minio.pikachu.svc.cluster.local:9000
+  secure: true
+mode: active

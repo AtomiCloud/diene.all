@@ -1,0 +1,14 @@
+# ### operator-template-tasks
+# #### source: operator-template
+version: '3'
+
+tasks:
+  generate:
+    desc: Regenerate operator CRDs, RBAC, and deepcopy from the Go types
+    cmds:
+      - ./scripts/local/operator-manifests.sh
+
+  e2e:
+    desc: Run the k3d end-to-end operator journey
+    cmds:
+      - ./scripts/local/operator-e2e.sh

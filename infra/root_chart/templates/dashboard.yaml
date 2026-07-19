@@ -1,0 +1,56 @@
+{{- if .Values.dashboard.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "operator-template.fullname" . }}-dashboard
+  namespace: {{ .Release.Namespace }}
+  labels:
+    grafana_dashboard: "1"
+    {{- include "operator-template.labels" . | nindent 4 }}
+data:
+  operator-template.json: |
+    {
+      "title": "Operator Template — Reconcile",
+      "uid": "operator-template",
+      "schemaVersion": 39,
+      "editable": true,
+      "panels": [
+        {
+          "id": 1,
+          "title": "Reconcile rate by controller",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "targets": [
+            { "refId": "A", "expr": "sum by (controller) (rate(controller_runtime_reconcile_total[5m]))" }
+          ]
+        },
+        {
+          "id": 2,
+          "title": "Reconcile errors by controller",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "targets": [
+            { "refId": "A", "expr": "sum by (controller) (rate(controller_runtime_reconcile_errors_total[5m]))" }
+          ]
+        },
+        {
+          "id": 3,
+          "title": "Reconcile latency p99",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "targets": [
+            { "refId": "A", "expr": "histogram_quantile(0.99, sum by (le, controller) (rate(controller_runtime_reconcile_time_seconds_bucket[5m])))" }
+          ]
+        },
+        {
+          "id": 4,
+          "title": "Workqueue depth",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "targets": [
+            { "refId": "A", "expr": "sum by (name) (workqueue_depth)" }
+          ]
+        }
+      ]
+    }
+{{- end }}

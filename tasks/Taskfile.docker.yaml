@@ -3,7 +3,7 @@
 version: '3'
 
 vars:
-  IMAGE: diene-go-base:local
+  IMAGE: operator-template:local
 
 tasks:
   build:

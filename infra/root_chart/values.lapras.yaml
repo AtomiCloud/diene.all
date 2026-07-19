@@ -1,0 +1,6 @@
+# Landscape overlay: lapras (local/dev k3d landscape).
+ledger:
+  landscape: lapras
+  endpoint: minio.lapras.svc.cluster.local:9000
+  secure: false
+mode: active

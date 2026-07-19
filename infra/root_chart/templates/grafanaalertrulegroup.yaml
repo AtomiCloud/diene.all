@@ -1,0 +1,56 @@
+{{- if .Values.alerts.enabled }}
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaAlertRuleGroup
+metadata:
+  name: {{ include "operator-template.fullname" . }}-reconcile
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "operator-template.labels" . | nindent 4 }}
+spec:
+  instanceSelector:
+    matchLabels:
+      dashboards: grafana
+  folderUID: {{ .Values.alerts.folderUID | quote }}
+  interval: 1m
+  rules:
+{{- $ctrls := list }}
+{{- if .Values.controllers.note }}{{- $ctrls = append $ctrls "note" }}{{- end }}
+{{- if .Values.controllers.journal }}{{- $ctrls = append $ctrls "journal" }}{{- end }}
+{{- range $ctrls }}
+    - uid: operator-template-{{ . }}-reconcile-errors
+      title: "operator-template {{ . }} reconcile errors elevated"
+      condition: C
+      for: 5m
+      noDataState: OK
+      execErrState: Error
+      labels:
+        severity: warning
+        controller: {{ . }}
+      annotations:
+        summary: "The {{ . }} controller reconcile error rate is elevated"
+      data:
+        - refId: A
+          relativeTimeRange:
+            from: 600
+            to: 0
+          datasourceUid: prometheus
+          model:
+            expr: sum(rate(controller_runtime_reconcile_errors_total{controller="{{ . }}"}[5m]))
+            instant: true
+            refId: A
+        - refId: C
+          relativeTimeRange:
+            from: 0
+            to: 0
+          datasourceUid: __expr__
+          model:
+            type: threshold
+            expression: A
+            conditions:
+              - evaluator:
+                  type: gt
+                  params:
+                    - 0
+            refId: C
+{{- end }}
+{{- end }}

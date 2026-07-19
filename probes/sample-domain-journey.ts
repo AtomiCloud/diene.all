@@ -6,7 +6,7 @@ export default {
   probes: [
     {
       name: 'baseline-sample-domain-journey-green',
-      description: 'The replaceable domain and KV adapter complete a compiled black-box journey.',
+      description: 'The compiled manager runs and reports its controller/observe runtime interface.',
       kind: 'baseline',
       async run(repo: any) {
         await expectGreen(repo, 'nix develop .#ci -c ./scripts/validate/sample-journey.sh', 'sample-domain-journey');
