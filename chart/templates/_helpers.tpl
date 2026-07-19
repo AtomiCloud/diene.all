@@ -159,12 +159,14 @@ has(object.metadata) && has(object.metadata.labels) &&
 {{ $platforms }}.exists(x, x == object.metadata.labels["{{ $p }}/platform"])
 {{- end -}}
 
-{{/* disallowLatest: every container image has an explicit non-latest tag. */}}
+{{/* disallowLatest: every container image ends with a non-latest tag or immutable digest. */}}
 {{- define "vanadium.cel.disallowLatest" -}}
 object.spec.template.spec.containers.all(c,
-  c.image.contains(':') && !c.image.endsWith(':latest')) &&
+  (c.image.matches('^(.*/)?[^/@:]+:[^/@:]+$') ||
+   c.image.matches('^.+@[^/@:]+:[A-Fa-f0-9]+$')) && !c.image.endsWith(':latest')) &&
 (!has(object.spec.template.spec.initContainers) || object.spec.template.spec.initContainers.all(c,
-  c.image.contains(':') && !c.image.endsWith(':latest')))
+  (c.image.matches('^(.*/)?[^/@:]+:[^/@:]+$') ||
+   c.image.matches('^.+@[^/@:]+:[A-Fa-f0-9]+$')) && !c.image.endsWith(':latest')))
 {{- end -}}
 
 {{/* requireResources: every container declares cpu+memory requests and limits. */}}

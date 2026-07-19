@@ -119,6 +119,15 @@ conformance)
       echo "❌ negative fixture for ${token} was not caught" >&2 && exit 1
     fi
   done
+  for fixture in chart/tests/cases/disallowlatest/good-digest.yaml chart/tests/init-cases/disallowlatest-init/good-digest.yaml; do
+    kyverno apply "${tmp}/defs/vanadium-disallowlatest.yaml" --resource "${fixture}" --remove-color >/dev/null
+  done
+  for fixture in chart/tests/cases/disallowlatest/bad-registry-port.yaml chart/tests/init-cases/disallowlatest-init/bad-registry-port.yaml; do
+    if kyverno apply "${tmp}/defs/vanadium-disallowlatest.yaml" --resource "${fixture}" --remove-color >/dev/null 2>&1; then
+      echo "❌ registry-port no-tag fixture was not caught: ${fixture}" >&2
+      exit 1
+    fi
+  done
   kyverno apply "${tmp}/defs/vanadium-restrictvolumetypes.yaml" --resource chart/tests/cases/restrictvolumetypes/good-allowed.yaml --remove-color >/dev/null
   if kyverno apply "${tmp}/defs/vanadium-restrictvolumetypes.yaml" --resource chart/tests/cases/restrictvolumetypes/bad-nonhost.yaml --remove-color >/dev/null 2>&1; then
     echo "❌ non-hostPath forbidden-volume fixture was not caught" >&2
