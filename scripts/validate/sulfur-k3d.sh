@@ -21,8 +21,12 @@ tmp="$(mktemp -d)"
 trap 'bash ./scripts/local/delete-k3d-cluster.sh >/dev/null 2>&1 || true; rm -rf "${tmp}"' EXIT
 
 bash ./scripts/local/create-k3d-cluster.sh
+# Derive the LPSM identity layer from the single labelPrefix (+ serviceTree); this
+# generated upstream.global.commonLabels layer is the supported/mandatory render
+# path and the validate.yaml guard rejects an install without it.
+./scripts/local/gen-identity-values.sh chart/values.example.yaml chart/values.lapras.yaml >"${tmp}/identity.yaml"
 helm upgrade --install sulfur chart --namespace sample --create-namespace \
-  --values chart/values.example.yaml --values chart/values.lapras.yaml --wait --timeout 5m
+  --values chart/values.example.yaml --values chart/values.lapras.yaml --values "${tmp}/identity.yaml" --wait --timeout 5m
 
 for dep in sulfur-upstream sulfur-upstream-webhook sulfur-upstream-cainjector; do
   kubectl --context "k3d-${cluster_name}" --namespace sample \

@@ -12,9 +12,13 @@ bash ./scripts/validate/sulfur.sh schema-drift
 bash ./scripts/validate/sulfur.sh lint
 bash ./scripts/validate/sulfur.sh render
 bash ./scripts/validate/sulfur.sh labels
+bash ./scripts/validate/sulfur.sh identity
 bash ./scripts/validate/sulfur.sh reloader
 bash ./scripts/validate/sulfur.sh rendered-manifests
 bash ./scripts/validate/sulfur.sh sequential-minor
+# Q-G22 strict gate: derive the base cert-manager pin from the PR/push base and
+# turn a minor-skipping version-bump PR red (not just validate semver).
+bash ./scripts/validate/sequential-minor.sh --ci-gate chart
 bash ./scripts/validate/sulfur.sh gateway-api
 bash ./scripts/validate/sulfur.sh no-dead-flag
 bash ./scripts/validate/sulfur.sh no-issuer

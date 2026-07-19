@@ -23,7 +23,9 @@ dependencies:
 ```
 
 sulfur ships **no workload, Service, Issuer, or ClusterIssuer templates of its
-own** — `_helpers.tpl` carries identity/validation helpers only. Every rendered
+own** — `_helpers.tpl` carries identity/validation helpers, and
+`templates/validate.yaml` is a **zero-resource** render-time guard that emits no
+Kubernetes object (it only invokes `sulfur.validateServiceTree`). Every rendered
 resource comes from the cert-manager subchart (controller, cainjector, webhook,
 startupapicheck, CRDs). The vendored `charts/cert-manager-v1.20.3.tgz` is the
 reproducible source of truth; `helm package` is self-contained without a
@@ -52,9 +54,18 @@ sample` (the install namespace). Landscape and cluster are added by independent
 - LPSM identity labels are stamped onto every rendered resource via
   `upstream.global.commonLabels` (`<prefix>/service|module|layer|platform`,
   `<prefix>/landscape|cluster`). Because subchart values cannot call templates,
-  `labelPrefix` (default `atomi.cloud`) is **statically mirrored** into the
-  `commonLabels` keys; the unit tier proves the mirror stays in sync with the one
-  configurable `labelPrefix` (drift invariant).
+  the `commonLabels` keys are **generated** from the single `labelPrefix` (default
+  `atomi.cloud`) plus `serviceTree` by `scripts/local/gen-identity-values.sh`.
+  That generated layer is the supported, **mandatory** render path: every
+  `helm template`/`helm install` appends it, and the zero-resource
+  `templates/validate.yaml` guard fails rendering when the layer is absent or its
+  platform key does not mirror `serviceTree.platform`. `labelPrefix` is therefore
+  the only source of the prefix — overriding it re-keys the rendered labels
+  (proven in the unit tier); there is no static, independently editable mirror.
+- Platform is **namespace-sourced**: `templates/validate.yaml` invokes
+  `sulfur.validateServiceTree`, which fails rendering unless `serviceTree.platform`
+  equals the release namespace. The unit tier renders a mismatched namespace as a
+  negative fixture.
 
 ## Gateway API
 
@@ -70,7 +81,12 @@ baseline v1.15 — a version bump may advance at most one minor at a time, and
 never change the major. The CRD upgrade path rides the same ladder because the
 CRDs ship inside the chart. This is enforced by the chart repo's **own CI**
 (`scripts/validate/sequential-minor.sh`, Q-G22): a version-bump PR that skips a
-minor goes red; nothing fleet-side.
+minor goes red; nothing fleet-side. The CI entrypoint runs
+`sequential-minor.sh --ci-gate chart` (wired into `scripts/ci/sulfur.sh`), which
+derives the previous cert-manager pin from the change's base revision (PR base,
+push before-SHA, or `HEAD~1` locally) and gates the actual chart-dependency bump.
+It **fails** when the comparison source is unavailable rather than degrading to a
+lax semver check, so a minor-skipping bump can never merge green.
 
 ## CRD lifecycle
 
@@ -84,6 +100,13 @@ read-only root FS, drop ALL) applies because sulfur renders workloads. cert-mana
 defaults already supply the security-context rules; sulfur adds per-component
 `resources` (requests+limits) and `containerSecurityContext.runAsNonRoot: true`
 so every workload satisfies the baseline.
+
+Reloader is opted **in** by the `reloader.stakater.com/auto: "true"` annotation
+baked onto each long-running workload's `upstream.<component>.podAnnotations`
+(controller/webhook/cainjector; the one-shot startupapicheck Job is excluded).
+The supported opt-out is setting those three nullable annotation values to `null`
+from a landscape/cluster overlay — proven in the unit tier. There is no inert
+`reloader.enabled` toggle.
 
 ## Rendered-manifest validation
 
@@ -99,10 +122,13 @@ sulfur is an S30 product: evidence is an **ordinary testing pyramid**, not a
 CyanPrint probe matrix.
 
 - **Unit tier** (`scripts/validate/sulfur.sh`, run via `scripts/ci/sulfur.sh`):
-  lint, render, schema + drift, LPSM labels + drift, Reloader opt-out, the Q-G20
-  rendered-manifest stage, the Q-G22 sequential-minor gate, and the contract
-  negative fixtures (Gateway API enabled, no dead feature gate, no own Issuer,
-  CRDs enabled).
+  lint, render, schema + drift, LPSM labels + labelPrefix-override render proof,
+  the namespace/platform identity guard (positive + mismatched-namespace and
+  missing-identity-layer negatives), Reloader opt-out (nullable annotations), the
+  Q-G20 rendered-manifest stage, the Q-G22 sequential-minor gate (positive/negative
+  fixtures plus the base-derived `--ci-gate` proof), and the contract negative
+  fixtures (Gateway API enabled, no dead feature gate, no own Issuer, CRDs
+  enabled).
 - **Integration tier** (`scripts/validate/sulfur-k3d.sh`): k3d install, the three
   cert-manager Deployments reach Available, and a self-signed Issuer + Certificate
   round-trips to `Ready=True`. Reserved for the orchestrated proof window.

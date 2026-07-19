@@ -12,13 +12,51 @@ mode="${1:-}"
 release="${RELEASE:-sulfur}"
 namespace="${NAMESPACE:-sample}"
 label_prefix="${LABEL_PREFIX:-atomi.cloud}"
+repo_root="$(pwd)"
 tmp="$(mktemp -d)"
 trap 'rm -rf "${tmp}"' EXIT
 
 [ -z "${mode}" ] && echo "❌ validation mode not set" >&2 && exit 1
 
+# Collect the --values/-f overlays passed to a helm invocation so the identity
+# layer is derived from the SAME merged values that will be rendered.
+value_files() {
+  local args=("$@") i=0 out=()
+  while [ "$i" -lt "${#args[@]}" ]; do
+    case "${args[$i]}" in
+    --values | -f)
+      i=$((i + 1))
+      out+=("${args[$i]}")
+      ;;
+    esac
+    i=$((i + 1))
+  done
+  [ "${#out[@]}" -gt 0 ] && printf '%s\n' "${out[@]}"
+  return 0
+}
+
+# The supported render path: subchart values cannot call templates, so the LPSM
+# identity labels are injected from a generated upstream.global.commonLabels layer
+# derived from the single labelPrefix (+ serviceTree). Every template/lint command
+# appends this layer; the validate.yaml guard fails rendering if it is missing.
+identity_layer() {
+  local vfiles=() layer
+  mapfile -t vfiles < <(value_files "$@")
+  layer="$(mktemp "${tmp}/identity-XXXXXX.yaml")"
+  ./scripts/local/gen-identity-values.sh ${vfiles[@]+"${vfiles[@]}"} >"${layer}"
+  printf '%s\n' "${layer}"
+}
+
 render() {
-  helm template "${release}" chart --namespace "${namespace}" "$@"
+  local layer
+  layer="$(identity_layer "$@")"
+  helm template "${release}" chart --namespace "${namespace}" "$@" --values "${layer}"
+}
+
+lint() {
+  local layer
+  layer="$(identity_layer "$@")"
+  helm lint chart --namespace "${namespace}" "$@" --values "${layer}"
 }
 
 # Render every committed values stack (base -> landscape -> cluster).
@@ -35,16 +73,6 @@ assert_gateway_api_enabled() {
   [ "$cfg" = "true" ] && [ "$up" = "true" ]
 }
 
-assert_label_prefix_sync() {
-  # Subchart values cannot call templates, so labelPrefix is statically mirrored
-  # into upstream.global.commonLabels. The mirror must stay in sync with the one
-  # configurable labelPrefix (never hard-coded independently).
-  local values_file="$1" prefix mirror
-  prefix="$(yq -r '.labelPrefix' "$values_file")"
-  mirror="$(yq -r '.upstream.global.commonLabels | keys[]' "$values_file" | sed -n 's|^\(.*\)/[^/]*$|\1|p' | sort -u)"
-  [ -n "$prefix" ] && [ "$mirror" = "$prefix" ]
-}
-
 assert_no_dead_feature_gate() {
   # ExperimentalGatewayAPISupport was removed in cert-manager v1.15; the
   # canonical knob is config.enableGatewayAPI. The dead flag must never appear.
@@ -54,9 +82,9 @@ assert_no_dead_feature_gate() {
 
 case "${mode}" in
 schema)
-  helm lint chart --namespace "${namespace}" >/dev/null
-  helm lint chart --namespace "${namespace}" --values chart/values.example.yaml >/dev/null
-  helm lint chart --namespace "${namespace}" --values chart/values.example.yaml --values chart/values.lapras.yaml >/dev/null
+  lint >/dev/null
+  lint --values chart/values.example.yaml >/dev/null
+  lint --values chart/values.example.yaml --values chart/values.lapras.yaml >/dev/null
   ;;
 
 schema-drift)
@@ -65,9 +93,9 @@ schema-drift)
   ;;
 
 lint)
-  helm lint chart --namespace "${namespace}"
-  helm lint chart --namespace "${namespace}" --values chart/values.example.yaml
-  helm lint chart --namespace "${namespace}" --values chart/values.example.yaml --values chart/values.lapras.yaml
+  lint
+  lint --values chart/values.example.yaml
+  lint --values chart/values.example.yaml --values chart/values.lapras.yaml
   ;;
 
 render)
@@ -75,27 +103,62 @@ render)
   ;;
 
 labels)
-  # LPSM identity is stamped onto every rendered cert-manager resource via
-  # upstream.global.commonLabels (subchart values cannot call templates). The
-  # labelPrefix is a single configurable value; the mirror in commonLabels must
-  # stay in sync with it (drift invariant).
+  # LPSM identity is stamped onto every rendered cert-manager resource via the
+  # generated upstream.global.commonLabels layer (subchart values cannot call
+  # templates). labelPrefix is the single configurable input; overriding it must
+  # re-key the rendered labels (drop the default prefix).
   render --values chart/values.example.yaml --values chart/values.lapras.yaml >"${tmp}/rendered.yaml"
   yq eval-all -o=json '.' "${tmp}/rendered.yaml" |
     jq -s -e --arg p "${label_prefix}" \
       'map(select(.kind != null)) | length > 0 and all(.[]; (.metadata.labels[$p + "/service"] == "sulfur") and (.metadata.labels[$p + "/module"] == "certs") and (.metadata.labels[$p + "/layer"] == "1") and (.metadata.labels[$p + "/platform"] == "sample") and (.metadata.labels[$p + "/landscape"] == "example") and (.metadata.labels[$p + "/cluster"] == "lapras"))' >/dev/null
-  assert_label_prefix_sync chart/values.yaml || {
-    echo "❌ labelPrefix/commonLabels drift in base values" >&2
+  # No static, independently editable mirror may remain: the committed values must
+  # not hard-code upstream.global.commonLabels (labelPrefix is the only source).
+  for vf in chart/values.yaml chart/values.example.yaml chart/values.lapras.yaml; do
+    if [ "$(yq -r '.upstream.global.commonLabels // "absent"' "$vf")" != "absent" ]; then
+      echo "❌ ${vf} still hard-codes upstream.global.commonLabels (labelPrefix must be the only source)" >&2
+      exit 1
+    fi
+  done
+  # Prefix-override render proof: overriding the single labelPrefix re-keys every
+  # rendered identity label and removes the default prefix entirely.
+  printf 'labelPrefix: example.dev\n' >"${tmp}/prefix.yaml"
+  render --values chart/values.example.yaml --values chart/values.lapras.yaml --values "${tmp}/prefix.yaml" >"${tmp}/prefixed.yaml"
+  yq eval-all -o=json '.' "${tmp}/prefixed.yaml" |
+    jq -s -e 'map(select(.kind != null)) | length > 0 and all(.[]; (.metadata.labels["example.dev/service"] == "sulfur") and (.metadata.labels["example.dev/platform"] == "sample") and (.metadata.labels["atomi.cloud/service"] == null))' >/dev/null || {
+    echo "❌ labelPrefix override did not re-key the rendered identity labels" >&2
     exit 1
   }
-  # Negative fixture: changing labelPrefix alone must be caught as drift.
-  yq -o=yaml '.labelPrefix = "example.dev"' chart/values.yaml >"${tmp}/drift.yaml"
-  if assert_label_prefix_sync "${tmp}/drift.yaml"; then
-    echo "❌ label drift check missed a labelPrefix/commonLabels mismatch" >&2
+  ;;
+
+identity)
+  # Render-time LPSM guard (validate.yaml -> sulfur.validateServiceTree): platform
+  # is namespace-sourced (must equal the release namespace) and the derived
+  # commonLabels platform must mirror it. sulfur ships no resource of its own.
+  # Positive: platform == namespace renders cleanly.
+  render >/dev/null
+  # Negative: a mismatched install namespace must fail Helm rendering.
+  identity_ns_layer="$(identity_layer)"
+  if helm template "${release}" chart --namespace other --values "${identity_ns_layer}" >/dev/null 2>&1; then
+    echo "❌ render succeeded with serviceTree.platform != release namespace" >&2
+    exit 1
+  fi
+  # Negative: rendering WITHOUT the generated identity layer must fail — the
+  # commonLabels mirror guard makes the generated render path mandatory.
+  if helm template "${release}" chart --namespace "${namespace}" >/dev/null 2>&1; then
+    echo "❌ render succeeded without the generated identity layer" >&2
     exit 1
   fi
   ;;
 
 reloader)
+  # The supported Reloader opt-out is the three nullable upstream podAnnotations
+  # (controller/webhook/cainjector); there is NO inert reloader.enabled toggle.
+  for vf in chart/values.yaml chart/values.example.yaml chart/values.lapras.yaml; do
+    if [ "$(yq -r '.reloader // "absent"' "$vf")" != "absent" ]; then
+      echo "❌ ${vf} declares an inert 'reloader' flag (opt-out is the nullable upstream podAnnotations)" >&2
+      exit 1
+    fi
+  done
   # Reloader opt-in is baked onto every long-running cert-manager workload
   # (controller/cainjector/webhook). The one-shot startupapicheck Job is excluded.
   render >"${tmp}/default.yaml"
@@ -154,6 +217,44 @@ sequential-minor)
     exit 1
   fi
   ./scripts/validate/sequential-minor.sh --pin chart >/dev/null
+  # Q-G22 CI-gate proof: the strict entrypoint must gate the ACTUAL chart
+  # dependency against a base revision. Build a throwaway git repo so the gate
+  # exercises its real base-ref derivation (git show <base>:chart/Chart.yaml).
+  gate_repo="${tmp}/gate-repo"
+  mkdir -p "${gate_repo}/chart"
+  git -C "${gate_repo}" init -q
+  git -C "${gate_repo}" config user.email ci@example.invalid
+  git -C "${gate_repo}" config user.name ci
+  write_gate_chart() {
+    cat >"${gate_repo}/chart/Chart.yaml" <<YAML
+apiVersion: v2
+name: diene-sulfur
+version: 0.1.0
+dependencies:
+  - name: cert-manager
+    alias: upstream
+    version: ${1}
+    repository: https://charts.jetstack.io
+YAML
+  }
+  write_gate_chart v1.20.3
+  git -C "${gate_repo}" add -A
+  git -C "${gate_repo}" commit -qm base
+  gate_base="$(git -C "${gate_repo}" rev-parse HEAD)"
+  # Positive: an exactly-one-minor dependency bump passes the CI gate.
+  write_gate_chart v1.21.0
+  (cd "${gate_repo}" && SULFUR_BASE_REF="${gate_base}" bash "${repo_root}/scripts/validate/sequential-minor.sh" --ci-gate chart) >/dev/null
+  # Negative: a 2-minor dependency skip must turn the CI gate red.
+  write_gate_chart v1.22.0
+  if (cd "${gate_repo}" && SULFUR_BASE_REF="${gate_base}" bash "${repo_root}/scripts/validate/sequential-minor.sh" --ci-gate chart) >/dev/null 2>&1; then
+    echo "❌ Q-G22 CI gate accepted a 2-minor chart-dependency skip (v1.20.3 → v1.22.0)" >&2
+    exit 1
+  fi
+  # Negative: an unavailable comparison source must fail (never lax-pass).
+  if (cd "${gate_repo}" && SULFUR_BASE_REF=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef bash "${repo_root}/scripts/validate/sequential-minor.sh" --ci-gate chart) >/dev/null 2>&1; then
+    echo "❌ Q-G22 CI gate passed with an unavailable base ref" >&2
+    exit 1
+  fi
   ;;
 
 gateway-api)

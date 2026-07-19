@@ -16,6 +16,14 @@
 #       SULFUR_PREV_VERSION (the base-branch pin supplied by CI) is set, gate the
 #       bump SULFUR_PREV_VERSION -> pin; otherwise only assert the pin is a
 #       stable vX.Y.Z.
+#   sequential-minor.sh --ci-gate <chart-dir>
+#       The strict CI entrypoint. Reads the candidate pin from
+#       <chart-dir>/Chart.yaml and derives the previous pin from the change's base
+#       revision (SULFUR_PREV_VERSION > SULFUR_BASE_REF > PR base GITHUB_BASE_REF >
+#       push GITHUB_EVENT_BEFORE > local HEAD~1), then gates the bump. It FAILS —
+#       rather than falling back to a lax semver check — when the comparison
+#       source is unavailable, so a version-skipping bump can never merge green. A
+#       base that simply lacks the chart/dependency (newly introduced) passes.
 set -euo pipefail
 
 major_of() {
@@ -53,9 +61,78 @@ check_step() {
   echo "✅ sequential-minor step ${from} → ${to}"
 }
 
+read_pin() {
+  yq -r '.dependencies[] | select(.name == "cert-manager") | .version' "$1"
+}
+
+if [ "${1:-}" = "--ci-gate" ]; then
+  chart_dir="${2:?chart directory required}"
+  pin="$(read_pin "${chart_dir}/Chart.yaml")"
+  if [ -z "$pin" ] || [ "$pin" = "null" ]; then
+    echo "❌ cert-manager dependency not found in ${chart_dir}/Chart.yaml" >&2
+    exit 1
+  fi
+  if [[ ! $pin =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "❌ cert-manager pin '${pin}' is not a stable vX.Y.Z" >&2
+    exit 1
+  fi
+
+  prev="${SULFUR_PREV_VERSION:-}"
+  if [ -z "$prev" ]; then
+    base_ref=""
+    if [ -n "${SULFUR_BASE_REF:-}" ]; then
+      if git rev-parse --verify --quiet "${SULFUR_BASE_REF}^{commit}" >/dev/null 2>&1; then
+        base_ref="${SULFUR_BASE_REF}"
+      else
+        echo "❌ Q-G22 base ref '${SULFUR_BASE_REF}' is unavailable — cannot compare the cert-manager pin" >&2
+        exit 1
+      fi
+    elif [ -n "${GITHUB_BASE_REF:-}" ]; then
+      for cand in "origin/${GITHUB_BASE_REF}" "refs/remotes/origin/${GITHUB_BASE_REF}" "${GITHUB_BASE_REF}"; do
+        if git rev-parse --verify --quiet "${cand}^{commit}" >/dev/null 2>&1; then
+          base_ref="$cand"
+          break
+        fi
+      done
+      if [ -z "$base_ref" ]; then
+        echo "❌ Q-G22 PR base '${GITHUB_BASE_REF}' is unavailable — fetch it (checkout fetch-depth: 0) so the sequential-minor gate can compare the cert-manager pin" >&2
+        exit 1
+      fi
+    elif [ -n "${GITHUB_EVENT_BEFORE:-}" ] && [[ ! ${GITHUB_EVENT_BEFORE} =~ ^0+$ ]]; then
+      if git rev-parse --verify --quiet "${GITHUB_EVENT_BEFORE}^{commit}" >/dev/null 2>&1; then
+        base_ref="${GITHUB_EVENT_BEFORE}"
+      else
+        echo "❌ Q-G22 push base '${GITHUB_EVENT_BEFORE}' is unavailable — deepen the checkout so the sequential-minor gate can compare the cert-manager pin" >&2
+        exit 1
+      fi
+    elif git rev-parse --verify --quiet "HEAD~1^{commit}" >/dev/null 2>&1; then
+      base_ref="HEAD~1"
+    fi
+
+    if [ -z "$base_ref" ]; then
+      echo "❌ Q-G22 comparison source unavailable (no SULFUR_PREV_VERSION and no base revision) — cannot prove the sequential-minor gate" >&2
+      exit 1
+    fi
+
+    base_chart="$(git show "${base_ref}:${chart_dir}/Chart.yaml" 2>/dev/null || true)"
+    if [ -z "$base_chart" ]; then
+      echo "✅ Q-G22 cert-manager pin ${pin}: base ${base_ref} has no ${chart_dir}/Chart.yaml (chart newly introduced; nothing to compare)"
+      exit 0
+    fi
+    prev="$(printf '%s\n' "$base_chart" | yq -r '.dependencies[] | select(.name == "cert-manager") | .version' 2>/dev/null || true)"
+    if [ -z "$prev" ] || [ "$prev" = "null" ]; then
+      echo "✅ Q-G22 cert-manager pin ${pin}: base ${base_ref} has no cert-manager dependency (dependency newly introduced; nothing to compare)"
+      exit 0
+    fi
+  fi
+
+  check_step "$prev" "$pin"
+  exit 0
+fi
+
 if [ "${1:-}" = "--pin" ]; then
   chart_dir="${2:?chart directory required}"
-  pin="$(yq -r '.dependencies[] | select(.name == "cert-manager") | .version' "${chart_dir}/Chart.yaml")"
+  pin="$(read_pin "${chart_dir}/Chart.yaml")"
   if [ -z "$pin" ]; then
     echo "❌ cert-manager dependency not found in ${chart_dir}/Chart.yaml" >&2
     exit 1

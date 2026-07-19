@@ -1,5 +1,7 @@
 # @schema pattern:^[a-z0-9.-]+$;minLength:1
-# -- Prefix used by every service-tree label helper.
+# -- Single source of truth for the service-tree label prefix. The supported
+# render path (scripts/local/gen-identity-values.sh) derives the subchart
+# upstream.global.commonLabels keys from this one value; there is no static mirror.
 labelPrefix: atomi.cloud
 
 # -- Stable four-slot service-tree projection. Landscape and cluster are added by independent overlays.
@@ -23,11 +25,6 @@ config:
   # -- Gateway API support is required (kgateway integration); the canonical knob is upstream.config.enableGatewayAPI.
   enableGatewayAPI: true
 
-# -- Reloader opt-in baked onto every cert-manager workload. Set false to opt out everywhere via overlay.
-reloader:
-  # @schema required:true
-  enabled: true
-
 # -- Pure-passthrough cert-manager engine. Issuers live in zinc, never here.
 upstream:
   enabled: true
@@ -42,13 +39,10 @@ upstream:
   # -- Sequential-minor upgrade path from v1.15 is enforced by this repo's own CI (Q-G22).
   imageRegistry: quay.io
   imageNamespace: jetstack
-  # -- LPSM identity labels applied to every chart-rendered cert-manager resource.
-  global:
-    commonLabels:
-      atomi.cloud/service: sulfur
-      atomi.cloud/module: certs
-      atomi.cloud/layer: '1'
-      atomi.cloud/platform: sample
+  # LPSM identity labels are injected at render time via
+  # scripts/local/gen-identity-values.sh, which derives upstream.global.commonLabels
+  # from the single labelPrefix + serviceTree. They are intentionally NOT mirrored
+  # statically here so labelPrefix stays the sole source of truth.
   # -- Controller requests/limits. Required so rendered workloads satisfy the
   # inherited workload-baseline VAP (requests+limits for cpu+memory).
   resources:
