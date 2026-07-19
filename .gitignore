@@ -24,8 +24,6 @@ Thumbs.db
 desktop.ini
 infra/root_chart/uploads/
 
-### helm-wrapper
-#### source: helm-wrapper
-chart/files/config/
+### chlorine
+#### source: chlorine
 dist/
-probe-report.json

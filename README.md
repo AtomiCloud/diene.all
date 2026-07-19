@@ -53,15 +53,14 @@ Domain-specific documentation belongs under [docs/domain/](docs/domain/README.md
 The `docs/standards/contracts/` location is reserved for the separately owned C0
 contracts standard.
 
-<!-- ### helm-wrapper -->
-<!-- #### source: helm-wrapper -->
+<!-- ### chlorine -->
+<!-- #### source: chlorine -->
 
-## Helm wrapper sample
+## Chlorine chart
 
-This branch adds the production-grade wrapper chart, stacked values, generated schema, rendered-manifest validation, k3d proof, and dual publish modes.
+This branch is the Reloader wrapper instance — the last hop of the secret-rotation chain (Infisical rotate → ESO sync → Reloader restart). It wraps the vendored Stakater Reloader dependency with the fleet service-tree identity and an ordinary testing pyramid.
 
-- `pls build` — vendor external config and build pinned chart dependencies.
-- `pls test:unit` — run schema, lint, render, contracts, VAP, and publish dry-runs.
-- `pls test:int` — install on ephemeral k3d and round-trip the chart through a local OCI registry.
+- `pls build` — build the pinned Reloader chart dependency.
+- `pls test:unit` — run the chlorine unit/static pyramid (schema, lint, render, labels, opt-in posture, VAP, publish dry-runs).
+- `pls test:int` — install on ephemeral k3d and prove an annotated Deployment restarts on Secret change.
 - `pls example:lapras:template` — render the independent landscape + cluster stack.
-- [Helm wrapper baseline](docs/developer/helm-wrapper-baseline.md)

@@ -26,9 +26,9 @@ jobs:
     with:
       chart_path: ./infra/root_chart
 
-  helm-wrapper:
-    name: Helm Wrapper
+  chlorine:
+    name: Chlorine Chart
     permissions:
       contents: read
-    uses: ./.github/workflows/⚡reusable-helm-wrapper.yaml
+    uses: ./.github/workflows/⚡reusable-chlorine.yaml
     secrets: inherit

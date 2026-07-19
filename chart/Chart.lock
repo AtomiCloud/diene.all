@@ -1,6 +1,6 @@
 dependencies:
-- name: podinfo
-  repository: oci://ghcr.io/stefanprodan/charts
-  version: 6.9.2
-digest: sha256:9d1305090db49b16eabe426c36e15bd33cbf53ace496ecdc0e3c8d1ba7b8d57a
-generated: "2026-07-18T01:11:45.928074846Z"
+- name: reloader
+  repository: oci://ghcr.io/stakater/charts
+  version: 2.2.14
+digest: sha256:66e5d2568c7a7bf5f259f0d1e66b1f684c73c9024fe58ddf9e7095d335dc2ba6
+generated: "2026-07-19T09:34:11.611734582Z"
