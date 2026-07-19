@@ -1,4 +1,6 @@
 # Landscape overlay: lapras (local/dev k3d landscape).
+controllers:
+  note: true
 ledger:
   landscape: lapras
   endpoint: minio.lapras.svc.cluster.local:9000

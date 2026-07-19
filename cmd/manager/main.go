@@ -7,6 +7,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"os"
 
@@ -23,12 +24,20 @@ import (
 	"github.com/AtomiCloud/diene.go-base/adapters/operator/controllers"
 	"github.com/AtomiCloud/diene.go-base/adapters/operator/kube"
 	"github.com/AtomiCloud/diene.go-base/adapters/operator/ledgerstore"
+	"github.com/AtomiCloud/diene.go-base/adapters/operator/metrics"
 	apiv1alpha1 "github.com/AtomiCloud/diene.go-base/api/v1alpha1"
 	"github.com/AtomiCloud/diene.go-base/lib/operator/ledger"
 )
 
 // leaderElectionID is the per-instance leader-election lock identity.
 const leaderElectionID = "operator-template.diene.atomi.cloud"
+
+// errNoLedgerEndpoint is returned when the ledger-backed Note controller is
+// enabled without a configured endpoint.
+var errNoLedgerEndpoint = errors.New(
+	"note controller enabled but --ledger-endpoint/LEDGER_ENDPOINT is empty; " +
+		"set an endpoint or disable the Note controller (--enable-note=false)",
+)
 
 func main() {
 	os.Exit(run())
@@ -99,7 +108,16 @@ func run() int {
 		return 1
 	}
 
+	recorder := metrics.NewPrometheus()
+
 	if enableNote {
+		// The Note controller is ledger-backed: an enabled-but-empty endpoint is a
+		// misconfiguration and is rejected early with a clear error rather than
+		// crashing deep inside client construction.
+		if ledgerEndpoint == "" {
+			setupLog.Error(errNoLedgerEndpoint, "invalid configuration")
+			return 1
+		}
 		noteLedger, ledgerErr := buildLedger(context.Background(), ledgerEndpoint, ledgerBucket, notePrefix, ledgerSecure)
 		if ledgerErr != nil {
 			setupLog.Error(ledgerErr, "build note ledger")
@@ -111,6 +129,7 @@ func run() int {
 			Recorder:   kube.NewEventRecorder(mgr.GetEventRecorderFor("note-controller")),
 			ConfigMaps: kube.NewConfigMapAdapter(mgr.GetClient(), mgr.GetScheme(), controllers.NoteOwnerLabel),
 			Ledger:     ledger.NewService(noteLedger),
+			Metrics:    recorder,
 			Observe:    observe,
 			BrakeCap:   brakeCap,
 			Platform:   platform,
@@ -127,6 +146,7 @@ func run() int {
 			Client:   mgr.GetClient(),
 			Clock:    kube.RealClock{},
 			Recorder: kube.NewEventRecorder(mgr.GetEventRecorderFor("journal-controller")),
+			Metrics:  recorder,
 		}
 		if err := journalController.SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "wire Journal controller")

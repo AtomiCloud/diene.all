@@ -40,32 +40,3 @@ type Plan struct {
 func (p Plan) Empty() bool {
 	return len(p.Creates) == 0 && len(p.Deletes) == 0
 }
-
-// Diff computes the plan that converges the existing owned names to the desired
-// names: names desired but absent are created, names present but undesired are
-// deleted.
-func Diff(desired, existing []string) Plan {
-	want := toSet(desired)
-	have := toSet(existing)
-
-	p := Plan{}
-	for _, d := range desired {
-		if !have[d] {
-			p.Creates = append(p.Creates, d)
-		}
-	}
-	for _, e := range existing {
-		if !want[e] {
-			p.Deletes = append(p.Deletes, e)
-		}
-	}
-	return p
-}
-
-func toSet(values []string) map[string]bool {
-	set := make(map[string]bool, len(values))
-	for _, v := range values {
-		set[v] = true
-	}
-	return set
-}

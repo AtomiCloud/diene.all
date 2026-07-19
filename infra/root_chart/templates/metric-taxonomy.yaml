@@ -1,0 +1,30 @@
+{{- if .Values.dashboard.enabled }}
+# Parameterized metric-name source. The toy operator emits only the generic
+# metrics under emittedByToy; the provisioning/vendor/webhook taxonomy under
+# consumerExtensions is the agreed source surface real controllers implement — it
+# is documented here, not falsely claimed as toy output.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "operator-template.fullname" . }}-metric-taxonomy
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "operator-template.labels" . | nindent 4 }}
+data:
+  taxonomy.yaml: |
+    emittedByToy:
+      - operator_template_condition
+      - operator_template_ledger_failures_total
+      - operator_template_reconcile_ticks_total
+      - controller_runtime_reconcile_total
+      - controller_runtime_reconcile_errors_total
+      - controller_runtime_reconcile_time_seconds
+    consumerExtensions:
+      provisioning:
+        - operator_template_provisioning_duration_seconds
+      vendor:
+        - operator_template_vendor_api_failures_total
+      webhook:
+        # labels: state=owned|double-own|no-owner|misroute|dead-letter|lag
+        - operator_template_webhook_events_total
+{{- end }}

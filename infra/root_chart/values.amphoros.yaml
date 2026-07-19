@@ -1,4 +1,6 @@
 # Landscape overlay: amphoros (production landscape).
+controllers:
+  note: true
 ledger:
   landscape: amphoros
   endpoint: minio.amphoros.svc.cluster.local:9000

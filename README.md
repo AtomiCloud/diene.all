@@ -1,4 +1,7 @@
-# Diene Go language base
+# operator-template
+
+The reusable kubebuilder/controller-runtime operator skeleton in family
+conventions — a manager image plus manager chart, proven on a toy CRD pair.
 
 <!-- ### go-base-badges -->
 <!-- #### source: go-base -->
@@ -24,7 +27,7 @@ synchronization.
 
 - `pls setup` — synchronize installed diene package skills.
 - `pls lint` — run every pre-commit gate.
-- `pls docker:build` — build the local Go image.
+- `pls docker:build` — build the local manager image.
 - `pls helm:lint` / `pls helm:template` — validate or render the root chart.
 - `pls secret:scan` — scan tracked content for secrets.
 - `pls skills:sync` — rebuild `.claude/skills/vendor/` from installed packages.

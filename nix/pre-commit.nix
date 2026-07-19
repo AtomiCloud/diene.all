@@ -9,7 +9,7 @@ let
     pname = "diene-go-base-dependencies";
     version = "0";
     src = ../.;
-    vendorHash = "sha256-GYXdzU7hUB3wRgt4/ZaSjt9hcf3roD6gXSnssnCeHi0=";
+    vendorHash = "sha256-baIg09sBSx4EYVjO4U7UFYMkAOiJ8GOd1D60rK7RrlY=";
     proxyVendor = true;
   };
   go-lint-runtime = pkgs.buildEnv {
@@ -49,6 +49,7 @@ let
       packages.git
       packages.go
       packages.controller-gen
+      packages.yq-go
       pkgs.coreutils
       pkgs.diffutils
       pkgs.findutils

@@ -1,14 +1,20 @@
 // Package ledger holds the pure R2 durable-ledger state machine: the source of
-// record lives outside etcd, writes follow intent -> create -> confirm, a CR
-// delete orphans the entry (it never destroys the external record), and recovery
-// is ledger-lookup-first (find-or-adopt, never duplicate-create). The secret
-// path stored on an entry is a pointer, never a secret value.
+// record lives outside etcd, writes follow intent -> created -> confirmed, a CR
+// delete orphans the entry (it never destroys the external record), and a
+// same-coordinate reapply adopts the orphaned record back (preserving its
+// external ID and secret pointer) rather than duplicate-creating. The secret path
+// stored on an entry is a pointer, never a secret value.
 //
 // This package is pure domain: it imports no k8s.io/* or sigs.k8s.io/* packages.
-// It operates over a Store port implemented by an adapter.
+// It operates over a Store port implemented by an adapter. The controller selects
+// which explicit transition to run from the decision the reconcile service makes;
+// every transition is idempotent and lookup-first.
 package ledger
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 // Coordinate keys a ledger entry with a platform/landscape/class/module tuple.
 type Coordinate struct {
@@ -60,9 +66,14 @@ func NewService(store Store) Service {
 	return Service{store: store}
 }
 
-// Reserve records intent for a coordinate. It is lookup-first: an existing entry
-// is adopted back and returned unchanged rather than duplicate-created.
-func (s Service) Reserve(ctx context.Context, coord Coordinate, externalID, secretPath string) (Entry, error) {
+// Get reads the entry for a coordinate.
+func (s Service) Get(ctx context.Context, coord Coordinate) (Entry, bool, error) {
+	return s.store.Get(ctx, coord.Key())
+}
+
+// Intent records intent for a missing coordinate. It is lookup-first: an existing
+// entry is returned unchanged, never duplicate-created.
+func (s Service) Intent(ctx context.Context, coord Coordinate, externalID, secretPath string) (Entry, error) {
 	existing, ok, err := s.store.Get(ctx, coord.Key())
 	if err != nil {
 		return Entry{}, err
@@ -77,22 +88,58 @@ func (s Service) Reserve(ctx context.Context, coord Coordinate, externalID, secr
 	return entry, nil
 }
 
-// Advance moves an existing entry from intent to created to confirmed. Reserving
-// an absent coordinate first is required; Advance on a missing entry is a no-op
-// that reports found=false.
-func (s Service) Advance(ctx context.Context, coord Coordinate) (Entry, bool, error) {
+// Adopt reactivates an orphaned entry on a same-coordinate reapply. It preserves
+// the existing external ID and secret pointer and never duplicate-creates.
+func (s Service) Adopt(ctx context.Context, coord Coordinate) (Entry, error) {
 	entry, ok, err := s.store.Get(ctx, coord.Key())
 	if err != nil {
-		return Entry{}, false, err
+		return Entry{}, err
 	}
 	if !ok {
-		return Entry{}, false, nil
+		return Entry{}, fmt.Errorf("ledger: cannot adopt missing entry %s", coord.Key())
 	}
-	entry.Phase = next(entry.Phase)
+	if entry.Phase == PhaseOrphaned {
+		entry.Phase = PhaseCreated
+		if err := s.store.Put(ctx, entry); err != nil {
+			return Entry{}, err
+		}
+	}
+	return entry, nil
+}
+
+// Created records that the external and in-cluster resources now exist (intent ->
+// created). It is idempotent.
+func (s Service) Created(ctx context.Context, coord Coordinate) (Entry, error) {
+	entry, ok, err := s.store.Get(ctx, coord.Key())
+	if err != nil {
+		return Entry{}, err
+	}
+	if !ok {
+		return Entry{}, fmt.Errorf("ledger: cannot mark created missing entry %s", coord.Key())
+	}
+	if entry.Phase == PhaseIntent {
+		entry.Phase = PhaseCreated
+		if err := s.store.Put(ctx, entry); err != nil {
+			return Entry{}, err
+		}
+	}
+	return entry, nil
+}
+
+// Confirm records that the reconcile committed successfully (created -> confirmed).
+func (s Service) Confirm(ctx context.Context, coord Coordinate) (Entry, error) {
+	entry, ok, err := s.store.Get(ctx, coord.Key())
+	if err != nil {
+		return Entry{}, err
+	}
+	if !ok {
+		return Entry{}, fmt.Errorf("ledger: cannot confirm missing entry %s", coord.Key())
+	}
+	entry.Phase = PhaseConfirmed
 	if err := s.store.Put(ctx, entry); err != nil {
-		return Entry{}, false, err
+		return Entry{}, err
 	}
-	return entry, true, nil
+	return entry, nil
 }
 
 // Orphan marks an entry orphaned on CR delete. It never deletes the external
@@ -107,14 +154,4 @@ func (s Service) Orphan(ctx context.Context, coord Coordinate) error {
 	}
 	entry.Phase = PhaseOrphaned
 	return s.store.Put(ctx, entry)
-}
-
-func next(phase Phase) Phase {
-	if phase == PhaseIntent {
-		return PhaseCreated
-	}
-	if phase == PhaseCreated {
-		return PhaseConfirmed
-	}
-	return phase
 }

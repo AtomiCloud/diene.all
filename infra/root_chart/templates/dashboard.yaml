@@ -50,6 +50,33 @@ data:
           "targets": [
             { "refId": "A", "expr": "sum by (name) (workqueue_depth)" }
           ]
+        },
+        {
+          "id": 5,
+          "title": "Condition state by controller/type",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+          "targets": [
+            { "refId": "A", "expr": "operator_template_condition" }
+          ]
+        },
+        {
+          "id": 6,
+          "title": "Ledger failures by controller",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+          "targets": [
+            { "refId": "A", "expr": "sum by (controller) (rate(operator_template_ledger_failures_total[5m]))" }
+          ]
+        },
+        {
+          "id": 7,
+          "title": "Reconcile liveness (ticks) by controller",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+          "targets": [
+            { "refId": "A", "expr": "sum by (controller) (rate(operator_template_reconcile_ticks_total[5m]))" }
+          ]
         }
       ]
     }

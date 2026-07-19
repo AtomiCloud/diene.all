@@ -76,14 +76,28 @@ a set while health checks pass.
 
 ## Metrics hard DoD (shipped in the chart)
 
-The manager chart ships a `ServiceMonitor`, a `GrafanaAlertRuleGroup` (the
-observability standard — never a `PrometheusRule`), and a Grafana dashboard. The
-pack covers, parameterized per controller name: reconcile error rates and
-latencies, condition-state gauges, poll-loop liveness, ledger and vendor API
-failure rates, provisioning durations, and the webhook six-state taxonomy
-(owned, double-own, no-owner, misroute, dead-letter, lag). The toy wires the
-generic reconcile and condition subset; consumers extend the parameterized
-source for their real controllers.
+The manager registers generic metrics on the controller-runtime registry and the
+chart ships a `ServiceMonitor`, a `GrafanaAlertRuleGroup` (the observability
+standard — never a `PrometheusRule`), and a Grafana dashboard.
+
+The toy actually emits: `operator_template_condition` (condition-state gauge by
+controller and type), `operator_template_ledger_failures_total`,
+`operator_template_reconcile_ticks_total` (poll-loop liveness), and the built-in
+`controller_runtime_reconcile_*` reconcile/latency metrics. The dashboard and the
+alert group query exactly these.
+
+The consumer taxonomy — provisioning durations, vendor API failures, and the
+webhook six-state taxonomy (owned, double-own, no-owner, misroute, dead-letter,
+lag) — is shipped as a parameterized metric-name **source** (the
+`metric-taxonomy` ConfigMap), which real controllers implement. The toy does not
+claim to emit it. A durable-ledger endpoint failure surfaces as the
+`WaitingForEndpoint` condition and increments the ledger-failure metric.
+
+The secured metrics endpoint uses controller-runtime's authn/authz filter: the
+manager ServiceAccount is granted `create` on TokenReviews and
+SubjectAccessReviews, and the chart provisions a least-privilege scraper identity
+(ServiceAccount, ClusterRole with `get` on `/metrics`, binding, and token) that
+the ServiceMonitor presents — the manager's own token is not authorized to scrape.
 
 ## Leader election and rollout
 

@@ -6,6 +6,10 @@
 {{- default (include "operator-template.fullname" .) .Values.serviceAccount.name -}}
 {{- end -}}
 
+{{- define "operator-template.scraperName" -}}
+{{- default (printf "%s-metrics-reader" (include "operator-template.fullname" .)) .Values.serviceMonitor.scraper.serviceAccountName -}}
+{{- end -}}
+
 {{- define "operator-template.image" -}}
 {{- printf "%s:%s" .Values.image.repository (.Values.image.tag | default .Chart.AppVersion) -}}
 {{- end -}}

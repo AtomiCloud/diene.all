@@ -52,5 +52,40 @@ spec:
                   params:
                     - 0
             refId: C
+    - uid: operator-template-{{ . }}-ledger-failures
+      title: "operator-template {{ . }} durable-ledger failures"
+      condition: C
+      for: 5m
+      noDataState: OK
+      execErrState: Error
+      labels:
+        severity: warning
+        controller: {{ . }}
+      annotations:
+        summary: "The {{ . }} controller is failing durable-ledger operations"
+      data:
+        - refId: A
+          relativeTimeRange:
+            from: 600
+            to: 0
+          datasourceUid: prometheus
+          model:
+            expr: sum(rate(operator_template_ledger_failures_total{controller="{{ . }}"}[5m]))
+            instant: true
+            refId: A
+        - refId: C
+          relativeTimeRange:
+            from: 0
+            to: 0
+          datasourceUid: __expr__
+          model:
+            type: threshold
+            expression: A
+            conditions:
+              - evaluator:
+                  type: gt
+                  params:
+                    - 0
+            refId: C
 {{- end }}
 {{- end }}

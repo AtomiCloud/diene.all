@@ -46,6 +46,9 @@ linters:
     - wastedassign
     - whitespace
   settings:
+    exhaustive:
+      # A default case that handles the remaining enum values counts as exhaustive.
+      default-signifies-exhaustive: true
     govet:
       enable-all: true
       disable:

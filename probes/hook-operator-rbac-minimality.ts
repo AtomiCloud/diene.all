@@ -16,13 +16,14 @@ export default {
     },
     {
       name: 'mutation-hook-operator-rbac-minimality-caught',
-      description: 'Adding a wildcard RBAC marker must redden the RBAC hook.',
+      description: 'Granting an overbroad destructive verb on the Note CR must redden the RBAC hook.',
       kind: 'mutation',
       async run(repo: any) {
-        await repo.patch('adapters/operator/controllers/note_controller.go', {
-          find: '// +kubebuilder:rbac:groups="",resources=events,verbs=create;patch',
-          replace:
-            '// +kubebuilder:rbac:groups="",resources=events,verbs=create;patch\n// +kubebuilder:rbac:groups="*",resources="*",verbs="*"',
+        // Add a create grant on the primary Note CR — outside the least-privilege
+        // allowlist (the reconciler only reads Notes).
+        await repo.patch('infra/root_chart/templates/rbac/role.yaml', {
+          find: '  - notes\n  verbs:\n  - get',
+          replace: '  - notes\n  verbs:\n  - create\n  - get',
         });
         await expectRed(repo, cmd, 'hook-operator-rbac-minimality');
       },

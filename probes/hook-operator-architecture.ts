@@ -16,12 +16,13 @@ export default {
     },
     {
       name: 'mutation-hook-operator-architecture-caught',
-      description: 'Importing a k8s package into lib/operator must redden the boundary hook.',
+      description: 'Moving a domain decision (a brake dependency) into a controller must redden the hook.',
       kind: 'mutation',
       async run(repo: any) {
-        await repo.patch('lib/operator/brake/brake.go', {
-          find: 'import "fmt"',
-          replace: 'import (\n\t"fmt"\n\n\t_ "k8s.io/apimachinery/pkg/runtime"\n)',
+        await repo.patch('adapters/operator/controllers/note_controller.go', {
+          find: '"github.com/AtomiCloud/diene.go-base/lib/operator/reconcile"',
+          replace:
+            '"github.com/AtomiCloud/diene.go-base/lib/operator/brake"\n\t"github.com/AtomiCloud/diene.go-base/lib/operator/reconcile"',
         });
         await expectRed(repo, cmd, 'hook-operator-architecture');
       },

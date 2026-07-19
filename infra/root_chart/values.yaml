@@ -33,9 +33,11 @@ ledger:
 
 # -- Per-controller enablement flags.
 controllers:
-  # -- Enable the Note controller.
-  note: true
-  # -- Enable the Journal controller.
+  # -- Enable the ledger-backed Note controller. Off by default so a zero-config
+  # -- install never crashes on an empty ledger endpoint; landscape/e2e overlays
+  # -- enable it together with a real ledger.endpoint.
+  note: false
+  # -- Enable the Journal controller (no external dependency).
   journal: true
 
 # -- Manager resource requests and limits.
@@ -52,12 +54,20 @@ metrics:
   # -- Metrics bind port (HTTPS, authn/authz filtered).
   port: 8443
 
-# -- ServiceMonitor for Prometheus scraping of the secured metrics endpoint.
+# -- ServiceMonitor for Prometheus scraping of the secured metrics endpoint. The
+# -- endpoint uses controller-runtime's authn/authz filter, so the scraper must
+# -- present an authorized identity, not merely the manager's own token.
 serviceMonitor:
   # -- Ship a ServiceMonitor.
   enabled: true
   # -- Scrape interval.
   interval: 30s
+  # -- Least-privilege scraper identity with get on the /metrics non-resource URL.
+  scraper:
+    # -- Create the scraper ServiceAccount, ClusterRole, binding, and token Secret.
+    create: true
+    # -- ServiceAccount name; defaults to <release>-metrics-reader when empty.
+    serviceAccountName: ''
 
 # -- Grafana alert pack (GrafanaAlertRuleGroup, never PrometheusRule).
 alerts:

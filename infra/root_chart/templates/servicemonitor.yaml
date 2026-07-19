@@ -14,7 +14,14 @@ spec:
     - port: metrics
       scheme: https
       interval: {{ .Values.serviceMonitor.interval }}
-      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+      {{- if .Values.serviceMonitor.scraper.create }}
+      # Present the authorized scraper identity's token, not the manager's own.
+      authorization:
+        type: Bearer
+        credentials:
+          name: {{ include "operator-template.scraperName" . }}-token
+          key: token
+      {{- end }}
       tlsConfig:
         insecureSkipVerify: true
 {{- end }}
