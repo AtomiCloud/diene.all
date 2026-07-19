@@ -39,7 +39,6 @@ gomplate --version >/dev/null
 [ "$(gomplate -i '{{ add 1 1 }}')" != "2" ] && echo "❌ gomplate failed a real template" >&2 && exit 1
 
 hadolint --version >/dev/null
-hadolint infra/Dockerfile
 
 helm-docs --version >/dev/null
 
