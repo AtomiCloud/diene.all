@@ -3,26 +3,52 @@
 labelPrefix: atomi.cloud
 
 # @schema pattern:^[a-z0-9]+-[a-z0-9]+$;required:true
-# -- Primary workload fullname. It must be `<service>-<dashless-token>`.
-fullnameOverride: wrapper-api
+# -- Primary workload fullname (`<service>-<token>`). The wrapper convention names the chart's primary served endpoint.
+fullnameOverride: platinum-api
 
 # -- Stable four-slot service-tree projection. Landscape and cluster are added by independent overlays.
 serviceTree:
   # @schema pattern:^[a-z0-9]+$;required:true
-  platform: sample
+  platform: sulfoxide
   # @schema pattern:^[a-z0-9]+$;required:true
-  service: wrapper
+  service: platinum
   # @schema pattern:^[a-z0-9]+$;required:true
-  module: api
+  module: gateway
   # @schema pattern:^[0-9]+$;required:true
-  layer: '2'
+  layer: '1'
 
 # -- Optional physical-instance metadata. The instance remains outside LPSM.
 instance:
   physicalId: example-repository:run-001
 
-# -- Wrapper-owned sample workload.
-workload:
+# -- Gateway API edge: shared GatewayClass, shared Gateway, the LoadBalancer exposure, and the health route.
+gateway:
+  enabled: true
+  # @schema pattern:^[a-z0-9-]+$
+  # -- GatewayClass name platinum owns. Registered-fleet and local LAPRAS-class gateways reference it.
+  classname: platinum
+  # @schema pattern:^[a-z0-9.-]+/[a-z0-9-]+$
+  # -- kgateway controller binding for the GatewayClass.
+  controllerName: gateway.kgateway.dev/kgateway
+  provider: digitalocean # @schema enum:[aws, oci, digitalocean]
+  port: 80 # @schema minimum:1;maximum:65535
+  aws:
+    subnetIds: [] # @schema item:string;uniqueItems:true
+    eipAllocationIds: [] # @schema item:string;uniqueItems:true
+  oci:
+    reservedPublicIp: ''
+  proxy:
+    # -- Labels selecting the kgateway gateway-proxy pods the LoadBalancer forwards to. Wired per cluster at install.
+    selector: {}
+  health:
+    # @schema pattern:^/.*
+    # -- Fixed health path the traffic controller polls once per cluster per tick.
+    path: /healthz
+    expectedStatus: 2xx
+
+# -- Platinum-owned /healthz responder. It is the gateway health-route backend and the chart's primary workload.
+healthBackend:
+  enabled: true
   replicas: 1 # @schema minimum:1
   image:
     repository: ghcr.io/stefanprodan/podinfo
@@ -52,177 +78,39 @@ workload:
       cpu: 100m
       memory: 128Mi
 
-# -- Separate pre-sync migration hook. It never owns or recreates the Deployment.
-migration:
+# -- Registered-fleet wildcard Certificates. Zinc owns the DNS-01 ClusterIssuer definition (charts/zinc); this chart only issues against it.
+registeredCertificates:
   enabled: true
-  image:
-    repository: busybox
-    tag: 1.37.0-glibc # @schema pattern:^[A-Za-z0-9][A-Za-z0-9._-]*$
-    pullPolicy: IfNotPresent # @schema enum:[Always, IfNotPresent, Never]
-  command: ['sh', '-c', 'echo migration-ready']
-  reloader:
-    enabled: true
-  resources:
-    requests:
-      cpu: 5m
-      memory: 8Mi
-    limits:
-      cpu: 25m
-      memory: 32Mi
+  issuerRef:
+    kind: ClusterIssuer # @schema enum:[ClusterIssuer, Issuer]
+    # -- ClusterIssuer name owned by charts/zinc and instantiated once per cluster.
+    name: zinc-wildcard-letsencrypt
+  primary:
+    # @schema pattern:^\*\.[a-z0-9.-]+$
+    # -- Primary registered-fleet base-domain wildcard (atomi.cloud).
+    domain: '*.atomi.cloud'
+    dnsNames: ['atomi.cloud'] # @schema item:string;uniqueItems:true
+  backup:
+    # @schema pattern:^\*\.[a-z0-9.-]+$
+    # -- Second R53 base-domain wildcard for cluster-endpoint failover TLS (S8 backup domain).
+    domain: '*.atomi.cloud.failover'
+    dnsNames: ['atomi.cloud.failover'] # @schema item:string;uniqueItems:true
 
-# -- One service-scoped ExternalSecret with folder-prefix rewrites.
-secret:
-  enabled: true
-  refreshInterval: 1h
-  store:
-    kind: SecretStore # @schema enum:[SecretStore, ClusterSecretStore]
-    name: sample-store
-  sharedFolder: /shared
-  serviceFolder: /wrapper
+# -- ENTEI dev-host shared-Gateway mode. When enabled, platinum renders the shared GatewayClass, Gateway, and LoadBalancer only; per-host Certificate, ListenerSet, and HTTPRoute are owned by the exposure materializer, not this chart.
+devHost:
+  enabled: false
 
-# -- Provider-managed LoadBalancer service for the gateway.
-gateway:
-  enabled: true
-  provider: digitalocean # @schema enum:[aws, oci, digitalocean]
-  port: 80 # @schema minimum:1;maximum:65535
-  aws:
-    subnetIds: [] # @schema item:string;uniqueItems:true
-    eipAllocationIds: [] # @schema item:string;uniqueItems:true
-  oci:
-    reservedPublicIp: ''
-
-# -- Current health and webhook delivery conventions.
-contracts:
-  health:
-    path: /healthz # @schema pattern:^/.*
-    expectedStatus: 2xx
-  webhook:
-    provider: example # @schema pattern:^[a-z0-9-]+$
-    pathPrefix: /internal/webhooks # @schema pattern:^/.*
-  lpsm:
-    landscape: example # @schema pattern:^[a-z0-9-]+$
-    module: api # @schema pattern:^[a-z0-9-]+$
-    service: wrapper # @schema pattern:^[a-z0-9-]+$
-    instance: run001 # @schema pattern:^[a-z0-9-]+$
-    ordinaryZone: cluster.atomi.cloud
-    instanceZone: local.example.invalid
-    parseHostname: ''
-
-# -- Optional Gateway API route scaffold for a webhook receiver.
-webhookRoute:
-  enabled: true
-  parentGateway: sample-gateway
-  parentNamespace: gateway-system
-
-# -- Reusable primordial-chart CR helper inputs against the frozen T3 shapes.
-primordial:
-  enabled: true
-  apiVersions:
-    fleet: fleet.atomi.cloud/v1alpha1
-    identity: identity.atomi.cloud/v1alpha1
-    edge: edge.atomi.cloud/v1alpha1
-  targetLandscape: example
-  vlandscape: example-vlandscape
-  placement:
-    preferredHost: example-host
-  platformDependency:
-    modules:
-      database: # @schema mergeProperties:true
-        maindb:
-          type: neon
-          delivery: external
-          providerAccountRef: example-neon
-          credentialMode: standard
-          rotation: 'on'
-          cpu: 1
-          ram: 1Gi
-          storage: 10Gi
-          version: '16'
-          backup:
-            crossVendor: true
-          engine:
-            neon:
-              tier: example
-      kv: # @schema mergeProperties:true
-        sessions:
-          type: upstash
-          delivery: external
-          providerAccountRef: example-upstash
-          credentialMode: standard
-          rotation: 'on'
-          ram: 128Mi
-          engine:
-            upstash: {}
-      cache: # @schema mergeProperties:true
-        hot:
-          type: dragonfly
-          delivery: replicated
-          credentialMode: standard
-          rotation: 'on'
-          ram: 128Mi
-          engine:
-            dragonfly: {}
-      store: # @schema mergeProperties:true
-        assets:
-          type: tigris
-          delivery: external
-          providerAccountRef: example-tigris
-          credentialMode: standard
-          rotation: 'on'
-          engine:
-            tigris: {}
-  virtualLandscapeService:
-    enabled: true
-    serve: true
-  logtoApp:
-    enabled: true
-    paths: [/auth/callback]
-    extraRedirectUris: [] # @schema item:string;uniqueItems:true
-    resourceRefs: [wrapper-api] # @schema item:string;uniqueItems:true
-  problem:
-    enabled: true
-    version: 0.1.0
-    entries:
-      - id: example
-        type: https://errors.example.invalid/example
-        title: Example problem
-        status: 500
-        recoverable: false
-        schema: {}
-        endpoints:
-          - method: GET
-            path: /
-  cloudflareDeploy:
-    enabled: true
-    scriptName: wrapper-web
-    tag: 0.1.0
-    pin: true
-
-# -- Pinned optional upstream chart. Every instantiated dependency must receive a conforming override.
+# -- Pinned kgateway control-plane subchart. Enabled in the k3d integration tier; off for unit-tier static checks.
 upstream:
   enabled: false
-  fullnameOverride: wrapper-upstream # @schema pattern:^[a-z0-9]+-[a-z0-9]+$
-  image:
-    repository: ghcr.io/stefanprodan/podinfo
-    tag: 6.9.2
-  podAnnotations:
-    reloader.stakater.com/auto: 'true'
-  podSecurityContext:
-    runAsNonRoot: true
-    runAsUser: 10000
-    runAsGroup: 10000
-  securityContext:
-    allowPrivilegeEscalation: false
-    readOnlyRootFilesystem: true
-    runAsNonRoot: true
-    runAsUser: 10000
-    runAsGroup: 10000
-    capabilities:
-      drop: [ALL]
-  resources:
-    requests:
-      cpu: 10m
-      memory: 32Mi
-    limits:
-      cpu: 100m
-      memory: 128Mi
+  fullnameOverride: platinum-upstream # @schema pattern:^[a-z0-9]+-[a-z0-9]+$
+  controller:
+    image:
+      repository: kgateway
+      tag: v2.2.9
+    service:
+      type: ClusterIP
+
+# -- Standard-channel and kgateway CRD subchart. Enabled in the k3d integration tier; off for unit-tier static checks.
+kgatewayCrds:
+  enabled: false

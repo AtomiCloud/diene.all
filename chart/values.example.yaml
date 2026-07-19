@@ -1,6 +1,3 @@
 # Independent landscape overlay example.
 serviceTree:
   landscape: example
-
-primordial:
-  targetLandscape: example
