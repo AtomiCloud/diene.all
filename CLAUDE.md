@@ -102,3 +102,11 @@ Language variants:
 Keep `dotnet-base.slnx`, `.config/dotnet-base.test.yaml`, and
 `AtomiCloud.DotnetBase.*` root namespaces base-named. Observability is absent on
 this branch.
+
+<!-- ### observability -->
+<!-- #### source: observability -->
+
+## Observability standards
+
+- [Observability](docs/standards/observability/index.md)
+- [Grafana dashboards](docs/standards/grafana-dashboards/index.md)

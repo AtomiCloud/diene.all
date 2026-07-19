@@ -1,0 +1,12 @@
+# observability/alerts/{alert-slug}/{critical|warning|info}.yaml
+# ONE FILE PER TIER — the FILENAME is the severity (no severity field exists).
+# Pure Grafana-domain definition: no Kubernetes, no labels, no plumbing — the
+# deployment's conforming transformer derives everything else (emoji prefix,
+# uid, CR wrapper, LPSM labels, runbook/dashboard links). Flat dict only.
+title: '{short symptom, ≤48 chars — NO emoji, it is derived from the filename}'
+datasource: '{metrics | logs}' # metrics = PromQL, logs = LogQL
+expr: '{boolean expr, e.g. my_metric{service="x"} > 5000}'
+for: '{10m}'
+summary: '{symptom + magnitude, e.g. Queue at {{ $values.A }} — dropping work}'
+description: '{context + first action to take}'
+panel: '{panel id in dashboards/overview.json — DELETE this line to link the generic dashboard instead}'

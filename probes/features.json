@@ -319,5 +319,10 @@
     "template": "diene/dotnet-base",
     "name": "hook-gitlint",
     "class": "gate"
+  },
+  {
+    "template": "diene/observability",
+    "name": "observability-standards-present",
+    "class": "presence"
   }
 ]
