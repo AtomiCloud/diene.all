@@ -18,6 +18,7 @@ bash ./scripts/validate/chlorine.sh reloader
 bash ./scripts/validate/chlorine.sh reloader-violation
 bash ./scripts/validate/chlorine.sh fullname
 bash ./scripts/validate/chlorine.sh fullname-violation
+bash ./scripts/validate/chlorine.sh fullname-sa-violation
 bash ./scripts/validate/chlorine.sh rendered-manifests
 bash ./scripts/validate/chlorine.sh vap-latest
 bash ./scripts/validate/chlorine.sh schema-violation

@@ -90,7 +90,9 @@ reloader-violation)
   fi
   ;;
 fullname)
-  # Exactly-one-dash <service>-<token> on the fullname and the primary workload.
+  # The complete controllable surface (Deployment + ServiceAccount) is the
+  # exactly-one-dash <service>-<token> fullname; upstream RBAC suffixes are the
+  # documented exception, bound to fullname + known suffix by the checker.
   render "${full_values[@]}"
   bash ./scripts/validate/check-fullname.sh "${tmp}/rendered.yaml"
   ;;
@@ -99,6 +101,17 @@ fullname-violation)
   render "${full_values[@]}" --set reloader.fullnameOverride=chlorine-re-loader
   if bash ./scripts/validate/check-fullname.sh "${tmp}/rendered.yaml" >/dev/null 2>&1; then
     echo "❌ fullname checker did NOT catch the multi-dash fullname" >&2
+    exit 1
+  fi
+  ;;
+fullname-sa-violation)
+  # NEGATIVE fixture for the broadened scope: a drifted ServiceAccount name (a
+  # controllable non-Deployment object) must redden the checker while the
+  # Deployment stays conformant — proving the checker inspects the full
+  # controllable surface, not just the Deployment.
+  render "${full_values[@]}" --set reloader.reloader.serviceAccount.name=chlorine-sa-drift
+  if bash ./scripts/validate/check-fullname.sh "${tmp}/rendered.yaml" >/dev/null 2>&1; then
+    echo "❌ fullname checker did NOT catch the drifted ServiceAccount name" >&2
     exit 1
   fi
   ;;
