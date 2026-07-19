@@ -127,24 +127,6 @@ pre-commit-lib.run {
       language = "system";
     };
 
-    a-helm-docs = {
-      enable = true;
-      name = "Helm docs";
-      entry = "${packages.infralint}/bin/helm-docs --chart-search-root infra/root_chart";
-      files = "^infra/root_chart/.*";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-helm-lint = {
-      enable = true;
-      name = "Helm lint";
-      entry = "${packages.kubernetes-helm}/bin/helm lint infra/root_chart";
-      files = "^infra/root_chart/.*";
-      pass_filenames = false;
-      language = "system";
-    };
-
     a-infisical = {
       enable = true;
       name = "Secrets scan";

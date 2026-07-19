@@ -53,14 +53,3 @@ jobs:
     with:
       image_name: diene-workspace
       dockerfile: ./infra/Dockerfile
-
-  helm:
-    name: Helm Chart
-    permissions:
-      contents: read
-      id-token: write
-      packages: write
-    uses: ./.github/workflows/⚡reusable-helm.yaml
-    secrets: inherit
-    with:
-      chart_path: ./infra/root_chart
