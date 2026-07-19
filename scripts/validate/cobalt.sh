@@ -78,27 +78,55 @@ store-scope-negative)
   fi
   rg -q 'environmentSlug .the cluster landscape. is required' "${tmp}/err"
   ;;
+reloader)
+  # Upstream ESO 2.7.0 falls back to global.podAnnotations for the controller,
+  # webhook, and cert-controller. cobalt opts all three in by default and
+  # deliberately opts all three out by setting the same annotation to "false".
+  render --values chart/values.example.yaml >"${tmp}/reloader-default.yaml"
+  render --values chart/values.example.yaml \
+    --set-string 'eso.global.podAnnotations.reloader\.stakater\.com/auto=false' >"${tmp}/reloader-opt-out.yaml"
+  for manifest in "${tmp}/reloader-default.yaml:true" "${tmp}/reloader-opt-out.yaml:false"; do
+    file="${manifest%:*}"
+    expected="${manifest##*:}"
+    yq eval-all -o=json '.' "${file}" | jq -s -e --arg expected "${expected}" '
+      map(select(.kind == "Deployment"))
+      | map(select(.metadata.name == "cobalt-eso"
+                   or .metadata.name == "cobalt-eso-webhook"
+                   or .metadata.name == "cobalt-eso-cert-controller"))
+      | length == 3
+        and all(.[]; .spec.template.metadata.annotations["reloader.stakater.com/auto"] == $expected)' >/dev/null
+  done
+  ;;
+authored-v1)
+  bash ./scripts/validate/cobalt-authored-v1.sh chart/templates >/dev/null
+  ;;
 v1beta1-negative)
-  # cobalt authors external-secrets.io/v1 only; no v1beta1 may appear in its
-  # own templates. Injecting one MUST redden the conformance scan.
-  ! rg -n 'external-secrets\.io/v1beta1' chart/templates
+  # Prove the baseline with the authored-manifest checker, then prove a copied
+  # v1beta1 mutation makes that exact checker fail.
+  bash ./scripts/validate/cobalt-authored-v1.sh chart/templates >/dev/null
   cp chart/templates/clustersecretstore.yaml "${tmp}/sabotage.yaml"
   sed -i 's#external-secrets.io/v1#external-secrets.io/v1beta1#' "${tmp}/sabotage.yaml"
-  rg -q 'external-secrets\.io/v1beta1' "${tmp}/sabotage.yaml"
+  if bash ./scripts/validate/cobalt-authored-v1.sh "${tmp}/sabotage.yaml" >"${tmp}/v1-out" 2>"${tmp}/v1-err"; then
+    echo "❌ v1beta1 authored-manifest sabotage was not rejected" >&2
+    exit 1
+  fi
+  rg -q 'must use external-secrets.io/v1' "${tmp}/v1-err"
+  ;;
+crd-lifecycle)
+  render --values chart/values.example.yaml >"${tmp}/crds.yaml"
+  bash ./scripts/validate/cobalt-crd-lifecycle.sh "${tmp}/crds.yaml" >/dev/null
   ;;
 crd-lifecycle-negative)
-  # ESO CRDs render as normal helm templates so helm upgrade carries CRD updates
-  # (no separate CRD-apply step). Disabling installCRDs MUST remove them.
-  base="$(render --values chart/values.example.yaml | grep -c '^kind: CustomResourceDefinition' || true)"
-  off="$(render --values chart/values.example.yaml --set eso.installCRDs=false | grep -c '^kind: CustomResourceDefinition' || true)"
-  [ "${base}" -gt 0 ] || {
-    echo "❌ baseline did not render ESO CRDs" >&2
+  # Prove the complete pinned CRD set with the lifecycle checker, then prove
+  # disabling those CRDs makes that exact checker fail.
+  render --values chart/values.example.yaml >"${tmp}/crds.yaml"
+  bash ./scripts/validate/cobalt-crd-lifecycle.sh "${tmp}/crds.yaml" >/dev/null
+  render --values chart/values.example.yaml --set eso.installCRDs=false >"${tmp}/crds-disabled.yaml"
+  if bash ./scripts/validate/cobalt-crd-lifecycle.sh "${tmp}/crds-disabled.yaml" >"${tmp}/crd-out" 2>"${tmp}/crd-err"; then
+    echo "❌ disabled CRD lifecycle sabotage was not rejected" >&2
     exit 1
-  }
-  [ "${off}" -eq 0 ] || {
-    echo "❌ disabling installCRDs left CRDs rendered" >&2
-    exit 1
-  }
+  fi
+  rg -q 'CRD lifecycle set differs' "${tmp}/crd-err"
   ;;
 fullname)
   # cobalt-authored names follow <service>-<token> (exactly one dash). The
@@ -169,6 +197,9 @@ presence)
   test -s chart/templates/clustersecretstore.yaml
   test -s policies/vap/workload-baseline.yaml
   test -s schemas/clustersecretstore.json
+  test -s scripts/validate/cobalt-authored-v1.sh
+  test -s scripts/validate/cobalt-crd-lifecycle.sh
+  test -s scripts/validate/cobalt-expected-crds.txt
   ;;
 *)
   echo "❌ unknown validation mode '${mode}'" >&2

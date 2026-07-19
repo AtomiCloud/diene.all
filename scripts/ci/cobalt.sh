@@ -9,7 +9,10 @@ bash ./scripts/validate/cobalt.sh render
 bash ./scripts/validate/cobalt.sh store
 bash ./scripts/validate/cobalt.sh store-credential-negative
 bash ./scripts/validate/cobalt.sh store-scope-negative
+bash ./scripts/validate/cobalt.sh reloader
+bash ./scripts/validate/cobalt.sh authored-v1
 bash ./scripts/validate/cobalt.sh v1beta1-negative
+bash ./scripts/validate/cobalt.sh crd-lifecycle
 bash ./scripts/validate/cobalt.sh crd-lifecycle-negative
 bash ./scripts/validate/cobalt.sh fullname
 bash ./scripts/validate/cobalt.sh labels

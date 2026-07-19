@@ -121,6 +121,20 @@
                     "type": "string",
                     "pattern": "^[a-z0-9]+-[a-z0-9]+$"
                 },
+                "global": {
+                    "type": "object",
+                    "properties": {
+                        "podAnnotations": {
+                            "description": "Pod annotations inherited by the ESO controller, webhook, and cert-controller. Set this annotation to the string \"false\" to opt an unsafe deployment out.",
+                            "type": "object",
+                            "properties": {
+                                "reloader.stakater.com/auto": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                },
                 "image": {
                     "type": "object",
                     "properties": {

@@ -20,6 +20,8 @@ Render values in two independent dimensions (disjoint landscape/cluster vocabula
 
 The sample stack is `values.yaml` → `values.example.yaml` → `values.lapras.yaml`. The base chart deliberately fails to render without a landscape overlay: the store MUST be scoped to a landscape.
 
+ESO's supported `global.podAnnotations` fallback opts the controller, webhook, and cert-controller into Reloader by default with `reloader.stakater.com/auto: "true"`. Unsafe workloads deliberately opt out by overriding that value with the string `"false"`; the unit tier renders and asserts both states across all three Deployments.
+
 ## Identity and naming
 
 - `labelPrefix` (default `atomi.cloud`) is the only prefix input; every service-tree label/annotation helper reads it.
@@ -29,6 +31,8 @@ The sample stack is `values.yaml` → `values.example.yaml` → `values.lapras.y
 ## Secrets
 
 The `ClusterSecretStore` uses the Infisical provider with universal-auth credentials read from the bootstrap `Secret` (`cobalt-sos-bootstrap` in the `external-secrets` namespace). The template refuses any inline credential literal. The store is landscape-scoped: `projectSlug: sos`, `environmentSlug` from the overlay, `secretsPath: /`, `recursive: false`. All resources use `external-secrets.io/v1`; v1beta1 is never authored.
+
+The v1-only and CRD-lifecycle contracts are standalone checkers. Product CI first proves each baseline, then feeds the same checker a copied v1beta1 manifest or an `installCRDs=false` render and requires that mutation to fail. The lifecycle checker compares the render with the complete pinned ESO 2.7.0 CRD name set, so a missing CRD cannot pass as a successful negative test.
 
 ## Absent wrapper surfaces
 

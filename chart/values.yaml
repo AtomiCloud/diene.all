@@ -62,6 +62,11 @@ store:
 # CRDs ride helm upgrade via installCRDs and v1beta1 serving stays disabled.
 eso:
   enabled: true
+  global:
+    # -- Pod annotations inherited by the ESO controller, webhook, and cert-controller.
+    # Set this annotation to the string "false" to opt an unsafe deployment out.
+    podAnnotations:
+      reloader.stakater.com/auto: "true"
   # @schema pattern:^[a-z0-9]+-[a-z0-9]+$
   fullnameOverride: cobalt-eso
   # @schema type:boolean
