@@ -82,8 +82,8 @@ gateway-proxy)
   yq eval-all -o=json '.' tests/fixtures/kgateway-v2.2.9-proxy-render.yaml | jq -s -e 'map(select(.kind == "Deployment"))[0]' >"${tmp}/proxy-deployment.json"
   jq -e --slurpfile proxyService "${tmp}/proxy-service.json" --slurpfile proxyDeployment "${tmp}/proxy-deployment.json" '
     .spec.selector == $proxyService[0].spec.selector and
-    ([.spec.ports[].targetPort] | sort) == ([$proxyService[0].spec.ports[].targetPort] | sort) and
-    ([.spec.ports[].targetPort] - [$proxyDeployment[0].spec.template.spec.containers[0].ports[].containerPort] | length) == 0
+    ([.spec.ports[] | {name, targetPort}] | sort_by(.targetPort)) == ([$proxyService[0].spec.ports[] | {name, targetPort}] | sort_by(.targetPort)) and
+    ([$proxyService[0].spec.ports[] | {name, targetPort}] | sort_by(.targetPort)) == ([$proxyDeployment[0].spec.template.spec.containers[0].ports[] | {name, targetPort: .containerPort}] | sort_by(.targetPort))
   ' "${tmp}/edge.json" >/dev/null
   if render --values chart/values.example.yaml --set gateway.proxy.selector=null >"${tmp}/missing-selector.yaml"; then
     echo "❌ missing generated-proxy selector rendered successfully" >&2

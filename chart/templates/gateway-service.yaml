@@ -48,11 +48,11 @@ spec:
     {{- toYaml . | nindent 4 }}
   {{- end }}
   ports:
-    - name: http
+    - name: listener-{{ .Values.gateway.port }}
       port: {{ .Values.gateway.port }}
       targetPort: {{ .Values.gateway.proxy.httpTargetPort }}
       protocol: TCP
-    - name: https
+    - name: listener-{{ .Values.gateway.tlsPort }}
       port: {{ .Values.gateway.tlsPort }}
       targetPort: {{ .Values.gateway.proxy.httpsTargetPort }}
       protocol: TCP
