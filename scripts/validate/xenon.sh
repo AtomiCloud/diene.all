@@ -164,13 +164,131 @@ task-surface)
 sit-handoff)
   bash -n ./scripts/validate/xenon-sit.sh
   bash -n ./scripts/validate/xenon-sit-cleanup.sh
-  rg -q -- '--atomic --cleanup-on-fail' scripts/validate/xenon-sit.sh
+  rg -q 'helm install' scripts/validate/xenon-sit.sh
+  if rg -q 'helm upgrade' scripts/validate/xenon-sit.sh; then
+    echo "❌ SIT handoff retains upgrading Helm semantics" >&2
+    exit 1
+  fi
+  rg -q -- '--atomic --wait' scripts/validate/xenon-sit.sh
+  rg -q -- '--labels' scripts/validate/xenon-sit.sh
+  rg -q -- '--selector' scripts/validate/xenon-sit-cleanup.sh
   rg -q 'ownership\.claim' scripts/validate/xenon-sit.sh scripts/validate/xenon-sit-cleanup.sh
   rg -q 'helm uninstall' scripts/validate/xenon-sit-cleanup.sh
   rg -q 'failed-uninstall' scripts/validate/xenon-sit-cleanup.sh
-  for artifact in sit.stdout sit.stderr helm-upgrade rollout helm-status top-nodes top-pods cleanup-uninstall cleanup.status; do
+  rg -q 'failed-owner-mismatch' scripts/validate/xenon-sit-cleanup.sh
+  for artifact in sit.stdout sit.stderr preflight-values preflight-render helm-install rollout helm-status top-nodes top-pods cleanup-owner cleanup-uninstall cleanup.status; do
     rg -q "${artifact}" scripts/validate/xenon-sit.sh scripts/validate/xenon-sit-cleanup.sh
   done
+
+  real_helm="$(command -v helm)"
+  export REAL_HELM="${real_helm}"
+  export FAKE_HELM_LOG="${tmp}/disabled-helm.log"
+  export FAKE_KUBECTL_LOG="${tmp}/disabled-kubectl.log"
+  # shellcheck disable=SC2329 # Exported into the child SIT harness.
+  helm() {
+    printf '%s\n' "$*" >>"${FAKE_HELM_LOG}"
+    return 97
+  }
+  # shellcheck disable=SC2329 # Exported into the child SIT harness.
+  kubectl() {
+    printf '%s\n' "$*" >>"${FAKE_KUBECTL_LOG}"
+    return 98
+  }
+  export -f helm kubectl
+  if SIT_CONTEXT=fake-context \
+    SIT_NAMESPACE=sample \
+    RELEASE=xenon \
+    SIT_VALUES_FILE="$(realpath chart/values.lapras.yaml)" \
+    SIT_EVIDENCE_DIR="${tmp}/disabled-evidence" \
+    bash ./scripts/validate/xenon-sit.sh >"${tmp}/disabled.stdout" 2>"${tmp}/disabled.stderr"; then
+    echo "❌ disabled SIT values reached a successful handoff" >&2
+    exit 1
+  fi
+  if [ -s "${FAKE_HELM_LOG}" ] || [ -s "${FAKE_KUBECTL_LOG}" ]; then
+    echo "❌ disabled SIT values reached a cluster-facing command" >&2
+    exit 1
+  fi
+  rg -q 'authoritative toggle-map ON stack' "${tmp}/disabled-evidence/sit.stderr"
+
+  export FAKE_HELM_LOG="${tmp}/race-helm.log"
+  export FAKE_HELM_INSTALL_ATTEMPT="${tmp}/race-install-attempt"
+  export FAKE_HELM_UNINSTALL_ATTEMPT="${tmp}/race-uninstall-attempt"
+  export FAKE_KUBECTL_LOG="${tmp}/race-kubectl.log"
+  helm() {
+    printf '%s\n' "$*" >>"${FAKE_HELM_LOG}"
+    case "${1:-}" in
+    template)
+      "${REAL_HELM}" "$@"
+      ;;
+    list)
+      local has_selector=false
+      local arg
+      for arg in "$@"; do
+        [ "${arg}" = "--selector" ] && has_selector=true
+      done
+      if [ "${has_selector}" = "true" ]; then
+        printf '%s\n' '[]'
+      elif [ -e "${FAKE_HELM_INSTALL_ATTEMPT}" ]; then
+        printf '%s\n' '[{"name":"xenon"}]'
+      else
+        printf '%s\n' '[]'
+      fi
+      ;;
+    install)
+      : >"${FAKE_HELM_INSTALL_ATTEMPT}"
+      echo "simulated same-name install collision" >&2
+      return 1
+      ;;
+    uninstall)
+      : >"${FAKE_HELM_UNINSTALL_ATTEMPT}"
+      return 99
+      ;;
+    *)
+      echo "unexpected fake Helm command: ${1:-<empty>}" >&2
+      return 96
+      ;;
+    esac
+  }
+  kubectl() {
+    printf '%s\n' "$*" >>"${FAKE_KUBECTL_LOG}"
+    return 95
+  }
+  export -f helm kubectl
+  if SIT_CONTEXT=fake-context \
+    SIT_NAMESPACE=sample \
+    RELEASE=xenon \
+    SIT_VALUES_FILE="$(realpath chart/values.pichu.yaml)" \
+    SIT_EVIDENCE_DIR="${tmp}/race-evidence" \
+    bash ./scripts/validate/xenon-sit.sh >"${tmp}/race.stdout" 2>"${tmp}/race.stderr"; then
+    echo "❌ same-name ownership race did not fail the SIT handoff" >&2
+    exit 1
+  fi
+  rg -q '^install ' "${FAKE_HELM_LOG}"
+  if rg -q '^(upgrade|uninstall) ' "${FAKE_HELM_LOG}" || [ -e "${FAKE_HELM_UNINSTALL_ATTEMPT}" ]; then
+    echo "❌ same-name ownership race reached upgrade or uninstall" >&2
+    exit 1
+  fi
+  if [ -s "${FAKE_KUBECTL_LOG}" ]; then
+    echo "❌ failed collision unexpectedly reached kubectl" >&2
+    exit 1
+  fi
+  rg -qx 'failed-owner-mismatch' "${tmp}/race-evidence/cleanup.status"
+  run_id="$(jq -r '.runId' "${tmp}/race-evidence/inputs.json")"
+  ownership_label_key="$(jq -r '.ownershipLabel.key' "${tmp}/race-evidence/inputs.json")"
+  jq -e --slurpfile claim "${tmp}/race-evidence/ownership.claim" '
+    .runId == $claim[0].runId
+    and .ownershipLabel == $claim[0].ownershipLabel
+    and .landscape == "pichu"
+  ' "${tmp}/race-evidence/inputs.json" >/dev/null
+  jq -e '.metricsServer.enabled == true' "${tmp}/race-evidence/preflight-values.json" >/dev/null
+  yq eval-all -o=json '.' "${tmp}/race-evidence/preflight-render.yaml" | jq -se --arg key "${ownership_label_key}" --arg runId "${run_id}" '
+    map(select(type == "object" and .kind == "Deployment" and .metadata.name == "xenon-metrics"))
+    | length == 1
+      and .[0].metadata.labels[$key] == $runId
+      and .[0].spec.template.metadata.labels[$key] == $runId
+  ' >/dev/null
+  rg -F -q -- "--labels ${ownership_label_key}=${run_id}" "${FAKE_HELM_LOG}"
+  rg -F -q -- "--selector ${ownership_label_key}=${run_id}" "${FAKE_HELM_LOG}"
   ;;
 toggle-map)
   bash ./scripts/validate/check-xenon-toggle-map.sh

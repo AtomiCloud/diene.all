@@ -135,13 +135,18 @@ The non-live unit/static tier includes:
 - git and OCI packaging dry-runs and version/tag mismatch rejection.
 
 The integration tier is reserved. `scripts/validate/xenon-sit.sh` requires an
-enabled cloud/on-prem context plus explicit namespace, release, and **absolute,
-empty** evidence directory. It refuses an existing release, installs with Helm
-`--atomic --cleanup-on-fail`, captures separate complete stdout/stderr files for
-install, rollout, status, both `kubectl top` calls, and cleanup, validates deployed
-status and data rows, and retains whole-run `sit.stdout`/`sit.stderr` transcripts.
-It then uses an ownership-claim-gated EXIT trap to uninstall. Cleanup failure is
-recorded and makes the run fail. The script must not run on lapras/k3d.
+enabled cloud/on-prem context plus explicit namespace, release, **authoritative
+ON-matrix values file**, and **absolute, empty** evidence directory. Before any
+cluster mutation it resolves and renders that stack with
+`metricsServer.enabled=true`. It refuses an existing release, generates a unique
+run ID, attaches it to Helm release metadata and rendered workload metadata, and
+uses non-upgrading `helm install --atomic` semantics. Separate complete
+stdout/stderr files cover install, rollout, status, both `kubectl top` calls, and
+cleanup; deployed status, data rows, and whole-run `sit.stdout`/`sit.stderr`
+transcripts are retained. The EXIT trap uninstalls only after a live Helm label
+selector proves the same run ID from the scope-bound ownership claim. A
+same-name owner mismatch is recorded as failure and left untouched. The script
+must not run on lapras/k3d.
 
 ## Publishing and tokenization
 
