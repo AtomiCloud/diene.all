@@ -10,8 +10,8 @@ devHost:
 registeredCertificates:
   enabled: false
 
+healthBackend:
+  enabled: false
+
 gateway:
   provider: digitalocean
-  proxy:
-    selector:
-      app.kubernetes.io/name: kgateway

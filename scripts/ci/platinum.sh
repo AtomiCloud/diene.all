@@ -10,6 +10,7 @@ bash ./scripts/validate/platinum.sh labels
 bash ./scripts/validate/platinum.sh reloader
 bash ./scripts/validate/platinum.sh fullname
 bash ./scripts/validate/platinum.sh gateway-class
+bash ./scripts/validate/platinum.sh gateway-proxy
 bash ./scripts/validate/platinum.sh gateway-health
 bash ./scripts/validate/platinum.sh registered-cert
 bash ./scripts/validate/platinum.sh entei-overlay

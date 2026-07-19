@@ -6,8 +6,4 @@ serviceTree:
 registeredCertificates:
   enabled: false
 
-# Local proxy label selecting the kgateway gateway-proxy pods on lapras.
-gateway:
-  proxy:
-    selector:
-      app.kubernetes.io/name: kgateway
+# The base selector and 80/443 target ports bind to the generated v2.2.9 proxy.

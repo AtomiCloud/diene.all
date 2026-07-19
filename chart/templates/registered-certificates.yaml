@@ -1,5 +1,11 @@
 {{- if and .Values.registeredCertificates.enabled (not .Values.devHost.enabled) -}}
 {{- include "diene-helm-wrapper.validateServiceTree" . -}}
+{{- if not (has .Values.registeredCertificates.primary.domain .Values.registeredCertificates.primary.dnsNames) -}}
+{{- fail "registeredCertificates.primary.dnsNames must include the selected wildcard domain" -}}
+{{- end -}}
+{{- if not (has .Values.registeredCertificates.backup.domain .Values.registeredCertificates.backup.dnsNames) -}}
+{{- fail "registeredCertificates.backup.dnsNames must include the selected wildcard domain" -}}
+{{- end -}}
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:

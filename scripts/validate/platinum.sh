@@ -19,6 +19,10 @@ schema)
   helm lint chart --namespace "${namespace}" >/dev/null
   helm lint chart --namespace "${namespace}" --values chart/values.example.yaml >/dev/null
   helm lint chart --namespace "${namespace}" --values chart/values.example.yaml --values chart/values.lapras.yaml >/dev/null
+  helm lint chart --namespace "${namespace}" --values chart/values.example.yaml --values chart/values.aws.yaml >/dev/null
+  helm lint chart --namespace "${namespace}" --values chart/values.example.yaml --values chart/values.oci.yaml >/dev/null
+  helm lint chart --namespace "${namespace}" --values chart/values.example.yaml --values chart/values.digitalocean.yaml >/dev/null
+  helm lint chart --namespace "${namespace}" --values chart/values.entei.yaml >/dev/null
   ;;
 schema-drift)
   bash ./scripts/local/generate-chart-schema.sh "${tmp}/values.schema.json" >/dev/null
@@ -28,10 +32,17 @@ lint)
   helm lint chart --namespace "${namespace}"
   helm lint chart --namespace "${namespace}" --values chart/values.example.yaml
   helm lint chart --namespace "${namespace}" --values chart/values.example.yaml --values chart/values.lapras.yaml
+  helm lint chart --namespace "${namespace}" --values chart/values.example.yaml --values chart/values.aws.yaml
+  helm lint chart --namespace "${namespace}" --values chart/values.example.yaml --values chart/values.oci.yaml
+  helm lint chart --namespace "${namespace}" --values chart/values.example.yaml --values chart/values.digitalocean.yaml
+  helm lint chart --namespace "${namespace}" --values chart/values.entei.yaml
   ;;
 render)
   render --values chart/values.example.yaml >/dev/null
   render --values chart/values.example.yaml --values chart/values.lapras.yaml >/dev/null
+  render --values chart/values.example.yaml --values chart/values.aws.yaml >/dev/null
+  render --values chart/values.example.yaml --values chart/values.oci.yaml >/dev/null
+  render --values chart/values.example.yaml --values chart/values.digitalocean.yaml >/dev/null
   render --values chart/values.entei.yaml >/dev/null
   ;;
 labels)
@@ -55,35 +66,101 @@ fullname)
   ;;
 gateway-class)
   render --values chart/values.example.yaml >"${tmp}/gc.yaml"
-  yq eval-all -o=json '.' "${tmp}/gc.yaml" | jq -s -e 'map(select(.kind == "GatewayClass"))[0] | .metadata.name == "platinum" and .spec.controllerName == "gateway.kgateway.dev/kgateway"' >/dev/null
-  yq eval-all -o=json '.' "${tmp}/gc.yaml" | jq -s -e 'map(select(.kind == "Gateway"))[0] | .metadata.name == "platinum-gateway" and .spec.gatewayClassName == "platinum" and (.spec.listeners | length) == 1 and .spec.listeners[0].port == 80' >/dev/null
+  yq eval-all -o=json '.' "${tmp}/gc.yaml" | jq -s -e 'map(select(.kind == "GatewayClass"))[0] | .metadata.name == "platinum" and .spec.controllerName == "kgateway.dev/kgateway"' >/dev/null
+  yq eval-all -o=json '.' "${tmp}/gc.yaml" | jq -s -e 'map(select(.kind == "Gateway"))[0] | .metadata.name == "platinum-gateway" and .spec.gatewayClassName == "platinum" and ([.spec.listeners[].protocol] | sort) == ["HTTP", "HTTPS", "HTTPS"]' >/dev/null
+  if render --values chart/values.example.yaml --set-string gateway.controllerName=example.invalid/controller >"${tmp}/wrong-controller.yaml"; then
+    echo "❌ non-kgateway controller binding passed schema/render validation" >&2
+    exit 1
+  fi
+  ;;
+gateway-proxy)
+  render --values chart/values.example.yaml --values chart/values.lapras.yaml --set upstream.enabled=true >"${tmp}/enabled.yaml"
+  yq -e '.dependencies[] | select(.name == "kgateway") | .version == "v2.2.9"' chart/Chart.lock >/dev/null
+  yq eval-all -o=json '.' "${tmp}/enabled.yaml" | jq -s -e 'map(select(.kind == "Deployment" and .metadata.name == "platinum-upstream")) | length == 1' >/dev/null
+  yq eval-all -o=json '.' "${tmp}/enabled.yaml" | jq -s -e 'map(select(.kind == "Service" and .metadata.name == "platinum-edge"))[0]' >"${tmp}/edge.json"
+  yq eval-all -o=json '.' tests/fixtures/kgateway-v2.2.9-proxy-render.yaml | jq -s -e 'map(select(.kind == "Service"))[0]' >"${tmp}/proxy-service.json"
+  yq eval-all -o=json '.' tests/fixtures/kgateway-v2.2.9-proxy-render.yaml | jq -s -e 'map(select(.kind == "Deployment"))[0]' >"${tmp}/proxy-deployment.json"
+  jq -e --slurpfile proxyService "${tmp}/proxy-service.json" --slurpfile proxyDeployment "${tmp}/proxy-deployment.json" '
+    .spec.selector == $proxyService[0].spec.selector and
+    ([.spec.ports[].targetPort] | sort) == ([$proxyService[0].spec.ports[].targetPort] | sort) and
+    ([.spec.ports[].targetPort] - [$proxyDeployment[0].spec.template.spec.containers[0].ports[].containerPort] | length) == 0
+  ' "${tmp}/edge.json" >/dev/null
+  if render --values chart/values.example.yaml --set gateway.proxy.selector=null >"${tmp}/missing-selector.yaml"; then
+    echo "❌ missing generated-proxy selector rendered successfully" >&2
+    exit 1
+  fi
+  if render --values chart/values.example.yaml --set gateway.proxy.httpTargetPort=8080 >"${tmp}/wrong-port.yaml"; then
+    echo "❌ mismatched generated-proxy targetPort rendered successfully" >&2
+    exit 1
+  fi
   ;;
 gateway-health)
   render --values chart/values.example.yaml >"${tmp}/health.yaml"
-  yq eval-all -o=json '.' "${tmp}/health.yaml" | jq -s -e 'map(select(.kind == "HTTPRoute"))[0] as $r | $r.metadata.name == "platinum-health" and $r.spec.parentRefs[0].name == "platinum-gateway" and $r.spec.rules[0].matches[0].path.value == "/healthz" and $r.spec.rules[0].backendRefs[0].name == "platinum-api"' >/dev/null
+  yq eval-all -o=json '.' "${tmp}/health.yaml" | jq -s -e 'map(select(.kind == "HTTPRoute"))[0] as $r | $r.metadata.name == "platinum-health" and $r.spec.parentRefs[0].name == "platinum-gateway" and $r.spec.rules[0].matches[0].path.type == "Exact" and $r.spec.rules[0].matches[0].path.value == "/healthz" and $r.spec.rules[0].backendRefs[0].name == "platinum-api" and $r.spec.rules[0].backendRefs[0].port == 9898' >/dev/null
+  yq eval-all 'select(.kind != "HTTPRoute")' "${tmp}/health.yaml" >"${tmp}/missing-health-route.yaml"
+  if yq eval-all -o=json '.' "${tmp}/missing-health-route.yaml" | jq -s -e 'map(select(.kind == "HTTPRoute")) | length == 1' >/dev/null; then
+    echo "❌ missing health HTTPRoute passed the route contract" >&2
+    exit 1
+  fi
+  yq eval-all 'select(.kind == "HTTPRoute") | .spec.rules[0].backendRefs[0].port = 8080' "${tmp}/health.yaml" >"${tmp}/broken-health.yaml"
+  if yq eval-all -o=json '.' "${tmp}/broken-health.yaml" | jq -s -e 'map(select(.kind == "HTTPRoute"))[0] | .spec.rules[0].matches[0].path.type == "Exact" and .spec.rules[0].matches[0].path.value == "/healthz" and .spec.rules[0].backendRefs[0].name == "platinum-api" and .spec.rules[0].backendRefs[0].port == 9898' >/dev/null; then
+    echo "❌ corrupted health backend route passed the fixed contract" >&2
+    exit 1
+  fi
   ;;
 registered-cert)
   render --values chart/values.example.yaml >"${tmp}/certs.yaml"
-  yq eval-all -o=json '.' "${tmp}/certs.yaml" | jq -s -e 'map(select(.kind == "Certificate")) | length == 2 and all(.[]; .spec.issuerRef.kind == "ClusterIssuer" and .spec.issuerRef.name == "zinc-wildcard-letsencrypt" and (.spec.commonName | startswith("*.")))' >/dev/null
+  yq eval-all -o=json '.' "${tmp}/certs.yaml" | jq -s -e '
+    (map(select(.kind == "Certificate"))) as $certs |
+    (map(select(.kind == "Gateway"))[0]) as $gateway |
+    ($certs | map({key: .spec.commonName, value: .spec.secretName}) | from_entries) as $secrets |
+    ($certs | length) == 2 and
+    all($certs[]; . as $cert | $cert.spec.issuerRef.kind == "ClusterIssuer" and $cert.spec.issuerRef.name == "zinc-wildcard-letsencrypt" and ($cert.spec.commonName | startswith("*.")) and ($cert.spec.dnsNames | index($cert.spec.commonName) != null)) and
+    ([$gateway.spec.listeners[] | select(.protocol == "HTTPS")] | length) == 2 and
+    all($gateway.spec.listeners[] | select(.protocol == "HTTPS"); .tls.mode == "Terminate" and (.tls.certificateRefs | length) == 1 and .tls.certificateRefs[0].kind == "Secret" and .tls.certificateRefs[0].name == $secrets[.hostname])
+  ' >/dev/null
+  if render --values chart/values.example.yaml --set-json 'registeredCertificates.primary.dnsNames=["atomi.cloud"]' >"${tmp}/missing-san.yaml"; then
+    echo "❌ wildcard Certificate without its wildcard SAN rendered successfully" >&2
+    exit 1
+  fi
+  yq eval-all 'select(.kind == "Gateway") | (.spec.listeners[] | select(.name == "https-primary").tls.certificateRefs[0].name) = "wrong-secret"' "${tmp}/certs.yaml" >"${tmp}/broken-ref.yaml"
+  if yq eval-all -o=json '.' "${tmp}/broken-ref.yaml" | jq -s -e '
+    (map(select(.kind == "Certificate")) | map(.spec.secretName)) as $secrets |
+    all(map(select(.kind == "Gateway"))[0].spec.listeners[] | select(.protocol == "HTTPS"); . as $listener | $listener.tls.mode == "Terminate" and ($secrets | index($listener.tls.certificateRefs[0].name) != null))
+  ' >/dev/null; then
+    echo "❌ broken HTTPS Certificate Secret reference passed the TLS contract" >&2
+    exit 1
+  fi
   ;;
 entei-overlay)
   render --values chart/values.entei.yaml >"${tmp}/entei.yaml"
-  # dev-host renders the shared GatewayClass, Gateway, and LoadBalancer only.
-  yq eval-all -o=json '.' "${tmp}/entei.yaml" | jq -s -e 'map(select(.kind == "GatewayClass")) | length == 1 and all(.[]; .metadata.name == "platinum")' >/dev/null
-  yq eval-all -o=json '.' "${tmp}/entei.yaml" | jq -s -e 'map(select(.kind == "Gateway")) | length == 1' >/dev/null
-  yq eval-all -o=json '.' "${tmp}/entei.yaml" | jq -s -e 'map(select(.kind == "Service" and .spec.type == "LoadBalancer")) | length == 1' >/dev/null
-  # No per-host Certificate, ListenerSet, or HTTPRoute is owned by this chart in dev-host mode.
-  ! rg -n 'kind: (ListenerSet|HTTPRoute)' "${tmp}/entei.yaml"
-  yq eval-all -o=json '.' "${tmp}/entei.yaml" | jq -s -e 'map(select(.kind == "Certificate")) | length == 0' >/dev/null
+  yq eval-all -o=json '.' "${tmp}/entei.yaml" | jq -s -e '
+    map(select(.kind != null) | {apiVersion, kind, name: .metadata.name}) | sort_by(.kind, .name) ==
+    ([
+      {apiVersion: "gateway.networking.k8s.io/v1", kind: "Gateway", name: "platinum-gateway"},
+      {apiVersion: "gateway.networking.k8s.io/v1", kind: "GatewayClass", name: "platinum"},
+      {apiVersion: "v1", kind: "Service", name: "platinum-edge"}
+    ] | sort_by(.kind, .name))
+  ' >/dev/null
   ;;
 lb)
-  render --values chart/values.example.yaml --set gateway.provider=digitalocean >"${tmp}/do.yaml"
-  render --values chart/values.example.yaml --set gateway.provider=oci --set-string gateway.oci.reservedPublicIp=203.0.113.10 >"${tmp}/oci.yaml"
-  render --values chart/values.example.yaml --set gateway.provider=aws --set-string 'gateway.aws.subnetIds[0]=subnet-a' --set-string 'gateway.aws.subnetIds[1]=subnet-b' --set-string 'gateway.aws.eipAllocationIds[0]=eipalloc-a' --set-string 'gateway.aws.eipAllocationIds[1]=eipalloc-b' >"${tmp}/aws.yaml"
-  yq eval-all -o=json '.' "${tmp}/do.yaml" | jq -s -e 'map(select(.kind == "Service" and .metadata.name == "platinum-edge"))[0] | .spec.type == "LoadBalancer" and .metadata.annotations["service.beta.kubernetes.io/aws-load-balancer-eip-allocations"] == null and .metadata.annotations["oci.oraclecloud.com/reserved-ips"] == null' >/dev/null
-  yq eval-all -o=json '.' "${tmp}/oci.yaml" | jq -s -e 'map(select(.kind == "Service" and .metadata.name == "platinum-edge"))[0].metadata.annotations["oci.oraclecloud.com/reserved-ips"] == "203.0.113.10"' >/dev/null
-  yq eval-all -o=json '.' "${tmp}/aws.yaml" | jq -s -e 'map(select(.kind == "Service" and .metadata.name == "platinum-edge"))[0] | .metadata.annotations["service.beta.kubernetes.io/aws-load-balancer-subnets"] == "subnet-a,subnet-b" and .metadata.annotations["service.beta.kubernetes.io/aws-load-balancer-eip-allocations"] == "eipalloc-a,eipalloc-b"' >/dev/null
+  render --values chart/values.example.yaml --values chart/values.digitalocean.yaml >"${tmp}/do.yaml"
+  render --values chart/values.example.yaml --values chart/values.oci.yaml >"${tmp}/oci.yaml"
+  render --values chart/values.example.yaml --values chart/values.aws.yaml >"${tmp}/aws.yaml"
+  yq eval-all -o=json '.' "${tmp}/do.yaml" | jq -s -e 'map(select(.kind == "Service" and .metadata.name == "platinum-edge"))[0] | .spec.type == "LoadBalancer" and (.spec.selector | length) == 3 and ([.spec.ports[].targetPort] | sort) == [80, 443] and .metadata.annotations["service.beta.kubernetes.io/aws-load-balancer-eip-allocations"] == null and .metadata.annotations["oci.oraclecloud.com/reserved-ips"] == null' >/dev/null
+  yq eval-all -o=json '.' "${tmp}/oci.yaml" | jq -s -e 'map(select(.kind == "Service" and .metadata.name == "platinum-edge"))[0] | .metadata.annotations["oci.oraclecloud.com/reserved-ips"] != null and (.metadata.annotations["oci.oraclecloud.com/reserved-ips"] | length) > 0' >/dev/null
+  yq eval-all -o=json '.' "${tmp}/aws.yaml" | jq -s -e 'map(select(.kind == "Service" and .metadata.name == "platinum-edge"))[0] | (.metadata.annotations["service.beta.kubernetes.io/aws-load-balancer-subnets"] | split(",") | length) > 0 and (.metadata.annotations["service.beta.kubernetes.io/aws-load-balancer-eip-allocations"] | split(",") | length) == (.metadata.annotations["service.beta.kubernetes.io/aws-load-balancer-subnets"] | split(",") | length)' >/dev/null
   ! rg -n 'nodePort:|hostPort:' "${tmp}/do.yaml" "${tmp}/oci.yaml" "${tmp}/aws.yaml"
+  yq eval-all 'select(.kind == "Service" and .metadata.name == "platinum-edge") | del(.metadata.annotations."service.beta.kubernetes.io/aws-load-balancer-eip-allocations")' "${tmp}/aws.yaml" >"${tmp}/aws-missing.yaml"
+  if yq eval-all -o=json '.' "${tmp}/aws-missing.yaml" | jq -s -e 'map(select(.kind == "Service" and .metadata.name == "platinum-edge"))[0].metadata.annotations["service.beta.kubernetes.io/aws-load-balancer-eip-allocations"] != null' >/dev/null; then
+    echo "❌ AWS overlay without its EIP annotation passed provider conformance" >&2
+    exit 1
+  fi
+  yq eval-all 'select(.kind == "Service" and .metadata.name == "platinum-edge") | del(.metadata.annotations."oci.oraclecloud.com/reserved-ips")' "${tmp}/oci.yaml" >"${tmp}/oci-missing.yaml"
+  if yq eval-all -o=json '.' "${tmp}/oci-missing.yaml" | jq -s -e 'map(select(.kind == "Service" and .metadata.name == "platinum-edge"))[0].metadata.annotations["oci.oraclecloud.com/reserved-ips"] != null' >/dev/null; then
+    echo "❌ OCI overlay without its reserved-IP annotation passed provider conformance" >&2
+    exit 1
+  fi
   ;;
 task-surface)
   task --list-all | rg -q 'example:lapras:debug'
@@ -132,6 +209,10 @@ presence)
   test -s chart/templates/gateway-health-route.yaml
   test -s chart/templates/health-backend.yaml
   test -s chart/templates/registered-certificates.yaml
+  test -s chart/values.aws.yaml
+  test -s chart/values.oci.yaml
+  test -s chart/values.digitalocean.yaml
+  test -s tests/fixtures/kgateway-v2.2.9-proxy-render.yaml
   test -s policies/vap/workload-baseline.yaml
   test -s policies/vap/service-baseline.yaml
   ;;
