@@ -18,10 +18,6 @@ See [docs/standards/ci-cd/index.md](docs/standards/ci-cd/index.md).
 
 See [docs/standards/conventional-commits/index.md](docs/standards/conventional-commits/index.md).
 
-## Docker build and publishing
-
-See [docs/standards/docker/index.md](docs/standards/docker/index.md).
-
 ## Infisical and secrets
 
 See [docs/standards/infisical/index.md](docs/standards/infisical/index.md).
@@ -82,7 +78,7 @@ reserved for the separately owned C0 contracts standard.
 ## .NET base template
 
 Read [the .NET baseline](docs/developer/dotnet-baseline.md) and use `pls` for
-setup, build, run, test, coverage, dead-code review, and Docker tasks.
+setup, build, run, test, coverage, and dead-code review.
 
 Language variants:
 
