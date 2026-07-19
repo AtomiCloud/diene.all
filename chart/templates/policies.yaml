@@ -1,0 +1,42 @@
+{{/* One ValidatingAdmissionPolicy + one ValidatingAdmissionPolicyBinding per enabled rule.
+     CEL expressions and resourceRules live as library helpers in _helpers.tpl; values
+     carries only per-policy enable + validationActions plus the rendered admission params. */}}
+{{- $root := . -}}
+{{- range $name, $cfg := .Values.policies }}
+{{- if $cfg.enabled }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: {{ include "vanadium.policyName" (dict "root" $root "name" $name) }}
+  labels:
+{{ include "vanadium.labels" $root | nindent 4 }}
+  annotations:
+{{ include "vanadium.annotations" $root | nindent 4 }}
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+{{ include (printf "vanadium.match.%s" $name) $root | nindent 6 }}
+  validations:
+    - expression: |-
+{{ include (printf "vanadium.cel.%s" $name) $root | nindent 8 }}
+      message: {{ include (printf "vanadium.message.%s" $name) $root }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: {{ include "vanadium.policyName" (dict "root" $root "name" $name) }}
+  labels:
+{{ include "vanadium.labels" $root | nindent 4 }}
+  annotations:
+{{ include "vanadium.annotations" $root | nindent 4 }}
+spec:
+  policyName: {{ include "vanadium.policyName" (dict "root" $root "name" $name) }}
+  validationActions:
+{{ $cfg.actions | toYaml | nindent 4 }}
+  matchResources:
+    namespaceSelector:
+{{ include "vanadium.exemptionSelector" $root | nindent 6 }}
+{{- end }}
+{{- end }}

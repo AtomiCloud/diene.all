@@ -1,0 +1,17 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: under-resourced
+spec:
+  template:
+    metadata:
+      labels:
+        app: demo
+    spec:
+      containers:
+        - name: app
+          image: demo:1.0.0
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi

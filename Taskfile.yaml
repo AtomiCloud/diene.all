@@ -46,19 +46,19 @@ tasks:
       - ./scripts/local/latest-chart-upstreams.sh
 
   test:
-    desc: Run the Helm wrapper unit/static tier
+    desc: Run the vanadium unit/static tier
     cmds:
-      - ./scripts/ci/helm-wrapper.sh
+      - ./scripts/ci/vanadium.sh
 
   test:unit:
-    desc: Run schema, lint, render, policy, and contract validation
+    desc: Run schema, lint, render, label, exemption, audit/enforce, and per-rule CEL conformance
     cmds:
-      - ./scripts/ci/helm-wrapper.sh
+      - ./scripts/ci/vanadium.sh
 
   test:int:
-    desc: Run the local k3d installation proof
+    desc: Run the local k3d admission-policy proof (reserved for the live window)
     cmds:
-      - ./scripts/validate/helm-wrapper-k3d.sh
+      - ./scripts/validate/vanadium-k3d.sh
 
   start:cluster:
     desc: Start the local k3d lapras proof cluster

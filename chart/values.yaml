@@ -3,226 +3,76 @@
 labelPrefix: atomi.cloud
 
 # @schema pattern:^[a-z0-9]+-[a-z0-9]+$;required:true
-# -- Primary workload fullname. It must be `<service>-<dashless-token>`.
-fullnameOverride: wrapper-api
+# -- Chart release fullname. Admission objects are cluster-scoped; the value still
+# follows the one-dash `<service>-<token>` convention used family-wide.
+fullnameOverride: vanadium-admission
 
-# -- Stable four-slot service-tree projection. Landscape and cluster are added by independent overlays.
+# -- Stable four-slot service-tree projection. Landscape and cluster are added by
+# independent overlays. Vanadium is fleet admission infrastructure, not a workload.
 serviceTree:
   # @schema pattern:^[a-z0-9]+$;required:true
-  platform: sample
+  platform: fleet
   # @schema pattern:^[a-z0-9]+$;required:true
-  service: wrapper
+  service: vanadium
   # @schema pattern:^[a-z0-9]+$;required:true
-  module: api
+  module: admission
   # @schema pattern:^[0-9]+$;required:true
-  layer: '2'
+  layer: '0'
 
-# -- Optional physical-instance metadata. The instance remains outside LPSM.
-instance:
-  physicalId: example-repository:run-001
+# -- Cluster admission context rendered into the value-checking CEL expressions.
+# The installed policy set carries no runtime params (paramKind), so the generic
+# rendered-manifest validation stage (helm-wrapper Q-G20) can evaluate it offline.
+params:
+  # @schema pattern:^[a-z0-9-]+$;required:true
+  # -- This cluster's landscape; the landscape-match rule renders it into CEL.
+  landscape: example
+  # @schema item:string;pattern:^[a-z0-9]+$;minItems:1;uniqueItems:true
+  # -- Platforms permitted to deploy into the fleet.
+  acceptedPlatforms: [nitroso, sample]
+  # @schema item:string;pattern:^[0-9]+$;minItems:1;uniqueItems:true
+  # -- Architecture layers allowed by the layer-range rule (0 infrastructure, 1 service, 2 app).
+  acceptedLayers: ['0', '1', '2']
 
-# -- Wrapper-owned sample workload.
-workload:
-  replicas: 1 # @schema minimum:1
-  image:
-    repository: ghcr.io/stefanprodan/podinfo
-    tag: 6.9.2 # @schema pattern:^[A-Za-z0-9][A-Za-z0-9._-]*$
-    pullPolicy: IfNotPresent # @schema enum:[Always, IfNotPresent, Never]
-  port: 9898 # @schema minimum:1;maximum:65535
-  reloader:
+# -- Namespace-label exemption convention. A namespace labeled
+# `<prefix>/<labelKey>: "true"` is skipped by every binding.
+exemption:
+  # @schema pattern:^[a-z0-9-]+$
+  labelKey: policy-exempt
+
+# -- Per-rule enable + validationActions. The default fleet posture is the
+# pre-enforcement audit pair `[Warn, Audit]`; an enforcement landscape overlay
+# flips one or more rules to `[Deny]`.
+policies:
+  requireLabels:
     enabled: true
-  podSecurityContext:
-    runAsNonRoot: true
-    runAsUser: 10000
-    runAsGroup: 10000
-    fsGroup: 10000
-  securityContext:
-    allowPrivilegeEscalation: false
-    readOnlyRootFilesystem: true
-    runAsNonRoot: true
-    runAsUser: 10000
-    runAsGroup: 10000
-    capabilities:
-      drop: [ALL]
-  resources:
-    requests:
-      cpu: 10m
-      memory: 32Mi
-    limits:
-      cpu: 100m
-      memory: 128Mi
-
-# -- Separate pre-sync migration hook. It never owns or recreates the Deployment.
-migration:
-  enabled: true
-  image:
-    repository: busybox
-    tag: 1.37.0-glibc # @schema pattern:^[A-Za-z0-9][A-Za-z0-9._-]*$
-    pullPolicy: IfNotPresent # @schema enum:[Always, IfNotPresent, Never]
-  command: ['sh', '-c', 'echo migration-ready']
-  reloader:
+    actions: [Warn, Audit]
+  requireAnnotations:
     enabled: true
-  resources:
-    requests:
-      cpu: 5m
-      memory: 8Mi
-    limits:
-      cpu: 25m
-      memory: 32Mi
-
-# -- One service-scoped ExternalSecret with folder-prefix rewrites.
-secret:
-  enabled: true
-  refreshInterval: 1h
-  store:
-    kind: SecretStore # @schema enum:[SecretStore, ClusterSecretStore]
-    name: sample-store
-  sharedFolder: /shared
-  serviceFolder: /wrapper
-
-# -- Provider-managed LoadBalancer service for the gateway.
-gateway:
-  enabled: true
-  provider: digitalocean # @schema enum:[aws, oci, digitalocean]
-  port: 80 # @schema minimum:1;maximum:65535
-  aws:
-    subnetIds: [] # @schema item:string;uniqueItems:true
-    eipAllocationIds: [] # @schema item:string;uniqueItems:true
-  oci:
-    reservedPublicIp: ''
-
-# -- Current health and webhook delivery conventions.
-contracts:
-  health:
-    path: /healthz # @schema pattern:^/.*
-    expectedStatus: 2xx
-  webhook:
-    provider: example # @schema pattern:^[a-z0-9-]+$
-    pathPrefix: /internal/webhooks # @schema pattern:^/.*
-  lpsm:
-    landscape: example # @schema pattern:^[a-z0-9-]+$
-    module: api # @schema pattern:^[a-z0-9-]+$
-    service: wrapper # @schema pattern:^[a-z0-9-]+$
-    instance: run001 # @schema pattern:^[a-z0-9-]+$
-    ordinaryZone: cluster.atomi.cloud
-    instanceZone: local.example.invalid
-    parseHostname: ''
-
-# -- Optional Gateway API route scaffold for a webhook receiver.
-webhookRoute:
-  enabled: true
-  parentGateway: sample-gateway
-  parentNamespace: gateway-system
-
-# -- Reusable primordial-chart CR helper inputs against the frozen T3 shapes.
-primordial:
-  enabled: true
-  apiVersions:
-    fleet: fleet.atomi.cloud/v1alpha1
-    identity: identity.atomi.cloud/v1alpha1
-    edge: edge.atomi.cloud/v1alpha1
-  targetLandscape: example
-  vlandscape: example-vlandscape
-  placement:
-    preferredHost: example-host
-  platformDependency:
-    modules:
-      database: # @schema mergeProperties:true
-        maindb:
-          type: neon
-          delivery: external
-          providerAccountRef: example-neon
-          credentialMode: standard
-          rotation: 'on'
-          cpu: 1
-          ram: 1Gi
-          storage: 10Gi
-          version: '16'
-          backup:
-            crossVendor: true
-          engine:
-            neon:
-              tier: example
-      kv: # @schema mergeProperties:true
-        sessions:
-          type: upstash
-          delivery: external
-          providerAccountRef: example-upstash
-          credentialMode: standard
-          rotation: 'on'
-          ram: 128Mi
-          engine:
-            upstash: {}
-      cache: # @schema mergeProperties:true
-        hot:
-          type: dragonfly
-          delivery: replicated
-          credentialMode: standard
-          rotation: 'on'
-          ram: 128Mi
-          engine:
-            dragonfly: {}
-      store: # @schema mergeProperties:true
-        assets:
-          type: tigris
-          delivery: external
-          providerAccountRef: example-tigris
-          credentialMode: standard
-          rotation: 'on'
-          engine:
-            tigris: {}
-  virtualLandscapeService:
+    actions: [Warn, Audit]
+  landscapeMatch:
     enabled: true
-    serve: true
-  logtoApp:
+    actions: [Warn, Audit]
+  layerRange:
     enabled: true
-    paths: [/auth/callback]
-    extraRedirectUris: [] # @schema item:string;uniqueItems:true
-    resourceRefs: [wrapper-api] # @schema item:string;uniqueItems:true
-  problem:
+    actions: [Warn, Audit]
+  platformAccepted:
     enabled: true
-    version: 0.1.0
-    entries:
-      - id: example
-        type: https://errors.example.invalid/example
-        title: Example problem
-        status: 500
-        recoverable: false
-        schema: {}
-        endpoints:
-          - method: GET
-            path: /
-  cloudflareDeploy:
+    actions: [Warn, Audit]
+  disallowLatest:
     enabled: true
-    scriptName: wrapper-web
-    tag: 0.1.0
-    pin: true
-
-# -- Pinned optional upstream chart. Every instantiated dependency must receive a conforming override.
-upstream:
-  enabled: false
-  fullnameOverride: wrapper-upstream # @schema pattern:^[a-z0-9]+-[a-z0-9]+$
-  image:
-    repository: ghcr.io/stefanprodan/podinfo
-    tag: 6.9.2
-  podAnnotations:
-    reloader.stakater.com/auto: 'true'
-  podSecurityContext:
-    runAsNonRoot: true
-    runAsUser: 10000
-    runAsGroup: 10000
-  securityContext:
-    allowPrivilegeEscalation: false
-    readOnlyRootFilesystem: true
-    runAsNonRoot: true
-    runAsUser: 10000
-    runAsGroup: 10000
-    capabilities:
-      drop: [ALL]
-  resources:
-    requests:
-      cpu: 10m
-      memory: 32Mi
-    limits:
-      cpu: 100m
-      memory: 128Mi
+    actions: [Warn, Audit]
+  requireResources:
+    enabled: true
+    actions: [Warn, Audit]
+  disallowNodePort:
+    enabled: true
+    actions: [Warn, Audit]
+  requireNonRoot:
+    enabled: true
+    actions: [Warn, Audit]
+  disallowPrivEscalation:
+    enabled: true
+    actions: [Warn, Audit]
+  restrictVolumeTypes:
+    enabled: true
+    actions: [Warn, Audit]

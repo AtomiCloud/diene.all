@@ -1,13 +1,4 @@
-# Independent local-cluster overlay. It contains no landscape decision.
+# Independent local-cluster overlay. It carries only cluster identity; the
+# landscape decision lives in the landscape overlay and is not duplicated here.
 serviceTree:
   cluster: lapras
-
-# The local install proves the ordinary Kubernetes resources only; the CRDs are owned by later nodes.
-secret:
-  enabled: false
-
-webhookRoute:
-  enabled: false
-
-primordial:
-  enabled: false

@@ -1,18 +1,18 @@
-# ### helm-wrapper-reusable-ci
-# #### source: helm-wrapper
-name: ⚡ Reusable Helm Wrapper
+# ### vanadium-reusable-ci
+# #### source: vanadium
+name: ⚡ Reusable Vanadium
 
 on:
   workflow_call:
 
 jobs:
   validate:
-    name: Validate Helm Wrapper
+    name: Validate Vanadium Policies
     runs-on:
       - nscloud-ubuntu-22.04-amd64-4x8-with-cache
       - nscloud-cache-size-50gb
       - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
     steps:
       - uses: AtomiCloud/actions.setup-nix@v3
-      - name: Run wrapper validation
-        run: nix develop .#ci -c ./scripts/ci/helm-wrapper.sh
+      - name: Run vanadium validation
+        run: nix develop .#ci -c ./scripts/ci/vanadium.sh
