@@ -46,7 +46,9 @@ cleanup() {
 trap cleanup EXIT
 
 bash ./scripts/local/create-k3d-cluster.sh
-helm dependency build chart
+if [ ! -s chart/charts/external-secrets-2.7.0.tgz ]; then
+  helm dependency build chart
+fi
 helm upgrade --install "${release}" chart --namespace "${namespace}" --create-namespace \
   --values chart/values.example.yaml --values chart/values.lapras.yaml --wait --timeout 5m
 kubectl --context "k3d-${cluster_name}" --namespace "${namespace}" wait \
