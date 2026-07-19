@@ -25,6 +25,7 @@ bash ./scripts/validate/chlorine.sh schema-violation
 bash ./scripts/validate/chlorine.sh publish-git
 bash ./scripts/validate/chlorine.sh publish-oci
 bash ./scripts/validate/chlorine.sh version-mismatch
+bash ./scripts/validate/chlorine-k3d-contract.sh
 bash ./scripts/validate/gitlint-types.sh
 
 echo "✅ Chlorine unit/static pyramid complete"
