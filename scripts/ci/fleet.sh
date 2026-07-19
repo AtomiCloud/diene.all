@@ -6,16 +6,20 @@ set -euo pipefail
 # documented in docs/domain/fleet-repo.md.
 
 bash ./scripts/validate/fleet.sh lint
+bash ./scripts/validate/fleet.sh input-schema
 bash ./scripts/validate/fleet.sh schema-drift
 bash ./scripts/validate/fleet.sh render
+bash ./scripts/validate/fleet.sh row-identity
 bash ./scripts/validate/fleet.sh golden
 bash ./scripts/validate/fleet.sh canary-features
 bash ./scripts/validate/fleet.sh dag
 bash ./scripts/validate/fleet.sh delivery-mode
+bash ./scripts/validate/fleet.sh freight-alignment
 bash ./scripts/validate/fleet.sh kargo-values-preservation
 bash ./scripts/validate/fleet.sh row-values-persistence
 bash ./scripts/validate/fleet.sh registry-cr
 bash ./scripts/validate/fleet.sh rendered-cr
+bash ./scripts/validate/fleet.sh cloudflare-rollout-negative
 bash ./scripts/validate/fleet.sh webhookengine-version-negative
 bash ./scripts/validate/fleet.sh appset-scope
 bash ./scripts/validate/fleet.sh platforms-appset

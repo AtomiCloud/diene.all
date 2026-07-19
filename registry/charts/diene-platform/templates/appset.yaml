@@ -3,15 +3,25 @@
 {{- $fleet := .Values.fleet -}}
 {{- $prefix := include "diene-platform.labelPrefix" . -}}
 {{- $files := printf "platforms/%s/landscapes/*/*.yaml" $platform -}}
+{{- $serviceNames := list -}}
+{{- range $svc := .Values.services -}}
+{{- $serviceNames = append $serviceNames (required "each services[] entry needs a name" $svc.name) -}}
+{{- end -}}
+{{- $rosterCSV := join "," $serviceNames -}}
 {{/*
   ArgoCD ApplicationSet template placeholders below are Helm literal blocks
   (`{{`...`}}`) emitted verbatim for ArgoCD to evaluate at refresh time; the
-  Helm-substituted constants (platform, registry) are baked in beside them.
-  Every placeholder-bearing scalar is quoted so Helm's own YAML parse does not
-  read a leading `{{` as a flow mapping. path.segments index 3 is {l}; the
-  filename (minus .yaml) is {svc} — the official git-files matched-field
-  exposure. The row `values:` override is passed through as a JSON values
-  string (layered LAST by ArgoCD/Helm).
+  Helm-substituted constants (registry and the expected roster identity) are
+  baked in beside them. Every placeholder-bearing scalar is quoted so Helm's
+  own YAML parse does not read a leading `{{` as a flow mapping.
+
+  The row's explicit platform/service/landscape fields are the generator source
+  of truth. templatePatch rejects a row unless those fields match the containing
+  roster + release namespace, service roster, landscape path, and filename.
+  path.segments and path.filename are used only for that validation, never to
+  construct generated names, OCI paths, selectors, or destinations. The row
+  `values:` override is passed through as a JSON values string (layered LAST by
+  ArgoCD/Helm).
 */}}
 apiVersion: {{ .Values.apiVersions.applicationSet }}
 kind: ApplicationSet
@@ -33,14 +43,14 @@ spec:
           - path: {{ $files }}
         template:
           metadata:
-            name: '{{ $platform }}-{{`{{ index .path.segments 3 }}`}}-{{`{{ trimSuffix ".yaml" .path.filename }}`}}-primordial'
+            name: '{{`{{ .platform }}`}}-{{`{{ .landscape }}`}}-{{`{{ .service }}`}}-primordial'
           spec:
             project: {{ .Values.argocd.project }}
             destination:
               server: {{ .Values.primordial.server }}
-              namespace: {{ $platform }}
+              namespace: '{{`{{ .platform }}`}}'
             sources:
-              - repoURL: 'oci://{{ $registry }}/{{ $platform }}-{{`{{ trimSuffix ".yaml" .path.filename }}`}}-primordial'
+              - repoURL: 'oci://{{ $registry }}/{{`{{ .platform }}`}}-{{`{{ .service }}`}}-primordial'
                 targetRevision: '{{`{{ .pin.tag }}`}}'
                 helm:
                   values: '{{`{{ .values | default dict | toRawJson }}`}}'
@@ -57,31 +67,50 @@ spec:
           - clusters:
               selector:
                 matchLabels:
-                  {{ $prefix }}/landscape: '{{`{{ index .path.segments 3 }}`}}'
+                  {{ $prefix }}/landscape: '{{`{{ .landscape }}`}}'
         template:
           metadata:
-            name: '{{ $platform }}-{{`{{ index .path.segments 3 }}`}}-{{`{{ trimSuffix ".yaml" .path.filename }}`}}-{{`{{ .name }}`}}'
+            name: '{{`{{ .platform }}`}}-{{`{{ .landscape }}`}}-{{`{{ .service }}`}}-{{`{{ .name }}`}}'
           spec:
             project: {{ .Values.argocd.project }}
             destination:
               server: '{{`{{ .server }}`}}'
-              namespace: {{ $platform }}
+              namespace: '{{`{{ .platform }}`}}'
             sources:
-              - repoURL: 'oci://{{ $registry }}/{{ $platform }}-{{`{{ trimSuffix ".yaml" .path.filename }}`}}'
+              - repoURL: 'oci://{{ $registry }}/{{`{{ .platform }}`}}-{{`{{ .service }}`}}'
                 targetRevision: '{{`{{ .pin.tag }}`}}'
                 helm:
                   values: '{{`{{ .values | default dict | toRawJson }}`}}'
+  # Runtime guard for machine-written rows. A malformed row fails generation
+  # before either Application is rendered; explicit row fields remain the only
+  # identity values consumed downstream.
+  templatePatch: |
+    {{`{{- $pathLandscape := index .path.segments 3 -}}`}}
+    {{`{{- $filenameService := trimSuffix ".yaml" .path.filename -}}`}}
+    {{`{{- if ne .platform "`}}{{ $platform }}{{`" -}}`}}
+    {{`{{- fail (printf "row platform %q must equal containing roster and release namespace `}}{{ $platform }}{{`" .platform) -}}`}}
+    {{`{{- end -}}`}}
+    {{`{{- if not (has .service (splitList "," "`}}{{ $rosterCSV }}{{`")) -}}`}}
+    {{`{{- fail (printf "row service %q is absent from the containing services roster" .service) -}}`}}
+    {{`{{- end -}}`}}
+    {{`{{- if ne .service $filenameService -}}`}}
+    {{`{{- fail (printf "row service %q must equal filename service %q" .service $filenameService) -}}`}}
+    {{`{{- end -}}`}}
+    {{`{{- if ne .landscape $pathLandscape -}}`}}
+    {{`{{- fail (printf "row landscape %q must equal path landscape %q" .landscape $pathLandscape) -}}`}}
+    {{`{{- end -}}`}}
+    {}
   # Base template: the two generator-level templates above override per row.
   template:
     metadata:
-      name: {{ $platform }}-row
+      name: '{{`{{ .platform }}`}}-row'
       labels:
-        {{ $prefix }}/platform: {{ $platform | quote }}
+        {{ $prefix }}/platform: '{{`{{ .platform }}`}}'
     spec:
       project: {{ .Values.argocd.project }}
       destination:
         server: {{ .Values.primordial.server }}
-        namespace: {{ $platform }}
+        namespace: '{{`{{ .platform }}`}}'
       source:
         repoURL: {{ $fleet.repoURL }}
       syncPolicy:

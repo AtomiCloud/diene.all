@@ -63,7 +63,8 @@ infisical:
 sos:
   register: true
 
-# -- Declared landscape set (canary declares the FULL set).
+# -- Declared registered-fleet serving landscape set. The lapras Landscape is
+#    only a secrets-side anchor; its anonymous Garden clusters are not rows.
 landscapes: []
 
 # -- Pipeline DAG. Each entry is a step: a bare landscape name, an object
@@ -71,8 +72,9 @@ landscapes: []
 #    a list of either (a [parallel, set] step). Compiled 1:1 into Kargo Stages.
 stages: []
 
-# -- PlatformDependency modules by class (database/kv/cache/store). Each module
-#    carries type + explicit delivery: external|local|replicated.
+# -- Registered-fleet PlatformDependency modules by class
+#    (database/kv/cache/store). `delivery: local` is Garden-owned and rejected
+#    by this Primordial compiler.
 dependencies: {}
 
 # -- VirtualLandscapeService serve fragments (platform-level, canary exercises one).
@@ -86,8 +88,3 @@ cloudflareDeploy: []
 
 # -- Problem catalog fragments (RFC7807).
 problems: []
-
-# -- lapras profile toggle: when true, delivery: local modules render as direct
-#    single-cluster Applications; when false (prod) they are stripped.
-profile:
-  lapras: false

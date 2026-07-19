@@ -16,34 +16,34 @@ infisical:
 sos:
   register: true
 
-# FULL declared landscape set (canary declares every registered landscape; real
-# business workloads never run — sync is manual + human-gated).
+# Full registered-fleet SERVING landscape set. lapras remains a Landscape
+# secrets-side anchor, but WAL Q-L8(c)/Q-L9 forbid fleet rows, Kargo stages,
+# ClusterRegistration, or Primordial dependency CRs for its anonymous Garden
+# clusters.
 landscapes:
   - pichu
   - pikachu
   - raichu
   - amphoros
-  - lapras
 
-# Pipeline DAG across the FULL declared landscape set: a bare-landscape step,
-# another bare step, then a [parallel, set] step mixing a bare name with the
-# full object form (manual gate + soak + verification), then a trailing bare
-# step — every DAG shape the compiler understands, touching every landscape.
+# Pipeline DAG across the serving set: a bare first step, then a [parallel,set]
+# mixing a bare name with the full object form, then a rendezvous step. This
+# exercises every DAG shape without centrally materializing lapras.
 stages:
   - pichu
-  - pikachu
-  - - raichu
-    - landscape: amphoros
+  - - pikachu
+    - landscape: raichu
       gate: manual
       soak: 1h
       verification:
         analysisTemplates:
           - name: canary-smoke
-  - lapras
+  - amphoros
 
-# ≥1 PlatformDependency module per class family, plus local-delivery variants
-# (cnpg/minio) so every delivery rail renders: external (Primordial, off-rail),
-# replicated (g2 every-cluster), local (lapras-only; stripped from prod).
+# ≥1 registered-fleet PlatformDependency module per class family. External
+# modules reconcile from Primordial; replicated Dragonfly rides every eligible
+# landscape cluster. Local cnpg/minio declarations are intentionally absent:
+# Garden/local-operator owns that held path.
 dependencies:
   landscape: raichu
   placement:
@@ -64,17 +64,6 @@ dependencies:
       engine:
         neon:
           tier: free
-    localdb:
-      type: cnpg
-      delivery: local
-      credentialMode: standard
-      rotation: 'off'
-      cpu: 1
-      ram: 1Gi
-      storage: 10Gi
-      version: '16'
-      engine:
-        cnpg: {}
   kv:
     sessions:
       type: upstash
@@ -103,13 +92,6 @@ dependencies:
       rotation: 'on'
       engine:
         tigris: {}
-    localassets:
-      type: minio
-      delivery: local
-      credentialMode: standard
-      rotation: 'off'
-      engine:
-        minio: {}
 
 # VirtualLandscapeService fragment (mew envelope rendering).
 virtualLandscapeServices:

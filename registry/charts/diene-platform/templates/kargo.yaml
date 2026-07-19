@@ -11,6 +11,8 @@ metadata:
     {{- include "diene-platform.labels" . | nindent 4 }}
 {{- range $svc := .Values.services }}
 {{- $service := required "each services[] entry needs a name" $svc.name }}
+{{- $imageRepo := printf "%s/%s/%s" $registry $platform $service }}
+{{- $chartRepo := printf "oci://%s/%s-%s" $registry $platform $service }}
 ---
 apiVersion: {{ $kargoApi }}
 kind: Warehouse
@@ -20,16 +22,24 @@ metadata:
   labels:
     {{- include "diene-platform.labels" $ | nindent 4 }}
 spec:
-  # chart Version == image Tag is enforced by the tag-aligned subscription —
-  # the mercury-stable pin resolves as this ordinary image+chart pin too.
+  # Kargo >=1.8 evaluates this native criterion against discovered artifacts
+  # before creating Freight. Skewed image/chart revisions therefore never
+  # become promotable Freight; mercury uses this same ordinary service rail.
+  interval: 5m0s
+  freightCreationPolicy: Automatic
+  freightCreationCriteria:
+    expression: {{ printf "imageFrom('%s').Tag == chartFrom('%s').Version" $imageRepo $chartRepo | quote }}
   subscriptions:
     - image:
-        repoURL: {{ printf "%s/%s/%s" $registry $platform $service }}
-        semverConstraint: ">=0.0.0"
+        repoURL: {{ $imageRepo }}
+        imageSelectionStrategy: SemVer
+        constraint: ">=0.0.0"
+        strictSemvers: true
         discoveryLimit: 5
     - chart:
-        repoURL: {{ printf "oci://%s/%s-%s" $registry $platform $service }}
+        repoURL: {{ $chartRepo }}
         semverConstraint: ">=0.0.0"
+        discoveryLimit: 5
 {{- range $i, $step := $.Values.stages }}
 {{- $current := include "diene-platform.stepLandscapes" $step | fromJsonArray }}
 {{- range $ls := $current }}
@@ -86,7 +96,7 @@ spec:
             path: ./repo/platforms/{{ $platform }}/landscapes/{{ $ls.landscape }}/{{ $service }}.yaml
             updates:
               - key: pin.tag
-                value: ${{ printf "{{ imageFrom %q | .Tag }}" (printf "%s/%s/%s" $registry $platform $service) }}
+                value: ${{ printf "{{ imageFrom %q | .Tag }}" $imageRepo }}
         - uses: git-commit
           config:
             path: ./repo

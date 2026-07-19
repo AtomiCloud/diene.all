@@ -54,7 +54,8 @@ app.kubernetes.io/part-of: diene-fleet
 
 {{/* Classify a dependency module for delivery-mode rendering. Returns the
      rail: "replicated" (g2 every-cluster), "external" (Primordial, no rail),
-     or "local" (lapras profile only). */}}
+     or "local" (recognized so the compiler can reject this Garden-owned rail
+     before any Primordial object is rendered). */}}
 {{- define "diene-platform.deliveryRail" -}}
 {{- $delivery := required "dependency module requires an explicit delivery" .delivery -}}
 {{- if not (has $delivery (list "external" "local" "replicated")) -}}

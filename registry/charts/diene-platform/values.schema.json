@@ -1,161 +1,1204 @@
 {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "Diene Platform Compiler Values",
-    "description": "Generated schema for the diene-platform compiler chart (source A defaults + platform.yaml + services.yaml).",
-    "type": "object",
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "definitions": {
+        "analysisTemplate": {
+            "additionalProperties": false,
+            "properties": {
+                "name": {
+                    "$ref": "#/definitions/dnsLabel"
+                }
+            },
+            "required": [
+                "name"
+            ],
+            "type": "object"
+        },
+        "cloudflareDeploy": {
+            "additionalProperties": false,
+            "properties": {
+                "pin": {
+                    "type": "boolean"
+                },
+                "rollout": {
+                    "$ref": "#/definitions/rollout"
+                },
+                "scriptName": {
+                    "$ref": "#/definitions/dnsLabel"
+                },
+                "tag": {
+                    "$ref": "#/definitions/semver"
+                }
+            },
+            "required": [
+                "scriptName",
+                "tag",
+                "pin"
+            ],
+            "type": "object"
+        },
+        "coordinate": {
+            "additionalProperties": false,
+            "properties": {
+                "landscape": {
+                    "$ref": "#/definitions/registeredLandscape"
+                },
+                "module": {
+                    "$ref": "#/definitions/dnsLabel"
+                },
+                "platform": {
+                    "$ref": "#/definitions/dnsLabel"
+                },
+                "service": {
+                    "$ref": "#/definitions/dnsLabel"
+                }
+            },
+            "required": [
+                "platform",
+                "landscape",
+                "service",
+                "module"
+            ],
+            "type": "object"
+        },
+        "dependencies": {
+            "additionalProperties": false,
+            "anyOf": [
+                {
+                    "maxProperties": 0
+                },
+                {
+                    "anyOf": [
+                        {
+                            "required": [
+                                "database"
+                            ]
+                        },
+                        {
+                            "required": [
+                                "kv"
+                            ]
+                        },
+                        {
+                            "required": [
+                                "cache"
+                            ]
+                        },
+                        {
+                            "required": [
+                                "store"
+                            ]
+                        }
+                    ],
+                    "required": [
+                        "landscape",
+                        "placement"
+                    ]
+                }
+            ],
+            "properties": {
+                "cache": {
+                    "$ref": "#/definitions/moduleMap"
+                },
+                "database": {
+                    "$ref": "#/definitions/moduleMap"
+                },
+                "kv": {
+                    "$ref": "#/definitions/moduleMap"
+                },
+                "landscape": {
+                    "$ref": "#/definitions/registeredLandscape"
+                },
+                "placement": {
+                    "additionalProperties": false,
+                    "properties": {
+                        "preferredHost": {
+                            "$ref": "#/definitions/registeredLandscape"
+                        }
+                    },
+                    "required": [
+                        "preferredHost"
+                    ],
+                    "type": "object"
+                },
+                "store": {
+                    "$ref": "#/definitions/moduleMap"
+                }
+            },
+            "type": "object"
+        },
+        "dnsLabel": {
+            "maxLength": 63,
+            "minLength": 1,
+            "pattern": "^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?$",
+            "type": "string"
+        },
+        "duration": {
+            "pattern": "^[1-9][0-9]*(?:s|m|h|d)$",
+            "type": "string"
+        },
+        "emptyEngine": {
+            "additionalProperties": false,
+            "maxProperties": 0,
+            "type": "object"
+        },
+        "engine": {
+            "oneOf": [
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "neon": {
+                            "$ref": "#/definitions/neonOverrides"
+                        }
+                    },
+                    "required": [
+                        "neon"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "neon-fork": {
+                            "$ref": "#/definitions/forkOverrides"
+                        }
+                    },
+                    "required": [
+                        "neon-fork"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "upstash": {
+                            "$ref": "#/definitions/emptyEngine"
+                        }
+                    },
+                    "required": [
+                        "upstash"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "upstash-fork": {
+                            "$ref": "#/definitions/forkOverrides"
+                        }
+                    },
+                    "required": [
+                        "upstash-fork"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "tigris": {
+                            "$ref": "#/definitions/emptyEngine"
+                        }
+                    },
+                    "required": [
+                        "tigris"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "tigris-fork": {
+                            "$ref": "#/definitions/forkOverrides"
+                        }
+                    },
+                    "required": [
+                        "tigris-fork"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "r2": {
+                            "$ref": "#/definitions/emptyEngine"
+                        }
+                    },
+                    "required": [
+                        "r2"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "s3": {
+                            "$ref": "#/definitions/emptyEngine"
+                        }
+                    },
+                    "required": [
+                        "s3"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "dragonfly": {
+                            "$ref": "#/definitions/emptyEngine"
+                        }
+                    },
+                    "required": [
+                        "dragonfly"
+                    ],
+                    "type": "object"
+                }
+            ]
+        },
+        "forkOverrides": {
+            "additionalProperties": false,
+            "properties": {
+                "parent": {
+                    "$ref": "#/definitions/coordinate"
+                },
+                "ttl": {
+                    "$ref": "#/definitions/duration"
+                }
+            },
+            "required": [
+                "ttl",
+                "parent"
+            ],
+            "type": "object"
+        },
+        "module": {
+            "additionalProperties": false,
+            "oneOf": [
+                {
+                    "properties": {
+                        "delivery": {
+                            "const": "external"
+                        },
+                        "engine": {
+                            "required": [
+                                "neon"
+                            ],
+                            "type": "object"
+                        },
+                        "type": {
+                            "const": "neon"
+                        }
+                    },
+                    "required": [
+                        "providerAccountRef"
+                    ]
+                },
+                {
+                    "properties": {
+                        "delivery": {
+                            "const": "external"
+                        },
+                        "engine": {
+                            "required": [
+                                "neon-fork"
+                            ],
+                            "type": "object"
+                        },
+                        "type": {
+                            "const": "neon-fork"
+                        }
+                    },
+                    "required": [
+                        "providerAccountRef"
+                    ]
+                },
+                {
+                    "properties": {
+                        "delivery": {
+                            "const": "external"
+                        },
+                        "engine": {
+                            "required": [
+                                "upstash"
+                            ],
+                            "type": "object"
+                        },
+                        "type": {
+                            "const": "upstash"
+                        }
+                    },
+                    "required": [
+                        "providerAccountRef"
+                    ]
+                },
+                {
+                    "properties": {
+                        "delivery": {
+                            "const": "external"
+                        },
+                        "engine": {
+                            "required": [
+                                "upstash-fork"
+                            ],
+                            "type": "object"
+                        },
+                        "type": {
+                            "const": "upstash-fork"
+                        }
+                    },
+                    "required": [
+                        "providerAccountRef"
+                    ]
+                },
+                {
+                    "properties": {
+                        "delivery": {
+                            "const": "external"
+                        },
+                        "engine": {
+                            "required": [
+                                "tigris"
+                            ],
+                            "type": "object"
+                        },
+                        "type": {
+                            "const": "tigris"
+                        }
+                    },
+                    "required": [
+                        "providerAccountRef"
+                    ]
+                },
+                {
+                    "properties": {
+                        "delivery": {
+                            "const": "external"
+                        },
+                        "engine": {
+                            "required": [
+                                "tigris-fork"
+                            ],
+                            "type": "object"
+                        },
+                        "type": {
+                            "const": "tigris-fork"
+                        }
+                    },
+                    "required": [
+                        "providerAccountRef"
+                    ]
+                },
+                {
+                    "properties": {
+                        "delivery": {
+                            "const": "external"
+                        },
+                        "engine": {
+                            "required": [
+                                "r2"
+                            ],
+                            "type": "object"
+                        },
+                        "type": {
+                            "const": "r2"
+                        }
+                    },
+                    "required": [
+                        "providerAccountRef"
+                    ]
+                },
+                {
+                    "properties": {
+                        "delivery": {
+                            "const": "external"
+                        },
+                        "engine": {
+                            "required": [
+                                "s3"
+                            ],
+                            "type": "object"
+                        },
+                        "type": {
+                            "const": "s3"
+                        }
+                    },
+                    "required": [
+                        "providerAccountRef"
+                    ]
+                },
+                {
+                    "properties": {
+                        "delivery": {
+                            "const": "replicated"
+                        },
+                        "engine": {
+                            "required": [
+                                "dragonfly"
+                            ],
+                            "type": "object"
+                        },
+                        "type": {
+                            "const": "dragonfly"
+                        }
+                    }
+                }
+            ],
+            "properties": {
+                "backup": {
+                    "additionalProperties": false,
+                    "properties": {
+                        "crossVendor": {
+                            "type": "boolean"
+                        }
+                    },
+                    "required": [
+                        "crossVendor"
+                    ],
+                    "type": "object"
+                },
+                "cpu": {
+                    "oneOf": [
+                        {
+                            "exclusiveMinimum": 0,
+                            "type": "number"
+                        },
+                        {
+                            "minLength": 1,
+                            "type": "string"
+                        }
+                    ]
+                },
+                "credentialMode": {
+                    "enum": [
+                        "standard",
+                        "none"
+                    ]
+                },
+                "delivery": {
+                    "enum": [
+                        "external",
+                        "replicated"
+                    ]
+                },
+                "engine": {
+                    "$ref": "#/definitions/engine"
+                },
+                "providerAccountRef": {
+                    "$ref": "#/definitions/dnsLabel"
+                },
+                "ram": {
+                    "minLength": 1,
+                    "type": "string"
+                },
+                "rotation": {
+                    "enum": [
+                        "on",
+                        "off"
+                    ]
+                },
+                "storage": {
+                    "minLength": 1,
+                    "type": "string"
+                },
+                "type": {
+                    "enum": [
+                        "neon",
+                        "neon-fork",
+                        "upstash",
+                        "upstash-fork",
+                        "tigris",
+                        "tigris-fork",
+                        "r2",
+                        "s3",
+                        "dragonfly"
+                    ]
+                },
+                "version": {
+                    "minLength": 1,
+                    "type": "string"
+                }
+            },
+            "required": [
+                "type",
+                "delivery",
+                "credentialMode",
+                "rotation",
+                "engine"
+            ],
+            "type": "object"
+        },
+        "moduleMap": {
+            "additionalProperties": {
+                "$ref": "#/definitions/module"
+            },
+            "minProperties": 1,
+            "propertyNames": {
+                "$ref": "#/definitions/dnsLabel"
+            },
+            "type": "object"
+        },
+        "neonOverrides": {
+            "additionalProperties": false,
+            "properties": {
+                "autoscale": {
+                    "additionalProperties": false,
+                    "properties": {
+                        "maxCu": {
+                            "exclusiveMinimum": 0,
+                            "type": "number"
+                        },
+                        "minCu": {
+                            "exclusiveMinimum": 0,
+                            "type": "number"
+                        }
+                    },
+                    "required": [
+                        "minCu",
+                        "maxCu"
+                    ],
+                    "type": "object"
+                },
+                "tier": {
+                    "enum": [
+                        "free",
+                        "launch",
+                        "scale"
+                    ]
+                }
+            },
+            "type": "object"
+        },
+        "problemEndpoint": {
+            "additionalProperties": false,
+            "properties": {
+                "method": {
+                    "enum": [
+                        "GET",
+                        "POST",
+                        "PUT",
+                        "PATCH",
+                        "DELETE",
+                        "OPTIONS",
+                        "HEAD"
+                    ]
+                },
+                "path": {
+                    "pattern": "^/",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "method",
+                "path"
+            ],
+            "type": "object"
+        },
+        "problemEntry": {
+            "additionalProperties": false,
+            "properties": {
+                "endpoints": {
+                    "items": {
+                        "$ref": "#/definitions/problemEndpoint"
+                    },
+                    "minItems": 1,
+                    "type": "array"
+                },
+                "id": {
+                    "pattern": "^[A-Z][A-Z0-9_]*$",
+                    "type": "string"
+                },
+                "recoverable": {
+                    "type": "boolean"
+                },
+                "schema": {
+                    "type": "object"
+                },
+                "status": {
+                    "maximum": 599,
+                    "minimum": 400,
+                    "type": "integer"
+                },
+                "title": {
+                    "minLength": 1,
+                    "type": "string"
+                },
+                "type": {
+                    "format": "uri",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "id",
+                "type",
+                "title",
+                "status",
+                "recoverable",
+                "schema",
+                "endpoints"
+            ],
+            "type": "object"
+        },
+        "problemFragment": {
+            "additionalProperties": false,
+            "properties": {
+                "entries": {
+                    "items": {
+                        "$ref": "#/definitions/problemEntry"
+                    },
+                    "minItems": 1,
+                    "type": "array"
+                },
+                "landscape": {
+                    "$ref": "#/definitions/registeredLandscape"
+                },
+                "service": {
+                    "$ref": "#/definitions/dnsLabel"
+                },
+                "version": {
+                    "$ref": "#/definitions/semver"
+                }
+            },
+            "required": [
+                "service",
+                "landscape",
+                "version",
+                "entries"
+            ],
+            "type": "object"
+        },
+        "registeredLandscape": {
+            "allOf": [
+                {
+                    "$ref": "#/definitions/dnsLabel"
+                },
+                {
+                    "not": {
+                        "const": "lapras"
+                    }
+                }
+            ]
+        },
+        "rollout": {
+            "additionalProperties": false,
+            "properties": {
+                "steps": {
+                    "contains": {
+                        "properties": {
+                            "percent": {
+                                "const": 100
+                            }
+                        },
+                        "required": [
+                            "percent"
+                        ],
+                        "type": "object"
+                    },
+                    "items": {
+                        "$ref": "#/definitions/rolloutStep"
+                    },
+                    "minItems": 1,
+                    "type": "array"
+                },
+                "strategy": {
+                    "const": "gradual"
+                }
+            },
+            "required": [
+                "strategy",
+                "steps"
+            ],
+            "type": "object"
+        },
+        "rolloutStep": {
+            "additionalProperties": false,
+            "properties": {
+                "percent": {
+                    "maximum": 100,
+                    "minimum": 1,
+                    "type": "integer"
+                },
+                "soak": {
+                    "$ref": "#/definitions/duration"
+                }
+            },
+            "required": [
+                "percent"
+            ],
+            "type": "object"
+        },
+        "semver": {
+            "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$",
+            "type": "string"
+        },
+        "serviceRosterEntry": {
+            "additionalProperties": false,
+            "properties": {
+                "name": {
+                    "$ref": "#/definitions/dnsLabel"
+                },
+                "repo": {
+                    "pattern": "^[A-Za-z0-9_.-]+/[a-z0-9][a-z0-9.-]*$",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "name",
+                "repo"
+            ],
+            "type": "object"
+        },
+        "stageMember": {
+            "oneOf": [
+                {
+                    "$ref": "#/definitions/registeredLandscape"
+                },
+                {
+                    "$ref": "#/definitions/stageObject"
+                }
+            ]
+        },
+        "stageObject": {
+            "additionalProperties": false,
+            "properties": {
+                "gate": {
+                    "enum": [
+                        "auto",
+                        "manual"
+                    ]
+                },
+                "landscape": {
+                    "$ref": "#/definitions/registeredLandscape"
+                },
+                "soak": {
+                    "$ref": "#/definitions/duration"
+                },
+                "verification": {
+                    "additionalProperties": false,
+                    "properties": {
+                        "analysisTemplates": {
+                            "items": {
+                                "$ref": "#/definitions/analysisTemplate"
+                            },
+                            "minItems": 1,
+                            "type": "array"
+                        }
+                    },
+                    "required": [
+                        "analysisTemplates"
+                    ],
+                    "type": "object"
+                }
+            },
+            "required": [
+                "landscape"
+            ],
+            "type": "object"
+        },
+        "stageStep": {
+            "oneOf": [
+                {
+                    "$ref": "#/definitions/stageMember"
+                },
+                {
+                    "items": {
+                        "$ref": "#/definitions/stageMember"
+                    },
+                    "minItems": 2,
+                    "type": "array",
+                    "uniqueItems": true
+                }
+            ]
+        },
+        "virtualLandscapeService": {
+            "additionalProperties": false,
+            "properties": {
+                "landscape": {
+                    "$ref": "#/definitions/registeredLandscape"
+                },
+                "module": {
+                    "$ref": "#/definitions/dnsLabel"
+                },
+                "serve": {
+                    "type": "boolean"
+                },
+                "service": {
+                    "$ref": "#/definitions/dnsLabel"
+                },
+                "vlandscape": {
+                    "$ref": "#/definitions/dnsLabel"
+                }
+            },
+            "required": [
+                "service",
+                "module",
+                "vlandscape",
+                "landscape",
+                "serve"
+            ],
+            "type": "object"
+        },
+        "webhookEngine": {
+            "oneOf": [
+                {
+                    "additionalProperties": false,
+                    "maxProperties": 0,
+                    "type": "object"
+                },
+                {
+                    "$ref": "#/definitions/webhookEngineFull"
+                }
+            ]
+        },
+        "webhookEngineFull": {
+            "additionalProperties": false,
+            "properties": {
+                "backoff": {
+                    "additionalProperties": false,
+                    "properties": {
+                        "initial": {
+                            "$ref": "#/definitions/duration"
+                        },
+                        "shape": {
+                            "const": "exponential"
+                        }
+                    },
+                    "required": [
+                        "initial",
+                        "shape"
+                    ],
+                    "type": "object"
+                },
+                "circuitBreaker": {
+                    "additionalProperties": false,
+                    "properties": {
+                        "failWindow": {
+                            "$ref": "#/definitions/duration"
+                        }
+                    },
+                    "required": [
+                        "failWindow"
+                    ],
+                    "type": "object"
+                },
+                "customDomains": {
+                    "items": {
+                        "format": "hostname",
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "uniqueItems": true
+                },
+                "dedupWindow": {
+                    "$ref": "#/definitions/duration"
+                },
+                "home": {
+                    "additionalProperties": false,
+                    "properties": {
+                        "vlandscape": {
+                            "$ref": "#/definitions/dnsLabel"
+                        }
+                    },
+                    "required": [
+                        "vlandscape"
+                    ],
+                    "type": "object"
+                },
+                "quotas": {
+                    "additionalProperties": false,
+                    "properties": {
+                        "burst": {
+                            "minimum": 1,
+                            "type": "integer"
+                        },
+                        "intakeRps": {
+                            "minimum": 1,
+                            "type": "integer"
+                        }
+                    },
+                    "required": [
+                        "intakeRps",
+                        "burst"
+                    ],
+                    "type": "object"
+                },
+                "retention": {
+                    "additionalProperties": false,
+                    "properties": {
+                        "archive": {
+                            "additionalProperties": false,
+                            "properties": {
+                                "bucket": {
+                                    "$ref": "#/definitions/dnsLabel"
+                                },
+                                "store": {
+                                    "$ref": "#/definitions/dnsLabel"
+                                }
+                            },
+                            "required": [
+                                "store",
+                                "bucket"
+                            ],
+                            "type": "object"
+                        },
+                        "cycle": {
+                            "const": "monthly"
+                        },
+                        "keepMonths": {
+                            "minimum": 1,
+                            "type": "integer"
+                        }
+                    },
+                    "required": [
+                        "cycle",
+                        "keepMonths",
+                        "archive"
+                    ],
+                    "type": "object"
+                },
+                "retryWindow": {
+                    "$ref": "#/definitions/duration"
+                }
+            },
+            "required": [
+                "home",
+                "retention",
+                "retryWindow",
+                "backoff",
+                "circuitBreaker",
+                "dedupWindow",
+                "quotas",
+                "customDomains"
+            ],
+            "type": "object"
+        }
+    },
+    "description": "Deliberate closed schema for source A defaults, source B platform.yaml, and source C services.yaml.",
     "properties": {
         "apiVersions": {
-            "description": "Frozen T3 / upstream API groups the compiler renders against.",
-            "type": "object",
+            "additionalProperties": false,
             "properties": {
                 "applicationSet": {
+                    "minLength": 1,
                     "type": "string"
                 },
                 "argoproj": {
+                    "minLength": 1,
                     "type": "string"
                 },
                 "edge": {
+                    "minLength": 1,
                     "type": "string"
                 },
                 "fleet": {
+                    "minLength": 1,
                     "type": "string"
                 },
                 "identity": {
+                    "minLength": 1,
                     "type": "string"
                 },
                 "kargo": {
-                    "type": "string"
+                    "const": "kargo.akuity.io/v1alpha1"
                 }
-            }
+            },
+            "required": [
+                "fleet",
+                "identity",
+                "edge",
+                "argoproj",
+                "applicationSet",
+                "kargo"
+            ],
+            "type": "object"
         },
         "argocd": {
-            "description": "ArgoCD placement.",
-            "type": "object",
+            "additionalProperties": false,
             "properties": {
                 "namespace": {
-                    "type": "string"
+                    "$ref": "#/definitions/dnsLabel"
                 },
                 "project": {
-                    "type": "string"
+                    "$ref": "#/definitions/dnsLabel"
                 }
-            }
+            },
+            "required": [
+                "namespace",
+                "project"
+            ],
+            "type": "object"
         },
         "cloudflareDeploy": {
-            "description": "CloudflareDeploy Worker version-pin blocks (frontend/erbium rail).",
+            "items": {
+                "$ref": "#/definitions/cloudflareDeploy"
+            },
             "type": "array"
         },
         "dependencies": {
-            "description": "PlatformDependency modules by class (database/kv/cache/store). Each module carries type + explicit delivery: external|local|replicated.",
-            "type": "object"
+            "$ref": "#/definitions/dependencies"
         },
         "fleet": {
-            "description": "The fleet git repository (sources A and C live here).",
-            "type": "object",
+            "additionalProperties": false,
             "properties": {
                 "repoURL": {
+                    "pattern": "^https://",
                     "type": "string"
                 },
                 "revision": {
+                    "minLength": 1,
                     "type": "string"
                 }
-            }
+            },
+            "required": [
+                "repoURL",
+                "revision"
+            ],
+            "type": "object"
         },
         "infisical": {
-            "description": "Infisical project wiring for the Platform CR.",
-            "type": "object",
+            "additionalProperties": false,
             "properties": {
                 "projectSlug": {
-                    "type": "string"
+                    "$ref": "#/definitions/dnsLabel"
                 },
                 "serviceFolders": {
                     "type": "boolean"
                 }
-            }
+            },
+            "required": [
+                "projectSlug",
+                "serviceFolders"
+            ],
+            "type": "object"
         },
         "kargo": {
-            "description": "Kargo promotion bot identity (fixed git-update promotion template).",
-            "type": "object",
+            "additionalProperties": false,
             "properties": {
                 "bot": {
-                    "type": "object",
+                    "additionalProperties": false,
                     "properties": {
                         "email": {
+                            "format": "email",
                             "type": "string"
                         },
                         "name": {
+                            "minLength": 1,
                             "type": "string"
                         }
-                    }
+                    },
+                    "required": [
+                        "name",
+                        "email"
+                    ],
+                    "type": "object"
                 }
-            }
+            },
+            "required": [
+                "bot"
+            ],
+            "type": "object"
         },
         "labelPrefix": {
-            "description": "Single configurable service-tree label/annotation prefix.",
+            "pattern": "^[a-z0-9]([-.a-z0-9]*[a-z0-9])?$",
             "type": "string"
         },
         "landscapes": {
-            "description": "Declared landscape set (canary declares the FULL set).",
-            "type": "array"
+            "items": {
+                "$ref": "#/definitions/registeredLandscape"
+            },
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
         },
         "oci": {
-            "description": "OCI registry that publishes per-service app + primordial charts.",
-            "type": "object",
+            "additionalProperties": false,
             "properties": {
                 "registry": {
+                    "pattern": "^[a-z0-9.-]+(?::[0-9]+)?(?:/[a-z0-9._-]+)*$",
                     "type": "string"
                 }
-            }
+            },
+            "required": [
+                "registry"
+            ],
+            "type": "object"
         },
         "platform": {
-            "description": "Explicit platform name (S16 single source of truth). Must equal the release namespace; the compiler refuses a mismatch.",
-            "type": "string"
+            "$ref": "#/definitions/dnsLabel"
         },
         "primordial": {
-            "description": "The Primordial central cluster (g1 primordial-app destination).",
-            "type": "object",
+            "additionalProperties": false,
             "properties": {
                 "server": {
+                    "pattern": "^https://",
                     "type": "string"
                 }
-            }
+            },
+            "required": [
+                "server"
+            ],
+            "type": "object"
         },
         "problems": {
-            "description": "Problem catalog fragments (RFC7807).",
+            "items": {
+                "$ref": "#/definitions/problemFragment"
+            },
             "type": "array"
         },
-        "profile": {
-            "description": "lapras profile toggle: when true, delivery: local modules render as direct single-cluster Applications; when false (prod) they are stripped.",
-            "type": "object",
-            "properties": {
-                "lapras": {
-                    "type": "boolean"
-                }
-            }
-        },
         "services": {
-            "description": "Machine roster: which \u003cp\u003e.\u003csvc\u003e repos exist. One Warehouse + one Kargo stage-chain + one AppSet fan-out is rendered per entry.",
+            "items": {
+                "$ref": "#/definitions/serviceRosterEntry"
+            },
+            "minItems": 1,
             "type": "array"
         },
         "sos": {
-            "description": "Self-onboarding-service registration.",
-            "type": "object",
+            "additionalProperties": false,
             "properties": {
                 "register": {
                     "type": "boolean"
                 }
-            }
+            },
+            "required": [
+                "register"
+            ],
+            "type": "object"
         },
         "stages": {
-            "description": "Pipeline DAG. Each entry is a step: a bare landscape name, an object {landscape, gate: auto|manual, soak, verification:{analysisTemplates}}, or a list of either (a [parallel, set] step). Compiled 1:1 into Kargo Stages.",
+            "items": {
+                "$ref": "#/definitions/stageStep"
+            },
+            "minItems": 1,
             "type": "array"
         },
         "virtualLandscapeServices": {
-            "description": "VirtualLandscapeService serve fragments (platform-level, canary exercises one).",
+            "items": {
+                "$ref": "#/definitions/virtualLandscapeService"
+            },
             "type": "array"
         },
         "webhookEngine": {
-            "description": "WebhookEngine config (post-Q-WH1/WH3 shape; NO engine-version field).",
-            "type": "object"
+            "$ref": "#/definitions/webhookEngine"
         }
-    }
+    },
+    "required": [
+        "apiVersions",
+        "labelPrefix",
+        "fleet",
+        "oci",
+        "argocd",
+        "primordial",
+        "kargo",
+        "platform",
+        "services",
+        "infisical",
+        "sos",
+        "landscapes",
+        "stages",
+        "dependencies",
+        "virtualLandscapeServices",
+        "webhookEngine",
+        "cloudflareDeploy",
+        "problems"
+    ],
+    "title": "Diene Platform Compiler Values",
+    "type": "object"
 }

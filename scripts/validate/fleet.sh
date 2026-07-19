@@ -13,6 +13,8 @@ mode="${1:-}"
 chart="registry/charts/diene-platform"
 fixture="${chart}/tests/fixtures/canary.platform.yaml"
 services="platforms/canary/services.yaml"
+mercury_fixture="${chart}/tests/fixtures/mercury.platform.yaml"
+mercury_services="${chart}/tests/fixtures/mercury.services.yaml"
 golden_dir="${chart}/tests/golden"
 release="canary"
 namespace="canary"
@@ -28,16 +30,69 @@ fail() {
   exit 1
 }
 
-# Render the canary platform; $1 = extra helm args (e.g. profile toggle).
+# Render the canary platform.
 render() {
   helm template "${release}" "${chart}" --namespace "${namespace}" \
-    --values "${services}" --values "${fixture}" "$@"
+    --values "${services}" --values "${fixture}"
 }
 
 case "${mode}" in
 lint)
   helm lint "${chart}" --namespace "${namespace}" \
     --values "${services}" --values "${fixture}"
+  ;;
+input-schema)
+  helm lint "${chart}" --namespace "${namespace}" \
+    --values "${services}" --values "${fixture}" >/dev/null
+
+  cp "${fixture}" "${tmp}/bad-platform.yaml"
+  cp "${services}" "${tmp}/bad-services.yaml"
+  yq -i '.belt = ["derived-is-not-input"]' "${tmp}/bad-platform.yaml"
+  helm lint "${chart}" --namespace "${namespace}" --values "${tmp}/bad-services.yaml" --values "${tmp}/bad-platform.yaml" >/dev/null 2>&1 &&
+    fail "combined input schema accepted an unknown root/source-B field"
+
+  cp "${fixture}" "${tmp}/bad-platform.yaml"
+  cp "${services}" "${tmp}/bad-services.yaml"
+  yq -i 'del(.services[0].repo)' "${tmp}/bad-services.yaml"
+  helm lint "${chart}" --namespace "${namespace}" --values "${tmp}/bad-services.yaml" --values "${tmp}/bad-platform.yaml" >/dev/null 2>&1 &&
+    fail "combined input schema accepted a malformed source-C roster row"
+
+  cp "${fixture}" "${tmp}/bad-platform.yaml"
+  cp "${services}" "${tmp}/bad-services.yaml"
+  yq -i '.stages[0] = {"landscape": "pichu", "gate": "sometimes"}' "${tmp}/bad-platform.yaml"
+  helm lint "${chart}" --namespace "${namespace}" --values "${tmp}/bad-services.yaml" --values "${tmp}/bad-platform.yaml" >/dev/null 2>&1 &&
+    fail "combined input schema accepted a malformed DAG member"
+
+  cp "${fixture}" "${tmp}/bad-platform.yaml"
+  yq -i '.dependencies.database.maindb.unexpected = true' "${tmp}/bad-platform.yaml"
+  helm lint "${chart}" --namespace "${namespace}" --values "${services}" --values "${tmp}/bad-platform.yaml" >/dev/null 2>&1 &&
+    fail "combined input schema accepted an open dependency fragment"
+
+  cp "${fixture}" "${tmp}/bad-platform.yaml"
+  yq -i '.dependencies.landscape = "lapras"' "${tmp}/bad-platform.yaml"
+  helm lint "${chart}" --namespace "${namespace}" --values "${services}" --values "${tmp}/bad-platform.yaml" >/dev/null 2>&1 &&
+    fail "combined input schema accepted a Primordial lapras dependency"
+
+  cp "${fixture}" "${tmp}/bad-platform.yaml"
+  yq -i '.virtualLandscapeServices[0].hostname = "forbidden.example"' "${tmp}/bad-platform.yaml"
+  helm lint "${chart}" --namespace "${namespace}" --values "${services}" --values "${tmp}/bad-platform.yaml" >/dev/null 2>&1 &&
+    fail "combined input schema accepted an open VLS fragment"
+
+  cp "${fixture}" "${tmp}/bad-platform.yaml"
+  yq -i '.webhookEngine.engineVersion = "mercury-stable"' "${tmp}/bad-platform.yaml"
+  helm lint "${chart}" --namespace "${namespace}" --values "${services}" --values "${tmp}/bad-platform.yaml" >/dev/null 2>&1 &&
+    fail "combined input schema accepted a forbidden WebhookEngine field"
+
+  cp "${fixture}" "${tmp}/bad-platform.yaml"
+  yq -i '.cloudflareDeploy[0].rollout.steps[0].percent = 101' "${tmp}/bad-platform.yaml"
+  helm lint "${chart}" --namespace "${namespace}" --values "${services}" --values "${tmp}/bad-platform.yaml" >/dev/null 2>&1 &&
+    fail "combined input schema accepted an invalid deploy rollout"
+
+  cp "${fixture}" "${tmp}/bad-platform.yaml"
+  yq -i '.problems[0].entries[0].status = 399' "${tmp}/bad-platform.yaml"
+  helm lint "${chart}" --namespace "${namespace}" --values "${services}" --values "${tmp}/bad-platform.yaml" >/dev/null 2>&1 &&
+    fail "combined input schema accepted an invalid Problem fragment"
+  echo "  closed source-B/source-C schema accepts canary and rejects targeted malformed shapes ✓"
   ;;
 schema-drift)
   bash ./scripts/local/generate-platform-schema.sh "${tmp}/values.schema.json" >/dev/null
@@ -46,20 +101,36 @@ schema-drift)
   ;;
 render)
   render >/dev/null
-  render --set profile.lapras=true >/dev/null
   # S16: the explicit platform must equal the release namespace, or compile fails.
   helm template "${release}" "${chart}" --namespace "wrong-ns" \
     --values "${services}" --values "${fixture}" >/dev/null 2>&1 &&
     fail "namespace/platform mismatch was accepted (S16 guard broken)"
   echo "  namespace/platform S16 guard rejects a mismatch ✓"
   ;;
+row-identity)
+  bash ./scripts/validate/fleet-rows.sh platforms >/dev/null
+  cp -R platforms "${tmp}/rows"
+  row="${tmp}/rows/canary/landscapes/raichu/dummy.yaml"
+
+  yq -i '.platform = "other"' "${row}"
+  bash ./scripts/validate/fleet-rows.sh "${tmp}/rows" >/dev/null 2>&1 &&
+    fail "row validator accepted a platform mismatch"
+  cp platforms/canary/landscapes/raichu/dummy.yaml "${row}"
+
+  yq -i '.service = "other"' "${row}"
+  bash ./scripts/validate/fleet-rows.sh "${tmp}/rows" >/dev/null 2>&1 &&
+    fail "row validator accepted a service/filename mismatch"
+  cp platforms/canary/landscapes/raichu/dummy.yaml "${row}"
+
+  yq -i '.landscape = "other"' "${row}"
+  bash ./scripts/validate/fleet-rows.sh "${tmp}/rows" >/dev/null 2>&1 &&
+    fail "row validator accepted a landscape/path mismatch"
+  echo "  explicit row platform/service/landscape identity + three mismatch negatives ✓"
+  ;;
 golden)
   render >"${tmp}/prod.yaml"
-  render --set profile.lapras=true >"${tmp}/lapras.yaml"
   cmp "${golden_dir}/canary.prod.yaml" "${tmp}/prod.yaml" ||
     fail "canary prod golden render drifted — regenerate tests/golden/canary.prod.yaml"
-  cmp "${golden_dir}/canary.lapras.yaml" "${tmp}/lapras.yaml" ||
-    fail "canary lapras golden render drifted — regenerate tests/golden/canary.lapras.yaml"
   ;;
 canary-features)
   render >"${tmp}/r.yaml"
@@ -72,9 +143,10 @@ canary-features)
   json -e 'map(select(.kind=="CloudflareDeploy")) | length==1' >/dev/null || fail "CloudflareDeploy missing"
   json -e 'map(select(.kind=="Project")) | length==1' >/dev/null || fail "Kargo Project missing"
   json -e 'map(select(.kind=="Warehouse")) | length==1' >/dev/null || fail "Kargo Warehouse missing"
-  # Full declared landscape set present as Kargo Stages.
-  json -e '[.[] | select(.kind=="Stage") | .metadata.labels["'"${prefix}"'/landscape"]] | sort == ["amphoros","lapras","pichu","pikachu","raichu"]' >/dev/null ||
-    fail "Kargo stages do not cover the full declared landscape set"
+  # Full registered-fleet serving set present as Kargo Stages; lapras is a
+  # secrets-side Landscape anchor and must not materialize centrally.
+  json -e '[.[] | select(.kind=="Stage") | .metadata.labels["'"${prefix}"'/landscape"]] | sort == ["amphoros","pichu","pikachu","raichu"]' >/dev/null ||
+    fail "Kargo stages do not cover exactly the registered-fleet serving set"
   # ≥1 dependency module per class family.
   json -e 'map(select(.kind=="PlatformDependency"))[0].spec | (.database|length>=1) and (.kv|length>=1) and (.cache|length>=1) and (.store|length>=1)' >/dev/null ||
     fail "PlatformDependency lacks a module in every class family"
@@ -90,32 +162,59 @@ dag)
   stage canary-dummy-pichu | jq -e '.spec.requestedFreight[0].sources.direct==true' >/dev/null ||
     fail "first pipeline step must subscribe direct to the Warehouse"
   # a parallel-set member takes the PRECEDING step as upstream
-  stage canary-dummy-raichu | jq -e '.spec.requestedFreight[0].sources.stages==["canary-dummy-pikachu"]' >/dev/null ||
+  stage canary-dummy-pikachu | jq -e '.spec.requestedFreight[0].sources.stages==["canary-dummy-pichu"]' >/dev/null ||
     fail "parallel-set member must take the preceding step as upstream"
   # the step AFTER a parallel set lists ALL of that set's members (rendezvous)
-  stage canary-dummy-lapras | jq -e '.spec.requestedFreight[0].sources.stages | sort == ["canary-dummy-amphoros","canary-dummy-raichu"]' >/dev/null ||
+  stage canary-dummy-amphoros | jq -e '.spec.requestedFreight[0].sources.stages | sort == ["canary-dummy-pikachu","canary-dummy-raichu"]' >/dev/null ||
     fail "step after a parallel set must rendezvous on ALL members"
   # object-form step opts into full Kargo semantics (manual gate + soak + verification)
-  stage canary-dummy-amphoros | jq -e '.metadata.annotations["'"${prefix}"'/promotion-gate"]=="manual" and .metadata.annotations["'"${prefix}"'/soak"]=="1h" and (.spec.verification.analysisTemplates|length>=1)' >/dev/null ||
+  stage canary-dummy-raichu | jq -e '.metadata.annotations["'"${prefix}"'/promotion-gate"]=="manual" and .metadata.annotations["'"${prefix}"'/soak"]=="1h" and (.spec.verification.analysisTemplates|length>=1)' >/dev/null ||
     fail "object-form pipeline step must carry gate/soak/verification"
   echo "  stages: → Kargo compilation rule (direct / preceding / rendezvous / opt-in gate) ✓"
   ;;
 delivery-mode)
   render >"${tmp}/prod.yaml"
-  render --set profile.lapras=true >"${tmp}/lapras.yaml"
   pd() { yq eval-all -o=json '.' "$1" | jq -s '.[] | select(.kind=="PlatformDependency") | .spec'; }
-  # replicated (dragonfly) rides the g2 rail on EVERY landscape cluster → kept in both profiles.
+  # replicated (dragonfly) rides the g2 rail on EVERY eligible landscape cluster.
   pd "${tmp}/prod.yaml" | jq -e '.cache | has("hot")' >/dev/null || fail "replicated module must render (prod)"
-  # external (neon/upstash/tigris) declared but off-rail (fulfilled from Primordial) → kept in both.
+  # external (neon/upstash/tigris) is declared but fulfilled off-rail from Primordial.
   pd "${tmp}/prod.yaml" | jq -e '(.database|has("maindb")) and (.kv|has("sessions")) and (.store|has("assets"))' >/dev/null ||
     fail "external modules must be declared in prod"
-  # local (cnpg/minio) STRIPPED from prod...
-  pd "${tmp}/prod.yaml" | jq -e '(.database|has("localdb")|not) and (.store|has("localassets")|not)' >/dev/null ||
-    fail "delivery: local modules leaked into the prod AppSet"
-  # ...and PRESENT only under the lapras profile.
-  pd "${tmp}/lapras.yaml" | jq -e '(.database|has("localdb")) and (.store|has("localassets"))' >/dev/null ||
-    fail "delivery: local modules absent from the lapras profile"
-  echo "  delivery split: replicated on-rail / external declared / local prod-stripped, lapras-only ✓"
+  # A local module must be rejected before Helm can render a Primordial CR.
+  cp "${fixture}" "${tmp}/local-platform.yaml"
+  yq -i '.dependencies.database.maindb.delivery = "local"' "${tmp}/local-platform.yaml"
+  helm template "${release}" "${chart}" --namespace "${namespace}" --values "${services}" --values "${tmp}/local-platform.yaml" >/dev/null 2>&1 &&
+    fail "delivery: local was centrally rendered instead of rejected"
+  echo "  delivery split: replicated on-rail / external declared / local rejected as Garden-owned ✓"
+  ;;
+freight-alignment)
+  render >"${tmp}/canary.yaml"
+  helm template mercury "${chart}" --namespace mercury \
+    --values "${mercury_services}" --values "${mercury_fixture}" >"${tmp}/mercury.yaml"
+  # Fast deterministic regression over the exact rendered expression. The
+  # correction handoff additionally runs these fixtures through Kargo
+  # v1.9.10's native freightCreationCriteria evaluator; this Bun helper is not
+  # represented as a substitute controller.
+  for rendered in "${tmp}/canary.yaml" "${tmp}/mercury.yaml"; do
+    while IFS= read -r warehouse; do
+      name="$(jq -r '.metadata.namespace + "/" + .metadata.name' <<<"${warehouse}")"
+      expression="$(jq -r '.spec.freightCreationCriteria.expression' <<<"${warehouse}")"
+      image_repo="$(jq -r '.spec.subscriptions[] | select(.image) | .image.repoURL' <<<"${warehouse}")"
+      chart_repo="$(jq -r '.spec.subscriptions[] | select(.chart) | .chart.repoURL' <<<"${warehouse}")"
+      expected="imageFrom('${image_repo}').Tag == chartFrom('${chart_repo}').Version"
+      [ "${expression}" != "${expected}" ] && fail "${name} has a non-native or wrong freight alignment criterion"
+      jq -n --arg image "${image_repo}" --arg chart "${chart_repo}" \
+        '{images:[{RepoURL:$image,Tag:"1.2.3"}],charts:[{RepoURL:$chart,Version:"1.2.3"}]}' >"${tmp}/aligned.json"
+      bun ./scripts/validate/kargo-freight-criteria.ts "${expression}" "${tmp}/aligned.json" ||
+        fail "${name} rejected aligned image/chart freight"
+      jq -n --arg image "${image_repo}" --arg chart "${chart_repo}" \
+        '{images:[{RepoURL:$image,Tag:"1.2.3"}],charts:[{RepoURL:$chart,Version:"1.2.4"}]}' >"${tmp}/skewed.json"
+      if bun ./scripts/validate/kargo-freight-criteria.ts "${expression}" "${tmp}/skewed.json"; then
+        fail "${name} accepted mismatched image/chart freight"
+      fi
+    done < <(yq eval-all -o=json '.' "${rendered}" | jq -c 'select(.kind == "Warehouse")')
+  done
+  echo "  rendered Kargo criterion accepts aligned fixtures and rejects skew, including mercury/webhook ✓"
   ;;
 kargo-values-preservation)
   render >"${tmp}/r.yaml"
@@ -171,19 +270,34 @@ registry-cr)
     -skip Application,ApplicationSet \
     registry/landscapes registry/clusters registry/virtual-landscapes \
     registry/fleet-root.yaml registry/platforms-appset.yaml
+  yq -e '.kind == "Landscape" and .metadata.name == "lapras"' registry/landscapes/lapras.yaml >/dev/null ||
+    fail "lapras secrets-side Landscape anchor is missing"
+  while IFS= read -r cluster; do
+    [ "$(yq -r '.spec.landscape // ""' "${cluster}")" = "lapras" ] &&
+      fail "lapras ClusterRegistration is forbidden by WAL Q-L9: ${cluster}"
+  done < <(find registry/clusters -type f -name '*.yaml' | sort)
   ;;
 rendered-cr)
   # The compiler chart's own diene CRD kinds validate against the frozen
-  # schemas. Upstream ArgoCD/Kargo kinds are skipped; CloudflareDeploy is
-  # skipped because its optional rollout block (a frozen-T3 field, exercised by
-  # canary) exceeds helm-wrapper's minimal primordial schema — its presence is
-  # asserted by the golden diff + canary-features instead.
+  # schemas. Upstream ArgoCD/Kargo Project/Stage kinds are skipped. Warehouse
+  # uses the pinned Kargo v1.9.10 validation slice; CloudflareDeploy including
+  # optional rollout validates against the frozen T3 shape.
   render >"${tmp}/r.yaml"
   kubeconform -strict -summary \
     -schema-location default \
     -schema-location 'schemas/{{ .ResourceKind }}.json' \
-    -skip Application,ApplicationSet,Project,Warehouse,Stage,CloudflareDeploy \
+    -skip Application,ApplicationSet,Project,Stage \
     "${tmp}/r.yaml"
+  ;;
+cloudflare-rollout-negative)
+  render >"${tmp}/r.yaml"
+  yq eval-all 'select(.kind == "CloudflareDeploy")' "${tmp}/r.yaml" >"${tmp}/cloudflaredeploy.yaml"
+  kubeconform -strict -summary -schema-location 'schemas/{{ .ResourceKind }}.json' "${tmp}/cloudflaredeploy.yaml" >/dev/null
+  yq -i '.spec.rollout.steps[0].percent = 101' "${tmp}/cloudflaredeploy.yaml"
+  if kubeconform -strict -summary -schema-location 'schemas/{{ .ResourceKind }}.json' "${tmp}/cloudflaredeploy.yaml" >/dev/null 2>&1; then
+    fail "CloudflareDeploy accepted an invalid rollout percentage"
+  fi
+  echo "  frozen CloudflareDeploy rollout schema accepts canary and rejects invalid rollout ✓"
   ;;
 webhookengine-version-negative)
   # A WebhookEngine fixture declaring an engine-version field must be
@@ -214,16 +328,25 @@ appset-scope)
   # matrix generator (git-files × cluster label selector).
   as | jq -e '.spec.generators | any(.[]; has("matrix"))' >/dev/null ||
     fail "AppSet must carry the matrix (git-files × clusters) generator"
-  # git-files path.segments index 3 used for {l}; filename for {svc}.
-  as | jq -e '[.. | strings | select(test("index .path.segments 3"))] | length>=1' >/dev/null ||
-    fail "AppSet must template {l} from path.segments index 3"
-  as | jq -e '[.. | strings | select(test("trimSuffix \".yaml\" .path.filename"))] | length>=1' >/dev/null ||
-    fail "AppSet must template {svc} from the git-files filename"
-  # cluster generator selects on the landscape label — the sole membership truth.
-  # (label is a YAML key, so grep the raw render rather than jq string values.)
-  rg -q "${prefix}/landscape: '\{\{ index .path.segments 3 \}\}'" "${tmp}/r.yaml" ||
-    fail "AppSet cluster generator must select on the landscape label"
-  echo "  AppSet g1/g2 matrix + path.segments + landscape-label membership ✓"
+  # Generated names, OCI paths, selectors, and destinations consume explicit
+  # row fields. path-derived values appear only in templatePatch validation.
+  as | jq -e '.spec.generators[0].git.template.metadata.name == "{{ .platform }}-{{ .landscape }}-{{ .service }}-primordial"' >/dev/null ||
+    fail "g1 name must consume explicit row fields"
+  as | jq -e '.spec.generators[0].git.template.spec.sources[0].repoURL == "oci://registry.atomi.cloud/{{ .platform }}-{{ .service }}-primordial"' >/dev/null ||
+    fail "g1 OCI path must consume explicit row fields"
+  as | jq -e '.spec.generators[0].git.template.spec.destination.namespace == "{{ .platform }}"' >/dev/null ||
+    fail "g1 destination namespace must consume explicit row platform"
+  as | jq -e '.spec.generators[1].matrix.template.metadata.name == "{{ .platform }}-{{ .landscape }}-{{ .service }}-{{ .name }}"' >/dev/null ||
+    fail "g2 name must consume explicit row fields"
+  as | jq -e '.spec.generators[1].matrix.generators[1].clusters.selector.matchLabels["'"${prefix}"'/landscape"] == "{{ .landscape }}"' >/dev/null ||
+    fail "g2 selector must consume explicit row landscape"
+  as | jq -e '.spec.generators[1].matrix.template.spec.sources[0].repoURL == "oci://registry.atomi.cloud/{{ .platform }}-{{ .service }}"' >/dev/null ||
+    fail "g2 OCI path must consume explicit row fields"
+  as | jq -e '.spec.templatePatch | contains("ne .platform \"canary\"") and contains("has .service") and contains("ne .service $filenameService") and contains("ne .landscape $pathLandscape")' >/dev/null ||
+    fail "AppSet templatePatch must validate row fields against roster/path/filename"
+  as | jq -e '[.. | strings | select(test("path\\.segments|path\\.filename"))] | length == 1' >/dev/null ||
+    fail "path-derived identity leaked outside the row-validation templatePatch"
+  echo "  AppSet g1/g2 uses explicit row identity with fail-before-render path/roster guards ✓"
   ;;
 platforms-appset)
   # The committed platforms AppSet: SCM-provider generator over *.carbon,
@@ -252,8 +375,8 @@ presence)
   test -s .github/rulesets/registry-guard-main.json || fail "registry ruleset payload missing"
   test -s scripts/local/registry-guard-apply.sh || fail "registry-guard apply script missing"
   test -s "${chart}/values.schema.json" || fail "compiler chart values.schema.json missing"
+  test -s "${chart}/values.schema.source.json" || fail "deliberate compiler schema source missing"
   test -s "${golden_dir}/canary.prod.yaml" || fail "prod golden render missing"
-  test -s "${golden_dir}/canary.lapras.yaml" || fail "lapras golden render missing"
   # pin-management + webhook-wiring docs are published in the domain doc.
   rg -q '^## The `machinery-stable` tag' docs/domain/fleet-repo.md || fail "machinery-stable pin doc missing"
   rg -q '^## The `mercury-stable` pin' docs/domain/fleet-repo.md || fail "mercury-stable pin doc missing"

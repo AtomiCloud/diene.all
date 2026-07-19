@@ -64,6 +64,13 @@ values:
 ```
 
 - **Writers**: stub = T3 materializer; `pin` = Kargo; `values:` = human.
+- **Identity validation is fail-before-render**: the row's explicit
+  `platform`, `service`, and `landscape` fields feed every generated name,
+  OCI path, selector, and destination. The ApplicationSet `templatePatch`
+  rejects a row unless those fields equal the containing roster/release
+  namespace, an entry in that roster, the filename, and the landscape path.
+  `scripts/validate/fleet-rows.sh` applies the same contract to checked-in
+  machine state and carries platform/service/landscape mismatch negatives.
 - **`values:` is a short-lived knob**, not a config home. The chart is the
   config home; a `values:` block is a scale-now/flip-a-flag emergency knob,
   folded back into the chart within 7 days. `scripts/validate/fleet.sh
@@ -93,11 +100,12 @@ It renders → the `Platform` CR → per-service Kargo `Project`/`Warehouse`/`St
 - **g2** — g1 × a cluster generator (label-selected by landscape) → one
   per-cluster `Application` per row per matching cluster.
 
-The git-files matched fields are exposed as `path.segments` (index 3 = `{l}`)
-and the filename (minus `.yaml`) = `{svc}` — no custom parsing. The matrix
-pattern (git-files × templated cluster-label generator) is an official ArgoCD
-generator combination from v2.5+; the three-source `$values` Application needs
-ArgoCD ≥2.10. Both were spike-confirmed.
+The git-files matched fields are exposed as `path.segments` and
+`path.filename`, but they are used only to validate the explicit row fields;
+they never become workload identity. The matrix pattern (git-files × templated
+cluster-label generator) is an official ArgoCD generator combination from
+v2.5+; the three-source `$values` Application needs ArgoCD ≥2.10. Both were
+spike-confirmed.
 
 ### `stages:` → Kargo compilation rule
 
@@ -112,8 +120,8 @@ into the rest. The git-update promotion template is fixed either way.
 
 ### Dependency `delivery:` rendering
 
-Every `PlatformDependency` module carries `delivery: external | local |
-replicated`; `type:` stays the realization selector.
+Every `PlatformDependency` module carries an explicit delivery; `type:` stays
+the realization selector.
 
 - **external** (neon/upstash/tigris/r2/s3/ses) — fulfilled from Primordial via
   vendor APIs; declared but NEVER rendered onto the AppSet rail.
@@ -122,14 +130,15 @@ replicated`; `type:` stays the realization selector.
   generator over `ClusterRegistration` landscape labels, so replicated delivery
   materializes on EVERY landscape cluster; there is no pinned mode and no
   cluster-specific override.
-- **local** (cnpg/minio — lapras/merged only) — STRIPPED from the prod AppSet;
-  rendered only under the lapras profile, where a single-cluster render produces
-  a direct Application. Depends on garden-supplied CNPG/MinIO operators on
-  lapras; prod clusters carry none.
+- **local** (cnpg/minio and local Dragonfly) — **not a fleet-core rail**.
+  WAL Q-L8(c)/Q-L9 forbids lapras dependency CRs on Primordial and says lapras
+  clusters are anonymous Garden copies with no `ClusterRegistration`. The
+  combined input schema and compiler reject `delivery: local`; the held
+  Garden/local-operator owner will render and reconcile it in-instance.
 
-fleet asserts only the render split
-(`scripts/validate/fleet.sh delivery-mode`); the type/delivery validity itself
-lives in dependency-operator.
+fleet asserts the registered-fleet split and that local input cannot cross the
+Primordial boundary (`scripts/validate/fleet.sh delivery-mode`). The full
+type/delivery realization matrix remains dependency-operator-owned.
 
 ## The `machinery-stable` tag
 
@@ -160,8 +169,12 @@ Mercury (the webhook engine — an ordinary in-cluster bun service owned by the
 products platform, Q-WH1/Q-WH5) is versioned by the **same idiom** as
 `machinery-stable`, but the mechanics differ: `mercury-stable` resolves as an
 **ordinary Kargo image+chart pin** on mercury's own service rows (chart
-`Version` == image `Tag`, tag-alignment enforced by the Warehouse). CI publishes
-tagged image+chart artifacts; Kargo promotes. There is ONE fleet-wide mercury
+`Version` == image `Tag`). Every Warehouse uses Kargo ≥1.8's native
+`freightCreationCriteria.expression` to compare `imageFrom(...).Tag` with
+`chartFrom(...).Version`; skewed artifacts never become Freight. The dedicated
+mercury/webhook fixture exercises the identical rail and a mismatched-tag
+negative. CI publishes tagged image+chart artifacts; Kargo promotes. There is
+ONE fleet-wide mercury
 deployment (Q-MT1): no per-platform engines, no per-platform version override.
 Platforms own only their webhook _config_ — the `WebhookEngine` CR (rides
 carbon's primordial chart) carries retention/backoff/quotas/custom domains and
@@ -236,41 +249,54 @@ writes into.
 traffic. `platform.yaml` lives in `AtomiCloud/canary.carbon`
 (`registry/charts/diene-platform/tests/fixtures/canary.platform.yaml` is the
 committed golden-render fixture). Its only job is to exercise EVERY
-`platform.yaml` feature the compiler chart understands, always: a pipeline
-`stages:` DAG (bare + `[parallel, set]` + object-form steps) across the FULL
-declared landscape set, ≥1 `PlatformDependency` module per class family (with
-external/replicated/local delivery variants), a `VirtualLandscapeService`
+`platform.yaml` feature the fleet-core compiler owns, always: a pipeline
+`stages:` DAG (bare + `[parallel, set]` + object-form steps) across the full
+registered-fleet serving set, ≥1 `PlatformDependency` module per class family
+(external and replicated delivery), a `VirtualLandscapeService`
 fragment, a `WebhookEngine` block (post-Q-WH1 shape — no worker/d1/engine-version
 fields), a `CloudflareDeploy` block, and a `Problem` catalog fragment. Canary
 takes every compiler-chart bump first and is the fleet's own golden-render smoke
 test, live in the actual ArgoCD instance. The dummy service carries ZERO business
 logic — any scope creep beyond feature-exercising rows is caught at review.
 
+Lapras is intentionally absent from canary rows and stages. Fleet retains only
+`registry/landscapes/lapras.yaml`, the secrets-side identity anchor required by
+WAL Q-L8(c); it carries no cluster registration or central dependency material.
+The deliberate input schema rejects `lapras` in the serving landscape list,
+pipeline stages, and every landscape-bearing dependency/VLS/Problem fragment,
+while the checked-in row validator independently rejects a lapras row.
+
 Golden renders are committed at `registry/charts/diene-platform/tests/golden/`
-(`canary.prod.yaml`, `canary.lapras.yaml`) and diffed by
+(`canary.prod.yaml`) and diffed by
 `scripts/validate/fleet.sh golden`.
 
 ## Testing and deferred proofs
 
-`scripts/ci/fleet.sh` runs the local/static tier: chart lint, values-schema
-drift, render, golden-file diff, canary-feature presence, the `stages:`→Kargo DAG
-rule, the delivery-mode split, Kargo `values:` preservation, the `values:` >7d
-persistence guardrail, registry-CR + rendered-CR kubeconform, the WebhookEngine
-version-negative, AppSet g1/g2 scope, the platforms AppSet shape, the registry
-guard policy validation, and presence.
+`scripts/ci/fleet.sh` runs the local/static tier: chart lint; deliberate closed
+source-B/source-C values-schema positives and targeted negatives; schema drift;
+render; explicit-row identity plus mismatch negatives; golden diff; feature and
+DAG checks; registered-fleet delivery boundary; Kargo-native image/chart Freight
+alignment (including mercury and skew rejection); Kargo `values:` preservation;
+the `values:` >7d guardrail; registry/rendered CR validation (including
+CloudflareDeploy rollout and Warehouse); rollout and WebhookEngine negatives;
+AppSet scope; platforms AppSet; registry guard policy; and presence.
 
 **Deferred to a serialized live proof window (reserved for orchestration
 authorization)** — every long proof here is LIVE, not a quiet-host static run:
 
-- new-platform-registration trace (throwaway ArgoCD + materializer + sandbox
-  repos).
+- Fleet-owned ArgoCD machinery-tag/webhook refresh and Kargo row-promotion
+  traces use the exact bounded harnesses named in the proof-ready handoff.
 - machinery-stable / canary split, and webhook-driven refresh, against a live
   ArgoCD instance.
 - registry-guard real behaviour + bot-tooling scope, against a public sandbox
   repo (periodic, not per-PR — GitHub authorization is best proven against a
   real repo).
-- OrphanedSource on carbon/service repo deletion; the materializer stub/roster
-  sync test (owned by dependency-operator).
+
+The new-platform-registration, materializer stub/roster sync, and
+`OrphanedSource` deletion journeys are **dependency-operator/platform-controller
+owned**. They are referenced for system completeness but are not claimed as
+runnable fleet-core proof. Canary manual-sync and human render-diff acceptance
+are site-review/HOLD resources, not automated fleet-core evidence.
 
 Also deferred (ENV/site-review boundary held): ENTEI/exposure-materializer,
 fork-reaper, vcluster provisioning, Garden profiles, public-callback exposure,
