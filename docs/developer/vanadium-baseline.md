@@ -48,12 +48,12 @@ validation stage can evaluate them offline with `kyverno apply`.
 | `landscapeMatch`         | LPSM landscape label and annotation equal this cluster's landscape      |
 | `layerRange`             | the LPSM layer is one of the accepted layers                            |
 | `platformAccepted`       | the LPSM platform is in the accepted platform list                      |
-| `disallowLatest`         | every container image carries an explicit non-`latest` tag              |
+| `disallowLatest`         | every normal/init image carries a final-path non-`latest` tag or digest |
 | `requireResources`       | every container declares CPU and memory requests and limits             |
 | `disallowNodePort`       | services are not `NodePort`                                             |
 | `requireNonRoot`         | pod and every container run non-root                                    |
 | `disallowPrivEscalation` | no container allows privilege escalation                                |
-| `restrictVolumeTypes`    | `hostPath` volumes are forbidden outside the alloy `/var/log` carve-out |
+| `restrictVolumeTypes`    | PSS source whitelist; other sources rejected, alloy hostPath excepted   |
 
 ## Audit to enforce
 
@@ -73,10 +73,13 @@ namespace labeled `<prefix>/<exemption.labelKey>: "true"` (default key
 label; the v1 escape hatch for a single workload is documented only and activates when
 a workload first needs it.
 
-The alloy container-logs host-path mount is a scoped policy carve-out, not a namespace
-exemption: the `restrictVolumeTypes` CEL allows `/var/log` and `/var/log/...` paths
-only for the `alloy-logs` service account. k8s-monitoring's `podLogsViaKubernetesApi`
-is the documented hostPath-free alternative, deliberately not chosen.
+`restrictVolumeTypes` implements the PSS restricted-source whitelist: `configMap`,
+`csi`, `downwardAPI`, `emptyDir`, `ephemeral`, `persistentVolumeClaim`, `projected`,
+and `secret` are allowed; every other source, including NFS, is rejected. The alloy
+container-logs host-path mount is the sole additional scoped carve-out, not a namespace
+exemption: `/var/log` and `/var/log/...` are allowed only for the `alloy-logs` service
+account. k8s-monitoring's `podLogsViaKubernetesApi` is the documented hostPath-free
+alternative, deliberately not chosen.
 
 ## Compliance view
 
@@ -108,7 +111,7 @@ the label-based exemption convention above.
 | disallow NodePort services                                                                            | `disallowNodePort`                                                         | implemented          |
 | run-as-non-root (pod + container)                                                                     | `requireNonRoot`                                                           | implemented          |
 | PSS disallow privilege escalation                                                                     | `disallowPrivEscalation`                                                   | implemented          |
-| PSS restrict volume types (hostPath)                                                                  | `restrictVolumeTypes` (+ alloy `/var/log` carve-out)                       | implemented          |
+| PSS restrict volume types                                                                             | PSS source whitelist (+ alloy `/var/log` hostPath carve-out)               | implemented          |
 | namespace name-glob excludes (`kube-system`, `*-cleanup-controller-*`, `*-container-logs-collector*`) | namespace-label exemption (`<prefix>/policy-exempt: "true"`)               | redesigned as labels |
 | workload-level name-glob excludes                                                                     | namespace-level exemption in v1; per-workload escape hatch documented only | documented           |
 | Kyverno engine (argon)                                                                                | native VAP CEL — no engine, no CRDs, no controller                         | dropped, replaced    |

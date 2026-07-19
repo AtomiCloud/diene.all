@@ -1,0 +1,11 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: immutable-digest
+spec:
+  template:
+    spec:
+      initContainers: []
+      containers:
+        - name: app
+          image: registry.example.invalid:5000/team/app@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef

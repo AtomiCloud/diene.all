@@ -40,7 +40,7 @@ kubectl --context "${context}" get validatingadmissionpolicies -o name | grep "v
 
 # Capture exactly the target policy/binding Warn counter before the violating request.
 kubectl --context "${context}" get --raw /metrics >"${before_metrics}"
-before_count="$(awk '/^apiserver_validating_admission_policy_check_total\\{/ && /policy="vanadium-disallowlatest"/ && /binding="vanadium-disallowlatest"/ && /action="Warn"/ { sum += $NF } END { print sum + 0 }' "${before_metrics}")"
+before_count="$(awk '/^apiserver_validating_admission_policy_check_total\\{/ && /policy="vanadium-disallowlatest"/ && /policy_binding="vanadium-disallowlatest"/ && /enforcement_action="warn"/ { sum += $NF } END { print sum + 0 }' "${before_metrics}")"
 
 # Warn posture: a violating manifest is admitted and returns an admission Warning.
 if kubectl --context "${context}" apply -f chart/tests/cases/disallowlatest/bad.yaml 2>"${warn_log}"; then
@@ -63,7 +63,7 @@ fi
 
 # Local compliance-view half: the targeted apiserver VAP counter increased.
 kubectl --context "${context}" get --raw /metrics >"${after_metrics}"
-after_count="$(awk '/^apiserver_validating_admission_policy_check_total\\{/ && /policy="vanadium-disallowlatest"/ && /binding="vanadium-disallowlatest"/ && /action="Warn"/ { sum += $NF } END { print sum + 0 }' "${after_metrics}")"
+after_count="$(awk '/^apiserver_validating_admission_policy_check_total\\{/ && /policy="vanadium-disallowlatest"/ && /policy_binding="vanadium-disallowlatest"/ && /enforcement_action="warn"/ { sum += $NF } END { print sum + 0 }' "${after_metrics}")"
 awk -v before="${before_count}" -v after="${after_count}" 'BEGIN { exit !(after > before) }' || {
   echo "❌ target VAP Warn counter did not increase (${before_count} -> ${after_count})" >&2
   exit 1
