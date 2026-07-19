@@ -90,3 +90,11 @@ Go source, tests, coverage, deadcode, vulnerability scanning, Docker, Helm, or G
 workflow machinery. The language variants live under each standard's
 `languages/go.md` path. Keep every Go test in an external `_test` package and never
 introduce `export_test.go`.
+
+<!-- ### observability -->
+<!-- #### source: observability -->
+
+## Observability standards
+
+- [Observability](docs/standards/observability/index.md)
+- [Grafana dashboards](docs/standards/grafana-dashboards/index.md)

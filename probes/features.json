@@ -329,5 +329,10 @@
     "template": "diene/go-base",
     "name": "codecov-config",
     "class": "presence"
+  },
+  {
+    "template": "diene/observability",
+    "name": "observability-standards-present",
+    "class": "presence"
   }
 ]
