@@ -7,7 +7,6 @@ includes:
   gotest:
     taskfile: tasks/Taskfile.test.yaml
     internal: true
-  helm: tasks/Taskfile.helm.yaml
   secret: tasks/Taskfile.secret.yaml
 
 tasks:
