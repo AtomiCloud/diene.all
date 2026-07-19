@@ -22,6 +22,7 @@ bash ./scripts/validate/cobalt.sh publish-git
 bash ./scripts/validate/cobalt.sh publish-oci
 bash ./scripts/validate/cobalt.sh version
 bash ./scripts/validate/cobalt.sh presence
+bash ./scripts/validate/cobalt-k3d-contract.sh
 bash ./scripts/validate/gitlint-types.sh
 
 echo "✅ Cobalt CI validation complete"
