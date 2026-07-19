@@ -76,9 +76,9 @@ Domain-specific architecture and behavior belongs under
 [docs/domain/](docs/domain/README.md). The `docs/standards/contracts/` slot is
 reserved for the separately owned C0 contracts standard.
 
-<!-- ### helm-wrapper -->
-<!-- #### source: helm-wrapper -->
+<!-- ### aluminium -->
+<!-- #### source: aluminium -->
 
-## Helm wrapper sample
+## Aluminium chart
 
-Read [docs/developer/helm-wrapper-baseline.md](docs/developer/helm-wrapper-baseline.md) before changing `chart/`, the stacked values, CR/LPSM helpers, provider LoadBalancer annotations, config vendoring, or chart publishing.
+Read [docs/developer/aluminium-baseline.md](docs/developer/aluminium-baseline.md) before changing `chart/`, the stacked values, k8s-monitoring collectors/destinations, OTLP receiver wiring, or chart publishing.

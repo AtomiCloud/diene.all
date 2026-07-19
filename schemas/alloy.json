@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "collectors.grafana.com/Alloy.json",
+  "type": "object",
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": { "const": "collectors.grafana.com/v1alpha1" },
+    "kind": { "const": "Alloy" },
+    "metadata": { "type": "object", "required": ["name", "namespace"] },
+    "spec": {
+      "type": "object",
+      "required": ["alloy"],
+      "properties": {
+        "alloy": {
+          "type": "object",
+          "properties": {
+            "resources": { "type": "object" },
+            "securityContext": { "type": "object" },
+            "clustering": { "type": "object" },
+            "mounts": { "type": "object" },
+            "labels": { "type": ["array", "object"] },
+            "extraPorts": { "type": "array" }
+          }
+        },
+        "controller": {
+          "type": "object",
+          "required": ["type"],
+          "properties": {
+            "type": { "type": "string" }
+          }
+        }
+      }
+    }
+  },
+  "additionalProperties": true
+}

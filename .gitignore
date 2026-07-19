@@ -24,8 +24,8 @@ Thumbs.db
 desktop.ini
 infra/root_chart/uploads/
 
-### helm-wrapper
-#### source: helm-wrapper
+### aluminium
+#### source: aluminium
 chart/files/config/
 dist/
 probe-report.json

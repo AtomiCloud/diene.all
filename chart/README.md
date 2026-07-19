@@ -1,8 +1,8 @@
-# diene-helm-wrapper
+# diene-charts-aluminium
 
-![Version: 0.1.0](https://img.shields.io/badge/Version-0.1.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 6.9.2](https://img.shields.io/badge/AppVersion-6.9.2-informational?style=flat-square)
+![Version: 0.1.0](https://img.shields.io/badge/Version-0.1.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 4.3.0](https://img.shields.io/badge/AppVersion-4.3.0-informational?style=flat-square)
 
-Minimal production-grade Helm wrapper template for AtomiCloud platform charts
+AtomiCloud wrapper around grafana/k8s-monitoring (Alloy Operator + alloy-metrics StatefulSet + alloy-logs DaemonSet)
 
 ## Requirements
 
@@ -10,24 +10,75 @@ Kubernetes: `>=1.27.0-0`
 
 | Repository | Name | Version |
 |------------|------|---------|
-| oci://ghcr.io/stefanprodan/charts | upstream(podinfo) | 6.9.2 |
+| https://grafana.github.io/helm-charts | upstream(k8s-monitoring) | 4.3.0 |
 
 ## Values
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| contracts | object | `{"health":{"expectedStatus":"2xx","path":"/healthz"},"lpsm":{"instance":"run001","instanceZone":"local.example.invalid","landscape":"example","module":"api","ordinaryZone":"cluster.atomi.cloud","parseHostname":"","service":"wrapper"},"webhook":{"pathPrefix":"/internal/webhooks","provider":"example"}}` | Current health and webhook delivery conventions. |
-| fullnameOverride | string | `"wrapper-api"` | Primary workload fullname. It must be `<service>-<dashless-token>`. |
-| gateway | object | `{"aws":{"eipAllocationIds":[],"subnetIds":[]},"enabled":true,"oci":{"reservedPublicIp":""},"port":80,"provider":"digitalocean"}` | Provider-managed LoadBalancer service for the gateway. |
-| instance | object | `{"physicalId":"example-repository:run-001"}` | Optional physical-instance metadata. The instance remains outside LPSM. |
-| labelPrefix | string | `"atomi.cloud"` | Prefix used by every service-tree label and annotation helper. |
-| migration | object | `{"command":["sh","-c","echo migration-ready"],"enabled":true,"image":{"pullPolicy":"IfNotPresent","repository":"busybox","tag":"1.37.0-glibc"},"reloader":{"enabled":true},"resources":{"limits":{"cpu":"25m","memory":"32Mi"},"requests":{"cpu":"5m","memory":"8Mi"}}}` | Separate pre-sync migration hook. It never owns or recreates the Deployment. |
-| primordial | object | `{"apiVersions":{"edge":"edge.atomi.cloud/v1alpha1","fleet":"fleet.atomi.cloud/v1alpha1","identity":"identity.atomi.cloud/v1alpha1"},"cloudflareDeploy":{"enabled":true,"pin":true,"scriptName":"wrapper-web","tag":"0.1.0"},"enabled":true,"logtoApp":{"enabled":true,"extraRedirectUris":[],"paths":["/auth/callback"],"resourceRefs":["wrapper-api"]},"placement":{"preferredHost":"example-host"},"platformDependency":{"modules":{"cache":{"hot":{"credentialMode":"standard","delivery":"replicated","engine":{"dragonfly":{}},"ram":"128Mi","rotation":"on","type":"dragonfly"}},"database":{"maindb":{"backup":{"crossVendor":true},"cpu":1,"credentialMode":"standard","delivery":"external","engine":{"neon":{"tier":"example"}},"providerAccountRef":"example-neon","ram":"1Gi","rotation":"on","storage":"10Gi","type":"neon","version":"16"}},"kv":{"sessions":{"credentialMode":"standard","delivery":"external","engine":{"upstash":{}},"providerAccountRef":"example-upstash","ram":"128Mi","rotation":"on","type":"upstash"}},"store":{"assets":{"credentialMode":"standard","delivery":"external","engine":{"tigris":{}},"providerAccountRef":"example-tigris","rotation":"on","type":"tigris"}}}},"problem":{"enabled":true,"entries":[{"endpoints":[{"method":"GET","path":"/"}],"id":"example","recoverable":false,"schema":{},"status":500,"title":"Example problem","type":"https://errors.example.invalid/example"}],"version":"0.1.0"},"targetLandscape":"example","virtualLandscapeService":{"enabled":true,"serve":true},"vlandscape":"example-vlandscape"}` | Reusable primordial-chart CR helper inputs against the frozen T3 shapes. |
-| secret | object | `{"enabled":true,"refreshInterval":"1h","serviceFolder":"/wrapper","sharedFolder":"/shared","store":{"kind":"SecretStore","name":"sample-store"}}` | One service-scoped ExternalSecret with folder-prefix rewrites. |
-| serviceTree | object | `{"layer":"2","module":"api","platform":"sample","service":"wrapper"}` | Stable four-slot service-tree projection. Landscape and cluster are added by independent overlays. |
-| upstream | object | `{"enabled":false,"fullnameOverride":"wrapper-upstream","image":{"repository":"ghcr.io/stefanprodan/podinfo","tag":"6.9.2"},"podAnnotations":{"reloader.stakater.com/auto":"true"},"podSecurityContext":{"runAsGroup":10000,"runAsNonRoot":true,"runAsUser":10000},"resources":{"limits":{"cpu":"100m","memory":"128Mi"},"requests":{"cpu":"10m","memory":"32Mi"}},"securityContext":{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"readOnlyRootFilesystem":true,"runAsGroup":10000,"runAsNonRoot":true,"runAsUser":10000}}` | Pinned optional upstream chart. Every instantiated dependency must receive a conforming override. |
-| webhookRoute | object | `{"enabled":true,"parentGateway":"sample-gateway","parentNamespace":"gateway-system"}` | Optional Gateway API route scaffold for a webhook receiver. |
-| workload | object | `{"image":{"pullPolicy":"IfNotPresent","repository":"ghcr.io/stefanprodan/podinfo","tag":"6.9.2"},"podSecurityContext":{"fsGroup":10000,"runAsGroup":10000,"runAsNonRoot":true,"runAsUser":10000},"port":9898,"reloader":{"enabled":true},"replicas":1,"resources":{"limits":{"cpu":"100m","memory":"128Mi"},"requests":{"cpu":"10m","memory":"32Mi"}},"securityContext":{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"readOnlyRootFilesystem":true,"runAsGroup":10000,"runAsNonRoot":true,"runAsUser":10000}}` | Wrapper-owned sample workload. |
+| labelPrefix | string | `"atomi.cloud"` |  |
+| secret.enabled | bool | `false` |  |
+| secret.refreshInterval | string | `"1h"` |  |
+| secret.serviceFolder | string | `"/svc/aluminium"` |  |
+| secret.sharedFolder | string | `"/shared/aluminium"` |  |
+| secret.store.kind | string | `"ClusterSecretStore"` |  |
+| secret.store.name | string | `"platform-secret-store"` |  |
+| serviceTree.layer | string | `"1"` |  |
+| serviceTree.module | string | `"telemetry"` |  |
+| serviceTree.platform | string | `"telemetry"` |  |
+| serviceTree.service | string | `"aluminium"` |  |
+| upstream.alloy-operator.deploy | bool | `true` |  |
+| upstream.applicationObservability.collector | string | `"alloy-metrics"` |  |
+| upstream.applicationObservability.destinations[0] | string | `"victoriametrics"` |  |
+| upstream.applicationObservability.destinations[1] | string | `"gigapipe"` |  |
+| upstream.applicationObservability.enabled | bool | `true` |  |
+| upstream.applicationObservability.receivers.otlp.grpc.enabled | bool | `false` |  |
+| upstream.applicationObservability.receivers.otlp.http.enabled | bool | `true` |  |
+| upstream.applicationObservability.receivers.otlp.http.port | int | `4318` |  |
+| upstream.cluster.name | string | `"local"` |  |
+| upstream.clusterMetrics.collector | string | `"alloy-metrics"` |  |
+| upstream.clusterMetrics.enabled | bool | `true` |  |
+| upstream.collectors.alloy-logs.alloy.labels."atomi.cloud/layer" | string | `"1"` |  |
+| upstream.collectors.alloy-logs.alloy.labels."atomi.cloud/module" | string | `"telemetry"` |  |
+| upstream.collectors.alloy-logs.alloy.labels."atomi.cloud/platform" | string | `"telemetry"` |  |
+| upstream.collectors.alloy-logs.alloy.labels."atomi.cloud/service" | string | `"aluminium"` |  |
+| upstream.collectors.alloy-logs.alloy.mounts.varlog | bool | `true` |  |
+| upstream.collectors.alloy-logs.alloy.resources.limits.cpu | string | `"250m"` |  |
+| upstream.collectors.alloy-logs.alloy.resources.limits.memory | string | `"256Mi"` |  |
+| upstream.collectors.alloy-logs.alloy.resources.requests.cpu | string | `"50m"` |  |
+| upstream.collectors.alloy-logs.alloy.resources.requests.memory | string | `"64Mi"` |  |
+| upstream.collectors.alloy-logs.alloy.stabilityLevel | string | `"public-preview"` |  |
+| upstream.collectors.alloy-logs.controller.type | string | `"daemonset"` |  |
+| upstream.collectors.alloy-metrics.alloy.clustering.enabled | bool | `true` |  |
+| upstream.collectors.alloy-metrics.alloy.labels."atomi.cloud/layer" | string | `"1"` |  |
+| upstream.collectors.alloy-metrics.alloy.labels."atomi.cloud/module" | string | `"telemetry"` |  |
+| upstream.collectors.alloy-metrics.alloy.labels."atomi.cloud/platform" | string | `"telemetry"` |  |
+| upstream.collectors.alloy-metrics.alloy.labels."atomi.cloud/service" | string | `"aluminium"` |  |
+| upstream.collectors.alloy-metrics.alloy.resources.limits.cpu | string | `"500m"` |  |
+| upstream.collectors.alloy-metrics.alloy.resources.limits.memory | string | `"512Mi"` |  |
+| upstream.collectors.alloy-metrics.alloy.resources.requests.cpu | string | `"100m"` |  |
+| upstream.collectors.alloy-metrics.alloy.resources.requests.memory | string | `"128Mi"` |  |
+| upstream.collectors.alloy-metrics.controller.replicas | int | `1` |  |
+| upstream.collectors.alloy-metrics.controller.type | string | `"statefulset"` |  |
+| upstream.destinations.gigapipe.auth.type | string | `"none"` |  |
+| upstream.destinations.gigapipe.logs.enabled | bool | `true` |  |
+| upstream.destinations.gigapipe.metrics.enabled | bool | `false` |  |
+| upstream.destinations.gigapipe.protocol | string | `"http"` |  |
+| upstream.destinations.gigapipe.traces.enabled | bool | `true` |  |
+| upstream.destinations.gigapipe.type | string | `"otlp"` |  |
+| upstream.destinations.gigapipe.url | string | `"http://gigapipe:4318"` |  |
+| upstream.destinations.victoriametrics.auth.type | string | `"none"` |  |
+| upstream.destinations.victoriametrics.logs.enabled | bool | `false` |  |
+| upstream.destinations.victoriametrics.metrics.enabled | bool | `true` |  |
+| upstream.destinations.victoriametrics.protocol | string | `"http"` |  |
+| upstream.destinations.victoriametrics.traces.enabled | bool | `false` |  |
+| upstream.destinations.victoriametrics.type | string | `"otlp"` |  |
+| upstream.destinations.victoriametrics.url | string | `"http://victoriametrics:4318"` |  |
+| upstream.podLogsViaOpenTelemetry.collector | string | `"alloy-logs"` |  |
+| upstream.podLogsViaOpenTelemetry.destinations[0] | string | `"gigapipe"` |  |
+| upstream.podLogsViaOpenTelemetry.enabled | bool | `true` |  |
+| upstream.telemetryServices.kube-state-metrics.deploy | bool | `true` |  |
+| upstream.telemetryServices.node-exporter.deploy | bool | `true` |  |
 
 ----------------------------------------------
 Autogenerated from chart metadata using [helm-docs v1.14.2](https://github.com/norwoodj/helm-docs/releases/v1.14.2)

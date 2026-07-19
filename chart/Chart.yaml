@@ -1,13 +1,12 @@
 apiVersion: v2
-name: diene-helm-wrapper
-description: Minimal production-grade Helm wrapper template for AtomiCloud platform charts
+name: diene-charts-aluminium
+description: AtomiCloud wrapper around grafana/k8s-monitoring (Alloy Operator + alloy-metrics StatefulSet + alloy-logs DaemonSet)
 type: application
 version: 0.1.0
-appVersion: '6.9.2'
+appVersion: '4.3.0'
 kubeVersion: '>=1.27.0-0'
 dependencies:
-  - name: podinfo
+  - name: k8s-monitoring
     alias: upstream
-    version: 6.9.2
-    repository: oci://ghcr.io/stefanprodan/charts
-    condition: upstream.enabled
+    version: 4.3.0
+    repository: https://grafana.github.io/helm-charts
