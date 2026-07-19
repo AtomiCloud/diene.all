@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: arbitrary-hostpath
+spec:
+  template:
+    metadata:
+      labels:
+        app: demo
+    spec:
+      containers:
+        - name: app
+          image: demo:1.0.0
+          volumeMounts:
+            - name: hostetc
+              mountPath: /host/etc
+      volumes:
+        - name: hostetc
+          hostPath:
+            path: /etc
+            pathType: Directory
