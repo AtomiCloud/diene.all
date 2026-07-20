@@ -1,4 +1,4 @@
-namespace AtomiCloud.DotnetBase.Lib.Note;
+namespace AtomiCloud.Diene.Note;
 
 /// <summary>The immutable content of a note, without identity.</summary>
 public record NoteRecord
