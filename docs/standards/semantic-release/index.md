@@ -46,8 +46,8 @@ The base plugin order is fixed:
 4. `@semantic-release/github`
 
 Plugin versions are pinned in `atomi_release.yaml`. The exec plugin updates
-`VERSION`; the git plugin commits `Changelog.md`, `VERSION`, and the generated
-commit-conventions document.
+`Version.props`; the git plugin commits `Changelog.md`, `Version.props`, and the
+generated commit-conventions document.
 
 The unified D3 commit-type vocabulary is:
 

@@ -5,7 +5,6 @@ set -euo pipefail
 
 ./scripts/ci/setup.sh
 rm -f .git/hooks/*
-[ -d node_modules ] && find node_modules -mindepth 1 -maxdepth 1 -exec rm -rf {} +
 releaser release -c atomi_release.yaml
 
 echo "✅ Release complete"
