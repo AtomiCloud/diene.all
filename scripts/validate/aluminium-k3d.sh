@@ -142,6 +142,14 @@ mv "${kubeconfig_tmp}" "${kubeconfig}"
 chmod 600 "${kubeconfig}"
 sha256sum "${kubeconfig}" >"${artifact_dir}/kubeconfig-before-cleanup.sha256"
 
+# Register the upstream grafana helm repository before resolving the
+# k8s-monitoring dependency. `helm dependency build` resolves every
+# Chart.lock entry against a named repository, so without this registration
+# helm fails with "no repository definition for
+# https://grafana.github.io/helm-charts" (RB-266). --force-update keeps the
+# registration idempotent across re-runs; the version stays pinned to 4.3.0
+# by Chart.lock and the vendored chart/charts/k8s-monitoring-4.3.0.tgz.
+helm repo add grafana https://grafana.github.io/helm-charts --force-update
 helm dependency build chart | tee "${artifact_dir}/helm-dependency-build.log"
 helm upgrade --install aluminium chart \
   --kubeconfig "${kubeconfig}" \

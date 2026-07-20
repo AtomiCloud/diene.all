@@ -18,6 +18,7 @@ bash ./scripts/validate/aluminium.sh otlp-everywhere
 bash ./scripts/validate/aluminium.sh lpsm-labels
 bash ./scripts/validate/aluminium.sh rendered-manifests
 bash ./scripts/validate/aluminium.sh latest-semver
+bash ./scripts/validate/aluminium.sh helm-repo
 bash ./scripts/validate/aluminium.sh kubeconfig-isolation
 bash ./scripts/validate/aluminium.sh publish-git
 bash ./scripts/validate/aluminium.sh publish-oci

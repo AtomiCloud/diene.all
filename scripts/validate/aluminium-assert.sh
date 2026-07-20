@@ -151,6 +151,43 @@ k3d-proof-script)
   ' "${subject}"
   ;;
 
+# The serialized k3d proof must register a helm repository for EVERY URL the
+# chart declares as a dependency before invoking `helm dependency build`.
+# Without that registration helm fails "no repository definition for <url>"
+# (RB-266). Host-safe static check: no network, k3d, or provider action.
+helm-repo-resolution)
+  chart_yaml="${expected_prefix:-chart/Chart.yaml}"
+  [ -f "${chart_yaml}" ] || {
+    echo "❌ chart yaml not found: ${chart_yaml}" >&2
+    exit 1
+  }
+  mapfile -t dep_repos < <(yq e '.dependencies[].repository' "${chart_yaml}")
+  [ "${#dep_repos[@]}" -gt 0 ] || {
+    echo "❌ chart declares no dependency repositories" >&2
+    exit 1
+  }
+  for url in "${dep_repos[@]}"; do
+    # A `helm repo add` line must register this exact dependency URL.
+    rg -N 'helm repo add' "${subject}" | rg -Fq "${url}" ||
+      {
+        echo "❌ dependency repository ${url} is not registered via 'helm repo add'" >&2
+        exit 1
+      }
+  done
+  # The registration must precede `helm dependency build chart`.
+  awk '
+    /helm repo add[[:space:]]/ && !repo_add { repo_add = NR }
+    /helm dependency build[[:space:]]+chart/ && !dep_build { dep_build = NR }
+    END {
+      exit !(repo_add > 0 && dep_build > 0 && repo_add < dep_build)
+    }
+  ' "${subject}" ||
+    {
+      echo "❌ helm repo registration does not precede helm dependency build" >&2
+      exit 1
+    }
+  ;;
+
 lpsm-labels)
   [ -z "${expected_prefix}" ] && echo "❌ expected label prefix not set" >&2 && exit 1
   yq eval-all -o=json '.' "${subject}" |
