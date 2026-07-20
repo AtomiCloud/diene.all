@@ -16,7 +16,22 @@
   },
   {
     "template": "atomi/nix",
-    "name": "precommit-treefmt",
+    "name": "precommit-treefmt-actionlint",
+    "class": "gate"
+  },
+  {
+    "template": "atomi/nix",
+    "name": "precommit-treefmt-nixfmt",
+    "class": "gate"
+  },
+  {
+    "template": "atomi/nix",
+    "name": "precommit-treefmt-prettier",
+    "class": "gate"
+  },
+  {
+    "template": "atomi/nix",
+    "name": "precommit-treefmt-shfmt",
     "class": "gate"
   }
 ]

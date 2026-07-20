@@ -21,15 +21,15 @@ Full guide: **[nix.md](../../../docs/developer/standard/nix.md)**
 
 ### Step 3: Quick Reference
 
-| Task              | Files to Edit                           | Apply With         |
-| ----------------- | --------------------------------------- | ------------------ |
-| Add package       | `packages.nix`, `env.nix`              | `direnv reload`    |
-| Add env group     | `env.nix`, then use in `shells.nix`    | `direnv reload`    |
-| Add shell         | `shells.nix` (only change `buildInputs`, always `inherit shellHook`) | `nix develop .#name` |
-| Add formatter     | `fmt.nix`                              | `direnv reload`    |
-| Add hook          | `pre-commit.nix` (prefix `a-`)        | `direnv reload`    |
-| Add binary to PATH | `packages.nix` → `env.nix` (nix); or `.envrc` `PATH_add` (repo-declared non-nix paths) | `direnv reload` |
-| Add registry      | `flake.nix`, `packages.nix`            | `nix flake update` |
+| Task               | Files to Edit                                                                          | Apply With           |
+| ------------------ | -------------------------------------------------------------------------------------- | -------------------- |
+| Add package        | `packages.nix`, `env.nix`                                                              | `direnv reload`      |
+| Add env group      | `env.nix`, then use in `shells.nix`                                                    | `direnv reload`      |
+| Add shell          | `shells.nix` (only change `buildInputs`, always `inherit shellHook`)                   | `nix develop .#name` |
+| Add formatter      | `fmt.nix`                                                                              | `direnv reload`      |
+| Add hook           | `pre-commit.nix` (prefix `a-`)                                                         | `direnv reload`      |
+| Add binary to PATH | `packages.nix` → `env.nix` (nix); or `.envrc` `PATH_add` (repo-declared non-nix paths) | `direnv reload`      |
+| Add registry       | `flake.nix`, `packages.nix`                                                            | `nix flake update`   |
 
 ### Step 4: Critical Rules
 

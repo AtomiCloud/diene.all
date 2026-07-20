@@ -289,14 +289,14 @@ existing-group // my-org
 
 ## Usage Commands
 
-| Action          | Command                        |
-| --------------- | ------------------------------ |
-| Enter shell     | `nix develop` or `cd` (direnv) |
-| Specific shell  | `nix develop .#name`           |
-| Update registries | `nix flake update`           |
-| Search packages | `nix search nixpkgs name`      |
-| Show flake info | `nix flake show`               |
-| Reload direnv   | `direnv reload`                |
+| Action            | Command                        |
+| ----------------- | ------------------------------ |
+| Enter shell       | `nix develop` or `cd` (direnv) |
+| Specific shell    | `nix develop .#name`           |
+| Update registries | `nix flake update`             |
+| Search packages   | `nix search nixpkgs name`      |
+| Show flake info   | `nix flake show`               |
+| Reload direnv     | `direnv reload`                |
 
 ## Key Concepts
 
