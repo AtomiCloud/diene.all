@@ -4,13 +4,14 @@ set -euo pipefail
 kind="${1:-}"
 mode="${2:-normal}"
 
-[ "${kind}" != "unit" ] && [ "${kind}" != "int" ] && echo "❌ Usage: dotnet-test.sh <unit|int> [--watch|--coverage]" >&2 && exit 1
+[ "${kind}" != "unit" ] && [ "${kind}" != "int" ] && [ "${kind}" != "meta" ] && echo "❌ Usage: dotnet-test.sh <unit|int|meta> [--watch|--coverage]" >&2 && exit 1
 [ "${mode}" != "normal" ] && [ "${mode}" != "--watch" ] && [ "${mode}" != "--coverage" ] && echo "❌ Unknown mode '${mode}'" >&2 && exit 1
 
 root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 config="${DOTNET_TEST_CONFIG:-$(find "${root}/.config" -maxdepth 1 -name '*.test.yaml' 2>/dev/null | head -n 1)}"
 [ ! -f "${config:-/nonexistent}" ] && echo "❌ Test config not found (.config/*.test.yaml)" >&2 && exit 1
 ! command -v yq >/dev/null && echo "❌ yq is required to read ${config}" >&2 && exit 1
+[ "${kind}" = "meta" ] && [ -z "$(find "${root}" -maxdepth 2 -type f -path '*/TestHelper*.csproj' -print -quit)" ] && echo "✅ No TestHelper project; meta tier is inactive" && exit 0
 
 mapfile -t projects < <(yq -r ".coverage.${kind}.projects[]?" "${config}")
 minimum="$(yq -er ".coverage.${kind}.minimum // \"\"" "${config}")"
@@ -95,9 +96,11 @@ valid="$(rg -o 'lines-valid="[0-9]+"' "${report}" | head -n 1 | rg -o '[0-9]+' |
 assemblies="$(rg -o '<package name="[^"]+"' "${report}" | sed -E 's/^<package name="|"$//g' | sort -u)"
 [ -z "${assemblies}" ] && echo "❌ ${kind} coverage contains no assemblies" >&2 && exit 1
 if [ "${kind}" = "unit" ]; then
-  bad_assembly="$(echo "${assemblies}" | rg -v '^Lib' | head -n 1 || true)"
-else
+  bad_assembly="$(echo "${assemblies}" | rg -v '^(Lib|AtomiCloud[.]Diene[.])' | head -n 1 || true)"
+elif [ "${kind}" = "int" ]; then
   bad_assembly="$(echo "${assemblies}" | rg -v '^App' | head -n 1 || true)"
+else
+  bad_assembly="$(echo "${assemblies}" | rg -v '[.]TestHelper$' | head -n 1 || true)"
 fi
 [ -n "${bad_assembly}" ] && echo "❌ ${kind} coverage escaped its assembly ledger: ${bad_assembly}" >&2 && exit 1
 

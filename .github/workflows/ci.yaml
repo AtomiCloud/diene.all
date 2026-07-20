@@ -44,6 +44,25 @@ jobs:
       mode: int
       name: Integration
 
+  # ### dotnet-lib-ci
+  # #### source: dotnet-lib
+  meta:
+    name: TestHelper Meta Tests
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-test.yaml
+    secrets: inherit
+    with:
+      mode: meta
+      name: TestHelper Meta
+
+  package-validate:
+    name: Package Validation
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-package-validate.yaml
+    secrets: inherit
+
   build:
     name: Build
     permissions:

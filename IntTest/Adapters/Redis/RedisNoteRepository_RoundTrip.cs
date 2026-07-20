@@ -1,5 +1,5 @@
 using AtomiCloud.DotnetBase.App.Adapters.Redis;
-using AtomiCloud.DotnetBase.Lib.Note;
+using AtomiCloud.Diene.Note;
 using FluentAssertions;
 using StackExchange.Redis;
 using Testcontainers.Redis;

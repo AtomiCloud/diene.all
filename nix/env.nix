@@ -58,6 +58,8 @@ with packages;
     ripgrep
     shellcheck
     skopeo
+    unzip
+    xmlstarlet
     yq-go
   ];
 

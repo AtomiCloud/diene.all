@@ -1,7 +1,19 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <RootNamespace>AtomiCloud.DotnetBase.Lib</RootNamespace>
+    <RootNamespace>AtomiCloud.Diene.Note</RootNamespace>
+    <AssemblyName>AtomiCloud.Diene.Note</AssemblyName>
+    <PackageId>AtomiCloud.Diene.Note</PackageId>
+    <Description>An illustrative note-domain library and the Diene .NET library template.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IsPackable>true</IsPackable>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../LICENSE" Pack="true" PackagePath="/" />
+    <None Include="../README.md" Pack="true" PackagePath="/" />
+    <None Include="../logo.png" Pack="true" PackagePath="/" />
+    <None Include="../skills/**" Pack="true" PackagePath="skills/" />
+  </ItemGroup>
 
 </Project>

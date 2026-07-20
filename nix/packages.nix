@@ -95,6 +95,8 @@ let
           shellcheck
           skopeo
           treefmt
+          unzip
+          xmlstarlet
           yq-go
           ;
       }
