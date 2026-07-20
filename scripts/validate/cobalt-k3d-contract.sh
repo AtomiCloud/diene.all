@@ -155,4 +155,47 @@ store_assert_line="$(rg -n -- 'get clustersecretstore cobalt-sos' "${proof}" | h
 [ "${established_line}" -lt "${full_line}" ] || fail "CRD Established wait must precede the full install"
 [ "${full_line}" -lt "${store_assert_line}" ] || fail "full install must precede the store assertion"
 
+# --- command-runner contract: RESULT_DIR (RB-243 regression) -------------------
+# The proof wrapper must make the runner's absolute-durable-evidence-root contract
+# explicit. When RESULT_DIR is omitted it must refuse with a self-describing
+# message and must NOT die on the opaque `unbound variable` that produced the
+# RB-243 terminal-red campaign; a relative RESULT_DIR must be refused; and an
+# absolute RESULT_DIR must pass the contract (reaching the no-overwrite guard)
+# without invoking any live infrastructure.
+proofwrap="scripts/validate/cobalt-k3d-proof.sh"
+
+if unset_out="$(env -u RESULT_DIR bash "./${proofwrap}" 2>&1)"; then
+  fail "proof wrapper accepted a run with RESULT_DIR unset"
+fi
+rg -q "must be exported by the command runner" <<<"${unset_out}" ||
+  fail "proof wrapper did not explain the missing RESULT_DIR contract"
+if rg -qi "unbound variable" <<<"${unset_out}"; then
+  fail "proof wrapper still dies on an unbound RESULT_DIR (RB-243 regression)"
+fi
+
+if rel_out="$(RESULT_DIR="relative/evidence" bash "./${proofwrap}" 2>&1)"; then
+  fail "proof wrapper accepted a relative RESULT_DIR"
+fi
+rg -q "RESULT_DIR must be an absolute path" <<<"${rel_out}" ||
+  fail "proof wrapper did not reject a relative RESULT_DIR"
+
+# Absolute RESULT_DIR passes the contract; a pre-seeded artifact trips the
+# no-overwrite guard so the check stops before any k3d/Helm/Docker call. Reaching
+# that guard proves the absolute result root was accepted.
+abs_root="${workdir}/result-abs"
+mkdir -p "${abs_root}/evidence"
+: >"${abs_root}/evidence/cobalt-k3d.log"
+if abs_out="$(RESULT_DIR="${abs_root}" bash "./${proofwrap}" 2>&1)"; then
+  fail "proof wrapper ran the live proof under the non-live contract check"
+fi
+rg -q "refusing to overwrite pre-existing evidence artifact" <<<"${abs_out}" ||
+  fail "proof wrapper did not accept an absolute RESULT_DIR and root evidence under it"
+
+# Structural: the contract guard must precede any use of the result root.
+guard_line="$(rg -n -- 'RESULT_DIR:\?' "${proofwrap}" | head -1 | cut -d: -f1)"
+evroot_line="$(rg -n -F -- 'evidence_dir="${result_dir}' "${proofwrap}" | head -1 | cut -d: -f1)"
+[ -n "${guard_line}" ] || fail "proof wrapper never guards RESULT_DIR with an explicit contract"
+[ -n "${evroot_line}" ] || fail "proof wrapper never roots evidence under RESULT_DIR"
+[ "${guard_line}" -lt "${evroot_line}" ] || fail "RESULT_DIR contract guard must precede evidence-path derivation"
+
 echo "✅ Cobalt k3d contract validation passed"
