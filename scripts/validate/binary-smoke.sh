@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-for binary in actionlint bash deadcode docker git go gofumpt golangci-lint gomplate gotestsum govulncheck hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pls pre-commit rg sg shellcheck skopeo staticcheck task treefmt yq; do
+for binary in actionlint bash deadcode docker git go gofumpt golangci-lint gomplate gorelease gotestsum govulncheck hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pls pre-commit rg sg shellcheck skopeo staticcheck task treefmt yq zip; do
   command -v "${binary}" >/dev/null || {
     echo "❌ binary '${binary}' is missing" >&2
     exit 1
@@ -36,6 +36,19 @@ rg -q 'func Value\(\) int' "${tmp}/smoke.go"
 
 golangci-lint version >/dev/null
 golangci-lint run --timeout 5m ./lib/...
+
+# ### go-lib
+# #### source: go-lib
+mkdir -p "${tmp}/gorelease"
+printf '%s\n' 'module example.invalid/gorelease-smoke' '' 'go 1.26.0' >"${tmp}/gorelease/go.mod"
+printf '%s\n' 'package smoke' '' '// Value returns the smoke value.' 'func Value() int { return 1 }' >"${tmp}/gorelease/smoke.go"
+git -C "${tmp}/gorelease" init -q
+git -C "${tmp}/gorelease" config user.email smoke@example.invalid
+git -C "${tmp}/gorelease" config user.name Smoke
+git -C "${tmp}/gorelease" add go.mod smoke.go
+git -C "${tmp}/gorelease" commit -qm smoke
+(cd "${tmp}/gorelease" && gorelease -base=none -version=v1.0.0 >/dev/null)
+zip -v >/dev/null
 
 gotestsum --version >/dev/null
 gotestsum --format pkgname -- --run '^$' ./lib/... >/dev/null
@@ -90,7 +103,7 @@ pre-commit --version >/dev/null
 pre-commit validate-config .pre-commit-config.yaml
 
 rg --version >/dev/null
-rg -q 'Diene Go language base' README.md
+rg -q 'Diene Go library template' README.md
 
 sg --version >/dev/null
 printf '%s\n' '[general]' 'contrib=CT1' 'ignore=B6' '' '[contrib-title-conventional-commits]' 'types = amend' >"${tmp}/.gitlint"

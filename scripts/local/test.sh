@@ -9,6 +9,11 @@ watch="${3:-false}"
 tests="$(yq -r ".tiers.${mode}.tests" .config/go-base.coverage.yaml)"
 packages="$(yq -r ".tiers.${mode}.packages" .config/go-base.coverage.yaml)"
 
+if [ "${mode}" = "meta" ] && ! go list ./testhelper/... >/dev/null 2>&1; then
+  echo "✅ Go meta tests skipped: no testhelper package"
+  exit 0
+fi
+
 if [ "${watch}" = "true" ]; then
   gotestsum --watch -- "${tests}"
 elif [ "${coverage}" = "true" ]; then

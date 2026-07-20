@@ -12,7 +12,7 @@ jobs:
     name: Pre-Commit
     permissions:
       contents: read
-    uses: ./.github/workflows/⚡reusable-precommit.yaml
+    uses: ./.github/workflows/reusable-precommit.yaml
     secrets: inherit
 
   # ### go-base-ci
@@ -21,7 +21,7 @@ jobs:
     name: Unit Tests
     permissions:
       contents: read
-    uses: ./.github/workflows/⚡reusable-go-test.yaml
+    uses: ./.github/workflows/reusable-go-test.yaml
     secrets: inherit
     with:
       mode: unit
@@ -30,28 +30,84 @@ jobs:
     name: Integration Tests
     permissions:
       contents: read
-    uses: ./.github/workflows/⚡reusable-go-test.yaml
+    uses: ./.github/workflows/reusable-go-test.yaml
     secrets: inherit
     with:
       mode: int
+
+  meta:
+    name: TestHelper Meta Tests
+    permissions:
+      contents: read
+    uses: ./.github/workflows/reusable-go-test.yaml
+    secrets: inherit
+    with:
+      mode: meta
 
   go-build:
     name: Go Build
     permissions:
       contents: read
-    uses: ./.github/workflows/⚡reusable-go-build.yaml
+    uses: ./.github/workflows/reusable-go-build.yaml
     secrets: inherit
 
   deadcode:
     name: Deadcode
     permissions:
       contents: read
-    uses: ./.github/workflows/⚡reusable-go-deadcode.yaml
+    uses: ./.github/workflows/reusable-go-deadcode.yaml
     secrets: inherit
 
   vulnerability:
     name: Vulnerability
     permissions:
       contents: read
-    uses: ./.github/workflows/⚡reusable-go-vuln.yaml
+    uses: ./.github/workflows/reusable-go-vuln.yaml
     secrets: inherit
+
+  # ### go-lib-ci
+  # #### source: go-lib
+  module-path:
+    name: Module Path
+    permissions:
+      contents: read
+    uses: ./.github/workflows/reusable-go-lib-validate.yaml
+    secrets: inherit
+    with:
+      mode: module-path
+
+  go-vet:
+    name: Go Vet
+    permissions:
+      contents: read
+    uses: ./.github/workflows/reusable-go-lib-validate.yaml
+    secrets: inherit
+    with:
+      mode: vet
+
+  api-compatibility:
+    name: API Compatibility
+    permissions:
+      contents: read
+    uses: ./.github/workflows/reusable-go-lib-validate.yaml
+    secrets: inherit
+    with:
+      mode: api-compat
+
+  export-docs:
+    name: Export Documentation
+    permissions:
+      contents: read
+    uses: ./.github/workflows/reusable-go-lib-validate.yaml
+    secrets: inherit
+    with:
+      mode: export-docs
+
+  examples:
+    name: Examples
+    permissions:
+      contents: read
+    uses: ./.github/workflows/reusable-go-lib-validate.yaml
+    secrets: inherit
+    with:
+      mode: examples

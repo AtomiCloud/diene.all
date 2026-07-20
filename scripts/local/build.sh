@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-mkdir -p dist
-go build -trimpath -o dist/go-base ./cmd/go-base
+go build -trimpath ./...
 
-echo "✅ Go binary built"
+echo "✅ Go module built"

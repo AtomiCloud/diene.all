@@ -53,6 +53,11 @@ with packages;
     skopeo
     yq-go
 
+    # ### go-lib-main
+    # #### source: go-lib
+    gorelease
+    zip
+
     # ### go-base-main
     # #### source: go-base
     go

@@ -18,7 +18,7 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        await repo.exec('chmod -x scripts/release/bump.sh');
+        await repo.exec('chmod -x scripts/ci/release.sh');
         await expectRed(repo, 'nix develop .#ci -c pre-commit run a-enforce-exec --all-files', 'hook-enforce-exec');
       },
     },

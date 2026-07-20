@@ -20,7 +20,12 @@ whole)
   ;;
 production)
   staticcheck -tests=false ./...
+  runner="$(mktemp -d ./deadcode-runner.XXXXXX)"
+  trap 'rm -rf "${runner}"' EXIT
+  cp tests/fixtures/deadcode-consumer.go.txt "${runner}/main.go"
   strict_deadcode ./...
+  rm -rf "${runner}"
+  trap - EXIT
   ;;
 lax)
   mkdir -p reports

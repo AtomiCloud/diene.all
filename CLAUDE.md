@@ -82,3 +82,13 @@ Go source, tests, coverage, deadcode, vulnerability scanning, or Go
 workflow machinery. The language variants live under each standard's
 `languages/go.md` path. Keep every Go test in an external `_test` package and never
 introduce `export_test.go`.
+
+<!-- ### go-lib -->
+<!-- #### source: go-lib -->
+
+## Go library baseline
+
+Read [docs/developer/go-lib-baseline.md](docs/developer/go-lib-baseline.md)
+before changing module identity, exported APIs, examples, TestHelper machinery,
+or tag/proxy publication. Public packages require doc comments and compiling
+examples; incompatible v1 API changes require an intentional `/v2` module.

@@ -18,8 +18,8 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        const source = await repo.read('scripts/release/bump.sh');
-        await repo.write('scripts/release/bump.sh', `${source}\necho $UNQUOTED\n`);
+        const source = await repo.read('scripts/ci/release.sh');
+        await repo.write('scripts/ci/release.sh', `${source}\necho $UNQUOTED\n`);
         await expectRed(repo, 'nix develop .#ci -c pre-commit run a-shellcheck --all-files', 'hook-shellcheck');
       },
     },

@@ -22,7 +22,9 @@ if [ "${mode}" = "schema" ] || [ "${mode}" = "all" ]; then
     exit 1
   }
   modules="$(jq -r '.plugins[].module' "${tmp}" | paste -sd, -)"
-  [ "${modules}" != "@semantic-release/changelog,@semantic-release/exec,@semantic-release/git,@semantic-release/github" ] && echo "❌ base release plugin chain is invalid: ${modules}" >&2 && exit 1
+  expected_modules="@semantic-release/changelog,@semantic-release/exec,@semantic-release/git,@semantic-release/github"
+  [ -f go.mod ] && [ ! -f VERSION ] && expected_modules="@semantic-release/changelog,@semantic-release/git,@semantic-release/github"
+  [ "${modules}" != "${expected_modules}" ] && echo "❌ release plugin chain is invalid: ${modules}" >&2 && exit 1
 fi
 
 if [ "${mode}" = "types" ] || [ "${mode}" = "all" ]; then

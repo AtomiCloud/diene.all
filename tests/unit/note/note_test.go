@@ -5,23 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/AtomiCloud/diene.go-base/lib/note"
+	"github.com/AtomiCloud/diene.go-lib/lib/note"
+	"github.com/AtomiCloud/diene.go-lib/testhelper"
 )
-
-type FakeStore struct {
-	Values  map[string]string
-	SaveErr error
-	LoadErr error
-}
-
-func (store *FakeStore) Save(_ context.Context, key string, value string) error {
-	store.Values[key] = value
-	return store.SaveErr
-}
-
-func (store *FakeStore) Load(_ context.Context, key string) (string, error) {
-	return store.Values[key], store.LoadErr
-}
 
 func TestSlugAndNamespacedKey(t *testing.T) {
 	t.Parallel()
@@ -37,7 +23,7 @@ func TestSlugAndNamespacedKey(t *testing.T) {
 func TestServiceJourney(t *testing.T) {
 	t.Parallel()
 
-	store := &FakeStore{Values: map[string]string{}}
+	store := testhelper.NewMemoryStore()
 	service := note.NewService(store)
 	value := note.New("Hello World", "from the domain")
 
@@ -57,7 +43,9 @@ func TestServiceErrors(t *testing.T) {
 	t.Parallel()
 
 	want := errors.New("store unavailable")
-	store := &FakeStore{Values: map[string]string{}, SaveErr: want, LoadErr: want}
+	store := testhelper.NewMemoryStore()
+	store.SaveError = want
+	store.LoadError = want
 	service := note.NewService(store)
 
 	if err := service.Save(context.Background(), note.New("Failure", "body")); !errors.Is(err, want) {

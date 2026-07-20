@@ -26,6 +26,7 @@ jobs:
           TEST_MODE: ${{ inputs.mode }}
         run: nix develop .#ci -c ./scripts/ci/test.sh "${TEST_MODE}"
       - name: Upload coverage
+        if: inputs.mode != 'meta' || hashFiles('testhelper/**/*.go') != ''
         uses: codecov/codecov-action@v5
         with:
           disable_search: true

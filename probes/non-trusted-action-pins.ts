@@ -22,7 +22,7 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        await repo.patch('.github/workflows/🛡️merge-gatekeeper.yml', {
+        await repo.patch('.github/workflows/merge-gatekeeper.yml', {
           find: 'upsidr/merge-gatekeeper@09af7a82c1666d0e64d2bd8c01797a0bcfd3bb5d # v1.2.1',
           replace: 'upsidr/merge-gatekeeper@v1.2.1',
         });
