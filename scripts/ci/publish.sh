@@ -21,6 +21,14 @@ manifest_version="$(yq -r '.version' chart/Chart.yaml)"
 bash ./scripts/ci/setup.sh
 helm-docs --chart-search-root chart
 mkdir -p "${output_dir}"
+# Register the upstream grafana helm repository before resolving the
+# k8s-monitoring dependency. `helm dependency build` resolves every Chart.lock
+# entry against a named repository, so without this registration helm fails
+# "no repository definition for https://grafana.github.io/helm-charts" in a
+# clean CI environment with no inherited repo state (RB-278). --force-update
+# keeps the registration idempotent; the version stays pinned to 4.3.0 by
+# Chart.lock and the vendored chart/charts/k8s-monitoring-4.3.0.tgz.
+helm repo add grafana https://grafana.github.io/helm-charts --force-update
 helm dependency build chart
 helm package chart --destination "${output_dir}" --version "${version}"
 package="${output_dir}/diene-charts-aluminium-${version}.tgz"

@@ -237,22 +237,26 @@ latest-semver)
   rg -q '^📦 latest image tag:  grafana/alloy 1\.10\.0$' "${tmp}/latest.out"
   ;;
 
-# The serialized k3d proof must register the upstream grafana helm repository
-# before `helm dependency build`, or helm errors "no repository definition for
-# https://grafana.github.io/helm-charts" (RB-266). Host-safe static check +
-# negative fixture: no network, k3d, or provider action.
+# Every path that runs `helm dependency build` must first register the upstream
+# grafana helm repository, or helm errors "no repository definition for
+# https://grafana.github.io/helm-charts". RB-266 covers the serialized k3d
+# proof; RB-278 covers the clean-CI build/publish path (scripts/ci/publish.sh).
+# Host-safe static checks + negative fixtures: no network, k3d, or provider
+# action.
 helm-repo)
-  bash ./scripts/validate/aluminium-assert.sh helm-repo-resolution \
-    ./scripts/validate/aluminium-k3d.sh "${chart_dir}/Chart.yaml" >/dev/null
-  # Negative fixture: drop the repo registration -> the proof would hit
-  # "no repository definition" again; the assertion must catch it.
-  sed '\#helm repo add grafana https://grafana\.github\.io/helm-charts#d' \
-    ./scripts/validate/aluminium-k3d.sh >"${tmp}/no-repo-proof.sh"
-  if bash ./scripts/validate/aluminium-assert.sh helm-repo-resolution \
-    "${tmp}/no-repo-proof.sh" "${chart_dir}/Chart.yaml" >/dev/null 2>&1; then
-    echo "❌ missing helm repo registration was not caught" >&2
-    exit 1
-  fi
+  for seam in ./scripts/validate/aluminium-k3d.sh ./scripts/ci/publish.sh; do
+    bash ./scripts/validate/aluminium-assert.sh helm-repo-resolution \
+      "${seam}" "${chart_dir}/Chart.yaml" >/dev/null
+    # Negative fixture: drop the repo registration -> the seam would hit
+    # "no repository definition" again; the assertion must catch it.
+    sed '\#helm repo add grafana https://grafana\.github\.io/helm-charts#d' \
+      "${seam}" >"${tmp}/no-repo-$(basename "${seam}").sh"
+    if bash ./scripts/validate/aluminium-assert.sh helm-repo-resolution \
+      "${tmp}/no-repo-$(basename "${seam}").sh" "${chart_dir}/Chart.yaml" >/dev/null 2>&1; then
+      echo "❌ missing helm repo registration in ${seam} was not caught" >&2
+      exit 1
+    fi
+  done
   ;;
 
 kubeconfig-isolation)
