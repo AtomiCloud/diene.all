@@ -10,7 +10,7 @@ rm -rf "${artifacts}"
 mkdir -p "${artifacts}"
 
 echo "📦 Packing library and TestHelper at ${version}..."
-dotnet pack dotnet-base.slnx -c Release --no-restore --output "${artifacts}"
+dotnet pack dotnet-base.slnx -c Release --output "${artifacts}"
 
 ./scripts/validate/dotnet-package.sh inventory "${artifacts}" "${version}"
 ./scripts/validate/dotnet-package.sh metadata "${artifacts}" "${version}"
