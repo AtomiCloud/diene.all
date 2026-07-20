@@ -49,7 +49,11 @@ bash ./scripts/local/create-k3d-cluster.sh
 helm dependency build chart
 
 # Standard-channel Gateway API CRDs (Gateway/GatewayClass/HTTPRoute) deploy separately from kgateway-crds.
-gateway_crds="${GATEWAY_API_CRDS:-https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.0/standard-channel.yaml}"
+# Vendored + checksum-pinned (RB-244): the frozen v1.6.0 release URL upstream
+# renamed standard-channel.yaml to standard-install.yaml and began 404-ing. The
+# manifest is now applied from a local fixture after fail-closed SHA-256
+# verification, so the proof never depends on a live, renameable external URL.
+gateway_crds="$(bash ./scripts/local/gateway-api-crd-fixture.sh verify)"
 kubectl --context "k3d-${cluster_name}" apply -f "${gateway_crds}"
 kubectl --context "k3d-${cluster_name}" apply -f chart/charts/kgateway-crds-v2.2.9.tgz 2>/dev/null || helm template kgateway-crds chart/charts/kgateway-crds-v2.2.9.tgz | kubectl --context "k3d-${cluster_name}" apply -f -
 

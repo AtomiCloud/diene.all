@@ -23,6 +23,7 @@ bash ./scripts/validate/platinum.sh publish-oci
 bash ./scripts/validate/platinum.sh version
 bash ./scripts/validate/platinum.sh presence
 bash ./scripts/validate/platinum.sh tokenization-presence
+bash ./scripts/validate/platinum.sh gateway-api-crd-fixture
 bash ./scripts/validate/gitlint-types.sh
 
 echo "✅ Platinum CI validation complete"
