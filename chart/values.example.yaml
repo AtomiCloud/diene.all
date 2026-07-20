@@ -1,5 +1,0 @@
-# Independent landscape overlay example. Platform must match the install namespace.
-# The landscape slot flows into the derived upstream.global.commonLabels via
-# scripts/local/gen-identity-values.sh; no static label mirror is kept here.
-serviceTree:
-  landscape: example

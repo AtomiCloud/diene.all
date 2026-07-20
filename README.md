@@ -53,22 +53,18 @@ Domain-specific documentation belongs under [docs/domain/](docs/domain/README.md
 The `docs/standards/contracts/` location is reserved for the separately owned C0
 contracts standard.
 
-<!-- ### sulfur -->
-<!-- #### source: sulfur -->
+<!-- ### zinc -->
+<!-- #### source: zinc -->
 
-## Sulfur chart (cert-manager engine)
+## Zinc chart (cert-manager issuer set)
 
-This branch is the sulfur cert-manager engine chart — a pure-passthrough wrapper
-around `jetstack/cert-manager`, with the engine/issuer split (issuers live in
-zinc), sequential-minor upgrades, Gateway API support, and an ordinary testing
-pyramid.
+This branch is the dependency-free Zinc issuer-set chart. It consumes Sulfur's
+cert-manager CRDs, renders the registered-fleet and ENTEI DNS-01 ClusterIssuer
+rails, and materializes the Cloudflare token only through External Secrets.
 
-- `pls build` — build the pinned cert-manager chart dependency.
-- `pls test:unit` — run the unit pyramid: schema, lint, render, labels, Reloader,
-  the Q-G20 rendered-manifest stage, the Q-G22 sequential-minor gate, and the
-  contract negative fixtures.
-- `pls test:int` — install checksum-pinned Gateway API CRDs plus sulfur on
-  ephemeral k3d, then round-trip a self-signed Certificate to Ready (reserved
-  for the orchestrated proof window).
-- `pls example:lapras:template` — render the independent landscape + cluster stack.
-- [Sulfur baseline](docs/developer/sulfur-baseline.md)
+- `pls test:unit` — run the complete schema/render/directory/cardinality/ENTEI/
+  ownership/policy/publish unit tier.
+- `pls test:int` — run the serialized k3d CRD/apply and OCI proof.
+- `pls pichu:local:template` — render independent landscape + cluster overlays.
+- `pls entei:local:template` — render the hosted-development dual-ref overlay.
+- [Zinc baseline](docs/developer/zinc-baseline.md)

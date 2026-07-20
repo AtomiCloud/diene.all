@@ -1,0 +1,5 @@
+# Registered production landscape (Singapore).
+serviceTree:
+  landscape: raichu
+issuer:
+  server: https://acme-v02.api.letsencrypt.org/directory

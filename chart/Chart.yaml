@@ -1,13 +1,7 @@
 apiVersion: v2
-name: diene-sulfur
-description: AtomiCloud cert-manager engine wrapper (pure passthrough; issuers live in zinc)
+name: diene-zinc
+description: AtomiCloud cert-manager ClusterIssuer set for DNS-01 issuance
 type: application
 version: 0.1.0
-appVersion: v1.20.3
+appVersion: '1.0.0'
 kubeVersion: '>=1.27.0-0'
-dependencies:
-  - name: cert-manager
-    alias: upstream
-    version: v1.20.3
-    repository: https://charts.jetstack.io
-    condition: upstream.enabled

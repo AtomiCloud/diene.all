@@ -1,0 +1,5 @@
+# Registered production landscape (United States).
+serviceTree:
+  landscape: amphoros
+issuer:
+  server: https://acme-v02.api.letsencrypt.org/directory

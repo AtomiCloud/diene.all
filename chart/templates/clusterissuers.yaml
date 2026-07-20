@@ -1,0 +1,8 @@
+{{- include "zinc.validateServiceTree" . -}}
+{{- if .Values.entei.enabled -}}
+{{ include "zinc.clusterIssuer" (dict "root" . "issuer" .Values.entei.staging "dnsZones" .Values.entei.dnsZones) }}
+---
+{{ include "zinc.clusterIssuer" (dict "root" . "issuer" .Values.entei.production "dnsZones" .Values.entei.dnsZones) }}
+{{- else -}}
+{{ include "zinc.clusterIssuer" (dict "root" . "issuer" .Values.issuer "dnsZones" .Values.issuer.dnsZones) }}
+{{- end -}}

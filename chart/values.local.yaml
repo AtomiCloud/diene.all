@@ -1,0 +1,3 @@
+# Independent thin cluster overlay used by the k3d integration tier.
+serviceTree:
+  cluster: local
