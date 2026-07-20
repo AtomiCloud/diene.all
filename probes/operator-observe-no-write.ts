@@ -1,6 +1,6 @@
 import { expectGreen, expectRed } from './lib/helpers.ts';
 
-const cmd = 'nix develop .#ci -c go test -count=1 -run TestNoteObserveWouldApply ./tests/int/operator/';
+const cmd = 'nix develop .#ci -c go test -count=1 -run TestNoteObserveDrift ./tests/int/operator/';
 
 export default {
   contractVersion: 1,
@@ -20,8 +20,8 @@ export default {
       kind: 'mutation',
       async run(repo: any) {
         await repo.patch('adapters/operator/controllers/note_controller.go', {
-          find: 'if r.Observe {',
-          replace: 'if false {',
+          find: 'Observe:  r.Observe,',
+          replace: 'Observe:  false,',
         });
         await expectRed(repo, cmd, 'operator-observe-no-write');
       },

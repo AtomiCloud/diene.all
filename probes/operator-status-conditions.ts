@@ -20,8 +20,8 @@ export default {
       kind: 'mutation',
       async run(repo: any) {
         await repo.patch('adapters/operator/controllers/note_controller.go', {
-          find: 'r.setCondition(note, libnote.ReadyCondition(len(desired), len(desired)))',
-          replace: '_ = desired',
+          find: 'r.publish(note, dec.OwnedCount, dec.Conditions, dec.Events)',
+          replace: 'r.publish(note, dec.OwnedCount, nil, dec.Events)',
         });
         await expectRed(repo, cmd, 'operator-status-conditions');
       },

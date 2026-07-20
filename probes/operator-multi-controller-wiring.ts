@@ -20,8 +20,8 @@ export default {
       kind: 'mutation',
       async run(repo: any) {
         await repo.patch('adapters/operator/controllers/journal_controller.go', {
-          find: '.Named("journal")',
-          replace: '.Named("note")',
+          find: 'const journalController = "journal"',
+          replace: 'const journalController = "note"',
         });
         await expectRed(repo, cmd, 'operator-multi-controller-wiring');
       },

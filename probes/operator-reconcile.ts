@@ -20,8 +20,8 @@ export default {
       kind: 'mutation',
       async run(repo: any) {
         await repo.patch('adapters/operator/controllers/note_controller.go', {
-          find: 'for _, name := range pl.Creates {',
-          replace: 'for _, name := range []string{} {',
+          find: 'for _, u := range dec.Upserts {',
+          replace: 'for _, u := range dec.Upserts[:0] {',
         });
         await expectRed(repo, cmd, 'operator-reconcile');
       },
