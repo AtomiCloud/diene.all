@@ -67,3 +67,39 @@ boundary. TypeScript variants accompany the shared standards for
 [testing](docs/standards/testing/languages/typescript.md),
 [utilities](docs/standards/utilities/languages/typescript.md), and
 [validation](docs/standards/validation/languages/typescript.md).
+
+<!-- ### bun-lib -->
+<!-- #### source: bun-lib -->
+
+## Publishable Bun library
+
+[![npm version](https://img.shields.io/npm/v/@atomicloud/bun-lib)](https://www.npmjs.com/package/@atomicloud/bun-lib)
+[![npm downloads](https://img.shields.io/npm/dm/@atomicloud/bun-lib)](https://www.npmjs.com/package/@atomicloud/bun-lib)
+[![CI](https://github.com/AtomiCloud/diene.bun-lib/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.bun-lib/actions/workflows/ci.yaml)
+
+`@atomicloud/bun-lib` is the dual ESM/CommonJS package template for the
+`@atomicloud/diene.*` library family. It publishes JavaScript and declarations
+for both import styles and includes its usage skill in the package tarball.
+
+Package description: Publishable dual-format Bun library template for AtomiCloud/diene.bun-lib
+
+Package keywords: atomicloud, bun, library, esm, commonjs, typescript
+
+```bash
+bun add @atomicloud/bun-lib
+```
+
+```ts
+import { buildSampleKey } from '@atomicloud/bun-lib';
+
+const key = buildSampleKey('Bun Lib', 'sample key');
+```
+
+```js
+const { buildSampleKey } = require('@atomicloud/bun-lib');
+
+const key = buildSampleKey('Bun Lib', 'sample key');
+```
+
+See the [Bun library baseline](docs/developer/bun-lib-baseline.md) for package
+validation, release authentication, token rotation, and promotion knobs.
