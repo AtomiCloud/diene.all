@@ -67,7 +67,8 @@ pyramid.
 - `pls test:unit` — run the unit pyramid: schema, lint, render, labels, Reloader,
   the Q-G20 rendered-manifest stage, the Q-G22 sequential-minor gate, and the
   contract negative fixtures.
-- `pls test:int` — install on ephemeral k3d and round-trip a self-signed
-  Certificate to Ready (reserved for the orchestrated proof window).
+- `pls test:int` — install checksum-pinned Gateway API CRDs plus sulfur on
+  ephemeral k3d, then round-trip a self-signed Certificate to Ready (reserved
+  for the orchestrated proof window).
 - `pls example:lapras:template` — render the independent landscape + cluster stack.
 - [Sulfur baseline](docs/developer/sulfur-baseline.md)

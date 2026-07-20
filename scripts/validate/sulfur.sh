@@ -590,6 +590,71 @@ FAKE
   rg -q 'delete' "${tmp}/life-noop.log" && echo "❌ unowned stop:cluster deleted a resource with no ownership marker" >&2 && exit 1
   ;;
 
+gateway-api-fixture)
+  # Host-safe regression for RB-268. The product enables Gateway API support, and
+  # cert-manager v1.20 refuses to start when discovery cannot find the Gateway API
+  # CRDs. Exercise the exact installer against fake curl/kubectl/sha256sum
+  # backends: the pinned bundle must be fetched, checksum-verified, applied,
+  # established, and discoverable before the proof reaches Helm.
+  fakebin="${tmp}/gateway-api-fakebin"
+  fixture_log="${tmp}/gateway-api-fixture.log"
+  bundle="${tmp}/gateway-api-standard-install.yaml"
+  mkdir -p "${fakebin}"
+  : >"${fixture_log}"
+
+  cat >"${fakebin}/curl" <<'FAKE'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'curl %s\n' "$*" >>"${GATEWAY_FIXTURE_LOG}"
+output=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+  --output)
+    output="$2"
+    shift 2
+    ;;
+  *) shift ;;
+  esac
+done
+[ -n "${output}" ]
+printf 'fake Gateway API bundle\n' >"${output}"
+FAKE
+  cat >"${fakebin}/sha256sum" <<'FAKE'
+#!/usr/bin/env bash
+set -euo pipefail
+IFS= read -r checksum_line
+printf 'sha256sum %s\nchecksum %s\n' "$*" "${checksum_line}" >>"${GATEWAY_FIXTURE_LOG}"
+FAKE
+  cat >"${fakebin}/kubectl" <<'FAKE'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'kubectl %s\n' "$*" >>"${GATEWAY_FIXTURE_LOG}"
+case "$*" in
+*' api-resources '*) printf 'gateways.gateway.networking.k8s.io\n' ;;
+esac
+FAKE
+  chmod +x "${fakebin}/curl" "${fakebin}/sha256sum" "${fakebin}/kubectl"
+
+  PATH="${fakebin}:${PATH}" GATEWAY_FIXTURE_LOG="${fixture_log}" \
+    bash ./scripts/local/install-gateway-api-crds.sh k3d-sulfur-fixture "${bundle}" >/dev/null
+
+  expected_url='https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.4.1/standard-install.yaml'
+  expected_sha='73b91b77f6be023a8c92c969fc664e5bd3b1a28aea59eac9ebc904607354dad2'
+  rg -qF "curl -fsSL --output ${bundle} ${expected_url}" "${fixture_log}"
+  rg -qF "sha256sum -c -" "${fixture_log}"
+  rg -qF "checksum ${expected_sha}  ${bundle}" "${fixture_log}"
+  rg -qF "kubectl --context k3d-sulfur-fixture apply --server-side -f ${bundle}" "${fixture_log}"
+  rg -qF 'kubectl --context k3d-sulfur-fixture wait --for=condition=Established --timeout=2m crd/gatewayclasses.gateway.networking.k8s.io crd/gateways.gateway.networking.k8s.io crd/httproutes.gateway.networking.k8s.io' "${fixture_log}"
+  rg -qF 'kubectl --context k3d-sulfur-fixture api-resources --api-group=gateway.networking.k8s.io -o name' "${fixture_log}"
+
+  installer_line="$(rg -nF 'install-gateway-api-crds.sh' scripts/validate/sulfur-k3d.sh | tail -n 1 | cut -d: -f1)"
+  helm_line="$(rg -nF 'helm upgrade --install sulfur' scripts/validate/sulfur-k3d.sh | cut -d: -f1)"
+  [ -n "${installer_line}" ] && [ -n "${helm_line}" ] && [ "${installer_line}" -lt "${helm_line}" ] || {
+    echo "❌ Gateway API CRDs are not installed before cert-manager starts" >&2
+    exit 1
+  }
+  ;;
+
 *)
   echo "❌ unknown validation mode '${mode}'" >&2
   exit 1

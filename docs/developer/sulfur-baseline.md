@@ -135,14 +135,18 @@ CyanPrint probe matrix.
   `example:*` route renders with the appended identity layer and leaves the tree
   clean), and the non-live k3d isolation/ownership guard (`k3d-guard`: a
   fake-backend proof that the held proof rejects preset identities, refuses a
-  colliding cluster/registry, and tears down only owned resources).
+  colliding cluster/registry, and tears down only owned resources), plus the
+  host-safe Gateway API fixture regression (`gateway-api-fixture`: the pinned
+  bundle is checksum-verified, applied, established, and discoverable before
+  cert-manager starts).
 - **Integration tier** (`scripts/validate/sulfur-k3d.sh`): k3d install, the three
   cert-manager Deployments reach Available, and a self-signed Issuer + Certificate
   round-trips to `Ready=True`. The proof derives a path-isolated cluster/registry
   identity (rejecting any preset `K3D_*` override), refuses to adopt a pre-existing
   cluster/registry, claims ownership so its trap tears down only what this run
-  created, and installs with an explicit `--kube-context`. Reserved for the
-  orchestrated proof window.
+  created, installs checksum-pinned Gateway API v1.4.1 CRDs before starting the
+  Gateway-enabled controller, and uses an explicit `--kube-context`. Reserved for
+  the orchestrated proof window.
 
 ListenerSet (alpha) is gated by `enableGatewayAPIListenerSet` +
 `featureGates.ListenerSets` and is intentionally **not** tested until the feature

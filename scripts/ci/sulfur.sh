@@ -25,6 +25,7 @@ bash ./scripts/validate/sulfur.sh no-dead-flag
 bash ./scripts/validate/sulfur.sh no-issuer
 bash ./scripts/validate/sulfur.sh crds
 bash ./scripts/validate/sulfur.sh k3d-guard
+bash ./scripts/validate/sulfur.sh gateway-api-fixture
 bash ./scripts/validate/sulfur.sh publish-git
 bash ./scripts/validate/sulfur.sh publish-oci
 bash ./scripts/validate/sulfur.sh version

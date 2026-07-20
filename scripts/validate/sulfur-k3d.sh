@@ -35,6 +35,13 @@ export K3D_OWNERSHIP_MARKER="${tmp}/owned"
 trap 'bash ./scripts/local/delete-k3d-cluster.sh >/dev/null 2>&1 || true; rm -rf "${tmp}"' EXIT
 
 bash ./scripts/local/create-k3d-cluster.sh
+# Gateway API support is a mandatory sulfur value. cert-manager v1.20 refuses to
+# start with that support enabled when the Gateway API CRDs are absent, so install
+# and establish the checksum-pinned fixture dependency before Helm starts the
+# controller. sulfur remains pure passthrough: these CRDs belong only to the k3d
+# integration fixture, not to the product chart.
+bash ./scripts/local/install-gateway-api-crds.sh \
+  "k3d-${cluster_name}" "${tmp}/gateway-api-v1.4.1-standard-install.yaml"
 # Derive the LPSM identity layer from the single labelPrefix (+ serviceTree); this
 # generated upstream.global.commonLabels layer is the supported/mandatory render
 # path and the validate.yaml guard rejects an install without it.
