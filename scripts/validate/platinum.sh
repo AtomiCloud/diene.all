@@ -213,6 +213,7 @@ presence)
   test -s chart/values.oci.yaml
   test -s chart/values.digitalocean.yaml
   test -s tests/fixtures/kgateway-v2.2.9-proxy-render.yaml
+  test -s tests/fixtures/gateway-api-standard-channel-v1.6.0.yaml
   test -s policies/vap/workload-baseline.yaml
   test -s policies/vap/service-baseline.yaml
   ;;
@@ -220,6 +221,34 @@ tokenization-presence)
   rg -q '^## Tokenization surface$' docs/developer/platinum-baseline.md
   rg -q 'repository-qualified physical instance id' docs/developer/platinum-baseline.md
   rg -q 'upstream chart name/version/repository' docs/developer/platinum-baseline.md
+  ;;
+gateway-api-crd-fixture)
+  # RB-244 regression guard: the standard-channel Gateway API CRDs must be
+  # vendored, non-empty, checksum-pinned, and parse as the expected CRDs. This
+  # mode would have caught the 404 — before the repair no local fixture existed
+  # and the proof fetched a live, renameable upstream release URL.
+  fixture_path="$(bash ./scripts/local/gateway-api-crd-fixture.sh verify)"
+  pinned_version="$(bash ./scripts/local/gateway-api-crd-fixture.sh version)"
+  case "${fixture_path}" in
+  */"gateway-api-standard-channel-${pinned_version}.yaml") ;;
+  *)
+    echo "❌ fixture path does not embed pinned version ${pinned_version}" >&2
+    exit 1
+    ;;
+  esac
+  yq eval-all -o=json '.' "${fixture_path}" | jq -s -e '
+    [.[].metadata.name] as $names |
+    ($names | index("gatewayclasses.gateway.networking.k8s.io")) != null and
+    ($names | index("gateways.gateway.networking.k8s.io")) != null and
+    ($names | index("httproutes.gateway.networking.k8s.io")) != null and
+    ([.[].kind] | any(. == "CustomResourceDefinition"))
+  ' >/dev/null
+  # The proof must apply the checksum-pinned fixture, never a live external URL.
+  rg -q 'gateway-api-crd-fixture\.sh verify' scripts/validate/platinum-k3d.sh
+  if rg -q 'https?://[^[:space:]]*gateway-api[^[:space:]]*channel\.yaml' scripts/validate/platinum-k3d.sh; then
+    echo "❌ platinum-k3d proof still references a live Gateway API channel URL" >&2
+    exit 1
+  fi
   ;;
 *)
   echo "❌ unknown validation mode '${mode}'" >&2
