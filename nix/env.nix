@@ -11,10 +11,6 @@ with packages;
     pls
     sg
     skopeo
-
-    # ### go-base-dev
-    # #### source: go-base
-    gotestsum
   ];
 
   # ### workspace-lint
@@ -60,6 +56,7 @@ with packages;
     # ### go-base-main
     # #### source: go-base
     go
+    gotestsum
     govulncheck
 
     # ### operator-template-main
