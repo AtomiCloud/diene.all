@@ -34,7 +34,7 @@ pre-commit-lib.run {
       enable = true;
       package = formatter;
       excludes = [
-        "^Changelog[.]md$"
+        "^CHANGELOG[.]md$"
         "^docs/developer/CommitConventions[.]md$"
       ];
     };
