@@ -215,21 +215,21 @@ pre-commit-lib.run {
       language = "system";
     };
 
-    # ### sulfur-hooks
-    # #### source: sulfur
-    a-sulfur-helm-docs = {
+    # ### zinc-hooks
+    # #### source: zinc
+    a-zinc-helm-docs = {
       enable = true;
-      name = "Sulfur chart docs";
+      name = "Zinc chart docs";
       entry = "${packages.infralint}/bin/helm-docs --chart-search-root chart";
       files = "^chart/.*";
       pass_filenames = false;
       language = "system";
     };
 
-    a-sulfur-helm-lint = {
+    a-zinc-helm-lint = {
       enable = true;
-      name = "Sulfur chart lint";
-      entry = validator "scripts/validate/sulfur.sh lint";
+      name = "Zinc chart lint";
+      entry = validator "scripts/validate/zinc.sh lint";
       files = "^(chart/.*|scripts/(local|validate)/.*)$";
       pass_filenames = false;
       language = "system";

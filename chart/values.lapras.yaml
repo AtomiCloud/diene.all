@@ -1,5 +1,5 @@
-# Independent local-cluster overlay. It contains no landscape decision.
-# The cluster slot flows into the derived upstream.global.commonLabels via
-# scripts/local/gen-identity-values.sh; no static label mirror is kept here.
+# Connected local development landscape: staging protects iterative issuance from production limits.
 serviceTree:
-  cluster: lapras
+  landscape: lapras
+issuer:
+  server: https://acme-staging-v02.api.letsencrypt.org/directory

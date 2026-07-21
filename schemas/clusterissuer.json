@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://diene.invalid/schemas/clusterissuer.json",
+  "title": "ClusterIssuer (cert-manager.io/v1, ACME DNS-01 Cloudflare)",
+  "type": "object",
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": { "const": "cert-manager.io/v1" },
+    "kind": { "const": "ClusterIssuer" },
+    "metadata": {
+      "type": "object",
+      "required": ["name", "labels", "annotations"],
+      "properties": {
+        "name": { "type": "string", "pattern": "^zinc-[a-z0-9]+$" },
+        "labels": { "type": "object" },
+        "annotations": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "spec": {
+      "type": "object",
+      "required": ["acme"],
+      "properties": {
+        "acme": {
+          "type": "object",
+          "required": ["email", "server", "privateKeySecretRef", "solvers"],
+          "properties": {
+            "email": { "type": "string", "format": "email" },
+            "server": { "type": "string", "format": "uri" },
+            "privateKeySecretRef": {
+              "type": "object",
+              "required": ["name"],
+              "properties": {
+                "name": { "type": "string", "pattern": "^zinc-[a-z0-9]+$" }
+              },
+              "additionalProperties": false
+            },
+            "solvers": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "items": {
+                "type": "object",
+                "required": ["selector", "dns01"],
+                "properties": {
+                  "selector": {
+                    "type": "object",
+                    "required": ["dnsZones"],
+                    "properties": {
+                      "dnsZones": {
+                        "type": "array",
+                        "minItems": 1,
+                        "uniqueItems": true,
+                        "items": { "type": "string", "pattern": "^[a-z0-9.-]+$" }
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "dns01": {
+                    "type": "object",
+                    "required": ["cloudflare"],
+                    "properties": {
+                      "cloudflare": {
+                        "type": "object",
+                        "required": ["apiTokenSecretRef"],
+                        "properties": {
+                          "apiTokenSecretRef": {
+                            "type": "object",
+                            "required": ["name", "key"],
+                            "properties": {
+                              "name": { "type": "string", "pattern": "^zinc-[a-z0-9]+$" },
+                              "key": { "type": "string", "pattern": "^SHARED_[A-Z0-9_]+$" }
+                            },
+                            "additionalProperties": false
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

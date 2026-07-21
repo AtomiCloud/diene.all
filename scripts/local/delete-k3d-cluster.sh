@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cluster_name="${K3D_CLUSTER_NAME:-diene-sulfur}"
-registry_name="${K3D_REGISTRY_NAME:-diene-sulfur-registry}"
+cluster_name="${K3D_CLUSTER_NAME:-diene-zinc}"
+registry_name="${K3D_REGISTRY_NAME:-diene-zinc-registry}"
 # Strict ownership (opt-in via the isolated proof): delete ONLY the cluster/registry
 # a prior create claimed in the marker. No/invalid marker means nothing was owned,
 # so nothing is deleted — a pre-existing, unowned cluster is never destroyed.

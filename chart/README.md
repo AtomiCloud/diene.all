@@ -1,35 +1,22 @@
-# diene-sulfur
+# diene-zinc
 
-![Version: 0.1.0](https://img.shields.io/badge/Version-0.1.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v1.20.3](https://img.shields.io/badge/AppVersion-v1.20.3-informational?style=flat-square)
+![Version: 0.1.0](https://img.shields.io/badge/Version-0.1.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.0.0](https://img.shields.io/badge/AppVersion-1.0.0-informational?style=flat-square)
 
-AtomiCloud cert-manager engine wrapper (pure passthrough; issuers live in zinc)
+AtomiCloud cert-manager ClusterIssuer set for DNS-01 issuance
 
 ## Requirements
 
 Kubernetes: `>=1.27.0-0`
 
-| Repository | Name | Version |
-|------------|------|---------|
-| https://charts.jetstack.io | upstream(cert-manager) | v1.20.3 |
-
 ## Values
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| config | object | `{"enableGatewayAPI":true}` | sulfur contract surface mirrored for static conformance. Values must match the upstream block. |
-| config.enableGatewayAPI | bool | `true` | Gateway API support is required (kgateway integration); the canonical knob is upstream.config.enableGatewayAPI. |
-| instance | object | `{"physicalId":"example-repository:run-001"}` | Optional physical-instance metadata. The instance remains outside LPSM. |
-| labelPrefix | string | `"atomi.cloud"` | Single source of truth for the service-tree label prefix. The supported render path (scripts/local/gen-identity-values.sh) derives the subchart upstream.global.commonLabels keys from this one value; there is no static mirror. |
-| serviceTree | object | `{"layer":"1","module":"certs","platform":"sample","service":"sulfur"}` | Stable four-slot service-tree projection. Landscape and cluster are added by independent overlays. |
-| upstream | object | `{"cainjector":{"containerSecurityContext":{"runAsNonRoot":true},"podAnnotations":{"reloader.stakater.com/auto":"true"},"resources":{"limits":{"cpu":"250m","memory":"256Mi"},"requests":{"cpu":"25m","memory":"64Mi"}}},"config":{"enableGatewayAPI":true},"containerSecurityContext":{"runAsNonRoot":true},"crds":{"enabled":true,"keep":true},"enabled":true,"imageNamespace":"jetstack","imageRegistry":"quay.io","podAnnotations":{"reloader.stakater.com/auto":"true"},"resources":{"limits":{"cpu":"250m","memory":"256Mi"},"requests":{"cpu":"25m","memory":"64Mi"}},"startupapicheck":{"containerSecurityContext":{"runAsNonRoot":true},"resources":{"limits":{"cpu":"100m","memory":"128Mi"},"requests":{"cpu":"10m","memory":"32Mi"}}},"webhook":{"containerSecurityContext":{"runAsNonRoot":true},"podAnnotations":{"reloader.stakater.com/auto":"true"},"resources":{"limits":{"cpu":"250m","memory":"256Mi"},"requests":{"cpu":"25m","memory":"64Mi"}}}}` | Pure-passthrough cert-manager engine. Issuers live in zinc, never here. |
-| upstream.config | object | `{"enableGatewayAPI":true}` | ControllerConfiguration. enableGatewayAPI is the canonical Gateway API knob (not the legacy feature gate). |
-| upstream.containerSecurityContext | object | `{"runAsNonRoot":true}` | Container hardening. cert-manager defaults already supply drop ALL, readOnlyRootFilesystem, and allowPrivilegeEscalation:false; runAsNonRoot is added at container level so every workload satisfies the workload-baseline VAP. |
-| upstream.crds | object | `{"enabled":true,"keep":true}` | cert-manager CRDs are installed by the engine chart; keep them on uninstall so certificates survive. |
-| upstream.imageRegistry | string | `"quay.io"` | Sequential-minor upgrade path from v1.15 is enforced by this repo's own CI (Q-G22). |
-| upstream.podAnnotations | object | `{"reloader.stakater.com/auto":"true"}` | Reloader opt-in on the controller pod (family default). |
-| upstream.podAnnotations."reloader.stakater.com/auto" | string | `"true"` | Nullable so a landscape/cluster overlay can opt a workload out by setting it to null. |
-| upstream.resources | object | `{"limits":{"cpu":"250m","memory":"256Mi"},"requests":{"cpu":"25m","memory":"64Mi"}}` | Controller requests/limits. Required so rendered workloads satisfy the inherited workload-baseline VAP (requests+limits for cpu+memory). |
-| upstream.startupapicheck | object | `{"containerSecurityContext":{"runAsNonRoot":true},"resources":{"limits":{"cpu":"100m","memory":"128Mi"},"requests":{"cpu":"10m","memory":"32Mi"}}}` | One-shot startup API check Job. No Reloader annotation (not a long-running workload). |
+| entei | object | `{"dnsZones":["eevee.dev.atomi.cloud","plusle.dev.atomi.cloud","minun.dev.atomi.cloud","entei.dev.atomi.cloud"],"enabled":false,"production":{"accountSecretName":"zinc-productionaccount","name":"zinc-production","server":"https://acme-v02.api.letsencrypt.org/directory"},"staging":{"accountSecretName":"zinc-stagingaccount","name":"zinc-staging","server":"https://acme-staging-v02.api.letsencrypt.org/directory"}}` | ENTEI host-role materialization. The overlay enables both stable issuance-class refs. |
+| issuer | object | `{"accountSecretName":"zinc-acmeaccount","cloudflare":{"apiTokenSecretRef":{"key":"SHARED_API_TOKEN","name":"zinc-cloudflare"}},"dnsZones":["cluster.atomi.cloud"],"email":"platform-ops@atomi.cloud","name":"zinc-acme","server":"https://acme-staging-v02.api.letsencrypt.org/directory"}` | Registered-fleet issuer materialization. Landscape overlays select only the ACME directory. |
+| labelPrefix | string | `"atomi.cloud"` | Single configurable prefix used by every service-tree label and annotation. |
+| secret | object | `{"folder":"/shared/cloudflare/dns01","refreshInterval":"1h","store":{"kind":"ClusterSecretStore","name":"zinc-platformstore"}}` | Cloudflare DNS-01 token materialized through ESO and the platform SecretStore. |
+| serviceTree | object | `{"layer":"1","module":"issuer","platform":"sample","service":"zinc"}` | Stable four-slot service-tree projection. Landscape and cluster are overlay-owned. |
 
 ----------------------------------------------
 Autogenerated from chart metadata using [helm-docs v1.14.2](https://github.com/norwoodj/helm-docs/releases/v1.14.2)

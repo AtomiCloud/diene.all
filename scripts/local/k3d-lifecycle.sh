@@ -21,11 +21,11 @@
 set -euo pipefail
 
 action="${1:-}"
-cluster_name="${K3D_CLUSTER_NAME:-diene-sulfur}"
-registry_name="${K3D_REGISTRY_NAME:-diene-sulfur-registry}"
+cluster_name="${K3D_CLUSTER_NAME:-diene-zinc}"
+registry_name="${K3D_REGISTRY_NAME:-diene-zinc-registry}"
 state_home="${XDG_STATE_HOME:-${HOME}/.local/state}"
 # Durable, private marker (outside the repository tree) keyed by cluster identity.
-marker="${K3D_OWNERSHIP_MARKER:-${state_home}/diene-sulfur/${cluster_name}.owned}"
+marker="${K3D_OWNERSHIP_MARKER:-${state_home}/diene-zinc/${cluster_name}.owned}"
 
 [ -z "${action}" ] && echo "❌ usage: k3d-lifecycle.sh <start|stop>" >&2 && exit 1
 

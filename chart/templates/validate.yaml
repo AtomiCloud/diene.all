@@ -1,9 +1,0 @@
-{{- /*
-Zero-resource render-time guard. sulfur ships no workload/Service/Issuer template
-of its own — this file emits NO Kubernetes object. It exists only to force the
-LPSM identity invariants at `helm template`/`helm install` time:
-  * serviceTree.platform must equal the release namespace (namespace-sourced platform);
-  * the derived upstream.global.commonLabels platform must mirror serviceTree.platform.
-Any mismatch fails rendering instead of silently shipping a mislabelled release.
-*/ -}}
-{{- include "sulfur.validateServiceTree" . -}}

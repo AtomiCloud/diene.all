@@ -1,0 +1,5 @@
+# Registered staging landscape uses the production directory for trusted review endpoints.
+serviceTree:
+  landscape: pikachu
+issuer:
+  server: https://acme-v02.api.letsencrypt.org/directory

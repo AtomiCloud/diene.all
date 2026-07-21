@@ -1,39 +1,172 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "Sulfur Values",
-    "description": "Generated schema for the sulfur cert-manager wrapper chart.",
+    "title": "Zinc Values",
+    "description": "Generated schema for the zinc cert-manager issuer-set chart.",
     "type": "object",
     "properties": {
-        "config": {
-            "description": "sulfur contract surface mirrored for static conformance. Values must match the upstream block.",
+        "entei": {
+            "description": "ENTEI host-role materialization. The overlay enables both stable issuance-class refs.",
             "type": "object",
-            "required": [
-                "enableGatewayAPI"
-            ],
             "properties": {
-                "enableGatewayAPI": {
-                    "description": "Gateway API support is required (kgateway integration); the canonical knob is upstream.config.enableGatewayAPI.",
+                "dnsZones": {
+                    "type": "array",
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "enabled": {
                     "type": "boolean"
+                },
+                "production": {
+                    "type": "object",
+                    "required": [
+                        "name",
+                        "accountSecretName",
+                        "server"
+                    ],
+                    "properties": {
+                        "accountSecretName": {
+                            "type": "string",
+                            "pattern": "^zinc-[a-z0-9]+$"
+                        },
+                        "name": {
+                            "type": "string",
+                            "pattern": "^zinc-[a-z0-9]+$"
+                        },
+                        "server": {
+                            "type": "string",
+                            "pattern": "^https://.+/directory$"
+                        }
+                    }
+                },
+                "staging": {
+                    "type": "object",
+                    "required": [
+                        "name",
+                        "accountSecretName",
+                        "server"
+                    ],
+                    "properties": {
+                        "accountSecretName": {
+                            "type": "string",
+                            "pattern": "^zinc-[a-z0-9]+$"
+                        },
+                        "name": {
+                            "type": "string",
+                            "pattern": "^zinc-[a-z0-9]+$"
+                        },
+                        "server": {
+                            "type": "string",
+                            "pattern": "^https://.+/directory$"
+                        }
+                    }
                 }
             }
         },
-        "instance": {
-            "description": "Optional physical-instance metadata. The instance remains outside LPSM.",
+        "issuer": {
+            "description": "Registered-fleet issuer materialization. Landscape overlays select only the ACME directory.",
             "type": "object",
+            "required": [
+                "email",
+                "name",
+                "accountSecretName",
+                "server"
+            ],
             "properties": {
-                "physicalId": {
-                    "type": "string"
+                "accountSecretName": {
+                    "type": "string",
+                    "pattern": "^zinc-[a-z0-9]+$"
+                },
+                "cloudflare": {
+                    "type": "object",
+                    "properties": {
+                        "apiTokenSecretRef": {
+                            "type": "object",
+                            "required": [
+                                "name",
+                                "key"
+                            ],
+                            "properties": {
+                                "key": {
+                                    "type": "string",
+                                    "pattern": "^SHARED_[A-Z0-9_]+$"
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "pattern": "^zinc-[a-z0-9]+$"
+                                }
+                            }
+                        }
+                    }
+                },
+                "dnsZones": {
+                    "type": "array",
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "email": {
+                    "type": "string",
+                    "pattern": "^[^@ ]+@[^@ ]+\\.[^@ ]+$"
+                },
+                "name": {
+                    "type": "string",
+                    "pattern": "^zinc-[a-z0-9]+$"
+                },
+                "server": {
+                    "type": "string",
+                    "pattern": "^https://.+/directory$"
                 }
             }
         },
         "labelPrefix": {
-            "description": "Single source of truth for the service-tree label prefix. The supported render path (scripts/local/gen-identity-values.sh) derives the subchart upstream.global.commonLabels keys from this one value; there is no static mirror.",
+            "description": "Single configurable prefix used by every service-tree label and annotation.",
             "type": "string",
             "pattern": "^[a-z0-9.-]+$",
             "minLength": 1
         },
+        "secret": {
+            "description": "Cloudflare DNS-01 token materialized through ESO and the platform SecretStore.",
+            "type": "object",
+            "required": [
+                "folder"
+            ],
+            "properties": {
+                "folder": {
+                    "type": "string",
+                    "pattern": "^/[a-z0-9/_-]+$"
+                },
+                "refreshInterval": {
+                    "type": "string"
+                },
+                "store": {
+                    "type": "object",
+                    "required": [
+                        "kind",
+                        "name"
+                    ],
+                    "properties": {
+                        "kind": {
+                            "type": "string",
+                            "enum": [
+                                "ClusterSecretStore",
+                                "SecretStore"
+                            ]
+                        },
+                        "name": {
+                            "type": "string",
+                            "pattern": "^zinc-[a-z0-9]+$"
+                        }
+                    }
+                }
+            }
+        },
         "serviceTree": {
-            "description": "Stable four-slot service-tree projection. Landscape and cluster are added by independent overlays.",
+            "description": "Stable four-slot service-tree projection. Landscape and cluster are overlay-owned.",
             "type": "object",
             "required": [
                 "platform",
@@ -57,239 +190,6 @@
                 "service": {
                     "type": "string",
                     "pattern": "^[a-z0-9]+$"
-                }
-            }
-        },
-        "upstream": {
-            "description": "Pure-passthrough cert-manager engine. Issuers live in zinc, never here.",
-            "type": "object",
-            "required": [
-                "crds"
-            ],
-            "properties": {
-                "cainjector": {
-                    "type": "object",
-                    "properties": {
-                        "containerSecurityContext": {
-                            "type": "object",
-                            "properties": {
-                                "runAsNonRoot": {
-                                    "type": "boolean"
-                                }
-                            }
-                        },
-                        "podAnnotations": {
-                            "type": "object",
-                            "properties": {
-                                "reloader.stakater.com/auto": {
-                                    "type": [
-                                        "string",
-                                        "null"
-                                    ]
-                                }
-                            }
-                        },
-                        "resources": {
-                            "type": "object",
-                            "properties": {
-                                "limits": {
-                                    "type": "object",
-                                    "properties": {
-                                        "cpu": {
-                                            "type": "string"
-                                        },
-                                        "memory": {
-                                            "type": "string"
-                                        }
-                                    }
-                                },
-                                "requests": {
-                                    "type": "object",
-                                    "properties": {
-                                        "cpu": {
-                                            "type": "string"
-                                        },
-                                        "memory": {
-                                            "type": "string"
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                },
-                "config": {
-                    "description": "ControllerConfiguration. enableGatewayAPI is the canonical Gateway API knob (not the legacy feature gate).",
-                    "type": "object",
-                    "properties": {
-                        "enableGatewayAPI": {
-                            "type": "boolean"
-                        }
-                    }
-                },
-                "containerSecurityContext": {
-                    "description": "Container hardening. cert-manager defaults already supply drop ALL, readOnlyRootFilesystem, and allowPrivilegeEscalation:false; runAsNonRoot is added at container level so every workload satisfies the workload-baseline VAP.",
-                    "type": "object",
-                    "properties": {
-                        "runAsNonRoot": {
-                            "type": "boolean"
-                        }
-                    }
-                },
-                "crds": {
-                    "description": "cert-manager CRDs are installed by the engine chart; keep them on uninstall so certificates survive.",
-                    "type": "object",
-                    "properties": {
-                        "enabled": {
-                            "type": "boolean"
-                        },
-                        "keep": {
-                            "type": "boolean"
-                        }
-                    }
-                },
-                "enabled": {
-                    "type": "boolean"
-                },
-                "imageNamespace": {
-                    "type": "string"
-                },
-                "imageRegistry": {
-                    "description": "Sequential-minor upgrade path from v1.15 is enforced by this repo's own CI (Q-G22).",
-                    "type": "string"
-                },
-                "podAnnotations": {
-                    "description": "Reloader opt-in on the controller pod (family default).",
-                    "type": "object",
-                    "properties": {
-                        "reloader.stakater.com/auto": {
-                            "description": "Nullable so a landscape/cluster overlay can opt a workload out by setting it to null.",
-                            "type": [
-                                "string",
-                                "null"
-                            ]
-                        }
-                    }
-                },
-                "resources": {
-                    "description": "Controller requests/limits. Required so rendered workloads satisfy the inherited workload-baseline VAP (requests+limits for cpu+memory).",
-                    "type": "object",
-                    "properties": {
-                        "limits": {
-                            "type": "object",
-                            "properties": {
-                                "cpu": {
-                                    "type": "string"
-                                },
-                                "memory": {
-                                    "type": "string"
-                                }
-                            }
-                        },
-                        "requests": {
-                            "type": "object",
-                            "properties": {
-                                "cpu": {
-                                    "type": "string"
-                                },
-                                "memory": {
-                                    "type": "string"
-                                }
-                            }
-                        }
-                    }
-                },
-                "startupapicheck": {
-                    "description": "One-shot startup API check Job. No Reloader annotation (not a long-running workload).",
-                    "type": "object",
-                    "properties": {
-                        "containerSecurityContext": {
-                            "type": "object",
-                            "properties": {
-                                "runAsNonRoot": {
-                                    "type": "boolean"
-                                }
-                            }
-                        },
-                        "resources": {
-                            "type": "object",
-                            "properties": {
-                                "limits": {
-                                    "type": "object",
-                                    "properties": {
-                                        "cpu": {
-                                            "type": "string"
-                                        },
-                                        "memory": {
-                                            "type": "string"
-                                        }
-                                    }
-                                },
-                                "requests": {
-                                    "type": "object",
-                                    "properties": {
-                                        "cpu": {
-                                            "type": "string"
-                                        },
-                                        "memory": {
-                                            "type": "string"
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                },
-                "webhook": {
-                    "type": "object",
-                    "properties": {
-                        "containerSecurityContext": {
-                            "type": "object",
-                            "properties": {
-                                "runAsNonRoot": {
-                                    "type": "boolean"
-                                }
-                            }
-                        },
-                        "podAnnotations": {
-                            "type": "object",
-                            "properties": {
-                                "reloader.stakater.com/auto": {
-                                    "type": [
-                                        "string",
-                                        "null"
-                                    ]
-                                }
-                            }
-                        },
-                        "resources": {
-                            "type": "object",
-                            "properties": {
-                                "limits": {
-                                    "type": "object",
-                                    "properties": {
-                                        "cpu": {
-                                            "type": "string"
-                                        },
-                                        "memory": {
-                                            "type": "string"
-                                        }
-                                    }
-                                },
-                                "requests": {
-                                    "type": "object",
-                                    "properties": {
-                                        "cpu": {
-                                            "type": "string"
-                                        },
-                                        "memory": {
-                                            "type": "string"
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
                 }
             }
         }

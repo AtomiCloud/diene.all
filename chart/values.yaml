@@ -1,101 +1,69 @@
 # @schema pattern:^[a-z0-9.-]+$;minLength:1
-# -- Single source of truth for the service-tree label prefix. The supported
-# render path (scripts/local/gen-identity-values.sh) derives the subchart
-# upstream.global.commonLabels keys from this one value; there is no static mirror.
+# -- Single configurable prefix used by every service-tree label and annotation.
 labelPrefix: atomi.cloud
 
-# -- Stable four-slot service-tree projection. Landscape and cluster are added by independent overlays.
+# -- Stable four-slot service-tree projection. Landscape and cluster are overlay-owned.
 serviceTree:
   # @schema pattern:^[a-z0-9]+$;required:true
   platform: sample
   # @schema pattern:^[a-z0-9]+$;required:true
-  service: sulfur
+  service: zinc
   # @schema pattern:^[a-z0-9]+$;required:true
-  module: certs
+  module: issuer
   # @schema pattern:^[0-9]+$;required:true
   layer: '1'
 
-# -- Optional physical-instance metadata. The instance remains outside LPSM.
-instance:
-  physicalId: example-repository:run-001
+# -- Registered-fleet issuer materialization. Landscape overlays select only the ACME directory.
+issuer:
+  # @schema pattern:^[^@ ]+@[^@ ]+\.[^@ ]+$;required:true
+  email: platform-ops@atomi.cloud
+  # @schema pattern:^zinc-[a-z0-9]+$;required:true
+  name: zinc-acme
+  # @schema pattern:^zinc-[a-z0-9]+$;required:true
+  accountSecretName: zinc-acmeaccount
+  # @schema pattern:^https://.+/directory$;required:true
+  server: https://acme-staging-v02.api.letsencrypt.org/directory
+  # @schema minItems:1;uniqueItems:true;item:string
+  dnsZones:
+    - cluster.atomi.cloud
+  cloudflare:
+    apiTokenSecretRef:
+      # @schema pattern:^zinc-[a-z0-9]+$;required:true
+      name: zinc-cloudflare
+      # @schema pattern:^SHARED_[A-Z0-9_]+$;required:true
+      key: SHARED_API_TOKEN
 
-# -- sulfur contract surface mirrored for static conformance. Values must match the upstream block.
-config:
-  # @schema required:true
-  # -- Gateway API support is required (kgateway integration); the canonical knob is upstream.config.enableGatewayAPI.
-  enableGatewayAPI: true
+# -- ENTEI host-role materialization. The overlay enables both stable issuance-class refs.
+entei:
+  enabled: false
+  # @schema minItems:1;uniqueItems:true;item:string
+  dnsZones:
+    - eevee.dev.atomi.cloud
+    - plusle.dev.atomi.cloud
+    - minun.dev.atomi.cloud
+    - entei.dev.atomi.cloud
+  staging:
+    # @schema pattern:^zinc-[a-z0-9]+$;required:true
+    name: zinc-staging
+    # @schema pattern:^zinc-[a-z0-9]+$;required:true
+    accountSecretName: zinc-stagingaccount
+    # @schema pattern:^https://.+/directory$;required:true
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+  production:
+    # @schema pattern:^zinc-[a-z0-9]+$;required:true
+    name: zinc-production
+    # @schema pattern:^zinc-[a-z0-9]+$;required:true
+    accountSecretName: zinc-productionaccount
+    # @schema pattern:^https://.+/directory$;required:true
+    server: https://acme-v02.api.letsencrypt.org/directory
 
-# -- Pure-passthrough cert-manager engine. Issuers live in zinc, never here.
-upstream:
-  enabled: true
-  # @schema required:true
-  # -- cert-manager CRDs are installed by the engine chart; keep them on uninstall so certificates survive.
-  crds:
-    enabled: true
-    keep: true
-  # -- ControllerConfiguration. enableGatewayAPI is the canonical Gateway API knob (not the legacy feature gate).
-  config:
-    enableGatewayAPI: true
-  # -- Sequential-minor upgrade path from v1.15 is enforced by this repo's own CI (Q-G22).
-  imageRegistry: quay.io
-  imageNamespace: jetstack
-  # LPSM identity labels are injected at render time via
-  # scripts/local/gen-identity-values.sh, which derives upstream.global.commonLabels
-  # from the single labelPrefix + serviceTree. They are intentionally NOT mirrored
-  # statically here so labelPrefix stays the sole source of truth.
-  # -- Controller requests/limits. Required so rendered workloads satisfy the
-  # inherited workload-baseline VAP (requests+limits for cpu+memory).
-  resources:
-    limits:
-      cpu: 250m
-      memory: 256Mi
-    requests:
-      cpu: 25m
-      memory: 64Mi
-  # -- Container hardening. cert-manager defaults already supply drop ALL,
-  # readOnlyRootFilesystem, and allowPrivilegeEscalation:false; runAsNonRoot is
-  # added at container level so every workload satisfies the workload-baseline VAP.
-  containerSecurityContext:
-    runAsNonRoot: true
-  # -- Reloader opt-in on the controller pod (family default).
-  podAnnotations:
-    # @schema type:[string,"null"]
-    # -- Nullable so a landscape/cluster overlay can opt a workload out by setting it to null.
-    reloader.stakater.com/auto: 'true'
-  webhook:
-    resources:
-      limits:
-        cpu: 250m
-        memory: 256Mi
-      requests:
-        cpu: 25m
-        memory: 64Mi
-    containerSecurityContext:
-      runAsNonRoot: true
-    podAnnotations:
-      # @schema type:[string,"null"]
-      reloader.stakater.com/auto: 'true'
-  cainjector:
-    resources:
-      limits:
-        cpu: 250m
-        memory: 256Mi
-      requests:
-        cpu: 25m
-        memory: 64Mi
-    containerSecurityContext:
-      runAsNonRoot: true
-    podAnnotations:
-      # @schema type:[string,"null"]
-      reloader.stakater.com/auto: 'true'
-  # -- One-shot startup API check Job. No Reloader annotation (not a long-running workload).
-  startupapicheck:
-    resources:
-      limits:
-        cpu: 100m
-        memory: 128Mi
-      requests:
-        cpu: 10m
-        memory: 32Mi
-    containerSecurityContext:
-      runAsNonRoot: true
+# -- Cloudflare DNS-01 token materialized through ESO and the platform SecretStore.
+secret:
+  refreshInterval: 1h
+  store:
+    # @schema enum:[ClusterSecretStore,SecretStore];required:true
+    kind: ClusterSecretStore
+    # @schema pattern:^zinc-[a-z0-9]+$;required:true
+    name: zinc-platformstore
+  # @schema pattern:^/[a-z0-9/_-]+$;required:true
+  folder: /shared/cloudflare/dns01

@@ -5,13 +5,20 @@ version: '3'
 includes:
   helm: tasks/Taskfile.helm.yaml
   secret: tasks/Taskfile.secret.yaml
-  example:lapras:
+  pichu:local:
     taskfile: tasks/Taskfile.cluster.yaml
     vars:
-      RELEASE_NAME: sulfur
+      RELEASE_NAME: zinc
       NAMESPACE: sample
-      LANDSCAPE: example
-      CLUSTER: lapras
+      LANDSCAPE: pichu
+      CLUSTER: local
+  entei:local:
+    taskfile: tasks/Taskfile.cluster.yaml
+    vars:
+      RELEASE_NAME: zinc
+      NAMESPACE: sample
+      LANDSCAPE: entei
+      CLUSTER: local
 
 tasks:
   setup:
@@ -30,41 +37,31 @@ tasks:
       - ./scripts/local/skills-sync.sh
 
   build:
-    desc: Build chart dependencies (cert-manager is vendored; rebuilds when the jetstack repo is reachable)
+    desc: Render the own-resource chart
     cmds:
-      - helm dependency build chart
-
-  update:
-    desc: Refresh the pinned upstream chart dependency
-    cmds:
-      - helm dependency update chart
-
-  latest:
-    desc: Resolve the latest cert-manager chart and image tags
-    cmds:
-      - ./scripts/local/latest-chart-upstreams.sh
+      - helm template zinc chart --namespace sample --values chart/values.pichu.yaml --values chart/values.local.yaml >/dev/null
 
   test:
-    desc: Run the sulfur unit/static tier
+    desc: Run the zinc unit/static tier
     cmds:
-      - ./scripts/ci/sulfur.sh
+      - ./scripts/ci/zinc.sh
 
   test:unit:
-    desc: Run schema, lint, render, policy, and contract validation
+    desc: Run schema, lint, render, contract, and policy validation
     cmds:
-      - ./scripts/ci/sulfur.sh
+      - ./scripts/ci/zinc.sh
 
   test:int:
-    desc: Run the local k3d installation proof (reserved for the orchestrated proof window)
+    desc: Run the serialized k3d CRD/apply proof
     cmds:
-      - ./scripts/validate/sulfur-k3d.sh
+      - ./scripts/validate/zinc-k3d.sh
 
   start:cluster:
-    desc: Start the local k3d lapras proof cluster (ownership-safe; never adopts an unowned cluster)
+    desc: Start the ownership-safe local k3d proof cluster
     cmds:
       - ./scripts/local/k3d-lifecycle.sh start
 
   stop:cluster:
-    desc: Delete the local k3d lapras proof cluster (deletes only what start:cluster created)
+    desc: Delete only the locally owned k3d proof cluster
     cmds:
       - ./scripts/local/k3d-lifecycle.sh stop

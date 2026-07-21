@@ -1,0 +1,5 @@
+# Registered development landscape: staging protects automated issuance from production rate limits.
+serviceTree:
+  landscape: pichu
+issuer:
+  server: https://acme-staging-v02.api.letsencrypt.org/directory

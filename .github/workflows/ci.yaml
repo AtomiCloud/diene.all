@@ -26,9 +26,9 @@ jobs:
     with:
       chart_path: ./infra/root_chart
 
-  sulfur:
-    name: Sulfur Chart
+  zinc:
+    name: Zinc Chart
     permissions:
       contents: read
-    uses: ./.github/workflows/⚡reusable-sulfur.yaml
+    uses: ./.github/workflows/⚡reusable-zinc.yaml
     secrets: inherit

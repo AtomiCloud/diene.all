@@ -76,9 +76,9 @@ Domain-specific architecture and behavior belongs under
 [docs/domain/](docs/domain/README.md). The `docs/standards/contracts/` slot is
 reserved for the separately owned C0 contracts standard.
 
-<!-- ### sulfur -->
-<!-- #### source: sulfur -->
+<!-- ### zinc -->
+<!-- #### source: zinc -->
 
-## Sulfur chart (cert-manager engine)
+## Zinc chart (cert-manager issuer set)
 
-Read [docs/developer/sulfur-baseline.md](docs/developer/sulfur-baseline.md) before changing `chart/`, the stacked values, the cert-manager sequential-minor pin, Gateway API support, the engine/issuer split, workload hardening, or chart publishing.
+Read [docs/developer/zinc-baseline.md](docs/developer/zinc-baseline.md) before changing `chart/`, the five-landscape ACME directory map, ENTEI issuer refs/zones, the Sulfur/Zinc/Certificate ownership split, External Secret mapping, or chart publishing.

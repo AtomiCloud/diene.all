@@ -1,0 +1,5 @@
+# Infrastructure-only ENTEI host role: two issuance classes on the shared hosted-development edge.
+serviceTree:
+  landscape: entei
+entei:
+  enabled: true

@@ -1,10 +1,7 @@
 version: '3'
 
-# Every render/install route flows through scripts/local/render-stacked.sh, which
-# generates the mandatory LPSM identity layer from the exact base+landscape+cluster
-# values stack and appends it as the final --values argument (chart/templates/
-# validate.yaml fails rendering without it). The wrapper runs the generator from the
-# repository root, so these commands intentionally carry no `dir:` override.
+# Every render/install route uses the independent base -> landscape -> cluster
+# stacking order and runs from the repository root.
 
 tasks:
   debug:
