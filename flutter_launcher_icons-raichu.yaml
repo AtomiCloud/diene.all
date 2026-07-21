@@ -1,7 +1,0 @@
-flutter_launcher_icons:
-  android: true
-  ios: true
-  image_path: assets/brand/icon-raichu.png
-  adaptive_icon_background: '#071B1B'
-  adaptive_icon_foreground: assets/brand/icon-raichu.png
-  remove_alpha_ios: true

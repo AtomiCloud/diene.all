@@ -1,52 +1,44 @@
-# Diene workspace baseline
+# diene_result
 
-<!-- ### nix-root -->
-<!-- #### source: main -->
+[![pub package](https://img.shields.io/pub/v/diene_result.svg)](https://pub.dev/packages/diene_result)
+[![CI](https://github.com/AtomiCloud/diene.dart_result/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.dart_result/actions/workflows/ci.yaml)
+[![unit coverage](https://codecov.io/gh/AtomiCloud/diene.dart_result/graph/badge.svg?flag=unit)](https://codecov.io/gh/AtomiCloud/diene.dart_result)
+[![meta coverage](https://codecov.io/gh/AtomiCloud/diene.dart_result/graph/badge.svg?flag=meta)](https://codecov.io/gh/AtomiCloud/diene.dart_result)
 
-Diene's reproducible development environment is managed by Nix. Run `direnv allow` once, then use `pls` tasks from the loaded shell.
+Sealed, synchronous `Result<T>` and `Option<T>` values for Dart, with
+C0-compatible tagged-array wire codecs and a dependency-light consumer test
+helper.
 
-<!-- ### workspace -->
-<!-- #### source: workspace -->
+```dart
+import 'package:diene_result/diene_result.dart';
 
-This branch is the workspace baseline inherited by every downstream sample: split CI/release workflows, secrets, release configuration, validators, standards, and vendored agent-skill synchronization.
+final Result<int> result = Result<int>.ok(21)
+    .map((value) => value * 2)
+    .andThen((value) => Result<int>.ok(value));
 
-## Commands
+final String message = result.match(
+  ok: (value) => 'answer: $value',
+  err: (problem) => problem.title,
+);
+```
 
-- `pls setup` — synchronize installed diene package skills.
-- `pls lint` — run every pre-commit gate.
-- `pls secret:scan` — scan tracked content for secrets.
-- `pls skills:sync` — rebuild `.claude/skills/vendor/` from installed packages.
+The error channel is the C0 RFC 9457 `Problem` envelope. `serial()` emits the
+same JSON arrays as the Bun sibling:
 
-## Standards
+- `['ok', value]` / `['err', problemJson]`
+- `['some', value]` / `['none', null]`
 
-- [CI/CD workflows](docs/standards/ci-cd/index.md)
-- [conventional commits](docs/standards/conventional-commits/index.md)
-- [Infisical and secrets](docs/standards/infisical/index.md)
-- [linting and pre-commit](docs/standards/linting/index.md)
-- [Nix flakes and development shells](docs/standards/nix/index.md)
-- [release automation](docs/standards/semantic-release/index.md)
-- [service-tree identity](docs/standards/service-tree/index.md)
-- [shell scripts](docs/standards/shell-scripts/index.md)
-- [Taskfile conventions](docs/standards/taskfile/index.md)
+Import `package:diene_result/test_helper.dart` in consumer tests for
+`expectOk`, `expectErr`, `expectSome`, and `expectNone`. The sub-library has no
+test-framework or runtime dependencies.
 
-<!-- ### shared -->
-<!-- #### source: shared -->
+Read the [Result standard](doc/result.md) for the complete API,
+wire contract, TestHelper guidance, and deliberate Bun-family deltas.
 
-## Shared standards
+## Development
 
-- [Authorization](docs/standards/authorization/index.md)
-- [Contributor documentation](docs/standards/contributor-docs/index.md)
-- [Date and time](docs/standards/datetime/index.md)
-- [Domain-driven design](docs/standards/domain-driven-design/index.md)
-- [Functional practices](docs/standards/functional-practices/index.md)
-- [Software design philosophy](docs/standards/software-design-philosophy/index.md)
-- [SOLID principles](docs/standards/solid-principles/index.md)
-- [Stateless OOP and dependency injection](docs/standards/stateless-oop-di/index.md)
-- [Testing](docs/standards/testing/index.md)
-- [Three-layer architecture](docs/standards/three-layer-architecture/index.md)
-- [Utility libraries](docs/standards/utilities/index.md)
-- [Data validation](docs/standards/validation/index.md)
-
-Domain-specific documentation belongs under [docs/domain/](docs/domain/README.md).
-The `docs/standards/contracts/` location is reserved for the separately owned C0
-contracts standard.
+- `pls setup` resolves development dependencies.
+- `pls test` runs unit, C0 conformance, and TestHelper meta suites.
+- `pls test:coverage` enforces the separate unit and meta ledgers.
+- `pls deadcode` runs repository and production-only dead-code passes.
+- `pls package:validate` runs the release guard, publish dry-run, and pana.

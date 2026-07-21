@@ -4,15 +4,22 @@ version: '3'
 
 includes:
   secret: tasks/Taskfile.secret.yaml
+  # ### dart-result-test-includes
+  # #### source: lib/dart/result
+  unit:
+    taskfile: tasks/Taskfile.test.yaml
+    vars:
+      MODE: unit
+  meta:
+    taskfile: tasks/Taskfile.test.yaml
+    vars:
+      MODE: meta
 
 tasks:
   setup:
-    desc: Set up generated workspace assets
+    desc: Resolve Dart dependencies and synchronize installed package skills
     cmds:
-      # ### flutter-base-setup
-      # #### source: flutter-base
-      - flutter pub get
-      - ./scripts/local/skills-sync.sh
+      - ./scripts/ci/setup.sh
 
   lint:
     desc: Run all repository gates
@@ -24,44 +31,78 @@ tasks:
     cmds:
       - ./scripts/local/skills-sync.sh
 
-  # ### flutter-base-tasks
-  # #### source: flutter-base
-  mobile:analyze:
-    desc: Analyze Flutter source and tests
+  # ### dart-result-tasks
+  # #### source: lib/dart/result
+  clean:
+    desc: Remove Dart dependency, build, coverage, and generated-doc artifacts
     cmds:
-      - flutter analyze
+      - rm -rf .dart_tool build coverage doc/api
 
-  mobile:test:
-    desc: Run Flutter unit and widget tests
+  build:
+    desc: Validate the publishable Dart library and example
+    deps: [setup]
     cmds:
-      - flutter test
+      - dart analyze --fatal-infos lib example
 
-  mobile:build-flavors:
-    desc: Build all four Android flavor smoke artifacts
+  analyze:
+    desc: Analyze library source, tests, and tooling
+    deps: [setup]
     cmds:
-      - ./scripts/validate/flavor-builds.sh
+      - dart analyze --fatal-infos
 
-  mobile:generate-sdk:
-    desc: Regenerate the typed OA3 client
+  deadcode:
+    desc: Run repository and production-only dead-code passes
     cmds:
-      - ./scripts/local/generate-sdk.sh
+      - ./scripts/local/deadcode.sh
 
-  mobile:generate-translations:
-    desc: Regenerate typed Slang translations
+  package:validate:
+    desc: Validate package metadata, pana score, and pub.dev dry-run contents
     cmds:
-      - ./scripts/local/generate-translations.sh
+      - ./scripts/ci/package-validate.sh
 
-  mobile:generate-config:
-    desc: Regenerate the Flutter config schema
+  test:
+    desc: Run unit/C0 and TestHelper meta suites without coverage
     cmds:
-      - ./scripts/local/generate-config-schema.sh
+      - task: unit:default
+      - task: meta:default
 
-  mobile:doctor-signing:
-    desc: Run locally provable signing and stamp doctors
+  test:unit:
+    desc: Run unit and C0 conformance suites without coverage
     cmds:
-      - ./scripts/validate/signing-doctors.sh
+      - task: unit:default
 
-  mobile:register-apple:
-    desc: Register Apple identifiers, groups, capabilities, and app records
+  test:int:
+    desc: No-op because this dependency-free package has no integration tier
     cmds:
-      - ./scripts/local/register-apple.sh
+      - echo 'No integration tier for diene_result.'
+
+  test:meta:
+    desc: Run assert-the-asserter tests for TestHelper
+    cmds:
+      - task: meta:default
+
+  test:coverage:
+    desc: Run every coverage-capable tier with its isolated ledger
+    cmds:
+      - task: unit:coverage
+      - task: meta:coverage
+
+  test:unit:coverage:
+    desc: Run unit and C0 tests with the unit-only coverage ledger
+    cmds:
+      - task: unit:coverage
+
+  test:int:coverage:
+    desc: No-op because this dependency-free package has no integration tier
+    cmds:
+      - echo 'No integration coverage tier for diene_result.'
+
+  test:meta:coverage:
+    desc: Run TestHelper meta tests with the helper-only coverage ledger
+    cmds:
+      - task: meta:coverage
+
+  test:watch:
+    desc: Re-run the fast unit and C0 suites when Dart files change
+    cmds:
+      - ./scripts/local/watch-tests.sh

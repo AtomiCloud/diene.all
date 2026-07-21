@@ -1,0 +1,17 @@
+version: '3'
+
+vars:
+  MODE: '{{.MODE | default "unit"}}'
+
+tasks:
+  default:
+    internal: true
+    desc: 'Run {{.MODE}} tests'
+    cmds:
+      - ./scripts/ci/test.sh '{{.MODE}}' no-coverage
+
+  coverage:
+    internal: true
+    desc: 'Run {{.MODE}} tests with the isolated coverage ledger'
+    cmds:
+      - ./scripts/ci/test.sh '{{.MODE}}' coverage

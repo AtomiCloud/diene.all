@@ -1,26 +1,24 @@
-{ pkgs, packages }:
+{ packages, ... }:
 with packages;
 {
   # ### workspace-dev
   # #### source: workspace
   dev = [
+    entr
     git
     go-task
     infisical
     jq
     pls
     sg
-    skopeo
   ];
 
   # ### workspace-lint
   # #### source: workspace
   lint = [
     actionlint
+    gitlint
     infralint
-    kubeconform
-    kubernetes-helm
-    kyverno
     pre-commit
     ripgrep
     shellcheck
@@ -28,52 +26,24 @@ with packages;
     yq-go
   ];
 
-  # ### flutter-base-mobile
-  # #### source: flutter-base
-  mobile = [
-    codemagic-cli-tools
-    fastlane
-    flutter
-    resvg
-    rsync
-  ]
-  ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [ cocoapods ];
-
-  # ### flutter-base-android
-  # #### source: flutter-base
-  android = [
-    androidsdk
-    bundletool
-    jdk17
-    protobuf
-    unzip
-    zip
-  ];
-
-  # ### workspace-main
-  # #### source: workspace
+  # ### dart-result-main
+  # #### source: lib/dart/result
   main = [
-    cyanprint
-    bun
-    docker-client
+    dart
     git
     go-task
     infisical
     jq
-    kubeconform
-    kubernetes-helm
-    kyverno
     pls
     ripgrep
     shellcheck
-    skopeo
     yq-go
   ];
 
   # ### workspace-releaser-bootstrap
   # #### source: workspace
-  # C2: sg is retained only until tools/releaser is published at step 2p.
   releaser = [
+    nodejs
     sg
   ];
 

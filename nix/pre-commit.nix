@@ -9,8 +9,7 @@ let
     name = "workspace-validator-runtime";
     paths = [
       packages.bash
-      packages.bun
-      packages.flutter
+      packages.dart
       packages.git
       packages.jq
       packages.ripgrep
@@ -38,7 +37,7 @@ pre-commit-lib.run {
       package = formatter;
       excludes = [
         "^\\.claude/skills/vendor/"
-        "^Changelog\\.md$"
+        "^CHANGELOG\\.md$"
         "^docs/developer/CommitConventions\\.md$"
         "^infra/root_chart/"
       ];
@@ -163,7 +162,7 @@ pre-commit-lib.run {
     a-releaser-commit = {
       enable = true;
       name = "Conventional commit";
-      entry = "releaser lint-commit -c atomi_release.yaml";
+      entry = "${packages.gitlint}/bin/gitlint --staged --msg-filename";
       stages = [ "commit-msg" ];
       pass_filenames = true;
       language = "system";
@@ -195,139 +194,58 @@ pre-commit-lib.run {
       language = "system";
     };
 
-    # ### flutter-base-hooks
-    # #### source: flutter-base
-    a-flutter-analyze = {
+    # ### dart-result-hooks
+    # #### source: lib/dart/result
+    a-dart-format = {
       enable = true;
-      name = "Flutter analyze";
-      entry = "${packages.flutter}/bin/flutter analyze";
-      files = "^(lib|test)/.*[.]dart$|^(pubspec|analysis_options)[.]yaml$";
+      name = "Dart format";
+      entry = "${packages.dart}/bin/dart format --output=none --set-exit-if-changed";
+      files = "^(lib|test|example)/.*[.]dart$";
+      pass_filenames = true;
+      language = "system";
+    };
+
+    a-dart-analyze = {
+      enable = true;
+      name = "Dart analyze";
+      entry = validator "scripts/ci/analyze.sh";
+      files = "^(lib|test|example|tool)/.*[.]dart$|^(pubspec|analysis_options)[.]yaml$";
       pass_filenames = false;
       language = "system";
     };
 
-    a-flutter-test = {
+    a-dart-test = {
       enable = true;
-      name = "Flutter unit and widget tests";
-      entry = "${packages.flutter}/bin/flutter test";
+      name = "Dart unit, C0, and meta tests";
+      entry = validator "scripts/ci/test-all.sh";
       files = "^(lib|test)/.*[.]dart$|^pubspec[.]yaml$";
       pass_filenames = false;
       language = "system";
     };
 
-    a-flutter-lpsm = {
+    a-dart-deadcode = {
       enable = true;
-      name = "Flutter LPSM tokenization";
-      entry = validator "scripts/ci/lpsm-lint.sh";
-      files = "^(lpsm[.]yaml|pubspec[.]yaml|config/.*[.]yaml|android/.*|ios/.*)$";
+      name = "Dart repository and production dead code";
+      entry = validator "scripts/local/deadcode.sh";
+      files = "^(lib|test|example|tool)/.*[.]dart$|^(pubspec|analysis_options)[.]yaml$";
       pass_filenames = false;
       language = "system";
     };
 
-    a-flutter-config = {
+    a-dart-package = {
       enable = true;
-      name = "Flutter config layering";
-      entry = validator "scripts/validate/config.sh";
-      files = "^(config/.*[.]yaml|lib/config/.*[.]dart|test/config_test[.]dart)$";
+      name = "Dart package and TestHelper boundary";
+      entry = validator "scripts/validate/dart-package.sh";
+      files = "^(lib/.*[.]dart|pubspec[.]yaml|VERSION|README[.]md|CHANGELOG[.]md|LICENSE|skills/.*|doc/result[.]md)$";
       pass_filenames = false;
       language = "system";
     };
 
-    a-flutter-config-schema = {
+    a-dart-release-policy = {
       enable = true;
-      name = "Flutter config schema freshness";
-      entry = validator "scripts/validate/generated.sh config";
-      files = "^(config/schema[.]json|tool/generate-config-schema[.]ts)$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-flutter-sdk-freshness = {
-      enable = true;
-      name = "Flutter OA3 SDK freshness";
-      entry = validator "scripts/validate/generated.sh sdk";
-      files = "^(openapi/.*|swagger_parser[.]yaml|lib/generated/.*)$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-flutter-slang-freshness = {
-      enable = true;
-      name = "Flutter Slang freshness";
-      entry = validator "scripts/validate/generated.sh translations";
-      files = "^(slang[.]yaml|lib/i18n/.*)$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-flutter-translation-compile = {
-      enable = true;
-      name = "Flutter translation compile";
-      entry = validator "scripts/validate/translations-compile.sh";
-      files = "^lib/i18n/.*";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-flutter-rebrand = {
-      enable = true;
-      name = "Flutter rebrand guard";
-      entry = validator "scripts/validate/rebrand.sh";
-      files = "^((lib|config|android|ios|assets)/.*|pubspec[.]yaml|lpsm[.]yaml)$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-flutter-landscape-policy = {
-      enable = true;
-      name = "Flutter build-time landscape policy";
-      entry = validator "scripts/validate/landscape-policy.sh";
-      files = "^lib/.*[.]dart$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-flutter-build-numbers = {
-      enable = true;
-      name = "Flutter store build-number guards";
-      entry = validator "scripts/validate/build-numbers.sh";
-      files = "^scripts/ci/lib-(ios|android)[.]sh$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-flutter-signing-doctors = {
-      enable = true;
-      name = "Flutter signing and stamp doctors";
-      entry = validator "scripts/validate/signing-doctors.sh";
-      files = "^(lpsm[.]yaml|ios/.*|scripts/ci/(doctor-ios|stamp-ios|stamp-android|ios-signing-targets)[.]sh)$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-flutter-mobile-workflows = {
-      enable = true;
-      name = "Flutter mobile workflow wiring";
-      entry = validator "scripts/validate/mobile-workflows.sh";
-      files = "^([.]github/workflows/.*[.]ya?ml|scripts/ci/.*[.]sh)$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-flutter-cd-matrix = {
-      enable = true;
-      name = "Flutter CD matrix shape";
-      entry = validator "scripts/validate/cd-matrix.sh";
-      files = "^(lpsm[.]yaml|scripts/ci/cd-matrix[.]sh|[.]github/workflows/cd[.]yaml)$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-flutter-release-pubspec = {
-      enable = true;
-      name = "Flutter release pubspec stamping";
-      entry = validator "scripts/validate/release-pubspec.sh";
-      files = "^(scripts/release/bump[.]sh|atomi_release[.]yaml|pubspec[.]yaml)$";
+      name = "Dart release stamp and manifest/tag guard";
+      entry = validator "scripts/validate/release-policy.sh";
+      files = "^(scripts/(release/bump|validate/(publish-version|release-policy))[.]sh|atomi_release[.]yaml|pubspec[.]yaml|VERSION)$";
       pass_filenames = false;
       language = "system";
     };
@@ -338,7 +256,7 @@ pre-commit-lib.run {
       enable = true;
       name = "CLAUDE link integrity";
       entry = "${pkgs.coreutils}/bin/env SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt ${pkgs.lychee}/bin/lychee --offline --no-progress CLAUDE.md";
-      files = "^(CLAUDE\\.md|docs/standards/.*\\.md)$";
+      files = "^(CLAUDE\\.md|docs/standards/.*\\.md|doc/.*\\.md)$";
       pass_filenames = false;
       language = "system";
     };
@@ -347,7 +265,7 @@ pre-commit-lib.run {
       enable = true;
       name = "Markdown lint";
       entry = "${pkgs.markdownlint-cli2}/bin/markdownlint-cli2";
-      files = "^(CLAUDE\\.md|README\\.md|docs/standards/(authorization|contracts|contributor-docs|datetime|domain-driven-design|functional-practices|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/.*\\.md|\\.claude/skills/(authorization|contributor-docs|datetime|domain-driven-design|functional-practices|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/SKILL\\.md)$";
+      files = "^(CLAUDE\\.md|README\\.md|doc/.*\\.md|docs/standards/(authorization|contracts|contributor-docs|datetime|domain-driven-design|functional-practices|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/.*\\.md|\\.claude/skills/(authorization|contributor-docs|datetime|domain-driven-design|functional-practices|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/SKILL\\.md|skills/diene-result-usage/SKILL\\.md)$";
       pass_filenames = true;
       language = "system";
     };
