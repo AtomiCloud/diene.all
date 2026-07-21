@@ -20,12 +20,16 @@ final class FakeAuthProvider implements AuthProvider {
     Map<String, ResourceToken>? resourceTokens,
     String? idTokenValue,
     Object? throwOnSignIn,
+    String? freshClaimTokenValue,
+    Future<String?> Function()? onFreshClaimToken,
   }) : _onSignIn = onSignIn,
        _onRefresh = onRefresh,
        _onReMint = onReMint,
        _resourceTokens = resourceTokens ?? <String, ResourceToken>{},
        _idTokenValue = idTokenValue,
-       _throwOnSignIn = throwOnSignIn;
+       _throwOnSignIn = throwOnSignIn,
+       _freshClaimTokenValue = freshClaimTokenValue,
+       _onFreshClaimToken = onFreshClaimToken;
 
   final SessionTokens Function()? _onSignIn;
   final SessionTokens Function(SessionTokens current)? _onRefresh;
@@ -33,11 +37,14 @@ final class FakeAuthProvider implements AuthProvider {
   final Map<String, ResourceToken> _resourceTokens;
   final String? _idTokenValue;
   final Object? _throwOnSignIn;
+  final String? _freshClaimTokenValue;
+  final Future<String?> Function()? _onFreshClaimToken;
 
   int signInCount = 0;
   int refreshCount = 0;
   int reMintCount = 0;
   int signOutCount = 0;
+  int freshClaimTokenCount = 0;
   Map<String, String> lastExtraParams = const <String, String>{};
 
   @override
@@ -82,6 +89,15 @@ final class FakeAuthProvider implements AuthProvider {
 
   @override
   Future<String?> idToken() async => _idTokenValue;
+
+  @override
+  Future<String?> freshClaimToken() async {
+    freshClaimTokenCount += 1;
+    if (_onFreshClaimToken != null) {
+      return _onFreshClaimToken();
+    }
+    return _freshClaimTokenValue;
+  }
 }
 
 /// Scriptable [IAuth] fake. Successive [fetchAllTokens] calls return successive

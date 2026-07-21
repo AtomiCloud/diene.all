@@ -6,14 +6,10 @@ void main() {
   final DateTime now = DateTime.utc(2026, 7, 21);
   final ResourceKey key = AuthFixtures.resourceKey();
 
-  SessionController session({Object? throwOnSignIn}) => SessionController(
-    provider: FakeAuthProvider(
-      onSignIn: () => AuthFixtures.sessionTokens(now: now),
-      onReMint: (SessionTokens current) => AuthFixtures.sessionTokens(now: now),
-      throwOnSignIn: throwOnSignIn,
-    ),
-    now: () => now,
-  );
+  // JWT bytes for the stored (pre/post-login) token and the force-fresh token.
+  String jwtWithHome(String home) =>
+      AuthFixtures.jwt(<String, Object?>{Claims.homeLandscape: home});
+  final String staleNoHome = AuthFixtures.jwt(<String, Object?>{'sub': 'u1'});
 
   MultiBackendOnboarding onboarding({bool fail = false}) =>
       MultiBackendOnboarding(
@@ -42,179 +38,194 @@ void main() {
         idToken: () async => 'id',
       );
 
-  // A claim reader that returns the successive authoritative-claim reads:
-  // [pre-login, immediate-post-login, post-OnboardSync]. Clamps to the last.
-  HomeClaimReader seqReader(List<String?> values) {
-    int i = 0;
-    return () async {
-      final String? value = values[i < values.length ? i : values.length - 1];
-      i += 1;
-      return value;
-    };
+  // Wires the REAL coordinator over one FakeAuthProvider whose stored `idToken`
+  // (the pre/post-login authoritative read) is DISTINCT from its force-fresh
+  // `freshClaimToken` (the post-OnboardSync confirmation). The home readers are
+  // bound to those exact provider methods — not a free-running sequence.
+  ({
+    SignInCoordinator coordinator,
+    FakeAuthProvider provider,
+    MemoryHomeClaimStore store,
+  })
+  build({
+    String? storedIdToken,
+    String? freshClaim,
+    bool onboardingFail = false,
+    Object? throwOnSignIn,
+  }) {
+    final FakeAuthProvider provider = FakeAuthProvider(
+      onSignIn: () => AuthFixtures.sessionTokens(now: now),
+      idTokenValue: storedIdToken,
+      freshClaimTokenValue: freshClaim,
+      throwOnSignIn: throwOnSignIn,
+    );
+    final MemoryHomeClaimStore store = MemoryHomeClaimStore();
+    final HomeClaimResolver homeResolver = HomeClaimResolver(
+      claimReader: jwtHomeClaimReader(provider.idToken),
+      forcedClaimReader: jwtHomeClaimReader(provider.freshClaimToken),
+      store: store,
+      selector: LandscapeSelectorClient(
+        source: FakeLandscapeSelectorSource(
+          doc: const LandscapeSelectorDoc(
+            platform: 'lithium',
+            tier: 'prod',
+            landscapes: <LandscapeEntry>[
+              LandscapeEntry(name: 'lapras', region: 'sg'),
+            ],
+          ),
+        ),
+        pinger: FakeRegionPinger(<String, Duration?>{
+          'lapras': const Duration(milliseconds: 10),
+        }),
+      ),
+    );
+    return (
+      coordinator: SignInCoordinator(
+        session: SessionController(provider: provider, now: () => now),
+        homeResolver: homeResolver,
+        onboarding: onboarding(fail: onboardingFail),
+      ),
+      provider: provider,
+      store: store,
+    );
   }
 
-  HomeClaimResolver resolver({
-    required HomeClaimReader claimReader,
-    MemoryHomeClaimStore? store,
-  }) => HomeClaimResolver(
-    claimReader: claimReader,
-    store: store,
-    selector: LandscapeSelectorClient(
-      source: FakeLandscapeSelectorSource(
-        doc: const LandscapeSelectorDoc(
-          platform: 'lithium',
-          tier: 'prod',
-          landscapes: <LandscapeEntry>[
-            LandscapeEntry(name: 'lapras', region: 'sg'),
-          ],
-        ),
-      ),
-      pinger: FakeRegionPinger(<String, Duration?>{
-        'lapras': const Duration(milliseconds: 10),
-      }),
-    ),
+  test(
+    'returning user: stored JWT claim routes home, resumes returnTo',
+    () async {
+      // Arrange — the stored token already carries home_landscape.
+      final wired = build(storedIdToken: jwtWithHome('pichu'));
+
+      // Act
+      final SignInResult signIn = AuthExpect.ok(
+        await wired.coordinator.signIn(returnTo: Uri.parse('/secret?x=1')),
+      );
+
+      // Assert — no forced refresh needed on the fast path.
+      expect(signIn.home.kind, HomeResolutionKind.fromClaim);
+      expect(signIn.home.landscape, 'pichu');
+      expect(signIn.continueTo.toString(), '/secret?x=1');
+      expect(wired.provider.freshClaimTokenCount, 0);
+      expect(wired.store.value, 'pichu');
+    },
   );
 
   test(
-    'returning user: authoritative claim routes home, resumes returnTo',
+    'sign-up: confirms from the FORCE-FRESH token, not the stale stored one',
     () async {
-      // Arrange — claim present on every read.
-      final SignInCoordinator coordinator = SignInCoordinator(
-        session: session(),
-        homeResolver: resolver(claimReader: () async => 'pichu'),
-        onboarding: onboarding(),
+      // Arrange — stored token lacks the claim; only the force-fresh token has it.
+      final wired = build(
+        storedIdToken: staleNoHome,
+        freshClaim: jwtWithHome('lapras'),
       );
 
       // Act
       final SignInResult signIn = AuthExpect.ok(
-        await coordinator.signIn(returnTo: Uri.parse('/secret?x=1')),
+        await wired.coordinator.signIn(),
       );
 
-      // Assert
-      expect(signIn.home.kind, HomeResolutionKind.fromClaim);
-      expect(signIn.home.landscape, 'pichu');
-      expect(signIn.phases['primary'], isA<Success<OnboardingPhase>>());
-      expect(signIn.continueTo.toString(), '/secret?x=1');
-    },
-  );
-
-  test(
-    'sign-up: confirms the post-OnboardSync claim from a fresh JWT',
-    () async {
-      // Arrange — absent pre/post-login, present only after onboarding.
-      final MemoryHomeClaimStore store = MemoryHomeClaimStore();
-      final SignInCoordinator coordinator = SignInCoordinator(
-        session: session(),
-        homeResolver: resolver(
-          claimReader: seqReader(<String?>[null, null, 'lapras']),
-          store: store,
-        ),
-        onboarding: onboarding(),
-      );
-
-      // Act
-      final SignInResult signIn = AuthExpect.ok(await coordinator.signIn());
-
-      // Assert — home comes from the confirmed JWT, and the mirror matches it.
+      // Assert — the claim came from freshClaimToken (stale read would 409).
       expect(signIn.home.kind, HomeResolutionKind.fromClaim);
       expect(signIn.home.landscape, 'lapras');
-      expect(store.value, 'lapras');
+      expect(wired.store.value, 'lapras');
+      expect(wired.provider.freshClaimTokenCount, 1);
     },
   );
 
   test(
-    'sign-up: a differing OnboardSync claim overrides the selection',
+    'sign-up: a differing OnboardSync claim overrides the Doc B selection',
     () async {
-      // Arrange — Doc B picks lapras, but OnboardSync wrote pichu.
-      final MemoryHomeClaimStore store = MemoryHomeClaimStore();
-      final SignInCoordinator coordinator = SignInCoordinator(
-        session: session(),
-        homeResolver: resolver(
-          claimReader: seqReader(<String?>[null, null, 'pichu']),
-          store: store,
-        ),
-        onboarding: onboarding(),
+      // Arrange — Doc B picks lapras, but the fresh token says pichu.
+      final wired = build(
+        storedIdToken: staleNoHome,
+        freshClaim: jwtWithHome('pichu'),
       );
 
       // Act
-      final SignInResult signIn = AuthExpect.ok(await coordinator.signIn());
+      final SignInResult signIn = AuthExpect.ok(
+        await wired.coordinator.signIn(),
+      );
 
-      // Assert — the JWT value wins; the selection (lapras) is never persisted.
-      expect(signIn.home.kind, HomeResolutionKind.fromClaim);
+      // Assert — the fresh JWT wins; the selection is never persisted.
       expect(signIn.home.landscape, 'pichu');
-      expect(store.value, 'pichu');
+      expect(wired.store.value, 'pichu');
     },
   );
 
   test(
-    'sign-up: still-missing claim errors and does NOT mirror the selection',
+    'sign-up: a fresh token still lacking the claim errors without mirroring',
     () async {
-      // Arrange — the claim never surfaces, even after onboarding.
-      final MemoryHomeClaimStore store = MemoryHomeClaimStore();
-      final SignInCoordinator coordinator = SignInCoordinator(
-        session: session(),
-        homeResolver: resolver(
-          claimReader: seqReader(<String?>[null, null, null]),
-          store: store,
-        ),
-        onboarding: onboarding(),
-      );
+      // Arrange — the force-fresh token carries no home_landscape.
+      final wired = build(storedIdToken: staleNoHome, freshClaim: staleNoHome);
 
       // Act
-      final Result<SignInResult> result = await coordinator.signIn();
+      final Result<SignInResult> result = await wired.coordinator.signIn();
 
-      // Assert — explicit unconfirmed error, no mirrored selection.
+      // Assert
       expect(
         AuthExpect.err(result).type,
         'urn:diene:problem:home-claim-unconfirmed',
       );
-      expect(store.value, isNull);
+      expect(wired.store.value, isNull);
+      expect(wired.provider.freshClaimTokenCount, 1);
     },
   );
 
-  test('sign-up: an onboarding error aborts without mirroring', () async {
-    // Arrange — onboarding fails; no home claim can exist.
-    final MemoryHomeClaimStore store = MemoryHomeClaimStore();
-    final SignInCoordinator coordinator = SignInCoordinator(
-      session: session(),
-      homeResolver: resolver(
-        claimReader: seqReader(<String?>[null, null]),
-        store: store,
-      ),
-      onboarding: onboarding(fail: true),
-    );
+  test('sign-up: a null fresh token fails closed without mirroring', () async {
+    // Arrange — the adapter could not guarantee a fresh token.
+    final wired = build(storedIdToken: staleNoHome, freshClaim: null);
 
     // Act
-    final Result<SignInResult> result = await coordinator.signIn();
+    final Result<SignInResult> result = await wired.coordinator.signIn();
 
-    // Assert — the onboarding failure surfaces; nothing is mirrored.
-    expect(result, isA<Failure<SignInResult>>());
-    expect(store.value, isNull);
+    // Assert
+    expect(
+      AuthExpect.err(result).type,
+      'urn:diene:problem:home-claim-unconfirmed',
+    );
+    expect(wired.store.value, isNull);
   });
+
+  test(
+    'sign-up: an onboarding error aborts without mirroring or refreshing',
+    () async {
+      // Arrange
+      final wired = build(
+        storedIdToken: staleNoHome,
+        freshClaim: jwtWithHome('lapras'),
+        onboardingFail: true,
+      );
+
+      // Act
+      final Result<SignInResult> result = await wired.coordinator.signIn();
+
+      // Assert — onboarding failure surfaces; no confirmation, no mirror.
+      expect(result, isA<Failure<SignInResult>>());
+      expect(wired.store.value, isNull);
+      expect(wired.provider.freshClaimTokenCount, 0);
+    },
+  );
 
   test('a login failure aborts the flow', () async {
     // Arrange
-    final SignInCoordinator coordinator = SignInCoordinator(
-      session: session(throwOnSignIn: StateError('bad creds')),
-      homeResolver: resolver(claimReader: () async => 'pichu'),
-      onboarding: onboarding(),
+    final wired = build(
+      storedIdToken: jwtWithHome('pichu'),
+      throwOnSignIn: StateError('bad creds'),
     );
 
     // Act + Assert
-    expect(await coordinator.signIn(), isA<Failure<SignInResult>>());
+    expect(await wired.coordinator.signIn(), isA<Failure<SignInResult>>());
   });
 
   test('an invalid returnTo yields no continuation', () async {
     // Arrange
-    final SignInCoordinator coordinator = SignInCoordinator(
-      session: session(),
-      homeResolver: resolver(claimReader: () async => 'pichu'),
-      onboarding: onboarding(),
-    );
+    final wired = build(storedIdToken: jwtWithHome('pichu'));
 
     // Act
     final SignInResult signIn = AuthExpect.ok(
-      await coordinator.signIn(returnTo: Uri.parse('https://evil.example/x')),
+      await wired.coordinator.signIn(
+        returnTo: Uri.parse('https://evil.example/x'),
+      ),
     );
 
     // Assert

@@ -60,13 +60,20 @@ final class HomeClaimResolver {
     required HomeClaimReader claimReader,
     required LandscapeSelectorClient selector,
     HomeClaimStore? store,
+    HomeClaimReader? forcedClaimReader,
   }) : _claimReader = claimReader,
        _selector = selector,
-       _store = store;
+       _store = store,
+       _forcedClaimReader = forcedClaimReader;
 
   final HomeClaimReader _claimReader;
   final LandscapeSelectorClient _selector;
   final HomeClaimStore? _store;
+
+  /// Reads the home claim from a FORCE-FRESH claim-bearing token (built from
+  /// `AuthProvider.freshClaimToken`). Used ONLY to confirm the post-OnboardSync
+  /// claim; distinct from [_claimReader], which reads the existing stored token.
+  final HomeClaimReader? _forcedClaimReader;
 
   /// Reads the AUTHORITATIVE `home_landscape` claim from the provider's JWT,
   /// WITHOUT running Doc B. `null` (inside a [Success]) means the claim is
@@ -75,6 +82,32 @@ final class HomeClaimResolver {
   Future<Result<String?>> authoritativeHome() async {
     try {
       final String? claim = await _claimReader();
+      return Success<String?>(claim != null && claim.isNotEmpty ? claim : null);
+    } on Object catch (error) {
+      return Failure<String?>(
+        Problem(
+          type: 'urn:diene:problem:home-claim-read',
+          title: 'Could not read the home landscape claim',
+          status: 503,
+          detail: error.toString(),
+          recoverable: true,
+        ),
+      );
+    }
+  }
+
+  /// Confirms the home claim AFTER onboarding/OnboardSync by decoding a
+  /// FORCE-FRESH claim-bearing token (never the possibly-stale stored token).
+  /// `null` (inside a [Success]) means the claim could not be confirmed —
+  /// fail-closed: absent forced reader, a null/blank fresh token, or a token
+  /// without the claim all map to `null` so the coordinator refuses to mirror.
+  Future<Result<String?>> confirmedHome() async {
+    final HomeClaimReader? reader = _forcedClaimReader;
+    if (reader == null) {
+      return const Success<String?>(null);
+    }
+    try {
+      final String? claim = await reader();
       return Success<String?>(claim != null && claim.isNotEmpty ? claim : null);
     } on Object catch (error) {
       return Failure<String?>(

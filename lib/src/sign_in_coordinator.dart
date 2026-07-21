@@ -101,13 +101,10 @@ final class SignInCoordinator {
           return Failure<SignInResult>(outcome.problem);
         }
       }
-      // Refresh/re-mint so the OnboardSync-written claim surfaces in the JWT.
-      final Result<Object?> reminted = await _session.onAppOpen();
-      if (reminted is Failure) {
-        return Failure<SignInResult>(reminted.problem);
-      }
-      // Re-read the AUTHORITATIVE claim from the confirmed JWT.
-      final Result<String?> confirmed = await _homeResolver.authoritativeHome();
+      // Confirm the claim from a FORCE-FRESH claim-bearing JWT (never the
+      // possibly-stale stored token): the exact token returned by
+      // AuthProvider.freshClaimToken is decoded here.
+      final Result<String?> confirmed = await _homeResolver.confirmedHome();
       if (confirmed is Failure<String?>) {
         return Failure<SignInResult>(confirmed.problem);
       }

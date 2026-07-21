@@ -53,9 +53,14 @@ onboardingResource, appOnboardingClaim?)`; collect them in a
   exact protected route after login. Absolute/protocol-relative targets are
   rejected as open redirects.
 - `SignInCoordinator` ties resolve → login → re-read issued claim → onboarding →
-  (sign-up only) refresh + CONFIRM the post-OnboardSync JWT claim → continuation.
-  It never persists the Doc B selection as a claim; a still-missing claim or an
-  onboarding error returns an explicit Problem.
+  (sign-up only) CONFIRM the post-OnboardSync claim from a FORCE-FRESH token
+  (`HomeClaimResolver.confirmedHome()` over
+  `jwtHomeClaimReader(provider.freshClaimToken)`) → continuation. It never
+  persists the Doc B selection as a claim; a still-missing claim, no forced
+  token, or an onboarding error returns an explicit Problem (fail-closed).
+- Wire `AuthProvider.freshClaimToken()` to guarantee a fresh claim-bearing JWT
+  after OnboardSync (`LogtoAuthProvider(claimTokenRefresher: …)`); it returns
+  `null` to fail closed when freshness cannot be guaranteed.
 
 ## TestHelper
 

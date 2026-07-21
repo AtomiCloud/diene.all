@@ -35,6 +35,8 @@ final class _GatedProvider implements AuthProvider {
   Future<void> signOut() async {}
   @override
   Future<String?> idToken() async => null;
+  @override
+  Future<String?> freshClaimToken() async => null;
 }
 
 void main() {

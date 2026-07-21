@@ -59,13 +59,22 @@ pings each region by convention, and picks the fastest healthy one. Doc B
 carrying any address/issuer is rejected as untrusted. The local `HomeClaimStore`
 is a non-authoritative mirror only — it never chooses the home.
 
-On the sign-up path OnboardSync writes the claim server-side during onboarding,
-so `SignInCoordinator` refreshes/re-mints and RE-READS the authoritative JWT
-AFTER onboarding, using that confirmed value for the returned home and the
-mirror. The locally selected Doc B landscape is never persisted as a claim; if
-onboarding errors or the refreshed JWT still lacks the claim, the coordinator
-returns an explicit `Problem` (e.g. `home-claim-unconfirmed`) rather than a
-mirrored selection.
+On the sign-up path OnboardSync writes the claim server-side during onboarding.
+Because a just-minted access token / stored ID token is a cache hit that would
+NOT reflect that write, `SignInCoordinator` confirms the claim from a
+FORCE-FRESH claim-bearing token: `AuthProvider.freshClaimToken()` (bound into the
+resolver's `forcedClaimReader`) returns the exact JWT the home-claim parser
+decodes. That confirmed value is used for the returned home and the mirror. The
+locally selected Doc B landscape is never persisted as a claim; if onboarding
+errors, no forced token is wired, or the fresh token still lacks the claim, the
+coordinator FAILS CLOSED with an explicit `Problem` (`home-claim-unconfirmed`)
+rather than a mirrored selection.
+
+`freshClaimToken()` must guarantee the returned token reflects current server
+state or return `null`. `LogtoAuthProvider` takes a `claimTokenRefresher` seam
+for this (platform wiring — logto_dart_sdk v3 exposes no public force-refresh for
+a still-valid token, so absent a refresher the adapter fails closed rather than
+return a stale token).
 
 ### Config and baked issuer
 

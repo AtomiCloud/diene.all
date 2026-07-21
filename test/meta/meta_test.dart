@@ -158,6 +158,7 @@ void main() {
             key.mapKey: AuthFixtures.resourceToken(now: now, jwtToken: 'j'),
           },
           idTokenValue: 'id',
+          freshClaimTokenValue: 'fresh.claim.jwt',
         );
 
         final SessionTokens signedIn = await provider.signIn(
@@ -174,6 +175,8 @@ void main() {
         expect(provider.lastExtraParams['one_time_token'], 't');
         expect((await provider.resourceToken(key)).token, 'j');
         expect(await provider.idToken(), 'id');
+        expect(await provider.freshClaimToken(), 'fresh.claim.jwt');
+        expect(provider.freshClaimTokenCount, 1);
       },
     );
 

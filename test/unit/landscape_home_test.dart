@@ -179,6 +179,7 @@ void main() {
   group('HomeClaimResolver', () {
     HomeClaimResolver resolver({
       required HomeClaimReader claimReader,
+      HomeClaimReader? forcedClaimReader,
       FakeLandscapeSelectorSource? source,
       HomeClaimStore? store,
       Map<String, Duration?> latencies = const <String, Duration?>{
@@ -186,11 +187,45 @@ void main() {
       },
     }) => HomeClaimResolver(
       claimReader: claimReader,
+      forcedClaimReader: forcedClaimReader,
       store: store,
       selector: LandscapeSelectorClient(
         source: source ?? FakeLandscapeSelectorSource(doc: _doc(<String>['a'])),
         pinger: FakeRegionPinger(latencies),
       ),
+    );
+
+    test(
+      'confirmedHome reads the FORCED claim reader (post-OnboardSync)',
+      () async {
+        // Present forced claim → confirmed.
+        expect(
+          AuthExpect.ok(
+            await resolver(
+              claimReader: () async => null,
+              forcedClaimReader: () async => 'raichu',
+            ).confirmedHome(),
+          ),
+          'raichu',
+        );
+        // Forced claim absent → null (fail-closed).
+        expect(
+          AuthExpect.ok(
+            await resolver(
+              claimReader: () async => null,
+              forcedClaimReader: () async => null,
+            ).confirmedHome(),
+          ),
+          isNull,
+        );
+        // No forced reader wired → null (fail-closed).
+        expect(
+          AuthExpect.ok(
+            await resolver(claimReader: () async => null).confirmedHome(),
+          ),
+          isNull,
+        );
+      },
     );
 
     test(

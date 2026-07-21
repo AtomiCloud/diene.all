@@ -27,4 +27,15 @@ abstract interface class AuthProvider {
   /// The raw OIDC ID token for the active session, if any. Needed by the
   /// onboarding `POST /User` create body.
   Future<String?> idToken();
+
+  /// Forces acquisition of a FRESH claim-bearing JWT — bypassing any cached
+  /// token — after a server-side claim write such as OnboardSync (C0 §13), and
+  /// returns the EXACT raw token whose payload the home-claim parser decodes.
+  ///
+  /// This is distinct from [idToken] (which returns the possibly-stale stored
+  /// token) and from [reMintOnOpen] (which may be served from cache): a stale
+  /// token here would let a just-written `home_landscape` claim go unseen.
+  /// Implementations MUST guarantee the returned token reflects current server
+  /// state, or return `null` to FAIL CLOSED when that cannot be established.
+  Future<String?> freshClaimToken();
 }

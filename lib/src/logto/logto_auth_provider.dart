@@ -23,9 +23,11 @@ final class LogtoAuthProvider implements AuthProvider {
     LogtoClient? client,
     http.Client? httpClient,
     DateTime Function()? now,
+    Future<String?> Function()? claimTokenRefresher,
   }) : _config = config,
        _primaryResource = primaryResource,
        _now = now ?? DateTime.now,
+       _claimTokenRefresher = claimTokenRefresher,
        _client =
            client ??
            LogtoClient(
@@ -48,6 +50,7 @@ final class LogtoAuthProvider implements AuthProvider {
   final ResourceKey _primaryResource;
   final LogtoClient _client;
   final DateTime Function() _now;
+  final Future<String?> Function()? _claimTokenRefresher;
   int _rotation = 0;
 
   @override
@@ -91,6 +94,30 @@ final class LogtoAuthProvider implements AuthProvider {
 
   @override
   Future<String?> idToken() => _client.idToken;
+
+  @override
+  Future<String?> freshClaimToken() async {
+    // logto_dart_sdk v3 exposes NO public force-refresh / cache-invalidation for
+    // a still-valid token: `getAccessToken` returns the stored token when one
+    // exists and `idToken` reads token storage directly. A just-minted 10-minute
+    // signup access token is therefore a cache hit, so reading it back would NOT
+    // reflect an OnboardSync-updated `home_landscape` claim.
+    //
+    // The guaranteed-fresh claim-bearing token is supplied through the injected
+    // [claimTokenRefresher] seam (platform wiring — e.g. a forced token refresh
+    // via re-authentication or a management-backed claim read). Its EXACT
+    // returned token is what the caller decodes. When no refresher is wired we
+    // FAIL CLOSED (return null) rather than hand back a possibly-stale token.
+    final Future<String?> Function()? refresher = _claimTokenRefresher;
+    if (refresher == null) {
+      return null;
+    }
+    final String? token = await refresher();
+    if (token == null || token.isEmpty) {
+      return null;
+    }
+    return token;
+  }
 
   Future<SessionTokens> _issue({required String refreshFamily}) async {
     final _ResolvedAccess access = await _access(_primaryResource);
