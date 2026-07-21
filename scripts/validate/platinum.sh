@@ -275,6 +275,313 @@ kgateway-crd-apply)
     exit 1
   fi
   ;;
+k3d-readiness-budget)
+  # RB-333 regression guard: the cold-node proof exhausted the old five-minute
+  # Helm wait and tore the cluster down without preserving any resource state.
+  # Keep the widened waits bounded by the 7200-second shard, then execute the
+  # proof against controlled stubs to verify safe captures, ordering, the
+  # shared failure deadline, and original-status preservation.
+  k3d_script="${PLATINUM_K3D_SCRIPT:-scripts/validate/platinum-k3d.sh}"
+
+  read_budget() {
+    local script_path="$1"
+    local budget_name="$2"
+    local value
+
+    value="$(sed -n "s/^readonly ${budget_name}=//p" "${script_path}")"
+    if [[ ! ${value} =~ ^[0-9]+$ ]]; then
+      echo "❌ ${budget_name} is missing or is not one integer in ${script_path}" >&2
+      return 1
+    fi
+    printf '%s\n' "${value}"
+  }
+
+  validate_readiness_contract() {
+    local script_path="$1"
+    local helm_seconds gateway_seconds health_seconds failure_seconds total_seconds shard_seconds
+
+    if rg -q -- '--timeout([=[:space:]])5m' "${script_path}"; then
+      echo "❌ old five-minute readiness timeout remains in ${script_path}" >&2
+      return 1
+    fi
+
+    helm_seconds="$(read_budget "${script_path}" helm_readiness_timeout_seconds)" || return 1
+    gateway_seconds="$(read_budget "${script_path}" gateway_readiness_timeout_seconds)" || return 1
+    health_seconds="$(read_budget "${script_path}" health_readiness_timeout_seconds)" || return 1
+    failure_seconds="$(read_budget "${script_path}" production_failure_handling_budget_seconds)" || return 1
+    total_seconds="$(read_budget "${script_path}" total_worst_case_budget_seconds)" || return 1
+    shard_seconds="$(read_budget "${script_path}" shard_hard_timeout_seconds)" || return 1
+
+    if [ "${helm_seconds}" -ne 900 ] || [ "${gateway_seconds}" -ne 600 ] || [ "${health_seconds}" -ne 300 ]; then
+      echo "❌ Platinum readiness waits are below the accepted 900/600/300-second budgets" >&2
+      return 1
+    fi
+    if [ "${failure_seconds}" -ne 300 ] || [ "${total_seconds}" -ne $((helm_seconds + gateway_seconds + health_seconds + failure_seconds)) ]; then
+      echo "❌ documented Platinum total does not equal its budget components" >&2
+      return 1
+    fi
+    if [ "${total_seconds}" -ne 2100 ] || [ "${shard_seconds}" -ne 7200 ] || [ "${total_seconds}" -ge "${shard_seconds}" ]; then
+      echo "❌ Platinum total worst-case budget is not 2100 seconds within the 7200-second shard" >&2
+      return 1
+    fi
+    if ! rg -Fq -- '--wait --timeout "${helm_readiness_timeout_seconds}s"' "${script_path}"; then
+      echo "❌ Helm install is not bound to the accepted readiness budget" >&2
+      return 1
+    fi
+    if ! rg -Fq -- '--timeout="${gateway_readiness_timeout_seconds}s"' "${script_path}"; then
+      echo "❌ Gateway wait is not bound to the accepted readiness budget" >&2
+      return 1
+    fi
+    if ! rg -Fq 'health_deadline=$((SECONDS + health_readiness_timeout_seconds))' "${script_path}"; then
+      echo "❌ endpoint/health polling is not wall-clock bounded" >&2
+      return 1
+    fi
+  }
+
+  write_behavior_stubs() {
+    local mock_bin="$1"
+
+    mkdir -p "${mock_bin}"
+    tee "${mock_bin}/bash" >/dev/null <<'BASH_STUB'
+#!/usr/bin/env sh
+set -eu
+trace="${PLATINUM_BEHAVIOR_TRACE:?}"
+case "${1:-}" in
+./scripts/local/create-k3d-cluster.sh)
+  printf 'create\n' >>"${trace}"
+  exit "${PLATINUM_BEHAVIOR_CREATE_EXIT:-17}"
+  ;;
+./scripts/local/delete-k3d-cluster.sh)
+  printf 'teardown:start\n' >>"${trace}"
+  if [ "${PLATINUM_BEHAVIOR_TEARDOWN_IGNORE_TERM:-false}" = "true" ]; then
+    trap '' TERM
+  fi
+  sleep "${PLATINUM_BEHAVIOR_TEARDOWN_SLEEP_SECONDS:-0}"
+  printf 'teardown:end\n' >>"${trace}"
+  exit "${PLATINUM_BEHAVIOR_TEARDOWN_EXIT:-31}"
+  ;;
+*)
+  printf 'unsafe:bash:%s\n' "$*" >>"${trace}"
+  exit 97
+  ;;
+esac
+BASH_STUB
+
+    tee "${mock_bin}/helm" >/dev/null <<'HELM_STUB'
+#!/usr/bin/env sh
+set -eu
+trace="${PLATINUM_BEHAVIOR_TRACE:?}"
+args=" $* "
+printf 'SECRET_SENTINEL_FROM_HELM_STDERR\n' >&2
+case "${args}" in
+*" status "*|*" history "*)
+  printf 'unsafe:helm:%s\n' "$*" >>"${trace}"
+  exit 41
+  ;;
+esac
+case "${args}" in
+" list --kube-context k3d-platinum --namespace sulfoxide --all --filter ^platinum$ --output json ") ;;
+*)
+  printf 'unsafe:helm:%s\n' "$*" >>"${trace}"
+  exit 42
+  ;;
+esac
+printf 'capture:helm-release\n' >>"${trace}"
+if [ "${PLATINUM_BEHAVIOR_DIAGNOSTIC_IGNORE_TERM:-false}" = "true" ]; then
+  trap '' TERM
+fi
+sleep "${PLATINUM_BEHAVIOR_DIAGNOSTIC_SLEEP_SECONDS:-0}"
+printf '['
+i=0
+while [ "${i}" -lt 20 ]; do
+  [ "${i}" -eq 0 ] || printf ','
+  printf '{"name":"platinum","namespace":"sulfoxide","revision":1,"updated":"2026-07-21T00:00:00Z","status":"pending-install","chart":"platinum-0.1.0","app_version":"0.1.0"}'
+  i=$((i + 1))
+done
+printf ']\n'
+HELM_STUB
+
+    tee "${mock_bin}/kubectl" >/dev/null <<'KUBECTL_STUB'
+#!/usr/bin/env sh
+set -eu
+trace="${PLATINUM_BEHAVIOR_TRACE:?}"
+args=" $* "
+printf 'SECRET_SENTINEL_FROM_KUBECTL_STDERR\n' >&2
+case "${args}" in
+*" describe "*|*" logs "*|*" -A "*|*" --all-namespaces "*)
+  printf 'unsafe:kubectl:%s\n' "$*" >>"${trace}"
+  exit 51
+  ;;
+esac
+case "${args}" in
+" --context k3d-platinum --namespace sulfoxide --request-timeout=15s get deployments,statefulsets,daemonsets,jobs --selector app.kubernetes.io/instance in (platinum,platinum-gateway) -o jsonpath="*)
+  marker=workloads
+  ;;
+" --context k3d-platinum --namespace sulfoxide --request-timeout=15s get pods --selector app.kubernetes.io/instance in (platinum,platinum-gateway) -o jsonpath="*)
+  marker=pods
+  ;;
+" --context k3d-platinum --namespace sulfoxide --request-timeout=15s get gateway platinum-gateway -o jsonpath="*)
+  marker=gateway
+  ;;
+" --context k3d-platinum --namespace sulfoxide --request-timeout=15s get events --field-selector involvedObject.kind=Gateway,involvedObject.name=platinum-gateway -o jsonpath="*)
+  marker=gateway-events
+  ;;
+*)
+  printf 'unsafe:kubectl:%s\n' "$*" >>"${trace}"
+  exit 52
+  ;;
+esac
+printf 'capture:%s\n' "${marker}" >>"${trace}"
+if [ "${PLATINUM_BEHAVIOR_DIAGNOSTIC_IGNORE_TERM:-false}" = "true" ]; then
+  trap '' TERM
+fi
+sleep "${PLATINUM_BEHAVIOR_DIAGNOSTIC_SLEEP_SECONDS:-0}"
+i=0
+while [ "${i}" -lt 20 ]; do
+  printf '%s\tsulfoxide\tplatinum-%02d\tReady=True:BehaviorStub\n' "${marker}" "${i}"
+  i=$((i + 1))
+done
+KUBECTL_STUB
+
+    chmod +x "${mock_bin}/bash" "${mock_bin}/helm" "${mock_bin}/kubectl"
+  }
+
+  run_behavior_case() {
+    local case_name="$1"
+    local failure_budget="$2"
+    local cleanup_reserve="$3"
+    local diagnostic_sleep="$4"
+    local teardown_sleep="$5"
+    local diagnostic_ignore_term="$6"
+    local teardown_ignore_term="$7"
+    local expect_full_capture="$8"
+    local case_dir="${tmp}/behavior-${case_name}"
+    local mock_bin="${case_dir}/mock-bin"
+    local evidence="${case_dir}/evidence"
+    local trace="${case_dir}/trace.log"
+    local run_log="${case_dir}/run.log"
+    local start_seconds run_status elapsed_seconds teardown_line last_capture_line file_bytes
+    local byte_limit=128
+    local required_marker required_file
+
+    mkdir -p "${evidence}"
+    : >"${trace}"
+    write_behavior_stubs "${mock_bin}"
+
+    start_seconds="${SECONDS}"
+    set +e
+    timeout --signal=TERM --kill-after=1 10s env \
+      PATH="${mock_bin}:${PATH}" \
+      PLATINUM_EVIDENCE_DIR="${evidence}" \
+      PLATINUM_BEHAVIOR_TEST=true \
+      PLATINUM_BEHAVIOR_TRACE="${trace}" \
+      PLATINUM_BEHAVIOR_CREATE_EXIT=17 \
+      PLATINUM_BEHAVIOR_TEARDOWN_EXIT=31 \
+      PLATINUM_BEHAVIOR_TEARDOWN_SLEEP_SECONDS="${teardown_sleep}" \
+      PLATINUM_BEHAVIOR_TEARDOWN_IGNORE_TERM="${teardown_ignore_term}" \
+      PLATINUM_BEHAVIOR_DIAGNOSTIC_SLEEP_SECONDS="${diagnostic_sleep}" \
+      PLATINUM_BEHAVIOR_DIAGNOSTIC_IGNORE_TERM="${diagnostic_ignore_term}" \
+      PLATINUM_TEST_FAILURE_BUDGET_SECONDS="${failure_budget}" \
+      PLATINUM_TEST_KILL_GRACE_SECONDS=1 \
+      PLATINUM_TEST_CLEANUP_RESERVE_SECONDS="${cleanup_reserve}" \
+      PLATINUM_TEST_DIAGNOSTIC_COMMAND_MAX_SECONDS=30 \
+      PLATINUM_TEST_DIAGNOSTIC_BYTE_LIMIT="${byte_limit}" \
+      /bin/bash "${k3d_script}" >"${run_log}" 2>&1
+    run_status=$?
+    set -e
+    elapsed_seconds=$((SECONDS - start_seconds))
+
+    if [ "${run_status}" -ne 17 ]; then
+      echo "❌ ${case_name}: diagnostics/cleanup replaced proof exit 17 with ${run_status}" >&2
+      return 1
+    fi
+    if [ "${elapsed_seconds}" -gt $((failure_budget + 2)) ]; then
+      echo "❌ ${case_name}: failure path exceeded shared deadline (${elapsed_seconds}s)" >&2
+      return 1
+    fi
+    if rg -q '^unsafe:' "${trace}"; then
+      echo "❌ ${case_name}: proof attempted a broad or unrecognized diagnostic command" >&2
+      sed -n '1,120p' "${trace}" >&2
+      return 1
+    fi
+    if ! rg -q '^teardown:start$' "${trace}"; then
+      echo "❌ ${case_name}: bounded teardown was not attempted" >&2
+      return 1
+    fi
+    if ! rg -q '^capture:' "${trace}"; then
+      echo "❌ ${case_name}: no diagnostics ran before teardown" >&2
+      return 1
+    fi
+    teardown_line="$(rg -n '^teardown:start$' "${trace}" | cut -d: -f1)"
+    last_capture_line="$(rg -n '^capture:' "${trace}" | tail -n 1 | cut -d: -f1)"
+    if [ "${last_capture_line}" -ge "${teardown_line}" ]; then
+      echo "❌ ${case_name}: teardown began before diagnostics completed" >&2
+      return 1
+    fi
+
+    if [ "${expect_full_capture}" = "true" ]; then
+      for required_marker in helm-release workloads pods gateway gateway-events; do
+        if ! rg -q "^capture:${required_marker}$" "${trace}"; then
+          echo "❌ ${case_name}: missing required safe capture ${required_marker}" >&2
+          return 1
+        fi
+      done
+      for required_file in metadata.tsv helm-release.tsv workloads.tsv pods.tsv gateway.tsv gateway-events.tsv; do
+        if [ ! -s "${evidence}/failure-diagnostics/${required_file}" ]; then
+          echo "❌ ${case_name}: missing diagnostic artifact ${required_file}" >&2
+          return 1
+        fi
+        file_bytes="$(wc -c <"${evidence}/failure-diagnostics/${required_file}")"
+        if [ "${file_bytes}" -gt "${byte_limit}" ]; then
+          echo "❌ ${case_name}: ${required_file} exceeded ${byte_limit} bytes" >&2
+          return 1
+        fi
+      done
+      if ! rg -q '^proof_exit_status=17$' "${evidence}/failure-diagnostics/metadata.tsv"; then
+        echo "❌ ${case_name}: metadata did not retain proof exit 17" >&2
+        return 1
+      fi
+      if rg -q 'SECRET_SENTINEL' "${evidence}/failure-diagnostics"; then
+        echo "❌ ${case_name}: diagnostic stderr leaked into durable evidence" >&2
+        return 1
+      fi
+      if find "${evidence}/failure-diagnostics" -type f \( -name '*log*' -o -name '*describe*' -o -name 'helm-status*' -o -name 'helm-history*' \) | rg -q .; then
+        echo "❌ ${case_name}: broad diagnostic artifacts were persisted" >&2
+        return 1
+      fi
+    fi
+  }
+
+  validate_readiness_contract "${k3d_script}"
+  run_behavior_case complete-captures 8 3 0 0 false false true
+  run_behavior_case diagnostic-deadline 5 2 30 0 true false false
+  run_behavior_case teardown-deadline 5 2 0 30 false true true
+
+  # A nonfunctional look-alike can carry every required literal and pass the
+  # static budget checks. It must still fail the executable behavior contract.
+  static_spoof="${tmp}/rb333-static-spoof.sh"
+  tee "${static_spoof}" >/dev/null <<'STATIC_SPOOF'
+#!/usr/bin/env bash
+readonly helm_readiness_timeout_seconds=900
+readonly gateway_readiness_timeout_seconds=600
+readonly health_readiness_timeout_seconds=300
+readonly production_failure_handling_budget_seconds=300
+readonly total_worst_case_budget_seconds=2100
+readonly shard_hard_timeout_seconds=7200
+# --wait --timeout "${helm_readiness_timeout_seconds}s"
+# --timeout="${gateway_readiness_timeout_seconds}s"
+health_deadline=$((SECONDS + health_readiness_timeout_seconds))
+exit 0
+STATIC_SPOOF
+  validate_readiness_contract "${static_spoof}"
+  real_k3d_script="${k3d_script}"
+  k3d_script="${static_spoof}"
+  if run_behavior_case static-spoof 8 3 0 0 false false false >/dev/null 2>&1; then
+    echo "❌ nonfunctional static look-alike passed the behavioral RB-333 guard" >&2
+    exit 1
+  fi
+  k3d_script="${real_k3d_script}"
+  ;;
 *)
   echo "❌ unknown validation mode '${mode}'" >&2
   exit 1
