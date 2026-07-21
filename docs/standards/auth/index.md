@@ -52,10 +52,20 @@ the referrer processed / clears the clipboard before redeem, redeems against
 
 ### Home claim and landscape selector
 
-`HomeClaimResolver` checks the home landscape on every sign-in (C0 §13):
-present → route home; absent → the Doc B `LandscapeSelectorClient` (sign-up
-only) fetches names + metadata, pings each region by convention, and picks the
-fastest healthy one. Doc B carrying any address/issuer is rejected as untrusted.
+`HomeClaimResolver` checks the home landscape on every sign-in (C0 §13) from the
+AUTHORITATIVE JWT claim (via a `HomeClaimReader`): present → route home; absent →
+the Doc B `LandscapeSelectorClient` (sign-up only) fetches names + metadata,
+pings each region by convention, and picks the fastest healthy one. Doc B
+carrying any address/issuer is rejected as untrusted. The local `HomeClaimStore`
+is a non-authoritative mirror only — it never chooses the home.
+
+On the sign-up path OnboardSync writes the claim server-side during onboarding,
+so `SignInCoordinator` refreshes/re-mints and RE-READS the authoritative JWT
+AFTER onboarding, using that confirmed value for the returned home and the
+mirror. The locally selected Doc B landscape is never persisted as a claim; if
+onboarding errors or the refreshed JWT still lacks the claim, the coordinator
+returns an explicit `Problem` (e.g. `home-claim-unconfirmed`) rather than a
+mirrored selection.
 
 ### Config and baked issuer
 

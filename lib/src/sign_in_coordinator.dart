@@ -1,4 +1,5 @@
 import 'auth/session_controller.dart';
+import 'contracts/problem.dart';
 import 'contracts/result.dart';
 import 'home/home_claim.dart';
 import 'onboarding/onboarding_phase.dart';
@@ -24,8 +25,9 @@ final class SignInResult {
 
 /// Ties the auth-engine flow together in the C0 §13 order:
 /// resolve home claim (present → route home, no Doc B; absent → Doc B selector,
-/// SIGN-UP only) → OIDC login → per-backend claims-first onboarding → mirror the
-/// OnboardSync-written home claim locally → resume the exact returnTo route.
+/// SIGN-UP only) → OIDC login → per-backend claims-first onboarding →
+/// CONFIRM the OnboardSync-written home claim from a freshly issued JWT (never
+/// mirror the Doc B selection as a claim) → resume the exact returnTo route.
 final class SignInCoordinator {
   const SignInCoordinator({
     required SessionController session,
@@ -85,9 +87,50 @@ final class SignInCoordinator {
     final Map<String, Result<OnboardingPhase>> phases = await _onboarding
         .runAll();
 
-    // 5. On the sign-up path, mirror the OnboardSync-written home claim locally.
+    // 5. Sign-up path only: OnboardSync writes the home_landscape claim
+    //    server-side during onboarding. The client MUST confirm it from a
+    //    freshly issued JWT — the locally selected Doc B landscape is NEVER
+    //    persisted as if it were a claim (C0 §13).
     if (home.kind == HomeResolutionKind.selected) {
-      await _homeResolver.commit(home.landscape);
+      // Onboarding must have completed cleanly before a home claim can exist.
+      for (final MapEntry<String, Result<OnboardingPhase>> entry
+          in phases.entries) {
+        final Result<OnboardingPhase> outcome = entry.value;
+        if (outcome is Failure<OnboardingPhase>) {
+          // Do NOT mirror the selection; surface the onboarding failure.
+          return Failure<SignInResult>(outcome.problem);
+        }
+      }
+      // Refresh/re-mint so the OnboardSync-written claim surfaces in the JWT.
+      final Result<Object?> reminted = await _session.onAppOpen();
+      if (reminted is Failure) {
+        return Failure<SignInResult>(reminted.problem);
+      }
+      // Re-read the AUTHORITATIVE claim from the confirmed JWT.
+      final Result<String?> confirmed = await _homeResolver.authoritativeHome();
+      if (confirmed is Failure<String?>) {
+        return Failure<SignInResult>(confirmed.problem);
+      }
+      final String? confirmedHome = (confirmed as Success<String?>).value;
+      if (confirmedHome == null) {
+        // OnboardSync did not surface a home_landscape claim: an explicit
+        // unconfirmed state, NOT a mirrored selection.
+        return const Failure<SignInResult>(
+          Problem(
+            type: 'urn:diene:problem:home-claim-unconfirmed',
+            title: 'Home landscape claim not confirmed after onboarding',
+            status: 409,
+            recoverable: true,
+          ),
+        );
+      }
+      // The confirmed JWT value (which may differ from the selection) is the
+      // authoritative home and the only value mirrored.
+      home = HomeResolution(
+        landscape: confirmedHome,
+        kind: HomeResolutionKind.fromClaim,
+      );
+      await _homeResolver.commit(confirmedHome);
     }
 
     // 6. Resume the exact protected route the deeplink targeted.

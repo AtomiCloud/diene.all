@@ -43,13 +43,19 @@ onboardingResource, appOnboardingClaim?)`; collect them in a
 
 ## Home landscape + returnTo
 
-- `HomeClaimResolver(store, selector).resolve()`: cached claim → route home; an
-  absent claim runs the Doc B selector (sign-up only). Call `commit(landscape)`
-  after OnboardSync writes the claim.
+- `HomeClaimResolver(claimReader:, selector:, store:).resolve()`: the
+  AUTHORITATIVE JWT `home_landscape` claim decides the home (`claimReader` /
+  `jwtHomeClaimReader(provider.idToken)`); an absent claim runs the Doc B
+  selector (sign-up only). The store is a NON-authoritative mirror — never
+  consulted to choose the home. `commit(landscape)` only mirrors a value the JWT
+  already made authoritative.
 - Use `ReturnTo.buildLoginRedirect` / `ReturnTo.continueFrom` to resume the
   exact protected route after login. Absolute/protocol-relative targets are
   rejected as open redirects.
-- `SignInCoordinator` ties resolve → login → onboarding → commit → continuation.
+- `SignInCoordinator` ties resolve → login → re-read issued claim → onboarding →
+  (sign-up only) refresh + CONFIRM the post-OnboardSync JWT claim → continuation.
+  It never persists the Doc B selection as a claim; a still-missing claim or an
+  onboarding error returns an explicit Problem.
 
 ## TestHelper
 
