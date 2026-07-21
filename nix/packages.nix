@@ -130,6 +130,19 @@ let
       }
     );
 
+    # ### workspace-releaser-bootstrap
+    # #### source: workspace
+    # C2: the `releaser` command is bootstrapped as a thin alias over `sg`
+    # (semantic-generator) until tools/releaser is published at step 2p. The
+    # release script and commit hooks invoke the `releaser` command name, so the
+    # bootstrap must materialise an executable of that exact name on the shell
+    # PATH; `sg release -c <cfg>` matches the `releaser release -c <cfg>` surface.
+    releaser-bootstrap = {
+      releaser = pkgs.writeShellScriptBin "releaser" ''
+        exec ${atomi.sg}/bin/sg "$@"
+      '';
+    };
+
     # ### nix-unstable
     # #### source: main
     nix-unstable = (
@@ -144,4 +157,4 @@ let
   };
 in
 with all;
-atomipkgs // nix-2605 // nix-unstable // root // go-base // go-lib
+atomipkgs // nix-2605 // releaser-bootstrap // nix-unstable // root // go-base // go-lib

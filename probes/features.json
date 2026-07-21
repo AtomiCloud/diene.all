@@ -186,6 +186,11 @@
     "class": "presence"
   },
   {
+    "template": "diene/workspace",
+    "name": "releaser-bootstrap",
+    "class": "gate"
+  },
+  {
     "template": "diene/shared",
     "name": "claude-link-integrity",
     "class": "gate"

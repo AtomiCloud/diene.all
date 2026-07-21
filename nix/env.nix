@@ -67,9 +67,11 @@ with packages;
 
   # ### workspace-releaser-bootstrap
   # #### source: workspace
-  # C2: sg is retained only until tools/releaser is published at step 2p.
+  # C2: the `releaser` command is a bootstrap alias over `sg`, retained only
+  # until tools/releaser is published at step 2p. It must be present under the
+  # `releaser` name because scripts/ci/release.sh invokes `releaser release`.
   releaser = [
-    sg
+    releaser
   ];
 
   # ### nix-root-system
