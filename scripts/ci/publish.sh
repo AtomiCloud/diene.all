@@ -11,7 +11,7 @@ dart format --output=none --set-exit-if-changed lib test
 dart analyze
 dart test
 ./scripts/validate/manifest-tag.sh check
-dart pub publish --dry-run
+./scripts/validate/publish-dry-run.sh
 
 if [ "${DIENE_PUBLISH:-false}" = "true" ]; then
   [ -z "${PUB_CREDENTIALS_JSON:-}" ] && echo "❌ PUB_CREDENTIALS_JSON not set" >&2 && exit 1

@@ -45,7 +45,7 @@ void main() {
             ..statusCode = 409
             ..headers.contentType = io.ContentType.json
             ..write(jsonEncode(
-              const Problem(
+              Problem(
                 type: 'urn:diene:problem:conflict',
                 title: 'Conflict',
                 status: 409,
@@ -116,7 +116,7 @@ void main() {
     () => FakeHttpTransport((HttpRequest request) => switch (request.url.path) {
           '/ok' => okJson(<String, Object?>{'ok': true}),
           '/problem' => problemResponse(
-              const Problem(
+              Problem(
                 type: 'urn:diene:problem:conflict',
                 title: 'Conflict',
                 status: 409,

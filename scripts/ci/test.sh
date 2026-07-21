@@ -20,6 +20,6 @@ echo "🏷️  Manifest==tag guard..."
 ./scripts/validate/manifest-tag.sh check
 
 echo "📦 Package hygiene (publish dry-run)..."
-dart pub publish --dry-run
+./scripts/validate/publish-dry-run.sh
 
 echo "✅ Dart analyze, tests, dead-code, manifest guard, and publish dry-run passed"

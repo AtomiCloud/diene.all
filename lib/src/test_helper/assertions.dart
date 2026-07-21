@@ -1,4 +1,5 @@
-import '../result.dart';
+import 'package:diene_problems/diene_problems.dart' show Problem;
+import 'package:diene_result/diene_result.dart';
 
 /// Plain-throw assertion helpers (dependency-light: `AssertionError` is
 /// `dart:core`, no `test`/`matcher` import). Consumers get the same

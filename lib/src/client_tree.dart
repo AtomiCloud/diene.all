@@ -1,26 +1,13 @@
+import 'package:diene_problems/diene_problems.dart' show Problem;
+import 'package:diene_result/diene_result.dart';
+
+import 'bridge.dart' show BridgeProblems;
 import 'config.dart';
-import 'result.dart';
-
-/// The auth seam. auth-engine's per-resource token retriever plugs in here.
-/// Tokens resolve PER BACKEND (multi-backend: one app, many backends) — never
-/// a shared/singleton token. Returns null when the backend needs no token.
-abstract interface class IAuth {
-  Future<String?> tokenFor(LpsmCoordinate coordinate, {String? resource});
-}
-
-/// An `IAuth` that never attaches a token (anonymous backends / tests).
-class AnonymousAuth implements IAuth {
-  const AnonymousAuth();
-
-  @override
-  Future<String?> tokenFor(LpsmCoordinate coordinate,
-          {String? resource}) async =>
-      null;
-}
 
 /// The LPSM client tree: the ONE place a consumer declares a backend. Keyed by
 /// the four-slot coordinate; a duplicate registration is a typed failure, not
-/// a throw.
+/// a throw. (The auth seam is owned by `diene_auth_engine`'s `IAuth`; this lib
+/// consumes it, never defines it — see `engine.dart`.)
 class ClientTree {
   ClientTree();
 
@@ -32,7 +19,7 @@ class ClientTree {
     if (_byKey.containsKey(key)) {
       return Err<void>(
         Problem(
-          type: 'urn:diene:problem:duplicate-backend',
+          type: BridgeProblems.duplicateBackend,
           title: 'Duplicate backend registration',
           status: 409,
           detail: key,

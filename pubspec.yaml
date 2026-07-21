@@ -14,9 +14,23 @@ environment:
 
 dependencies:
   collection: ^1.19.0
+  dio: ^5.7.0
+  # Owned sibling contracts (dependency-honest hosted declarations). Built this
+  # session against gitignored session-only compatibility stubs via
+  # pubspec_overrides.yaml; the override is deleted at the deterministic swap
+  # once the real packages publish.
+  diene_auth_engine: ^1.0.0
+  diene_problems: ^1.0.0
+  diene_result: ^1.0.0
+  json_annotation: ^4.9.0
   meta: ^1.15.0
+  retrofit: ^4.4.0
 
 dev_dependencies:
+  build_runner: ^2.4.13
   coverage: ^1.11.0
+  json_serializable: ^6.8.0
   lints: ^5.0.0
+  retrofit_generator: ^10.2.7
+  swagger_parser: ^1.44.0
   test: ^1.25.0

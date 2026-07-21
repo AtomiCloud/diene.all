@@ -20,5 +20,6 @@ export 'src/test_helper/fakes.dart'
         FakeClock,
         FakeHttpTransport,
         FakeRescueStore,
+        HangingTransport,
         noJitter,
         noSleep;

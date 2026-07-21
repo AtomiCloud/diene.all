@@ -1,21 +1,33 @@
 import 'dart:convert';
 
-import 'result.dart';
+import 'package:diene_problems/diene_problems.dart'
+    show ErrorPortal, Problem, problemTypeUri;
+import 'package:diene_result/diene_result.dart';
+
 import 'transport.dart';
 
-/// Baked problem type URIs the bridge mints for the transport/reconciliation
-/// classes that are NOT service-authored problems.
+/// api-engine's own client-side problem type URIs, minted through the ONE
+/// owned builder in `diene_problems` (never hand-formatted here — C0 §2). These
+/// are api-engine's OWN problems (transport/reconciliation failures a client
+/// raises); the `Problem` envelope type itself is owned by `diene_result`.
 class BridgeProblems {
   BridgeProblems._();
 
-  static const String transportFailure = 'urn:diene:problem:transport-failure';
-  static const String unexpectedResponse =
-      'urn:diene:problem:unexpected-response';
+  /// Client-local portal: api-engine's transport problems have no service
+  /// backend context. A real app can override the portal via [configure].
+  static ErrorPortal portal = ErrorPortal.localError;
+
+  static String _uri(String id) =>
+      problemTypeUri(portal: portal, version: 'v1', id: id);
+
+  static String get transportFailure => _uri('transport-failure');
+  static String get unexpectedResponse => _uri('unexpected-response');
+  static String get duplicateBackend => _uri('duplicate-backend');
+  static String get authTokenUnavailable => _uri('auth-token-unavailable');
 }
 
 /// Guard: does a decoded JSON object structurally look like an RFC 9457
-/// problem? (has a string `type` and an int `status`). Mirrors bun's
-/// `isProblem`/`isProblemDetail`.
+/// problem? (string `type` + int `status`).
 bool isProblemJson(Object? value) =>
     value is Map<String, Object?> &&
     value['type'] is String &&
@@ -35,14 +47,14 @@ Map<String, Object?>? tryDecodeObject(String body) {
 }
 
 /// The full error reconciliation: folds a [TransportOutcome] into
-/// `Result<T, Problem>` per ARCHITECTURE §4 / lib/bun/api-engine:
+/// `Result<T>` (error channel is `diene_result`'s `Problem`):
 ///
-/// * [NetworkFailure]            → distinct transport-failure [Problem].
-/// * 2xx with a JSON body        → `Ok(decode(json))`.
-/// * 2xx that fails to decode    → transport-failure [Problem] (status snippet).
-/// * non-2xx problem body        → `Err(Problem.fromJson(...))` (incl. nested).
-/// * non-2xx JSON-but-not-problem→ wrapped unexpected-response [Problem].
-/// * non-2xx non-JSON/empty      → transport-failure [Problem] (status snippet).
+/// * [NetworkFailure]             → transport-failure [Problem].
+/// * 2xx JSON                     → `Ok(decode(json))`.
+/// * 2xx non-JSON / decode failure→ transport-failure [Problem].
+/// * non-2xx valid problem body   → `Err(Problem.fromJson)` (incl. nested).
+/// * non-2xx JSON but not/invalid problem → unexpected-response [Problem].
+/// * non-2xx non-JSON / status-only → transport-failure [Problem].
 ///
 /// No thrown exception ever escapes; the caller always gets a [Result].
 Result<T> toResult<T>(
@@ -79,31 +91,25 @@ Result<T> _fromResponse<T>(
 
   if (ok) {
     if (json == null) {
-      // Successful non-JSON payloads are untyped in v1; a typed call site that
-      // asked to decode a JSON body but got none is a transport-failure.
       return Err<T>(
-        _transport(
-          'success body was not a JSON object',
-          response,
-          endpoint,
-        ),
-      );
+          _transport('success body was not a JSON object', response, endpoint));
     }
     try {
       return Ok<T>(decode(json));
     } on Object catch (error) {
-      return Err<T>(
-        _transport('decode failed: $error', response, endpoint),
-      );
+      return Err<T>(_transport('decode failed: $error', response, endpoint));
     }
   }
 
-  // Error status.
+  // Error status: a valid RFC 9457 problem body wins; anything else is wrapped.
   if (isProblemJson(json)) {
-    return Err<T>(Problem.fromJson(json!));
+    try {
+      return Err<T>(Problem.fromJson(json!));
+    } on FormatException {
+      // Structurally problem-ish but not a valid envelope → unexpected.
+    }
   }
   if (json != null) {
-    // JSON, but not a problem — wrap + map into a typed problem.
     return Err<T>(
       Problem(
         type: BridgeProblems.unexpectedResponse,
@@ -119,9 +125,7 @@ Result<T> _fromResponse<T>(
       ),
     );
   }
-  return Err<T>(
-    _transport('non-JSON error body', response, endpoint),
-  );
+  return Err<T>(_transport('non-JSON error body', response, endpoint));
 }
 
 Problem _transport(String reason, HttpResponse response, String? endpoint) {

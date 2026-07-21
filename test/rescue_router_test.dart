@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:diene_api_engine/diene_api_engine.dart';
 import 'package:diene_api_engine/test_helper.dart';
 import 'package:test/test.dart';
@@ -11,27 +13,42 @@ final LpsmCoordinate _coord = LpsmCoordinate(
 
 RescueConfig _cfg({
   bool enabled = true,
-  List<String> allowlist = const <String>['.cluster.atomi.cloud'],
-  List<String> catalogHosts = const <String>['r2.example.com'],
+  List<String> allowlist = const <String>[
+    '.cluster.atomi.cloud',
+    '.catalogs.atomi.cloud',
+  ],
+  List<String> catalogHosts = const <String>['fleet.catalogs.atomi.cloud'],
+  Duration scanBudget = const Duration(seconds: 8),
+  Duration perCandidateTimeout = const Duration(seconds: 3),
+  Duration maxJitter = const Duration(milliseconds: 250),
 }) =>
     RescueConfig(
       enabled: enabled,
       issuer: Uri.parse('https://auth.atomi.cloud'),
       catalogHosts: catalogHosts,
       endpointSuffixAllowlist: allowlist,
+      scanBudget: scanBudget,
+      perCandidateTimeout: perCandidateTimeout,
+      maxJitter: maxJitter,
     );
 
 RescueRouter _router(
   RescueStore store,
   HttpTransport transport, {
   RescueConfig? config,
+  Future<void> Function(Duration)? sleep,
+  int Function()? nowMs,
+  Duration Function()? jitter,
+  Random? random,
 }) =>
     RescueRouter(
       config: config ?? _cfg(),
       store: store,
       transport: transport,
-      sleep: noSleep,
-      jitter: noJitter,
+      sleep: sleep ?? noSleep,
+      nowMs: nowMs,
+      jitter: jitter ?? noJitter,
+      random: random,
     );
 
 void main() {
@@ -50,8 +67,7 @@ void main() {
       expect(router.isAllowed(Uri.parse('https://evil.example.com')), isFalse);
     });
 
-    test('a non-allowlisted candidate is filtered out of a rescue', () async {
-      // Arrange: doc offers only a foreign host; no last-known-good.
+    test('a non-allowlisted Doc-C candidate is filtered out', () async {
       final DocC docC = DocC(
         version: 3,
         candidates: <String, List<String>>{
@@ -68,12 +84,41 @@ void main() {
           'evil.example.com': okJson(<String, Object?>{}),
         }),
       );
+      expect(await router.rescue(_coord), isA<RescueUnavailable>());
+    });
 
-      // Act
+    test(
+        'P1#1: a poisoned Doc A cannot redirect the Doc-C fetch off baked roots',
+        () async {
+      // Doc A advertises an OFF-allowlist catalog host; the router must never
+      // request it.
+      final FakeHttpTransport transport = FakeHttpTransport.byHost(
+        <String, TransportOutcome>{
+          'fleet.catalogs.atomi.cloud': okJson(<String, Object?>{
+            'version': 5,
+            'catalogHosts': <String>['evil.example.com'],
+          }),
+          'evil.example.com': okJson(DocC(
+            version: 9,
+            candidates: <String, List<String>>{
+              _coord.key: <String>['https://pwned.cluster.atomi.cloud'],
+            },
+          ).toJson()),
+        },
+      );
+      final RescueRouter router = _router(
+        FakeRescueStore(<String, String>{'doca.version': '1'}),
+        transport,
+      );
+
       final RescueOutcome outcome = await router.rescue(_coord);
 
-      // Assert
       expect(outcome, isA<RescueUnavailable>());
+      // The off-allowlist Doc-A host was NEVER contacted.
+      expect(
+        transport.sent.any((HttpRequest r) => r.url.host == 'evil.example.com'),
+        isFalse,
+      );
     });
   });
 
@@ -86,9 +131,8 @@ void main() {
     expect(await router.rescue(_coord), isA<RescueUnavailable>());
   });
 
-  test('monotonic versions: an older fetched doc never replaces the cache',
+  test('monotonic versions: an older fetched Doc C never replaces the cache',
       () async {
-    // Arrange: cache is v10 with candidate C10; the fetchable doc is v2 (older).
     final DocC cached = DocC(
       version: 10,
       candidates: <String, List<String>>{
@@ -108,29 +152,24 @@ void main() {
         'doca.version': '1',
       }),
       FakeHttpTransport.byHost(<String, TransportOutcome>{
-        // Doc A refresh advertises the catalog host and a newer Doc A version…
-        'r2.example.com': okJson(<String, Object?>{
+        // allowlisted catalog hosts so the refresh path actually runs
+        'fleet.catalogs.atomi.cloud': okJson(<String, Object?>{
           'version': 2,
-          'catalogHosts': <String>['catalog.example.com'],
+          'catalogHosts': <String>['cat.catalogs.atomi.cloud'],
         }),
-        // …but the Doc C it serves is OLDER than the cache and must be rejected.
-        'catalog.example.com': okJson(stale.toJson()),
+        'cat.catalogs.atomi.cloud': okJson(stale.toJson()),
         'c10.cluster.atomi.cloud': okJson(<String, Object?>{}),
         'c2.cluster.atomi.cloud': okJson(<String, Object?>{}),
       }),
     );
 
-    // Act
     final RescueOutcome outcome = await router.rescue(_coord);
-
-    // Assert: the v10 cache candidate is used, not the stale v2 one.
     expect(outcome, isA<Rescued>());
     expect((outcome as Rescued).baseUrl.host, 'c10.cluster.atomi.cloud');
   });
 
   test('last-known-good is kept forever and used when no candidate is healthy',
       () async {
-    // Arrange: a pinned/last-good address exists; every candidate is down.
     final DocC docC = DocC(
       version: 4,
       candidates: <String, List<String>>{
@@ -146,14 +185,10 @@ void main() {
       }),
       FakeHttpTransport.byHost(<String, TransportOutcome>{
         'dead.cluster.atomi.cloud': networkFailure('down'),
-        'r2.example.com': networkFailure('doc host down'),
       }),
     );
 
-    // Act
     final RescueOutcome outcome = await router.rescue(_coord);
-
-    // Assert
     expect(outcome, isA<Rescued>());
     final Rescued rescued = outcome as Rescued;
     expect(rescued.fromLastKnownGood, isTrue);
@@ -162,7 +197,6 @@ void main() {
 
   test('same-landscape only: a foreign-landscape key is never consulted',
       () async {
-    // Arrange: doc has candidates ONLY under a different landscape's key.
     final LpsmCoordinate foreign = LpsmCoordinate(
       landscape: 'pichu',
       platform: 'platform',
@@ -183,15 +217,9 @@ void main() {
       }),
       FakeHttpTransport.byHost(<String, TransportOutcome>{
         'pichu.cluster.atomi.cloud': okJson(<String, Object?>{}),
-        'r2.example.com': networkFailure('doc host down'),
       }),
     );
-
-    // Act: rescuing the lapras coordinate must NOT reach the pichu candidate.
-    final RescueOutcome outcome = await router.rescue(_coord);
-
-    // Assert
-    expect(outcome, isA<RescueUnavailable>());
+    expect(await router.rescue(_coord), isA<RescueUnavailable>());
   });
 
   test('pin can be cleared once the primary heals', () async {
@@ -204,11 +232,98 @@ void main() {
         'primary.example.com': okJson(<String, Object?>{}),
       }),
     );
-
-    // Primary probes healthy → heal.
     expect(await router.probeHealthy(Uri.parse('https://primary.example.com')),
         isTrue);
     await router.onPrimaryHealed(_coord);
     expect(await router.pinnedFor(_coord), isNull);
+  });
+
+  group('P1#2: jitter + strict budgets', () {
+    test('production jitter is drawn from [0, maxJitter]', () {
+      final RescueRouter router = _router(
+        FakeRescueStore(),
+        FakeHttpTransport.byHost(const {}),
+        config: _cfg(maxJitter: const Duration(milliseconds: 200)),
+        jitter: null, // use the production jitter
+        random: Random(1234),
+      );
+      for (var i = 0; i < 50; i++) {
+        final Duration j = router.nextJitter();
+        expect(j.inMilliseconds, inInclusiveRange(0, 200));
+      }
+    });
+
+    test('a hanging probe cannot exceed the GLOBAL scan budget (fail-closed)',
+        () async {
+      // Five candidates, every probe hangs forever. perCandidate=3s, budget=8s.
+      final DocC docC = DocC(
+        version: 1,
+        candidates: <String, List<String>>{
+          _coord.key: <String>[
+            for (var i = 0; i < 5; i++) 'https://c$i.cluster.atomi.cloud',
+          ],
+        },
+      );
+      final FakeClock clock = FakeClock();
+      final HangingTransport transport = HangingTransport();
+      final RescueRouter router = _router(
+        FakeRescueStore(<String, String>{
+          'docc': docC.encode(),
+          'docc.version': '1',
+          'doca.version': '9',
+        }),
+        transport,
+        config: _cfg(
+          catalogHosts: const <String>[],
+          scanBudget: const Duration(seconds: 8),
+          perCandidateTimeout: const Duration(seconds: 3),
+        ),
+        sleep: clock.sleep,
+        nowMs: clock.nowMs,
+        jitter: noJitter,
+      );
+
+      final RescueOutcome outcome = await router.rescue(_coord);
+
+      // Fail-closed: no healthy candidate, no last-known-good.
+      expect(outcome, isA<RescueUnavailable>());
+      // The scan never ran past the global budget even though every probe hung.
+      expect(clock.nowMs(), lessThanOrEqualTo(8000));
+      // Only the candidates that fit the budget were even attempted (3×3s=9s is
+      // capped at 8s, so the 4th/5th are never started).
+      expect(transport.sent.length, lessThan(5));
+    });
+
+    test('perCandidateTimeout bounds a single hanging probe', () async {
+      final DocC docC = DocC(
+        version: 1,
+        candidates: <String, List<String>>{
+          _coord.key: <String>['https://only.cluster.atomi.cloud'],
+        },
+      );
+      final FakeClock clock = FakeClock();
+      final RescueRouter router = _router(
+        FakeRescueStore(<String, String>{
+          'docc': docC.encode(),
+          'docc.version': '1',
+          'doca.version': '9',
+        }),
+        HangingTransport(),
+        config: _cfg(
+          catalogHosts: const <String>[],
+          scanBudget: const Duration(seconds: 30),
+          perCandidateTimeout: const Duration(seconds: 3),
+        ),
+        sleep: clock.sleep,
+        nowMs: clock.nowMs,
+        jitter: noJitter,
+      );
+
+      await router.rescue(_coord);
+
+      // The single hanging probe timed out at perCandidateTimeout (3s), not at
+      // the far larger 30s budget.
+      expect(clock.nowMs(), 3000);
+    });
   });
 }

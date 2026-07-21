@@ -1,0 +1,9 @@
+{
+  "type": "https://docs.raichu.cluster.atomi.cloud/docs/raichu/diene/sample/users/v1/entity-not-found",
+  "title": "Entity not found",
+  "status": 404,
+  "detail": "user 42 not found",
+  "instance": "/users/42",
+  "recoverable": false,
+  "data": { "entity": "user", "id": "42" }
+}
