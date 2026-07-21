@@ -24,6 +24,11 @@ tasks:
     cmds:
       - dart analyze
 
+  version:validate:
+    desc: Validate generic and tagged release-version guards
+    cmds:
+      - ./scripts/validate/dart-publish-version-test.sh
+
   test:
     desc: Run unit, C0 conformance, and TestHelper meta tiers
     deps: [test:unit, test:meta]

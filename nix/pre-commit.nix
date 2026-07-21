@@ -87,9 +87,9 @@ pre-commit-lib.run {
 
     a-dart-publish-version = {
       enable = true;
-      name = "Dart publish manifest guard";
-      entry = validator "scripts/validate/dart-publish-version.sh v0.1.0";
-      files = "^(VERSION|pubspec[.]yaml|scripts/(ci/publish|validate/dart-publish-version)[.]sh)$";
+      name = "Dart version guards";
+      entry = validator "scripts/validate/dart-publish-version-test.sh";
+      files = "^(VERSION|pubspec[.]yaml|atomi_release[.]yaml|scripts/(ci/publish|release/bump|validate/dart-publish-version(-test)?)[.]sh)$";
       pass_filenames = false;
       language = "system";
     };

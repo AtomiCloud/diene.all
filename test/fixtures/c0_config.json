@@ -1,0 +1,91 @@
+{
+  "provenance": {
+    "status": "package-local mechanical materialization; the repository has no shared C0 config fixture artifact",
+    "authoritativeSources": [
+      {
+        "path": "goals/c0-contracts.md",
+        "sha256": "7dd7a06279f3078a5e195d4103d01ce9fd1b30a7d88178ec37c3e6f0465c7101",
+        "section": "§3 Config precedence",
+        "lines": "55-75",
+        "bindings": [
+          "base YAML -> sparse landscape overlay -> override last",
+          "validation runs on the final merged layer only",
+          "the override prefix is configurable and __ separates nesting",
+          "lists use contiguous indexed keys and reject JSON/comma encodings",
+          "the config library merges and validates service-composed schemas"
+        ]
+      },
+      {
+        "path": "goals/lib/dart-family.md",
+        "sha256": "ece72edbb18e2c45f6f16e3a4da2172862f7b044d4218292f90e5219da0b5bd6",
+        "section": "Per-lib spec: config",
+        "line": 54,
+        "bindings": [
+          "the Dart override is --dart-define and is applied last",
+          "a development override hook exists between landscape and Dart defines"
+        ]
+      }
+    ],
+    "materialization": "Values below are minimal neutral app-owned keys selected only to exercise the bound precedence and encoding rules; they define no engine schema semantics.",
+    "replacementAndRegreen": [
+      "When C0 publishes a shared config fixture, replace this file byte-for-byte with that artifact or a mechanical projection that retains its provenance.",
+      "Run: direnv exec . dart test test/conformance/c0_config_test.dart",
+      "Run: direnv exec . pls test:coverage",
+      "Run: direnv exec . pre-commit run --all-files"
+    ]
+  },
+  "cases": {
+    "layeringAndIndexedList": {
+      "prefix": "ACME_",
+      "baseYaml": "app:\n  name: base\n  retries: -1\n  tags: [base]\n",
+      "landscapeYaml": "app:\n  name: landscape\n  retries: 2\n",
+      "developmentYaml": "app:\n  name: development\n  tags: [development]\n",
+      "defines": {
+        "ACME_APP__NAME": "define",
+        "ACME_APP__TAGS__0": "first",
+        "ACME_APP__TAGS__1": "second"
+      },
+      "expected": {
+        "name": "define",
+        "retries": 2,
+        "tags": ["first", "second"]
+      }
+    },
+    "blankIsUnset": {
+      "prefix": "ACME_",
+      "baseYaml": "app:\n  name: base\n  retries: 1\n  tags: [base]\n",
+      "defines": {
+        "ACME_APP__NAME": "",
+        "ACME_APP__TAGS__0": ""
+      },
+      "expected": {
+        "name": "base",
+        "retries": 1,
+        "tags": ["base"]
+      }
+    },
+    "invalidCollectionEncodings": [
+      {
+        "name": "JSON",
+        "prefix": "ACME_",
+        "baseYaml": "app:\n  name: service\n  retries: 1\n  tags: []\n",
+        "defines": {
+          "ACME_APP__TAGS": "[\"first\",\"second\"]"
+        }
+      },
+      {
+        "name": "comma-separated",
+        "prefix": "ACME_",
+        "baseYaml": "app:\n  name: service\n  retries: 1\n  tags: []\n",
+        "defines": {
+          "ACME_APP__TAGS": "first,second"
+        }
+      }
+    ],
+    "invalidFinal": {
+      "prefix": "ACME_",
+      "baseYaml": "app:\n  name: service\n  retries: -1\n  tags: []\n",
+      "defines": {}
+    }
+  }
+}

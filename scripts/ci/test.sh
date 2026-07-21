@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ./scripts/ci/setup.sh
+./scripts/validate/dart-publish-version-test.sh
 dart analyze
 dart test test/unit test/conformance
 dart test test/meta
