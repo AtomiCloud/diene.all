@@ -1,0 +1,10 @@
+/contracts/c0/RELEASE.json
+/contracts/c0/cases/config.json
+/contracts/c0/cases/problem.json
+/contracts/c0/provenance/config-precedence.md
+/contracts/c0/provenance/problem-catalog.md
+/contracts/c0/provenance/problem-schema.md
+/test/fixtures/c0/catalog-entry.json
+/test/fixtures/c0/config.json
+/test/fixtures/c0/envelope.json
+/test/fixtures/c0/type-uri.json
