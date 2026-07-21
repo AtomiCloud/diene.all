@@ -64,7 +64,15 @@
           shellHook = pre-commit.shellHook;
         };
         checks = {
-          pre-commit-check = pre-commit;
+          # Pub-backed Dart hooks run in local pre-commit and CI after dependency
+          # resolution. The Nix check sandbox has no package cache or network.
+          pre-commit-check = pre-commit.overrideAttrs {
+            SKIP = builtins.concatStringsSep "," [
+              "a-dart-analyze"
+              "a-dart-deadcode"
+              "a-dart-test"
+            ];
+          };
           format = formatter;
         };
       };
