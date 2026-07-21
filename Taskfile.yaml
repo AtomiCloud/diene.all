@@ -1,67 +1,100 @@
-# ### workspace-root
-# #### source: workspace
 version: '3'
-
-includes:
-  secret: tasks/Taskfile.secret.yaml
 
 tasks:
   setup:
-    desc: Set up generated workspace assets
+    desc: Resolve Dart package dependencies
     cmds:
-      # ### flutter-base-setup
-      # #### source: flutter-base
-      - flutter pub get
-      - ./scripts/local/skills-sync.sh
+      - dart pub get
+
+  clean:
+    desc: Remove generated package evidence
+    cmds:
+      - dart run tool/clean.dart
+
+  build:
+    desc: Validate the publishable Dart package artifact
+    cmds:
+      - dart pub publish --dry-run
+
+  format:
+    desc: Format Dart sources and tests
+    cmds:
+      - dart format lib/diene_core_utils.dart lib/src test tool
+
+  format:check:
+    desc: Check Dart formatting
+    cmds:
+      - dart format --output=none --set-exit-if-changed lib/diene_core_utils.dart lib/src test tool
+
+  analyze:
+    desc: Analyze package source and tests
+    cmds:
+      - dart analyze
 
   lint:
     desc: Run all repository gates
     cmds:
       - pre-commit run --all-files
 
-  skills:sync:
-    desc: Synchronize installed diene package skills
+  test:
+    desc: Run package unit and C0 conformance tests
     cmds:
-      - ./scripts/local/skills-sync.sh
+      - task: test:unit
 
-  # ### flutter-base-tasks
-  # #### source: flutter-base
-  mobile:analyze:
-    desc: Analyze Flutter source and tests
+  test:unit:
+    desc: Run package unit and C0 conformance tests
     cmds:
-      - flutter analyze
+      - dart test
 
-  mobile:test:
-    desc: Run Flutter unit and widget tests
+  test:int:
+    desc: Report the intentionally absent integration tier
     cmds:
-      - flutter test
+      - echo 'No integration tier; diene_core_utils is a pure value package.'
 
-  mobile:build-flavors:
-    desc: Build all four Android flavor smoke artifacts
+  test:meta:
+    desc: Report the TestHelper=NO meta-tier verdict
     cmds:
-      - ./scripts/validate/flavor-builds.sh
+      - echo 'No TestHelper; meta tier is an intentional no-op and uploads no meta flag.'
 
-  mobile:generate-sdk:
-    desc: Regenerate the typed OA3 client
+  test:coverage:
+    desc: Run targeted unit coverage and enforce its threshold
     cmds:
-      - ./scripts/local/generate-sdk.sh
+      - task: test:unit:coverage
 
-  mobile:generate-translations:
-    desc: Regenerate typed Slang translations
+  test:unit:coverage:
+    desc: Run targeted unit coverage and enforce its threshold
     cmds:
-      - ./scripts/local/generate-translations.sh
+      - dart test --coverage=coverage
+      - dart run coverage:format_coverage --packages=.dart_tool/package_config.json --report-on=lib --in=coverage --lcov --out=coverage/lcov.info
+      - dart run tool/check_coverage.dart coverage/lcov.info
 
-  mobile:generate-config:
-    desc: Regenerate the Flutter config schema
+  test:int:coverage:
+    desc: Report the intentionally absent integration ledger
     cmds:
-      - ./scripts/local/generate-config-schema.sh
+      - echo 'No integration coverage ledger for a pure value package.'
 
-  mobile:doctor-signing:
-    desc: Run locally provable signing and stamp doctors
+  test:meta:coverage:
+    desc: Report the intentionally absent TestHelper ledger
     cmds:
-      - ./scripts/validate/signing-doctors.sh
+      - echo 'No TestHelper coverage ledger and no empty meta upload.'
 
-  mobile:register-apple:
-    desc: Register Apple identifiers, groups, capabilities, and app records
+  test:watch:
+    desc: Watch package tests
     cmds:
-      - ./scripts/local/register-apple.sh
+      - dart test --chain-stack-traces
+
+  deadcode:
+    desc: Run dead-code checks with and without tests
+    cmds:
+      - dart run tool/dead_code.dart --with-tests
+      - dart run tool/dead_code.dart --production
+
+  manifest:check:
+    desc: Verify the package manifest equals a release tag
+    cmds:
+      - ./scripts/validate/manifest-tag.sh {{.CLI_ARGS}}
+
+  publish:dry-run:
+    desc: Validate pub.dev package hygiene without publishing
+    cmds:
+      - dart pub publish --dry-run

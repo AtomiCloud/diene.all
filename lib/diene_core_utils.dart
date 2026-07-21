@@ -1,0 +1,8 @@
+/// Pure helpers shared by Diene Dart packages.
+library;
+
+export 'src/coercion.dart';
+export 'src/merge.dart';
+export 'src/slug.dart';
+export 'src/timing.dart';
+export 'src/wire.dart';

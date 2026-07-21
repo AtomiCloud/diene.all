@@ -1,9 +1,22 @@
-include: package:flutter_lints/flutter.yaml
+include: package:lints/recommended.yaml
 
 analyzer:
   exclude:
+    - lib/app.dart
+    - lib/main.dart
+    - lib/auth/**
+    - lib/config/**
+    - lib/core/**
     - lib/generated/**
-    - lib/i18n/translations.g.dart
+    - lib/i18n/**
+    - lib/notifications/**
+    - lib/onboarding/**
+    - lib/theme/**
+    - lib/widgets/**
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
 
 linter:
   rules:

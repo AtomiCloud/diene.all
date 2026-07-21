@@ -1,52 +1,35 @@
-# Diene workspace baseline
+# diene_core_utils
 
-<!-- ### nix-root -->
-<!-- #### source: main -->
+[![CI](https://github.com/AtomiCloud/diene.dart_core-utils/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.dart_core-utils/actions/workflows/ci.yaml)
+[![codecov](https://codecov.io/gh/AtomiCloud/diene.dart_core-utils/graph/badge.svg)](https://codecov.io/gh/AtomiCloud/diene.dart_core-utils)
+[![pub package](https://img.shields.io/pub/v/diene_core_utils.svg)](https://pub.dev/packages/diene_core_utils)
 
-Diene's reproducible development environment is managed by Nix. Run `direnv allow` once, then use `pls` tasks from the loaded shell.
+Pure, frontend-safe Dart utilities shared by the Diene package family:
 
-<!-- ### workspace -->
-<!-- #### source: workspace -->
+- NFKD-to-kebab slugs and validated namespaced keys
+- immutable deep merge and environment-path coercion
+- `sleep` using Dart `Duration`
+- C0 date, time, RFC 3339 UTC instant, ISO 8601 duration, and IANA timezone codecs
 
-This branch is the workspace baseline inherited by every downstream sample: split CI/release workflows, secrets, release configuration, validators, standards, and vendored agent-skill synchronization.
+```dart
+import 'package:diene_core_utils/diene_core_utils.dart';
 
-## Commands
+final NamespacedKeyResult key = namespacedKey('Mobile App', 'Current User');
+final String display = key.match(valid: (value) => value, invalid: (error) => '$error');
 
-- `pls setup` — synchronize installed diene package skills.
-- `pls lint` — run every pre-commit gate.
-- `pls secret:scan` — scan tracked content for secrets.
-- `pls skills:sync` — rebuild `.claude/skills/vendor/` from installed packages.
+final JsonObject override = environmentToNestedMap(
+  {'ATOMI_AUTH__SCOPES__0': 'openid'},
+  prefix: 'ATOMI_',
+);
+final JsonObject config = deepMerge(baseConfig, override);
+```
 
-## Standards
+See [the core-utils standard](doc/core_utils.md) for the complete
+API, wire constraints, testing policy, and Bun-family parity deltas.
 
-- [CI/CD workflows](docs/standards/ci-cd/index.md)
-- [conventional commits](docs/standards/conventional-commits/index.md)
-- [Infisical and secrets](docs/standards/infisical/index.md)
-- [linting and pre-commit](docs/standards/linting/index.md)
-- [Nix flakes and development shells](docs/standards/nix/index.md)
-- [release automation](docs/standards/semantic-release/index.md)
-- [service-tree identity](docs/standards/service-tree/index.md)
-- [shell scripts](docs/standards/shell-scripts/index.md)
-- [Taskfile conventions](docs/standards/taskfile/index.md)
+## TestHelper verdict
 
-<!-- ### shared -->
-<!-- #### source: shared -->
-
-## Shared standards
-
-- [Authorization](docs/standards/authorization/index.md)
-- [Contributor documentation](docs/standards/contributor-docs/index.md)
-- [Date and time](docs/standards/datetime/index.md)
-- [Domain-driven design](docs/standards/domain-driven-design/index.md)
-- [Functional practices](docs/standards/functional-practices/index.md)
-- [Software design philosophy](docs/standards/software-design-philosophy/index.md)
-- [SOLID principles](docs/standards/solid-principles/index.md)
-- [Stateless OOP and dependency injection](docs/standards/stateless-oop-di/index.md)
-- [Testing](docs/standards/testing/index.md)
-- [Three-layer architecture](docs/standards/three-layer-architecture/index.md)
-- [Utility libraries](docs/standards/utilities/index.md)
-- [Data validation](docs/standards/validation/index.md)
-
-Domain-specific documentation belongs under [docs/domain/](docs/domain/README.md).
-The `docs/standards/contracts/` location is reserved for the separately owned C0
-contracts standard.
+This package intentionally ships no `test_helper.dart`: its functions are pure,
+and stock equality/assertions are sufficient. The installed
+`diene-core-utils-usage` skill contains the exact opt-in procedure if a future API
+adds a consumer seam or genuinely repeated assertion.

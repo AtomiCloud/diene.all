@@ -77,12 +77,11 @@
           # Pub-backed Flutter hooks run in local pre-commit after workspace setup.
           pre-commit-check = pre-commit.overrideAttrs {
             SKIP = builtins.concatStringsSep "," [
-              "a-flutter-analyze"
-              "a-flutter-config"
-              "a-flutter-sdk-freshness"
-              "a-flutter-slang-freshness"
-              "a-flutter-test"
-              "a-flutter-translation-compile"
+              "a-dart-analyze"
+              "a-dart-deadcode"
+              "a-dart-format"
+              "a-dart-manifest-guard"
+              "a-dart-test"
             ];
           };
           format = formatter;
