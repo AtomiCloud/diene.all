@@ -191,6 +191,11 @@
     "class": "gate"
   },
   {
+    "template": "diene/workspace",
+    "name": "releaser-config-boundary",
+    "class": "gate"
+  },
+  {
     "template": "diene/shared",
     "name": "claude-link-integrity",
     "class": "gate"

@@ -51,5 +51,7 @@ Use the same entry points as CI:
 nix develop .#ci -c ./scripts/ci/pre-commit.sh
 ```
 
-Release execution is wired now but awaits the C2 step-2p `tools/releaser` fold;
-the workspace does not claim a working `releaser` binary before then.
+Release execution is wired now: before the C2 step-2p `tools/releaser` fold the
+`.#releaser` shell provides a bootstrap `releaser` command that delegates only
+the release surface to `sg`, so `scripts/ci/release.sh` runs. The first-class
+binary — adding `lint-commit` and `conventions` — still awaits that fold.

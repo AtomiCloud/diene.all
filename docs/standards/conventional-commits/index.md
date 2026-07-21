@@ -57,8 +57,11 @@ releaser conventions
 ```
 
 Before step 2p, treat `atomi_release.yaml` as authoritative. The checked-in
-generated document carries an explicit bootstrap notice, and the repository
-does not claim that the `releaser` command is available yet.
+generated document carries an explicit bootstrap notice: `releaser conventions`
+and `releaser lint-commit` remain deferred because the pre-2p bootstrap shim
+delegates only `releaser release` to `sg`. Commit-convention regeneration and
+commit-message linting therefore do not run from `releaser` until the C2
+step-2p `tools/releaser` fold.
 
 ## Release Behavior
 
