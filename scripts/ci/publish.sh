@@ -15,6 +15,11 @@ tag="${1:-}"
 # Fail closed unless the manifest exactly matches the tag being published.
 ./scripts/release/verify-manifest.sh "${tag}"
 
+# Remove generated test/coverage outputs so the archive is deterministic even
+# when publish runs in the same checkout as the coverage gates (belt-and-braces
+# alongside the .pubignore exclusions).
+rm -rf coverage .dart_tool
+
 if [ -z "${PUB_CREDENTIALS_JSON:-}" ]; then
   echo "❌ PUB_CREDENTIALS_JSON not set — cannot authenticate to pub.dev" >&2
   exit 1

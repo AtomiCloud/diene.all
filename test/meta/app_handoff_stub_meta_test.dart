@@ -123,6 +123,138 @@ void main() {
       expect(body, stub.expiredBody);
     }
   });
+
+  group('C0 v1 redeem input validation (with a valid active nonce)', () {
+    late String nonce;
+
+    setUp(() async {
+      stub.mintingUser =
+          const AppHandoffUser(sub: 'u1', primaryEmail: 'a@b.com');
+      nonce = AppHandoffMint.fromJson((await mint()).$2).nonce;
+    });
+
+    Future<int> statusOf(Object? body) async =>
+        (await redeem(jsonEncode(body))).$1;
+
+    test('minted nonce is exactly 32 bytes base64url (43 chars)', () {
+      expect(isValidAppHandoffNonce(nonce), isTrue);
+      expect(nonce.length, appHandoffNonceLength);
+    });
+
+    test('unknown top-level key -> 410 and nonce is NOT consumed', () async {
+      // Arrange: valid active nonce + an extra top-level key.
+      final (int status, Map<String, Object?> body) = await redeem(jsonEncode(
+        <String, Object?>{
+          'nonce': nonce,
+          'device': <String, Object?>{'platform': 'android'},
+          'campaign': 'x',
+        },
+      ));
+      // Assert: rejected as invalid v1 input, indistinguishable body.
+      expect(status, 410);
+      expect(body, stub.expiredBody);
+      // Validation happens before the claim, so the nonce still redeems.
+      expect((await redeem(redeemBody(nonce))).$1, 200);
+    });
+
+    test('missing device -> 410', () async {
+      expect(await statusOf(<String, Object?>{'nonce': nonce}), 410);
+    });
+
+    test('device not an object -> 410', () async {
+      expect(
+        await statusOf(<String, Object?>{'nonce': nonce, 'device': 'nope'}),
+        410,
+      );
+    });
+
+    test('missing device.platform -> 410', () async {
+      expect(
+        await statusOf(<String, Object?>{
+          'nonce': nonce,
+          'device': <String, Object?>{'model': 'x'},
+        }),
+        410,
+      );
+    });
+
+    test('invalid device.platform value -> 410', () async {
+      expect(
+        await statusOf(<String, Object?>{
+          'nonce': nonce,
+          'device': <String, Object?>{'platform': 'windows'},
+        }),
+        410,
+      );
+    });
+
+    test('unknown device key -> 410', () async {
+      expect(
+        await statusOf(<String, Object?>{
+          'nonce': nonce,
+          'device': <String, Object?>{'platform': 'ios', 'foo': 1},
+        }),
+        410,
+      );
+    });
+
+    test('non-string nonce -> 410', () async {
+      expect(
+        await statusOf(<String, Object?>{
+          'nonce': 123,
+          'device': <String, Object?>{'platform': 'ios'},
+        }),
+        410,
+      );
+    });
+
+    test('non-string optional device field -> 410', () async {
+      expect(
+        await statusOf(<String, Object?>{
+          'nonce': nonce,
+          'device': <String, Object?>{'platform': 'ios', 'appVersion': 5},
+        }),
+        410,
+      );
+    });
+
+    test('valid optional device fields -> success', () async {
+      expect(
+        await statusOf(<String, Object?>{
+          'nonce': nonce,
+          'device': <String, Object?>{
+            'platform': 'ios',
+            'appVersion': '1.0.0',
+            'osVersion': '17',
+            'model': 'pixel',
+          },
+        }),
+        200,
+      );
+    });
+  });
+
+  group('nonce TTL is the binding C0 15 minutes', () {
+    test('valid just inside 15m; expired just after', () async {
+      // Just inside the TTL.
+      stub.mintingUser =
+          const AppHandoffUser(sub: 'u1', primaryEmail: 'a@b.com');
+      final String a = AppHandoffMint.fromJson((await mint()).$2).nonce;
+      clock = clock.add(const Duration(minutes: 14, seconds: 59));
+      expect((await redeem(redeemBody(a))).$1, 200);
+
+      // A fresh nonce driven just past the TTL.
+      stub.mintingUser =
+          const AppHandoffUser(sub: 'u1', primaryEmail: 'a@b.com');
+      final String b = AppHandoffMint.fromJson((await mint()).$2).nonce;
+      clock = clock.add(const Duration(minutes: 15, seconds: 1));
+      expect((await redeem(redeemBody(b))).$1, 410);
+    });
+
+    test('nonceTtl is fixed at 15 minutes (not overridable)', () {
+      expect(AppHandoffStub.nonceTtl, const Duration(minutes: 15));
+    });
+  });
 }
 
 Map<String, Object?> _obj(String body) => (jsonDecode(body) as Map)

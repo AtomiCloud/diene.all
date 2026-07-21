@@ -37,13 +37,20 @@ if [ -f go.mod ]; then
 fi
 
 if [ -f .dart_tool/package_config.json ]; then
+  # Vendor the skills of installed diene_* DEPENDENCIES only. The root package
+  # itself carries rootUri "../" in package_config.json; excluding it stops a
+  # package from vendoring its own shipped skill into its own repo (which the
+  # freshness gate would then see as drift whenever `dart pub get` had run).
+  # NOTE: this root-exclusion is owed to the shared Dart lib base — it belongs
+  # in the workspace-inherited skills-sync resolver, applied here as the fix for
+  # this node until the shared base carries it.
   while IFS=$'\t' read -r package root_uri; do
     package_root="$(realpath -m ".dart_tool/${root_uri}")"
     skills_dir="${package_root}/skills"
     [ -d "${skills_dir}" ] || continue
     mkdir -p "${staging}/${package}"
     cp -R "${skills_dir}/." "${staging}/${package}/"
-  done < <(jq -r '.packages[] | select(.name | startswith("diene_")) | [.name, .rootUri] | @tsv' .dart_tool/package_config.json)
+  done < <(jq -r '.packages[] | select(.name | startswith("diene_")) | select(.rootUri != "../") | [.name, .rootUri] | @tsv' .dart_tool/package_config.json)
 fi
 
 rm -rf "${vendor_dir}"

@@ -8,9 +8,9 @@
 /// app-handoff HTTP server type here.
 library;
 
+import 'dart:convert';
 import 'dart:math';
 
-import '../app_handoff/carrier.dart';
 import '../app_handoff/wire.dart';
 import 'stub_server.dart';
 
@@ -48,14 +48,14 @@ class AppHandoffUser {
 /// redeem through the server's [StubServer.baseUrl].
 ///
 /// The fixture enforces the contract that matters for consumer journeys: a
-/// nonce is single-use, and every redeem failure — missing, expired, replayed,
-/// deleted, suspended, or email-rebound — returns the identical
-/// `AppHandoffExpired` (410) body with no distinguishing detail.
+/// nonce is single-use, its TTL is the C0-fixed 15 minutes, invalid v1 input is
+/// rejected, and every redeem failure — missing, expired, replayed, deleted,
+/// suspended, email-rebound, or malformed/unknown-field input — returns the
+/// identical `AppHandoffExpired` (410) body with no distinguishing detail.
 class AppHandoffStub {
   AppHandoffStub({
     required this.problemTypeUri,
     this.mountPath = appHandoffDefaultMount,
-    this.nonceTtl = const Duration(minutes: 15),
     Random? random,
   }) : _random = random ?? Random.secure();
 
@@ -67,8 +67,20 @@ class AppHandoffStub {
   /// redeem route is `POST {mountPath}/redeem`.
   final String mountPath;
 
-  /// Nonce time-to-live (C0 §7 fixes this at 15 minutes).
-  final Duration nonceTtl;
+  /// Nonce time-to-live. C0 §7 fixes this at 15 minutes; it is NOT overridable,
+  /// so no fixture can drift from the contract.
+  static const Duration nonceTtl = Duration(minutes: 15);
+
+  /// The exact set of allowed redeem body keys (C0 §7). Any other key makes the
+  /// request invalid v1 input.
+  static const Set<String> _allowedTopKeys = <String>{'nonce', 'device'};
+  static const Set<String> _allowedDeviceKeys = <String>{
+    'platform',
+    'appVersion',
+    'osVersion',
+    'model',
+  };
+  static const Set<String> _allowedPlatforms = <String>{'android', 'ios'};
 
   final Random _random;
   final Map<String, _NonceRecord> _nonces = <String, _NonceRecord>{};
@@ -123,10 +135,14 @@ class AppHandoffStub {
     } on FormatException {
       return expired;
     }
-    final Object? rawNonce = json['nonce'];
-    if (rawNonce is! String) return expired;
 
-    final _NonceRecord? record = _nonces[rawNonce];
+    // Reject any body that is not valid C0 v1 redeem input BEFORE touching
+    // nonce state, so unknown/missing/malformed fields never yield a token and
+    // are indistinguishable from any other failure.
+    final String? nonce = _validatedNonce(json);
+    if (nonce == null) return expired;
+
+    final _NonceRecord? record = _nonces[nonce];
     // Atomically claim exactly one unexpired active nonce; anything else is
     // indistinguishable from expiry.
     if (record == null ||
@@ -157,14 +173,39 @@ class AppHandoffStub {
     );
   }
 
-  String _newNonce() {
-    const String alphabet =
-        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
-    return String.fromCharCodes(
-      List<int>.generate(
-        appHandoffNonceLength,
-        (_) => alphabet.codeUnitAt(_random.nextInt(alphabet.length)),
-      ),
+  /// Returns the nonce iff [json] is a well-formed C0 §7 v1 redeem body:
+  /// exactly `nonce` (string) and `device` (object with a required
+  /// `platform` of `android|ios`, optional string `appVersion`/`osVersion`/
+  /// `model`, and no unknown keys at either level). Returns `null` otherwise.
+  String? _validatedNonce(Map<String, Object?> json) {
+    for (final String key in json.keys) {
+      if (!_allowedTopKeys.contains(key)) return null;
+    }
+    final Object? nonce = json['nonce'];
+    if (nonce is! String) return null;
+
+    final Object? device = json['device'];
+    if (device is! Map) return null;
+    final Map<String, Object?> dev = device.map(
+      (Object? k, Object? v) => MapEntry(k.toString(), v),
     );
+    for (final String key in dev.keys) {
+      if (!_allowedDeviceKeys.contains(key)) return null;
+    }
+    final Object? platform = dev['platform'];
+    if (platform is! String || !_allowedPlatforms.contains(platform)) {
+      return null;
+    }
+    for (final String optional in const <String>['appVersion', 'osVersion', 'model']) {
+      if (dev.containsKey(optional) && dev[optional] is! String) return null;
+    }
+    return nonce;
+  }
+
+  /// Generates opaque credential material as exactly 32 cryptographically-random
+  /// bytes, RFC 4648 base64url-encoded WITHOUT padding (43 ASCII chars, C0 §7).
+  String _newNonce() {
+    final List<int> bytes = List<int>.generate(32, (_) => _random.nextInt(256));
+    return base64Url.encode(bytes).replaceAll('=', '');
   }
 }
