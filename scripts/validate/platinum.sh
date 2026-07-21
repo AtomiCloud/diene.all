@@ -275,6 +275,108 @@ kgateway-crd-apply)
     exit 1
   fi
   ;;
+k3d-readiness-budget)
+  # RB-333 regression guard: the cold-node proof exhausted the old five-minute
+  # Helm wait and tore the cluster down without preserving any resource state.
+  # Keep the widened waits bounded by the 7200-second shard and require the
+  # failure-only, best-effort diagnostics hook to run before teardown.
+  k3d_script="${PLATINUM_K3D_SCRIPT:-scripts/validate/platinum-k3d.sh}"
+
+  read_budget() {
+    local script_path="$1"
+    local budget_name="$2"
+    local value
+
+    value="$(sed -n "s/^readonly ${budget_name}=//p" "${script_path}")"
+    if [[ ! ${value} =~ ^[0-9]+$ ]]; then
+      echo "❌ ${budget_name} is missing or is not one integer in ${script_path}" >&2
+      return 1
+    fi
+    printf '%s\n' "${value}"
+  }
+
+  validate_readiness_contract() {
+    local script_path="$1"
+    local helm_seconds gateway_seconds health_seconds overhead_seconds total_seconds shard_seconds
+    local diagnostics_line teardown_line
+
+    if rg -q -- '--timeout([=[:space:]])5m' "${script_path}"; then
+      echo "❌ old five-minute readiness timeout remains in ${script_path}" >&2
+      return 1
+    fi
+
+    helm_seconds="$(read_budget "${script_path}" helm_readiness_timeout_seconds)" || return 1
+    gateway_seconds="$(read_budget "${script_path}" gateway_readiness_timeout_seconds)" || return 1
+    health_seconds="$(read_budget "${script_path}" health_readiness_timeout_seconds)" || return 1
+    overhead_seconds="$(read_budget "${script_path}" proof_overhead_budget_seconds)" || return 1
+    total_seconds="$(read_budget "${script_path}" total_worst_case_budget_seconds)" || return 1
+    shard_seconds="$(read_budget "${script_path}" shard_hard_timeout_seconds)" || return 1
+
+    if [ "${helm_seconds}" -ne 900 ] || [ "${gateway_seconds}" -ne 600 ] || [ "${health_seconds}" -ne 300 ]; then
+      echo "❌ Platinum readiness waits are below the accepted 900/600/300-second budgets" >&2
+      return 1
+    fi
+    if [ "${total_seconds}" -ne $((helm_seconds + gateway_seconds + health_seconds + overhead_seconds)) ]; then
+      echo "❌ documented Platinum total does not equal its budget components" >&2
+      return 1
+    fi
+    if [ "${total_seconds}" -ne 2100 ] || [ "${shard_seconds}" -ne 7200 ] || [ "${total_seconds}" -ge "${shard_seconds}" ]; then
+      echo "❌ Platinum total worst-case budget is not 2100 seconds within the 7200-second shard" >&2
+      return 1
+    fi
+    if ! rg -Fq -- '--wait --timeout "${helm_readiness_timeout_seconds}s"' "${script_path}"; then
+      echo "❌ Helm install is not bound to the accepted readiness budget" >&2
+      return 1
+    fi
+    if ! rg -Fq -- '--timeout="${gateway_readiness_timeout_seconds}s"' "${script_path}"; then
+      echo "❌ Gateway wait is not bound to the accepted readiness budget" >&2
+      return 1
+    fi
+    if ! rg -Fq 'health_deadline=$((SECONDS + health_readiness_timeout_seconds))' "${script_path}"; then
+      echo "❌ endpoint/health polling is not wall-clock bounded" >&2
+      return 1
+    fi
+
+    if ! rg -q '^capture_failure_diagnostics\(\) \{' "${script_path}" ||
+      ! rg -Fq 'local diagnostics_dir="${evidence_dir}/failure-diagnostics"' "${script_path}" ||
+      ! rg -Fq 'helm status platinum' "${script_path}" ||
+      ! rg -Fq 'get pods,deployments,statefulsets,daemonsets,jobs,replicasets,services,endpoints -A -o wide' "${script_path}" ||
+      ! rg -Fq 'describe pods -A' "${script_path}" ||
+      ! rg -Fq 'app.kubernetes.io/instance=platinum --all-containers=true' "${script_path}" ||
+      ! rg -Fq 'get events -A --sort-by=.lastTimestamp' "${script_path}" ||
+      ! rg -Fq 'timeout --signal=TERM --kill-after=2 "${max_seconds}s"' "${script_path}" ||
+      ! rg -Fq 'exit "${proof_status}"' "${script_path}"; then
+      echo "❌ actionable Platinum failure diagnostics are incomplete" >&2
+      return 1
+    fi
+    if ! rg -U -Fq $'if [ "${proof_status}" -ne 0 ]; then\n    capture_failure_diagnostics "${proof_status}" || true\n  fi' "${script_path}"; then
+      echo "❌ failure diagnostics are not best-effort and failure-only" >&2
+      return 1
+    fi
+    diagnostics_line="$(rg -n -F 'capture_failure_diagnostics "${proof_status}" || true' "${script_path}" | cut -d: -f1)"
+    teardown_line="$(rg -n -F 'bash ./scripts/local/delete-k3d-cluster.sh || cleanup_status=$?' "${script_path}" | cut -d: -f1)"
+    if [[ ! ${diagnostics_line} =~ ^[0-9]+$ ]] || [[ ! ${teardown_line} =~ ^[0-9]+$ ]] || [ "${diagnostics_line}" -ge "${teardown_line}" ]; then
+      echo "❌ failure diagnostics do not run before k3d teardown" >&2
+      return 1
+    fi
+  }
+
+  validate_readiness_contract "${k3d_script}"
+
+  # Exercise the checker against the exact RB-333 behavior: 5m Helm/Gateway
+  # waits, a 240s health loop, and no pre-teardown diagnostics invocation.
+  old_behavior="${tmp}/platinum-k3d-old-readiness.sh"
+  sed \
+    -e 's/^readonly helm_readiness_timeout_seconds=900$/readonly helm_readiness_timeout_seconds=300/' \
+    -e 's/^readonly gateway_readiness_timeout_seconds=600$/readonly gateway_readiness_timeout_seconds=300/' \
+    -e 's/^readonly health_readiness_timeout_seconds=300$/readonly health_readiness_timeout_seconds=240/' \
+    -e 's/^[[:space:]]*capture_failure_diagnostics.*proof_status.*$/    : # old behavior captured no diagnostics/' \
+    "${k3d_script}" >"${old_behavior}"
+  if validate_readiness_contract "${old_behavior}" >/dev/null 2>&1; then
+    echo "❌ old five-minute, no-diagnostics behavior passed the RB-333 regression" >&2
+    exit 1
+  fi
+  ;;
 *)
   echo "❌ unknown validation mode '${mode}'" >&2
   exit 1
