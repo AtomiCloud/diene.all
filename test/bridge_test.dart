@@ -8,8 +8,10 @@ void main() {
   group('toResult reconciliation matrix', () {
     test('network failure → transport-failure problem', () {
       // Act
-      final Result<Map<String, Object?>> result =
-          toResult(networkFailure('refused'), decode: _decode);
+      final Result<Map<String, Object?>> result = toResult(
+        networkFailure('refused'),
+        decode: _decode,
+      );
 
       // Assert
       final Problem p = expectErr(result);
@@ -19,8 +21,10 @@ void main() {
     });
 
     test('2xx JSON → Ok(decoded)', () {
-      final Result<Map<String, Object?>> result =
-          toResult(okJson(<String, Object?>{'a': 1}), decode: _decode);
+      final Result<Map<String, Object?>> result = toResult(
+        okJson(<String, Object?>{'a': 1}),
+        decode: _decode,
+      );
       expect(expectOk(result)['a'], 1);
     });
 
@@ -48,8 +52,10 @@ void main() {
           'nested': <String, Object?>{'type': 'inner', 'status': 400},
         },
       );
-      final Result<Map<String, Object?>> result =
-          toResult(problemResponse(source), decode: _decode);
+      final Result<Map<String, Object?>> result = toResult(
+        problemResponse(source),
+        decode: _decode,
+      );
       final Problem p = expectProblemType(result, source.type);
       expect(p.status, 409);
       expect(p.data['nested'], isA<Map<Object?, Object?>>());
@@ -68,8 +74,10 @@ void main() {
     });
 
     test('non-JSON error body → transport-failure with snippet', () {
-      final Result<Map<String, Object?>> result =
-          toResult(nonJsonResponse(status: 502), decode: _decode);
+      final Result<Map<String, Object?>> result = toResult(
+        nonJsonResponse(status: 502),
+        decode: _decode,
+      );
       final Problem p = expectProblemType(
         result,
         BridgeProblems.transportFailure,

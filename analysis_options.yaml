@@ -14,5 +14,8 @@ linter:
     avoid_dynamic_calls: true
     directives_ordering: true
     prefer_final_locals: true
+    # Off: conflicts with named constructor params that assign PRIVATE fields
+    # (a named parameter cannot be `this._field`), which this engine uses.
+    prefer_initializing_formals: false
     sort_constructors_first: true
     unawaited_futures: true

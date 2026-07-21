@@ -49,3 +49,4 @@ ios/Runner.xcworkspace/xcuserdata/
 # Session-only stacking artifacts (deleted at the deterministic swap)
 .session-compat/
 pubspec_overrides.yaml
+pubspec.lock

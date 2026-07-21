@@ -92,7 +92,8 @@ Result<T> _fromResponse<T>(
   if (ok) {
     if (json == null) {
       return Err<T>(
-          _transport('success body was not a JSON object', response, endpoint));
+        _transport('success body was not a JSON object', response, endpoint),
+      );
     }
     try {
       return Ok<T>(decode(json));

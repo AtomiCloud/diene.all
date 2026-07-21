@@ -24,12 +24,8 @@ class HttpRequest {
   final Map<String, String> headers;
   final String? body;
 
-  HttpRequest withUrl(Uri url) => HttpRequest(
-        method: method,
-        url: url,
-        headers: headers,
-        body: body,
-      );
+  HttpRequest withUrl(Uri url) =>
+      HttpRequest(method: method, url: url, headers: headers, body: body);
 }
 
 /// A received HTTP response — ANY status, including 4xx/5xx. A received status
@@ -107,8 +103,8 @@ final class RetryOnceTransport implements HttpTransport {
 /// stays host-testable; Flutter consumers may inject any equivalent seam.
 final class IoHttpTransport implements HttpTransport {
   IoHttpTransport({Duration? timeout, HttpClient? client})
-      : _timeout = timeout ?? const Duration(seconds: 30),
-        _client = client ?? HttpClient();
+    : _timeout = timeout ?? const Duration(seconds: 30),
+      _client = client ?? HttpClient();
 
   final Duration _timeout;
   final HttpClient _client;
@@ -134,11 +130,7 @@ final class IoHttpTransport implements HttpTransport {
         headers[name] = values.join(', ');
       });
       return Received(
-        HttpResponse(
-          status: res.statusCode,
-          headers: headers,
-          body: payload,
-        ),
+        HttpResponse(status: res.statusCode, headers: headers, body: payload),
       );
     } on SocketException catch (error) {
       return NetworkFailure('socket: ${error.message}', cause: error);
@@ -154,11 +146,11 @@ final class IoHttpTransport implements HttpTransport {
   void close() => _client.close(force: true);
 
   String _verb(HttpMethod method) => switch (method) {
-        HttpMethod.get => 'GET',
-        HttpMethod.post => 'POST',
-        HttpMethod.put => 'PUT',
-        HttpMethod.patch => 'PATCH',
-        HttpMethod.delete => 'DELETE',
-        HttpMethod.head => 'HEAD',
-      };
+    HttpMethod.get => 'GET',
+    HttpMethod.post => 'POST',
+    HttpMethod.put => 'PUT',
+    HttpMethod.patch => 'PATCH',
+    HttpMethod.delete => 'DELETE',
+    HttpMethod.head => 'HEAD',
+  };
 }

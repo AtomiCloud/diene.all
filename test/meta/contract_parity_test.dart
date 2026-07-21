@@ -44,13 +44,15 @@ void main() {
           request.response
             ..statusCode = 409
             ..headers.contentType = io.ContentType.json
-            ..write(jsonEncode(
-              Problem(
-                type: 'urn:diene:problem:conflict',
-                title: 'Conflict',
-                status: 409,
-              ).toJson(),
-            ));
+            ..write(
+              jsonEncode(
+                Problem(
+                  type: 'urn:diene:problem:conflict',
+                  title: 'Conflict',
+                  status: 409,
+                ).toJson(),
+              ),
+            );
         default:
           request.response
             ..statusCode = 502
@@ -60,8 +62,10 @@ void main() {
     });
 
     // A guaranteed-closed port for the network-failure case.
-    final io.ServerSocket probe =
-        await io.ServerSocket.bind(io.InternetAddress.loopbackIPv4, 0);
+    final io.ServerSocket probe = await io.ServerSocket.bind(
+      io.InternetAddress.loopbackIPv4,
+      0,
+    );
     deadPort = probe.port;
     await probe.close();
   });
@@ -113,18 +117,20 @@ void main() {
   // Fake transport scripted with the SAME outcomes.
   contractSuite(
     'FakeHttpTransport parity',
-    () => FakeHttpTransport((HttpRequest request) => switch (request.url.path) {
-          '/ok' => okJson(<String, Object?>{'ok': true}),
-          '/problem' => problemResponse(
-              Problem(
-                type: 'urn:diene:problem:conflict',
-                title: 'Conflict',
-                status: 409,
-              ),
-            ),
-          '/dead' => networkFailure('refused'),
-          _ => nonJsonResponse(status: 502),
-        }),
+    () => FakeHttpTransport(
+      (HttpRequest request) => switch (request.url.path) {
+        '/ok' => okJson(<String, Object?>{'ok': true}),
+        '/problem' => problemResponse(
+          Problem(
+            type: 'urn:diene:problem:conflict',
+            title: 'Conflict',
+            status: 409,
+          ),
+        ),
+        '/dead' => networkFailure('refused'),
+        _ => nonJsonResponse(status: 502),
+      },
+    ),
     (String path) => Uri.parse('http://fake.test$path'),
     () => Uri.parse('http://fake.test/dead'),
   );

@@ -32,8 +32,9 @@ void main() {
   });
 
   test('nonProblemJson body is JSON but NOT a problem', () {
-    final Received response =
-        nonProblemJson(<String, Object?>{'message': 'x'}, status: 400);
+    final Received response = nonProblemJson(<String, Object?>{
+      'message': 'x',
+    }, status: 400);
     expect(isProblemJson(jsonDecode(response.response.body)), isFalse);
   });
 

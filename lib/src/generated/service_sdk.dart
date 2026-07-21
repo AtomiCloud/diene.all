@@ -10,11 +10,7 @@ import 'clients/users_client.dart';
 ///
 /// Minimal reviewed OA3 input for the diene_api_engine SDK-wrapper boundary. The generated retrofit client is wrapped into Result/Problem by OA3Adapter.
 class ServiceSdk {
-  ServiceSdk(
-    Dio dio, {
-    String? baseUrl,
-  })  : _dio = dio,
-        _baseUrl = baseUrl;
+  ServiceSdk(Dio dio, {String? baseUrl}) : _dio = dio, _baseUrl = baseUrl;
 
   final Dio _dio;
   final String? _baseUrl;

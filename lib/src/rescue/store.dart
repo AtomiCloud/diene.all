@@ -14,7 +14,7 @@ abstract interface class RescueStore {
 /// fake extends.
 class InMemoryRescueStore implements RescueStore {
   InMemoryRescueStore([Map<String, String>? seed])
-      : _data = <String, String>{...?seed};
+    : _data = <String, String>{...?seed};
 
   final Map<String, String> _data;
 
