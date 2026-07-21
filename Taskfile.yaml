@@ -40,10 +40,10 @@ tasks:
       - dart test
 
   test:coverage:
-    desc: Run tests with coverage collection
+    desc: Run tests with coverage collection (generated code ignored)
     cmds:
       - dart test --coverage=coverage
-      - dart run coverage:format_coverage --lcov --in=coverage --out=coverage/lcov.info --report-on=lib
+      - dart run coverage:format_coverage --lcov --check-ignore --in=coverage --out=coverage/lcov.info --report-on=lib
 
   test:meta:
     desc: Run the meta tier (TestHelper assertions, parity, fixtures)

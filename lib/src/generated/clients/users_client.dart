@@ -14,7 +14,5 @@ abstract class UsersClient {
   factory UsersClient(Dio dio, {String? baseUrl}) = _UsersClient;
 
   @GET('/users/{id}')
-  Future<UserProfile> getUser({
-    @Path('id') required String id,
-  });
+  Future<UserProfile> getUser({@Path('id') required String id});
 }

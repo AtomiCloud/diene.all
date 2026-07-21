@@ -15,33 +15,32 @@ Problem problemFixture({
   String? detail,
   bool recoverable = false,
   Map<String, Object?> data = const <String, Object?>{},
-}) =>
-    Problem(
-      type: type,
-      title: title,
-      status: status,
-      detail: detail,
-      recoverable: recoverable,
-      data: data,
-    );
+}) => Problem(
+  type: type,
+  title: title,
+  status: status,
+  detail: detail,
+  recoverable: recoverable,
+  data: data,
+);
 
 /// A 2xx JSON success response.
 Received okJson(Map<String, Object?> body, {int status = 200}) => Received(
-      HttpResponse(
-        status: status,
-        headers: const <String, String>{'content-type': 'application/json'},
-        body: jsonEncode(body),
-      ),
-    );
+  HttpResponse(
+    status: status,
+    headers: const <String, String>{'content-type': 'application/json'},
+    body: jsonEncode(body),
+  ),
+);
 
 /// A non-2xx response whose body IS a problem envelope.
 Received problemResponse(Problem problem) => Received(
-      HttpResponse(
-        status: problem.status,
-        headers: const <String, String>{'content-type': 'application/json'},
-        body: jsonEncode(problem.toJson()),
-      ),
-    );
+  HttpResponse(
+    status: problem.status,
+    headers: const <String, String>{'content-type': 'application/json'},
+    body: jsonEncode(problem.toJson()),
+  ),
+);
 
 /// A non-2xx JSON body that is NOT a problem (missing type/status).
 Received nonProblemJson(Map<String, Object?> body, {int status = 400}) =>

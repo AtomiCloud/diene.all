@@ -6,9 +6,12 @@ import 'package:diene_problems/diene_problems.dart'
     show ErrorPortal, problemTypeUri;
 import 'package:test/test.dart';
 
-/// C0 conformance against MECHANICALLY-TRACED fixtures (see
-/// `test/fixtures/c0/PROVENANCE.md`), not inline-only invariants. The Dart
-/// family is EXEMPT from the C0 otel config block (frontend-only; Faro).
+/// LOCAL problem-envelope vectors (C0 §2-SHAPED), NOT authoritative C0
+/// fixtures. Authoritative, source-owned C0 fixture conformance is
+/// INTEGRATION-HELD pending the C0 owner (see `test/fixtures/c0/PROVENANCE.md`
+/// and the node note); these are kept only as local behavioural tests of this
+/// engine's problem-envelope handling. The Dart family is EXEMPT from the C0
+/// otel config block (frontend-only; Faro).
 
 /// The documented ErrorPortal the fixture's type URI is built from (C0 §2).
 const ErrorPortal _portal = ErrorPortal(
@@ -20,9 +23,9 @@ const ErrorPortal _portal = ErrorPortal(
   module: 'users',
 );
 
-Map<String, Object?> _loadFixture(String name) => jsonDecode(
-      File('test/fixtures/c0/$name').readAsStringSync(),
-    ) as Map<String, Object?>;
+Map<String, Object?> _loadFixture(String name) =>
+    jsonDecode(File('test/fixtures/c0/$name').readAsStringSync())
+        as Map<String, Object?>;
 
 String _canonical(Map<String, Object?> json) {
   final List<String> keys = json.keys.toList()..sort();
@@ -30,12 +33,13 @@ String _canonical(Map<String, Object?> json) {
 }
 
 void main() {
-  group('C0 §2 problem envelope (authoritative fixture)', () {
+  group('local problem-envelope vector (C0-shaped; authoritative HELD)', () {
     final Map<String, Object?> fixture = _loadFixture('problem_envelope.json');
 
-    test('type is reproduced by the owned single-source builder (gate)', () {
-      // Mechanical-derivation gate: the fixture type MUST equal the C0 §2
-      // template output — a hand-edited type fails here.
+    test('type matches the owned single-source builder (local check)', () {
+      // Local consistency check: the vector's type equals the C0 §2 template
+      // output — a hand-edited type fails here. This is NOT authoritative C0
+      // fixture provenance (that is integration-held pending the C0 owner).
       expect(
         fixture['type'],
         problemTypeUri(portal: _portal, version: 'v1', id: 'entity-not-found'),
@@ -59,7 +63,10 @@ void main() {
       expect(
         mutated['type'] ==
             problemTypeUri(
-                portal: _portal, version: 'v1', id: 'entity-not-found'),
+              portal: _portal,
+              version: 'v1',
+              id: 'entity-not-found',
+            ),
         isFalse,
       );
     });
@@ -68,12 +75,10 @@ void main() {
       // A 404 whose body is the fixture problem → Err(that Problem).
       final Result<Map<String, Object?>> result =
           toResult<Map<String, Object?>>(
-        Received(
-          HttpResponse(status: 404, body: jsonEncode(fixture)),
-        ),
-        decode: (Map<String, Object?> json) => json,
-        endpoint: '/users/42',
-      );
+            Received(HttpResponse(status: 404, body: jsonEncode(fixture))),
+            decode: (Map<String, Object?> json) => json,
+            endpoint: '/users/42',
+          );
       expect(result.isErr, isTrue);
       expect(result.unwrapErr().type, fixture['type']);
       expect(result.unwrapErr().status, 404);

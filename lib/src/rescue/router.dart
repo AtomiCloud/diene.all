@@ -44,10 +44,10 @@ class RescueRouter {
     int Function()? nowMs,
     Duration Function()? jitter,
     Random? random,
-  })  : _sleep = sleep ?? Future<void>.delayed,
-        _nowMs = nowMs ?? _wallClockMs,
-        _random = random ?? Random(),
-        _jitterOverride = jitter;
+  }) : _sleep = sleep ?? Future<void>.delayed,
+       _nowMs = nowMs ?? _wallClockMs,
+       _random = random ?? Random(),
+       _jitterOverride = jitter;
 
   final RescueConfig config;
   final RescueStore store;
@@ -59,9 +59,15 @@ class RescueRouter {
 
   static int _wallClockMs() => DateTime.now().millisecondsSinceEpoch;
 
-  static const String _docCKey = 'docc';
-  static const String _docCVersionKey = 'docc.version';
+  // Doc A is the ONE fleet doc (host list) — its monotonic version is global.
   static const String _docAVersionKey = 'doca.version';
+
+  // Doc C is per platform × environment(landscape): cache + version keys are
+  // scoped by that partition so N backends across platforms/landscapes never
+  // reuse another partition's catalog.
+  String _docCScope(LpsmCoordinate c) => '${c.platform}.${c.landscape}';
+  String _docCKey(LpsmCoordinate c) => 'docc.${_docCScope(c)}';
+  String _docCVersionKey(LpsmCoordinate c) => 'docc.version.${_docCScope(c)}';
   String _pinKey(LpsmCoordinate c) => 'pin.${c.key}';
   String _lastGoodKey(LpsmCoordinate c) => 'lastgood.${c.key}';
 
@@ -167,15 +173,18 @@ class RescueRouter {
   Future<bool> _probeWithinBudget(Uri candidate, Duration cap) async {
     final Completer<bool> done = Completer<bool>();
     unawaited(
-      probeHealthy(candidate).then((bool healthy) {
-        if (!done.isCompleted) {
-          done.complete(healthy);
-        }
-      }, onError: (_, __) {
-        if (!done.isCompleted) {
-          done.complete(false);
-        }
-      }),
+      probeHealthy(candidate).then(
+        (bool healthy) {
+          if (!done.isCompleted) {
+            done.complete(healthy);
+          }
+        },
+        onError: (_, __) {
+          if (!done.isCompleted) {
+            done.complete(false);
+          }
+        },
+      ),
     );
     unawaited(
       _sleep(cap).then((_) {
@@ -197,34 +206,44 @@ class RescueRouter {
     await store.write(_lastGoodKey(coordinate), url.toString());
   }
 
-  /// Load Doc C from disk (cached forever) and opportunistically refresh it via
-  /// Doc A's baked catalog hosts, honouring monotonic versions.
+  /// Load Doc C (per platform × landscape) from disk (cached forever) and
+  /// opportunistically refresh it via Doc A's catalog hosts. The per-scope Doc C
+  /// fetch is INDEPENDENT of the fleet Doc A version advancing — otherwise a
+  /// second platform sharing one router would reuse the first platform's
+  /// catalog once Doc A settled. Monotonic versions are honoured PER SCOPE (Doc
+  /// C) and fleet-wide (Doc A: an older Doc A is a rollback and is rejected).
   Future<DocC?> _loadOrRefreshDocC(LpsmCoordinate coordinate) async {
     DocC? cached;
-    final String? cachedRaw = await store.read(_docCKey);
+    final String? cachedRaw = await store.read(_docCKey(coordinate));
     if (cachedRaw != null) {
       cached = DocC.tryDecode(cachedRaw);
     }
-    final int? seenDocC = _parseInt(await store.read(_docCVersionKey));
+    final int? seenDocC = _parseInt(
+      await store.read(_docCVersionKey(coordinate)),
+    );
 
     final DocA? docA = await _fetchDocA();
     if (docA != null) {
-      final int? seenDocA = _parseInt(await store.read(_docAVersionKey));
-      if (_isNewer(docA.version, seenDocA)) {
-        await store.write(_docAVersionKey, docA.version.toString());
-        final DocC? fetched = await _fetchDocC(docA, coordinate);
-        if (fetched != null && _isNewer(fetched.version, seenDocC)) {
-          await store.write(_docCKey, fetched.encode());
-          await store.write(_docCVersionKey, fetched.version.toString());
-          return fetched;
-        }
+      final DocC? fetched = await _fetchDocC(docA, coordinate);
+      if (fetched != null && _isNewer(fetched.version, seenDocC)) {
+        await store.write(_docCKey(coordinate), fetched.encode());
+        await store.write(
+          _docCVersionKey(coordinate),
+          fetched.version.toString(),
+        );
+        return fetched;
       }
     }
     return cached;
   }
 
+  /// Fetch the fleet Doc A (host list) from the baked catalog hosts. Monotonic:
+  /// a Doc A OLDER than the last seen fleet version is a rollback and is
+  /// rejected; a Doc A at or above the seen version is usable (its hosts drive
+  /// the per-scope Doc C fetch), and the fleet version advances only on a
+  /// strictly-newer Doc A.
   Future<DocA?> _fetchDocA() async {
-    // Baked seed hosts; still allowlist-checked (belt-and-braces).
+    final int? seenDocA = _parseInt(await store.read(_docAVersionKey));
     for (final String host in config.catalogHosts) {
       final Uri url = _hostUri(host, '/fleet.json');
       if (!isAllowed(url)) {
@@ -236,7 +255,14 @@ class RescueRouter {
       if (outcome is Received && outcome.response.status == 200) {
         final Map<String, Object?>? json = _jsonObject(outcome.response.body);
         if (json != null && json['catalogHosts'] is List) {
-          return DocA.fromJson(json);
+          final DocA docA = DocA.fromJson(json);
+          if (seenDocA != null && docA.version < seenDocA) {
+            return null; // rollback — reject
+          }
+          if (_isNewer(docA.version, seenDocA)) {
+            await store.write(_docAVersionKey, docA.version.toString());
+          }
+          return docA;
         }
       }
     }

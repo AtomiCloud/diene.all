@@ -2,14 +2,14 @@ import 'package:diene_api_engine/diene_api_engine.dart';
 import 'package:test/test.dart';
 
 BackendConfig _backend(String module, String host) => BackendConfig(
-      coordinate: LpsmCoordinate(
-        landscape: 'lapras',
-        platform: 'platform',
-        service: 'service',
-        module: module,
-      ),
-      baseUrl: Uri.parse('https://$host'),
-    );
+  coordinate: LpsmCoordinate(
+    landscape: 'lapras',
+    platform: 'platform',
+    service: 'service',
+    module: module,
+  ),
+  baseUrl: Uri.parse('https://$host'),
+);
 
 void main() {
   group('ClientTree', () {
@@ -42,15 +42,14 @@ void main() {
     });
 
     test('resolve returns null for an unregistered coordinate', () {
-      expect(
-        ClientTree().resolve(_backend('missing', 'x').coordinate),
-        isNull,
-      );
+      expect(ClientTree().resolve(_backend('missing', 'x').coordinate), isNull);
     });
 
     test('LPSM key is landscape.platform.service.module', () {
       expect(
-          _backend('core', 'a').coordinate.key, 'lapras.platform.service.core');
+        _backend('core', 'a').coordinate.key,
+        'lapras.platform.service.core',
+      );
     });
   });
 }

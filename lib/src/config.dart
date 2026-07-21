@@ -14,11 +14,11 @@ class LpsmCoordinate {
   });
 
   factory LpsmCoordinate.fromMap(Map<String, Object?> value) => LpsmCoordinate(
-        landscape: _string(value, 'landscape'),
-        platform: _string(value, 'platform'),
-        service: _string(value, 'service'),
-        module: _string(value, 'module'),
-      );
+    landscape: _string(value, 'landscape'),
+    platform: _string(value, 'platform'),
+    service: _string(value, 'service'),
+    module: _string(value, 'module'),
+  );
 
   final String landscape;
   final String platform;
@@ -29,11 +29,11 @@ class LpsmCoordinate {
   String get key => '$landscape.$platform.$service.$module';
 
   Map<String, Object?> toMap() => <String, Object?>{
-        'landscape': landscape,
-        'platform': platform,
-        'service': service,
-        'module': module,
-      };
+    'landscape': landscape,
+    'platform': platform,
+    'service': service,
+    'module': module,
+  };
 
   @override
   bool operator ==(Object other) => other is LpsmCoordinate && other.key == key;
@@ -62,14 +62,14 @@ class BackendConfig {
   });
 
   factory BackendConfig.fromMap(Map<String, Object?> value) => BackendConfig(
-        coordinate: LpsmCoordinate.fromMap(_map(value, 'coordinate')),
-        baseUrl: Uri.parse(_string(value, 'baseUrl')),
-        resourceName: value['resourceName'] as String?,
-        timeout: Duration(
-          seconds: (value['timeoutSeconds'] as num?)?.toInt() ?? 30,
-        ),
-        retryOnNetworkError: value['retryOnNetworkError'] as bool? ?? true,
-      );
+    coordinate: LpsmCoordinate.fromMap(_map(value, 'coordinate')),
+    baseUrl: Uri.parse(_string(value, 'baseUrl')),
+    resourceName: value['resourceName'] as String?,
+    timeout: Duration(
+      seconds: (value['timeoutSeconds'] as num?)?.toInt() ?? 30,
+    ),
+    retryOnNetworkError: value['retryOnNetworkError'] as bool? ?? true,
+  );
 
   final LpsmCoordinate coordinate;
   final Uri baseUrl;
@@ -97,23 +97,22 @@ class RescueConfig {
   });
 
   factory RescueConfig.fromMap(Map<String, Object?> value) => RescueConfig(
-        // Enabled is a PER-CONTEXT flag: ON for Flutter/browser, OFF for the
-        // nextjs server runtime (whose rescue is redeploy).
-        enabled: value['enabled'] as bool? ?? false,
-        issuer: Uri.parse(_string(value, 'issuer')),
-        catalogHosts: _stringList(value, 'catalogHosts'),
-        endpointSuffixAllowlist: _stringList(value, 'endpointSuffixAllowlist'),
-        scanBudget: Duration(
-          milliseconds: (value['scanBudgetMs'] as num?)?.toInt() ?? 8000,
-        ),
-        perCandidateTimeout: Duration(
-          milliseconds:
-              (value['perCandidateTimeoutMs'] as num?)?.toInt() ?? 3000,
-        ),
-        maxJitter: Duration(
-          milliseconds: (value['maxJitterMs'] as num?)?.toInt() ?? 250,
-        ),
-      );
+    // Enabled is a PER-CONTEXT flag: ON for Flutter/browser, OFF for the
+    // nextjs server runtime (whose rescue is redeploy).
+    enabled: value['enabled'] as bool? ?? false,
+    issuer: Uri.parse(_string(value, 'issuer')),
+    catalogHosts: _stringList(value, 'catalogHosts'),
+    endpointSuffixAllowlist: _stringList(value, 'endpointSuffixAllowlist'),
+    scanBudget: Duration(
+      milliseconds: (value['scanBudgetMs'] as num?)?.toInt() ?? 8000,
+    ),
+    perCandidateTimeout: Duration(
+      milliseconds: (value['perCandidateTimeoutMs'] as num?)?.toInt() ?? 3000,
+    ),
+    maxJitter: Duration(
+      milliseconds: (value['maxJitterMs'] as num?)?.toInt() ?? 250,
+    ),
+  );
 
   /// Per-context enable flag. When false the router stays fully dormant and a
   /// hard failure surfaces the transport-failure Problem directly.
@@ -151,9 +150,7 @@ class ApiEngineConfig {
     final List<Object?> raw = _list(value, 'backends');
     final List<BackendConfig> backends = raw
         .map(
-          (Object? item) => BackendConfig.fromMap(
-            _asMap(item, 'backends[]'),
-          ),
+          (Object? item) => BackendConfig.fromMap(_asMap(item, 'backends[]')),
         )
         .toList(growable: false);
     if (backends.isEmpty) {
@@ -180,59 +177,59 @@ class ApiEngineConfig {
   /// config lib can compose it into the root schema. Deliberately a plain
   /// map (JSON-schema-shaped) so no schema library is pulled in.
   static Map<String, Object?> get schema => <String, Object?>{
-        r'$id': 'urn:diene:config-block:api-engine',
-        'type': 'object',
-        'required': <String>['backends', 'rescue'],
-        'properties': <String, Object?>{
-          'backends': <String, Object?>{
-            'type': 'array',
-            'minItems': 1,
-            'items': <String, Object?>{
+    r'$id': 'urn:diene:config-block:api-engine',
+    'type': 'object',
+    'required': <String>['backends', 'rescue'],
+    'properties': <String, Object?>{
+      'backends': <String, Object?>{
+        'type': 'array',
+        'minItems': 1,
+        'items': <String, Object?>{
+          'type': 'object',
+          'required': <String>['coordinate', 'baseUrl'],
+          'properties': <String, Object?>{
+            'coordinate': <String, Object?>{
               'type': 'object',
-              'required': <String>['coordinate', 'baseUrl'],
-              'properties': <String, Object?>{
-                'coordinate': <String, Object?>{
-                  'type': 'object',
-                  'required': <String>[
-                    'landscape',
-                    'platform',
-                    'service',
-                    'module',
-                  ],
-                },
-                'baseUrl': <String, Object?>{'type': 'string', 'format': 'uri'},
-                'resourceName': <String, Object?>{'type': 'string'},
-                'timeoutSeconds': <String, Object?>{'type': 'integer'},
-                'retryOnNetworkError': <String, Object?>{'type': 'boolean'},
-              },
+              'required': <String>[
+                'landscape',
+                'platform',
+                'service',
+                'module',
+              ],
             },
-          },
-          'rescue': <String, Object?>{
-            'type': 'object',
-            'required': <String>[
-              'enabled',
-              'issuer',
-              'catalogHosts',
-              'endpointSuffixAllowlist',
-            ],
-            'properties': <String, Object?>{
-              'enabled': <String, Object?>{'type': 'boolean'},
-              'issuer': <String, Object?>{'type': 'string', 'format': 'uri'},
-              'catalogHosts': <String, Object?>{
-                'type': 'array',
-                'items': <String, Object?>{'type': 'string'},
-              },
-              'endpointSuffixAllowlist': <String, Object?>{
-                'type': 'array',
-                'items': <String, Object?>{'type': 'string'},
-              },
-              'scanBudgetMs': <String, Object?>{'type': 'integer'},
-              'perCandidateTimeoutMs': <String, Object?>{'type': 'integer'},
-              'maxJitterMs': <String, Object?>{'type': 'integer'},
-            },
+            'baseUrl': <String, Object?>{'type': 'string', 'format': 'uri'},
+            'resourceName': <String, Object?>{'type': 'string'},
+            'timeoutSeconds': <String, Object?>{'type': 'integer'},
+            'retryOnNetworkError': <String, Object?>{'type': 'boolean'},
           },
         },
-      };
+      },
+      'rescue': <String, Object?>{
+        'type': 'object',
+        'required': <String>[
+          'enabled',
+          'issuer',
+          'catalogHosts',
+          'endpointSuffixAllowlist',
+        ],
+        'properties': <String, Object?>{
+          'enabled': <String, Object?>{'type': 'boolean'},
+          'issuer': <String, Object?>{'type': 'string', 'format': 'uri'},
+          'catalogHosts': <String, Object?>{
+            'type': 'array',
+            'items': <String, Object?>{'type': 'string'},
+          },
+          'endpointSuffixAllowlist': <String, Object?>{
+            'type': 'array',
+            'items': <String, Object?>{'type': 'string'},
+          },
+          'scanBudgetMs': <String, Object?>{'type': 'integer'},
+          'perCandidateTimeoutMs': <String, Object?>{'type': 'integer'},
+          'maxJitterMs': <String, Object?>{'type': 'integer'},
+        },
+      },
+    },
+  };
 
   static const DeepCollectionEquality _eq = DeepCollectionEquality();
 
@@ -251,9 +248,7 @@ Map<String, Object?> _asMap(Object? item, String label) {
   if (item is! Map) {
     throw FormatException('config key $label must be a map');
   }
-  return item.map(
-    (Object? k, Object? v) => MapEntry(k.toString(), v),
-  );
+  return item.map((Object? k, Object? v) => MapEntry(k.toString(), v));
 }
 
 List<Object?> _list(Map<String, Object?> value, String key) {
@@ -264,10 +259,10 @@ List<Object?> _list(Map<String, Object?> value, String key) {
   return item;
 }
 
-List<String> _stringList(Map<String, Object?> value, String key) =>
-    _list(value, key).map((Object? item) => item.toString()).toList(
-          growable: false,
-        );
+List<String> _stringList(Map<String, Object?> value, String key) => _list(
+  value,
+  key,
+).map((Object? item) => item.toString()).toList(growable: false);
 
 String _string(Map<String, Object?> value, String key) {
   final Object? item = value[key];

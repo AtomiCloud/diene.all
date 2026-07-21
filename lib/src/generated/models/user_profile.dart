@@ -8,11 +8,7 @@ part 'user_profile.g.dart';
 
 @JsonSerializable()
 class UserProfile {
-  const UserProfile({
-    required this.id,
-    required this.email,
-    this.displayName,
-  });
+  const UserProfile({required this.id, required this.email, this.displayName});
 
   factory UserProfile.fromJson(Map<String, Object?> json) =>
       _$UserProfileFromJson(json);

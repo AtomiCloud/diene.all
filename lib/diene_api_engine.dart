@@ -21,8 +21,8 @@ export 'src/bridge.dart'
 export 'src/client_tree.dart' show ClientTree;
 export 'src/config.dart'
     show ApiEngineConfig, BackendConfig, LpsmCoordinate, RescueConfig;
-export 'src/engine.dart' show ApiEngine, Backend;
-export 'src/oa3/sdk_adapter.dart' show OA3Adapter, ResultSdk;
+export 'src/engine.dart' show ApiEngine, Backend, BackendClientAdapter;
+export 'src/oa3/sdk_adapter.dart' show ResultSdk;
 export 'src/rescue/docs.dart' show DocA, DocC;
 export 'src/rescue/router.dart'
     show RescueOutcome, RescueRouter, RescueUnavailable, Rescued;

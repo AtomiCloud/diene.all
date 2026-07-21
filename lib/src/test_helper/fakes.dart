@@ -29,10 +29,9 @@ class FakeHttpTransport implements HttpTransport {
   factory FakeHttpTransport.byHost(
     Map<String, TransportOutcome> byHost, {
     TransportOutcome orElse = const NetworkFailure('unmapped host'),
-  }) =>
-      FakeHttpTransport(
-        (HttpRequest request) => byHost[request.url.host] ?? orElse,
-      );
+  }) => FakeHttpTransport(
+    (HttpRequest request) => byHost[request.url.host] ?? orElse,
+  );
 
   final TransportOutcome Function(HttpRequest request) _responder;
 
@@ -65,7 +64,7 @@ class HangingTransport implements HttpTransport {
 /// resolution with NO cross-backend bleed. Unknown keys fail closed ([Err]).
 class FakeAuth implements IAuth {
   FakeAuth(this._tokens, {DateTime? expiresAt})
-      : _expiresAt = expiresAt ?? DateTime.utc(2999);
+    : _expiresAt = expiresAt ?? DateTime.utc(2999);
 
   final Map<String, String> _tokens;
   final DateTime _expiresAt;
@@ -88,7 +87,8 @@ class FakeAuth implements IAuth {
       );
     }
     return Ok<ResourceToken>(
-        ResourceToken(token: token, expiresAt: _expiresAt));
+      ResourceToken(token: token, expiresAt: _expiresAt),
+    );
   }
 
   @override
