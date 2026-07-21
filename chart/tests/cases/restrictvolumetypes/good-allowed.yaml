@@ -3,6 +3,9 @@ kind: Deployment
 metadata:
   name: allowed-emptydir
 spec:
+  selector:
+    matchLabels:
+      app: demo
   template:
     metadata:
       labels:

@@ -5,6 +5,9 @@ metadata:
   labels:
     atomi.cloud/layer: '9'
 spec:
+  selector:
+    matchLabels:
+      app: demo
   template:
     metadata:
       labels:

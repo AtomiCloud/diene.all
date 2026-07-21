@@ -11,6 +11,7 @@ bash ./scripts/validate/vanadium.sh labels
 bash ./scripts/validate/vanadium.sh fullname
 bash ./scripts/validate/vanadium.sh exemption
 bash ./scripts/validate/vanadium.sh audit-enforce
+bash ./scripts/validate/vanadium.sh fixture-schema
 bash ./scripts/validate/vanadium.sh conformance
 bash ./scripts/validate/vanadium.sh publish-git
 bash ./scripts/validate/vanadium.sh publish-oci

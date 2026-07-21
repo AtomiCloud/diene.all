@@ -3,6 +3,9 @@ kind: Deployment
 metadata:
   name: alloy-varlog-carveout
 spec:
+  selector:
+    matchLabels:
+      app: demo
   template:
     metadata:
       labels:
@@ -19,4 +22,4 @@ spec:
         - name: hostlogs
           hostPath:
             path: /var/log
-            pathType: Directory
+            type: Directory

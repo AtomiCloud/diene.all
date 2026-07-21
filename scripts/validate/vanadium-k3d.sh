@@ -28,7 +28,7 @@ deny_overlay="${evidence_dir}/vanadium-deny-${isolation_key}.yaml"
 warn_log="${evidence_dir}/vanadium-warn-${isolation_key}.log"
 before_metrics="${evidence_dir}/apiserver-vap-before-${isolation_key}.prom"
 after_metrics="${evidence_dir}/apiserver-vap-after-${isolation_key}.prom"
-trap 'rm -f "${deny_overlay}" "${warn_log}"; bash ./scripts/local/delete-k3d-cluster.sh >/dev/null 2>&1 || true' EXIT
+trap 'rm -f "${deny_overlay}"; bash ./scripts/local/delete-k3d-cluster.sh >/dev/null 2>&1 || true' EXIT
 
 bash ./scripts/local/create-k3d-cluster.sh
 context="k3d-${cluster_name}"
@@ -43,10 +43,16 @@ kubectl --context "${context}" get --raw /metrics >"${before_metrics}"
 before_count="$(awk '/^apiserver_validating_admission_policy_check_total\\{/ && /policy="vanadium-disallowlatest"/ && /policy_binding="vanadium-disallowlatest"/ && /enforcement_action="warn"/ { sum += $NF } END { print sum + 0 }' "${before_metrics}")"
 
 # Warn posture: a violating manifest is admitted and returns an admission Warning.
-if kubectl --context "${context}" apply -f chart/tests/cases/disallowlatest/bad.yaml 2>"${warn_log}"; then
-  grep -qi 'Warning:' "${warn_log}"
-else
-  echo "❌ warn-mode violating manifest was denied (expected admitted with warning)" >&2
+if ! kubectl --context "${context}" apply -f chart/tests/cases/disallowlatest/bad.yaml 2>"${warn_log}"; then
+  if rg -qi ' is invalid:|required value|invalid value|unknown field' "${warn_log}"; then
+    echo "❌ warn-mode manifest failed Kubernetes structural validation (not a VAP Warning); stderr retained at ${warn_log}" >&2
+  else
+    echo "❌ warn-mode manifest apply failed before an admission Warning was observed; stderr retained at ${warn_log}" >&2
+  fi
+  exit 1
+fi
+if ! rg -qi '^Warning:' "${warn_log}"; then
+  echo "❌ warn-mode violating manifest was admitted without the expected Warning; stderr retained at ${warn_log}" >&2
   exit 1
 fi
 kubectl --context "${context}" delete -f chart/tests/cases/disallowlatest/bad.yaml --ignore-not-found >/dev/null

@@ -5,6 +5,9 @@ metadata:
   labels:
     atomi.cloud/platform: nitroso
 spec:
+  selector:
+    matchLabels:
+      app: demo
   template:
     metadata:
       labels:

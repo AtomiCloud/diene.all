@@ -3,6 +3,9 @@ kind: Deployment
 metadata:
   name: arbitrary-hostpath
 spec:
+  selector:
+    matchLabels:
+      app: demo
   template:
     metadata:
       labels:
@@ -18,4 +21,4 @@ spec:
         - name: hostetc
           hostPath:
             path: /etc
-            pathType: Directory
+            type: Directory

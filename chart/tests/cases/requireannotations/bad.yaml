@@ -8,6 +8,9 @@ metadata:
     atomi.cloud/service: demosvc
     atomi.cloud/module: api
 spec:
+  selector:
+    matchLabels:
+      app: demo
   template:
     metadata:
       labels:

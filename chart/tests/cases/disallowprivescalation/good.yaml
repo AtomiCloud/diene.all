@@ -3,6 +3,9 @@ kind: Deployment
 metadata:
   name: no-priv-escalation
 spec:
+  selector:
+    matchLabels:
+      app: demo
   template:
     metadata:
       labels:

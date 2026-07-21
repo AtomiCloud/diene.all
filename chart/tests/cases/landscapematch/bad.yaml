@@ -7,6 +7,9 @@ metadata:
   annotations:
     atomi.cloud/landscape: other
 spec:
+  selector:
+    matchLabels:
+      app: demo
   template:
     metadata:
       labels:

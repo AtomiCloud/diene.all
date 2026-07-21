@@ -3,6 +3,9 @@ kind: Deployment
 metadata:
   name: latest-image
 spec:
+  selector:
+    matchLabels:
+      app: demo
   template:
     metadata:
       labels:

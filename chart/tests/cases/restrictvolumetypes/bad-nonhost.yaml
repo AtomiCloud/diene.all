@@ -3,6 +3,9 @@ kind: Deployment
 metadata:
   name: forbidden-nfs
 spec:
+  selector:
+    matchLabels:
+      app: demo
   template:
     metadata:
       labels:

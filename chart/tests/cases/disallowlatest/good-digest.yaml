@@ -3,7 +3,13 @@ kind: Deployment
 metadata:
   name: immutable-digest
 spec:
+  selector:
+    matchLabels:
+      app: demo
   template:
+    metadata:
+      labels:
+        app: demo
     spec:
       initContainers: []
       containers:

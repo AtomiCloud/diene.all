@@ -106,6 +106,33 @@ audit-enforce)
     exit 1
   fi
   ;;
+fixture-schema)
+  mapfile -t fixtures < <(rg --files chart/tests/cases chart/tests/init-cases -g '*.yaml' | sort)
+  [ "${#fixtures[@]}" -eq 0 ] && echo "❌ no Vanadium fixtures found" >&2 && exit 1
+  kubeconform -strict -summary -schema-location default "${fixtures[@]}"
+  for fixture in "${fixtures[@]}"; do
+    if ! yq -o=json '.' "${fixture}" | jq -e '
+      .kind != "Deployment" or
+      ((.spec.selector.matchLabels | type) == "object"
+       and (.spec.selector.matchLabels | length) > 0
+       and .spec.selector.matchLabels == .spec.template.metadata.labels)' >/dev/null; then
+      echo "❌ Deployment selector does not exactly match pod-template labels: ${fixture}" >&2
+      exit 1
+    fi
+  done
+  selector_negative="${tmp}/selectorless-deployment.yaml"
+  selector_negative_log="${tmp}/selectorless-deployment.log"
+  yq 'del(.spec.selector)' chart/tests/cases/disallowlatest/bad.yaml >"${selector_negative}"
+  if kubeconform -strict -schema-location default "${selector_negative}" >"${selector_negative_log}" 2>&1; then
+    echo "❌ selector-less Deployment passed fixture schema validation" >&2
+    exit 1
+  fi
+  if ! rg -q "missing property 'selector'" "${selector_negative_log}"; then
+    echo "❌ selector negative failed for an unexpected reason" >&2
+    sed 's/^/  /' "${selector_negative_log}" >&2
+    exit 1
+  fi
+  ;;
 conformance)
   extract_definitions "${tmp}/defs"
   kubeconform -strict -summary -schema-location default "${tmp}/rendered.yaml"

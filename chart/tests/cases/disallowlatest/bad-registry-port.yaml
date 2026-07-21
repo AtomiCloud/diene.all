@@ -3,7 +3,13 @@ kind: Deployment
 metadata:
   name: registry-port-no-tag
 spec:
+  selector:
+    matchLabels:
+      app: demo
   template:
+    metadata:
+      labels:
+        app: demo
     spec:
       initContainers: []
       containers:
