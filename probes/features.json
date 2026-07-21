@@ -196,6 +196,21 @@
     "class": "gate"
   },
   {
+    "template": "diene/workspace",
+    "name": "releaser-runtime-boundary",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "releaser-shim-delegation",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "releaser-runtime-argv",
+    "class": "smoke"
+  },
+  {
     "template": "diene/shared",
     "name": "claude-link-integrity",
     "class": "gate"

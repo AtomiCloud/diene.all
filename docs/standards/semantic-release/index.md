@@ -20,7 +20,10 @@ temporary Nix-shell bootstrap shim stands in for the release surface only:
 - the `.#releaser` shell exposes a `releaser` command that delegates **only the
   release surface** to `sg` — `releaser release -c <cfg>` dispatches to
   `sg release -c <cfg>` — so `scripts/ci/release.sh` runs without the earlier
-  missing-executable failure;
+  missing-executable failure; the release script pins the **npm** installer
+  (`-i npm`) and the shell provides `nodejs`, so `sg` resolves the pinned
+  `semantic-release` **package** rather than a version-suffixed **binary name**
+  (which a runner's incidental yarn/pnpm runtime would fail to find);
 - `releaser lint-commit` and `releaser conventions` remain explicitly deferred:
   `sg` has no equivalent subcommand, so the commit-msg hook stays registered as
   `releaser lint-commit -c atomi_release.yaml` but is not yet functional, and

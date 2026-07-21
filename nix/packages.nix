@@ -120,6 +120,7 @@ let
           kubeconform
           kubernetes-helm
           kyverno
+          nodejs
           pre-commit
           ripgrep
           shellcheck
