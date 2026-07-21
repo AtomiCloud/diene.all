@@ -186,12 +186,22 @@ jq -e '
 
 kubectl "${kubectl_args[@]}" get service -o json \
   >"${artifact_dir}/services.json"
+# RB-ALU-OTLP: the DESIGNED clustered topology renders two Services that both
+# expose otlp-http:4318 -- the primary receiver `aluminium-alloy-metrics` and
+# the headless clustering Service `aluminium-alloy-metrics-cluster`
+# (clusterIP: None). Counting every 4318 Service is the retired defective
+# check. Assert the designed two-Service topology (primary routable receiver +
+# headless cluster) up front, then select the PRIMARY receiver by its exact
+# stable name.
+bash ./scripts/validate/aluminium-assert.sh \
+  otlp-primary-receiver "${artifact_dir}/services.json" >/dev/null
 receiver_service="$(jq -er '
-  [.items[] |
-    select(any(.spec.ports[]?;
-      .name == "otlp-http" and .port == 4318))] |
+  [ (.items // [])[] |
+    select(.metadata.name == "aluminium-alloy-metrics" and
+      (.spec.clusterIP // "None") != "None" and
+      any(.spec.ports[]?; .name == "otlp-http" and .port == 4318)) ] |
   if length == 1 then .[0].metadata.name
-  else error("expected exactly one OTLP/HTTP receiver service")
+  else error("expected exactly one primary OTLP/HTTP receiver Service named aluminium-alloy-metrics")
   end
 ' "${artifact_dir}/services.json")"
 printf '%s\n' "${receiver_service}" >"${artifact_dir}/receiver-service.txt"

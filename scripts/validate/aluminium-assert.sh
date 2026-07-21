@@ -188,6 +188,35 @@ helm-repo-resolution)
     }
   ;;
 
+# RB-ALU-OTLP: the DESIGNED clustered receiver topology renders TWO Services
+# that both expose otlp-http:4318 -- the primary receiver
+# `aluminium-alloy-metrics` (routable ClusterIP) and the headless clustering
+# Service `aluminium-alloy-metrics-cluster` (clusterIP: None). Counting every
+# Service exposing 4318 is therefore ambiguous. This assertion selects the
+# PRIMARY receiver by its exact stable name, asserts its OTLP/HTTP port and
+# usable/readiness endpoint semantics (targetPort + populated selector), and
+# tolerates the second Service while positively asserting it IS headless with
+# its designed receiver-port topology. Subject: `kubectl get service -o json`.
+otlp-primary-receiver)
+  jq -e '
+    (.items // []) as $svcs |
+    [ $svcs[] |
+      select(.metadata.name == "aluminium-alloy-metrics" and
+        (.spec.clusterIP // "None") != "None" and
+        any(.spec.ports[]?; .name == "otlp-http" and .port == 4318)) ] as $primary |
+    [ $svcs[] |
+      select(.metadata.name == "aluminium-alloy-metrics-cluster") ] as $cluster |
+    ($primary | length) == 1 and
+    ($cluster | length) == 1 and
+    ($primary[0].spec.ports
+      | map(select(.name == "otlp-http"))
+      | (length == 1) and (.[0].port == 4318) and (.[0].targetPort != null)) and
+    (($primary[0].spec.selector // {}) | length > 0) and
+    ($cluster[0].spec.clusterIP == "None") and
+    (any($cluster[0].spec.ports[]?; .name == "otlp-http" and .port == 4318))
+  ' "${subject}" >/dev/null
+  ;;
+
 lpsm-labels)
   [ -z "${expected_prefix}" ] && echo "❌ expected label prefix not set" >&2 && exit 1
   yq eval-all -o=json '.' "${subject}" |
