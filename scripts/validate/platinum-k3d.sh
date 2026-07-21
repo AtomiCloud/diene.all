@@ -29,18 +29,51 @@ archive_sha_path="${evidence_dir}/platinum-0.1.0.tgz.sha256"
 tmp="$(mktemp -d)"
 
 # RB-333 bounded readiness/failure envelope (seconds): Helm readiness 900 +
-# Gateway Programmed 600 + endpoint/health readiness 300 + 300 for bounded
-# pre-teardown diagnostics and cleanup = 2100 total worst case. This leaves
-# 5100 seconds for the existing non-binding cluster/CRD/OCI work inside the
-# unchanged 7200-second shard hard timeout.
+# Gateway Programmed 600 + endpoint/health readiness 300 + one shared 300-second
+# diagnostics-and-cleanup deadline = 2100 total worst case. The deadline
+# includes timeout kill grace and leaves 5100 seconds for the existing
+# non-binding cluster/CRD/OCI work inside the unchanged 7200-second shard.
 readonly helm_readiness_timeout_seconds=900
 readonly gateway_readiness_timeout_seconds=600
 readonly health_readiness_timeout_seconds=300
-readonly proof_overhead_budget_seconds=300
 readonly total_worst_case_budget_seconds=2100
 readonly shard_hard_timeout_seconds=7200
+readonly production_failure_handling_budget_seconds=300
 
-if ((total_worst_case_budget_seconds != helm_readiness_timeout_seconds + gateway_readiness_timeout_seconds + health_readiness_timeout_seconds + proof_overhead_budget_seconds)); then
+failure_handling_budget_seconds="${production_failure_handling_budget_seconds}"
+failure_kill_grace_seconds=2
+cleanup_reserve_seconds=120
+diagnostic_command_max_seconds=20
+diagnostic_byte_limit=32768
+if [ "${PLATINUM_BEHAVIOR_TEST:-false}" = "true" ]; then
+  failure_handling_budget_seconds="${PLATINUM_TEST_FAILURE_BUDGET_SECONDS:-${failure_handling_budget_seconds}}"
+  failure_kill_grace_seconds="${PLATINUM_TEST_KILL_GRACE_SECONDS:-${failure_kill_grace_seconds}}"
+  cleanup_reserve_seconds="${PLATINUM_TEST_CLEANUP_RESERVE_SECONDS:-${cleanup_reserve_seconds}}"
+  diagnostic_command_max_seconds="${PLATINUM_TEST_DIAGNOSTIC_COMMAND_MAX_SECONDS:-${diagnostic_command_max_seconds}}"
+  diagnostic_byte_limit="${PLATINUM_TEST_DIAGNOSTIC_BYTE_LIMIT:-${diagnostic_byte_limit}}"
+fi
+readonly failure_handling_budget_seconds
+readonly failure_kill_grace_seconds
+readonly cleanup_reserve_seconds
+readonly diagnostic_command_max_seconds
+readonly diagnostic_byte_limit
+
+for bounded_integer in \
+  "${failure_handling_budget_seconds}" \
+  "${failure_kill_grace_seconds}" \
+  "${cleanup_reserve_seconds}" \
+  "${diagnostic_command_max_seconds}" \
+  "${diagnostic_byte_limit}"; do
+  if [[ ! ${bounded_integer} =~ ^[1-9][0-9]*$ ]]; then
+    echo "❌ Platinum failure budget values must be positive integers" >&2
+    exit 1
+  fi
+done
+if ((cleanup_reserve_seconds + failure_kill_grace_seconds >= failure_handling_budget_seconds)); then
+  echo "❌ Platinum cleanup reserve and kill grace exhaust the failure deadline" >&2
+  exit 1
+fi
+if ((total_worst_case_budget_seconds != helm_readiness_timeout_seconds + gateway_readiness_timeout_seconds + health_readiness_timeout_seconds + production_failure_handling_budget_seconds)); then
   echo "❌ Platinum proof budget components do not match the documented total" >&2
   exit 1
 fi
@@ -62,16 +95,60 @@ bounded_health_request_seconds() {
   printf '%s\n' "${remaining}"
 }
 
+deadline_run_seconds() {
+  local deadline="$1"
+  local reserve_seconds="$2"
+  local command_cap_seconds="$3"
+  local run_seconds=$((deadline - SECONDS - reserve_seconds - failure_kill_grace_seconds))
+
+  if ((run_seconds <= 0)); then
+    return 1
+  fi
+  if ((run_seconds > command_cap_seconds)); then
+    run_seconds="${command_cap_seconds}"
+  fi
+  printf '%s\n' "${run_seconds}"
+}
+
+cap_diagnostic_lines() {
+  local output_path="$1"
+
+  LC_ALL=C awk -v limit="${diagnostic_byte_limit}" '
+    {
+      record_bytes = length($0) + 1
+      if (written_bytes + record_bytes > limit) {
+        exit
+      }
+      print
+      written_bytes += record_bytes
+    }
+  ' >"${output_path}"
+}
+
 capture_diagnostic_file() {
-  local max_seconds="$1"
+  local failure_deadline="$1"
   local output_path="$2"
+  local run_seconds pipeline_status
   shift 2
 
-  timeout --signal=TERM --kill-after=2 "${max_seconds}s" "$@" >"${output_path}" 2>&1 || true
+  : >"${output_path}" || return 0
+  if ! run_seconds="$(deadline_run_seconds "${failure_deadline}" "${cleanup_reserve_seconds}" "${diagnostic_command_max_seconds}")"; then
+    printf '124\n' >"${output_path}.exit" || true
+    return 0
+  fi
+
+  if timeout --signal=TERM --kill-after="${failure_kill_grace_seconds}" "${run_seconds}s" "$@" 2>/dev/null |
+    cap_diagnostic_lines "${output_path}"; then
+    pipeline_status=0
+  else
+    pipeline_status="$?"
+  fi
+  printf '%s\n' "${pipeline_status}" >"${output_path}.exit" || true
 }
 
 capture_failure_diagnostics() {
   local proof_status="$1"
+  local failure_deadline="$2"
   local diagnostics_dir="${evidence_dir}/failure-diagnostics"
 
   mkdir -p "${diagnostics_dir}" || {
@@ -82,56 +159,79 @@ capture_failure_diagnostics() {
   {
     printf 'proof_exit_status=%s\n' "${proof_status}"
     printf 'captured_at_utc=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    printf 'cluster_context=k3d-%s\n' "${cluster_name}"
-  } >"${diagnostics_dir}/metadata.txt" 2>&1 || true
+    printf 'per_file_byte_limit=%s\n' "${diagnostic_byte_limit}"
+    printf 'failure_deadline_seconds=%s\n' "${failure_handling_budget_seconds}"
+  } | cap_diagnostic_lines "${diagnostics_dir}/metadata.tsv" 2>/dev/null || true
 
-  # Each collection is independently capped. Even if every command reaches its
-  # cap, diagnostics use at most 260 seconds of the 300-second overhead budget.
-  capture_diagnostic_file 20 "${diagnostics_dir}/helm-status.txt" \
-    helm status platinum --kube-context "k3d-${cluster_name}" --namespace sulfoxide
-  capture_diagnostic_file 20 "${diagnostics_dir}/helm-history.txt" \
-    helm history platinum --kube-context "k3d-${cluster_name}" --namespace sulfoxide
-  capture_diagnostic_file 20 "${diagnostics_dir}/node-state.txt" \
-    kubectl --context "k3d-${cluster_name}" --request-timeout=20s get nodes -o wide
-  capture_diagnostic_file 20 "${diagnostics_dir}/node-descriptions.txt" \
-    kubectl --context "k3d-${cluster_name}" --request-timeout=20s describe nodes
-  capture_diagnostic_file 20 "${diagnostics_dir}/workload-state.txt" \
-    kubectl --context "k3d-${cluster_name}" --request-timeout=20s get pods,deployments,statefulsets,daemonsets,jobs,replicasets,services,endpoints -A -o wide
-  capture_diagnostic_file 20 "${diagnostics_dir}/gateway-state.txt" \
-    kubectl --context "k3d-${cluster_name}" --request-timeout=20s get gatewayclasses,gateways,httproutes -A -o wide
-  capture_diagnostic_file 20 "${diagnostics_dir}/pod-descriptions.txt" \
-    kubectl --context "k3d-${cluster_name}" --request-timeout=20s describe pods -A
-  capture_diagnostic_file 20 "${diagnostics_dir}/workload-descriptions.txt" \
-    kubectl --context "k3d-${cluster_name}" --request-timeout=20s describe deployments,statefulsets,daemonsets,jobs -A
-  capture_diagnostic_file 20 "${diagnostics_dir}/events.txt" \
-    kubectl --context "k3d-${cluster_name}" --request-timeout=20s get events -A --sort-by=.lastTimestamp
-  capture_diagnostic_file 40 "${diagnostics_dir}/pod-logs.txt" \
-    kubectl --context "k3d-${cluster_name}" --namespace sulfoxide --request-timeout=40s logs \
-    -l app.kubernetes.io/instance=platinum --all-containers=true --prefix=true --tail=500 --max-log-requests=20
-  capture_diagnostic_file 40 "${diagnostics_dir}/pod-logs-previous.txt" \
-    kubectl --context "k3d-${cluster_name}" --namespace sulfoxide --request-timeout=40s logs \
-    -l app.kubernetes.io/instance=platinum --all-containers=true --prefix=true --previous --tail=500 --max-log-requests=20
+  # Persist only release-scoped projections. No manifests, values, annotations,
+  # environment, command arguments, event messages, descriptions, or logs are
+  # captured. stderr is discarded and every whole-line TSV file is byte-capped.
+  # $1/$2 expand only inside the isolated child shell.
+  # shellcheck disable=SC2016
+  capture_diagnostic_file "${failure_deadline}" "${diagnostics_dir}/helm-release.tsv" \
+    /bin/bash -o pipefail -c '
+      helm list --kube-context "$1" --namespace "$2" --all --filter "^platinum$" --output json |
+        jq -r '\'' .[] | [(.name // ""), (.namespace // ""), ((.revision // 0) | tostring), (.updated // ""), (.status // ""), (.chart // ""), (.app_version // "")] | @tsv '\''
+    ' _ "k3d-${cluster_name}" sulfoxide
+  capture_diagnostic_file "${failure_deadline}" "${diagnostics_dir}/workloads.tsv" \
+    kubectl --context "k3d-${cluster_name}" --namespace sulfoxide --request-timeout=15s \
+    get deployments,statefulsets,daemonsets,jobs --selector 'app.kubernetes.io/instance in (platinum,platinum-gateway)' \
+    -o 'jsonpath={range .items[*]}{.kind}{"\t"}{.metadata.namespace}{"\t"}{.metadata.name}{"\t"}{.metadata.generation}{"\t"}{.status.observedGeneration}{"\t"}{.status.replicas}{"\t"}{.status.readyReplicas}{"\t"}{range .status.conditions[*]}{.type}{"="}{.status}{":"}{.reason}{","}{end}{"\n"}{end}'
+  capture_diagnostic_file "${failure_deadline}" "${diagnostics_dir}/pods.tsv" \
+    kubectl --context "k3d-${cluster_name}" --namespace sulfoxide --request-timeout=15s \
+    get pods --selector 'app.kubernetes.io/instance in (platinum,platinum-gateway)' \
+    -o 'jsonpath={range .items[*]}{.metadata.namespace}{"\t"}{.metadata.name}{"\t"}{.status.phase}{"\t"}{range .status.conditions[*]}{.type}{"="}{.status}{":"}{.reason}{","}{end}{"\t"}{range .status.containerStatuses[*]}{.name}{":ready="}{.ready}{":restarts="}{.restartCount}{":waiting="}{.state.waiting.reason}{":terminated="}{.state.terminated.reason}{":exit="}{.state.terminated.exitCode}{","}{end}{"\n"}{end}'
+  capture_diagnostic_file "${failure_deadline}" "${diagnostics_dir}/gateway.tsv" \
+    kubectl --context "k3d-${cluster_name}" --namespace sulfoxide --request-timeout=15s \
+    get gateway platinum-gateway \
+    -o 'jsonpath={.kind}{"\t"}{.metadata.namespace}{"\t"}{.metadata.name}{"\t"}{.metadata.generation}{"\t"}{.status.observedGeneration}{"\t"}{range .status.conditions[*]}{.type}{"="}{.status}{":"}{.reason}{","}{end}{"\t"}{range .status.listeners[*]}{.name}{":routes="}{.attachedRoutes}{":"}{range .conditions[*]}{.type}{"="}{.status}{":"}{.reason}{","}{end}{";"}{end}{"\n"}'
+  capture_diagnostic_file "${failure_deadline}" "${diagnostics_dir}/gateway-events.tsv" \
+    kubectl --context "k3d-${cluster_name}" --namespace sulfoxide --request-timeout=15s \
+    get events --field-selector involvedObject.kind=Gateway,involvedObject.name=platinum-gateway \
+    -o 'jsonpath={range .items[*]}{.type}{"\t"}{.reason}{"\t"}{.count}{"\t"}{.eventTime}{"\t"}{.lastTimestamp}{"\t"}{.involvedObject.kind}{"\t"}{.involvedObject.name}{"\t"}{.source.component}{"\t"}{.reportingController}{"\n"}{end}'
 
   return 0
+}
+
+run_cleanup_with_deadline() {
+  local failure_deadline="$1"
+  local run_seconds
+  shift
+
+  if ! run_seconds="$(deadline_run_seconds "${failure_deadline}" 0 "${failure_handling_budget_seconds}")"; then
+    return 124
+  fi
+  timeout --signal=TERM --kill-after="${failure_kill_grace_seconds}" "${run_seconds}s" "$@"
 }
 
 cleanup() {
   local proof_status="$1"
   local cleanup_status=0
+  local next_cleanup_status=0
+  local failure_deadline=$((SECONDS + failure_handling_budget_seconds))
 
   trap - EXIT
   if [ "${proof_status}" -ne 0 ]; then
-    capture_failure_diagnostics "${proof_status}" || true
+    capture_failure_diagnostics "${proof_status}" "${failure_deadline}" || true
   fi
 
-  bash ./scripts/local/delete-k3d-cluster.sh || cleanup_status=$?
-  rm -rf "${tmp}" || cleanup_status=$?
+  run_cleanup_with_deadline "${failure_deadline}" bash ./scripts/local/delete-k3d-cluster.sh || cleanup_status=$?
+  run_cleanup_with_deadline "${failure_deadline}" rm -rf "${tmp}" || next_cleanup_status=$?
+  if [ "${cleanup_status}" -eq 0 ] && [ "${next_cleanup_status}" -ne 0 ]; then
+    cleanup_status="${next_cleanup_status}"
+  fi
 
   if [ "${cleanup_status}" -ne 0 ]; then
     echo "❌ k3d proof cleanup failed with exit ${cleanup_status}" >&2
-    exit "${cleanup_status}"
   fi
 
+  # A diagnostic or cleanup failure must never relabel the proof failure.
+  if [ "${proof_status}" -ne 0 ]; then
+    exit "${proof_status}"
+  fi
+  if [ "${cleanup_status}" -ne 0 ]; then
+    exit "${cleanup_status}"
+  fi
   exit "${proof_status}"
 }
 
