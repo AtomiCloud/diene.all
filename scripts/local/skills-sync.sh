@@ -2,6 +2,7 @@
 set -euo pipefail
 
 vendor_dir=".claude/skills/vendor"
+repo_root="$(pwd -P)"
 staging="$(mktemp -d .claude/skills/.vendor.XXXXXX)"
 trap 'rm -rf "${staging}"' EXIT
 
@@ -39,6 +40,7 @@ fi
 if [ -f .dart_tool/package_config.json ]; then
   while IFS=$'\t' read -r package root_uri; do
     package_root="$(realpath -m ".dart_tool/${root_uri}")"
+    [ "$(realpath -m "${package_root}")" = "${repo_root}" ] && continue
     skills_dir="${package_root}/skills"
     [ -d "${skills_dir}" ] || continue
     mkdir -p "${staging}/${package}"
