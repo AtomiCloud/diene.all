@@ -1,18 +1,22 @@
+import 'package:diene_auth_engine/diene_auth_engine.dart'
+    show IAuth, ResourceKey, ResourceToken;
+import 'package:diene_result/diene_result.dart';
+
 import 'bridge.dart';
 import 'client_tree.dart';
 import 'config.dart';
 import 'rescue/router.dart';
 import 'rescue/store.dart';
-import 'result.dart';
 import 'transport.dart';
 
-/// A resolved, callable backend: the config + its per-backend auth binding +
-/// the shared engine wiring. Every call goes through the toResult bridge and
-/// carries this backend's own token (no cross-backend bleed).
+/// A resolved, callable backend: the config + its per-backend token binding
+/// (via the auth-engine `IAuth` seam) + the shared engine wiring. Every call
+/// goes through the toResult bridge and carries this backend's OWN token
+/// (per-resource, no cross-backend bleed).
 class Backend {
   Backend({
     required this.config,
-    required IAuth auth,
+    required IAuth? auth,
     required HttpTransport transport,
     required RescueRouter? rescue,
   })  : _auth = auth,
@@ -22,19 +26,35 @@ class Backend {
         _rescue = rescue;
 
   final BackendConfig config;
-  final IAuth _auth;
+  final IAuth? _auth;
   final HttpTransport _transport;
   final RescueRouter? _rescue;
 
   LpsmCoordinate get coordinate => config.coordinate;
 
-  /// Issue a typed call and fold it into `Result<T, Problem>`.
+  /// The per-resource key handed to `IAuth`, or null when the backend needs no
+  /// token. `resourceName` occupies the M slot of the LPSM coordinate.
+  ResourceKey? get resourceKey {
+    final String? resource = config.resourceName;
+    if (resource == null || _auth == null) {
+      return null;
+    }
+    return ResourceKey(
+      platform: config.coordinate.platform,
+      landscape: config.coordinate.landscape,
+      service: config.coordinate.service,
+      resourceName: resource,
+    );
+  }
+
+  /// Issue a typed call and fold it into `Result<T>`.
   ///
-  /// Flow: resolve base URL (a live rescue pin wins over the primary while it
-  /// is pinned — pin-until-primary-heals) → attach this backend's token →
-  /// send with the retry-once profile → on a HARD network failure trip the
-  /// dormant rescue router (addresses only, same landscape) and retry once
-  /// against the rescued address.
+  /// Resolve the per-resource bearer token through `IAuth` (a token failure is
+  /// surfaced as the call's `Err`); resolve the base URL (a live rescue pin
+  /// wins while pinned — pin-until-primary-heals); send with the retry-once
+  /// profile; on a HARD network failure trip the dormant rescue router
+  /// (addresses only, same landscape) and retry once against the rescued
+  /// address.
   Future<Result<T>> call<T>({
     required HttpMethod method,
     required String path,
@@ -44,23 +64,34 @@ class Backend {
     String? body,
   }) async {
     final String endpoint = '${config.coordinate.key} $path';
+
+    // Per-resource token (fail-closed: a token error IS the call's error).
+    String? bearer;
+    final ResourceKey? key = resourceKey;
+    if (key != null) {
+      final Result<ResourceToken> token = await _auth!.tokenFor(key);
+      switch (token) {
+        case Ok<ResourceToken>(:final value):
+          bearer = value.token;
+        case Err<ResourceToken>(:final problem):
+          return Err<T>(problem);
+      }
+    }
+
     final Uri? pin = await _rescue?.pinnedFor(coordinate);
     final Uri base = pin ?? config.baseUrl;
-
-    final HttpRequest request = await _buildRequest(
+    final HttpRequest request = _buildRequest(
       base: base,
       method: method,
       path: path,
       query: query,
       headers: headers,
       body: body,
+      bearer: bearer,
     );
 
     final TransportOutcome outcome = await _transport.send(request);
-
     if (outcome is Received) {
-      // If we succeeded through a rescue pin, opportunistically check whether
-      // the primary healed and, if so, drop the pin.
       if (pin != null && outcome.response.status < 500) {
         await _maybeHeal();
       }
@@ -76,13 +107,14 @@ class Backend {
     if (rescued is! Rescued) {
       return toResult<T>(outcome, decode: decode, endpoint: endpoint);
     }
-    final HttpRequest retry = await _buildRequest(
+    final HttpRequest retry = _buildRequest(
       base: rescued.baseUrl,
       method: method,
       path: path,
       query: query,
       headers: headers,
       body: body,
+      bearer: bearer,
     );
     final TransportOutcome second = await _transport.send(retry);
     return toResult<T>(second, decode: decode, endpoint: endpoint);
@@ -98,32 +130,26 @@ class Backend {
     }
   }
 
-  Future<HttpRequest> _buildRequest({
+  HttpRequest _buildRequest({
     required Uri base,
     required HttpMethod method,
     required String path,
     required Map<String, String> query,
     required Map<String, String> headers,
     required String? body,
-  }) async {
+    required String? bearer,
+  }) {
     final Uri url = base.replace(
       path: _joinPath(base.path, path),
       queryParameters: query.isEmpty
           ? null
-          : <String, String>{
-              ...base.queryParameters,
-              ...query,
-            },
-    );
-    final String? token = await _auth.tokenFor(
-      coordinate,
-      resource: config.authResource,
+          : <String, String>{...base.queryParameters, ...query},
     );
     return HttpRequest(
       method: method,
       url: url,
       headers: <String, String>{
-        if (token != null) 'Authorization': 'Bearer $token',
+        if (bearer != null) 'Authorization': 'Bearer $bearer',
         ...headers,
       },
       body: body,
@@ -150,13 +176,13 @@ class ApiEngine {
 
   /// Wire an engine from a validated config slice.
   ///
-  /// [transport] defaults to the pure-Dart [IoHttpTransport]; Flutter
-  /// consumers pass their own seam. [store] backs the rescue cache
-  /// (last-known-good kept forever); pass a disk-backed [FileRescueStore] in
-  /// production.
+  /// [auth] is the auth-engine `IAuth` seam (null for a fully anonymous engine).
+  /// [transport] defaults to the pure-Dart [IoHttpTransport]. [store] backs the
+  /// rescue cache (last-known-good kept forever); pass a disk-backed
+  /// [FileRescueStore] in production.
   factory ApiEngine.fromConfig(
     ApiEngineConfig config, {
-    required IAuth auth,
+    IAuth? auth,
     HttpTransport? transport,
     RescueStore? store,
     RescueRouter? rescueOverride,

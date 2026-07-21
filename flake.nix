@@ -81,6 +81,7 @@
               "a-dart-analyze"
               "a-dart-deadcode"
               "a-dart-format"
+              "a-dart-sdk-freshness"
               "a-dart-test"
             ];
           };

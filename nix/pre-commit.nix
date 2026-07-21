@@ -242,6 +242,15 @@ pre-commit-lib.run {
       language = "system";
     };
 
+    a-dart-sdk-freshness = {
+      enable = true;
+      name = "OA3 SDK freshness";
+      entry = validator "scripts/validate/generated.sh sdk";
+      files = "^(openapi/.*|swagger_parser[.]yaml|lib/src/generated/.*)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
     a-dart-release-pubspec = {
       enable = true;
       name = "Release pubspec stamping";

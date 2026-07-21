@@ -61,7 +61,12 @@ tasks:
       - ./scripts/validate/manifest-tag.sh check
       - ./scripts/validate/manifest-tag.sh selftest
 
-  publish:dry-run:
-    desc: Validate package hygiene without publishing
+  generate-sdk:
+    desc: Regenerate the typed OA3 client from the reviewed spec
     cmds:
-      - dart pub publish --dry-run
+      - ./scripts/local/generate-sdk.sh
+
+  publish:dry-run:
+    desc: Validate package hygiene without publishing (0 warnings; hints allowed)
+    cmds:
+      - ./scripts/validate/publish-dry-run.sh

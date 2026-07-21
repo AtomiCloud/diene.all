@@ -11,29 +11,32 @@ LpsmCoordinate _coord(String module) => LpsmCoordinate(
 
 Map<String, Object?> _id(Map<String, Object?> json) => json;
 
+RescueConfig _disabledRescue() => RescueConfig(
+      enabled: false,
+      issuer: Uri.parse('https://unused.example'),
+      catalogHosts: const <String>[],
+      endpointSuffixAllowlist: const <String>[],
+    );
+
 void main() {
   group('multi-backend', () {
-    test('each backend carries its OWN token — no cross-backend bleed',
+    test('each backend carries its OWN per-resource token — no bleed',
         () async {
-      // Arrange: two backends, tokens keyed per coordinate.
+      // Arrange: two backends, each with its own resourceName (M slot).
       final ApiEngineConfig config = ApiEngineConfig(
         backends: <BackendConfig>[
           BackendConfig(
             coordinate: _coord('a'),
             baseUrl: Uri.parse('https://a.example.com'),
+            resourceName: 'a',
           ),
           BackendConfig(
             coordinate: _coord('b'),
             baseUrl: Uri.parse('https://b.example.com'),
+            resourceName: 'b',
           ),
         ],
-        rescue: RescueConfig(
-          enabled: false,
-          // Disabled rescue never reads the issuer; a placeholder is fine.
-          issuer: Uri.parse('https://unused.example'),
-          catalogHosts: const <String>[],
-          endpointSuffixAllowlist: const <String>[],
-        ),
+        rescue: _disabledRescue(),
       );
       final FakeHttpTransport transport = FakeHttpTransport.byHost(
         <String, TransportOutcome>{
@@ -41,9 +44,10 @@ void main() {
           'b.example.com': okJson(<String, Object?>{'who': 'b'}),
         },
       );
+      // Tokens keyed by ResourceKey.mapKey = platform/landscape/service/resource.
       final FakeAuth auth = FakeAuth(<String, String>{
-        'lapras.platform.service.a': 'token-a',
-        'lapras.platform.service.b': 'token-b',
+        'platform/lapras/service/a': 'token-a',
+        'platform/lapras/service/b': 'token-b',
       });
       final ApiEngine engine =
           ApiEngine.fromConfig(config, auth: auth, transport: transport);
@@ -61,13 +65,50 @@ void main() {
       expect(expectOk(b)['who'], 'b');
       expect(transport.sent[0].headers['Authorization'], 'Bearer token-a');
       expect(transport.sent[1].headers['Authorization'], 'Bearer token-b');
+      // Each backend queried only its OWN resource key.
+      expect(auth.queried, <String>[
+        'platform/lapras/service/a',
+        'platform/lapras/service/b',
+      ]);
+    });
+
+    test('a token-resolution failure IS the call error (fail-closed)',
+        () async {
+      final ApiEngineConfig config = ApiEngineConfig(
+        backends: <BackendConfig>[
+          BackendConfig(
+            coordinate: _coord('a'),
+            baseUrl: Uri.parse('https://a.example.com'),
+            resourceName: 'a',
+          ),
+        ],
+        rescue: _disabledRescue(),
+      );
+      final FakeHttpTransport transport = FakeHttpTransport.byHost(
+        <String, TransportOutcome>{
+          'a.example.com': okJson(<String, Object?>{'who': 'a'}),
+        },
+      );
+      // No token for the key → FakeAuth returns Err.
+      final ApiEngine engine = ApiEngine.fromConfig(
+        config,
+        auth: FakeAuth(<String, String>{}),
+        transport: transport,
+      );
+
+      final Result<Map<String, Object?>> r = await engine
+          .backend(_coord('a'))!
+          .call(method: HttpMethod.get, path: '/me', decode: _id);
+
+      expectErr(r);
+      // The HTTP call was never attempted because the token failed.
+      expect(transport.callCount, 0);
     });
   });
 
   group('rescue trip', () {
-    test('hard failure trips the router, pins a rescued address, and succeeds',
+    test('hard failure trips the router, pins a rescued address, succeeds',
         () async {
-      // Arrange
       final LpsmCoordinate coord = _coord('core');
       final DocC docC = DocC(
         version: 5,
@@ -110,17 +151,14 @@ void main() {
           ],
           rescue: rescueConfig,
         ),
-        auth: const AnonymousAuth(),
         transport: transport,
         rescueOverride: router,
       );
 
-      // Act
       final Result<Map<String, Object?>> result = await engine
           .backend(coord)!
           .call(method: HttpMethod.get, path: '/me', decode: _id);
 
-      // Assert
       expect(expectOk(result)['ok'], true);
       expect(await store.read('pin.${coord.key}'),
           'https://rescue.cluster.atomi.cloud');

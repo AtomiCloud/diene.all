@@ -36,8 +36,8 @@ void main() {
       final Result<void> dup = tree.register(_backend('core', 'b.example.com'));
 
       // Assert
-      final Problem p = dup.problem!;
-      expect(p.type, 'urn:diene:problem:duplicate-backend');
+      final Problem p = dup.unwrapErr();
+      expect(p.type, BridgeProblems.duplicateBackend);
       expect(p.status, 409);
     });
 

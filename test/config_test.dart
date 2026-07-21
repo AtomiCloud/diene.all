@@ -16,7 +16,7 @@ Map<String, Object?> _validSlice(
           <String, Object?>{
             'coordinate': _coordinate(m),
             'baseUrl': 'https://$m.example.com',
-            'authResource': 'https://$m.example.com/resource',
+            'resourceName': m,
           },
       ],
       'rescue': <String, Object?>{

@@ -45,3 +45,7 @@ ios/.symlinks/
 ios/Runner.xcworkspace/xcuserdata/
 *.jks
 *.keystore
+
+# Session-only stacking artifacts (deleted at the deterministic swap)
+.session-compat/
+pubspec_overrides.yaml

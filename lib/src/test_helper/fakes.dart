@@ -1,14 +1,16 @@
-import '../client_tree.dart';
-import '../config.dart';
+import 'dart:async';
+
+import 'package:diene_auth_engine/diene_auth_engine.dart'
+    show IAuth, ResourceKey, ResourceToken;
+import 'package:diene_problems/diene_problems.dart' show Problem;
+import 'package:diene_result/diene_result.dart';
+
 import '../rescue/store.dart';
 import '../transport.dart';
 
-/// A scriptable, dependency-light fake transport. NO test-framework deps — it
-/// implements the real [HttpTransport] seam so contract-parity meta suites can
-/// run the SAME behavioural suite against this fake and a real transport.
-///
-/// Records every [HttpRequest] it sees (for asserting token attach / no
-/// cross-backend bleed) and returns outcomes from a responder.
+/// A scriptable, dependency-light fake transport implementing the real
+/// [HttpTransport] seam, so a contract-parity suite runs the SAME behaviour
+/// against this fake and a real transport. Records every request.
 class FakeHttpTransport implements HttpTransport {
   FakeHttpTransport(this._responder);
 
@@ -37,7 +39,6 @@ class FakeHttpTransport implements HttpTransport {
   /// Every request the transport handled, in order.
   final List<HttpRequest> sent = <HttpRequest>[];
 
-  /// Number of times [send] was called.
   int get callCount => sent.length;
 
   @override
@@ -47,26 +48,69 @@ class FakeHttpTransport implements HttpTransport {
   }
 }
 
-/// A fake per-backend token retriever. Tokens are keyed by LPSM coordinate so
-/// tests can prove per-backend resolution with NO cross-backend bleed.
-class FakeAuth implements IAuth {
-  FakeAuth(this._tokens);
-
-  final Map<String, String> _tokens;
-
-  /// Coordinates asked for a token, in order (for bleed assertions).
-  final List<String> queried = <String>[];
+/// A transport whose probes NEVER complete — used to prove the rescue scan's
+/// per-candidate/global budget bounds a hanging probe.
+class HangingTransport implements HttpTransport {
+  final List<HttpRequest> sent = <HttpRequest>[];
 
   @override
-  Future<String?> tokenFor(LpsmCoordinate coordinate,
-      {String? resource}) async {
-    queried.add(coordinate.key);
-    return _tokens[coordinate.key];
+  Future<TransportOutcome> send(HttpRequest request) {
+    sent.add(request);
+    return Completer<TransportOutcome>().future; // never completes
   }
 }
 
-/// A rescue store that also exposes its backing map for assertions. Extends the
-/// production [InMemoryRescueStore] so its behaviour is identical.
+/// A fake per-resource token retriever implementing the real [IAuth] seam.
+/// Tokens are keyed by [ResourceKey.mapKey] so tests prove per-resource
+/// resolution with NO cross-backend bleed. Unknown keys fail closed ([Err]).
+class FakeAuth implements IAuth {
+  FakeAuth(this._tokens, {DateTime? expiresAt})
+      : _expiresAt = expiresAt ?? DateTime.utc(2999);
+
+  final Map<String, String> _tokens;
+  final DateTime _expiresAt;
+
+  /// Resource map-keys asked for a token, in order (for bleed assertions).
+  final List<String> queried = <String>[];
+
+  @override
+  Future<Result<ResourceToken>> tokenFor(ResourceKey key) async {
+    queried.add(key.mapKey);
+    final String? token = _tokens[key.mapKey];
+    if (token == null) {
+      return Err<ResourceToken>(
+        Problem(
+          type: 'urn:diene:test:no-token',
+          title: 'No token',
+          status: 401,
+          detail: key.mapKey,
+        ),
+      );
+    }
+    return Ok<ResourceToken>(
+        ResourceToken(token: token, expiresAt: _expiresAt));
+  }
+
+  @override
+  Future<Map<ResourceKey, Result<ResourceToken>>> fetchAllTokens(
+    Iterable<ResourceKey> keys,
+  ) async {
+    final Map<ResourceKey, Result<ResourceToken>> out =
+        <ResourceKey, Result<ResourceToken>>{};
+    for (final ResourceKey key in keys) {
+      out[key] = await tokenFor(key);
+    }
+    return out;
+  }
+
+  @override
+  void invalidateAll() {}
+
+  @override
+  void invalidate(ResourceKey key) {}
+}
+
+/// A rescue store exposing its backing map + write log for assertions.
 class FakeRescueStore extends InMemoryRescueStore {
   FakeRescueStore([super.seed]);
 
@@ -79,13 +123,13 @@ class FakeRescueStore extends InMemoryRescueStore {
   }
 }
 
-/// A jitter function that never sleeps — for deterministic rescue-scan tests.
+/// Zero jitter — deterministic rescue-scan ordering.
 Duration noJitter() => Duration.zero;
 
 /// A no-op sleep for deterministic rescue tests.
 Future<void> noSleep(Duration duration) async {}
 
-/// A monotonic fake clock (milliseconds) advanced explicitly by the test.
+/// A monotonic fake clock (milliseconds) advanced explicitly or by a sleep.
 class FakeClock {
   FakeClock([this._ms = 0]);
 
@@ -94,4 +138,8 @@ class FakeClock {
   int nowMs() => _ms;
 
   void advance(Duration by) => _ms += by.inMilliseconds;
+
+  /// A `sleep` that advances this clock and completes immediately — lets budget
+  /// tests exercise real timing math with no wall-clock wait.
+  Future<void> sleep(Duration duration) async => advance(duration);
 }

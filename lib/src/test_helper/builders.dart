@@ -1,6 +1,7 @@
 import 'dart:convert';
 
-import '../result.dart';
+import 'package:diene_problems/diene_problems.dart' show Problem;
+
 import '../transport.dart';
 
 /// Builders for the reconciliation matrix. Dependency-light — plain values, no

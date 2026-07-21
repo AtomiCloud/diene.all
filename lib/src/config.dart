@@ -47,14 +47,16 @@ class LpsmCoordinate {
 
 /// One backend registration. The base URL is EXACTLY ONE hostname — the home
 /// landscape's, sourced from config values (never a literal, never a physical
-/// per-cluster URL list). `authResource` names the per-resource token the
-/// `IAuth` seam resolves for this backend (multi-backend: no shared token).
+/// per-cluster URL list). `resourceName` is the M-slot resource label used to
+/// build the `ResourceKey` the auth-engine-owned `IAuth` seam resolves a token
+/// for (multi-backend: per-resource, no shared token). When null the backend
+/// carries no bearer token.
 @immutable
 class BackendConfig {
   const BackendConfig({
     required this.coordinate,
     required this.baseUrl,
-    this.authResource,
+    this.resourceName,
     this.timeout = const Duration(seconds: 30),
     this.retryOnNetworkError = true,
   });
@@ -62,7 +64,7 @@ class BackendConfig {
   factory BackendConfig.fromMap(Map<String, Object?> value) => BackendConfig(
         coordinate: LpsmCoordinate.fromMap(_map(value, 'coordinate')),
         baseUrl: Uri.parse(_string(value, 'baseUrl')),
-        authResource: value['authResource'] as String?,
+        resourceName: value['resourceName'] as String?,
         timeout: Duration(
           seconds: (value['timeoutSeconds'] as num?)?.toInt() ?? 30,
         ),
@@ -71,7 +73,10 @@ class BackendConfig {
 
   final LpsmCoordinate coordinate;
   final Uri baseUrl;
-  final String? authResource;
+
+  /// M-slot resource label for the `ResourceKey` handed to `IAuth`; null means
+  /// no bearer token is attached.
+  final String? resourceName;
   final Duration timeout;
   final bool retryOnNetworkError;
 }
@@ -196,7 +201,7 @@ class ApiEngineConfig {
                   ],
                 },
                 'baseUrl': <String, Object?>{'type': 'string', 'format': 'uri'},
-                'authResource': <String, Object?>{'type': 'string'},
+                'resourceName': <String, Object?>{'type': 'string'},
                 'timeoutSeconds': <String, Object?>{'type': 'integer'},
                 'retryOnNetworkError': <String, Object?>{'type': 'boolean'},
               },
