@@ -1,0 +1,43 @@
+$schema: ./schema.json
+app:
+  landscape: lapras
+  platform: platform
+  service: service
+  module: app
+  version: 1.0.0
+branding:
+  appName: Diene Mobile
+  shortName: Diene
+  logoAsset: assets/brand/logo.svg
+  iconAsset: assets/brand/icon-lapras.png
+theme:
+  mode: system
+  primary: '#11B981'
+  secondary: '#F59E0B'
+  surfaceTint: '#0C7C70'
+  radius: 20
+locale:
+  defaultLocale: en
+  supportedLocales:
+    - en
+    - es
+auth:
+  demoMode: true
+  endpoint: https://auth.platform.example
+  clientId: diene-mobile
+  resource: https://api.platform.example
+  redirectUri: cloud.atomi.lapras.platform.service.app://callback
+  scopes:
+    - openid
+    - profile
+    - offline_access
+session:
+  accessMinutes: 10
+  refreshDays: 14
+api:
+  baseUrl: https://api.platform.example
+notifications:
+  enabled: false
+  topic: service-updates
+onboarding:
+  backendId: primary

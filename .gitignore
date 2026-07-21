@@ -4,6 +4,7 @@
 .pre-commit-config.yaml
 result
 result-*
+!probes/result-problem.ts
 
 ### workspace
 #### source: workspace
@@ -23,12 +24,24 @@ result-*
 Thumbs.db
 desktop.ini
 
-### dart-result
-#### source: lib/dart/result
+### flutter-base
+#### source: flutter-base
 .dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
 .packages
-.pub-cache/
 build/
 coverage/
-doc/api/
-pubspec.lock
+pubspec_overrides.yaml
+android/.gradle/
+android/app/.cxx/
+android/app/intermediates/
+android/local.properties
+ios/Flutter/Generated.xcconfig
+ios/Flutter/ephemeral/
+ios/Flutter/flutter_export_environment.sh
+ios/Pods/
+ios/.symlinks/
+ios/Runner.xcworkspace/xcuserdata/
+*.jks
+*.keystore

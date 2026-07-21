@@ -30,6 +30,15 @@
       let
         pkgs-2605 = nixpkgs-2605.legacyPackages.${system};
         pkgs-unstable = nixpkgs-unstable.legacyPackages.${system};
+        # ### flutter-base-android
+        # #### source: flutter-base
+        pkgs-android = import nixpkgs-unstable {
+          inherit system;
+          config = {
+            allowUnfree = true;
+            android_sdk.accept_license = true;
+          };
+        };
         atomi = atomipkgs.packages.${system};
         pre-commit-lib = pre-commit-hooks.lib.${system};
       in
@@ -53,6 +62,7 @@
             pkgs
             pkgs-2605
             pkgs-unstable
+            pkgs-android
             atomi
             ;
         };
@@ -64,11 +74,14 @@
           shellHook = pre-commit.shellHook;
         };
         checks = {
-          # Pub-backed Dart hooks run in local pre-commit after workspace setup.
+          # Pub-backed Dart hooks run in local pre-commit after dependency setup.
           pre-commit-check = pre-commit.overrideAttrs {
             SKIP = builtins.concatStringsSep "," [
               "a-dart-analyze"
+              "a-dart-coverage"
               "a-dart-deadcode"
+              "a-dart-deadcode-production"
+              "a-dart-meta"
               "a-dart-test"
             ];
           };

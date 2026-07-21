@@ -12,7 +12,7 @@ let
         enable = true;
         excludes = [
           ".claude/skills/vendor/**"
-          "CHANGELOG.md"
+          "Changelog.md"
           "docs/developer/CommitConventions.md"
           "infra/root_chart/**"
         ];

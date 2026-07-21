@@ -5,6 +5,6 @@ set -euo pipefail
 
 ./scripts/ci/setup.sh
 rm -f .git/hooks/*
-sg release -c atomi_release.yaml -i npm
+releaser release -c atomi_release.yaml
 
 echo "✅ Release complete"

@@ -1,108 +1,74 @@
-# ### workspace-root
-# #### source: workspace
 version: '3'
-
-includes:
-  secret: tasks/Taskfile.secret.yaml
-  # ### dart-result-test-includes
-  # #### source: lib/dart/result
-  unit:
-    taskfile: tasks/Taskfile.test.yaml
-    vars:
-      MODE: unit
-  meta:
-    taskfile: tasks/Taskfile.test.yaml
-    vars:
-      MODE: meta
 
 tasks:
   setup:
-    desc: Resolve Dart dependencies and synchronize installed package skills
+    desc: Resolve Dart package dependencies
     cmds:
-      - ./scripts/ci/setup.sh
+      - dart pub get
 
-  lint:
-    desc: Run all repository gates
+  format:
+    desc: Verify Dart formatting
     cmds:
-      - pre-commit run --all-files
-
-  skills:sync:
-    desc: Synchronize installed diene package skills
-    cmds:
-      - ./scripts/local/skills-sync.sh
-
-  # ### dart-result-tasks
-  # #### source: lib/dart/result
-  clean:
-    desc: Remove Dart dependency, build, coverage, and generated-doc artifacts
-    cmds:
-      - rm -rf .dart_tool build coverage doc/api
-
-  build:
-    desc: Validate the publishable Dart library and example
-    deps: [setup]
-    cmds:
-      - dart analyze --fatal-infos lib example
+      - dart format --output=none --set-exit-if-changed lib test
 
   analyze:
-    desc: Analyze library source, tests, and tooling
-    deps: [setup]
+    desc: Analyze package source and tests
     cmds:
-      - dart analyze --fatal-infos
-
-  deadcode:
-    desc: Run repository and production-only dead-code passes
-    cmds:
-      - ./scripts/local/deadcode.sh
-
-  package:validate:
-    desc: Validate package metadata, pana score, and pub.dev dry-run contents
-    cmds:
-      - ./scripts/ci/package-validate.sh
-
-  test:
-    desc: Run unit/C0 and TestHelper meta suites without coverage
-    cmds:
-      - task: unit:default
-      - task: meta:default
+      - dart analyze
 
   test:unit:
-    desc: Run unit and C0 conformance suites without coverage
+    desc: Run unit and C0 conformance tests
     cmds:
-      - task: unit:default
-
-  test:int:
-    desc: No-op because this dependency-free package has no integration tier
-    cmds:
-      - echo 'No integration tier for diene_result.'
-
-  test:meta:
-    desc: Run assert-the-asserter tests for TestHelper
-    cmds:
-      - task: meta:default
-
-  test:coverage:
-    desc: Run every coverage-capable tier with its isolated ledger
-    cmds:
-      - task: unit:coverage
-      - task: meta:coverage
+      - dart test test/unit test/conformance
 
   test:unit:coverage:
-    desc: Run unit and C0 tests with the unit-only coverage ledger
+    desc: Run unit and C0 tests with scoped coverage
     cmds:
-      - task: unit:coverage
+      - ./scripts/local/coverage.sh unit
 
-  test:int:coverage:
-    desc: No-op because this dependency-free package has no integration tier
+  test:meta:
+    desc: Test the dependency-light TestHelper implementation
     cmds:
-      - echo 'No integration coverage tier for diene_result.'
+      - dart test test/meta
 
   test:meta:coverage:
-    desc: Run TestHelper meta tests with the helper-only coverage ledger
+    desc: Run TestHelper meta tests with scoped coverage
     cmds:
-      - task: meta:coverage
+      - ./scripts/local/coverage.sh meta
 
-  test:watch:
-    desc: Re-run the fast unit and C0 suites when Dart files change
+  test:coverage:
+    desc: Run both blocking coverage ledgers
     cmds:
-      - ./scripts/local/watch-tests.sh
+      - ./scripts/local/coverage.sh unit
+      - ./scripts/local/coverage.sh meta
+
+  deadcode:whole:
+    desc: Run whole-package dead-code analysis with tests
+    cmds:
+      - ./scripts/validate/dead-code.sh whole
+
+  deadcode:production:
+    desc: Run production-only dead-code analysis
+    cmds:
+      - ./scripts/validate/dead-code.sh production
+
+  deadcode:
+    desc: Run both strict dead-code passes
+    cmds:
+      - ./scripts/validate/dead-code.sh whole
+      - ./scripts/validate/dead-code.sh production
+
+  version:check:
+    desc: Verify the manifest version against a tag
+    cmds:
+      - ./scripts/validate/publish-version.sh v$(cat VERSION)
+
+  publish:dry-run:
+    desc: Validate pub.dev package hygiene without publishing
+    cmds:
+      - dart pub publish --dry-run
+
+  lint:
+    desc: Run every registered repository gate
+    cmds:
+      - pre-commit run --all-files
