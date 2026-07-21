@@ -65,6 +65,7 @@ tasks:
   deadcode:
     desc: Run whole-repository and production-only dead-code passes
     cmds:
+      - dart pub get
       - ./scripts/validate/deadcode.sh all
       - ./scripts/validate/deadcode.sh production
 
