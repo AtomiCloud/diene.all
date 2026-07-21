@@ -1,0 +1,92 @@
+{
+  "$generated": {
+    "generator": "tool/gen_c0_projection.dart",
+    "releaseDigest": "eda331ecba1e899718fa8e8e9b3485d4b746aa66b9c7c1947052ea3e74e2ba45",
+    "releaseId": "c0-fixtures-r1"
+  },
+  "c0Sections": [
+    "§3 Config precedence"
+  ],
+  "cases": {
+    "blankIsUnset": {
+      "baseYaml": "app:\n  name: base\n  retries: 1\n  tags: [base]\n",
+      "defines": {
+        "ACME_APP__NAME": "",
+        "ACME_APP__TAGS__0": ""
+      },
+      "expected": {
+        "name": "base",
+        "retries": 1,
+        "tags": [
+          "base"
+        ]
+      },
+      "prefix": "ACME_"
+    },
+    "caseInsensitiveKeyMatching": {
+      "baseYaml": "app-settings:\n  displayName: base\n",
+      "prefix": "ACME_",
+      "variants": [
+        {
+          "defineKey": "ACME_APP_SETTINGS__DISPLAY_NAME",
+          "expectedValue": "snake"
+        },
+        {
+          "defineKey": "acme_app-settings__display-name",
+          "expectedValue": "kebab"
+        },
+        {
+          "defineKey": "AcMe_AppSettings__DisplayName",
+          "expectedValue": "pascal"
+        }
+      ]
+    },
+    "finalLayerValidation": {
+      "invalid": {
+        "baseYaml": "app:\n  name: service\n  retries: -1\n  tags: []\n",
+        "defines": {},
+        "prefix": "ACME_"
+      }
+    },
+    "layeringAndIndexedList": {
+      "baseYaml": "app:\n  name: base\n  retries: -1\n  tags: [base]\n",
+      "defines": {
+        "ACME_APP__NAME": "define",
+        "ACME_APP__TAGS__0": "first",
+        "ACME_APP__TAGS__1": "second"
+      },
+      "developmentYaml": "app:\n  name: development\n  tags: [development]\n",
+      "expected": {
+        "name": "define",
+        "retries": 2,
+        "tags": [
+          "first",
+          "second"
+        ]
+      },
+      "landscapeYaml": "app:\n  name: landscape\n  retries: 2\n",
+      "prefix": "ACME_"
+    },
+    "noJsonNoComma": {
+      "rejected": [
+        {
+          "baseYaml": "app:\n  name: service\n  retries: 1\n  tags: []\n",
+          "defines": {
+            "ACME_APP__TAGS": "[\"first\",\"second\"]"
+          },
+          "name": "JSON",
+          "prefix": "ACME_"
+        },
+        {
+          "baseYaml": "app:\n  name: service\n  retries: 1\n  tags: []\n",
+          "defines": {
+            "ACME_APP__TAGS": "first,second"
+          },
+          "name": "comma-separated",
+          "prefix": "ACME_"
+        }
+      ]
+    }
+  },
+  "domain": "config"
+}

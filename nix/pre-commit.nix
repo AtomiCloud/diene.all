@@ -58,6 +58,15 @@ pre-commit-lib.run {
       language = "system";
     };
 
+    a-c0-release = {
+      enable = true;
+      name = "Authenticated C0 release projection";
+      entry = validator "scripts/validate/c0-release.sh";
+      files = "^(\\.prettierignore|contracts/c0/.*|lib/c0_config[.]dart|lib/src/c0_config_contract[.]g[.]dart|tool/gen_c0_projection[.]dart|test/c0_release_test[.]dart|test/conformance/c0_config_test[.]dart|test/fixtures/c0/.*|scripts/validate/c0-release[.]sh)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
     a-dart-analyze = {
       enable = true;
       name = "Dart analyze";

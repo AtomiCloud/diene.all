@@ -24,6 +24,11 @@ tasks:
     cmds:
       - dart analyze
 
+  c0:verify:
+    desc: Verify the authenticated C0 release and generated projection
+    cmds:
+      - ./scripts/validate/c0-release.sh
+
   version:validate:
     desc: Validate generic and tagged release-version guards
     cmds:
@@ -36,7 +41,7 @@ tasks:
   test:unit:
     desc: Run unit and C0 conformance tests
     cmds:
-      - dart test test/unit test/conformance
+      - dart test test/c0_release_test.dart test/unit test/conformance
 
   test:meta:
     desc: Run dependency-light TestHelper meta tests
