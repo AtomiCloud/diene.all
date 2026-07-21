@@ -17,8 +17,15 @@ jobs:
     secrets: inherit
 
   test:
-    name: Flutter Test
+    name: Dart Test
     permissions:
       contents: read
     uses: ./.github/workflows/⚡reusable-test.yaml
+    secrets: inherit
+
+  gates:
+    name: Dart Gates
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-gates.yaml
     secrets: inherit

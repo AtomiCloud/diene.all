@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "🧪 Resolving Flutter dependencies..."
-flutter pub get
-flutter analyze
-flutter test
+echo "🧪 Resolving Dart dependencies..."
+dart pub get
+dart analyze
+dart test
 
-echo "✅ Flutter analyze and tests passed"
+echo "✅ Dart analyze and tests passed"

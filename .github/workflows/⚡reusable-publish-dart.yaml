@@ -1,0 +1,30 @@
+# ### dart-lib-reusable-publish
+# #### source: lib/dart/problems
+# Authored publish-CD plumbing for the mirror repo (AtomiCloud/diene.dart_problems).
+# Execution is conductor-owned: it runs on the mirror's main after the branch is
+# merged and a release tag lands, publishing `diene_problems` to pub.dev. It is
+# NOT wired into an orchestrator on this branch and does not run here.
+name: ⚡ Reusable Dart Publish
+
+on:
+  workflow_call:
+
+jobs:
+  publish:
+    name: Publish to pub.dev
+    runs-on:
+      - nscloud-ubuntu-22.04-amd64-4x8-with-cache
+      - nscloud-cache-size-50gb
+      - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
+    steps:
+      - uses: AtomiCloud/actions.setup-nix@v3
+      - name: Configure pub credentials
+        env:
+          PUB_CREDENTIALS_JSON: ${{ secrets.PUB_CREDENTIALS_JSON }}
+        run: |
+          mkdir -p "${HOME}/.config/dart"
+          printf '%s' "${PUB_CREDENTIALS_JSON}" > "${HOME}/.config/dart/pub-credentials.json"
+      - name: Verify manifest==tag, then publish
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          nix develop .#ci -c bash -c "./scripts/validate/manifest-tag.sh v${tag#v} && dart pub publish --force"

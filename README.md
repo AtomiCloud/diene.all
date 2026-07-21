@@ -1,52 +1,86 @@
-# Diene workspace baseline
+# diene_problems
 
-<!-- ### nix-root -->
-<!-- #### source: main -->
+<!-- ### dart-lib-readme -->
+<!-- #### source: lib/dart/problems -->
 
-Diene's reproducible development environment is managed by Nix. Run `direnv allow` once, then use `pls` tasks from the loaded shell.
+RFC 9457 problem-details machinery for the Dart family: the envelope with the
+`data` extension, a single-source type-URI builder, a typed registry, an
+error→Problem transformer, `LocalError` wrapping, and per-endpoint catalog
+export including the `recoverable` flag.
+
+This is the Dart port of the L-bun `problems` contract (C0 §2/§14). It is
+frontend-only machinery: there is no runtime error-info HTTP surface, and
+telemetry rides Faro via the frontend path, not an otel exporter.
+
+## Install
+
+```yaml
+dependencies:
+  diene_problems: ^0.1.0
+```
+
+## Usage
+
+```dart
+import 'package:diene_problems/diene_problems.dart';
+
+final portal = ErrorPortal(
+  scheme: 'https',
+  host: 'docs.raichu.cluster.atomi.cloud',
+  landscape: 'raichu',
+  platform: 'dotnet',
+  service: 'user',
+  module: 'api',
+);
+
+// The ONE place a problem type URI is built.
+final type = problemTypeUri(portal: portal, version: 'v1', id: 'entity-not-found');
+
+final registry = ProblemRegistry(portal)..register(GenericProblems.entityNotFound);
+final catalog = ProblemCatalog(portal: portal)..addGenerics();
+final crdContent = catalog.toCrdContent(); // C0 §14 Problem CR payload
+```
+
+Wrap an unexpected client exception:
+
+```dart
+final problem = await LocalError(sink).wrap(error, StackTrace.current);
+```
+
+## TestHelper
+
+`package:diene_problems/test_helper.dart` ships framework-free helpers
+(`expectProblem`, `aProblem`, `aCatalogEntry`) usable from any test runner
+without adding a test-framework dependency. See
+[docs/libs/dart-problems.md](docs/libs/dart-problems.md) and the shipped usage
+skill at [skills/diene-problems-usage/SKILL.md](skills/diene-problems-usage/SKILL.md).
+
+## Commands
+
+- `pls setup` — resolve dependencies and sync vendored skills.
+- `pls analyze` — `dart analyze`.
+- `pls test` — `dart test`.
+- `pls test:coverage` — tests with lcov coverage.
+- `pls test:meta` — meta tier over `test_helper.dart`.
+- `pls lint` — every pre-commit gate.
 
 <!-- ### workspace -->
 <!-- #### source: workspace -->
 
-This branch is the workspace baseline inherited by every downstream sample: split CI/release workflows, secrets, release configuration, validators, standards, and vendored agent-skill synchronization.
-
-## Commands
-
-- `pls setup` — synchronize installed diene package skills.
-- `pls lint` — run every pre-commit gate.
-- `pls secret:scan` — scan tracked content for secrets.
-- `pls skills:sync` — rebuild `.claude/skills/vendor/` from installed packages.
-
-## Standards
+## Shared standards
 
 - [CI/CD workflows](docs/standards/ci-cd/index.md)
 - [conventional commits](docs/standards/conventional-commits/index.md)
-- [Infisical and secrets](docs/standards/infisical/index.md)
 - [linting and pre-commit](docs/standards/linting/index.md)
 - [Nix flakes and development shells](docs/standards/nix/index.md)
 - [release automation](docs/standards/semantic-release/index.md)
-- [service-tree identity](docs/standards/service-tree/index.md)
-- [shell scripts](docs/standards/shell-scripts/index.md)
 - [Taskfile conventions](docs/standards/taskfile/index.md)
 
 <!-- ### shared -->
 <!-- #### source: shared -->
 
-## Shared standards
-
 - [Authorization](docs/standards/authorization/index.md)
-- [Contributor documentation](docs/standards/contributor-docs/index.md)
 - [Date and time](docs/standards/datetime/index.md)
-- [Domain-driven design](docs/standards/domain-driven-design/index.md)
 - [Functional practices](docs/standards/functional-practices/index.md)
-- [Software design philosophy](docs/standards/software-design-philosophy/index.md)
-- [SOLID principles](docs/standards/solid-principles/index.md)
-- [Stateless OOP and dependency injection](docs/standards/stateless-oop-di/index.md)
 - [Testing](docs/standards/testing/index.md)
-- [Three-layer architecture](docs/standards/three-layer-architecture/index.md)
-- [Utility libraries](docs/standards/utilities/index.md)
 - [Data validation](docs/standards/validation/index.md)
-
-Domain-specific documentation belongs under [docs/domain/](docs/domain/README.md).
-The `docs/standards/contracts/` location is reserved for the separately owned C0
-contracts standard.

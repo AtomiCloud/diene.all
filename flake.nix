@@ -74,15 +74,12 @@
           shellHook = pre-commit.shellHook;
         };
         checks = {
-          # Pub-backed Flutter hooks run in local pre-commit after workspace setup.
+          # Dart hooks run in local pre-commit / CI after `dart pub get`; skip
+          # them in `nix flake check` (no resolved package config in that build).
           pre-commit-check = pre-commit.overrideAttrs {
             SKIP = builtins.concatStringsSep "," [
-              "a-flutter-analyze"
-              "a-flutter-config"
-              "a-flutter-sdk-freshness"
-              "a-flutter-slang-freshness"
-              "a-flutter-test"
-              "a-flutter-translation-compile"
+              "a-dart-analyze"
+              "a-dart-test"
             ];
           };
           format = formatter;
