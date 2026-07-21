@@ -5,7 +5,6 @@ description: >-
   error→Problem transformer, LocalError wrapping, and per-endpoint catalog
   export including the recoverable flag.
 version: 0.1.0
-license: Apache-2.0
 repository: https://github.com/AtomiCloud/diene.dart_problems
 issue_tracker: https://github.com/AtomiCloud/diene.dart_problems/issues
 topics:

@@ -52,7 +52,7 @@ final problem = await LocalError(sink).wrap(error, StackTrace.current);
 `package:diene_problems/test_helper.dart` ships framework-free helpers
 (`expectProblem`, `aProblem`, `aCatalogEntry`) usable from any test runner
 without adding a test-framework dependency. See
-[docs/libs/dart-problems.md](docs/libs/dart-problems.md) and the shipped usage
+[doc/problems.md](doc/problems.md) and the shipped usage
 skill at [skills/diene-problems-usage/SKILL.md](skills/diene-problems-usage/SKILL.md).
 
 ## Commands

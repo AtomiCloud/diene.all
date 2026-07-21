@@ -6,7 +6,7 @@ description: Use when building, registering, transforming, wrapping, or catalog-
 # diene_problems usage
 
 `diene_problems` is the Dart-family RFC 9457 problem-details library. Read
-[the library doc](../../docs/libs/dart-problems.md) for the full surface and
+[the library doc](../../doc/problems.md) for the full surface and
 parity deltas; this skill is the thin trigger for the two things consumers do
 most: catalog usage and TestHelper matching.
 

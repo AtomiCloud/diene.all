@@ -1,9 +1,10 @@
 # ### dart-lib-reusable-publish
 # #### source: lib/dart/problems
-# Authored publish-CD plumbing for the mirror repo (AtomiCloud/diene.dart_problems).
-# Execution is conductor-owned: it runs on the mirror's main after the branch is
-# merged and a release tag lands, publishing `diene_problems` to pub.dev. It is
-# NOT wired into an orchestrator on this branch and does not run here.
+# Reusable pub.dev publish job. Called by cd.yaml on a `v*.*.*` tag push;
+# materializes the pub.dev credentials, then runs the manifest==tag guard and
+# `dart pub publish --force` via scripts/ci/publish.sh. Execution is
+# conductor-owned (credential/publish held); this workflow does not run on push
+# to the branch, only on a release tag.
 name: ⚡ Reusable Dart Publish
 
 on:
@@ -18,13 +19,12 @@ jobs:
       - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
     steps:
       - uses: AtomiCloud/actions.setup-nix@v3
-      - name: Configure pub credentials
+      - name: Configure pub.dev credentials
         env:
           PUB_CREDENTIALS_JSON: ${{ secrets.PUB_CREDENTIALS_JSON }}
         run: |
           mkdir -p "${HOME}/.config/dart"
           printf '%s' "${PUB_CREDENTIALS_JSON}" > "${HOME}/.config/dart/pub-credentials.json"
-      - name: Verify manifest==tag, then publish
-        run: |
-          tag="${GITHUB_REF_NAME#v}"
-          nix develop .#ci -c bash -c "./scripts/validate/manifest-tag.sh v${tag#v} && dart pub publish --force"
+          chmod 600 "${HOME}/.config/dart/pub-credentials.json"
+      - name: Verify manifest==tag and publish
+        run: nix develop .#ci -c ./scripts/ci/publish.sh "${GITHUB_REF_NAME}"

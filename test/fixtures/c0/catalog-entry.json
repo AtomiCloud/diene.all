@@ -1,0 +1,18 @@
+{
+  "$provenance": "C0 §14 problem-catalog schema: each problems[] entry is { id, type, title, status, recoverable, data, endpoints[] }. Authority: docs/standards/contracts/problem-catalog.md on the shared branch; mirrored at goals/c0-contracts.md §14 (lines 669-687). Materialized 2026-07-21 at lib/dart/problems.",
+  "requiredFields": ["id", "type", "title", "status", "recoverable", "data", "endpoints"],
+  "sample": {
+    "id": "validation-error",
+    "type": "https://docs.raichu.cluster.atomi.cloud/docs/raichu/dotnet/user/api/v1/validation-error",
+    "title": "Validation error",
+    "status": 400,
+    "recoverable": true,
+    "data": {
+      "type": "object",
+      "properties": {
+        "fields": { "type": "array" }
+      }
+    },
+    "endpoints": [{ "method": "POST", "path": "/user" }]
+  }
+}

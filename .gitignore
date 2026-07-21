@@ -45,3 +45,12 @@ ios/.symlinks/
 ios/Runner.xcworkspace/xcuserdata/
 *.jks
 *.keystore
+
+### dart-lib-vendor
+#### source: lib/dart/problems
+# RB-309: the root package's own skill is re-vendored by skills-sync whenever
+# `dart pub get` has run. It is scratch output for a library repo (never the
+# consumer-installed set), so ignore all vendor content except the tracked
+# placeholder — this keeps both the commit and the working tree clean.
+.claude/skills/vendor/*
+!.claude/skills/vendor/.gitkeep

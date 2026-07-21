@@ -1,85 +1,118 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:diene_problems/diene_problems.dart';
 import 'package:test/test.dart';
 
 /// C0 §2/§14 conformance — the cross-language contract the Dart family shares
-/// with ts/cs/go: the envelope shape, the `data` extension, the versioned
-/// `{version}` type URI, and the catalog `problems[]` CR shape.
+/// with ts/cs/go. The authoritative shapes and samples live in
+/// `test/fixtures/c0/*.json` (provenance in that dir's README); this suite
+/// LOADS them and validates the library against them. No authoritative value
+/// is hard-coded here.
+
+Object? _normalize(Object? value) {
+  if (value is Map<String, dynamic>) {
+    return value.map((String k, dynamic v) => MapEntry(k, _normalize(v)));
+  }
+  if (value is List<dynamic>) {
+    return value.map(_normalize).toList();
+  }
+  return value;
+}
+
+Map<String, Object?> _fixture(String name) {
+  final Object? parsed =
+      jsonDecode(File('test/fixtures/c0/$name').readAsStringSync());
+  return _normalize(parsed) as Map<String, Object?>;
+}
+
+List<String> _stringList(Map<String, Object?> fixture, String key) =>
+    (fixture[key]! as List<Object?>).cast<String>();
+
 void main() {
-  group('C0 §2 envelope', () {
-    test('carries the five RFC 9457 members plus data + recoverable', () {
-      const problem = Problem(
-        type: 'https://h/docs/l/p/s/m/v1/id',
-        title: 'T',
-        status: 409,
-        detail: 'd',
-        instance: 'i',
-        recoverable: true,
-        data: <String, Object?>{'k': 'v'},
-      );
-      final json = problem.toJson();
-      // RFC 9457 canonical members
-      for (final field in <String>['type', 'title', 'status', 'detail', 'instance']) {
-        expect(json.containsKey(field), isTrue, reason: 'missing RFC 9457 member $field');
+  group('C0 §2 envelope (fixture-authoritative)', () {
+    final Map<String, Object?> fixture = _fixture('envelope.json');
+    final Map<String, Object?> sample = fixture['sample']! as Map<String, Object?>;
+
+    test('carries every RFC 9457 member plus the data/recoverable extensions',
+        () {
+      final List<String> expected = <String>[
+        ..._stringList(fixture, 'rfc9457Members'),
+        ..._stringList(fixture, 'extensions'),
+      ];
+      for (final String field in expected) {
+        expect(sample.containsKey(field), isTrue, reason: 'missing $field');
       }
-      // Atomi extensions
-      expect(json.containsKey('data'), isTrue);
-      expect(json.containsKey('recoverable'), isTrue);
     });
 
-    test('round-trips losslessly through JSON', () {
-      const problem = Problem(
-        type: 'https://h/docs/l/p/s/m/v1/id',
-        title: 'T',
-        status: 422,
-        detail: 'd',
-        recoverable: true,
-        data: <String, Object?>{
-          'n': 1,
-          'nested': <String, Object?>{'a': <String>['x', 'y']},
-        },
-      );
-      expect(Problem.fromJson(problem.toJson()), problem);
+    test('round-trips losslessly through Problem.fromJson / toJson', () {
+      final Problem problem = Problem.fromJson(sample);
+      expect(jsonDecode(jsonEncode(problem.toJson())), sample);
     });
   });
 
-  group('C0 §2 versioned type URI', () {
-    test('a version bump mints a distinct type URI', () {
-      const portal = ErrorPortal(
-        scheme: 'https',
-        host: 'h',
-        landscape: 'l',
-        platform: 'p',
-        service: 's',
-        module: 'm',
+  group('C0 §14 catalog entry (fixture-authoritative)', () {
+    final Map<String, Object?> fixture = _fixture('catalog-entry.json');
+    final List<String> required = _stringList(fixture, 'requiredFields');
+    final Map<String, Object?> sample = fixture['sample']! as Map<String, Object?>;
+
+    test('authoritative sample carries every required problems[] field', () {
+      for (final String field in required) {
+        expect(sample.containsKey(field), isTrue, reason: 'missing $field');
+      }
+    });
+
+    test('the catalog emitter produces an entry with every required field', () {
+      final CatalogEntry entry = CatalogEntry(
+        id: sample['id']! as String,
+        typeUri: sample['type']! as String,
+        title: sample['title']! as String,
+        status: (sample['status']! as num).toInt(),
+        recoverable: sample['recoverable']! as bool,
+        dataSchema: sample['data']! as Map<String, Object?>,
+        endpoints: (sample['endpoints']! as List<Object?>)
+            .map(
+              (Object? e) => CatalogEndpoint(
+                method: (e! as Map<String, Object?>)['method']! as String,
+                path: (e as Map<String, Object?>)['path']! as String,
+              ),
+            )
+            .toList(),
       );
-      final v1 = problemTypeUri(portal: portal, version: 'v1', id: 'x');
-      final v2 = problemTypeUri(portal: portal, version: 'v2', id: 'x');
-      expect(v1, isNot(equals(v2)));
-      expect(v1, contains('/v1/x'));
-      expect(v2, contains('/v2/x'));
+      final Map<String, Object?> crd = entry.toCrdContent();
+      for (final String field in required) {
+        expect(crd.containsKey(field), isTrue, reason: 'emitter missing $field');
+      }
     });
   });
 
-  group('C0 §14 catalog CR shape', () {
-    test('each problems[] entry has id/type/title/status/recoverable/data/endpoints', () {
-      final catalog = ProblemCatalog(portal: ErrorPortal.localError)
-        ..addType(
-          GenericProblems.validationError,
-          endpoints: const <CatalogEndpoint>[CatalogEndpoint(method: 'POST', path: '/x')],
-        );
-      final crd = catalog.toCrdContent().single;
-      for (final field in <String>[
-        'id',
-        'type',
-        'title',
-        'status',
-        'recoverable',
-        'data',
-        'endpoints',
-      ]) {
-        expect(crd.containsKey(field), isTrue, reason: 'missing C0 §14 field $field');
-      }
-      expect(crd['endpoints'], isA<List<Object?>>());
+  group('C0 §2 type URI (fixture-authoritative)', () {
+    final Map<String, Object?> fixture = _fixture('type-uri.json');
+    final Map<String, Object?> segments =
+        fixture['segments']! as Map<String, Object?>;
+
+    test('the single-source builder expands the authoritative template', () {
+      final ErrorPortal portal = ErrorPortal(
+        scheme: segments['scheme']! as String,
+        host: segments['host']! as String,
+        landscape: segments['landscape']! as String,
+        platform: segments['platform']! as String,
+        service: segments['service']! as String,
+        module: segments['module']! as String,
+      );
+      final String uri = problemTypeUri(
+        portal: portal,
+        version: segments['version']! as String,
+        id: segments['id']! as String,
+      );
+      expect(uri, fixture['expectedTypeUri']);
+    });
+
+    test('the fixture encodes the exact C0 §2 template', () {
+      expect(
+        fixture['template'],
+        '{scheme}://{host}/docs/{landscape}/{platform}/{service}/{module}/{version}/{id}',
+      );
     });
   });
 }
