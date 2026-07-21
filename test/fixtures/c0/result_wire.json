@@ -1,5 +1,7 @@
 {
   "contract": "diene.c0.result-option-wire.v1",
+  "authority": "local-regression-only",
+  "provenance": "Derived from C0 section 5 prose; not a source-owned C0 fixture.",
   "results": [
     {
       "name": "ok-object",

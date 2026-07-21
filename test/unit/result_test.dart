@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:diene_problems/diene_problems.dart';
 import 'package:diene_result/diene_result.dart';
 import 'package:test/test.dart';
 
@@ -179,7 +180,7 @@ void main() {
       expect(errProblem.unwrap(), same(problem));
     });
 
-    test('serial encodes custom ok values and strict problem errors', () {
+    test('serial encodes custom ok values and canonical problem errors', () {
       // Arrange
       const Result<int> ok = Result<int>.ok(21);
       final Result<int> err = Result<int>.err(problem);
@@ -204,6 +205,14 @@ void main() {
         decodeErr: (Object? value) =>
             Problem(type: 'about:blank', title: value! as String, status: 500),
       );
+      final Result<int> minimalDecodedErr = Result<int>.fromSerial(<Object?>[
+        'err',
+        <String, Object?>{
+          'type': 'about:blank',
+          'title': 'Minimal',
+          'status': 500,
+        },
+      ], decodeOk: (Object? value) => value! as int);
 
       // Assert
       expect(okWire, <Object?>[
@@ -214,6 +223,7 @@ void main() {
       expect(decodedOk.unwrap(), 21);
       expect(decodedErr.unwrapErr().toJson(), problem.toJson());
       expect(customDecodedErr.unwrapErr().title, 'custom');
+      expect(minimalDecodedErr.unwrapErr().data, isEmpty);
       expect(() => okWire.add(1), throwsUnsupportedError);
     });
 
@@ -239,6 +249,39 @@ void main() {
         () => decode(<Object?>['err', 'not-an-object']),
         throwsFormatException,
       );
+      final List<Map<String, Object?>> malformedProblems =
+          <Map<String, Object?>>[
+            <String, Object?>{'type': '', 'title': 'x', 'status': 500},
+            <String, Object?>{'type': 'x', 'title': 1, 'status': 500},
+            <String, Object?>{'type': 'x', 'title': 'x', 'status': '500'},
+            <String, Object?>{
+              'type': 'x',
+              'title': 'x',
+              'status': 500,
+              'detail': 1,
+            },
+            <String, Object?>{
+              'type': 'x',
+              'title': 'x',
+              'status': 500,
+              'instance': 1,
+            },
+            <String, Object?>{
+              'type': 'x',
+              'title': 'x',
+              'status': 500,
+              'recoverable': 'true',
+            },
+            <String, Object?>{
+              'type': 'x',
+              'title': 'x',
+              'status': 500,
+              'data': <Object?>[],
+            },
+          ];
+      for (final Map<String, Object?> wire in malformedProblems) {
+        expect(() => decode(<Object?>['err', wire]), throwsFormatException);
+      }
     });
   });
 
@@ -315,86 +358,6 @@ void main() {
 
       // Assert
       await expectLater(poisoned, throwsStateError);
-    });
-  });
-
-  group('Problem', () {
-    test('JSON round-trip preserves every C0 envelope field', () {
-      // Arrange
-      final Map<String, Object?> wire = problem.toJson();
-
-      // Act
-      final Problem decoded = Problem.fromJson(wire);
-
-      // Assert
-      expect(decoded.type, problem.type);
-      expect(decoded.title, problem.title);
-      expect(decoded.status, problem.status);
-      expect(decoded.detail, problem.detail);
-      expect(decoded.instance, problem.instance);
-      expect(decoded.recoverable, isTrue);
-      expect(decoded.data, problem.data);
-      expect(() => decoded.data['new'] = true, throwsUnsupportedError);
-      expect(decoded.toString(), contains('Invalid cart'));
-    });
-
-    test('optional fields default when absent', () {
-      // Arrange
-      final Map<String, Object?> wire = <String, Object?>{
-        'type': 'about:blank',
-        'title': 'Minimal',
-        'status': 500,
-      };
-
-      // Act
-      final Problem decoded = Problem.fromJson(wire);
-
-      // Assert
-      expect(decoded.detail, isNull);
-      expect(decoded.instance, isNull);
-      expect(decoded.recoverable, isFalse);
-      expect(decoded.data, isEmpty);
-    });
-
-    test('invalid required and optional field types fail closed', () {
-      // Arrange
-      final List<Map<String, Object?>> malformed = <Map<String, Object?>>[
-        <String, Object?>{'type': '', 'title': 'x', 'status': 500},
-        <String, Object?>{'type': 'x', 'title': 1, 'status': 500},
-        <String, Object?>{'type': 'x', 'title': 'x', 'status': '500'},
-        <String, Object?>{
-          'type': 'x',
-          'title': 'x',
-          'status': 500,
-          'detail': 1,
-        },
-        <String, Object?>{
-          'type': 'x',
-          'title': 'x',
-          'status': 500,
-          'instance': 1,
-        },
-        <String, Object?>{
-          'type': 'x',
-          'title': 'x',
-          'status': 500,
-          'recoverable': 'true',
-        },
-        <String, Object?>{
-          'type': 'x',
-          'title': 'x',
-          'status': 500,
-          'data': <Object?>[],
-        },
-      ];
-
-      // Act
-      Problem decode(Map<String, Object?> wire) => Problem.fromJson(wire);
-
-      // Assert
-      for (final Map<String, Object?> wire in malformed) {
-        expect(() => decode(wire), throwsFormatException);
-      }
     });
   });
 }

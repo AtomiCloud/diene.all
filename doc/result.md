@@ -1,8 +1,9 @@
 # Result and Option
 
-`diene_result` is the Dart-family dependency root for expected failures. It
-ships sealed `Result<T>` and `Option<T>` values, synchronous combinators, async
-extensions over `Future<Result<T>>`, and the C0 wire codec.
+`diene_result` ships sealed `Result<T>` and `Option<T>` values, synchronous
+combinators, async extensions over `Future<Result<T>>`, and the C0 wire codec.
+It depends on `diene_problems`, the Dart-family owner of the RFC 9457 failure
+identity.
 
 ## Result
 
@@ -16,9 +17,10 @@ exceptions. `exec` captures only when the caller supplies the explicit
 exception-to-`Problem` mapper.
 
 The Dart C0 contract preserves the Flutter seed's one-parameter `Result<T>`.
-Its error channel is the RFC 9457 `Problem` envelope. The later
-`diene_problems` package owns catalogs, builders, type-URI policy, and typed
-problem helpers around this dependency-root representation.
+Its error channel imports the canonical RFC 9457 `Problem` envelope from
+`package:diene_problems/diene_problems.dart`. Result neither defines nor
+re-exports `Problem`; consumers that construct or name failures import the
+Problems package directly.
 
 ## Option
 
@@ -37,15 +39,18 @@ Option: ["some", value] | ["none", null]
 
 `Result.fromSerial` and `Option.fromSerial` require an explicit success-value
 decoder. They reject unknown tags, incorrect arity, a non-object Problem, and a
-non-null None payload. The contract fixtures live at
-`test/fixtures/c0/result_wire.json`.
+non-null None payload. `test/fixtures/c0/result_wire.json` is a locally derived
+regression input, explicitly not an authoritative source-owned C0 fixture. No
+source-owned Result/Option fixture exists in the available shared C0 material,
+so authoritative fixture conformance remains an integration hold.
 
 ## TestHelper and meta testing
 
 Consumer tests may import `package:diene_result/test_helper.dart` and use
 `expectOk`, `expectErr`, `expectSome`, and `expectNone`. Each assertion returns
 the unwrapped payload when useful and throws `TestHelperFailure` with the actual
-variant and payload on mismatch. The helper imports no test framework.
+variant and payload on mismatch. The helper imports no test framework; its
+`Problem` return type is the canonical `diene_problems` type.
 
 The meta suite is assert-the-asserter coverage: each helper is shown passing on
 a known-good value and failing on a known-bad value. Its 100% coverage ledger

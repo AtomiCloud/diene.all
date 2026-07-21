@@ -11,6 +11,7 @@ helper.
 
 ```dart
 import 'package:diene_result/diene_result.dart';
+import 'package:diene_problems/diene_problems.dart';
 
 final Result<int> result = Result<int>.ok(21)
     .map((value) => value * 2)
@@ -18,19 +19,22 @@ final Result<int> result = Result<int>.ok(21)
 
 final String message = result.match(
   ok: (value) => 'answer: $value',
-  err: (problem) => problem.title,
+  err: (Problem problem) => problem.title,
 );
 ```
 
-The error channel is the C0 RFC 9457 `Problem` envelope. `serial()` emits the
-same JSON arrays as the Bun sibling:
+The error channel is the sole RFC 9457 `Problem` identity owned and exported by
+`diene_problems`; `diene_result` depends on that package and does not define or
+re-export a competing envelope. `serial()` emits the same JSON arrays as the
+Bun sibling:
 
 - `['ok', value]` / `['err', problemJson]`
 - `['some', value]` / `['none', null]`
 
 Import `package:diene_result/test_helper.dart` in consumer tests for
 `expectOk`, `expectErr`, `expectSome`, and `expectNone`. The sub-library has no
-test-framework or runtime dependencies.
+test-framework dependencies and adds no runtime dependency beyond the package's
+canonical `diene_problems` edge.
 
 Read the [Result standard](doc/result.md) for the complete API,
 wire contract, TestHelper guidance, and deliberate Bun-family deltas.
