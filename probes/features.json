@@ -274,5 +274,10 @@
     "template": "diene/bun-base",
     "name": "bun-codecov-config",
     "class": "presence"
+  },
+  {
+    "template": "diene/observability",
+    "name": "observability-standards-present",
+    "class": "presence"
   }
 ]
