@@ -23,6 +23,7 @@ bash scripts/validate/carbon.sh garden-store-negative
 bash scripts/validate/carbon.sh labels
 bash scripts/validate/carbon.sh rendered-manifests
 bash scripts/validate/carbon.sh vap-wiring-negative
+bash scripts/validate/carbon.sh cyan-offline
 if [ "${offline}" = "--offline" ]; then
   bash scripts/validate/carbon.sh scaffold-offline
 else

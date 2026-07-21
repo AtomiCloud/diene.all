@@ -10,7 +10,7 @@ trap 'rm -rf "${tmp}"' EXIT
   exit 1
 }
 case "${mode}" in
-schema | schema-drift | lint | render | render-contract | namespace-negative | dependency-missing-negative | dependency-conflict-negative | folder-mapping-negative | garden | garden-store-negative | labels | rendered-manifests | vap-wiring-negative | platform-schema | scaffold | scaffold-offline | workflow-source | workflow-filter | workflow-name | workflow-concurrency | static | publish-git | publish-oci | presence)
+schema | schema-drift | lint | render | render-contract | namespace-negative | dependency-missing-negative | dependency-conflict-negative | folder-mapping-negative | garden | garden-store-negative | labels | rendered-manifests | vap-wiring-negative | cyan-offline | platform-schema | scaffold | scaffold-offline | workflow-source | workflow-filter | workflow-name | workflow-concurrency | static | publish-git | publish-oci | presence)
   ;;
 *)
   echo "❌ unknown Carbon validation mode '${mode}'" >&2
@@ -134,6 +134,33 @@ vap-wiring-negative)
     echo "❌ Carbon Q-G20 :latest wiring fixture was accepted" >&2
     exit 1
   fi
+  ;;
+cyan-offline)
+  bun build cyan/index.ts \
+    --external @atomicloud/cyan-sdk \
+    --target bun \
+    --outfile "${tmp}/cyan.js" >/dev/null
+
+  cp cyan/index.ts "${tmp}/cyan-invalid.ts"
+  printf '\nconst carbonSyntaxFault: = ;\n' >>"${tmp}/cyan-invalid.ts"
+  if bun build "${tmp}/cyan-invalid.ts" \
+    --external @atomicloud/cyan-sdk \
+    --target bun \
+    --outfile "${tmp}/cyan-invalid.js" >"${tmp}/cyan-invalid.out" 2>"${tmp}/cyan-invalid.err"; then
+    echo "❌ malformed Cyan TypeScript was accepted by the offline parser" >&2
+    exit 1
+  fi
+  rg -q 'error:' "${tmp}/cyan-invalid.err"
+
+  rg -Fxq '[ "${offline}" = "--offline" ] || bun install --cwd cyan --frozen-lockfile' scripts/ci/carbon.sh
+  rg -Fxq 'bash scripts/validate/carbon.sh cyan-offline' scripts/ci/carbon.sh
+  rg -Fxq '  bash scripts/validate/carbon.sh scaffold' scripts/ci/carbon.sh
+  rg -Fxq '  (cd cyan && bun x tsc --noEmit)' scripts/validate/carbon.sh
+  yq -e '
+    .jobs.validate.steps[] |
+    select(.name == "Run Carbon validation") |
+    .run == "nix develop .#ci -c ./scripts/ci/carbon.sh"
+  ' .github/workflows/⚡reusable-carbon.yaml >/dev/null
   ;;
 platform-schema)
   bun cyan/validate-platform-schema.ts platform.schema.json platform.yaml
