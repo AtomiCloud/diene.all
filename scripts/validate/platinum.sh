@@ -338,6 +338,48 @@ k3d-readiness-budget)
     fi
   }
 
+  validate_crashloop_capture_contract() {
+    local script_path="$1"
+
+    # Positive: the RB-333 CrashLoopBackOff fields the RCA identified as missing
+    # must be captured — the container's last terminated state, the bounded
+    # previous-instance controller log, and Warning pod events.
+    if ! rg -Fq '.lastState.terminated.reason' "${script_path}" ||
+      ! rg -Fq '.lastState.terminated.exitCode' "${script_path}" ||
+      ! rg -Fq '.lastState.terminated.signal' "${script_path}"; then
+      echo "❌ pods projection does not capture container lastState.terminated in ${script_path}" >&2
+      return 1
+    fi
+    if ! rg -Fq 'logs deployment/platinum-upstream --container controller --previous' "${script_path}"; then
+      echo "❌ bounded previous controller-log capture is absent in ${script_path}" >&2
+      return 1
+    fi
+    if ! rg -Fq -- '--tail=200' "${script_path}" ||
+      ! rg -Fq -- '--limit-bytes="${diagnostic_byte_limit}"' "${script_path}"; then
+      echo "❌ previous controller-log capture is not line/byte bounded in ${script_path}" >&2
+      return 1
+    fi
+    if ! rg -Fq 'get events --field-selector involvedObject.kind=Pod,type=Warning' "${script_path}"; then
+      echo "❌ Warning pod-events capture is absent in ${script_path}" >&2
+      return 1
+    fi
+
+    # Negative: no unbounded/streaming log surface, no describe, and no free-text
+    # event message may reappear alongside the new fields.
+    if rg -q -- 'logs[^|]*(--follow| -f |--all-containers)' "${script_path}"; then
+      echo "❌ unbounded/streaming log capture reintroduced in ${script_path}" >&2
+      return 1
+    fi
+    if rg -q -- 'kubectl[^|]*describe' "${script_path}"; then
+      echo "❌ kubectl describe reintroduced in ${script_path}" >&2
+      return 1
+    fi
+    if rg -Fq '.message}' "${script_path}"; then
+      echo "❌ free-text event message captured in ${script_path}" >&2
+      return 1
+    fi
+  }
+
   write_behavior_stubs() {
     local mock_bin="$1"
 
@@ -407,8 +449,11 @@ set -eu
 trace="${PLATINUM_BEHAVIOR_TRACE:?}"
 args=" $* "
 printf 'SECRET_SENTINEL_FROM_KUBECTL_STDERR\n' >&2
+# Broad introspection stays forbidden. `logs` is no longer blanket-unsafe: the
+# ONE permitted form (the bounded previous controller log) is whitelisted below,
+# and every other logs/describe/all-namespaces/streaming invocation is rejected.
 case "${args}" in
-*" describe "*|*" logs "*|*" -A "*|*" --all-namespaces "*)
+*" describe "*|*" -A "*|*" --all-namespaces "*|*" logs -f "*|*" --follow "*|*" --all-containers "*)
   printf 'unsafe:kubectl:%s\n' "$*" >>"${trace}"
   exit 51
   ;;
@@ -425,6 +470,16 @@ case "${args}" in
   ;;
 " --context k3d-platinum --namespace sulfoxide --request-timeout=15s get events --field-selector involvedObject.kind=Gateway,involvedObject.name=platinum-gateway -o jsonpath="*)
   marker=gateway-events
+  ;;
+" --context k3d-platinum --namespace sulfoxide --request-timeout=15s logs deployment/platinum-upstream --container controller --previous --tail=200 --limit-bytes="*)
+  if [ "${PLATINUM_BEHAVIOR_NO_PREVIOUS_LOG:-false}" = "true" ]; then
+    printf 'attempt:controller-previous-absent\n' >>"${trace}"
+    exit 1
+  fi
+  marker=controller-previous
+  ;;
+" --context k3d-platinum --namespace sulfoxide --request-timeout=15s get events --field-selector involvedObject.kind=Pod,type=Warning -o jsonpath="*)
+  marker=upstream-events
   ;;
 *)
   printf 'unsafe:kubectl:%s\n' "$*" >>"${trace}"
@@ -455,6 +510,7 @@ KUBECTL_STUB
     local diagnostic_ignore_term="$6"
     local teardown_ignore_term="$7"
     local expect_full_capture="$8"
+    local previous_log_absent="${9:-false}"
     local case_dir="${tmp}/behavior-${case_name}"
     local mock_bin="${case_dir}/mock-bin"
     local evidence="${case_dir}/evidence"
@@ -481,6 +537,7 @@ KUBECTL_STUB
       PLATINUM_BEHAVIOR_TEARDOWN_IGNORE_TERM="${teardown_ignore_term}" \
       PLATINUM_BEHAVIOR_DIAGNOSTIC_SLEEP_SECONDS="${diagnostic_sleep}" \
       PLATINUM_BEHAVIOR_DIAGNOSTIC_IGNORE_TERM="${diagnostic_ignore_term}" \
+      PLATINUM_BEHAVIOR_NO_PREVIOUS_LOG="${previous_log_absent}" \
       PLATINUM_TEST_FAILURE_BUDGET_SECONDS="${failure_budget}" \
       PLATINUM_TEST_KILL_GRACE_SECONDS=1 \
       PLATINUM_TEST_CLEANUP_RESERVE_SECONDS="${cleanup_reserve}" \
@@ -520,13 +577,13 @@ KUBECTL_STUB
     fi
 
     if [ "${expect_full_capture}" = "true" ]; then
-      for required_marker in helm-release workloads pods gateway gateway-events; do
+      for required_marker in helm-release workloads pods gateway gateway-events upstream-events; do
         if ! rg -q "^capture:${required_marker}$" "${trace}"; then
           echo "❌ ${case_name}: missing required safe capture ${required_marker}" >&2
           return 1
         fi
       done
-      for required_file in metadata.tsv helm-release.tsv workloads.tsv pods.tsv gateway.tsv gateway-events.tsv; do
+      for required_file in metadata.tsv helm-release.tsv workloads.tsv pods.tsv gateway.tsv gateway-events.tsv upstream-events.tsv; do
         if [ ! -s "${evidence}/failure-diagnostics/${required_file}" ]; then
           echo "❌ ${case_name}: missing diagnostic artifact ${required_file}" >&2
           return 1
@@ -537,6 +594,43 @@ KUBECTL_STUB
           return 1
         fi
       done
+      # RB-333 previous-instance controller log. When a prior terminated
+      # instance exists it is captured, byte-bounded, and ordered with the other
+      # diagnostics; when none exists the capture must fail safely to an empty
+      # artifact with a recorded nonzero exit and never alter the proof result.
+      if [ "${previous_log_absent}" = "true" ]; then
+        if ! rg -q '^attempt:controller-previous-absent$' "${trace}"; then
+          echo "❌ ${case_name}: absent previous-log path was not exercised" >&2
+          return 1
+        fi
+        if [ ! -f "${evidence}/failure-diagnostics/controller-previous.log" ]; then
+          echo "❌ ${case_name}: controller-previous.log artifact missing on absent path" >&2
+          return 1
+        fi
+        if [ -s "${evidence}/failure-diagnostics/controller-previous.log" ]; then
+          echo "❌ ${case_name}: controller-previous.log must be empty when no previous instance exists" >&2
+          return 1
+        fi
+        if [ ! -f "${evidence}/failure-diagnostics/controller-previous.log.exit" ] ||
+          rg -q '^0$' "${evidence}/failure-diagnostics/controller-previous.log.exit"; then
+          echo "❌ ${case_name}: absent previous-log did not record a nonzero capture exit" >&2
+          return 1
+        fi
+      else
+        if ! rg -q '^capture:controller-previous$' "${trace}"; then
+          echo "❌ ${case_name}: missing required safe capture controller-previous" >&2
+          return 1
+        fi
+        if [ ! -s "${evidence}/failure-diagnostics/controller-previous.log" ]; then
+          echo "❌ ${case_name}: missing diagnostic artifact controller-previous.log" >&2
+          return 1
+        fi
+        file_bytes="$(wc -c <"${evidence}/failure-diagnostics/controller-previous.log")"
+        if [ "${file_bytes}" -gt "${byte_limit}" ]; then
+          echo "❌ ${case_name}: controller-previous.log exceeded ${byte_limit} bytes" >&2
+          return 1
+        fi
+      fi
       if ! rg -q '^proof_exit_status=17$' "${evidence}/failure-diagnostics/metadata.tsv"; then
         echo "❌ ${case_name}: metadata did not retain proof exit 17" >&2
         return 1
@@ -545,7 +639,10 @@ KUBECTL_STUB
         echo "❌ ${case_name}: diagnostic stderr leaked into durable evidence" >&2
         return 1
       fi
-      if find "${evidence}/failure-diagnostics" -type f \( -name '*log*' -o -name '*describe*' -o -name 'helm-status*' -o -name 'helm-history*' \) | rg -q .; then
+      # The one authorized bounded controller log (and its exit marker) is
+      # exempt; every other broad log/describe/status/history artifact is not.
+      if find "${evidence}/failure-diagnostics" -type f \( -name '*log*' -o -name '*describe*' -o -name 'helm-status*' -o -name 'helm-history*' \) \
+        ! -name 'controller-previous.log' ! -name 'controller-previous.log.exit' | rg -q .; then
         echo "❌ ${case_name}: broad diagnostic artifacts were persisted" >&2
         return 1
       fi
@@ -553,9 +650,13 @@ KUBECTL_STUB
   }
 
   validate_readiness_contract "${k3d_script}"
+  validate_crashloop_capture_contract "${k3d_script}"
   run_behavior_case complete-captures 8 3 0 0 false false true
   run_behavior_case diagnostic-deadline 5 2 30 0 true false false
   run_behavior_case teardown-deadline 5 2 0 30 false true true
+  # RB-333 CrashLoopBackOff: a missing previous terminated instance must fail
+  # the new log capture safely without altering the proof result or ordering.
+  run_behavior_case previous-log-absent 8 3 0 0 false false true true
 
   # A nonfunctional look-alike can carry every required literal and pass the
   # static budget checks. It must still fail the executable behavior contract.
@@ -574,6 +675,12 @@ health_deadline=$((SECONDS + health_readiness_timeout_seconds))
 exit 0
 STATIC_SPOOF
   validate_readiness_contract "${static_spoof}"
+  # The spoof carries the readiness literals but none of the crashloop-capture
+  # fields, so the capture contract must reject it.
+  if validate_crashloop_capture_contract "${static_spoof}" >/dev/null 2>&1; then
+    echo "❌ nonfunctional static look-alike passed the RB-333 crashloop capture contract" >&2
+    exit 1
+  fi
   real_k3d_script="${k3d_script}"
   k3d_script="${static_spoof}"
   if run_behavior_case static-spoof 8 3 0 0 false false false >/dev/null 2>&1; then

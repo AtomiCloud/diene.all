@@ -164,8 +164,11 @@ capture_failure_diagnostics() {
   } | cap_diagnostic_lines "${diagnostics_dir}/metadata.tsv" 2>/dev/null || true
 
   # Persist only release-scoped projections. No manifests, values, annotations,
-  # environment, command arguments, event messages, descriptions, or logs are
-  # captured. stderr is discarded and every whole-line TSV file is byte-capped.
+  # environment, command arguments, event messages, or descriptions are
+  # captured. The single bounded log exception (RB-333 CrashLoopBackOff RCA) is
+  # the previous crashed controller instance's own stdout, captured below with a
+  # server-side line and byte cap; no other container logs are pulled. stderr is
+  # discarded and every whole-line TSV file is byte-capped.
   # $1/$2 expand only inside the isolated child shell.
   # shellcheck disable=SC2016
   capture_diagnostic_file "${failure_deadline}" "${diagnostics_dir}/helm-release.tsv" \
@@ -180,7 +183,7 @@ capture_failure_diagnostics() {
   capture_diagnostic_file "${failure_deadline}" "${diagnostics_dir}/pods.tsv" \
     kubectl --context "k3d-${cluster_name}" --namespace sulfoxide --request-timeout=15s \
     get pods --selector 'app.kubernetes.io/instance in (platinum,platinum-gateway)' \
-    -o 'jsonpath={range .items[*]}{.metadata.namespace}{"\t"}{.metadata.name}{"\t"}{.status.phase}{"\t"}{range .status.conditions[*]}{.type}{"="}{.status}{":"}{.reason}{","}{end}{"\t"}{range .status.containerStatuses[*]}{.name}{":ready="}{.ready}{":restarts="}{.restartCount}{":waiting="}{.state.waiting.reason}{":terminated="}{.state.terminated.reason}{":exit="}{.state.terminated.exitCode}{","}{end}{"\n"}{end}'
+    -o 'jsonpath={range .items[*]}{.metadata.namespace}{"\t"}{.metadata.name}{"\t"}{.status.phase}{"\t"}{range .status.conditions[*]}{.type}{"="}{.status}{":"}{.reason}{","}{end}{"\t"}{range .status.containerStatuses[*]}{.name}{":ready="}{.ready}{":restarts="}{.restartCount}{":waiting="}{.state.waiting.reason}{":terminated="}{.state.terminated.reason}{":exit="}{.state.terminated.exitCode}{":lastterminated="}{.lastState.terminated.reason}{":lastexit="}{.lastState.terminated.exitCode}{":lastsignal="}{.lastState.terminated.signal}{","}{end}{"\n"}{end}'
   capture_diagnostic_file "${failure_deadline}" "${diagnostics_dir}/gateway.tsv" \
     kubectl --context "k3d-${cluster_name}" --namespace sulfoxide --request-timeout=15s \
     get gateway platinum-gateway \
@@ -188,6 +191,21 @@ capture_failure_diagnostics() {
   capture_diagnostic_file "${failure_deadline}" "${diagnostics_dir}/gateway-events.tsv" \
     kubectl --context "k3d-${cluster_name}" --namespace sulfoxide --request-timeout=15s \
     get events --field-selector involvedObject.kind=Gateway,involvedObject.name=platinum-gateway \
+    -o 'jsonpath={range .items[*]}{.type}{"\t"}{.reason}{"\t"}{.count}{"\t"}{.eventTime}{"\t"}{.lastTimestamp}{"\t"}{.involvedObject.kind}{"\t"}{.involvedObject.name}{"\t"}{.source.component}{"\t"}{.reportingController}{"\n"}{end}'
+
+  # RB-333 CrashLoopBackOff root-cause fields. The prior projections show THAT
+  # the platinum-upstream controller restarts, not WHY. The next two add the
+  # terminating cause within the same deadline/byte envelope: the previous
+  # crashed instance's stdout (deployment-scoped, single container, --previous,
+  # capped both server-side via --limit-bytes and locally), and Warning pod
+  # events (reason only, no free-text message) scoped to the release namespace.
+  capture_diagnostic_file "${failure_deadline}" "${diagnostics_dir}/controller-previous.log" \
+    kubectl --context "k3d-${cluster_name}" --namespace sulfoxide --request-timeout=15s \
+    logs deployment/platinum-upstream --container controller --previous \
+    --tail=200 --limit-bytes="${diagnostic_byte_limit}"
+  capture_diagnostic_file "${failure_deadline}" "${diagnostics_dir}/upstream-events.tsv" \
+    kubectl --context "k3d-${cluster_name}" --namespace sulfoxide --request-timeout=15s \
+    get events --field-selector involvedObject.kind=Pod,type=Warning \
     -o 'jsonpath={range .items[*]}{.type}{"\t"}{.reason}{"\t"}{.count}{"\t"}{.eventTime}{"\t"}{.lastTimestamp}{"\t"}{.involvedObject.kind}{"\t"}{.involvedObject.name}{"\t"}{.source.component}{"\t"}{.reportingController}{"\n"}{end}'
 
   return 0
