@@ -1,75 +1,40 @@
-import '../contracts/problem.dart';
-import '../contracts/result.dart';
-import '../onboarding/onboarding_phase.dart';
+import '../result.dart';
 
-/// Raised by the plain-throw assertion helpers on a failed expectation. Kept
-/// framework-free so the TestHelper stays dependency-light (no `matcher`).
-final class AuthAssertionError extends Error {
-  AuthAssertionError(this.message);
+/// Plain-throw assertion helpers (dependency-light: `AssertionError` is
+/// `dart:core`, no `test`/`matcher` import). Consumers get the same
+/// unwrap-or-fail ergonomics in every test without per-test boilerplate.
 
-  final String message;
+/// Assert [result] is [Ok] and return its value; throws otherwise.
+T expectOk<T>(Result<T> result, {String? because}) => switch (result) {
+      Ok<T>(:final value) => value,
+      Err<T>(:final problem) => throw AssertionError(
+          'expected Ok but got Err(${problem.type}, ${problem.status})'
+          '${because == null ? '' : ' — $because'}',
+        ),
+    };
 
-  @override
-  String toString() => 'AuthAssertionError: $message';
+/// Assert [result] is [Err] and return its problem; throws otherwise.
+Problem expectErr<T>(Result<T> result, {String? because}) => switch (result) {
+      Ok<T>(:final value) => throw AssertionError(
+          'expected Err but got Ok($value)${because == null ? '' : ' — $because'}',
+        ),
+      Err<T>(:final problem) => problem,
+    };
+
+/// Assert [result] is an [Err] whose problem has [type]; returns the problem.
+Problem expectProblemType<T>(Result<T> result, String type) {
+  final Problem problem = expectErr(result);
+  if (problem.type != type) {
+    throw AssertionError(
+      'expected problem type "$type" but got "${problem.type}"',
+    );
+  }
+  return problem;
 }
 
-/// Plain-throw assertion helpers for auth-engine [Result]/[Option]/phase tests.
-abstract final class AuthExpect {
-  /// Asserts [result] is a [Success] and returns its value.
-  static T ok<T>(Result<T> result, {String? reason}) => result.match(
-    onSuccess: (T value) => value,
-    onFailure: (Problem problem) => throw AuthAssertionError(
-      reason ?? 'expected Success but got Failure($problem)',
-    ),
-  );
-
-  /// Asserts [result] is a [Failure] and returns its problem.
-  static Problem err<T>(Result<T> result, {String? reason}) => result.match(
-    onSuccess: (T value) => throw AuthAssertionError(
-      reason ?? 'expected Failure but got Success($value)',
-    ),
-    onFailure: (Problem problem) => problem,
-  );
-
-  /// Asserts [result] is a [Failure] whose problem `type` equals [type].
-  static Problem errType<T>(Result<T> result, String type) {
-    final Problem problem = err(result);
-    if (problem.type != type) {
-      throw AuthAssertionError(
-        'expected Failure type "$type" but got "${problem.type}"',
-      );
-    }
-    return problem;
-  }
-
-  /// Asserts [option] is [Some] and returns its value.
-  static T some<T>(Option<T> option, {String? reason}) => option.match(
-    onSome: (T value) => value,
-    onNone: () =>
-        throw AuthAssertionError(reason ?? 'expected Some but got None'),
-  );
-
-  /// Asserts [option] is [None].
-  static void none<T>(Option<T> option, {String? reason}) => option.match(
-    onSome: (T value) => throw AuthAssertionError(
-      reason ?? 'expected None but got Some($value)',
-    ),
-    onNone: () {},
-  );
-
-  /// Asserts the terminal onboarding [phase] equals [expected].
-  static void phase(OnboardingPhase actual, OnboardingPhase expected) {
-    if (actual != expected) {
-      throw AuthAssertionError('expected phase $expected but got $actual');
-    }
-  }
-
-  /// Asserts [problem] carries the expected `status`.
-  static void status(Problem problem, int expected) {
-    if (problem.status != expected) {
-      throw AuthAssertionError(
-        'expected status $expected but got ${problem.status}',
-      );
-    }
+/// Assert a condition, throwing [AssertionError] with [message] on failure.
+void check(bool condition, String message) {
+  if (!condition) {
+    throw AssertionError(message);
   }
 }

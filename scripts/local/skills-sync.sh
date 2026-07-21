@@ -43,7 +43,10 @@ if [ -f .dart_tool/package_config.json ]; then
     [ -d "${skills_dir}" ] || continue
     mkdir -p "${staging}/${package}"
     cp -R "${skills_dir}/." "${staging}/${package}/"
-  done < <(jq -r '.packages[] | select(.name | startswith("diene_")) | [.name, .rootUri] | @tsv' .dart_tool/package_config.json)
+    # `rootUri == "../"` is the ROOT package itself — never vendor self, only
+    # installed diene dependencies, so the result is stable with or without a
+    # resolved `.dart_tool` (e.g. the sandboxed nix flake check).
+  done < <(jq -r '.packages[] | select(.name | startswith("diene_")) | select(.rootUri != "../") | [.name, .rootUri] | @tsv' .dart_tool/package_config.json)
 fi
 
 rm -rf "${vendor_dir}"

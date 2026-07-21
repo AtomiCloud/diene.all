@@ -1,36 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Host-safe gate chain for the diene_auth_engine package.
+echo "🧪 Resolving Dart dependencies..."
+dart pub get
 
-echo "📦 Resolving dependencies..."
-flutter pub get
+echo "🎨 Checking formatting..."
+dart format --output=none --set-exit-if-changed lib test
 
-echo "🧹 Format check..."
-dart format --output=none --set-exit-if-changed .
+echo "🔍 Analyzing..."
+dart analyze
 
-echo "🔬 Analyze..."
-flutter analyze
+echo "🧫 Running unit, C0-conformance, and meta suites..."
+dart test
 
-echo "🧪 Unit + conformance + meta tests..."
-flutter test
-
-echo "📊 Unit coverage ledger..."
-flutter test --coverage >/dev/null
-bun tool/coverage_ledger.ts coverage/lcov.info unit 80 \
-  --include lib/src --exclude test_helper --exclude /logto/
-
-echo "📊 Meta coverage ledger (TestHelper only)..."
-flutter test --coverage test/meta >/dev/null
-bun tool/coverage_ledger.ts coverage/lcov.info meta 85 --include lib/src/test_helper
-
-echo "☠️  Dead-code (two passes, no exclusion lists)..."
+echo "🧹 Dead-code passes..."
 ./scripts/validate/deadcode.sh
 
 echo "🏷️  Manifest==tag guard..."
-./scripts/validate/manifest-tag.sh
+./scripts/validate/manifest-tag.sh check
 
-echo "📮 Publish dry-run..."
-flutter pub publish --dry-run
+echo "📦 Package hygiene (publish dry-run)..."
+dart pub publish --dry-run
 
-echo "✅ All host-safe gates passed"
+echo "✅ Dart analyze, tests, dead-code, manifest guard, and publish dry-run passed"

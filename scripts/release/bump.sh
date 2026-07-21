@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Stamp VERSION and pubspec.yaml to the next semantic-release version.
-# A pub package version is plain semver (no `+build` metadata).
-
 version="${1:-}"
 [ -z "${version}" ] && echo "❌ version argument not set" >&2 && exit 1
-version="${version#v}"
 
-printf '%s\n' "${version}" >VERSION
-sed -i -E "s/^version: .*/version: ${version}/" pubspec.yaml
+# Library package: stamp a plain semver `version:` (no +build; that is a mobile
+# app concern). VERSION and pubspec.yaml are stamped identically so the
+# manifest==tag guard holds.
+printf '%s\n' "${version#v}" >VERSION
+sed -i -E "s/^version: .*/version: ${version#v}/" pubspec.yaml
 
-echo "✅ VERSION and pubspec.yaml stamped to ${version}"
+echo "✅ VERSION and pubspec.yaml stamped to ${version#v}"

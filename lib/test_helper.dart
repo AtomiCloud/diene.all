@@ -1,10 +1,24 @@
-/// Dependency-light TestHelper sub-library for `diene_auth_engine`.
-///
-/// Fakes, builders, and plain-throw assertions ONLY — NO test-framework deps
-/// (no `test` / `matcher` / mocking packages), so importing it adds nothing to a
-/// consumer's production dependency graph.
+/// diene_api_engine test helpers — a DEPENDENCY-LIGHT sub-library
+/// (`package:diene_api_engine/test_helper.dart`). It ships fakes, plain-throw
+/// assertions, and builders with NO test-framework dependency, so it adds
+/// nothing to a consumer's production graph.
 library;
 
-export 'src/test_helper/assertions.dart';
-export 'src/test_helper/builders.dart';
-export 'src/test_helper/fakes.dart';
+export 'src/test_helper/assertions.dart'
+    show check, expectErr, expectOk, expectProblemType;
+export 'src/test_helper/builders.dart'
+    show
+        networkFailure,
+        nonJsonResponse,
+        nonProblemJson,
+        okJson,
+        problemFixture,
+        problemResponse;
+export 'src/test_helper/fakes.dart'
+    show
+        FakeAuth,
+        FakeClock,
+        FakeHttpTransport,
+        FakeRescueStore,
+        noJitter,
+        noSleep;

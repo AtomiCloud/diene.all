@@ -1,0 +1,25 @@
+# ### lib-dart-cd
+# #### source: lib/dart/api-engine
+name: CD
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish to pub.dev
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/⚡reusable-publish.yaml
+    secrets: inherit

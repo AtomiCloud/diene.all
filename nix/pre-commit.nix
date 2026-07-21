@@ -38,7 +38,7 @@ pre-commit-lib.run {
       package = formatter;
       excludes = [
         "^\\.claude/skills/vendor/"
-        "^CHANGELOG\\.md$"
+        "^Changelog\\.md$"
         "^docs/developer/CommitConventions\\.md$"
         "^infra/root_chart/"
       ];
@@ -195,40 +195,58 @@ pre-commit-lib.run {
       language = "system";
     };
 
-    # ### dart-auth-engine-hooks
-    # #### source: lib/dart/auth-engine
+    # ### lib-dart-hooks
+    # #### source: lib/dart/api-engine
     a-dart-format = {
       enable = true;
       name = "Dart format";
-      entry = "${packages.flutter}/bin/dart format --output=none --set-exit-if-changed";
-      files = ".*[.]dart$";
-      pass_filenames = true;
+      entry = "${packages.flutter}/bin/dart format --output=none --set-exit-if-changed lib test";
+      files = "^(lib|test)/.*[.]dart$";
+      pass_filenames = false;
       language = "system";
     };
 
     a-dart-analyze = {
       enable = true;
       name = "Dart analyze";
-      entry = validator "scripts/validate/deadcode.sh";
-      files = "^(lib|test|tool)/.*[.]dart$|^(pubspec|analysis_options)[.]yaml$";
+      entry = "${packages.flutter}/bin/dart analyze";
+      files = "^(lib|test)/.*[.]dart$|^(pubspec|analysis_options)[.]yaml$";
       pass_filenames = false;
       language = "system";
     };
 
     a-dart-test = {
       enable = true;
-      name = "Dart unit, conformance, and meta tests";
-      entry = "${packages.flutter}/bin/flutter test";
+      name = "Dart unit, C0-conformance, and meta tests";
+      entry = "${packages.flutter}/bin/dart test";
       files = "^(lib|test)/.*[.]dart$|^pubspec[.]yaml$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-dart-deadcode = {
+      enable = true;
+      name = "Dart dead-code (two passes, no exclusions)";
+      entry = validator "scripts/validate/deadcode.sh";
+      files = "^(lib|test)/.*[.]dart$";
       pass_filenames = false;
       language = "system";
     };
 
     a-dart-manifest-tag = {
       enable = true;
-      name = "Dart manifest==tag guard";
-      entry = validator "scripts/validate/manifest-tag.sh";
+      name = "Manifest==tag publish guard";
+      entry = validator "scripts/validate/manifest-tag.sh check";
       files = "^(pubspec[.]yaml|VERSION)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-dart-release-pubspec = {
+      enable = true;
+      name = "Release pubspec stamping";
+      entry = validator "scripts/validate/release-pubspec.sh";
+      files = "^(scripts/release/bump[.]sh|atomi_release[.]yaml|pubspec[.]yaml)$";
       pass_filenames = false;
       language = "system";
     };

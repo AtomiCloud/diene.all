@@ -1,67 +1,48 @@
-# diene_auth_engine
+# diene_api_engine
 
-Frontend auth engine for the AtomiCloud **Diene** Dart family.
+<!-- ### nix-root -->
+<!-- #### source: main -->
 
-`diene_auth_engine` is a Flutter package that ships the client-side auth
-machinery every Diene mobile app reuses:
+Diene's reproducible development environment is managed by Nix. Run `direnv allow` once, then use `pls` tasks from the loaded shell.
 
-- **Logto flows + per-resource tokens** behind an `AuthProvider` seam, with an
-  expiry-aware, single-flight per-resource token cache (`IAuth`).
-- **Token lifecycle** — access = 10 minutes, refresh = 14 days rotating with
-  reuse detection, silent re-mint on app open (C0 §12).
-- **Multi-backend, claims-first onboarding** — one app onboards to many
-  backends, each with an independent `bootstrapping / needsOnboarding / ready /
-error` phase machine (C0 §8, no singleton flag).
-- **Deferred-login mobile client** — Install Referrer / clipboard carrier read,
-  redeem against `POST {mount}/redeem`, and `signIn(extraParams:)`.
-- **returnTo deeplink continuation** — resume the exact protected route (path +
-  query) after login, with open-redirect rejection.
-- **Sign-up-only landscape selector** — the Doc B client (names + metadata
-  only), ping-and-pick with a `home_landscape`-claim fast path (C0 §10/§13).
-- **Engine-owned config block schema** — the `authEngine` block, validated by
-  the family `config` lib; the OIDC issuer is baked build-time, never
-  doc-sourced.
+<!-- ### lib-dart-api-engine -->
+<!-- #### source: lib/dart/api-engine -->
 
-Dart is **frontend-only**: there is no OpenTelemetry surface here — telemetry
-rides Faro through flutter-base.
+The typed OA3 backend-client engine for the diene Dart family. It wraps
+generated OpenAPI SDK calls into `Result<T, Problem>`, registers N backends on
+the LPSM client tree with per-backend auth, retries once on a hard network
+failure, and ships a dormant disk-cached rescue router for same-landscape
+address failover. Client-side only; the family is frontend-only (no OTel
+library — telemetry rides Faro).
 
-## Install
+## Commands
 
-```yaml
-dependencies:
-  diene_auth_engine: ^0.0.0
-```
+- `pls setup` — resolve dependencies and sync vendored skills.
+- `pls analyze` / `pls test` / `pls test:coverage` / `pls test:meta`.
+- `pls deadcode` — two dead-code passes (no exclusion lists).
+- `pls manifest-guard` — verify pubspec/VERSION/tag agree (+ negative drill).
+- `pls publish:dry-run` — validate package hygiene without publishing.
+- `pls lint` — run every pre-commit gate.
 
 ## Usage
 
-```dart
-import 'package:diene_auth_engine/diene_auth_engine.dart';
-```
+See [docs/standards/api-client/index.md](docs/standards/api-client/index.md)
+for the register-a-backend walkthrough and the Result-typed call convention.
+The shipped usage skill lives at
+[skills/diene-api-engine-usage/SKILL.md](skills/diene-api-engine-usage/SKILL.md).
 
-See the shipped skill `skills/diene-auth-engine-usage/SKILL.md` and
-[docs/standards/auth/index.md](docs/standards/auth/index.md) for wiring
-(per-backend onboarding, deferred login, retriever/provider seams) and the
-`lib/bun/auth-engine` parity deltas.
+## Layout
 
-## TestHelper
+- `lib/diene_api_engine.dart` — public barrel.
+- `lib/test_helper.dart` — dependency-light fakes/assertions/builders
+  (`package:diene_api_engine/test_helper.dart`), no test-framework deps.
+- `lib/src/**` — engine, transport, bridge, client tree, config block schema,
+  and the `rescue/**` router.
 
-A dependency-light TestHelper ships in the same package:
+## Standards
 
-```dart
-import 'package:diene_auth_engine/test_helper.dart';
-```
-
-It carries fakes (IdP/provider, retrievers, deferred store, per-backend phase
-fakes), token/claims builders, and plain-throw assertions — no test-framework
-dependencies.
-
-## Development
-
-Managed by Nix; run `direnv allow` once, then use `pls` tasks:
-
-- `pls test` — unit, conformance, and meta tests.
-- `pls test:coverage` — unit coverage ledger.
-- `pls test:meta` — meta tier over the TestHelper.
-- `pls deadcode` — two-pass dead-code gate.
-- `pls publish:dryrun` — package hygiene.
-- `pls gates` — the full host-safe gate chain.
+- [CI/CD workflows](docs/standards/ci-cd/index.md)
+- [conventional commits](docs/standards/conventional-commits/index.md)
+- [Nix flakes and development shells](docs/standards/nix/index.md)
+- [release automation](docs/standards/semantic-release/index.md)
+- [testing](docs/standards/testing/index.md)
