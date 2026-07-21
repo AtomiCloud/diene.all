@@ -25,6 +25,7 @@ bash ./scripts/validate/platinum.sh presence
 bash ./scripts/validate/platinum.sh tokenization-presence
 bash ./scripts/validate/platinum.sh gateway-api-crd-fixture
 bash ./scripts/validate/platinum.sh kgateway-crd-apply
+bash ./scripts/validate/platinum.sh k3d-readiness-budget
 bash ./scripts/validate/gitlint-types.sh
 
 echo "✅ Platinum CI validation complete"
