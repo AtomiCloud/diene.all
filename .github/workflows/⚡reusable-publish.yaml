@@ -1,18 +1,20 @@
-# ### lib-dart-reusable-test
+# ### lib-dart-reusable-publish
 # #### source: lib/dart/api-engine
-name: ⚡ Reusable Dart Test
+name: ⚡ Reusable Publish
 
 on:
   workflow_call:
 
 jobs:
-  test:
-    name: Dart Analyze and Test
+  publish:
+    name: Publish pub.dev Package
     runs-on:
       - nscloud-ubuntu-22.04-amd64-4x8-with-cache
       - nscloud-cache-size-50gb
       - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
     steps:
       - uses: AtomiCloud/actions.setup-nix@v3
-      - name: Analyze and test
-        run: nix develop .#ci -c ./scripts/ci/test.sh
+      - name: Publish
+        env:
+          PUB_CREDENTIALS_JSON: ${{ secrets.PUB_CREDENTIALS_JSON }}
+        run: nix develop .#ci -c ./scripts/ci/publish.sh

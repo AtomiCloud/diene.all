@@ -1,0 +1,22 @@
+# Workspace infrastructure — kept in the repo, excluded from the pub package.
+.github/
+nix/
+scripts/
+tasks/
+config/
+docs/
+coverage/
+flake.nix
+flake.lock
+Taskfile.yaml
+lpsm.yaml
+atomi_release.yaml
+VERSION
+Changelog.md
+.envrc
+.markdownlint.json
+.markdownlint-cli2.jsonc
+.prettierrc.yaml
+.coderabbit.yaml
+.metadata
+CLAUDE.md

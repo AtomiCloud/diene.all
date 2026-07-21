@@ -74,15 +74,14 @@
           shellHook = pre-commit.shellHook;
         };
         checks = {
-          # Pub-backed Flutter hooks run in local pre-commit after workspace setup.
+          # Pub-backed Dart hooks run in local pre-commit after workspace setup
+          # (they need `dart pub get`, unavailable in the sandboxed check).
           pre-commit-check = pre-commit.overrideAttrs {
             SKIP = builtins.concatStringsSep "," [
-              "a-flutter-analyze"
-              "a-flutter-config"
-              "a-flutter-sdk-freshness"
-              "a-flutter-slang-freshness"
-              "a-flutter-test"
-              "a-flutter-translation-compile"
+              "a-dart-analyze"
+              "a-dart-deadcode"
+              "a-dart-format"
+              "a-dart-test"
             ];
           };
           format = formatter;

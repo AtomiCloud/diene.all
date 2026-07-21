@@ -7,11 +7,9 @@ includes:
 
 tasks:
   setup:
-    desc: Set up generated workspace assets
+    desc: Resolve dependencies and synchronize generated workspace assets
     cmds:
-      # ### flutter-base-setup
-      # #### source: flutter-base
-      - flutter pub get
+      - dart pub get
       - ./scripts/local/skills-sync.sh
 
   lint:
@@ -24,44 +22,46 @@ tasks:
     cmds:
       - ./scripts/local/skills-sync.sh
 
-  # ### flutter-base-tasks
-  # #### source: flutter-base
-  mobile:analyze:
-    desc: Analyze Flutter source and tests
+  # ### lib-dart-tasks
+  # #### source: lib/dart/api-engine
+  analyze:
+    desc: Analyze library and test sources
     cmds:
-      - flutter analyze
+      - dart analyze
 
-  mobile:test:
-    desc: Run Flutter unit and widget tests
+  format:
+    desc: Check Dart formatting
     cmds:
-      - flutter test
+      - dart format --output=none --set-exit-if-changed lib test
 
-  mobile:build-flavors:
-    desc: Build all four Android flavor smoke artifacts
+  test:
+    desc: Run unit, C0-conformance, and meta suites
     cmds:
-      - ./scripts/validate/flavor-builds.sh
+      - dart test
 
-  mobile:generate-sdk:
-    desc: Regenerate the typed OA3 client
+  test:coverage:
+    desc: Run tests with coverage collection
     cmds:
-      - ./scripts/local/generate-sdk.sh
+      - dart test --coverage=coverage
+      - dart run coverage:format_coverage --lcov --in=coverage --out=coverage/lcov.info --report-on=lib
 
-  mobile:generate-translations:
-    desc: Regenerate typed Slang translations
+  test:meta:
+    desc: Run the meta tier (TestHelper assertions, parity, fixtures)
     cmds:
-      - ./scripts/local/generate-translations.sh
+      - dart test test/meta
 
-  mobile:generate-config:
-    desc: Regenerate the Flutter config schema
+  deadcode:
+    desc: Two dead-code passes (as-is + production only), no exclusion lists
     cmds:
-      - ./scripts/local/generate-config-schema.sh
+      - ./scripts/validate/deadcode.sh
 
-  mobile:doctor-signing:
-    desc: Run locally provable signing and stamp doctors
+  manifest-guard:
+    desc: Verify pubspec/VERSION/tag agree, and drill the negative path
     cmds:
-      - ./scripts/validate/signing-doctors.sh
+      - ./scripts/validate/manifest-tag.sh check
+      - ./scripts/validate/manifest-tag.sh selftest
 
-  mobile:register-apple:
-    desc: Register Apple identifiers, groups, capabilities, and app records
+  publish:dry-run:
+    desc: Validate package hygiene without publishing
     cmds:
-      - ./scripts/local/register-apple.sh
+      - dart pub publish --dry-run

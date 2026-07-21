@@ -1,52 +1,48 @@
-# Diene workspace baseline
+# diene_api_engine
 
 <!-- ### nix-root -->
 <!-- #### source: main -->
 
 Diene's reproducible development environment is managed by Nix. Run `direnv allow` once, then use `pls` tasks from the loaded shell.
 
-<!-- ### workspace -->
-<!-- #### source: workspace -->
+<!-- ### lib-dart-api-engine -->
+<!-- #### source: lib/dart/api-engine -->
 
-This branch is the workspace baseline inherited by every downstream sample: split CI/release workflows, secrets, release configuration, validators, standards, and vendored agent-skill synchronization.
+The typed OA3 backend-client engine for the diene Dart family. It wraps
+generated OpenAPI SDK calls into `Result<T, Problem>`, registers N backends on
+the LPSM client tree with per-backend auth, retries once on a hard network
+failure, and ships a dormant disk-cached rescue router for same-landscape
+address failover. Client-side only; the family is frontend-only (no OTel
+library — telemetry rides Faro).
 
 ## Commands
 
-- `pls setup` — synchronize installed diene package skills.
+- `pls setup` — resolve dependencies and sync vendored skills.
+- `pls analyze` / `pls test` / `pls test:coverage` / `pls test:meta`.
+- `pls deadcode` — two dead-code passes (no exclusion lists).
+- `pls manifest-guard` — verify pubspec/VERSION/tag agree (+ negative drill).
+- `pls publish:dry-run` — validate package hygiene without publishing.
 - `pls lint` — run every pre-commit gate.
-- `pls secret:scan` — scan tracked content for secrets.
-- `pls skills:sync` — rebuild `.claude/skills/vendor/` from installed packages.
+
+## Usage
+
+See [docs/standards/api-client/index.md](docs/standards/api-client/index.md)
+for the register-a-backend walkthrough and the Result-typed call convention.
+The shipped usage skill lives at
+[skills/diene-api-engine-usage/SKILL.md](skills/diene-api-engine-usage/SKILL.md).
+
+## Layout
+
+- `lib/diene_api_engine.dart` — public barrel.
+- `lib/test_helper.dart` — dependency-light fakes/assertions/builders
+  (`package:diene_api_engine/test_helper.dart`), no test-framework deps.
+- `lib/src/**` — engine, transport, bridge, client tree, config block schema,
+  and the `rescue/**` router.
 
 ## Standards
 
 - [CI/CD workflows](docs/standards/ci-cd/index.md)
 - [conventional commits](docs/standards/conventional-commits/index.md)
-- [Infisical and secrets](docs/standards/infisical/index.md)
-- [linting and pre-commit](docs/standards/linting/index.md)
 - [Nix flakes and development shells](docs/standards/nix/index.md)
 - [release automation](docs/standards/semantic-release/index.md)
-- [service-tree identity](docs/standards/service-tree/index.md)
-- [shell scripts](docs/standards/shell-scripts/index.md)
-- [Taskfile conventions](docs/standards/taskfile/index.md)
-
-<!-- ### shared -->
-<!-- #### source: shared -->
-
-## Shared standards
-
-- [Authorization](docs/standards/authorization/index.md)
-- [Contributor documentation](docs/standards/contributor-docs/index.md)
-- [Date and time](docs/standards/datetime/index.md)
-- [Domain-driven design](docs/standards/domain-driven-design/index.md)
-- [Functional practices](docs/standards/functional-practices/index.md)
-- [Software design philosophy](docs/standards/software-design-philosophy/index.md)
-- [SOLID principles](docs/standards/solid-principles/index.md)
-- [Stateless OOP and dependency injection](docs/standards/stateless-oop-di/index.md)
-- [Testing](docs/standards/testing/index.md)
-- [Three-layer architecture](docs/standards/three-layer-architecture/index.md)
-- [Utility libraries](docs/standards/utilities/index.md)
-- [Data validation](docs/standards/validation/index.md)
-
-Domain-specific documentation belongs under [docs/domain/](docs/domain/README.md).
-The `docs/standards/contracts/` location is reserved for the separately owned C0
-contracts standard.
+- [testing](docs/standards/testing/index.md)
