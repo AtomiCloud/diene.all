@@ -1,0 +1,16 @@
+coverage:
+  status:
+    project:
+      default:
+        informational: true
+
+flags:
+  unit:
+    carryforward: true
+    paths:
+      - lib/diene_interfaces.dart
+      - lib/src/
+  meta:
+    carryforward: true
+    paths:
+      - lib/test_helper.dart

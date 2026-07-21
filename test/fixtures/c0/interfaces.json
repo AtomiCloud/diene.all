@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "seams": ["System", "Vfs", "Terminal", "LoggerSink", "MetricsCollector"],
+  "fallibleTransport": "Result",
+  "traceSeamOwned": false,
+  "dartOtelExporter": false,
+  "runtimeTelemetry": "Faro"
+}

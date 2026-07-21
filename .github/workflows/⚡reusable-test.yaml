@@ -1,13 +1,11 @@
-# ### flutter-base-reusable-test
-# #### source: flutter-base
-name: ⚡ Reusable Flutter Test
+name: ⚡ Reusable Dart Test
 
 on:
   workflow_call:
 
 jobs:
   test:
-    name: Flutter Analyze and Test
+    name: Dart Analyze, Test, and Coverage
     runs-on:
       - nscloud-ubuntu-22.04-amd64-4x8-with-cache
       - nscloud-cache-size-50gb
@@ -16,3 +14,15 @@ jobs:
       - uses: AtomiCloud/actions.setup-nix@v3
       - name: Analyze and test
         run: nix develop .#ci -c ./scripts/ci/test.sh
+      - name: Upload unit coverage
+        uses: codecov/codecov-action@04b047e8bb82a0c002c8312c1c880fbc6a999d45 # v5
+        with:
+          files: coverage/unit/lcov.info
+          flags: unit
+          use_oidc: true
+      - name: Upload TestHelper meta coverage
+        uses: codecov/codecov-action@04b047e8bb82a0c002c8312c1c880fbc6a999d45 # v5
+        with:
+          files: coverage/meta/lcov.info
+          flags: meta
+          use_oidc: true

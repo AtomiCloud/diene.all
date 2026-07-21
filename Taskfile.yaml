@@ -1,67 +1,74 @@
-# ### workspace-root
-# #### source: workspace
 version: '3'
-
-includes:
-  secret: tasks/Taskfile.secret.yaml
 
 tasks:
   setup:
-    desc: Set up generated workspace assets
+    desc: Resolve Dart package dependencies
     cmds:
-      # ### flutter-base-setup
-      # #### source: flutter-base
-      - flutter pub get
-      - ./scripts/local/skills-sync.sh
+      - dart pub get
+
+  format:
+    desc: Verify Dart formatting
+    cmds:
+      - dart format --output=none --set-exit-if-changed lib test
+
+  analyze:
+    desc: Analyze package source and tests
+    cmds:
+      - dart analyze
+
+  test:unit:
+    desc: Run unit and C0 conformance tests
+    cmds:
+      - dart test test/unit test/conformance
+
+  test:unit:coverage:
+    desc: Run unit and C0 tests with scoped coverage
+    cmds:
+      - ./scripts/local/coverage.sh unit
+
+  test:meta:
+    desc: Test the dependency-light TestHelper implementation
+    cmds:
+      - dart test test/meta
+
+  test:meta:coverage:
+    desc: Run TestHelper meta tests with scoped coverage
+    cmds:
+      - ./scripts/local/coverage.sh meta
+
+  test:coverage:
+    desc: Run both blocking coverage ledgers
+    cmds:
+      - ./scripts/local/coverage.sh unit
+      - ./scripts/local/coverage.sh meta
+
+  deadcode:whole:
+    desc: Run whole-package dead-code analysis with tests
+    cmds:
+      - ./scripts/validate/dead-code.sh whole
+
+  deadcode:production:
+    desc: Run production-only dead-code analysis
+    cmds:
+      - ./scripts/validate/dead-code.sh production
+
+  deadcode:
+    desc: Run both strict dead-code passes
+    cmds:
+      - ./scripts/validate/dead-code.sh whole
+      - ./scripts/validate/dead-code.sh production
+
+  version:check:
+    desc: Verify the manifest version against a tag
+    cmds:
+      - ./scripts/validate/publish-version.sh v$(cat VERSION)
+
+  publish:dry-run:
+    desc: Validate pub.dev package hygiene without publishing
+    cmds:
+      - dart pub publish --dry-run
 
   lint:
-    desc: Run all repository gates
+    desc: Run every registered repository gate
     cmds:
       - pre-commit run --all-files
-
-  skills:sync:
-    desc: Synchronize installed diene package skills
-    cmds:
-      - ./scripts/local/skills-sync.sh
-
-  # ### flutter-base-tasks
-  # #### source: flutter-base
-  mobile:analyze:
-    desc: Analyze Flutter source and tests
-    cmds:
-      - flutter analyze
-
-  mobile:test:
-    desc: Run Flutter unit and widget tests
-    cmds:
-      - flutter test
-
-  mobile:build-flavors:
-    desc: Build all four Android flavor smoke artifacts
-    cmds:
-      - ./scripts/validate/flavor-builds.sh
-
-  mobile:generate-sdk:
-    desc: Regenerate the typed OA3 client
-    cmds:
-      - ./scripts/local/generate-sdk.sh
-
-  mobile:generate-translations:
-    desc: Regenerate typed Slang translations
-    cmds:
-      - ./scripts/local/generate-translations.sh
-
-  mobile:generate-config:
-    desc: Regenerate the Flutter config schema
-    cmds:
-      - ./scripts/local/generate-config-schema.sh
-
-  mobile:doctor-signing:
-    desc: Run locally provable signing and stamp doctors
-    cmds:
-      - ./scripts/validate/signing-doctors.sh
-
-  mobile:register-apple:
-    desc: Register Apple identifiers, groups, capabilities, and app records
-    cmds:
-      - ./scripts/local/register-apple.sh
