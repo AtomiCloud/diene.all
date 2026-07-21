@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Carbon platform manifest",
+  "description": "Human-owned platform intent consumed as source B by the fleet compiler. Landscape membership is reconciler-validated; scaffold generation performs no registry lookup.",
+  "type": "object",
+  "required": ["landscapes", "stages"],
+  "properties": {
+    "landscapes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/dnsLabel" }
+    },
+    "stages": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/stageStep" }
+    },
+    "dependencies": {
+      "description": "Optional platform-shared dependency declaration; the render home remains single-writer and fold-selected.",
+      "type": "object"
+    },
+    "virtualLandscapeServices": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/virtualLandscapeService" }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "dnsLabel": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 63,
+      "pattern": "^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?$"
+    },
+    "duration": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]*(?:s|m|h|d)$"
+    },
+    "analysisTemplate": {
+      "type": "object",
+      "required": ["name"],
+      "properties": { "name": { "$ref": "#/$defs/dnsLabel" } },
+      "additionalProperties": false
+    },
+    "verification": {
+      "type": "object",
+      "required": ["analysisTemplates"],
+      "properties": {
+        "analysisTemplates": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/analysisTemplate" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "stageObject": {
+      "type": "object",
+      "required": ["landscape"],
+      "properties": {
+        "landscape": { "$ref": "#/$defs/dnsLabel" },
+        "gate": { "enum": ["auto", "manual"] },
+        "soak": { "$ref": "#/$defs/duration" },
+        "verification": { "$ref": "#/$defs/verification" }
+      },
+      "additionalProperties": false
+    },
+    "stageMember": {
+      "oneOf": [{ "$ref": "#/$defs/dnsLabel" }, { "$ref": "#/$defs/stageObject" }]
+    },
+    "stageStep": {
+      "oneOf": [
+        { "$ref": "#/$defs/stageMember" },
+        {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/stageMember" }
+        }
+      ]
+    },
+    "virtualLandscapeService": {
+      "type": "object",
+      "required": ["service", "module", "vlandscape", "landscape", "serve"],
+      "properties": {
+        "service": { "$ref": "#/$defs/dnsLabel" },
+        "module": { "$ref": "#/$defs/dnsLabel" },
+        "vlandscape": { "$ref": "#/$defs/dnsLabel" },
+        "landscape": { "$ref": "#/$defs/dnsLabel" },
+        "serve": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

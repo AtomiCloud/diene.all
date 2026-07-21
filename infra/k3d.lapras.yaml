@@ -1,7 +1,7 @@
 apiVersion: k3d.io/v1alpha5
 kind: Simple
 metadata:
-  name: diene-cobalt
+  name: diene-carbon
 servers: 1
 agents: 0
 image: rancher/k3s:v1.31.5-k3s1
@@ -11,7 +11,7 @@ ports:
       - loadbalancer
 registries:
   create:
-    name: diene-cobalt-registry
+    name: diene-carbon-registry
     host: 0.0.0.0
     hostPort: '5001'
 options:

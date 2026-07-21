@@ -1,0 +1,40 @@
+# @schema pattern:^[a-z0-9.-]+$;minLength:1
+labelPrefix: atomi.cloud
+
+# @schema const:fleet.atomi.cloud/v1alpha1;required:true
+apiVersion: fleet.atomi.cloud/v1alpha1
+
+serviceTree:
+  # @schema pattern:^[a-z0-9]([-a-z0-9]*[a-z0-9])?$;required:true
+  platform: let__platform__
+  # @schema const:carbon;required:true
+  service: carbon
+  # @schema const:platformdeps;required:true
+  module: platformdeps
+  # @schema pattern:^[0-9]+$;required:true
+  layer: '1'
+
+# -- One entry is one platform-shared declaration keyed by this platform and one
+# virtual landscape. Duplicate landscapes are a loud render-time Conflict.
+platformDependencies:
+  - landscape: mew
+    placement:
+      preferredHost: raichu
+    deletionPolicy:
+      retainSecret: 168h
+    database:
+      shared:
+        type: neon
+        delivery: external
+        providerAccountRef: nonprod-neon
+        credentialMode: standard
+        rotation: 'on'
+        cpu: 1
+        ram: 1Gi
+        storage: 10Gi
+        version: '16'
+        backup:
+          crossVendor: true
+        engine:
+          neon:
+            tier: launch

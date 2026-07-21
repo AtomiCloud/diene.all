@@ -36,6 +36,8 @@ plugins:
         - VERSION
         - chart/Chart.yaml
         - chart/README.md
+        - primordial-chart/Chart.yaml
+        - primordial-chart/README.md
         - docs/developer/CommitConventions.md
   - module: '@semantic-release/github'
     version: 10.3.5

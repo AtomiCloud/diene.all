@@ -1,0 +1,160 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Diene Carbon Values",
+    "description": "Generated schema for one chart in the let__platform__ carbon app and primordial pair.",
+    "type": "object",
+    "properties": {
+        "labelPrefix": {
+            "description": "Prefix used by every service-tree label and annotation helper.",
+            "type": "string",
+            "pattern": "^[a-z0-9.-]+$",
+            "minLength": 1
+        },
+        "namespace": {
+            "description": "Runtime namespace. Real landscapes use the platform name; Garden overrides only this value with the branch name while preserving serviceTree.platform.",
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+                }
+            }
+        },
+        "platformSecretStore": {
+            "description": "Namespaced Infisical store used by every service in this platform namespace. Its auth Secret is materialized by tokenExternalSecret through cobalt's SoS store.",
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "auth": {
+                    "type": "object",
+                    "properties": {
+                        "clientIdKey": {
+                            "type": "string"
+                        },
+                        "clientSecretKey": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "infisical": {
+                    "type": "object",
+                    "required": [
+                        "hostAPI",
+                        "projectSlug",
+                        "secretsPath"
+                    ],
+                    "properties": {
+                        "environmentSlug": {
+                            "description": "Landscape environment. A landscape overlay replaces this default per row.",
+                            "type": "string"
+                        },
+                        "hostAPI": {
+                            "type": "string",
+                            "pattern": "^https://.*"
+                        },
+                        "projectSlug": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+                        },
+                        "recursive": {
+                            "type": "boolean"
+                        },
+                        "secretsPath": {
+                            "type": "string",
+                            "pattern": "^/.*$"
+                        }
+                    }
+                },
+                "name": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9]+-[a-z0-9]+$"
+                }
+            }
+        },
+        "serviceTree": {
+            "description": "Platform identity stays stable when Garden projects the chart into a branch namespace.",
+            "type": "object",
+            "required": [
+                "platform",
+                "service",
+                "module",
+                "layer",
+                "landscape"
+            ],
+            "properties": {
+                "landscape": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+                },
+                "layer": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$"
+                },
+                "module": {
+                    "const": "platform"
+                },
+                "platform": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+                },
+                "service": {
+                    "const": "carbon"
+                }
+            }
+        },
+        "tokenExternalSecret": {
+            "description": "Pull the platform Universal Auth pair from cobalt's landscape-scoped SoS ClusterSecretStore. dataFrom.extract preserves the folder as the address and never hand-writes individual key mappings.",
+            "type": "object",
+            "required": [
+                "name",
+                "targetSecretName",
+                "refreshInterval"
+            ],
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9]+-[a-z0-9]+$"
+                },
+                "refreshInterval": {
+                    "type": "string",
+                    "pattern": "^[1-9][0-9]*(s|m|h)$"
+                },
+                "source": {
+                    "type": "object",
+                    "required": [
+                        "kind",
+                        "name",
+                        "folder"
+                    ],
+                    "properties": {
+                        "folder": {
+                            "type": "string",
+                            "pattern": "^/platforms/[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+                        },
+                        "kind": {
+                            "const": "ClusterSecretStore"
+                        },
+                        "name": {
+                            "const": "cobalt-sos"
+                        }
+                    }
+                },
+                "targetSecretName": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9]+-[a-z0-9]+$"
+                }
+            }
+        }
+    }
+}

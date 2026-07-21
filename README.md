@@ -53,15 +53,19 @@ Domain-specific documentation belongs under [docs/domain/](docs/domain/README.md
 The `docs/standards/contracts/` location is reserved for the separately owned C0
 contracts standard.
 
-<!-- ### cobalt -->
-<!-- #### source: cobalt -->
+<!-- ### carbon -->
+<!-- #### source: carbon -->
 
-## Cobalt chart
+## Carbon platform charts
 
-This branch is the External Secrets Operator plus the Infisical source-of-secrets `ClusterSecretStore` gateway: a materialized chart product with stacked values, generated schema, rendered-manifest validation, dual publish modes, and a reserved k3d integration tier.
+Carbon is the platform boundary: the application chart owns the platform namespace,
+its token `ExternalSecret`, and its namespaced Infisical `SecretStore`; the primordial
+chart owns only platform-shared `PlatformDependency` declarations. The accompanying
+Cyan scaffold asks only for the platform name and ships the canonical four-landscape
+stage topology.
 
-- `pls build` — build the pinned upstream chart dependency.
-- `pls test:unit` — run schema, lint, render, VAP, store-contract, and publish dry-runs.
-- `pls test:int` — install on ephemeral k3d and round-trip the chart through a local OCI registry (reserved proof).
-- `pls example:lapras:template` — render the independent landscape + cluster stack.
-- [Cobalt baseline](docs/developer/cobalt-baseline.md)
+- `pls test:unit` — run schemas, render contracts, negative fixtures, workflow gates,
+  policy wiring, scaffold drift, and publish dry-runs.
+- `pls test:int` — run the explicitly reserved, isolated k3d integration harness.
+- `pls example:lapras:template` — render the Garden branch namespace overlay.
+- [Carbon baseline](docs/developer/carbon-baseline.md)

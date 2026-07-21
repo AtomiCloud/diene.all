@@ -2,161 +2,63 @@
 # -- Prefix used by every service-tree label and annotation helper.
 labelPrefix: atomi.cloud
 
-# @schema pattern:^[a-z0-9]+-[a-z0-9]+$;required:true
-# -- Primary resource fullname. It must be `<service>-<dashless-token>` (`cobalt-sos`).
-fullnameOverride: cobalt-sos
-
-# -- Layer-1 service-tree projection. cobalt is cluster-wide infrastructure, so the
-# platform slot is a layer-1 scope marker rather than a service-platform namespace;
-# landscape and cluster are added by independent overlays.
+# -- Platform identity stays stable when Garden projects the chart into a branch namespace.
 serviceTree:
-  # @schema pattern:^[a-z0-9-]+$;required:true
-  platform: cluster
-  # @schema pattern:^[a-z0-9]+$;required:true
-  service: cobalt
-  # @schema pattern:^[a-z0-9]+$;required:true
-  module: sos
+  # @schema pattern:^[a-z0-9]([-a-z0-9]*[a-z0-9])?$;required:true
+  platform: diene
+  # @schema const:carbon;required:true
+  service: carbon
+  # @schema const:platform;required:true
+  module: platform
   # @schema pattern:^[0-9]+$;required:true
   layer: '1'
+  # @schema pattern:^[a-z0-9]([-a-z0-9]*[a-z0-9])?$;required:true
+  landscape: pichu
 
-# -- Pull-only SoS Infisical ClusterSecretStore. It reads the cluster landscape's SoS
-# tokens and nothing else; it never writes (no PushSecret) and never inlines credentials.
-store:
-  enabled: true
-  infisical:
-    # @schema pattern:^https?://.*;required:true
-    # -- Infisical API base URL (AtomiCloud source of secrets).
-    hostAPI: https://secrets.atomi.cloud/api
-    secretsScope:
-      # @schema pattern:^[a-z0-9-]+$;required:true
-      # -- The source-of-secrets Infisical project (tokens only).
-      projectSlug: sos
-      # -- The cluster landscape; set by the landscape overlay (env == landscape).
-      environmentSlug: ''
-      # @schema pattern:^/.*$
-      # -- Secret path prefix inside the project; the whole SoS tree is read.
-      secretsPath: /
-      # @schema type:boolean
-      # -- Stay non-recursive so the store never reads beyond the landscape path.
-      recursive: false
-    # -- Universal-auth credential reference. The bootstrap Secret is written into the
-    # cluster by the T3 cluster controller; cobalt only consumes it (no literals).
-    auth:
-      universalAuth:
-        clientId:
-          # @schema pattern:^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$;required:true
-          name: cobalt-sos-bootstrap
-          # @schema pattern:^[a-zA-Z0-9._-]+$;required:true
-          key: clientId
-          # @schema pattern:^[a-z0-9]([-a-z0-9]*[a-z0-9])?$;required:true
-          namespace: external-secrets
-        clientSecret:
-          # @schema pattern:^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$;required:true
-          name: cobalt-sos-bootstrap
-          # @schema pattern:^[a-zA-Z0-9._-]+$;required:true
-          key: clientSecret
-          # @schema pattern:^[a-z0-9]([-a-z0-9]*[a-z0-9])?$;required:true
-          namespace: external-secrets
+# -- Runtime namespace. Real landscapes use the platform name; Garden overrides only
+# this value with the branch name while preserving serviceTree.platform.
+namespace:
+  # @schema pattern:^[a-z0-9]([-a-z0-9]*[a-z0-9])?$;required:true
+  name: diene
 
-# -- Vendored External Secrets Operator (upstream external-secrets 2.7.0). Pull-only;
-# CRDs ride helm upgrade via installCRDs and v1beta1 serving stays disabled.
-eso:
-  enabled: true
-  global:
-    # -- Pod annotations inherited by the ESO controller, webhook, and cert-controller.
-    # Set this annotation to the string "false" to opt an unsafe deployment out.
-    podAnnotations:
-      reloader.stakater.com/auto: "true"
-  # @schema pattern:^[a-z0-9]+-[a-z0-9]+$
-  fullnameOverride: cobalt-eso
+# -- Pull the platform Universal Auth pair from cobalt's landscape-scoped SoS
+# ClusterSecretStore. dataFrom.extract preserves the folder as the address and never
+# hand-writes individual key mappings.
+tokenExternalSecret:
   # @schema type:boolean
-  installCRDs: true
-  crds:
+  enabled: true
+  # @schema pattern:^[a-z0-9]+-[a-z0-9]+$;required:true
+  name: carbon-token
+  # @schema pattern:^[a-z0-9]+-[a-z0-9]+$;required:true
+  targetSecretName: carbon-token
+  # @schema pattern:^[1-9][0-9]*(s|m|h)$;required:true
+  refreshInterval: 1h
+  source:
+    # @schema const:ClusterSecretStore;required:true
+    kind: ClusterSecretStore
+    # @schema const:cobalt-sos;required:true
+    name: cobalt-sos
+    # @schema pattern:^/platforms/[a-z0-9]([-a-z0-9]*[a-z0-9])?$;required:true
+    folder: /platforms/diene
+
+# -- Namespaced Infisical store used by every service in this platform namespace.
+# Its auth Secret is materialized by tokenExternalSecret through cobalt's SoS store.
+platformSecretStore:
+  # @schema type:boolean
+  enabled: true
+  # @schema pattern:^[a-z0-9]+-[a-z0-9]+$;required:true
+  name: carbon-store
+  infisical:
+    # @schema pattern:^https://.*;required:true
+    hostAPI: https://secrets.atomi.cloud/api
+    # @schema pattern:^[a-z0-9]([-a-z0-9]*[a-z0-9])?$;required:true
+    projectSlug: diene
+    # -- Landscape environment. A landscape overlay replaces this default per row.
+    environmentSlug: pichu
+    # @schema pattern:^/.*$;required:true
+    secretsPath: /
     # @schema type:boolean
-    # -- v1beta1 serving is deprecated upstream; cobalt authors v1 resources only.
-    unsafeServeV1Beta1: false
-    # @schema type:boolean
-    createClusterSecretStore: true
-    # @schema type:boolean
-    createSecretStore: true
-  # @schema minimum:1
-  replicaCount: 1
-  image:
-    # @schema pattern:^[a-z0-9./-]+$
-    repository: ghcr.io/external-secrets/external-secrets
-    # @schema pattern:^[A-Za-z0-9][A-Za-z0-9._-]*$
-    tag: v2.7.0
-    # @schema enum:[Always, IfNotPresent, Never]
-    pullPolicy: IfNotPresent
-  # -- Workload hardening so the rendered operator satisfies the diene workload VAP.
-  podSecurityContext:
-    runAsNonRoot: true
-    runAsUser: 1000
-    runAsGroup: 1000
-    fsGroup: 1000
-  securityContext:
-    allowPrivilegeEscalation: false
-    readOnlyRootFilesystem: true
-    runAsNonRoot: true
-    runAsUser: 1000
-    runAsGroup: 1000
-    capabilities:
-      drop: [ALL]
-  resources:
-    requests:
-      cpu: 50m
-      memory: 64Mi
-    limits:
-      cpu: 500m
-      memory: 256Mi
-  serviceAccount:
-    # @schema type:boolean
-    create: true
-  webhook:
-    serviceAccount:
-      # @schema type:boolean
-      create: true
-    podSecurityContext:
-      runAsNonRoot: true
-      runAsUser: 1000
-      runAsGroup: 1000
-      fsGroup: 1000
-    securityContext:
-      allowPrivilegeEscalation: false
-      readOnlyRootFilesystem: true
-      runAsNonRoot: true
-      runAsUser: 1000
-      runAsGroup: 1000
-      capabilities:
-        drop: [ALL]
-    resources:
-      requests:
-        cpu: 50m
-        memory: 32Mi
-      limits:
-        cpu: 250m
-        memory: 128Mi
-  certController:
-    serviceAccount:
-      # @schema type:boolean
-      create: true
-    podSecurityContext:
-      runAsNonRoot: true
-      runAsUser: 1000
-      runAsGroup: 1000
-      fsGroup: 1000
-    securityContext:
-      allowPrivilegeEscalation: false
-      readOnlyRootFilesystem: true
-      runAsNonRoot: true
-      runAsUser: 1000
-      runAsGroup: 1000
-      capabilities:
-        drop: [ALL]
-    resources:
-      requests:
-        cpu: 50m
-        memory: 32Mi
-      limits:
-        cpu: 250m
-        memory: 128Mi
+    recursive: true
+  auth:
+    clientIdKey: clientId
+    clientSecretKey: clientSecret

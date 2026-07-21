@@ -15,21 +15,23 @@ oci_password="${OCI_PASSWORD:-}"
 [ "${mode}" != "git" ] && [ "${mode}" != "oci" ] && echo "❌ PUBLISH_MODE must be git or oci" >&2 && exit 1
 
 version="${release_version#v}"
-manifest_version="$(yq -r '.version' chart/Chart.yaml)"
-[ "${manifest_version}" != "${version}" ] && echo "❌ Chart version ${manifest_version} does not match tag ${version}" >&2 && exit 1
-chart_name="$(yq -r '.name' chart/Chart.yaml)"
+chart_paths=(chart primordial-chart)
+for chart_path in "${chart_paths[@]}"; do
+  manifest_version="$(yq -r '.version' "${chart_path}/Chart.yaml")"
+  [ "${manifest_version}" != "${version}" ] && echo "❌ ${chart_path} version ${manifest_version} does not match tag ${version}" >&2 && exit 1
+done
 
 bash ./scripts/ci/setup.sh
-helm-docs --chart-search-root chart
 mkdir -p "${output_dir}"
-# Dependencies are vendored (chart/charts/*.tgz committed); only build when the
-# archive is missing so packaging works offline against the committed vendor.
-if ! ls chart/charts/*.tgz >/dev/null 2>&1; then
-  helm dependency build chart
-fi
-helm package chart --destination "${output_dir}" --version "${version}"
-package="${output_dir}/${chart_name}-${version}.tgz"
-[ ! -s "${package}" ] && echo "❌ chart package was not created" >&2 && exit 1
+packages=()
+for chart_path in "${chart_paths[@]}"; do
+  helm-docs --chart-search-root "${chart_path}"
+  helm package "${chart_path}" --destination "${output_dir}" --version "${version}"
+  chart_name="$(yq -r '.name' "${chart_path}/Chart.yaml")"
+  package="${output_dir}/${chart_name}-${version}.tgz"
+  [ ! -s "${package}" ] && echo "❌ ${chart_path} package was not created" >&2 && exit 1
+  packages+=("${package}")
+done
 
 if [ "${mode}" = "git" ]; then
   helm repo index "${output_dir}"
@@ -48,9 +50,11 @@ if [ "${mode}" = "oci" ]; then
     fi
     push_args=()
     [ "${plain_http}" = "true" ] && push_args+=(--plain-http)
-    helm push "${package}" "${oci_ref}" "${push_args[@]}"
+    for package in "${packages[@]}"; do
+      helm push "${package}" "${oci_ref}" "${push_args[@]}"
+    done
   fi
 fi
 
 [ "${dry_run}" = "true" ] && result="dry-run" || result="round-trip"
-echo "✅ ${mode} chart publish ${result} complete for ${version}"
+echo "✅ ${mode} Carbon chart-pair publish ${result} complete for ${version}"
