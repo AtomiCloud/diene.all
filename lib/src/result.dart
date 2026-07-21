@@ -1,7 +1,8 @@
 import 'dart:async';
 
+import 'package:diene_problems/diene_problems.dart';
+
 import 'option.dart';
-import 'problem.dart';
 import 'unwrap_error.dart';
 import 'wire.dart';
 
@@ -35,7 +36,7 @@ sealed class Result<T> {
       return Ok<T>(decodeOk(value));
     }
 
-    return Err<T>((decodeErr ?? Problem.fromWire)(value));
+    return Err<T>((decodeErr ?? _decodeProblem)(value));
   }
 
   /// Whether this result contains an [Ok] value.
@@ -153,6 +154,59 @@ sealed class Result<T> {
     Ok<T>(:final value) => taggedWire('ok', encodeOk?.call(value) ?? value),
     Err<T>(:final problem) => taggedWire('err', problem.toJson()),
   };
+}
+
+Problem _decodeProblem(Object? value) {
+  if (value is! Map<Object?, Object?>) {
+    throw const FormatException('Problem wire value must be an object.');
+  }
+
+  final Map<String, Object?> json = value.map<String, Object?>(
+    (Object? key, Object? item) =>
+        MapEntry<String, Object?>(key.toString(), item),
+  );
+  _requireProblemString(json, 'type');
+  _requireProblemString(json, 'title');
+  _requireProblemInt(json, 'status');
+  _validateOptionalProblemString(json, 'detail');
+  _validateOptionalProblemString(json, 'instance');
+  _validateOptionalProblemBool(json, 'recoverable');
+  _validateOptionalProblemData(json, 'data');
+  return Problem.fromJson(json);
+}
+
+void _requireProblemString(Map<String, Object?> json, String key) {
+  final Object? value = json[key];
+  if (value is! String || value.isEmpty) {
+    throw FormatException('Problem.$key must be a non-empty string.');
+  }
+}
+
+void _requireProblemInt(Map<String, Object?> json, String key) {
+  if (json[key] is! int) {
+    throw FormatException('Problem.$key must be an integer.');
+  }
+}
+
+void _validateOptionalProblemString(Map<String, Object?> json, String key) {
+  final Object? value = json[key];
+  if (value != null && value is! String) {
+    throw FormatException('Problem.$key must be a string when present.');
+  }
+}
+
+void _validateOptionalProblemBool(Map<String, Object?> json, String key) {
+  final Object? value = json[key];
+  if (value != null && value is! bool) {
+    throw FormatException('Problem.$key must be a boolean when present.');
+  }
+}
+
+void _validateOptionalProblemData(Map<String, Object?> json, String key) {
+  final Object? value = json[key];
+  if (value != null && value is! Map<Object?, Object?>) {
+    throw FormatException('Problem.$key must be an object when present.');
+  }
 }
 
 /// The successful [Result] variant.

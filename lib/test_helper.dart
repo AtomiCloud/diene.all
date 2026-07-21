@@ -5,6 +5,8 @@
 /// other runner.
 library;
 
+import 'package:diene_problems/diene_problems.dart';
+
 import 'diene_result.dart';
 
 /// Thrown when a dependency-light Result/Option assertion fails.

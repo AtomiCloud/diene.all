@@ -1,4 +1,5 @@
-import 'problem.dart';
+import 'package:diene_problems/diene_problems.dart';
+
 import 'result.dart';
 import 'unwrap_error.dart';
 import 'wire.dart';

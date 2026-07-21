@@ -48,7 +48,7 @@ let
     # ### dart-result-packages
     # #### source: lib/dart/result
     nix-unstable = {
-      inherit (pkgs-unstable) dart;
+      dart = pkgs-unstable.flutter.dart;
     };
   };
 in

@@ -1,6 +1,6 @@
 name: diene_result
 description: Sealed Result and Option types with C0-compatible wire codecs for Dart applications.
-version: 1.0.0
+version: 0.1.0
 repository: https://github.com/AtomiCloud/diene.dart_result
 issue_tracker: https://github.com/AtomiCloud/diene.dart_result/issues
 homepage: https://github.com/AtomiCloud/diene.dart_result
@@ -13,7 +13,10 @@ topics:
   - railway-oriented-programming
 
 environment:
-  sdk: ^3.11.0
+  sdk: '>=3.12.0 <4.0.0'
+
+dependencies:
+  diene_problems: ^0.1.0
 
 dev_dependencies:
   coverage: ^1.15.1

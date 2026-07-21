@@ -1,13 +1,18 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:diene_problems/diene_problems.dart';
 import 'package:diene_result/diene_result.dart';
 import 'package:test/test.dart';
 
 void main() {
   final Map<String, Object?> fixture = _fixture();
 
-  group('C0 Result wire fixtures', () {
+  test('fixture declares its local, non-authoritative provenance', () {
+    expect(fixture['authority'], 'local-regression-only');
+  });
+
+  group('Locally derived Result wire regressions', () {
     for (final Object? rawCase in fixture['results']! as List<Object?>) {
       final Map<String, Object?> fixtureCase =
           (rawCase! as Map<Object?, Object?>).cast<String, Object?>();
@@ -27,11 +32,14 @@ void main() {
 
         // Assert
         expect(encoded, equals(wire));
+        if (decoded.isErr) {
+          expect(decoded.unwrapErr(), isA<Problem>());
+        }
       });
     }
   });
 
-  group('C0 Option wire fixtures', () {
+  group('Locally derived Option wire regressions', () {
     for (final Object? rawCase in fixture['options']! as List<Object?>) {
       final Map<String, Object?> fixtureCase =
           (rawCase! as Map<Object?, Object?>).cast<String, Object?>();
