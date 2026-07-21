@@ -1,5 +1,17 @@
-// C0 contract conformance for the auth-engine surface. Dart is EXEMPT from the
-// C0 otel config block (frontend-only; telemetry rides Faro).
+// NODE-LOCAL C0 CONTRACT CHECKS for the auth-engine surface (§5/§7/§8/§10/§12/
+// §13). Dart is EXEMPT from the C0 otel config block (frontend-only; telemetry
+// rides Faro).
+//
+// AUTHORITATIVE-FIXTURE BINDING IS INTEGRATION/REDESIGN-HELD (RB-315-class): no
+// source-owned, versioned C0 conformance fixture exists yet for these sections
+// — `goals/c0-contracts.md` ships contract PROSE, not a machine-readable fixture
+// artifact, and shared-C0 fixture ownership is an open conductor REDESIGN. These
+// assertions therefore encode the contract vectors LOCALLY and DO NOT claim to
+// be backed by an authoritative fixture. Creating a package-local fixture and
+// calling it authoritative is explicitly forbidden (it was the exact prior
+// rejection). When the conductor materializes the versioned source-owned C0
+// fixture set, these vectors must be re-pointed at it and its version/provenance
+// recorded. See the node completion note, item P1c.
 import 'package:diene_auth_engine/diene_auth_engine.dart';
 import 'package:diene_auth_engine/test_helper.dart';
 import 'package:flutter_test/flutter_test.dart';

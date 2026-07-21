@@ -36,7 +36,11 @@ void main() {
     idToken: () async => 'id',
   );
 
-  HomeClaimResolver resolver(MemoryHomeClaimStore store) => HomeClaimResolver(
+  HomeClaimResolver resolver({
+    required HomeClaimReader claimReader,
+    MemoryHomeClaimStore? store,
+  }) => HomeClaimResolver(
+    claimReader: claimReader,
     store: store,
     selector: LandscapeSelectorClient(
       source: FakeLandscapeSelectorSource(
@@ -54,35 +58,33 @@ void main() {
     ),
   );
 
-  test(
-    'cached home skips Doc B, logs in, onboards, resumes returnTo',
-    () async {
-      // Arrange
-      final SignInCoordinator coordinator = SignInCoordinator(
-        session: session(),
-        homeResolver: resolver(MemoryHomeClaimStore('pichu')),
-        onboarding: onboarding(),
-      );
+  test('authoritative claim routes home, onboards, resumes returnTo', () async {
+    // Arrange
+    final SignInCoordinator coordinator = SignInCoordinator(
+      session: session(),
+      homeResolver: resolver(claimReader: () async => 'pichu'),
+      onboarding: onboarding(),
+    );
 
-      // Act
-      final Result<SignInResult> result = await coordinator.signIn(
-        returnTo: Uri.parse('/secret?x=1'),
-      );
+    // Act
+    final Result<SignInResult> result = await coordinator.signIn(
+      returnTo: Uri.parse('/secret?x=1'),
+    );
 
-      // Assert
-      final SignInResult signIn = AuthExpect.ok(result);
-      expect(signIn.home.kind, HomeResolutionKind.cached);
-      expect(signIn.phases['primary'], isA<Success<OnboardingPhase>>());
-      expect(signIn.continueTo.toString(), '/secret?x=1');
-    },
-  );
+    // Assert
+    final SignInResult signIn = AuthExpect.ok(result);
+    expect(signIn.home.kind, HomeResolutionKind.fromClaim);
+    expect(signIn.home.landscape, 'pichu');
+    expect(signIn.phases['primary'], isA<Success<OnboardingPhase>>());
+    expect(signIn.continueTo.toString(), '/secret?x=1');
+  });
 
-  test('absent home selects and commits the sign-up landscape', () async {
+  test('absent claim selects and commits the sign-up landscape', () async {
     // Arrange
     final MemoryHomeClaimStore store = MemoryHomeClaimStore();
     final SignInCoordinator coordinator = SignInCoordinator(
       session: session(),
-      homeResolver: resolver(store),
+      homeResolver: resolver(claimReader: () async => null, store: store),
       onboarding: onboarding(),
     );
 
@@ -95,11 +97,34 @@ void main() {
     expect(store.value, 'lapras'); // committed
   });
 
+  test('a freshly issued claim overrides the pre-login selection', () async {
+    // Arrange — pre-login claim absent (→ Doc B), but the issued JWT after
+    // login carries an authoritative home; the JWT must win.
+    final MemoryHomeClaimStore store = MemoryHomeClaimStore();
+    int reads = 0;
+    final SignInCoordinator coordinator = SignInCoordinator(
+      session: session(),
+      homeResolver: resolver(
+        claimReader: () async => (reads++) == 0 ? null : 'raichu',
+        store: store,
+      ),
+      onboarding: onboarding(),
+    );
+
+    // Act
+    final SignInResult signIn = AuthExpect.ok(await coordinator.signIn());
+
+    // Assert
+    expect(signIn.home.kind, HomeResolutionKind.fromClaim);
+    expect(signIn.home.landscape, 'raichu');
+    expect(store.value, 'raichu');
+  });
+
   test('a login failure aborts the flow', () async {
     // Arrange
     final SignInCoordinator coordinator = SignInCoordinator(
       session: session(throwOnSignIn: StateError('bad creds')),
-      homeResolver: resolver(MemoryHomeClaimStore('pichu')),
+      homeResolver: resolver(claimReader: () async => 'pichu'),
       onboarding: onboarding(),
     );
 
@@ -111,7 +136,7 @@ void main() {
     // Arrange
     final SignInCoordinator coordinator = SignInCoordinator(
       session: session(),
-      homeResolver: resolver(MemoryHomeClaimStore('pichu')),
+      homeResolver: resolver(claimReader: () async => 'pichu'),
       onboarding: onboarding(),
     );
 

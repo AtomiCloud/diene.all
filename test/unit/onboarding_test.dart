@@ -253,4 +253,57 @@ void main() {
     expect(onboarding.machineFor('primary').phase, OnboardingPhase.ready);
     expect(onboarding.machineFor('secondary').phase, OnboardingPhase.error);
   });
+
+  test('multi-backend performs ONE registry-union acquisition for a shared '
+      'resource and still projects independent outcomes', () async {
+    // Arrange — backend A needs {shared}; backend B needs {shared, extra}. The
+    // shared key must be acquired exactly once for the whole registry (C0 §8).
+    final ResourceKey shared = AuthFixtures.resourceKey(service: 'api');
+    final ResourceKey extra = AuthFixtures.resourceKey(service: 'billing');
+    final BackendRegistry registry = BackendRegistry(<RegisteredBackend>[
+      RegisteredBackend(
+        backendId: 'a',
+        resources: <ResourceKey>[shared],
+        onboardingResource: shared,
+      ),
+      RegisteredBackend(
+        backendId: 'b',
+        resources: <ResourceKey>[shared, extra],
+        onboardingResource: extra,
+      ),
+    ]);
+    final FakeAuth auth = FakeAuth(<Map<ResourceKey, Result<ResourceToken>>>[
+      <ResourceKey, Result<ResourceToken>>{
+        shared: Success<ResourceToken>(
+          AuthFixtures.resourceToken(
+            now: now,
+            jwtToken: AuthFixtures.registeredJwt(shared),
+          ),
+        ),
+        extra: Success<ResourceToken>(
+          AuthFixtures.resourceToken(
+            now: now,
+            jwtToken: AuthFixtures.registeredJwt(extra),
+          ),
+        ),
+      },
+    ]);
+    final MultiBackendOnboarding onboarding = MultiBackendOnboarding(
+      registry: registry,
+      auth: auth,
+      directory: FakeUserDirectory(),
+      idToken: () async => 'id-token',
+    );
+
+    // Act
+    final Map<String, Result<OnboardingPhase>> results = await onboarding
+        .runAll();
+
+    // Assert — exactly one initial acquisition batch for the whole registry.
+    expect(auth.fetchAllCount, 1);
+    expect(results['a'], isA<Success<OnboardingPhase>>());
+    expect(results['b'], isA<Success<OnboardingPhase>>());
+    expect(onboarding.machineFor('a').phase, OnboardingPhase.ready);
+    expect(onboarding.machineFor('b').phase, OnboardingPhase.ready);
+  });
 }

@@ -28,22 +28,14 @@ final class LandscapeSelectorDoc {
     required this.landscapes,
   });
 
-  /// Parses Doc B, rejecting any entry that leaks an address/issuer (a Doc B
-  /// carrying addresses is malformed — names + metadata only).
+  /// Parses Doc B, RECURSIVELY rejecting any entry that leaks an
+  /// address/issuer/URL — as a key name anywhere (including nested `metadata`)
+  /// or as a URL-shaped string value. A doc containing one leak is untrusted.
   factory LandscapeSelectorDoc.fromJson(Map<String, Object?> json) {
     final Object? rawList = json['landscapes'];
     if (rawList is! List) {
       throw const FormatException('Doc B must carry a landscapes list');
     }
-    const Set<String> forbidden = <String>{
-      'address',
-      'addresses',
-      'host',
-      'hosts',
-      'url',
-      'endpoint',
-      'issuer',
-    };
     final List<LandscapeEntry> entries = <LandscapeEntry>[];
     for (final Object? item in rawList) {
       if (item is! Map) {
@@ -52,11 +44,9 @@ final class LandscapeSelectorDoc {
       final Map<String, Object?> entry = item.map(
         (Object? key, Object? value) => MapEntry(key.toString(), value),
       );
-      for (final String key in entry.keys) {
-        if (forbidden.contains(key.toLowerCase())) {
-          throw FormatException('Doc B must not carry addresses/issuer', key);
-        }
-      }
+      // Reject prohibited identity/address/URL material at ANY depth.
+      _assertNoProhibited(entry);
+
       final Object? name = entry['name'];
       final Object? region = entry['region'];
       if (name is! String || name.isEmpty || region is! String) {
@@ -81,6 +71,56 @@ final class LandscapeSelectorDoc {
       tier: json['tier']?.toString() ?? '',
       landscapes: entries,
     );
+  }
+
+  /// Prohibited identity/address/issuer key names (case-insensitive). Doc B
+  /// carries landscape NAMES + metadata ONLY (C0 §10).
+  static const Set<String> _forbiddenKeys = <String>{
+    'address',
+    'addresses',
+    'host',
+    'hosts',
+    'hostname',
+    'url',
+    'uri',
+    'href',
+    'endpoint',
+    'endpoints',
+    'issuer',
+    'authority',
+    'origin',
+    'ip',
+    'ipaddress',
+  };
+
+  /// Recursively walks maps/lists rejecting any prohibited key name or any
+  /// URL-shaped string value (a `scheme://`, `http(s):`, or `//host` form).
+  static void _assertNoProhibited(Object? node) {
+    if (node is Map) {
+      node.forEach((Object? key, Object? value) {
+        if (_forbiddenKeys.contains(key.toString().toLowerCase())) {
+          throw FormatException(
+            'Doc B must not carry addresses/issuer/URLs',
+            key.toString(),
+          );
+        }
+        _assertNoProhibited(value);
+      });
+    } else if (node is List) {
+      for (final Object? element in node) {
+        _assertNoProhibited(element);
+      }
+    } else if (node is String && _looksLikeUrl(node)) {
+      throw FormatException('Doc B must not carry a URL/address value', node);
+    }
+  }
+
+  static bool _looksLikeUrl(String value) {
+    final String v = value.trim().toLowerCase();
+    if (v.startsWith('//') || v.contains('://')) {
+      return true;
+    }
+    return v.startsWith('http:') || v.startsWith('https:');
   }
 
   final String platform;

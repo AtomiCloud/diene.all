@@ -72,82 +72,215 @@ void main() {
   });
 
   group('Doc B parser', () {
-    test('rejects a doc that leaks addresses or an issuer', () {
-      // Assert — names + metadata ONLY.
+    Object docWith(Map<String, Object?> entry) => <String, Object?>{
+      'platform': 'lithium',
+      'tier': 'prod',
+      'landscapes': <Object?>[
+        <String, Object?>{'name': 'a', 'region': 'r', ...entry},
+      ],
+    };
+
+    test('rejects a top-level issuer/address key', () {
       expect(
-        () => LandscapeSelectorDoc.fromJson(<String, Object?>{
-          'platform': 'lithium',
-          'tier': 'prod',
-          'landscapes': <Object?>[
-            <String, Object?>{
-              'name': 'a',
-              'region': 'r',
-              'issuer': 'https://evil',
-            },
-          ],
-        }),
+        () => LandscapeSelectorDoc.fromJson(
+          docWith(<String, Object?>{'issuer': 'https://evil'})
+              as Map<String, Object?>,
+        ),
         throwsFormatException,
       );
+    });
+
+    test('rejects a prohibited key nested inside metadata', () {
+      expect(
+        () => LandscapeSelectorDoc.fromJson(
+          docWith(<String, Object?>{
+                'metadata': <String, Object?>{'issuer': 'https://sneaky'},
+              })
+              as Map<String, Object?>,
+        ),
+        throwsFormatException,
+      );
+    });
+
+    test('rejects a deeply nested address key', () {
+      expect(
+        () => LandscapeSelectorDoc.fromJson(
+          docWith(<String, Object?>{
+                'metadata': <String, Object?>{
+                  'ops': <String, Object?>{
+                    'nested': <String, Object?>{'host': 'x.internal'},
+                  },
+                },
+              })
+              as Map<String, Object?>,
+        ),
+        throwsFormatException,
+      );
+    });
+
+    test('rejects a URL-shaped value hidden under a benign key', () {
+      expect(
+        () => LandscapeSelectorDoc.fromJson(
+          docWith(<String, Object?>{
+                'metadata': <String, Object?>{
+                  'note': 'see https://leak.example/doc',
+                },
+              })
+              as Map<String, Object?>,
+        ),
+        throwsFormatException,
+      );
+    });
+
+    test('rejects a protocol-relative value in a metadata list', () {
+      expect(
+        () => LandscapeSelectorDoc.fromJson(
+          docWith(<String, Object?>{
+                'metadata': <String, Object?>{
+                  'tags': <Object?>['ok', '//evil.example'],
+                },
+              })
+              as Map<String, Object?>,
+        ),
+        throwsFormatException,
+      );
+    });
+
+    test('accepts safe names + benign metadata', () {
+      final LandscapeSelectorDoc doc = LandscapeSelectorDoc.fromJson(
+        docWith(<String, Object?>{
+              'metadata': <String, Object?>{
+                'display': 'Region A',
+                'healthy': true,
+              },
+            })
+            as Map<String, Object?>,
+      );
+      expect(doc.landscapes.single.metadata['display'], 'Region A');
+    });
+  });
+
+  group('jwtHomeClaimReader', () {
+    test('decodes home_landscape from the ID token', () async {
+      final HomeClaimReader reader = jwtHomeClaimReader(
+        () async => AuthFixtures.jwt(<String, Object?>{
+          Claims.homeLandscape: 'pikachu',
+        }),
+      );
+      expect(await reader(), 'pikachu');
+    });
+
+    test('returns null for a missing token', () async {
+      final HomeClaimReader reader = jwtHomeClaimReader(() async => null);
+      expect(await reader(), isNull);
     });
   });
 
   group('HomeClaimResolver', () {
-    test('cached claim routes home without touching Doc B', () async {
-      // Arrange
-      final FakeLandscapeSelectorSource source = FakeLandscapeSelectorSource(
-        doc: _doc(<String>['a']),
-      );
-      final HomeClaimResolver resolver = HomeClaimResolver(
-        store: MemoryHomeClaimStore('pichu'),
-        selector: LandscapeSelectorClient(
+    HomeClaimResolver resolver({
+      required HomeClaimReader claimReader,
+      FakeLandscapeSelectorSource? source,
+      HomeClaimStore? store,
+      Map<String, Duration?> latencies = const <String, Duration?>{
+        'a': Duration(milliseconds: 10),
+      },
+    }) => HomeClaimResolver(
+      claimReader: claimReader,
+      store: store,
+      selector: LandscapeSelectorClient(
+        source: source ?? FakeLandscapeSelectorSource(doc: _doc(<String>['a'])),
+        pinger: FakeRegionPinger(latencies),
+      ),
+    );
+
+    test(
+      'authoritative JWT claim routes home without touching Doc B',
+      () async {
+        // Arrange
+        final FakeLandscapeSelectorSource source = FakeLandscapeSelectorSource(
+          doc: _doc(<String>['a']),
+        );
+        final HomeClaimResolver r = resolver(
+          claimReader: () async => 'pichu',
           source: source,
-          pinger: FakeRegionPinger(const <String, Duration?>{}),
-        ),
+        );
+
+        // Act
+        final HomeResolution home = AuthExpect.ok(await r.resolve());
+
+        // Assert
+        expect(home.landscape, 'pichu');
+        expect(home.kind, HomeResolutionKind.fromClaim);
+        expect(source.fetchCount, 0);
+      },
+    );
+
+    test('JWT claim overrides a disagreeing local cache', () async {
+      // Arrange — cache says raichu, but the authoritative JWT says pichu.
+      final MemoryHomeClaimStore store = MemoryHomeClaimStore('raichu');
+      final HomeClaimResolver r = resolver(
+        claimReader: () async => 'pichu',
+        store: store,
       );
 
       // Act
-      final Result<HomeResolution> result = await resolver.resolve();
+      final HomeResolution home = AuthExpect.ok(await r.resolve());
 
-      // Assert
-      final HomeResolution home = AuthExpect.ok(result);
+      // Assert — JWT wins and the mirror is corrected.
       expect(home.landscape, 'pichu');
-      expect(home.kind, HomeResolutionKind.cached);
-      expect(source.fetchCount, 0);
+      expect(home.kind, HomeResolutionKind.fromClaim);
+      expect(store.value, 'pichu');
     });
 
-    test('absent claim runs the sign-up selector', () async {
-      // Arrange
-      final HomeClaimResolver resolver = HomeClaimResolver(
-        store: MemoryHomeClaimStore(),
-        selector: LandscapeSelectorClient(
-          source: FakeLandscapeSelectorSource(doc: _doc(<String>['a'])),
-          pinger: FakeRegionPinger(<String, Duration?>{
-            'a': const Duration(milliseconds: 10),
-          }),
-        ),
-      );
+    test(
+      'absent JWT claim runs Doc B even when the cache is populated',
+      () async {
+        // Arrange — a stale cache must NOT choose the home; the claim is absent.
+        final FakeLandscapeSelectorSource source = FakeLandscapeSelectorSource(
+          doc: _doc(<String>['a']),
+        );
+        final HomeClaimResolver r = resolver(
+          claimReader: () async => null,
+          source: source,
+          store: MemoryHomeClaimStore('raichu'),
+        );
 
-      // Act
-      final HomeResolution home = AuthExpect.ok(await resolver.resolve());
+        // Act
+        final HomeResolution home = AuthExpect.ok(await r.resolve());
 
+        // Assert — Doc B decided, not the cache.
+        expect(home.landscape, 'a');
+        expect(home.kind, HomeResolutionKind.selected);
+        expect(source.fetchCount, 1);
+      },
+    );
+
+    test('authoritativeHome reports absent vs present without Doc B', () async {
       // Assert
-      expect(home.landscape, 'a');
-      expect(home.kind, HomeResolutionKind.selected);
+      expect(
+        AuthExpect.ok(
+          await resolver(claimReader: () async => null).authoritativeHome(),
+        ),
+        isNull,
+      );
+      expect(
+        AuthExpect.ok(
+          await resolver(claimReader: () async => 'lapras').authoritativeHome(),
+        ),
+        'lapras',
+      );
     });
 
     test('commit mirrors the claim into the store', () async {
       // Arrange
       final MemoryHomeClaimStore store = MemoryHomeClaimStore();
-      final HomeClaimResolver resolver = HomeClaimResolver(
+      final HomeClaimResolver r = resolver(
+        claimReader: () async => null,
         store: store,
-        selector: LandscapeSelectorClient(
-          source: FakeLandscapeSelectorSource(doc: _doc(<String>['a'])),
-          pinger: FakeRegionPinger(const <String, Duration?>{}),
-        ),
       );
 
       // Act
-      await resolver.commit('raichu');
+      await r.commit('raichu');
 
       // Assert
       expect(store.value, 'raichu');

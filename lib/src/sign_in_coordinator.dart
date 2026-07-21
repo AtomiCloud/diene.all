@@ -47,14 +47,16 @@ final class SignInCoordinator {
     String? preferredLandscape,
     Uri? returnTo,
   }) async {
-    // 1. Resolve the home landscape BEFORE login (C0 §13). Absent → Doc B.
+    // 1. Resolve the home landscape from the authoritative existing-JWT claim
+    //    (C0 §13). A returning user's claim decides the login target; a new
+    //    user (claim absent) picks via Doc B. Local cache is never consulted.
     final Result<HomeResolution> homeResult = await _homeResolver.resolve(
       preferred: preferredLandscape,
     );
     if (homeResult is Failure<HomeResolution>) {
       return Failure<SignInResult>(homeResult.problem);
     }
-    final HomeResolution home = (homeResult as Success<HomeResolution>).value;
+    HomeResolution home = (homeResult as Success<HomeResolution>).value;
 
     // 2. OIDC login (carries deferred-login one-time token when present).
     final Result<Object?> login = await _session.signIn(
@@ -64,16 +66,31 @@ final class SignInCoordinator {
       return Failure<SignInResult>(login.problem);
     }
 
-    // 3. Per-backend claims-first onboarding (independent per backend).
+    // 3. Re-read the AUTHORITATIVE claim from the freshly issued JWT so a
+    //    server-changed/removed home_landscape overrides the pre-login value.
+    final Result<String?> issued = await _homeResolver.authoritativeHome();
+    if (issued is Failure<String?>) {
+      return Failure<SignInResult>(issued.problem);
+    }
+    final String? issuedHome = (issued as Success<String?>).value;
+    if (issuedHome != null) {
+      home = HomeResolution(
+        landscape: issuedHome,
+        kind: HomeResolutionKind.fromClaim,
+      );
+      await _homeResolver.commit(issuedHome);
+    }
+
+    // 4. Per-backend claims-first onboarding (independent per backend).
     final Map<String, Result<OnboardingPhase>> phases = await _onboarding
         .runAll();
 
-    // 4. On the sign-up path, mirror the OnboardSync-written home claim locally.
+    // 5. On the sign-up path, mirror the OnboardSync-written home claim locally.
     if (home.kind == HomeResolutionKind.selected) {
       await _homeResolver.commit(home.landscape);
     }
 
-    // 5. Resume the exact protected route the deeplink targeted.
+    // 6. Resume the exact protected route the deeplink targeted.
     final Uri? continueTo = returnTo == null
         ? null
         : ReturnTo.capture(

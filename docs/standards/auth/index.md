@@ -80,10 +80,23 @@ fixed contract constants, not schema knobs.
 ## Dependency stacking
 
 This package is built in an isolated lane, so it **self-carries** the minimal
-`Result`/`Problem` contract types it needs (`lib/src/contracts/`). When the
-conductor stacks the Dart family after all eight branches return, those files
-are deleted and their imports repoint at the real `diene_result` /
-`diene_problems` packages; the self-carried surface is a strict subset so the
-swap is mechanical. The `AuthEngineConfig` block is consumed by the real
-`diene_config` merger/validator at that point. No dependency stacking, mirror
-publication, or downstream consumption happens in this lane.
+`Result`/`Problem` contract types it needs (`lib/src/contracts/`). The
+self-carried `Problem` is a NON-AUTHORITATIVE bridge — it is never promoted to
+the public family Problem identity.
+
+Per the binding Dart Problem-ownership ruling (RB-315 resolved; RB-308 resolved
+to an **MIT** family license): `diene_problems` owns the sole public RFC-9457
+`Problem`, and `diene_result` imports that type (no duplicate). This package's
+self-carried seam already matches that direction — `result.dart` imports
+`problem.dart` (one-directional, no `Result`↔`Problem` cycle). When the conductor
+stacks the family after all eight branches return:
+
+- `lib/src/contracts/problem.dart` is deleted; imports repoint at
+  `package:diene_problems` (the authoritative `Problem`).
+- `lib/src/contracts/result.dart` is deleted; imports repoint at
+  `package:diene_result` (which itself imports `diene_problems`).
+- `AuthEngineConfig` is composed/validated by the real `diene_config` merger.
+
+The self-carried surface is a strict subset, so the swap is mechanical and
+introduces no cycle. No dependency stacking, mirror publication, or downstream
+consumption happens in this lane — those remain conductor-held.

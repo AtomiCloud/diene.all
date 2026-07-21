@@ -37,12 +37,25 @@ final class OnboardingMachine {
 
   String get backendId => _backend.backendId;
 
+  /// This backend's required resource keys (used by [MultiBackendOnboarding] to
+  /// project the shared registry-union batch).
+  List<ResourceKey> get resources => _backend.resources;
+
   /// Runs the machine to a terminal phase for this backend.
-  Future<Result<OnboardingPhase>> run() async {
+  ///
+  /// [initialBatch] is this backend's projection of the ONE
+  /// registry-union acquisition (C0 §8) taken by [MultiBackendOnboarding]. When
+  /// omitted (a standalone single-backend run) the machine acquires its own
+  /// batch. Either way the create-path force-refresh below re-acquires ONLY this
+  /// backend's resources.
+  Future<Result<OnboardingPhase>> run({
+    Map<ResourceKey, Result<ResourceToken>>? initialBatch,
+  }) async {
     _phase = OnboardingPhase.bootstrapping;
-    // Step 1: resolve the backend's complete token batch.
-    final Map<ResourceKey, Result<ResourceToken>> batch = await _auth
-        .fetchAllTokens(_backend.resources);
+    // Step 1: resolve the backend's complete token batch — the shared
+    // registry-union projection when supplied, else a scoped acquisition.
+    final Map<ResourceKey, Result<ResourceToken>> batch =
+        initialBatch ?? await _auth.fetchAllTokens(_backend.resources);
     final Problem? batchProblem = _firstFailure(batch);
     if (batchProblem != null) {
       return _error(batchProblem);
@@ -196,7 +209,9 @@ final class MultiBackendOnboarding {
     required IAuth auth,
     required UserDirectory directory,
     required IdTokenReader idToken,
-  }) : _machines = <String, OnboardingMachine>{
+  }) : _registry = registry,
+       _auth = auth,
+       _machines = <String, OnboardingMachine>{
          for (final RegisteredBackend backend in registry.backends)
            backend.backendId: OnboardingMachine(
              backend: backend,
@@ -206,6 +221,8 @@ final class MultiBackendOnboarding {
            ),
        };
 
+  final BackendRegistry _registry;
+  final IAuth _auth;
   final Map<String, OnboardingMachine> _machines;
 
   OnboardingMachine machineFor(String backendId) {
@@ -222,13 +239,27 @@ final class MultiBackendOnboarding {
       entry.key: entry.value.phase,
   };
 
-  /// Runs every backend's machine concurrently and returns each phase result.
+  /// Bootstraps every backend from ONE registry-union acquisition (C0 §8):
+  /// takes a single registry snapshot, deduplicates the full `ResourceKey`
+  /// union, starts exactly one initial acquisition batch, and projects it into
+  /// independent per-backend outcomes. A resource shared by two backends is
+  /// acquired once here — never once per backend. Each backend's terminal phase
+  /// stays independent, and the create-path force-refresh inside each machine
+  /// re-acquires only that backend's resources.
   Future<Map<String, Result<OnboardingPhase>>> runAll() async {
+    // One snapshot + dedup union + one initial acquisition batch.
+    final List<ResourceKey> union = _registry.resourceUnion;
+    final Map<ResourceKey, Result<ResourceToken>> unionBatch = await _auth
+        .fetchAllTokens(union);
+
+    // Project the single batch into each backend's slice and run concurrently.
     final Map<String, Future<Result<OnboardingPhase>>> started =
         <String, Future<Result<OnboardingPhase>>>{
           for (final MapEntry<String, OnboardingMachine> entry
               in _machines.entries)
-            entry.key: entry.value.run(),
+            entry.key: entry.value.run(
+              initialBatch: _project(entry.value, unionBatch),
+            ),
         };
     final Map<String, Result<OnboardingPhase>> results =
         <String, Result<OnboardingPhase>>{};
@@ -238,4 +269,13 @@ final class MultiBackendOnboarding {
     }
     return results;
   }
+
+  /// Slices the shared [unionBatch] down to one machine's required resources.
+  Map<ResourceKey, Result<ResourceToken>> _project(
+    OnboardingMachine machine,
+    Map<ResourceKey, Result<ResourceToken>> unionBatch,
+  ) => <ResourceKey, Result<ResourceToken>>{
+    for (final ResourceKey key in machine.resources)
+      if (unionBatch.containsKey(key)) key: unionBatch[key]!,
+  };
 }
