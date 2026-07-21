@@ -1,5 +1,3 @@
-# ### workspace-root
-# #### source: workspace
 version: '3'
 
 includes:
@@ -7,61 +5,66 @@ includes:
 
 tasks:
   setup:
-    desc: Set up generated workspace assets
+    desc: Resolve Dart dependencies and synchronized skills
     cmds:
-      # ### flutter-base-setup
-      # #### source: flutter-base
-      - flutter pub get
-      - ./scripts/local/skills-sync.sh
+      - ./scripts/ci/setup.sh
 
   lint:
     desc: Run all repository gates
     cmds:
       - pre-commit run --all-files
 
+  format:
+    desc: Format Dart source
+    cmds:
+      - dart format lib test example
+
+  analyze:
+    desc: Analyze library, tests, and examples
+    cmds:
+      - dart analyze
+
+  test:
+    desc: Run unit, C0 conformance, and TestHelper meta tiers
+    deps: [test:unit, test:meta]
+
+  test:unit:
+    desc: Run unit and C0 conformance tests
+    cmds:
+      - dart test test/unit test/conformance
+
+  test:meta:
+    desc: Run dependency-light TestHelper meta tests
+    cmds:
+      - dart test test/meta
+
+  test:coverage:
+    desc: Enforce unit and meta coverage ledgers
+    deps: [test:unit:coverage, test:meta:coverage]
+
+  test:unit:coverage:
+    desc: Enforce production-library coverage
+    cmds:
+      - ./scripts/validate/coverage.sh unit
+
+  test:meta:coverage:
+    desc: Enforce TestHelper-only coverage
+    cmds:
+      - ./scripts/validate/coverage.sh meta
+
+  deadcode:
+    desc: Run whole-repository and production-only dead-code passes
+    cmds:
+      - ./scripts/validate/deadcode.sh all
+      - ./scripts/validate/deadcode.sh production
+
+  package:validate:
+    desc: Validate pub.dev package hygiene and score
+    cmds:
+      - dart pub publish --dry-run
+      - dart run pana --exit-code-threshold 20 .
+
   skills:sync:
     desc: Synchronize installed diene package skills
     cmds:
       - ./scripts/local/skills-sync.sh
-
-  # ### flutter-base-tasks
-  # #### source: flutter-base
-  mobile:analyze:
-    desc: Analyze Flutter source and tests
-    cmds:
-      - flutter analyze
-
-  mobile:test:
-    desc: Run Flutter unit and widget tests
-    cmds:
-      - flutter test
-
-  mobile:build-flavors:
-    desc: Build all four Android flavor smoke artifacts
-    cmds:
-      - ./scripts/validate/flavor-builds.sh
-
-  mobile:generate-sdk:
-    desc: Regenerate the typed OA3 client
-    cmds:
-      - ./scripts/local/generate-sdk.sh
-
-  mobile:generate-translations:
-    desc: Regenerate typed Slang translations
-    cmds:
-      - ./scripts/local/generate-translations.sh
-
-  mobile:generate-config:
-    desc: Regenerate the Flutter config schema
-    cmds:
-      - ./scripts/local/generate-config-schema.sh
-
-  mobile:doctor-signing:
-    desc: Run locally provable signing and stamp doctors
-    cmds:
-      - ./scripts/validate/signing-doctors.sh
-
-  mobile:register-apple:
-    desc: Register Apple identifiers, groups, capabilities, and app records
-    cmds:
-      - ./scripts/local/register-apple.sh

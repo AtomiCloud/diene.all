@@ -1,52 +1,55 @@
-# Diene workspace baseline
+# diene_config
 
-<!-- ### nix-root -->
-<!-- #### source: main -->
+Layered, immutable configuration for Dart and Flutter applications. The loader
+applies full base YAML, a sparse flavor or landscape overlay, an optional
+development override, and `--dart-define` values last. It validates only the
+final merged tree against a root schema composed by the service from
+engine-owned blocks.
 
-Diene's reproducible development environment is managed by Nix. Run `direnv allow` once, then use `pls` tasks from the loaded shell.
+```dart
+import 'package:diene_config/diene_config.dart';
 
-<!-- ### workspace -->
-<!-- #### source: workspace -->
+final class ApiSettings {
+  const ApiSettings(this.baseUrl);
+  final Uri baseUrl;
+}
 
-This branch is the workspace baseline inherited by every downstream sample: split CI/release workflows, secrets, release configuration, validators, standards, and vendored agent-skill synchronization.
+final apiBlock = ConfigBlock<ApiSettings>(
+  key: 'api',
+  decode: (values) => ApiSettings(Uri.parse(values['baseUrl']! as String)),
+);
 
-## Commands
+final config = await ConfigLoader(
+  base: YamlConfigSource(
+    name: 'config/base.yaml',
+    read: () => rootBundle.loadString('config/base.yaml'),
+  ),
+  overlay: YamlConfigSource(
+    name: 'config/${landscape()}.yaml',
+    read: () => rootBundle.loadString('config/${landscape()}.yaml'),
+  ),
+  dartDefines: DartDefineOverrides(
+    prefix: 'MY_APP_',
+    values: const {
+      'MY_APP_API__BASE_URL': String.fromEnvironment(
+        'MY_APP_API__BASE_URL',
+      ),
+    },
+  ),
+  schema: ConfigSchema(blocks: [apiBlock]),
+).load();
 
-- `pls setup` — synchronize installed diene package skills.
-- `pls lint` — run every pre-commit gate.
-- `pls secret:scan` — scan tracked content for secrets.
-- `pls skills:sync` — rebuild `.claude/skills/vendor/` from installed packages.
+final api = config.slice(apiBlock);
+```
 
-## Standards
+Lists use indexed keys such as `MY_APP_AUTH__SCOPES__0` and
+`MY_APP_AUTH__SCOPES__1`. JSON-in-environment and comma-separated list
+encodings are deliberately unsupported. Empty define values are unset.
 
-- [CI/CD workflows](docs/standards/ci-cd/index.md)
-- [conventional commits](docs/standards/conventional-commits/index.md)
-- [Infisical and secrets](docs/standards/infisical/index.md)
-- [linting and pre-commit](docs/standards/linting/index.md)
-- [Nix flakes and development shells](docs/standards/nix/index.md)
-- [release automation](docs/standards/semantic-release/index.md)
-- [service-tree identity](docs/standards/service-tree/index.md)
-- [shell scripts](docs/standards/shell-scripts/index.md)
-- [Taskfile conventions](docs/standards/taskfile/index.md)
+The store track supplies identity with
+`--dart-define=DIENE_LANDSCAPE=lapras`; `landscape()` is an accessor only and
+never detects identity from a hostname or runtime environment.
 
-<!-- ### shared -->
-<!-- #### source: shared -->
-
-## Shared standards
-
-- [Authorization](docs/standards/authorization/index.md)
-- [Contributor documentation](docs/standards/contributor-docs/index.md)
-- [Date and time](docs/standards/datetime/index.md)
-- [Domain-driven design](docs/standards/domain-driven-design/index.md)
-- [Functional practices](docs/standards/functional-practices/index.md)
-- [Software design philosophy](docs/standards/software-design-philosophy/index.md)
-- [SOLID principles](docs/standards/solid-principles/index.md)
-- [Stateless OOP and dependency injection](docs/standards/stateless-oop-di/index.md)
-- [Testing](docs/standards/testing/index.md)
-- [Three-layer architecture](docs/standards/three-layer-architecture/index.md)
-- [Utility libraries](docs/standards/utilities/index.md)
-- [Data validation](docs/standards/validation/index.md)
-
-Domain-specific documentation belongs under [docs/domain/](docs/domain/README.md).
-The `docs/standards/contracts/` location is reserved for the separately owned C0
-contracts standard.
+See [the configuration standard](doc/configuration.md) for the full
+contract, typed schema composition, TestHelper usage, and Bun-family parity
+notes.

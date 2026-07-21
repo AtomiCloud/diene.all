@@ -1,0 +1,6 @@
+unit:
+  paths: lib/src,lib/diene_config.dart
+  minimum: 90
+meta:
+  paths: lib/test_helper.dart
+  minimum: 95

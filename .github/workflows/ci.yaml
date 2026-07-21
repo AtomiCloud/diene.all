@@ -1,10 +1,7 @@
-# ### workspace-ci
-# #### source: workspace
 name: CI
 
 on:
   push:
-    branches: ['**']
   pull_request:
   workflow_dispatch:
 
@@ -16,9 +13,50 @@ jobs:
     uses: ./.github/workflows/⚡reusable-precommit.yaml
     secrets: inherit
 
-  test:
-    name: Flutter Test
-    permissions:
-      contents: read
-    uses: ./.github/workflows/⚡reusable-test.yaml
-    secrets: inherit
+  dart:
+    name: Dart Analyze and Test
+    runs-on:
+      - nscloud-ubuntu-22.04-amd64-4x8-with-cache
+      - nscloud-cache-size-50gb
+      - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
+    steps:
+      - uses: AtomiCloud/actions.setup-nix@v3
+      - run: nix develop .#ci -c ./scripts/ci/test.sh
+
+  coverage:
+    name: Unit and Meta Coverage
+    runs-on:
+      - nscloud-ubuntu-22.04-amd64-4x8-with-cache
+      - nscloud-cache-size-50gb
+      - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
+    steps:
+      - uses: AtomiCloud/actions.setup-nix@v3
+      - run: nix develop .#ci -c pls test:coverage
+      - uses: codecov/codecov-action@v5
+        with:
+          files: coverage/unit.lcov
+          flags: unit
+      - uses: codecov/codecov-action@v5
+        with:
+          files: coverage/meta.lcov
+          flags: meta
+
+  deadcode:
+    name: Dead Code (Whole and Production)
+    runs-on:
+      - nscloud-ubuntu-22.04-amd64-4x8-with-cache
+      - nscloud-cache-size-50gb
+      - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
+    steps:
+      - uses: AtomiCloud/actions.setup-nix@v3
+      - run: nix develop .#ci -c pls deadcode
+
+  package:
+    name: pub.dev Package Hygiene
+    runs-on:
+      - nscloud-ubuntu-22.04-amd64-4x8-with-cache
+      - nscloud-cache-size-50gb
+      - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
+    steps:
+      - uses: AtomiCloud/actions.setup-nix@v3
+      - run: nix develop .#ci -c pls package:validate
