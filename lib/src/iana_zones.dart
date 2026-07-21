@@ -1,14 +1,14 @@
 // GENERATED FILE — DO NOT EDIT BY HAND.
 //
-// Source: IANA time zone database, release 2026b
-//   (`tzdata.zi` Zone + Link records).
-// Regenerate: dart run tool/gen_iana_zones.dart [tzdata.zi]
+// Source: vendored official IANA time zone database, release
+//   2026b (Zone + Link records of the standard,
+//   non-backzone distribution — see
+//   third_party/iana-tzdata-2026b/PROVENANCE.md).
+// Regenerate: dart run tool/gen_iana_zones.dart
+// Verify:     dart run tool/gen_iana_zones.dart --check
 //
-// The identifiers below are the union of every Zone name and
-// every Link (alias) name in the release above. This is the
-// authoritative, vetted allowlist used to validate C0 IANA
-// timezone identifiers — not a handwritten subset and not
-// OS-local runtime validation.
+// The allowlist is reproducible from the pinned official
+// release, not from host `/usr/share/zoneinfo` data.
 library;
 
 /// The IANA release baked into [isIanaTimeZone].
@@ -17,10 +17,13 @@ const String ianaTimeZoneRelease = '2026b';
 /// Reports whether [id] is a valid IANA timezone identifier.
 ///
 /// Membership is an exact, case-sensitive match against the
-/// bundled IANA release [ianaTimeZoneRelease]. Offsets
-/// (`+08:00`), bare abbreviations, and unknown names such as
-/// `Area/NotAnIanaZone` are rejected; canonical zones, aliases,
-/// and the `UTC`/`Etc/*` forms are accepted.
+/// vendored IANA release [ianaTimeZoneRelease]. Offsets
+/// (`+08:00`), non-IANA abbreviations (`PST`), and unknown
+/// names such as `Area/NotAnIanaZone` are rejected; canonical
+/// zones, IANA aliases, the `Etc/*` family, and bare `UTC` are
+/// accepted. Legacy IANA-defined short identifiers (e.g. `EST`,
+/// `CET`) are genuine database entries and are accepted; the
+/// C0 temporal contract fixes the settled cases.
 bool isIanaTimeZone(String id) => _ianaTimeZoneIds.contains(id);
 
 final Set<String> _ianaTimeZoneIds = _ianaTimeZoneData

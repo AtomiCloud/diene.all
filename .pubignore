@@ -1,5 +1,7 @@
 /.claude/
 /.coderabbit.yaml
+/third_party/
+/test/iana_source_test.dart
 /.direnv/
 /.envrc
 /.github/

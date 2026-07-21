@@ -1,6 +1,7 @@
 /// Pure helpers shared by Diene Dart packages.
 library;
 
+export 'src/c0_temporal_contract.dart';
 export 'src/coercion.dart';
 export 'src/iana_zones.dart';
 export 'src/merge.dart';

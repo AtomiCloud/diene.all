@@ -89,6 +89,11 @@ tasks:
       - dart run tool/dead_code.dart --with-tests
       - dart run tool/dead_code.dart --production
 
+  iana:verify:
+    desc: Verify the IANA allowlist reproduces from the pinned vendored source
+    cmds:
+      - ./scripts/validate/iana-source.sh
+
   manifest:check:
     desc: Verify the package manifest equals a release tag
     cmds:
