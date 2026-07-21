@@ -9,9 +9,11 @@ let
     name = "workspace-validator-runtime";
     paths = [
       packages.bash
+      packages.bun
       packages.git
       packages.gitlint
       packages.helm-schema
+      packages.infralint
       packages.jq
       packages.kubeconform
       packages.kubernetes-helm
@@ -19,6 +21,7 @@ let
       packages.ripgrep
       packages.yq-go
       pkgs.coreutils
+      pkgs.diffutils
       pkgs.findutils
       pkgs.gnugrep
       pkgs.gnused
@@ -43,6 +46,9 @@ pre-commit-lib.run {
         "^docs/developer/CommitConventions\\.md$"
         "^infra/root_chart/"
         "^chart/"
+        "^primordial-chart/"
+        "^templates/base/"
+        "^platform[.]schema[.]json$"
       ];
     };
 
@@ -153,10 +159,19 @@ pre-commit-lib.run {
       language = "system";
     };
 
-    a-release-trigger = {
+    a-release-source = {
       enable = true;
-      name = "Release workflow trigger";
-      entry = validator "scripts/validate/workflows.sh release-trigger";
+      name = "Release workflow source";
+      entry = validator "scripts/validate/release-source.sh";
+      files = "^\\.github/workflows/.*\\.ya?ml$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-release-filter = {
+      enable = true;
+      name = "Release workflow filter";
+      entry = validator "scripts/validate/release-filter.sh";
       files = "^\\.github/workflows/.*\\.ya?ml$";
       pass_filenames = false;
       language = "system";
@@ -165,7 +180,7 @@ pre-commit-lib.run {
     a-release-concurrency = {
       enable = true;
       name = "Release workflow concurrency";
-      entry = validator "scripts/validate/workflows.sh release-concurrency";
+      entry = validator "scripts/validate/release-concurrency.sh";
       files = "^\\.github/workflows/.*\\.ya?ml$";
       pass_filenames = false;
       language = "system";
@@ -174,7 +189,7 @@ pre-commit-lib.run {
     a-workflow-names = {
       enable = true;
       name = "CI/CD workflow names";
-      entry = validator "scripts/validate/workflows.sh workflow-names";
+      entry = validator "scripts/validate/workflow-names.sh";
       files = "^\\.github/workflows/.*\\.ya?ml$";
       pass_filenames = false;
       language = "system";
@@ -215,22 +230,22 @@ pre-commit-lib.run {
       language = "system";
     };
 
-    # ### cobalt-hooks
-    # #### source: cobalt
-    a-cobalt-helm-docs = {
+    # ### carbon-hooks
+    # #### source: carbon
+    a-carbon-helm-docs = {
       enable = true;
-      name = "Cobalt helm docs";
-      entry = "${packages.infralint}/bin/helm-docs --chart-search-root chart";
-      files = "^chart/.*";
+      name = "Carbon helm docs";
+      entry = "${packages.bash}/bin/bash -c '${packages.infralint}/bin/helm-docs --chart-search-root chart && ${packages.infralint}/bin/helm-docs --chart-search-root primordial-chart'";
+      files = "^(chart|primordial-chart)/.*";
       pass_filenames = false;
       language = "system";
     };
 
-    a-cobalt-helm-lint = {
+    a-carbon-validation = {
       enable = true;
-      name = "Cobalt helm lint";
-      entry = validator "scripts/validate/cobalt.sh lint";
-      files = "^(chart/.*|scripts/(local|validate|ci)/.*)$";
+      name = "Carbon chart and scaffold validation";
+      entry = validator "scripts/ci/carbon.sh --offline";
+      files = "^(chart|primordial-chart|cyan|templates|tests|schemas|policies)/.*|^(platform|cyan)[.]|^scripts/(local|validate|ci)/.*";
       pass_filenames = false;
       language = "system";
     };

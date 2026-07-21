@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: carbon-vapfixture
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: carbon-vapfixture
+  template:
+    metadata:
+      labels:
+        app: carbon-vapfixture
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: fixture
+          image: registry.k8s.io/pause:latest
+          resources:
+            requests:
+              cpu: 1m
+              memory: 1Mi
+            limits:
+              cpu: 10m
+              memory: 8Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop: [ALL]

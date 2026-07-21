@@ -1,13 +1,7 @@
 apiVersion: v2
-name: diene-cobalt
-description: External Secrets Operator plus the Infisical source-of-secrets ClusterSecretStore gateway for AtomiCloud clusters
+name: diene-carbon
+description: Platform namespace and pull-only SecretStore bootstrap for a materialized carbon platform home
 type: application
 version: 0.1.0
-appVersion: '2.7.0'
+appVersion: '0.1.0'
 kubeVersion: '>=1.27.0-0'
-dependencies:
-  - name: external-secrets
-    alias: eso
-    version: 2.7.0
-    repository: https://charts.external-secrets.io
-    condition: eso.enabled

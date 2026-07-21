@@ -29,3 +29,8 @@ infra/root_chart/uploads/
 chart/files/config/
 dist/
 probe-report.json
+
+### carbon
+#### source: carbon
+cyan/node_modules/
+.carbon-scaffold.*/

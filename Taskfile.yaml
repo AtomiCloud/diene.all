@@ -8,8 +8,8 @@ includes:
   example:lapras:
     taskfile: tasks/Taskfile.cluster.yaml
     vars:
-      RELEASE_NAME: cobalt
-      NAMESPACE: external-secrets
+      RELEASE_NAME: carbon
+      NAMESPACE: feature-carbon-123
       LANDSCAPE: example
       CLUSTER: lapras
 
@@ -29,35 +29,20 @@ tasks:
     cmds:
       - ./scripts/local/skills-sync.sh
 
-  build:
-    desc: Build chart dependencies
-    cmds:
-      - helm dependency build chart
-
-  update:
-    desc: Refresh the pinned upstream chart dependency
-    cmds:
-      - helm dependency update chart
-
-  latest:
-    desc: Resolve the latest real upstream chart and image tags
-    cmds:
-      - ./scripts/local/latest-chart-upstreams.sh
-
   test:
-    desc: Run the cobalt unit/static tier
+    desc: Run the Carbon host-safe validation tier
     cmds:
-      - ./scripts/ci/cobalt.sh
+      - ./scripts/ci/carbon.sh
 
   test:unit:
     desc: Run schema, lint, render, policy, and contract validation
     cmds:
-      - ./scripts/ci/cobalt.sh
+      - ./scripts/ci/carbon.sh
 
   test:int:
     desc: Run the local k3d installation proof
     cmds:
-      - ./scripts/validate/cobalt-k3d.sh
+      - K3D_ISOLATE_BY_PATH=true ./scripts/validate/carbon-k3d.sh
 
   start:cluster:
     desc: Start the local k3d lapras proof cluster

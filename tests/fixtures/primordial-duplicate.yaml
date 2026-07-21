@@ -1,0 +1,11 @@
+platformDependencies:
+  - landscape: mew
+    placement:
+      preferredHost: raichu
+    deletionPolicy:
+      retainSecret: 168h
+  - landscape: mew
+    placement:
+      preferredHost: amphoros
+    deletionPolicy:
+      retainSecret: 168h

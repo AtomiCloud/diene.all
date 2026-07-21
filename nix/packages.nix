@@ -79,6 +79,7 @@ let
         inherit
           actionlint
           bash
+          bun
           docker-client
           git
           gitlint

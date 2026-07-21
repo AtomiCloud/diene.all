@@ -1,481 +1,158 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "Diene Cobalt Values",
-    "description": "Generated schema for the diene cobalt External Secrets Operator + source-of-secrets ClusterSecretStore chart.",
+    "title": "Diene Carbon Values",
+    "description": "Generated schema for one chart in the diene carbon app and primordial pair.",
     "type": "object",
-    "required": [
-        "fullnameOverride"
-    ],
     "properties": {
-        "eso": {
-            "description": "Vendored External Secrets Operator (upstream external-secrets 2.7.0). Pull-only; CRDs ride helm upgrade via installCRDs and v1beta1 serving stays disabled.",
-            "type": "object",
-            "properties": {
-                "certController": {
-                    "type": "object",
-                    "properties": {
-                        "podSecurityContext": {
-                            "type": "object",
-                            "properties": {
-                                "fsGroup": {
-                                    "type": "integer"
-                                },
-                                "runAsGroup": {
-                                    "type": "integer"
-                                },
-                                "runAsNonRoot": {
-                                    "type": "boolean"
-                                },
-                                "runAsUser": {
-                                    "type": "integer"
-                                }
-                            }
-                        },
-                        "resources": {
-                            "type": "object",
-                            "properties": {
-                                "limits": {
-                                    "type": "object",
-                                    "properties": {
-                                        "cpu": {
-                                            "type": "string"
-                                        },
-                                        "memory": {
-                                            "type": "string"
-                                        }
-                                    }
-                                },
-                                "requests": {
-                                    "type": "object",
-                                    "properties": {
-                                        "cpu": {
-                                            "type": "string"
-                                        },
-                                        "memory": {
-                                            "type": "string"
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                        "securityContext": {
-                            "type": "object",
-                            "properties": {
-                                "allowPrivilegeEscalation": {
-                                    "type": "boolean"
-                                },
-                                "capabilities": {
-                                    "type": "object",
-                                    "properties": {
-                                        "drop": {
-                                            "type": "array",
-                                            "items": {
-                                                "type": "string"
-                                            }
-                                        }
-                                    }
-                                },
-                                "readOnlyRootFilesystem": {
-                                    "type": "boolean"
-                                },
-                                "runAsGroup": {
-                                    "type": "integer"
-                                },
-                                "runAsNonRoot": {
-                                    "type": "boolean"
-                                },
-                                "runAsUser": {
-                                    "type": "integer"
-                                }
-                            }
-                        },
-                        "serviceAccount": {
-                            "type": "object",
-                            "properties": {
-                                "create": {
-                                    "type": "boolean"
-                                }
-                            }
-                        }
-                    }
-                },
-                "crds": {
-                    "type": "object",
-                    "properties": {
-                        "createClusterSecretStore": {
-                            "type": "boolean"
-                        },
-                        "createSecretStore": {
-                            "type": "boolean"
-                        },
-                        "unsafeServeV1Beta1": {
-                            "description": "v1beta1 serving is deprecated upstream; cobalt authors v1 resources only.",
-                            "type": "boolean"
-                        }
-                    }
-                },
-                "enabled": {
-                    "type": "boolean"
-                },
-                "fullnameOverride": {
-                    "type": "string",
-                    "pattern": "^[a-z0-9]+-[a-z0-9]+$"
-                },
-                "global": {
-                    "type": "object",
-                    "properties": {
-                        "podAnnotations": {
-                            "description": "Pod annotations inherited by the ESO controller, webhook, and cert-controller. Set this annotation to the string \"false\" to opt an unsafe deployment out.",
-                            "type": "object",
-                            "properties": {
-                                "reloader.stakater.com/auto": {
-                                    "type": "string"
-                                }
-                            }
-                        }
-                    }
-                },
-                "image": {
-                    "type": "object",
-                    "properties": {
-                        "pullPolicy": {
-                            "type": "string",
-                            "enum": [
-                                "Always",
-                                "IfNotPresent",
-                                "Never"
-                            ]
-                        },
-                        "repository": {
-                            "type": "string",
-                            "pattern": "^[a-z0-9./-]+$"
-                        },
-                        "tag": {
-                            "type": "string",
-                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
-                        }
-                    }
-                },
-                "installCRDs": {
-                    "type": "boolean"
-                },
-                "podSecurityContext": {
-                    "description": "Workload hardening so the rendered operator satisfies the diene workload VAP.",
-                    "type": "object",
-                    "properties": {
-                        "fsGroup": {
-                            "type": "integer"
-                        },
-                        "runAsGroup": {
-                            "type": "integer"
-                        },
-                        "runAsNonRoot": {
-                            "type": "boolean"
-                        },
-                        "runAsUser": {
-                            "type": "integer"
-                        }
-                    }
-                },
-                "replicaCount": {
-                    "type": "integer",
-                    "minimum": 1
-                },
-                "resources": {
-                    "type": "object",
-                    "properties": {
-                        "limits": {
-                            "type": "object",
-                            "properties": {
-                                "cpu": {
-                                    "type": "string"
-                                },
-                                "memory": {
-                                    "type": "string"
-                                }
-                            }
-                        },
-                        "requests": {
-                            "type": "object",
-                            "properties": {
-                                "cpu": {
-                                    "type": "string"
-                                },
-                                "memory": {
-                                    "type": "string"
-                                }
-                            }
-                        }
-                    }
-                },
-                "securityContext": {
-                    "type": "object",
-                    "properties": {
-                        "allowPrivilegeEscalation": {
-                            "type": "boolean"
-                        },
-                        "capabilities": {
-                            "type": "object",
-                            "properties": {
-                                "drop": {
-                                    "type": "array",
-                                    "items": {
-                                        "type": "string"
-                                    }
-                                }
-                            }
-                        },
-                        "readOnlyRootFilesystem": {
-                            "type": "boolean"
-                        },
-                        "runAsGroup": {
-                            "type": "integer"
-                        },
-                        "runAsNonRoot": {
-                            "type": "boolean"
-                        },
-                        "runAsUser": {
-                            "type": "integer"
-                        }
-                    }
-                },
-                "serviceAccount": {
-                    "type": "object",
-                    "properties": {
-                        "create": {
-                            "type": "boolean"
-                        }
-                    }
-                },
-                "webhook": {
-                    "type": "object",
-                    "properties": {
-                        "podSecurityContext": {
-                            "type": "object",
-                            "properties": {
-                                "fsGroup": {
-                                    "type": "integer"
-                                },
-                                "runAsGroup": {
-                                    "type": "integer"
-                                },
-                                "runAsNonRoot": {
-                                    "type": "boolean"
-                                },
-                                "runAsUser": {
-                                    "type": "integer"
-                                }
-                            }
-                        },
-                        "resources": {
-                            "type": "object",
-                            "properties": {
-                                "limits": {
-                                    "type": "object",
-                                    "properties": {
-                                        "cpu": {
-                                            "type": "string"
-                                        },
-                                        "memory": {
-                                            "type": "string"
-                                        }
-                                    }
-                                },
-                                "requests": {
-                                    "type": "object",
-                                    "properties": {
-                                        "cpu": {
-                                            "type": "string"
-                                        },
-                                        "memory": {
-                                            "type": "string"
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                        "securityContext": {
-                            "type": "object",
-                            "properties": {
-                                "allowPrivilegeEscalation": {
-                                    "type": "boolean"
-                                },
-                                "capabilities": {
-                                    "type": "object",
-                                    "properties": {
-                                        "drop": {
-                                            "type": "array",
-                                            "items": {
-                                                "type": "string"
-                                            }
-                                        }
-                                    }
-                                },
-                                "readOnlyRootFilesystem": {
-                                    "type": "boolean"
-                                },
-                                "runAsGroup": {
-                                    "type": "integer"
-                                },
-                                "runAsNonRoot": {
-                                    "type": "boolean"
-                                },
-                                "runAsUser": {
-                                    "type": "integer"
-                                }
-                            }
-                        },
-                        "serviceAccount": {
-                            "type": "object",
-                            "properties": {
-                                "create": {
-                                    "type": "boolean"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "fullnameOverride": {
-            "description": "Primary resource fullname. It must be `\u003cservice\u003e-\u003cdashless-token\u003e` (`cobalt-sos`).",
-            "type": "string",
-            "pattern": "^[a-z0-9]+-[a-z0-9]+$"
-        },
         "labelPrefix": {
             "description": "Prefix used by every service-tree label and annotation helper.",
             "type": "string",
             "pattern": "^[a-z0-9.-]+$",
             "minLength": 1
         },
-        "serviceTree": {
-            "description": "Layer-1 service-tree projection. cobalt is cluster-wide infrastructure, so the platform slot is a layer-1 scope marker rather than a service-platform namespace; landscape and cluster are added by independent overlays.",
+        "namespace": {
+            "description": "Runtime namespace. Real landscapes use the platform name; Garden overrides only this value with the branch name while preserving serviceTree.platform.",
             "type": "object",
             "required": [
-                "platform",
-                "service",
-                "module",
-                "layer"
+                "name"
             ],
             "properties": {
-                "layer": {
+                "name": {
                     "type": "string",
-                    "pattern": "^[0-9]+$"
-                },
-                "module": {
-                    "type": "string",
-                    "pattern": "^[a-z0-9]+$"
-                },
-                "platform": {
-                    "type": "string",
-                    "pattern": "^[a-z0-9-]+$"
-                },
-                "service": {
-                    "type": "string",
-                    "pattern": "^[a-z0-9]+$"
+                    "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
                 }
             }
         },
-        "store": {
-            "description": "Pull-only SoS Infisical ClusterSecretStore. It reads the cluster landscape's SoS tokens and nothing else; it never writes (no PushSecret) and never inlines credentials.",
+        "platformSecretStore": {
+            "description": "Namespaced Infisical store used by every service in this platform namespace. Its auth Secret is materialized by tokenExternalSecret through cobalt's SoS store.",
             "type": "object",
+            "required": [
+                "name"
+            ],
             "properties": {
+                "auth": {
+                    "type": "object",
+                    "properties": {
+                        "clientIdKey": {
+                            "type": "string"
+                        },
+                        "clientSecretKey": {
+                            "type": "string"
+                        }
+                    }
+                },
                 "enabled": {
                     "type": "boolean"
                 },
                 "infisical": {
                     "type": "object",
                     "required": [
-                        "hostAPI"
+                        "hostAPI",
+                        "projectSlug",
+                        "secretsPath"
                     ],
                     "properties": {
-                        "auth": {
-                            "description": "Universal-auth credential reference. The bootstrap Secret is written into the cluster by the T3 cluster controller; cobalt only consumes it (no literals).",
-                            "type": "object",
-                            "properties": {
-                                "universalAuth": {
-                                    "type": "object",
-                                    "properties": {
-                                        "clientId": {
-                                            "type": "object",
-                                            "required": [
-                                                "name",
-                                                "key",
-                                                "namespace"
-                                            ],
-                                            "properties": {
-                                                "key": {
-                                                    "type": "string",
-                                                    "pattern": "^[a-zA-Z0-9._-]+$"
-                                                },
-                                                "name": {
-                                                    "type": "string",
-                                                    "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
-                                                },
-                                                "namespace": {
-                                                    "type": "string",
-                                                    "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-                                                }
-                                            }
-                                        },
-                                        "clientSecret": {
-                                            "type": "object",
-                                            "required": [
-                                                "name",
-                                                "key",
-                                                "namespace"
-                                            ],
-                                            "properties": {
-                                                "key": {
-                                                    "type": "string",
-                                                    "pattern": "^[a-zA-Z0-9._-]+$"
-                                                },
-                                                "name": {
-                                                    "type": "string",
-                                                    "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
-                                                },
-                                                "namespace": {
-                                                    "type": "string",
-                                                    "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                        "environmentSlug": {
+                            "description": "Landscape environment. A landscape overlay replaces this default per row.",
+                            "type": "string"
                         },
                         "hostAPI": {
-                            "description": "Infisical API base URL (AtomiCloud source of secrets).",
                             "type": "string",
-                            "pattern": "^https?://.*"
+                            "pattern": "^https://.*"
                         },
-                        "secretsScope": {
-                            "type": "object",
-                            "required": [
-                                "projectSlug"
-                            ],
-                            "properties": {
-                                "environmentSlug": {
-                                    "description": "The cluster landscape; set by the landscape overlay (env == landscape).",
-                                    "type": "string"
-                                },
-                                "projectSlug": {
-                                    "description": "The source-of-secrets Infisical project (tokens only).",
-                                    "type": "string",
-                                    "pattern": "^[a-z0-9-]+$"
-                                },
-                                "recursive": {
-                                    "description": "Stay non-recursive so the store never reads beyond the landscape path.",
-                                    "type": "boolean"
-                                },
-                                "secretsPath": {
-                                    "description": "Secret path prefix inside the project; the whole SoS tree is read.",
-                                    "type": "string",
-                                    "pattern": "^/.*$"
-                                }
-                            }
+                        "projectSlug": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+                        },
+                        "recursive": {
+                            "type": "boolean"
+                        },
+                        "secretsPath": {
+                            "type": "string",
+                            "pattern": "^/.*$"
                         }
                     }
+                },
+                "name": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9]+-[a-z0-9]+$"
+                }
+            }
+        },
+        "serviceTree": {
+            "description": "Platform identity stays stable when Garden projects the chart into a branch namespace.",
+            "type": "object",
+            "required": [
+                "platform",
+                "service",
+                "module",
+                "layer",
+                "landscape"
+            ],
+            "properties": {
+                "landscape": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+                },
+                "layer": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$"
+                },
+                "module": {
+                    "const": "platform"
+                },
+                "platform": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+                },
+                "service": {
+                    "const": "carbon"
+                }
+            }
+        },
+        "tokenExternalSecret": {
+            "description": "Pull the platform Universal Auth pair from cobalt's landscape-scoped SoS ClusterSecretStore. dataFrom.extract preserves the folder as the address and never hand-writes individual key mappings.",
+            "type": "object",
+            "required": [
+                "name",
+                "targetSecretName",
+                "refreshInterval"
+            ],
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9]+-[a-z0-9]+$"
+                },
+                "refreshInterval": {
+                    "type": "string",
+                    "pattern": "^[1-9][0-9]*(s|m|h)$"
+                },
+                "source": {
+                    "type": "object",
+                    "required": [
+                        "kind",
+                        "name",
+                        "folder"
+                    ],
+                    "properties": {
+                        "folder": {
+                            "type": "string",
+                            "pattern": "^/platforms/[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+                        },
+                        "kind": {
+                            "const": "ClusterSecretStore"
+                        },
+                        "name": {
+                            "const": "cobalt-sos"
+                        }
+                    }
+                },
+                "targetSecretName": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9]+-[a-z0-9]+$"
                 }
             }
         }

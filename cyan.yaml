@@ -1,0 +1,19 @@
+username: atomi
+name: carbon
+description: AtomiCloud materialized platform-home scaffold
+project: https://github.com/AtomiCloud/diene.carbon
+source: https://github.com/AtomiCloud/diene.carbon
+email: ernest@atomi.cloud
+tags: [atomi, carbon, platform, helm]
+readme: README.md
+templates: []
+processors:
+  - cyan/default
+plugins: []
+resolvers:
+  - resolver: atomi/json-yaml
+    config:
+      arrayStrategy: replace
+    files:
+      - platform.yaml
+commands: []

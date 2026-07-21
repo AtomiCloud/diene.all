@@ -1,0 +1,4 @@
+landscapes: [pichu, pikachu]
+stages:
+  - pichu
+  - [pikachu]

@@ -1,0 +1,10 @@
+{{- include "carbon.validateServiceTree" . -}}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ required "namespace.name is required" .Values.namespace.name }}
+  labels:
+    {{- include "carbon.labels" . | nindent 4 }}
+  annotations:
+    {{- include "carbon.annotations" . | nindent 4 }}
+    argocd.argoproj.io/sync-wave: "-2"

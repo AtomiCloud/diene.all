@@ -1,0 +1,130 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Diene Carbon Values",
+    "description": "Generated schema for one chart in the let__platform__ carbon app and primordial pair.",
+    "type": "object",
+    "required": [
+        "apiVersion"
+    ],
+    "properties": {
+        "apiVersion": {
+            "const": "fleet.atomi.cloud/v1alpha1"
+        },
+        "labelPrefix": {
+            "type": "string",
+            "pattern": "^[a-z0-9.-]+$",
+            "minLength": 1
+        },
+        "platformDependencies": {
+            "description": "One entry is one platform-shared declaration keyed by this platform and one virtual landscape. Duplicate landscapes are a loud render-time Conflict.",
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "database": {
+                        "type": "object",
+                        "properties": {
+                            "shared": {
+                                "type": "object",
+                                "properties": {
+                                    "backup": {
+                                        "type": "object",
+                                        "properties": {
+                                            "crossVendor": {
+                                                "type": "boolean"
+                                            }
+                                        }
+                                    },
+                                    "cpu": {
+                                        "type": "integer"
+                                    },
+                                    "credentialMode": {
+                                        "type": "string"
+                                    },
+                                    "delivery": {
+                                        "type": "string"
+                                    },
+                                    "engine": {
+                                        "type": "object",
+                                        "properties": {
+                                            "neon": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "tier": {
+                                                        "type": "string"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "providerAccountRef": {
+                                        "type": "string"
+                                    },
+                                    "ram": {
+                                        "type": "string"
+                                    },
+                                    "rotation": {
+                                        "type": "string"
+                                    },
+                                    "storage": {
+                                        "type": "string"
+                                    },
+                                    "type": {
+                                        "type": "string"
+                                    },
+                                    "version": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "deletionPolicy": {
+                        "type": "object",
+                        "properties": {
+                            "retainSecret": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "landscape": {
+                        "type": "string"
+                    },
+                    "placement": {
+                        "type": "object",
+                        "properties": {
+                            "preferredHost": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "serviceTree": {
+            "type": "object",
+            "required": [
+                "platform",
+                "service",
+                "module",
+                "layer"
+            ],
+            "properties": {
+                "layer": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$"
+                },
+                "module": {
+                    "const": "platformdeps"
+                },
+                "platform": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+                },
+                "service": {
+                    "const": "carbon"
+                }
+            }
+        }
+    }
+}

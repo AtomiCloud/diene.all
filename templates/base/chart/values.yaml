@@ -1,0 +1,64 @@
+# @schema pattern:^[a-z0-9.-]+$;minLength:1
+# -- Prefix used by every service-tree label and annotation helper.
+labelPrefix: atomi.cloud
+
+# -- Platform identity stays stable when Garden projects the chart into a branch namespace.
+serviceTree:
+  # @schema pattern:^[a-z0-9]([-a-z0-9]*[a-z0-9])?$;required:true
+  platform: let__platform__
+  # @schema const:carbon;required:true
+  service: carbon
+  # @schema const:platform;required:true
+  module: platform
+  # @schema pattern:^[0-9]+$;required:true
+  layer: '1'
+  # @schema pattern:^[a-z0-9]([-a-z0-9]*[a-z0-9])?$;required:true
+  landscape: pichu
+
+# -- Runtime namespace. Real landscapes use the platform name; Garden overrides only
+# this value with the branch name while preserving serviceTree.platform.
+namespace:
+  # @schema pattern:^[a-z0-9]([-a-z0-9]*[a-z0-9])?$;required:true
+  name: let__platform__
+
+# -- Pull the platform Universal Auth pair from cobalt's landscape-scoped SoS
+# ClusterSecretStore. dataFrom.extract preserves the folder as the address and never
+# hand-writes individual key mappings.
+tokenExternalSecret:
+  # @schema type:boolean
+  enabled: true
+  # @schema pattern:^[a-z0-9]+-[a-z0-9]+$;required:true
+  name: carbon-token
+  # @schema pattern:^[a-z0-9]+-[a-z0-9]+$;required:true
+  targetSecretName: carbon-token
+  # @schema pattern:^[1-9][0-9]*(s|m|h)$;required:true
+  refreshInterval: 1h
+  source:
+    # @schema const:ClusterSecretStore;required:true
+    kind: ClusterSecretStore
+    # @schema const:cobalt-sos;required:true
+    name: cobalt-sos
+    # @schema pattern:^/platforms/[a-z0-9]([-a-z0-9]*[a-z0-9])?$;required:true
+    folder: /platforms/let__platform__
+
+# -- Namespaced Infisical store used by every service in this platform namespace.
+# Its auth Secret is materialized by tokenExternalSecret through cobalt's SoS store.
+platformSecretStore:
+  # @schema type:boolean
+  enabled: true
+  # @schema pattern:^[a-z0-9]+-[a-z0-9]+$;required:true
+  name: carbon-store
+  infisical:
+    # @schema pattern:^https://.*;required:true
+    hostAPI: https://secrets.atomi.cloud/api
+    # @schema pattern:^[a-z0-9]([-a-z0-9]*[a-z0-9])?$;required:true
+    projectSlug: let__platform__
+    # -- Landscape environment. A landscape overlay replaces this default per row.
+    environmentSlug: pichu
+    # @schema pattern:^/.*$;required:true
+    secretsPath: /
+    # @schema type:boolean
+    recursive: true
+  auth:
+    clientIdKey: clientId
+    clientSecretKey: clientSecret

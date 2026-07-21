@@ -26,9 +26,9 @@ jobs:
     with:
       chart_path: ./infra/root_chart
 
-  cobalt:
-    name: Cobalt Chart
+  carbon:
+    name: Carbon Platform Charts
     permissions:
       contents: read
-    uses: ./.github/workflows/⚡reusable-cobalt.yaml
+    uses: ./.github/workflows/⚡reusable-carbon.yaml
     secrets: inherit
