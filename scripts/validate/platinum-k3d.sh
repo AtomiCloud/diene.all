@@ -146,10 +146,117 @@ capture_diagnostic_file() {
   printf '%s\n' "${pipeline_status}" >"${output_path}.exit" || true
 }
 
+# Fixed-schema, privacy-safe summary of a controller log stream. Reads the
+# bounded raw log on stdin and emits ONLY derived, non-reversible fields: a
+# SHA-256 of the raw bytes, byte/line counts, and per-category match counts over
+# a closed, documented crash vocabulary. No original line body is ever emitted,
+# so no secret/bearer/JWT/key/URL/DSN/high-entropy value in the log can survive
+# into the durable artifact. Category matching is a documented allowlist of
+# fixed, case-insensitive patterns; only integer counts leave this function.
+summarize_controller_log() {
+  local raw bytes lines sha
+  raw="$(cat)"
+  bytes="$(printf '%s' "${raw}" | wc -c | tr -d ' ')"
+  if [ -z "${raw}" ]; then
+    lines=0
+  else
+    lines="$(printf '%s\n' "${raw}" | wc -l | tr -d ' ')"
+  fi
+  sha="$(printf '%s' "${raw}" | sha256sum | cut -d' ' -f1)"
+  _cat_count() {
+    if [ -z "${raw}" ]; then
+      printf '0'
+    else
+      printf '%s' "${raw}" | grep -icE "$1" || true
+    fi
+  }
+  printf 'schema\tcontroller-crash-summary-v1\n'
+  printf 'raw_sha256\t%s\n' "${sha}"
+  printf 'raw_byte_count\t%s\n' "${bytes}"
+  printf 'raw_line_count\t%s\n' "${lines}"
+  printf 'cat_panic\t%s\n' "$(_cat_count 'panic:|goroutine [0-9]|runtime error|invalid memory address|nil pointer')"
+  printf 'cat_oom\t%s\n' "$(_cat_count 'out of memory|oomkill|cannot allocate memory|runtime: out of memory')"
+  printf 'cat_permission\t%s\n' "$(_cat_count 'forbidden|permission denied|unauthorized|cannot (list|get|watch|create|update)|is forbidden|rbac')"
+  printf 'cat_connectivity\t%s\n' "$(_cat_count 'connection refused|no route to host|dial tcp|i/o timeout|context deadline exceeded|econnrefused|network is unreachable')"
+  printf 'cat_config\t%s\n' "$(_cat_count 'invalid config|failed to parse|cannot unmarshal|decode error|unknown field|validation failed|no such file or directory')"
+  printf 'cat_probe\t%s\n' "$(_cat_count 'readyz|healthz|readiness|liveness|probe failed|startup probe')"
+  printf 'cat_tls\t%s\n' "$(_cat_count 'x509|tls handshake|bad certificate|certificate signed by unknown')"
+  printf 'cat_fatal\t%s\n' "$(_cat_count 'level=fatal|"level":"fatal"|fatal error|^fatal|[[:space:]]fatal[[:space:]]')"
+}
+
+# Deterministically resolve the single release-owned crashing controller pod
+# from its own restart/lastState evidence, BEFORE any pod-targeted capture. A
+# crashing candidate is a release-selected pod whose container named `controller`
+# has restartCount >= 1 AND (waiting reason CrashLoopBackOff OR a numeric
+# lastState.terminated.exitCode). On exactly one candidate its name is printed;
+# on zero or multiple it fails closed with a bounded ambiguity artifact and no
+# fallback to deployment shorthand or namespace-wide events.
+resolve_crashing_controller_pod() {
+  local failure_deadline="$1"
+  local diagnostics_dir="$2"
+  local run_seconds listing candidates count
+  if ! run_seconds="$(deadline_run_seconds "${failure_deadline}" "${cleanup_reserve_seconds}" "${diagnostic_command_max_seconds}")"; then
+    printf 'schema\tcontroller-ambiguity-v1\nreason\tdeadline\ncandidates\t0\n' |
+      cap_diagnostic_lines "${diagnostics_dir}/controller-ambiguity.tsv"
+    return 1
+  fi
+  listing="$(timeout --signal=TERM --kill-after="${failure_kill_grace_seconds}" "${run_seconds}s" \
+    kubectl --context "k3d-${cluster_name}" --namespace sulfoxide --request-timeout=15s \
+    get pods --selector 'app.kubernetes.io/instance in (platinum,platinum-gateway)' \
+    -o 'jsonpath={range .items[*]}{.metadata.name}{"\t"}{range .status.containerStatuses[?(@.name=="controller")]}{.restartCount}{":"}{.state.waiting.reason}{":"}{.lastState.terminated.exitCode}{":"}{.lastState.terminated.reason}{end}{"\n"}{end}' 2>/dev/null)" || true
+  candidates="$(printf '%s\n' "${listing}" | awk -F'\t' '
+    NF >= 2 && $2 != "" {
+      split($2, c, ":")
+      if (c[1] ~ /^[0-9]+$/ && c[1] + 0 >= 1 && (c[2] == "CrashLoopBackOff" || c[3] ~ /^[0-9]+$/)) {
+        print $1
+      }
+    }' | sort -u | sed '/^$/d')"
+  count="$(printf '%s\n' "${candidates}" | sed '/^$/d' | wc -l | tr -d ' ')"
+  if [ "${count}" -ne 1 ]; then
+    {
+      printf 'schema\tcontroller-ambiguity-v1\n'
+      printf 'reason\t%s\n' "$([ "${count}" -eq 0 ] && printf none || printf multiple)"
+      printf 'candidates\t%s\n' "${count}"
+      printf '%s\n' "${candidates}" | sed '/^$/d' | sed 's/^/candidate\t/'
+    } | cap_diagnostic_lines "${diagnostics_dir}/controller-ambiguity.tsv"
+    return 1
+  fi
+  printf '%s\n' "${candidates}"
+  return 0
+}
+
+# Bounded previous-instance controller log capture for one exact pod. The raw
+# stream is line/byte capped upstream (--previous --tail --limit-bytes) and is
+# summarized in-process by summarize_controller_log; the raw text never touches
+# durable storage. A missing previous instance fails safely to a zero-count
+# summary plus a nonzero .exit, never altering the proof result.
+capture_controller_log_summary() {
+  local failure_deadline="$1"
+  local output_path="$2"
+  local pod="$3"
+  local run_seconds pipeline_status
+  : >"${output_path}" || return 0
+  if ! run_seconds="$(deadline_run_seconds "${failure_deadline}" "${cleanup_reserve_seconds}" "${diagnostic_command_max_seconds}")"; then
+    printf '124\n' >"${output_path}.exit" || true
+    return 0
+  fi
+  if timeout --signal=TERM --kill-after="${failure_kill_grace_seconds}" "${run_seconds}s" \
+    kubectl --context "k3d-${cluster_name}" --namespace sulfoxide --request-timeout=15s \
+    logs "${pod}" --container controller --previous --tail=200 --limit-bytes="${diagnostic_byte_limit}" 2>/dev/null |
+    summarize_controller_log >"${output_path}"; then
+    pipeline_status=0
+  else
+    pipeline_status="$?"
+  fi
+  printf '%s\n' "${pipeline_status}" >"${output_path}.exit" || true
+  return 0
+}
+
 capture_failure_diagnostics() {
   local proof_status="$1"
   local failure_deadline="$2"
   local diagnostics_dir="${evidence_dir}/failure-diagnostics"
+  local controller_pod
 
   mkdir -p "${diagnostics_dir}" || {
     echo "⚠️ unable to create Platinum failure diagnostics directory" >&2
@@ -164,11 +271,12 @@ capture_failure_diagnostics() {
   } | cap_diagnostic_lines "${diagnostics_dir}/metadata.tsv" 2>/dev/null || true
 
   # Persist only release-scoped projections. No manifests, values, annotations,
-  # environment, command arguments, event messages, or descriptions are
-  # captured. The single bounded log exception (RB-333 CrashLoopBackOff RCA) is
-  # the previous crashed controller instance's own stdout, captured below with a
-  # server-side line and byte cap; no other container logs are pulled. stderr is
-  # discarded and every whole-line TSV file is byte-capped.
+  # environment, command arguments, event messages, descriptions, or raw
+  # container log bodies are captured. The RB-333 CrashLoopBackOff controller
+  # log is retained only as a fixed-schema derived summary (SHA-256 + byte/line
+  # counts + closed crash-category counts, no line bodies) built below; the raw
+  # stdout never reaches durable storage. stderr is discarded and every
+  # whole-line TSV file is byte-capped.
   # $1/$2 expand only inside the isolated child shell.
   # shellcheck disable=SC2016
   capture_diagnostic_file "${failure_deadline}" "${diagnostics_dir}/helm-release.tsv" \
@@ -194,19 +302,21 @@ capture_failure_diagnostics() {
     -o 'jsonpath={range .items[*]}{.type}{"\t"}{.reason}{"\t"}{.count}{"\t"}{.eventTime}{"\t"}{.lastTimestamp}{"\t"}{.involvedObject.kind}{"\t"}{.involvedObject.name}{"\t"}{.source.component}{"\t"}{.reportingController}{"\n"}{end}'
 
   # RB-333 CrashLoopBackOff root-cause fields. The prior projections show THAT
-  # the platinum-upstream controller restarts, not WHY. The next two add the
-  # terminating cause within the same deadline/byte envelope: the previous
-  # crashed instance's stdout (deployment-scoped, single container, --previous,
-  # capped both server-side via --limit-bytes and locally), and Warning pod
-  # events (reason only, no free-text message) scoped to the release namespace.
-  capture_diagnostic_file "${failure_deadline}" "${diagnostics_dir}/controller-previous.log" \
-    kubectl --context "k3d-${cluster_name}" --namespace sulfoxide --request-timeout=15s \
-    logs deployment/platinum-upstream --container controller --previous \
-    --tail=200 --limit-bytes="${diagnostic_byte_limit}"
-  capture_diagnostic_file "${failure_deadline}" "${diagnostics_dir}/upstream-events.tsv" \
-    kubectl --context "k3d-${cluster_name}" --namespace sulfoxide --request-timeout=15s \
-    get events --field-selector involvedObject.kind=Pod,type=Warning \
-    -o 'jsonpath={range .items[*]}{.type}{"\t"}{.reason}{"\t"}{.count}{"\t"}{.eventTime}{"\t"}{.lastTimestamp}{"\t"}{.involvedObject.kind}{"\t"}{.involvedObject.name}{"\t"}{.source.component}{"\t"}{.reportingController}{"\n"}{end}'
+  # the platinum-upstream controller restarts, not WHY. Resolve the exact
+  # release-owned crashing controller pod first (from its restart/lastState
+  # evidence). Only if exactly one is found do we take the two pod-targeted
+  # captures within the same deadline/byte envelope: a privacy-safe summary of
+  # the previous crashed instance's stdout (no raw line bodies persisted), and
+  # Warning events for THAT exact pod (reason only, no free-text message). Zero
+  # or multiple crashing candidates fail closed to a bounded ambiguity artifact;
+  # we never fall back to deployment shorthand or namespace-wide event scope.
+  if controller_pod="$(resolve_crashing_controller_pod "${failure_deadline}" "${diagnostics_dir}")"; then
+    capture_controller_log_summary "${failure_deadline}" "${diagnostics_dir}/controller-crash-summary.tsv" "${controller_pod}"
+    capture_diagnostic_file "${failure_deadline}" "${diagnostics_dir}/upstream-events.tsv" \
+      kubectl --context "k3d-${cluster_name}" --namespace sulfoxide --request-timeout=15s \
+      get events --field-selector "involvedObject.kind=Pod,involvedObject.name=${controller_pod},type=Warning" \
+      -o 'jsonpath={range .items[*]}{.type}{"\t"}{.reason}{"\t"}{.count}{"\t"}{.eventTime}{"\t"}{.lastTimestamp}{"\t"}{.involvedObject.kind}{"\t"}{.involvedObject.name}{"\t"}{.source.component}{"\t"}{.reportingController}{"\n"}{end}'
+  fi
 
   return 0
 }
