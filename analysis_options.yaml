@@ -1,9 +1,18 @@
 include: package:flutter_lints/flutter.yaml
 
 analyzer:
-  exclude:
-    - lib/generated/**
-    - lib/i18n/translations.g.dart
+  language:
+    strict-casts: true
+    strict-raw-types: true
+  errors:
+    # Dead-code / unused-symbol diagnostics are hard errors: the two-pass
+    # dead-code gate (scripts/validate/deadcode.sh) relies on these firing.
+    dead_code: error
+    unused_element: error
+    unused_field: error
+    unused_import: error
+    unused_local_variable: error
+    unused_shown_name: error
 
 linter:
   rules:
@@ -14,5 +23,9 @@ linter:
     directives_ordering: true
     discarded_futures: true
     prefer_final_locals: true
+    # Private-field / public-parameter constructors are idiomatic here; this
+    # lint conflicts with that pattern (it would force ugly `this._x` public
+    # parameter names on named constructors).
+    prefer_initializing_formals: false
     sort_constructors_first: true
     unawaited_futures: true

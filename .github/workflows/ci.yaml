@@ -17,7 +17,7 @@ jobs:
     secrets: inherit
 
   test:
-    name: Flutter Test
+    name: Test
     permissions:
       contents: read
     uses: ./.github/workflows/⚡reusable-test.yaml

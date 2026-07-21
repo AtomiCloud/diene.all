@@ -1,0 +1,30 @@
+# Publish only the package payload (lib, pubspec, README, CHANGELOG, LICENSE,
+# skills). Everything below is repo/workspace infrastructure — excluded from the
+# pub.dev archive. Notably `docs/` is a workspace convention (plural) that the
+# pub layout hint flags; it is not part of the shipped package.
+build/
+.dart_tool/
+coverage/
+.git/
+CLAUDE.md
+docs/
+nix/
+tool/
+scripts/
+tasks/
+config/
+test/
+coverage/
+.github/
+.claude/
+.envrc
+.metadata
+flake.nix
+flake.lock
+Taskfile.yaml
+atomi_release.yaml
+VERSION
+.coderabbit.yaml
+.markdownlint.json
+.markdownlint-cli2.jsonc
+.prettierrc.yaml

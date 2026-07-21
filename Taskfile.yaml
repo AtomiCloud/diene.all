@@ -9,8 +9,8 @@ tasks:
   setup:
     desc: Set up generated workspace assets
     cmds:
-      # ### flutter-base-setup
-      # #### source: flutter-base
+      # ### dart-auth-engine-setup
+      # #### source: lib/dart/auth-engine
       - flutter pub get
       - ./scripts/local/skills-sync.sh
 
@@ -24,44 +24,56 @@ tasks:
     cmds:
       - ./scripts/local/skills-sync.sh
 
-  # ### flutter-base-tasks
-  # #### source: flutter-base
-  mobile:analyze:
-    desc: Analyze Flutter source and tests
+  # ### dart-auth-engine-tasks
+  # #### source: lib/dart/auth-engine
+  analyze:
+    desc: Analyze the package source and tests
     cmds:
       - flutter analyze
 
-  mobile:test:
-    desc: Run Flutter unit and widget tests
+  format:
+    desc: Format Dart sources
+    cmds:
+      - dart format .
+
+  format:check:
+    desc: Verify Dart formatting
+    cmds:
+      - dart format --output=none --set-exit-if-changed .
+
+  test:
+    desc: Run unit, conformance, and meta tests
     cmds:
       - flutter test
 
-  mobile:build-flavors:
-    desc: Build all four Android flavor smoke artifacts
+  test:coverage:
+    desc: Run tests with the unit coverage ledger (excludes the TestHelper)
     cmds:
-      - ./scripts/validate/flavor-builds.sh
+      - flutter test --coverage
+      - bun tool/coverage_ledger.ts coverage/lcov.info unit 80 --include lib/src --exclude test_helper --exclude /logto/
 
-  mobile:generate-sdk:
-    desc: Regenerate the typed OA3 client
+  test:meta:
+    desc: Run the meta tier over the TestHelper with the meta coverage ledger
     cmds:
-      - ./scripts/local/generate-sdk.sh
+      - flutter test --coverage test/meta
+      - bun tool/coverage_ledger.ts coverage/lcov.info meta 85 --include lib/src/test_helper
 
-  mobile:generate-translations:
-    desc: Regenerate typed Slang translations
+  deadcode:
+    desc: Two-pass dead-code gate (no exclusion lists)
     cmds:
-      - ./scripts/local/generate-translations.sh
+      - ./scripts/validate/deadcode.sh
 
-  mobile:generate-config:
-    desc: Regenerate the Flutter config schema
+  guard:manifest:
+    desc: Verify pubspec version matches VERSION (and an optional tag)
     cmds:
-      - ./scripts/local/generate-config-schema.sh
+      - ./scripts/validate/manifest-tag.sh
 
-  mobile:doctor-signing:
-    desc: Run locally provable signing and stamp doctors
+  publish:dryrun:
+    desc: Validate package hygiene without publishing
     cmds:
-      - ./scripts/validate/signing-doctors.sh
+      - flutter pub publish --dry-run
 
-  mobile:register-apple:
-    desc: Register Apple identifiers, groups, capabilities, and app records
+  gates:
+    desc: Run the full host-safe gate chain
     cmds:
-      - ./scripts/local/register-apple.sh
+      - ./scripts/ci/test.sh

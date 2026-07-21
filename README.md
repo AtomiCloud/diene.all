@@ -1,52 +1,67 @@
-# Diene workspace baseline
+# diene_auth_engine
 
-<!-- ### nix-root -->
-<!-- #### source: main -->
+Frontend auth engine for the AtomiCloud **Diene** Dart family.
 
-Diene's reproducible development environment is managed by Nix. Run `direnv allow` once, then use `pls` tasks from the loaded shell.
+`diene_auth_engine` is a Flutter package that ships the client-side auth
+machinery every Diene mobile app reuses:
 
-<!-- ### workspace -->
-<!-- #### source: workspace -->
+- **Logto flows + per-resource tokens** behind an `AuthProvider` seam, with an
+  expiry-aware, single-flight per-resource token cache (`IAuth`).
+- **Token lifecycle** — access = 10 minutes, refresh = 14 days rotating with
+  reuse detection, silent re-mint on app open (C0 §12).
+- **Multi-backend, claims-first onboarding** — one app onboards to many
+  backends, each with an independent `bootstrapping / needsOnboarding / ready /
+error` phase machine (C0 §8, no singleton flag).
+- **Deferred-login mobile client** — Install Referrer / clipboard carrier read,
+  redeem against `POST {mount}/redeem`, and `signIn(extraParams:)`.
+- **returnTo deeplink continuation** — resume the exact protected route (path +
+  query) after login, with open-redirect rejection.
+- **Sign-up-only landscape selector** — the Doc B client (names + metadata
+  only), ping-and-pick with a `home_landscape`-claim fast path (C0 §10/§13).
+- **Engine-owned config block schema** — the `authEngine` block, validated by
+  the family `config` lib; the OIDC issuer is baked build-time, never
+  doc-sourced.
 
-This branch is the workspace baseline inherited by every downstream sample: split CI/release workflows, secrets, release configuration, validators, standards, and vendored agent-skill synchronization.
+Dart is **frontend-only**: there is no OpenTelemetry surface here — telemetry
+rides Faro through flutter-base.
 
-## Commands
+## Install
 
-- `pls setup` — synchronize installed diene package skills.
-- `pls lint` — run every pre-commit gate.
-- `pls secret:scan` — scan tracked content for secrets.
-- `pls skills:sync` — rebuild `.claude/skills/vendor/` from installed packages.
+```yaml
+dependencies:
+  diene_auth_engine: ^0.0.0
+```
 
-## Standards
+## Usage
 
-- [CI/CD workflows](docs/standards/ci-cd/index.md)
-- [conventional commits](docs/standards/conventional-commits/index.md)
-- [Infisical and secrets](docs/standards/infisical/index.md)
-- [linting and pre-commit](docs/standards/linting/index.md)
-- [Nix flakes and development shells](docs/standards/nix/index.md)
-- [release automation](docs/standards/semantic-release/index.md)
-- [service-tree identity](docs/standards/service-tree/index.md)
-- [shell scripts](docs/standards/shell-scripts/index.md)
-- [Taskfile conventions](docs/standards/taskfile/index.md)
+```dart
+import 'package:diene_auth_engine/diene_auth_engine.dart';
+```
 
-<!-- ### shared -->
-<!-- #### source: shared -->
+See the shipped skill `skills/diene-auth-engine-usage/SKILL.md` and
+[docs/standards/auth/index.md](docs/standards/auth/index.md) for wiring
+(per-backend onboarding, deferred login, retriever/provider seams) and the
+`lib/bun/auth-engine` parity deltas.
 
-## Shared standards
+## TestHelper
 
-- [Authorization](docs/standards/authorization/index.md)
-- [Contributor documentation](docs/standards/contributor-docs/index.md)
-- [Date and time](docs/standards/datetime/index.md)
-- [Domain-driven design](docs/standards/domain-driven-design/index.md)
-- [Functional practices](docs/standards/functional-practices/index.md)
-- [Software design philosophy](docs/standards/software-design-philosophy/index.md)
-- [SOLID principles](docs/standards/solid-principles/index.md)
-- [Stateless OOP and dependency injection](docs/standards/stateless-oop-di/index.md)
-- [Testing](docs/standards/testing/index.md)
-- [Three-layer architecture](docs/standards/three-layer-architecture/index.md)
-- [Utility libraries](docs/standards/utilities/index.md)
-- [Data validation](docs/standards/validation/index.md)
+A dependency-light TestHelper ships in the same package:
 
-Domain-specific documentation belongs under [docs/domain/](docs/domain/README.md).
-The `docs/standards/contracts/` location is reserved for the separately owned C0
-contracts standard.
+```dart
+import 'package:diene_auth_engine/test_helper.dart';
+```
+
+It carries fakes (IdP/provider, retrievers, deferred store, per-backend phase
+fakes), token/claims builders, and plain-throw assertions — no test-framework
+dependencies.
+
+## Development
+
+Managed by Nix; run `direnv allow` once, then use `pls` tasks:
+
+- `pls test` — unit, conformance, and meta tests.
+- `pls test:coverage` — unit coverage ledger.
+- `pls test:meta` — meta tier over the TestHelper.
+- `pls deadcode` — two-pass dead-code gate.
+- `pls publish:dryrun` — package hygiene.
+- `pls gates` — the full host-safe gate chain.

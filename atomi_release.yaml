@@ -22,7 +22,7 @@ plugins:
   - module: '@semantic-release/changelog'
     version: 6.0.3
     config:
-      changelogFile: Changelog.md
+      changelogFile: CHANGELOG.md
   - module: '@semantic-release/exec'
     version: 6.0.3
     config:
@@ -32,7 +32,7 @@ plugins:
     config:
       message: "release: ${nextRelease.version}\n\n${nextRelease.notes}"
       assets:
-        - Changelog.md
+        - CHANGELOG.md
         - VERSION
         - pubspec.yaml
         - docs/developer/CommitConventions.md
