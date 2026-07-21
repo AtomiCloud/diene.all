@@ -22,6 +22,15 @@ final class EnvironmentCoercionException implements Exception {
 /// Blank values become `null` (unset). Booleans, safe integers, and decimal
 /// numbers become their Dart scalar equivalents. Integers outside the
 /// IEEE-754 safe range remain strings so web builds do not lose precision.
+///
+/// This is a CONFIGURATION-value coercion, NOT a money or wire-decimal codec.
+/// Decimal forms are parsed to `double` for ergonomic config numerics (ratios,
+/// timeouts, thresholds) and are therefore lossy for exact decimals. Per C0
+/// §1, money and other exact-decimal wire values are carried as decimal
+/// strings and MUST NOT be routed through this helper; they stay strings end
+/// to end. Only integers beyond the IEEE-754 safe range are preserved as
+/// strings here, precisely because coercing them would silently lose
+/// precision — the same reason exact decimals belong on the string boundary.
 Object? coerceEnvironmentScalar(String value) {
   if (value.isEmpty) {
     return null;

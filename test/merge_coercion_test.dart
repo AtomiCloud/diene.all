@@ -105,6 +105,32 @@ void main() {
       expect(coerceEnvironmentScalar('1e3'), 1000.0);
     });
 
+    test('is config-numeric coercion, not a C0 money/wire-decimal codec', () {
+      // Arrange — a config decimal (ratio/timeout) versus a value that must
+      // stay exact. C0 §1: money/exact decimals are decimal STRINGS, never
+      // floats; only config numerics are coerced here.
+      const String configRatio = '0.25';
+      const String exactDecimal = '9007199254740993.0001';
+      const String bigInteger = '9007199254740993';
+
+      // Act
+      final Object? ratio = coerceEnvironmentScalar(configRatio);
+      final Object? coercedDecimal = coerceEnvironmentScalar(exactDecimal);
+      final Object? preservedInteger = coerceEnvironmentScalar(bigInteger);
+
+      // Assert — config decimals become doubles (ergonomic, lossy)...
+      expect(ratio, isA<double>());
+      expect(ratio, 0.25);
+      // ...and coercing an exact decimal through this config path is lossy,
+      // which is exactly why the C0 money/wire boundary keeps it a string.
+      expect(coercedDecimal, isA<double>());
+      expect((coercedDecimal! as double).toString(), isNot(exactDecimal));
+      // Integers past the IEEE-754 safe range are preserved as strings on the
+      // same precision boundary money decimals rely on.
+      expect(preservedInteger, isA<String>());
+      expect(preservedInteger, bigInteger);
+    });
+
     test('rejects malformed, colliding, mixed, and sparse paths', () {
       // Arrange
       final List<Map<String, String>> invalidCases = <Map<String, String>>[

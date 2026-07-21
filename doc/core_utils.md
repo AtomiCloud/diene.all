@@ -31,6 +31,15 @@ unset. Booleans, safe integers, and decimal/scientific forms are coerced; intege
 outside ±(2^53−1) stay strings. JSON-in-env and comma-list encodings are never
 decoded.
 
+`coerceEnvironmentScalar` is **configuration-value** coercion, not a money or
+wire-decimal codec. Decimal forms become `double` for ergonomic config numerics
+(ratios, timeouts, thresholds) and are therefore lossy for exact decimals. Per
+C0 §1, money and other exact-decimal wire values are decimal **strings** and must
+not be routed through this helper — they stay strings end to end. The only reason
+integers beyond ±(2^53−1) are preserved as strings here is that coercing them
+would lose precision, the same precision boundary that keeps money decimals on
+the string side.
+
 ## C0 wire forms
 
 `WireCodec` enforces the family contract:
@@ -43,8 +52,20 @@ decoded.
 | `IsoDuration`  | ISO 8601 duration              |
 | `IanaTimezone` | IANA area/location identifier  |
 
-Display/locale formats never cross the wire. Offset or abbreviated timezone values
-are rejected. Instants are formatted in UTC even when the input has a local offset.
+Display/locale formats never cross the wire. Instants are formatted in UTC even
+when the input has a local offset.
+
+`IanaTimezone` validation is **exact membership** in the IANA time zone database
+release bundled with the package (`isIanaTimeZone`, release stamped in
+`ianaTimeZoneRelease`), not a lexical shape check. The allowlist is generated
+mechanically from the release's `tzdata.zi` Zone and Link records by
+`tool/gen_iana_zones.dart`; it is neither a handwritten subset nor OS-local
+runtime validation. Canonical zones (`Asia/Singapore`), aliases, the `Etc/*`
+family, and bare `UTC` are accepted; offsets (`+08:00`), abbreviations (`PST`),
+path-traversal components (`Area/../Location`), and unknown names
+(`Area/NotAnIanaZone`) are rejected. The C0 §1 temporal contract cases are driven
+from the shared fixture `test/fixtures/c0_temporal.json` by
+`test/c0_conformance_test.dart`.
 
 ## TestHelper and meta tier
 

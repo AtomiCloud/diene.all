@@ -1,3 +1,5 @@
+import 'iana_zones.dart';
+
 final RegExp _datePattern = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$');
 final RegExp _timePattern = RegExp(r'^(\d{2}):(\d{2}):(\d{2})$');
 final RegExp _instantPattern = RegExp(
@@ -6,7 +8,6 @@ final RegExp _instantPattern = RegExp(
 final RegExp _durationPattern = RegExp(
   r'^P(?=\d|T\d)(?:(?:\d+(?:[.,]\d+)?Y)?(?:\d+(?:[.,]\d+)?M)?(?:\d+(?:[.,]\d+)?W)?(?:\d+(?:[.,]\d+)?D)?)(?:T(?=\d)(?:\d+(?:[.,]\d+)?H)?(?:\d+(?:[.,]\d+)?M)?(?:\d+(?:[.,]\d+)?S)?)?$',
 );
-final RegExp _ianaComponent = RegExp(r'^[A-Za-z0-9_+\-]+$');
 
 /// A C0 `YYYY-MM-DD` calendar date.
 final class WireDate {
@@ -112,20 +113,19 @@ final class IsoDuration {
   int get hashCode => value.hashCode;
 }
 
-/// A validated IANA area/location timezone identifier.
+/// A validated IANA timezone identifier.
+///
+/// Validation is exact membership in the IANA time zone database release
+/// bundled as [ianaTimeZoneRelease] (see `iana_zones.dart`), not a lexical
+/// shape check. Canonical zones (`Asia/Singapore`), aliases, the `Etc/*`
+/// family, and the bare `UTC` identifier are accepted; offsets (`+08:00`),
+/// abbreviations, path-traversal components (`Area/../Location`), and unknown
+/// names (`Area/NotAnIanaZone`) are rejected.
 final class IanaTimezone {
   const IanaTimezone._(this.value);
 
   factory IanaTimezone.parse(String value) {
-    final List<String> parts = value.split('/');
-    if (parts.length < 2 ||
-        parts.any(
-          (String part) =>
-              part.isEmpty ||
-              part == '.' ||
-              part == '..' ||
-              !_ianaComponent.hasMatch(part),
-        )) {
+    if (!isIanaTimeZone(value)) {
       throw FormatException('Expected an IANA timezone identifier', value);
     }
     return IanaTimezone._(value);

@@ -2,6 +2,7 @@
 library;
 
 export 'src/coercion.dart';
+export 'src/iana_zones.dart';
 export 'src/merge.dart';
 export 'src/slug.dart';
 export 'src/timing.dart';
