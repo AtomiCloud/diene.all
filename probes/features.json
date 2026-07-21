@@ -208,7 +208,7 @@
   {
     "template": "diene/workspace",
     "name": "releaser-runtime-argv",
-    "class": "smoke"
+    "class": "gate"
   },
   {
     "template": "diene/shared",

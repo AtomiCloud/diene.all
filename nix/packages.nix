@@ -144,6 +144,19 @@ let
       '';
     };
 
+    # ### workspace-releaser-argv-fixture
+    # #### source: workspace
+    # Test-only Yarn Classic (yarn 1.x) from the pinned nixpkgs, used solely by
+    # the RB-339 hermetic argv regression fixture to reproduce the second defect:
+    # `yarn exec semantic-release@23.0.1` failing because Yarn resolves the exec
+    # ARG as a binary NAME. This is a package output ONLY; it is deliberately NOT
+    # added to any devShell buildInputs (least of all `.#releaser`) so the
+    # production release runtime stays npm-only. The probe injects this store
+    # path into the fixture out-of-band via RB339_YARN_CLASSIC_BIN.
+    releaser-argv-fixture = {
+      yarn-classic = pkgs-2605.yarn;
+    };
+
     # ### nix-unstable
     # #### source: main
     nix-unstable = (
@@ -158,4 +171,11 @@ let
   };
 in
 with all;
-atomipkgs // nix-2605 // releaser-bootstrap // nix-unstable // root // go-base // go-lib
+atomipkgs
+// nix-2605
+// releaser-bootstrap
+// releaser-argv-fixture
+// nix-unstable
+// root
+// go-base
+// go-lib
