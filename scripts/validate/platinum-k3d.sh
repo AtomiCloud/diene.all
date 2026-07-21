@@ -55,7 +55,11 @@ helm dependency build chart
 # verification, so the proof never depends on a live, renameable external URL.
 gateway_crds="$(bash ./scripts/local/gateway-api-crd-fixture.sh verify)"
 kubectl --context "k3d-${cluster_name}" apply -f "${gateway_crds}"
-kubectl --context "k3d-${cluster_name}" apply -f chart/charts/kgateway-crds-v2.2.9.tgz 2>/dev/null || helm template kgateway-crds chart/charts/kgateway-crds-v2.2.9.tgz | kubectl --context "k3d-${cluster_name}" apply -f -
+# The rendered fallback applies server-side (stable field manager): the archive's
+# GatewayParameters CRD exceeds the 262144-byte last-applied-configuration
+# annotation that client-side apply would persist, so only server-side apply
+# installs it. The primary archive apply stays client-side.
+kubectl --context "k3d-${cluster_name}" apply -f chart/charts/kgateway-crds-v2.2.9.tgz 2>/dev/null || helm template kgateway-crds chart/charts/kgateway-crds-v2.2.9.tgz | kubectl --context "k3d-${cluster_name}" apply --server-side --field-manager=platinum-k3d-proof -f -
 
 # Install platinum with the kgateway control plane + CRDs enabled.
 helm upgrade --install --kube-context "k3d-${cluster_name}" platinum chart --namespace sulfoxide --create-namespace \
