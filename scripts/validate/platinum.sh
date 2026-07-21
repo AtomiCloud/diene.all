@@ -250,6 +250,31 @@ gateway-api-crd-fixture)
     exit 1
   fi
   ;;
+kgateway-crd-apply)
+  # RB-295 regression guard: the rendered kgateway-crds-v2.2.9 fallback (after
+  # `||`) must apply server-side with the stable field manager. Client-side
+  # apply persists the whole manifest into the last-applied-configuration
+  # annotation, and the archive's GatewayParameters CRD exceeds Kubernetes'
+  # 262144-byte annotation limit, so the fallback failed before any Platinum
+  # install. Static assertion only — no k3d or live provider work.
+  fallback="$(rg -o -- '\|\|.*helm template kgateway-crds.*' scripts/validate/platinum-k3d.sh || true)"
+  if [ -z "${fallback}" ]; then
+    echo "❌ kgateway-crds rendered fallback pipeline not found in platinum-k3d.sh" >&2
+    exit 1
+  fi
+  if ! printf '%s\n' "${fallback}" | rg -q -- 'kgateway-crds-v2\.2\.9\.tgz'; then
+    echo "❌ kgateway-crds rendered fallback does not render the pinned v2.2.9 archive" >&2
+    exit 1
+  fi
+  if ! printf '%s\n' "${fallback}" | rg -q -- '--server-side'; then
+    echo "❌ kgateway-crds rendered fallback does not use server-side apply" >&2
+    exit 1
+  fi
+  if ! printf '%s\n' "${fallback}" | rg -q -- '--field-manager=platinum-k3d-proof'; then
+    echo "❌ kgateway-crds rendered fallback missing stable field manager platinum-k3d-proof" >&2
+    exit 1
+  fi
+  ;;
 *)
   echo "❌ unknown validation mode '${mode}'" >&2
   exit 1
