@@ -1,0 +1,25 @@
+# Keep the published package tarball to the library surface only. The repo
+# carries workspace CI/nix/release machinery and inherited standards docs that
+# a consumer of the pub.dev package does not need; exclude them here (a
+# .pubignore overrides .gitignore for publishing).
+.github/
+nix/
+scripts/
+tasks/
+config/
+docs/
+probes/
+flake.nix
+flake.lock
+Taskfile.yaml
+lpsm.yaml
+atomi_release.yaml
+VERSION
+CLAUDE.md
+.coderabbit.yaml
+.envrc
+.markdownlint.json
+.markdownlint-cli2.jsonc
+.prettierrc.yaml
+.pre-commit-config.yaml
+.metadata

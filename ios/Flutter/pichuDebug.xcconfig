@@ -1,9 +1,0 @@
-#include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"
-#include "Generated.xcconfig"
-
-ASSET_PREFIX=pichu
-BUNDLE_NAME=Diene Mobile (Pichu)
-BUNDLE_DISPLAY_NAME=Diene Mobile (Pichu)
-FLUTTER_BASE_APP_GROUP=group.cloud.atomi.pichu.platform.service.app
-CODE_SIGN_ENTITLEMENTS=Runner/Runner.entitlements
-ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS=YES

@@ -9,9 +9,9 @@ tasks:
   setup:
     desc: Set up generated workspace assets
     cmds:
-      # ### flutter-base-setup
-      # #### source: flutter-base
-      - flutter pub get
+      # ### dart-lib-setup
+      # #### source: dart-lib
+      - dart pub get
       - ./scripts/local/skills-sync.sh
 
   lint:
@@ -24,44 +24,64 @@ tasks:
     cmds:
       - ./scripts/local/skills-sync.sh
 
-  # ### flutter-base-tasks
-  # #### source: flutter-base
-  mobile:analyze:
-    desc: Analyze Flutter source and tests
+  # ### dart-lib-tasks
+  # #### source: dart-lib
+  analyze:
+    desc: Analyze the library and tests
     cmds:
-      - flutter analyze
+      - dart analyze
 
-  mobile:test:
-    desc: Run Flutter unit and widget tests
+  test:
+    desc: Run the full test suite (unit + meta)
     cmds:
-      - flutter test
+      - dart test
 
-  mobile:build-flavors:
-    desc: Build all four Android flavor smoke artifacts
+  test:unit:
+    desc: Run the unit tier only
     cmds:
-      - ./scripts/validate/flavor-builds.sh
+      - dart test test/unit
 
-  mobile:generate-sdk:
-    desc: Regenerate the typed OA3 client
+  test:meta:
+    desc: Run the meta tier (TestHelper code) only
     cmds:
-      - ./scripts/local/generate-sdk.sh
+      - dart test test/meta
 
-  mobile:generate-translations:
-    desc: Regenerate typed Slang translations
+  coverage:
+    desc: Unit coverage ledger over product code only (TestHelper excluded)
     cmds:
-      - ./scripts/local/generate-translations.sh
+      - rm -rf coverage/unit
+      - dart test test/unit --coverage=coverage/unit
+      - >-
+        dart run coverage:format_coverage
+        --packages=.dart_tool/package_config.json
+        --report-on=lib/diene_e2e.dart --report-on=lib/src/app_handoff
+        -i coverage/unit -o coverage/unit.lcov --lcov
+      - ./scripts/ci/coverage-report.sh coverage/unit.lcov unit
 
-  mobile:generate-config:
-    desc: Regenerate the Flutter config schema
+  coverage:meta:
+    desc: Meta coverage ledger over TestHelper code only
     cmds:
-      - ./scripts/local/generate-config-schema.sh
+      - rm -rf coverage/meta
+      - dart test test/meta --coverage=coverage/meta
+      - >-
+        dart run coverage:format_coverage
+        --packages=.dart_tool/package_config.json
+        --report-on=lib/test_helper.dart --report-on=lib/src/stub
+        --report-on=lib/src/journey --report-on=lib/src/assertions
+        -i coverage/meta -o coverage/meta.lcov --lcov
+      - ./scripts/ci/coverage-report.sh coverage/meta.lcov meta
 
-  mobile:doctor-signing:
-    desc: Run locally provable signing and stamp doctors
+  deadcode:
+    desc: Dead-code pass 1 — whole package (as-is, tests included)
     cmds:
-      - ./scripts/validate/signing-doctors.sh
+      - dart analyze .
 
-  mobile:register-apple:
-    desc: Register Apple identifiers, groups, capabilities, and app records
+  deadcode:no-tests:
+    desc: Dead-code pass 2 — library only (excluding tests), no exclusion lists
     cmds:
-      - ./scripts/local/register-apple.sh
+      - dart analyze lib
+
+  publish:dry-run:
+    desc: Validate package hygiene without publishing
+    cmds:
+      - dart pub publish --dry-run
