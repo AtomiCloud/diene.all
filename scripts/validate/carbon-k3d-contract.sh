@@ -16,11 +16,19 @@ primordial_line="$(rg -n 'helm upgrade --install carbon-primordial' "${proof}" |
 assert_line="$(rg -n 'get platformdependency carbon-mew' "${proof}" | cut -d: -f1)"
 
 install_stanza() {
-  awk -v start="$1" '
-    NR < start { next }
-    { print }
-    $0 !~ /\\[[:space:]]*$/ { exit }
-  ' "${proof}"
+  local start="$1"
+  local line_number=0
+  local line
+  local continuation='\\[[:space:]]*$'
+
+  while IFS= read -r line || [[ -n ${line} ]]; do
+    line_number=$((line_number + 1))
+    if ((line_number < start)); then
+      continue
+    fi
+    printf '%s\n' "${line}"
+    [[ ${line} =~ ${continuation} ]] || break
+  done <"${proof}"
 }
 
 app_stanza="$(install_stanza "${app_line}")"
