@@ -1,0 +1,4 @@
+# Vendored C0 R2 authoritative fixture — kept byte-identical to its upstream
+# release so its SHA-256 stays verifiable. Prettier/treefmt must never reformat
+# it (the R2 release's own formatter policy excludes this exact path).
+/test/fixtures/c0/identity.json
