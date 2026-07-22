@@ -15,6 +15,7 @@ let
           "Changelog.md"
           "docs/developer/CommitConventions.md"
           "infra/root_chart/**"
+          "tests/fixtures/golden/*.md"
         ];
       };
       shfmt.enable = true;

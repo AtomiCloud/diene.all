@@ -1,0 +1,38 @@
+[
+  { "name": "valid default", "message": "feat: add release support", "valid": true },
+  { "name": "valid scope", "message": "dep(patch): update zod", "valid": true },
+  { "name": "valid bang", "message": "feat!: replace release contract", "valid": true },
+  { "name": "merge ignored", "message": "Merge branch 'main'", "valid": true },
+  { "name": "header too short", "message": "fix:", "valid": false },
+  {
+    "name": "header too long",
+    "message": "feat: this subject intentionally exceeds the configured seventy two character header limit by a margin",
+    "valid": false
+  },
+  { "name": "trailing whitespace", "message": "feat: add release ", "valid": false },
+  { "name": "hard tab", "message": "feat:\tadd release", "valid": false, "expectedRules": ["T4", "CT1"] },
+  { "name": "trailing punctuation", "message": "feat: add release.", "valid": false, "expectedRules": ["T3"] },
+  {
+    "name": "leading whitespace",
+    "message": " feat: add release",
+    "valid": false,
+    "expectedRules": ["T6", "CT1"]
+  },
+  { "name": "forbidden word", "message": "feat: WIP add release", "valid": false },
+  { "name": "second line", "message": "feat: add release\nbody starts too early", "valid": false },
+  { "name": "short body", "message": "feat: add release\n\nshort", "valid": false },
+  {
+    "name": "direct multiline body length is nineteen",
+    "message": "feat: add release\n\n1234567890\n123456789",
+    "valid": false,
+    "expectedRules": ["B5"]
+  },
+  {
+    "name": "unicode title boundary counts code points",
+    "message": "feat: aaaaaaaa aaaaaaaa aaaaaaaa aaaaaaaa aaaaaaaa aaaaaaaa aaaaaaaaaa 😀",
+    "valid": true,
+    "expectedRules": []
+  },
+  { "name": "unknown type", "message": "release: 1.0.0", "valid": false },
+  { "name": "unknown scope", "message": "feat(unknown): add release", "valid": false }
+]

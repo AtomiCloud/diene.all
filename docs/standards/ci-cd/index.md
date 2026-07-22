@@ -11,11 +11,11 @@ Nix shell.
 
 ## Workflow split
 
-| Workflow  | Trigger                            | Responsibility                         |
-| --------- | ---------------------------------- | -------------------------------------- |
-| `CI`      | pushes, pull requests, manual runs | pre-commit and Docker lanes            |
-| `Release` | successful `CI` run on `main`      | semantic versioning and GitHub release |
-| `CD`      | one `v*.*.*` tag pattern           | versioned Docker image                 |
+| Workflow  | Trigger                            | Responsibility                                   |
+| --------- | ---------------------------------- | ------------------------------------------------ |
+| `CI`      | pushes, pull requests, manual runs | source gates, binaries, binary SIT, native smoke |
+| `Release` | successful `CI` run on `main`      | version, assets, commit, tag, atomic push        |
+| `CD`      | one `v*.*.*` tag pattern           | Nix validation and GoReleaser channels           |
 
 Callers grant permissions, pass only repository-specific values, and use
 `secrets: inherit`. Reusable workflows own setup and invoke exactly one existing
@@ -24,12 +24,20 @@ CI script.
 ## Reusable workflows
 
 - `⚡reusable-precommit.yaml` runs `scripts/ci/pre-commit.sh` in `.#ci`.
-- `⚡reusable-docker.yaml` runs `scripts/ci/docker.sh` in `.#cd`.
+- `⚡reusable-test.yaml` runs the 100%-coverage unit or integration entrypoint.
+- `⚡reusable-build.yaml` validates the Bun bundle.
+- `⚡reusable-compile.yaml` cross-compiles three binaries and uploads one tar
+  archive so executable modes survive transport.
+- `⚡reusable-sit.yaml` extracts that archive and runs SIT with
+  `SIT_DRIVER=binary`.
+- `⚡reusable-smoke.yaml` directly executes Linux x64, Linux arm64, and Darwin
+  arm64 artifacts on their three native runners.
 - `⚡reusable-release.yaml` runs `scripts/ci/release.sh` in `.#releaser`.
 
 `AtomiCloud/actions.setup-nix@v3` checks out the repository, so do not add an
-adjacent `actions/checkout`. Docker additionally uses
-`AtomiCloud/actions.setup-docker@v2`.
+adjacent `actions/checkout`. The native smoke workflow is the exception: it
+uses a credential-free checkout because it executes the transported artifact
+without the Nix setup action.
 
 ## Pins and runners
 
@@ -52,7 +60,9 @@ Use the same entry points as CI:
 
 ```bash
 nix develop .#ci -c ./scripts/ci/pre-commit.sh
-nix develop .#cd -c ./scripts/ci/docker.sh
+env BUN_INSTALL_OFFLINE=1 ./scripts/ci/test.sh unit
+env BUN_INSTALL_OFFLINE=1 ./scripts/ci/test.sh int
+env CLI_BIN=dist/bin/releaser-linux-x64-baseline BUN_INSTALL_OFFLINE=1 ./scripts/ci/test.sh sit
 ```
 
 The Docker script builds locally by default. Its reusable workflow sets the
@@ -60,10 +70,8 @@ documented environment contract to enable publishing.
 
 ## Artifact publishing
 
-Docker callers pass per-repository image values through workflow `with:` inputs.
-Empty release versions produce commit builds; CD passes the tag as the version.
-Add another image as another caller job rather than putting repository-specific
-branching into the reusable workflow.
-
-Release execution is wired now but awaits the C2 step-2p `tools/releaser` fold;
-the workspace does not claim a working `releaser` binary before then.
+CD first builds `.#releaser`, then `scripts/release/publish.sh` compiles and
+hands the prebuilt binaries to GoReleaser. Supported channels are three
+mode-preserving archives, checksums, deb/rpm packages, a Homebrew cask, GitHub
+release assets, the installer, and Fury packages. CI never publishes and this
+repository has no Docker job or image channel.

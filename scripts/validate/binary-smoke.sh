@@ -6,7 +6,7 @@ if [ -f package.json ]; then
   export PATH="${PWD}/node_modules/.bin:${PATH}"
 fi
 
-binaries=(actionlint bash cyanprint docker dpkg gh git go gomplate goreleaser hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pls pre-commit rg rpm sg shellcheck skopeo task treefmt yq)
+binaries=(actionlint bash dpkg gh git go goreleaser helm helm-docs infisical jq kubeconform kubectl kyverno nix pls pre-commit releaser rg rpm shellcheck task treefmt yq)
 [ -f package.json ] && binaries+=(bun biome knip tsc)
 
 for binary in "${binaries[@]}"; do
@@ -25,10 +25,6 @@ actionlint "${tmp}/workflow.yaml"
 
 bash --version >/dev/null
 [ "$(bash -c 'printf smoke')" != "smoke" ] && echo "❌ bash failed a real invocation" >&2 && exit 1
-
-cyanprint --version | rg -qx 'cyanprint 4.8.0'
-mkdir -p "${tmp}/cyanprint-cache"
-cyanprint cache inspect --cache-dir "${tmp}/cyanprint-cache" --json | jq -e '.status == "done" and .action == "inspect"' >/dev/null
 
 if [ -f package.json ]; then
   bun --version >/dev/null
@@ -59,9 +55,6 @@ if [ -f package.json ]; then
   tsc --project "${tmp}/tsc/tsconfig.json"
 fi
 
-docker --version >/dev/null
-docker info --format '{{.ServerVersion}}' >/dev/null
-
 dpkg --version >/dev/null
 dpkg --print-architecture >/dev/null
 
@@ -73,12 +66,6 @@ git rev-parse --is-inside-work-tree >/dev/null
 
 go version >/dev/null
 go env GOOS >/dev/null
-
-gomplate --version >/dev/null
-[ "$(gomplate -i '{{ add 1 1 }}')" != "2" ] && echo "❌ gomplate failed a real template" >&2 && exit 1
-
-hadolint --version >/dev/null
-hadolint infra/Dockerfile
 
 goreleaser --version >/dev/null
 goreleaser check >/dev/null
@@ -99,9 +86,6 @@ git -C "${tmp}" commit -qm smoke
 jq --version >/dev/null
 jq -en '1 + 1 == 2' >/dev/null
 
-k3d version >/dev/null
-k3d cluster list --no-headers >/dev/null
-
 kubeconform -v >/dev/null
 
 kubectl version --client >/dev/null
@@ -120,23 +104,13 @@ pre-commit --version >/dev/null
 pre-commit validate-config .pre-commit-config.yaml
 
 rg --version >/dev/null
-rg -q '^## Bun foundation$|^# Diene workspace baseline$' README.md
+rg -q '^# Releaser$' README.md
 
 rpm --version >/dev/null
 rpm --eval '%{_arch}' >/dev/null
 
-sg --version >/dev/null
-printf '%s\n' '[general]' 'contrib=CT1' 'ignore=B6' '' '[contrib-title-conventional-commits]' 'types = amend' >"${tmp}/.gitlint"
-yq '.gitlint = ".gitlint"' atomi_release.yaml >"${tmp}/sg-config.yaml"
-(cd "${tmp}" && sg gitlint -c sg-config.yaml >/dev/null 2>&1 || true)
-rg -q 'chore' "${tmp}/.gitlint"
-
 shellcheck --version >/dev/null
 shellcheck scripts/validate/binary-smoke.sh
-
-skopeo --version >/dev/null
-printf '%s\n' '{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{"mediaType":"application/vnd.oci.image.config.v1+json","digest":"sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a","size":2},"layers":[]}' >"${tmp}/manifest.json"
-skopeo manifest-digest "${tmp}/manifest.json" | rg -q '^sha256:[0-9a-f]{64}$'
 
 task --version >/dev/null
 task --list >/dev/null
@@ -148,10 +122,6 @@ treefmt --completion bash >"${tmp}/treefmt-completion.bash"
 yq --version >/dev/null
 yq -en '.ok = true | .ok == true' >/dev/null
 
-if command -v releaser >/dev/null; then
-  releaser --help >/dev/null
-else
-  echo "⏭️ releaser binary awaits the C2 step-2p tools/releaser publish"
-fi
+releaser --help >/dev/null
 
 echo "✅ Binary smoke passed"

@@ -3,8 +3,7 @@ set -euo pipefail
 
 # Smoke-test one standalone binary: run --version/--help and assert the help banner names the CLI.
 bin="${1:?Usage: smoke.sh <path-to-binary>}"
-chmod +x "${bin}"
-xattr -d com.apple.quarantine "${bin}" 2>/dev/null || true # mac-only; harmless elsewhere
+[[ ! -x ${bin} ]] && echo "❌ compiled artifact is not executable: ${bin}" >&2 && exit 1
 
 # The CLI's own name comes from package.json .bin — never assert on a sample command.
 name="$(jq -r '.bin | to_entries[0].key' package.json)"

@@ -9,25 +9,19 @@ trap 'rm -f "${tmp}"' EXIT
 
 yq -o=json atomi_release.yaml >"${tmp}"
 if [ "${mode}" = "schema" ] || [ "${mode}" = "all" ]; then
-  jq -e '.branches == ["main"]' "${tmp}" >/dev/null || {
-    echo "❌ release branches must be exactly [main]" >&2
+  jq -e '
+    .schemaVersion == 2 and
+    .release.branches == ["main"] and
+    .conventions.path == "docs/developer/CommitConventions.md" and
+    .release.github == false and
+    (.release.tagFormat | contains("${version}")) and
+    ([.release.commit.message] | all(contains("[skip ci]") | not)) and
+    (has("plugins") | not) and
+    (has("gitlint") | not)
+  ' "${tmp}" >/dev/null || {
+    echo "❌ canonical releaser configuration is invalid" >&2
     exit 1
   }
-  jq -e '.conventionMarkdown.path == "docs/developer/CommitConventions.md"' "${tmp}" >/dev/null || {
-    echo "❌ conventionMarkdown path is invalid" >&2
-    exit 1
-  }
-  jq -e 'has("gitlint") | not' "${tmp}" >/dev/null || {
-    echo "❌ standalone gitlint configuration is forbidden" >&2
-    exit 1
-  }
-  modules="$(jq -r '.plugins[].module' "${tmp}" | paste -sd, -)"
-  if jq -e '.bin | type == "object" and length == 1' package.json >/dev/null; then
-    expected_modules="@semantic-release/exec,@semantic-release/changelog,@semantic-release/exec,@semantic-release/git"
-  else
-    expected_modules="@semantic-release/changelog,@semantic-release/exec,@semantic-release/git,@semantic-release/github"
-  fi
-  [ "${modules}" != "${expected_modules}" ] && echo "❌ release plugin chain is invalid: ${modules}" >&2 && exit 1
 fi
 
 if [ "${mode}" = "types" ] || [ "${mode}" = "all" ]; then

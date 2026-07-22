@@ -9,8 +9,6 @@ with packages;
     infisical
     jq
     pls
-    sg
-    skopeo
   ];
 
   # ### workspace-lint
@@ -34,8 +32,6 @@ with packages;
     # ### bun-base-main
     # #### source: bun-base
     bun
-    cyanprint
-    docker-client
     git
     go-task
     infisical
@@ -44,23 +40,22 @@ with packages;
     kubernetes-helm
     kyverno
     pls
+    packages.releaser
     ripgrep
     shellcheck
-    skopeo
     yq-go
   ];
 
   # ### workspace-releaser-bootstrap
   # #### source: workspace
-  # C2: sg is retained only until tools/releaser is published at step 2p.
   releaser = [
     dpkg
     gh
     git
     go
     goreleaser
+    packages.releaser
     rpm
-    sg
   ];
 
   # ### nix-root-system

@@ -8,8 +8,8 @@ on:
       - 'v*.*.*'
 
 jobs:
-  # ### bun-cli-release
-  # #### source: bun-cli
+  # ### releaser-release
+  # #### source: releaser
   goreleaser:
     name: GoReleaser Publish
     permissions:
@@ -22,7 +22,7 @@ jobs:
       - uses: AtomiCloud/actions.setup-nix@v3
       - uses: AtomiCloud/actions.cache-bun@v2
       - name: Validate the Nix CLI package
-        run: nix build .#bun-cli
+        run: nix build .#releaser
       - name: Compile, package, and publish all channels
         env:
           FURY_ENDPOINT: push.fury.io/atomicloud
@@ -30,16 +30,3 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: nix develop .#releaser -c ./scripts/release/publish.sh
-
-  docker:
-    name: Docker Image
-    permissions:
-      contents: read
-      id-token: write
-      packages: write
-    uses: ./.github/workflows/⚡reusable-docker.yaml
-    secrets: inherit
-    with:
-      image_name: diene-bun-cli
-      dockerfile: ./infra/Dockerfile
-      version: ${{ github.ref_name }}

@@ -18,7 +18,7 @@ See [docs/standards/ci-cd/index.md](docs/standards/ci-cd/index.md).
 
 See [docs/standards/conventional-commits/index.md](docs/standards/conventional-commits/index.md).
 
-## Docker build and publishing
+## Docker boundary
 
 See [docs/standards/docker/index.md](docs/standards/docker/index.md).
 
@@ -85,3 +85,13 @@ Read [the Bun baseline](docs/developer/bun-baseline.md) before changing the Bun
 toolchain, task surface, test tiers, coverage ledgers, build, or illustrative
 sample. Follow the TypeScript variants linked from that baseline alongside the
 shared engineering standards.
+
+<!-- ### releaser -->
+<!-- #### source: releaser -->
+
+## Releaser product boundary
+
+This materialized CLI uses pure `src/lib`, concrete `src/adapters`, and the sole
+`bin/releaser.ts` composition root. Its tests use scratch Git repositories,
+local bare remotes, and fake HTTP only. It intentionally has no Redis sample,
+CyanPrint probes, Python Gitlint/`sg`, dynamic plugins, or Docker distribution.

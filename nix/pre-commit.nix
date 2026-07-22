@@ -6,7 +6,7 @@
 }:
 let
   bun-tooling = pkgs.stdenvNoCC.mkDerivation {
-    pname = "bun-base-pre-commit-tooling";
+    pname = "releaser-pre-commit-tooling";
     version = "1";
     src = builtins.path {
       path = ../.;
@@ -40,7 +40,7 @@ let
     dontFixup = true;
     outputHashMode = "recursive";
     outputHashAlgo = "sha256";
-    outputHash = "sha256-dEFLB1Li7H8L6ppoLSQCGA5a63t0fFVeELAdWvRUuRE=";
+    outputHash = "sha256-nocInNOHwiD/Nh6pkU/VjwFarXrXNi0fQfScpO2ml4Q=";
   };
   bun-tool = name: "${packages.bun}/bin/bun ${bun-tooling}/node_modules/.bin/${name}";
   biome-platform =
@@ -114,6 +114,15 @@ pre-commit-lib.run {
       name = "nscloud cache-tag shape";
       entry = validator "scripts/validate/cache-tags.sh";
       files = "^\\.github/workflows/.*\\.ya?ml$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-cli-architecture = {
+      enable = true;
+      name = "CLI architecture and Knip entries";
+      entry = validator "scripts/validate/cli-contracts.sh arch";
+      files = "^(bin/|src/|knip(\.production)?(\.llm)?\.json$)";
       pass_filenames = false;
       language = "system";
     };
@@ -208,7 +217,7 @@ pre-commit-lib.run {
     a-releaser-commit = {
       enable = true;
       name = "Conventional commit";
-      entry = "releaser lint-commit -c atomi_release.yaml";
+      entry = "${packages.releaser}/bin/releaser lint-commit -c atomi_release.yaml";
       stages = [ "commit-msg" ];
       pass_filenames = true;
       language = "system";

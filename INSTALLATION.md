@@ -1,86 +1,59 @@
-# Installing `bun-cli`
+# Installing `releaser`
 
-`bun-cli` ships as a standalone binary (no Bun/Node runtime required) to every major channel.
-Pick the one that fits your platform. It publishes via the Gemfury account `atomicloud` and the
-Homebrew tap `AtomiCloud/homebrew-tap`.
+`releaser` is a standalone binary; Bun and Node are not required at runtime.
+Releases publish through the `atomicloud` Gemfury account and the
+`AtomiCloud/homebrew-tap` cask repository.
 
-> **macOS caveat — unsigned binaries.** The binaries are not code-signed. On macOS, Gatekeeper
-> quarantines them on first run. Clear the quarantine attribute after install:
->
-> ```bash
-> xattr -d com.apple.quarantine "$(command -v bun-cli)"
-> ```
-
-## Debian / Ubuntu (apt, via Gemfury)
+## Debian and Ubuntu
 
 ```bash
-# add the Gemfury apt repository (once)
 echo "deb [trusted=yes] https://apt.fury.io/atomicloud/ /" | sudo tee /etc/apt/sources.list.d/atomicloud.list
 sudo apt update
-sudo apt install bun-cli
+sudo apt install releaser
 ```
 
-## Fedora / RHEL / CentOS (yum/dnf, via Gemfury)
+## Fedora, RHEL, and CentOS
+
+Add `https://yum.fury.io/atomicloud/` as a package repository, then install:
 
 ```bash
-# add the Gemfury yum repository (once)
-sudo tee /etc/yum.repos.d/atomicloud.repo <<'EOF'
-[atomicloud]
-name=AtomiCloud
-baseurl=https://yum.fury.io/atomicloud/
-enabled=1
-gpgcheck=0
-EOF
-sudo dnf install bun-cli
+sudo dnf install releaser
 ```
 
-## Homebrew (macOS)
+## Homebrew on macOS
 
 ```bash
-brew install --cask atomicloud/tap/bun-cli
-# AtomiCloud/homebrew-tap — a cask is published on each release
+brew install --cask atomicloud/tap/releaser
 ```
 
-> The baseline publishes a Homebrew **cask** (not a formula): GoReleaser deprecated formula
-> generation for pre-compiled binaries in favour of casks. The cask strips the macOS quarantine
-> attribute on install automatically, so no manual `xattr` step is needed for the brew path.
-
-## Docker
-
-```bash
-docker run --rm ghcr.io/atomicloud/diene.bun-cli/diene-bun-cli:latest --help
-
-# the sample commands reach Redis via REDIS_HOST/REDIS_PORT (127.0.0.1 is the container itself)
-docker run --rm -e REDIS_HOST=my-redis ghcr.io/atomicloud/diene.bun-cli/diene-bun-cli:latest set ns key value
-```
+The cask removes the quarantine attribute from the unsigned arm64 binary during
+installation. Intel macOS is not a supported target.
 
 ## Nix
 
 ```bash
-# build from the flake
-nix build github:AtomiCloud/diene.bun-cli#bun-cli
-./result/bin/bun-cli --version
+nix build github:AtomiCloud/releaser#releaser
+./result/bin/releaser --version
 
-# or run directly
-nix run github:AtomiCloud/diene.bun-cli#bun-cli -- --help
+nix run github:AtomiCloud/releaser#releaser -- --help
 ```
 
-## GitHub release (one-line installer)
+## GitHub release installer
 
-Downloads the right archive for your OS/arch, verifies the checksum, and installs to
-`~/.local/bin` (override with `BIN_DIR`):
+The installer selects the supported OS/architecture archive, verifies it against
+`checksums.txt`, and installs to `~/.local/bin` by default:
 
 ```bash
-curl -fsSL --connect-timeout 30 --max-time 600 https://github.com/AtomiCloud/diene.bun-cli/releases/latest/download/install.sh | bash
+curl -fsSL --connect-timeout 30 --max-time 600 https://github.com/AtomiCloud/releaser/releases/latest/download/install.sh | bash
 ```
 
-Or grab a specific archive manually from the
-[releases page](https://github.com/AtomiCloud/diene.bun-cli/releases) — `bun-cli_<os>_<arch>.tar.gz`
-— verify it against `checksums.txt`, and extract the `bun-cli` binary onto your `PATH`.
+Manual downloads are available from the
+[releases page](https://github.com/AtomiCloud/releaser/releases) as
+`releaser_<os>_<arch>.tar.gz` archives.
 
 ## Verify
 
 ```bash
-bun-cli --version
-bun-cli --help
+releaser --version
+releaser --help
 ```
