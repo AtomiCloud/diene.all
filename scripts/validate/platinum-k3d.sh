@@ -148,11 +148,13 @@ capture_diagnostic_file() {
 
 # Fixed-schema, privacy-safe summary of a controller log stream. Reads the
 # bounded raw log on stdin and emits ONLY derived, non-reversible fields: a
-# SHA-256 of the raw bytes, byte/line counts, and per-category match counts over
-# a closed, documented crash vocabulary. No original line body is ever emitted,
-# so no secret/bearer/JWT/key/URL/DSN/high-entropy value in the log can survive
-# into the durable artifact. Category matching is a documented allowlist of
-# fixed, case-insensitive patterns; only integer counts leave this function.
+# SHA-256 of the raw bytes, byte/line counts, per-category match counts over a
+# closed, documented crash vocabulary, an unclassified-residual line count, and a
+# fixed structural fingerprint. No original line body is ever emitted, so no
+# secret/bearer/JWT/key/URL/DSN/high-entropy value in the log can survive into the
+# durable artifact. Category and signature matching are documented allowlists of
+# fixed, case-insensitive patterns; only integer counts leave this function, and
+# the schema is a fixed set of fields whose size is independent of the input.
 summarize_controller_log() {
   local raw bytes lines sha
   raw="$(cat)"
@@ -163,6 +165,26 @@ summarize_controller_log() {
     lines="$(printf '%s\n' "${raw}" | wc -l | tr -d ' ')"
   fi
   sha="$(printf '%s' "${raw}" | sha256sum | cut -d' ' -f1)"
+
+  # Closed, documented crash vocabulary. Each entry is a fixed, case-insensitive
+  # allowlist pattern; only integer match counts ever leave this function. The
+  # legacy 8 buckets are kept verbatim; the widened set covers kgateway-
+  # controller startup crashes that previously escaped every legacy bucket.
+  local pat_panic='panic:|goroutine [0-9]|runtime error|invalid memory address|nil pointer'
+  local pat_oom='out of memory|oomkill|cannot allocate memory|runtime: out of memory'
+  local pat_permission='forbidden|permission denied|unauthorized|cannot (list|get|watch|create|update)|is forbidden|rbac'
+  local pat_connectivity='connection refused|no route to host|dial tcp|i/o timeout|context deadline exceeded|econnrefused|network is unreachable'
+  local pat_config='invalid config|failed to parse|cannot unmarshal|decode error|unknown field|validation failed|no such file or directory'
+  local pat_probe='readyz|healthz|readiness|liveness|probe failed|startup probe'
+  local pat_tls='x509|tls handshake|bad certificate|certificate signed by unknown'
+  local pat_fatal='level=fatal|"level":"fatal"|fatal error|^fatal|[[:space:]]fatal[[:space:]]'
+  local pat_crd='no matches for kind|no kind is registered|failed to (list|watch) \*v1|customresourcedefinition|CRD .* not found|resource mapping not found'
+  local pat_webhook='admission webhook|failed calling webhook|x509.*webhook|webhook .* denied'
+  local pat_leaderelection='leaderelection|leader election lost|failed to acquire lease|configmaps .* is forbidden.*lease'
+  local pat_flag='unknown (flag|command)|invalid argument|flag provided but not defined|unknown shorthand'
+  local pat_version='version mismatch|incompatible|unsupported .* version|server version'
+  local pat_exec='exec format error|no such file or directory: /|permission denied: /|not a directory'
+
   _cat_count() {
     if [ -z "${raw}" ]; then
       printf '0'
@@ -170,18 +192,51 @@ summarize_controller_log() {
       printf '%s' "${raw}" | grep -icE "$1" || true
     fi
   }
+
+  # Bounded, non-reversible structural fingerprint: a fixed allowlist of per-line
+  # token classes, emitted as integer counts only (never raw substrings). This
+  # lets an all-legacy-zero crash still yield an actionable, secret-safe signal.
+  local sig_glog sig_levelerror sig_reason_caps
+  sig_glog="$(_cat_count '^[EWIF][0-9]{4}[[:space:]]')"
+  sig_levelerror="$(_cat_count 'level=error|"level":"error"')"
+  sig_reason_caps="$(_cat_count '^[^A-Za-z0-9]*(ERROR|FATAL|FAILED|PANIC|TIMEOUT|REFUSED|DENIED|NOTFOUND|INVALID)([[:space:]:]|$)')"
+
+  # Unclassified residual: raw_line_count minus lines matching ANY category
+  # (legacy + widened). A single combined match count keeps every line counted at
+  # most once, so the value stays a bounded non-negative integer.
+  local classified_lines unclassified
+  if [ -z "${raw}" ]; then
+    classified_lines=0
+  else
+    classified_lines="$(printf '%s' "${raw}" | grep -icE "${pat_panic}|${pat_oom}|${pat_permission}|${pat_connectivity}|${pat_config}|${pat_probe}|${pat_tls}|${pat_fatal}|${pat_crd}|${pat_webhook}|${pat_leaderelection}|${pat_flag}|${pat_version}|${pat_exec}" || true)"
+  fi
+  unclassified=$((lines - classified_lines))
+  if [ "${unclassified}" -lt 0 ]; then
+    unclassified=0
+  fi
+
   printf 'schema\tcontroller-crash-summary-v1\n'
   printf 'raw_sha256\t%s\n' "${sha}"
   printf 'raw_byte_count\t%s\n' "${bytes}"
   printf 'raw_line_count\t%s\n' "${lines}"
-  printf 'cat_panic\t%s\n' "$(_cat_count 'panic:|goroutine [0-9]|runtime error|invalid memory address|nil pointer')"
-  printf 'cat_oom\t%s\n' "$(_cat_count 'out of memory|oomkill|cannot allocate memory|runtime: out of memory')"
-  printf 'cat_permission\t%s\n' "$(_cat_count 'forbidden|permission denied|unauthorized|cannot (list|get|watch|create|update)|is forbidden|rbac')"
-  printf 'cat_connectivity\t%s\n' "$(_cat_count 'connection refused|no route to host|dial tcp|i/o timeout|context deadline exceeded|econnrefused|network is unreachable')"
-  printf 'cat_config\t%s\n' "$(_cat_count 'invalid config|failed to parse|cannot unmarshal|decode error|unknown field|validation failed|no such file or directory')"
-  printf 'cat_probe\t%s\n' "$(_cat_count 'readyz|healthz|readiness|liveness|probe failed|startup probe')"
-  printf 'cat_tls\t%s\n' "$(_cat_count 'x509|tls handshake|bad certificate|certificate signed by unknown')"
-  printf 'cat_fatal\t%s\n' "$(_cat_count 'level=fatal|"level":"fatal"|fatal error|^fatal|[[:space:]]fatal[[:space:]]')"
+  printf 'cat_panic\t%s\n' "$(_cat_count "${pat_panic}")"
+  printf 'cat_oom\t%s\n' "$(_cat_count "${pat_oom}")"
+  printf 'cat_permission\t%s\n' "$(_cat_count "${pat_permission}")"
+  printf 'cat_connectivity\t%s\n' "$(_cat_count "${pat_connectivity}")"
+  printf 'cat_config\t%s\n' "$(_cat_count "${pat_config}")"
+  printf 'cat_probe\t%s\n' "$(_cat_count "${pat_probe}")"
+  printf 'cat_tls\t%s\n' "$(_cat_count "${pat_tls}")"
+  printf 'cat_fatal\t%s\n' "$(_cat_count "${pat_fatal}")"
+  printf 'cat_crd\t%s\n' "$(_cat_count "${pat_crd}")"
+  printf 'cat_webhook\t%s\n' "$(_cat_count "${pat_webhook}")"
+  printf 'cat_leaderelection\t%s\n' "$(_cat_count "${pat_leaderelection}")"
+  printf 'cat_flag\t%s\n' "$(_cat_count "${pat_flag}")"
+  printf 'cat_version\t%s\n' "$(_cat_count "${pat_version}")"
+  printf 'cat_exec\t%s\n' "$(_cat_count "${pat_exec}")"
+  printf 'unclassified_line_count\t%s\n' "${unclassified}"
+  printf 'sig_glog\t%s\n' "${sig_glog}"
+  printf 'sig_levelerror\t%s\n' "${sig_levelerror}"
+  printf 'sig_reason_caps\t%s\n' "${sig_reason_caps}"
 }
 
 # Deterministically resolve the single release-owned crashing controller pod

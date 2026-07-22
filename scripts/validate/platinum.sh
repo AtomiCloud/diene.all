@@ -363,6 +363,16 @@ k3d-readiness-budget)
       echo "❌ privacy-safe controller-log summary is absent in ${script_path}" >&2
       return 1
     fi
+    # Positive: the widened crash vocabulary and bounded structural signals are
+    # emitted as additive integer-only fields (kgateway startup-crash classes that
+    # previously escaped every legacy bucket now surface a nonzero signal).
+    local widened_field
+    for widened_field in cat_crd cat_webhook cat_leaderelection cat_flag cat_version cat_exec unclassified_line_count sig_glog sig_levelerror sig_reason_caps; do
+      if ! rg -Fq "${widened_field}" "${script_path}"; then
+        echo "❌ widened crash-summary field ${widened_field} is absent in ${script_path}" >&2
+        return 1
+      fi
+    done
     # Positive: the previous-log request is tied to the resolved pod and bounded.
     if ! rg -Fq 'logs "${pod}" --container controller --previous' "${script_path}" ||
       ! rg -Fq -- '--tail=200' "${script_path}" ||
@@ -535,6 +545,14 @@ case "${args}" in
     printf 'dsn=postgres://dbuser:SECRETDBPASSWORD@db.internal:5432/platinum\n'
     printf 'callback https://admin:SECRETUSERINFO@idp.example/cb?access_token=SECRETQUERYVAL\n'
     printf 'nonce SECRETENTROPYZ9x8W7v6U5t4S3r2Q1p0OaNbMcLdKeJfGh\n'
+  elif [ "${PLATINUM_BEHAVIOR_LOG_UNCLASSIFIED:-false}" = "true" ]; then
+    # Synthetic startup crash that matches NONE of the legacy 8 categories but
+    # trips the widened vocabulary (crd) plus the structural signature, and
+    # includes a benign non-category line that must be counted yet never survive
+    # verbatim into the durable summary.
+    printf 'E0721 12:00:00.100000       1 reflector.go:138] failed to watch *v1alpha1.GatewayParameters: no matches for kind "GatewayParameters" in version "gateway.kgateway.dev/v1alpha1"\n'
+    printf 'E0721 12:00:01.200000       1 reflector.go:140] resource mapping not found for name "backend": no kind is registered\n'
+    printf 'E0721 12:00:02.300000       1 main.go:52] UNCLASSIFIEDSENTINEL entering reconcile loop with degraded state\n'
   else
     printf 'level=info msg="starting kgateway controller"\n'
     printf 'level=info msg="xds server listening" port=9977\n'
@@ -574,6 +592,7 @@ KUBECTL_STUB
     local previous_log_absent="${10:-false}"
     local log_secrets="${11:-false}"
     local expect_ambiguity="${12:-false}"
+    local expect_unclassified="${13:-false}"
     local case_dir="${tmp}/behavior-${case_name}"
     local mock_bin="${case_dir}/mock-bin"
     local evidence="${case_dir}/evidence"
@@ -603,6 +622,7 @@ KUBECTL_STUB
       PLATINUM_BEHAVIOR_NO_PREVIOUS_LOG="${previous_log_absent}" \
       PLATINUM_BEHAVIOR_POD_SCENARIO="${pod_scenario}" \
       PLATINUM_BEHAVIOR_LOG_SECRETS="${log_secrets}" \
+      PLATINUM_BEHAVIOR_LOG_UNCLASSIFIED="${expect_unclassified}" \
       PLATINUM_TEST_FAILURE_BUDGET_SECONDS="${failure_budget}" \
       PLATINUM_TEST_KILL_GRACE_SECONDS=1 \
       PLATINUM_TEST_CLEANUP_RESERVE_SECONDS="${cleanup_reserve}" \
@@ -732,6 +752,15 @@ KUBECTL_STUB
           echo "❌ ${case_name}: crash summary exceeded its fixed-schema ceiling" >&2
           return 1
         fi
+        # Widened schema: every new category, the unclassified residual, and each
+        # structural-signature field is present and integer-valued (additive-only).
+        local widened_field
+        for widened_field in cat_crd cat_webhook cat_leaderelection cat_flag cat_version cat_exec unclassified_line_count sig_glog sig_levelerror sig_reason_caps; do
+          if ! rg -q "^${widened_field}"'\t[0-9]+$' "${evidence}/failure-diagnostics/controller-crash-summary.tsv"; then
+            echo "❌ ${case_name}: widened field ${widened_field} missing or non-numeric" >&2
+            return 1
+          fi
+        done
         if [ "${previous_log_absent}" = "true" ]; then
           if ! rg -q '^attempt:controller-previous-absent$' "${trace}"; then
             echo "❌ ${case_name}: absent previous-log path was not exercised" >&2
@@ -761,22 +790,55 @@ KUBECTL_STUB
             fi
           done
         fi
+        if [ "${expect_unclassified}" = "true" ]; then
+          # A crash matching NONE of the legacy 8 categories must still yield a
+          # nonzero actionable signal via the widened vocabulary + structural
+          # fingerprint, while leaking no raw line body and staying bounded.
+          local legacy_field
+          for legacy_field in cat_panic cat_oom cat_permission cat_connectivity cat_config cat_probe cat_tls cat_fatal; do
+            if ! rg -q "^${legacy_field}"'\t0$' "${evidence}/failure-diagnostics/controller-crash-summary.tsv"; then
+              echo "❌ ${case_name}: legacy category ${legacy_field} unexpectedly matched an unclassified crash" >&2
+              return 1
+            fi
+          done
+          if rg -q '^cat_crd\t0$' "${evidence}/failure-diagnostics/controller-crash-summary.tsv"; then
+            echo "❌ ${case_name}: widened crd category failed to classify the crash" >&2
+            return 1
+          fi
+          if rg -q '^unclassified_line_count\t0$' "${evidence}/failure-diagnostics/controller-crash-summary.tsv"; then
+            echo "❌ ${case_name}: unclassified crash produced no residual-line signal" >&2
+            return 1
+          fi
+          if rg -q '^sig_glog\t0$' "${evidence}/failure-diagnostics/controller-crash-summary.tsv"; then
+            echo "❌ ${case_name}: unclassified crash produced no structural signature" >&2
+            return 1
+          fi
+          # The benign non-category line is counted but never survives verbatim.
+          if rg -qF 'UNCLASSIFIEDSENTINEL' "${evidence}/failure-diagnostics"; then
+            echo "❌ ${case_name}: raw unclassified line body survived into durable evidence" >&2
+            return 1
+          fi
+        fi
       fi
     fi
   }
 
   validate_readiness_contract "${k3d_script}"
   validate_crashloop_capture_contract "${k3d_script}"
-  #                    name                  budget res dsleep tsleep dign tign full  scenario absent secrets ambig
-  run_behavior_case complete-captures 8 3 0 0 false false true single false false false
-  run_behavior_case diagnostic-deadline 5 2 30 0 true false false single false false false
-  run_behavior_case teardown-deadline 5 2 0 30 false true true single false false false
+  #                    name                  budget res dsleep tsleep dign tign full  scenario absent secrets ambig unclass
+  run_behavior_case complete-captures 8 3 0 0 false false true single false false false false
+  run_behavior_case diagnostic-deadline 5 2 30 0 true false false single false false false false
+  run_behavior_case teardown-deadline 5 2 0 30 false true true single false false false false
   # A missing previous terminated instance summarizes to zero lines with a
   # nonzero capture exit, never altering the proof result or ordering.
-  run_behavior_case previous-log-absent 8 3 0 0 false false true single true false false
+  run_behavior_case previous-log-absent 8 3 0 0 false false true single true false false false
   # Adversarial authorized-log STDOUT must classify the crash yet leave no
   # secret/bearer/JWT/key/DSN/URL/high-entropy substring in durable evidence.
-  run_behavior_case log-secret-scrub 8 3 0 0 false false true single false true false
+  run_behavior_case log-secret-scrub 8 3 0 0 false false true single false true false false
+  # A crash matching none of the legacy 8 categories must still surface a nonzero
+  # actionable signal (widened vocabulary + structural fingerprint), leak no raw
+  # line body, and stay within the fixed-schema ceiling.
+  run_behavior_case unclassified-crash 8 3 0 0 false false true single false false false true
   # Non-unique crashing candidates must fail closed to a bounded ambiguity
   # artifact with no pod-targeted or namespace-wide fallback.
   run_behavior_case multi-pod-ambiguity 8 3 0 0 false false true multi false false true
