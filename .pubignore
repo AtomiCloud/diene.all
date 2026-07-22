@@ -28,7 +28,6 @@ tasks/
 .prettierrc.yaml
 atomi_release.yaml
 CLAUDE.md
-Changelog.md
 flake.lock
 flake.nix
 flutter_launcher_icons-*.yaml

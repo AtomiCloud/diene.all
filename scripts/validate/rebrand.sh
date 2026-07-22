@@ -19,7 +19,7 @@ rg -q 'config\.auth\.(endpoint|clientId|redirectUri)' lib/auth/logto_auth_gatewa
   exit 1
 }
 if rg -n 'NEON_|NeonAppGroup|NeonWidget|alcohol_neon|LazyTax' . \
-  --glob '!step5-work/**' --glob '!Changelog.md' --glob '!probes/**' \
+  --glob '!step5-work/**' --glob '!CHANGELOG.md' --glob '!probes/**' \
   --glob '!scripts/validate/rebrand.sh'; then
   echo "❌ donor branding leaked into flutter-base" >&2
   exit 1
