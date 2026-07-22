@@ -6,10 +6,10 @@ set -euo pipefail
 # Credentials arrive as the GitHub secret PUB_CREDENTIALS_JSON, written to the
 # pub config dir before this runs.
 
-dart pub get
+flutter pub get
 dart format --output=none --set-exit-if-changed lib test
 dart analyze
-dart test
+flutter test
 ./scripts/validate/manifest-tag.sh check
 ./scripts/validate/publish-dry-run.sh
 
@@ -19,7 +19,7 @@ if [ "${DIENE_PUBLISH:-false}" = "true" ]; then
   mkdir -p "${config_dir}"
   printf '%s' "${PUB_CREDENTIALS_JSON}" >"${config_dir}/pub-credentials.json"
   echo "🚀 Publishing diene_api_engine to pub.dev..."
-  dart pub publish --force
+  flutter pub publish --force
   echo "✅ Published"
 else
   echo "🛑 DIENE_PUBLISH not set — dry-run only (real publish is conductor-gated)"

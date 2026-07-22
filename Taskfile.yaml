@@ -9,7 +9,7 @@ tasks:
   setup:
     desc: Resolve dependencies and synchronize generated workspace assets
     cmds:
-      - dart pub get
+      - flutter pub get
       - ./scripts/local/skills-sync.sh
 
   lint:
@@ -37,18 +37,34 @@ tasks:
   test:
     desc: Run unit, C0-conformance, and meta suites
     cmds:
-      - dart test
+      - flutter test
 
   test:coverage:
     desc: Run tests with coverage collection (generated code ignored)
     cmds:
-      - dart test --coverage=coverage
-      - dart run coverage:format_coverage --lcov --check-ignore --in=coverage --out=coverage/lcov.info --report-on=lib
+      - flutter test --coverage
+      - |
+        awk 'BEGIN { RS = "end_of_record\n"; ORS = "" }
+          index($0, "lib/src/generated/") == 0 {
+            print $0 "end_of_record\n"
+          }' coverage/lcov.info > coverage/lcov.filtered.info
+        mv coverage/lcov.filtered.info coverage/lcov.info
+        awk -F: '
+          /^LF:/ { lines += $2 }
+          /^LH:/ { hits += $2 }
+          END {
+            if (lines == 0) {
+              print "coverage ledger is empty" > "/dev/stderr"
+              exit 1
+            }
+            printf "coverage (generated excluded): %d/%d = %.2f%%\n", hits, lines, 100 * hits / lines
+          }
+        ' coverage/lcov.info
 
   test:meta:
     desc: Run the meta tier (TestHelper assertions, parity, fixtures)
     cmds:
-      - dart test test/meta
+      - flutter test test/meta
 
   deadcode:
     desc: Two dead-code passes (as-is + production only), no exclusion lists

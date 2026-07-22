@@ -12,8 +12,8 @@ spec="${1:-openapi/service.openapi.yaml}"
 }
 
 echo "🧬 Generating the typed OA3 client..."
-dart run swagger_parser
-dart run build_runner build --delete-conflicting-outputs
+flutter pub run swagger_parser
+flutter pub run build_runner build
 dart format lib/src/generated >/dev/null
 
 echo "✅ Typed OA3 client generated"

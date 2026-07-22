@@ -2,7 +2,8 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:diene_auth_engine/diene_auth_engine.dart'
-    show IAuth, ResourceKey, ResourceToken;
+    as auth
+    show Failure, IAuth, Problem, ResourceKey, ResourceToken, Result, Success;
 import 'package:diene_problems/diene_problems.dart' show Problem;
 import 'package:diene_result/diene_result.dart';
 import 'package:dio/dio.dart';
@@ -35,6 +36,23 @@ final class _SentAuthFailed extends _Sent {
   final Problem problem;
 }
 
+/// Converts auth-engine's accepted, provisionally self-carried problem subset
+/// into the family-owned problem type used by api-engine's public result seam.
+///
+/// This nominal boundary disappears when auth-engine completes its documented
+/// dependency-stack swap to `diene_problems`; until then, copying the complete
+/// public envelope keeps failures lossless without pretending the two Dart
+/// classes are assignment-compatible.
+Problem _fromAuthProblem(auth.Problem problem) => Problem(
+  type: problem.type,
+  title: problem.title,
+  status: problem.status,
+  detail: problem.detail,
+  instance: problem.instance,
+  recoverable: problem.recoverable,
+  data: problem.data,
+);
+
 /// A resolved, callable backend: the config + its per-backend token binding
 /// (via the auth-engine `IAuth` seam) + the shared engine wiring. Every call —
 /// raw `call<T>` OR a wrapped generated SDK — goes through the SAME pipeline, so
@@ -43,7 +61,7 @@ final class _SentAuthFailed extends _Sent {
 class Backend {
   Backend({
     required this.config,
-    required IAuth? auth,
+    required auth.IAuth? auth,
     required HttpTransport transport,
     required RescueRouter? rescue,
   }) : _auth = auth,
@@ -53,7 +71,7 @@ class Backend {
        _rescue = rescue;
 
   final BackendConfig config;
-  final IAuth? _auth;
+  final auth.IAuth? _auth;
   final HttpTransport _transport;
   final RescueRouter? _rescue;
 
@@ -61,12 +79,12 @@ class Backend {
 
   /// The per-resource key handed to `IAuth`, or null when the backend needs no
   /// token. `resourceName` occupies the M slot of the LPSM coordinate.
-  ResourceKey? get resourceKey {
+  auth.ResourceKey? get resourceKey {
     final String? resource = config.resourceName;
     if (resource == null || _auth == null) {
       return null;
     }
-    return ResourceKey(
+    return auth.ResourceKey(
       platform: config.coordinate.platform,
       landscape: config.coordinate.landscape,
       service: config.coordinate.service,
@@ -135,14 +153,14 @@ class Backend {
     String? body,
   }) async {
     String? bearer;
-    final ResourceKey? key = resourceKey;
+    final auth.ResourceKey? key = resourceKey;
     if (key != null) {
-      final Result<ResourceToken> token = await _auth!.tokenFor(key);
+      final auth.Result<auth.ResourceToken> token = await _auth!.tokenFor(key);
       switch (token) {
-        case Ok<ResourceToken>(:final value):
+        case auth.Success<auth.ResourceToken>(:final value):
           bearer = value.token;
-        case Err<ResourceToken>(:final problem):
-          return _SentAuthFailed(problem);
+        case auth.Failure<auth.ResourceToken>(:final problem):
+          return _SentAuthFailed(_fromAuthProblem(problem));
       }
     }
 
@@ -318,7 +336,7 @@ class ApiEngine {
   /// Wire an engine from a validated config slice.
   factory ApiEngine.fromConfig(
     ApiEngineConfig config, {
-    IAuth? auth,
+    auth.IAuth? auth,
     HttpTransport? transport,
     RescueStore? store,
     RescueRouter? rescueOverride,

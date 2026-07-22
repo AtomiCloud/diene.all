@@ -16,15 +16,15 @@ dependencies:
   collection: ^1.19.0
   dio: ^5.7.0
   # Owned sibling contracts (dependency-honest hosted declarations, matching the
-  # siblings' current 0.1.x/0.0.x versions). Built this session via a gitignored
-  # pubspec_overrides.yaml that points diene_result/diene_problems at the ACTUAL
-  # sibling worktree packages and diene_auth_engine at a session-only stub (the
-  # real auth-engine is a Flutter package with pre-unification contracts). The
-  # override is deleted at the conductor-held deterministic swap.
+  # siblings' current 0.1.x/0.0.x versions). Integration gates use a gitignored
+  # pubspec_overrides.yaml pointing at the actual sibling worktree packages,
+  # including the independently accepted auth-engine parent. Auth-engine still
+  # self-carries its provisional Result/Problem subset, so api-engine converts
+  # that nominal error boundary losslessly until the documented stack swap.
   diene_auth_engine: '>=0.0.0 <1.0.0'
   diene_problems: ^0.1.0
   diene_result: ^0.1.0
-  json_annotation: ^4.9.0
+  json_annotation: ^4.12.0
   meta: ^1.15.0
   retrofit: ^4.4.0
 

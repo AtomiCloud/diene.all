@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Package hygiene gate. `dart pub publish --dry-run` exits non-zero on WARNINGS
+# Package hygiene gate. `flutter pub publish --dry-run` exits non-zero on WARNINGS
 # and on the session-only dependency-override HINTS. This node is stacked via
-# gitignored session-only compatibility packages (see pubspec_overrides.yaml),
-# so pub emits exactly one hint per overridden sibling dependency — expected,
-# and gone at the deterministic swap. The gate therefore asserts ZERO WARNINGS
-# (hints are allowed) rather than trusting the exit code.
+# gitignored sibling-worktree overrides (see pubspec_overrides.yaml), so pub
+# emits exactly one hint per overridden sibling dependency — expected, and gone
+# at the deterministic swap. The gate therefore asserts ZERO WARNINGS (hints
+# are allowed) rather than trusting the exit code.
 
-out="$(dart pub publish --dry-run 2>&1 || true)"
+out="$(flutter pub publish --dry-run 2>&1 || true)"
 printf '%s\n' "${out}" | tail -8
 
 warnings="$(printf '%s' "${out}" | sed -n 's/^Package has \([0-9][0-9]*\) warning.*/\1/p')"

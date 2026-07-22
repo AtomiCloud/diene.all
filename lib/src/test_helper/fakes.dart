@@ -1,9 +1,8 @@
 import 'dart:async';
 
 import 'package:diene_auth_engine/diene_auth_engine.dart'
-    show IAuth, ResourceKey, ResourceToken;
-import 'package:diene_problems/diene_problems.dart' show Problem;
-import 'package:diene_result/diene_result.dart';
+    as auth
+    show Failure, IAuth, Problem, ResourceKey, ResourceToken, Result, Success;
 
 import '../rescue/store.dart';
 import '../transport.dart';
@@ -59,10 +58,11 @@ class HangingTransport implements HttpTransport {
   }
 }
 
-/// A fake per-resource token retriever implementing the real [IAuth] seam.
-/// Tokens are keyed by [ResourceKey.mapKey] so tests prove per-resource
-/// resolution with NO cross-backend bleed. Unknown keys fail closed ([Err]).
-class FakeAuth implements IAuth {
+/// A fake per-resource token retriever implementing the real [auth.IAuth] seam.
+/// Tokens are keyed by [auth.ResourceKey.mapKey] so tests prove per-resource
+/// resolution with NO cross-backend bleed. Unknown keys fail closed
+/// ([auth.Failure]).
+class FakeAuth implements auth.IAuth {
   FakeAuth(this._tokens, {DateTime? expiresAt})
     : _expiresAt = expiresAt ?? DateTime.utc(2999);
 
@@ -73,12 +73,12 @@ class FakeAuth implements IAuth {
   final List<String> queried = <String>[];
 
   @override
-  Future<Result<ResourceToken>> tokenFor(ResourceKey key) async {
+  Future<auth.Result<auth.ResourceToken>> tokenFor(auth.ResourceKey key) async {
     queried.add(key.mapKey);
     final String? token = _tokens[key.mapKey];
     if (token == null) {
-      return Err<ResourceToken>(
-        Problem(
+      return auth.Failure<auth.ResourceToken>(
+        auth.Problem(
           type: 'urn:diene:test:no-token',
           title: 'No token',
           status: 401,
@@ -86,18 +86,18 @@ class FakeAuth implements IAuth {
         ),
       );
     }
-    return Ok<ResourceToken>(
-      ResourceToken(token: token, expiresAt: _expiresAt),
+    return auth.Success<auth.ResourceToken>(
+      auth.ResourceToken(token: token, expiresAt: _expiresAt),
     );
   }
 
   @override
-  Future<Map<ResourceKey, Result<ResourceToken>>> fetchAllTokens(
-    Iterable<ResourceKey> keys,
+  Future<Map<auth.ResourceKey, auth.Result<auth.ResourceToken>>> fetchAllTokens(
+    Iterable<auth.ResourceKey> keys,
   ) async {
-    final Map<ResourceKey, Result<ResourceToken>> out =
-        <ResourceKey, Result<ResourceToken>>{};
-    for (final ResourceKey key in keys) {
+    final Map<auth.ResourceKey, auth.Result<auth.ResourceToken>> out =
+        <auth.ResourceKey, auth.Result<auth.ResourceToken>>{};
+    for (final auth.ResourceKey key in keys) {
       out[key] = await tokenFor(key);
     }
     return out;
@@ -107,7 +107,7 @@ class FakeAuth implements IAuth {
   void invalidateAll() {}
 
   @override
-  void invalidate(ResourceKey key) {}
+  void invalidate(auth.ResourceKey key) {}
 }
 
 /// A rescue store exposing its backing map + write log for assertions.

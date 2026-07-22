@@ -217,8 +217,8 @@ pre-commit-lib.run {
 
     a-dart-test = {
       enable = true;
-      name = "Dart unit, C0-conformance, and meta tests";
-      entry = "${packages.flutter}/bin/dart test";
+      name = "Flutter-backed Dart unit, C0-conformance, and meta tests";
+      entry = "${packages.flutter}/bin/flutter test";
       files = "^(lib|test)/.*[.]dart$|^pubspec[.]yaml$";
       pass_filenames = false;
       language = "system";
