@@ -32,7 +32,7 @@ kubectl --context "k3d-${K3D_CLUSTER_NAME}" wait --for=condition=Established \
   crd/secretstores.external-secrets.io \
   crd/platformdependencies.fleet.atomi.cloud --timeout=2m
 
-helm upgrade --install carbon chart --namespace feature-carbon-123 --create-namespace \
+helm upgrade --install carbon chart --namespace default \
   --kube-context "k3d-${K3D_CLUSTER_NAME}" \
   --values chart/values.example.yaml --values chart/values.lapras.yaml --wait --timeout=2m
 helm upgrade --install carbon-primordial primordial-chart --namespace diene --create-namespace \
