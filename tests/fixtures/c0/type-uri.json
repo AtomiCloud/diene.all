@@ -1,0 +1,15 @@
+{
+  "$provenance": "C0 §2 type-URI template {scheme}://{host}/docs/{landscape}/{platform}/{service}/{module}/{version}/{id}; the {version} segment is deliberate (D8 — a version bump mints a new problem type). Authority: docs/standards/contracts/problems.md on the shared branch; mirrored at goals/c0-contracts.md §2. Hand-materialized 2026-07-22 at lib/go/errors-problems from the accepted lib/dart/problems fixture (identical cross-language artifact), re-validated against C0 §2. NOT a machine-generated C0 artifact.",
+  "template": "{scheme}://{host}/docs/{landscape}/{platform}/{service}/{module}/{version}/{id}",
+  "segments": {
+    "scheme": "https",
+    "host": "docs.raichu.cluster.atomi.cloud",
+    "landscape": "raichu",
+    "platform": "dotnet",
+    "service": "user",
+    "module": "api",
+    "version": "v1",
+    "id": "entity-not-found"
+  },
+  "expectedTypeUri": "https://docs.raichu.cluster.atomi.cloud/docs/raichu/dotnet/user/api/v1/entity-not-found"
+}
