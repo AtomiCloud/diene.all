@@ -74,6 +74,25 @@ void main() {
       expect((result['app']! as Map<String, Object?>)['displayName'], 'base');
     });
 
+    test('preserves integers beyond the web-safe range as strings', () {
+      // Arrange.
+      (base['app']! as Map<String, Object?>)['buildId'] = 'base';
+      const String unsafeInteger = '9007199254740992';
+
+      // Act.
+      final Map<String, Object?> result = applyIndexedOverrides(
+        base,
+        values: const <String, String>{'ACME_APP__BUILD_ID': unsafeInteger},
+        prefix: 'ACME_',
+      );
+
+      // Assert.
+      expect(
+        (result['app']! as Map<String, Object?>)['buildId'],
+        unsafeInteger,
+      );
+    });
+
     test('rejects gaps, unknown keys, scalars, and invalid prefixes', () {
       // Arrange.
       Map<String, Object?> apply(Map<String, String> values) =>

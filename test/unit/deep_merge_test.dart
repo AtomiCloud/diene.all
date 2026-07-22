@@ -52,5 +52,23 @@ void main() {
       // Assert.
       expect((base['app']! as Map<String, Object?>)['tags'], <Object?>['base']);
     });
+
+    test('matches overlay keys canonically and preserves base spelling', () {
+      // Arrange.
+      final Map<String, Object?> base = <String, Object?>{
+        'appSettings': <String, Object?>{'client_id': 'base', 'retries': 1},
+      };
+      final Map<String, Object?> overlay = <String, Object?>{
+        'APP_SETTINGS': <String, Object?>{'client-id': 'overlay'},
+      };
+
+      // Act.
+      final Map<String, Object?> result = deepMerge(base, overlay);
+
+      // Assert.
+      expect(result, <String, Object?>{
+        'appSettings': <String, Object?>{'client_id': 'overlay', 'retries': 1},
+      });
+    });
   });
 }

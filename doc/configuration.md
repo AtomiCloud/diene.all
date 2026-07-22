@@ -77,7 +77,9 @@ Deliberate Dart deltas:
 - the landscape accessor is co-located here because Dart has no
   frontend-utils family member.
 
-Later conductor-owned stacking adds the published `diene_core_utils`
-dependency for the canonical deep-merge/coercion primitives without changing
-this public contract, then stacks engine packages whose blocks consumers
-compose here.
+Under T13, this package consumes `diene_core_utils: ^0.1.0` at the API and
+constraint level for canonical deep merge, key matching, and scalar coercion.
+Core Utils is intentionally unpublished in this held wave, so hosted
+resolution, Result → Interfaces → Core Utils final stacking, remote CI, and
+release remain held; no path or Git override ships. This does not change the
+public Config contract.

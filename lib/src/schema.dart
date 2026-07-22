@@ -1,5 +1,7 @@
 import 'dart:collection';
 
+import 'package:diene_core_utils/diene_core_utils.dart' show canonicalConfigKey;
+
 /// Type-erased view used to compose differently typed engine blocks.
 abstract interface class ConfigBlockSchema {
   String get key;
@@ -50,7 +52,7 @@ final class ConfigSchema {
       if (key == r'$schema') {
         continue;
       }
-      final String normalized = _normalize(key);
+      final String normalized = canonicalConfigKey(key);
       if (actualKeys.containsKey(normalized)) {
         errors.add('root keys ${actualKeys[normalized]} and $key collide');
       } else {
@@ -61,7 +63,7 @@ final class ConfigSchema {
     final Map<String, Object?> decoded = <String, Object?>{};
     final Set<String> declared = <String>{};
     for (final ConfigBlockSchema block in _blocks) {
-      final String normalized = _normalize(block.key);
+      final String normalized = canonicalConfigKey(block.key);
       declared.add(normalized);
       final String? actual = actualKeys[normalized];
       if (actual == null) {
@@ -101,7 +103,7 @@ final class ConfigSchema {
       if (block.key.isEmpty || block.key == r'$schema') {
         throw ArgumentError.value(block.key, 'blocks', 'invalid block key');
       }
-      if (!keys.add(_normalize(block.key))) {
+      if (!keys.add(canonicalConfigKey(block.key))) {
         throw ArgumentError.value(block.key, 'blocks', 'duplicate block key');
       }
     }
@@ -117,7 +119,7 @@ final class DieneConfig {
 
   /// Returns the typed value produced by [block]'s engine-owned decoder.
   T slice<T>(ConfigBlock<T> block) {
-    final String key = _normalize(block.key);
+    final String key = canonicalConfigKey(block.key);
     if (!_decoded.containsKey(key)) {
       throw StateError('Configuration block ${block.key} was not composed');
     }
@@ -126,9 +128,9 @@ final class DieneConfig {
 
   /// Returns an immutable untyped view of one final merged block.
   Map<String, Object?> rawSlice(String key) {
-    final String normalized = _normalize(key);
+    final String normalized = canonicalConfigKey(key);
     final String actual = raw.keys.firstWhere(
-      (String candidate) => _normalize(candidate) == normalized,
+      (String candidate) => canonicalConfigKey(candidate) == normalized,
       orElse: () => throw StateError('Configuration block $key was not loaded'),
     );
     final Object? value = raw[actual];
@@ -150,9 +152,6 @@ final class ConfigValidationException implements Exception {
   String toString() =>
       'Configuration validation failed:\n- ${errors.join('\n- ')}';
 }
-
-String _normalize(String value) =>
-    value.replaceAll(RegExp('[-_]'), '').toLowerCase();
 
 Map<String, Object?> _freezeMap(Map<String, Object?> value) =>
     UnmodifiableMapView<String, Object?>(

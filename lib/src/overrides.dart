@@ -1,3 +1,6 @@
+import 'package:diene_core_utils/diene_core_utils.dart'
+    show canonicalConfigKey, coerceEnvironmentScalar;
+
 import 'deep_merge.dart';
 
 /// Compile-time values passed with `--dart-define`.
@@ -56,7 +59,7 @@ Map<String, Object?> applyIndexedOverrides(
             (MapEntry<String, String> entry) => _Override(
               entry.key,
               entry.key.substring(prefix.length).split('__'),
-              _coerce(entry.value),
+              _coerce(entry.value, entry.key),
             ),
           )
           .toList(growable: false)
@@ -176,9 +179,9 @@ String _matchingKey(
   String overrideName, {
   required bool allowNew,
 }) {
-  final String normalized = _normalize(requested);
+  final String normalized = canonicalConfigKey(requested);
   final List<String> matches = map.keys
-      .where((String key) => _normalize(key) == normalized)
+      .where((String key) => canonicalConfigKey(key) == normalized)
       .toList(growable: false);
   if (matches.isEmpty && allowNew) {
     return _authoredKey(requested);
@@ -206,18 +209,15 @@ String _authoredKey(String value) {
   ].join();
 }
 
-String _normalize(String value) =>
-    value.replaceAll(RegExp('[-_]'), '').toLowerCase();
-
-Object _coerce(String value) {
-  final String lower = value.toLowerCase();
-  if (lower == 'true') {
-    return true;
+Object _coerce(String value, String overrideName) {
+  final Object? coerced = coerceEnvironmentScalar(value);
+  if (coerced == null) {
+    throw StateError(
+      'Dart define $overrideName reached scalar coercion after blank values '
+      'were filtered',
+    );
   }
-  if (lower == 'false') {
-    return false;
-  }
-  return int.tryParse(value) ?? double.tryParse(value) ?? value;
+  return coerced;
 }
 
 int _compareOverrides(_Override left, _Override right) {
