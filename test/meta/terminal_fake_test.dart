@@ -9,7 +9,7 @@ void main() {
   group('InMemoryTerminal', () {
     test('returns scripted output and records command identity', () async {
       // Arrange.
-      const Success<TerminalOutput> response = Success<TerminalOutput>(
+      const Ok<TerminalOutput> response = Ok<TerminalOutput>(
         TerminalOutput(exitCode: 0, stdout: 'done', stderr: ''),
       );
       final InMemoryTerminal terminal = InMemoryTerminal()..enqueue(response);

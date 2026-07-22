@@ -38,13 +38,13 @@ void main() {
     'every fallible seam communicates expected failure through Result',
     () async {
       // Arrange.
-      final Failure<String?> systemFailure = failure<String?>('system');
-      final Failure<List<int>> vfsFailure = failure<List<int>>('vfs');
-      final Failure<TerminalOutput> terminalFailure = failure<TerminalOutput>(
+      final Err<String?> systemFailure = failure<String?>('system');
+      final Err<List<int>> vfsFailure = failure<List<int>>('vfs');
+      final Err<TerminalOutput> terminalFailure = failure<TerminalOutput>(
         'terminal',
       );
-      final Failure<void> loggingFailure = failure<void>('logging');
-      final Failure<void> metricsFailure = failure<void>('metrics');
+      final Err<void> loggingFailure = failure<void>('logging');
+      final Err<void> metricsFailure = failure<void>('metrics');
       final InMemorySystem system = InMemorySystem()
         ..enqueueEnvironmentResult(systemFailure);
       final InMemoryVfs vfs = InMemoryVfs()..enqueueReadBytesResult(vfsFailure);
@@ -88,7 +88,7 @@ void main() {
 
   test('terminal non-zero exit remains captured success', () async {
     // Arrange.
-    const Success<TerminalOutput> response = Success<TerminalOutput>(
+    const Ok<TerminalOutput> response = Ok<TerminalOutput>(
       TerminalOutput(exitCode: 2, stdout: '', stderr: 'usage'),
     );
     final InMemoryTerminal terminal = InMemoryTerminal()..enqueue(response);

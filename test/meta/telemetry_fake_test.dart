@@ -26,7 +26,7 @@ void main() {
 
     test('logger proves failure injection does not record', () {
       // Arrange.
-      final Failure<void> injected = failure<void>('log');
+      final Err<void> injected = failure<void>('log');
       final InMemoryLoggerSink sink = InMemoryLoggerSink()..enqueue(injected);
       final LogRecord record = LogRecord(
         timestamp: DateTime.utc(2026),
@@ -62,7 +62,7 @@ void main() {
 
     test('metrics proves failure injection does not record', () {
       // Arrange.
-      final Failure<void> injected = failure<void>('metric');
+      final Err<void> injected = failure<void>('metric');
       final InMemoryMetricsCollector collector = InMemoryMetricsCollector()
         ..enqueue(injected);
       final MetricRecord record = MetricRecord(

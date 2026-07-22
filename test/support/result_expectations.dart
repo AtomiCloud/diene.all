@@ -1,18 +1,19 @@
+import 'package:diene_problems/diene_problems.dart';
 import 'package:diene_result/diene_result.dart';
 import 'package:test/test.dart';
 
 T expectSuccess<T>(Result<T> result) => switch (result) {
-  Success<T>(:final T value) => value,
-  Failure<T>(:final Problem problem) => throw TestFailure(
-    'Expected Success<$T>, got Failure(${problem.title})',
+  Ok<T>(:final T value) => value,
+  Err<T>(:final Problem problem) => throw TestFailure(
+    'Expected Ok<$T>, got Err(${problem.title})',
   ),
 };
 
 Problem expectFailure<T>(Result<T> result) => switch (result) {
-  Success<T>() => throw TestFailure('Expected Failure<$T>, got Success'),
-  Failure<T>(:final Problem problem) => problem,
+  Ok<T>() => throw TestFailure('Expected Err<$T>, got Ok'),
+  Err<T>(:final Problem problem) => problem,
 };
 
-Failure<T> failure<T>(String id) => Failure<T>(
+Err<T> failure<T>(String id) => Err<T>(
   Problem(type: 'https://example.test/problems/$id', title: id, status: 500),
 );

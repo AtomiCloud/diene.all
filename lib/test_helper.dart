@@ -5,6 +5,7 @@ import 'dart:collection';
 import 'dart:convert';
 
 import 'package:diene_interfaces/diene_interfaces.dart';
+import 'package:diene_problems/diene_problems.dart';
 import 'package:diene_result/diene_result.dart';
 
 /// A deterministic [System] with mutable in-memory process state.
@@ -46,24 +47,24 @@ final class InMemorySystem implements System {
   @override
   Result<String?> environment(String name) => _environmentResults.isNotEmpty
       ? _environmentResults.removeFirst()
-      : Success<String?>(environmentVariables[name]);
+      : Ok<String?>(environmentVariables[name]);
 
   @override
   Result<String> currentDirectory() => _directoryResults.isNotEmpty
       ? _directoryResults.removeFirst()
-      : Success<String>(directory);
+      : Ok<String>(directory);
 
   @override
   Result<DateTime> nowUtc() => _clockResults.isNotEmpty
       ? _clockResults.removeFirst()
-      : Success<DateTime>(now.toUtc());
+      : Ok<DateTime>(now.toUtc());
 
   @override
   Future<Result<void>> delay(Duration duration) async {
     requestedDelays.add(duration);
     return _delayResults.isNotEmpty
         ? _delayResults.removeFirst()
-        : const Success<void>(null);
+        : const Ok<void>(null);
   }
 }
 
@@ -140,7 +141,7 @@ final class InMemoryVfs implements Vfs {
       return _existsResults.removeFirst();
     }
     final String normalized = _normalize(path);
-    return Success<bool>(
+    return Ok<bool>(
       _files.containsKey(normalized) || _directories.contains(normalized),
     );
   }
@@ -154,7 +155,7 @@ final class InMemoryVfs implements Vfs {
     final List<int>? bytes = _files[normalized];
     return bytes == null
         ? _notFound<List<int>>(normalized)
-        : Success<List<int>>(List<int>.unmodifiable(bytes));
+        : Ok<List<int>>(List<int>.unmodifiable(bytes));
   }
 
   @override
@@ -166,7 +167,7 @@ final class InMemoryVfs implements Vfs {
     final List<int>? bytes = _files[normalized];
     return bytes == null
         ? _notFound<String>(normalized)
-        : Success<String>(utf8.decode(bytes, allowMalformed: true));
+        : Ok<String>(utf8.decode(bytes, allowMalformed: true));
   }
 
   @override
@@ -207,7 +208,7 @@ final class InMemoryVfs implements Vfs {
       _createParents(parent);
     }
     _files[normalized] = List<int>.of(bytes);
-    return const Success<void>(null);
+    return const Ok<void>(null);
   }
 
   @override
@@ -238,7 +239,7 @@ final class InMemoryVfs implements Vfs {
             size: file.value.length,
           ),
     ]..sort((VfsEntry left, VfsEntry right) => left.path.compareTo(right.path));
-    return Success<List<VfsEntry>>(List<VfsEntry>.unmodifiable(entries));
+    return Ok<List<VfsEntry>>(List<VfsEntry>.unmodifiable(entries));
   }
 
   @override
@@ -259,7 +260,7 @@ final class InMemoryVfs implements Vfs {
     } else {
       _directories.add(normalized);
     }
-    return const Success<void>(null);
+    return const Ok<void>(null);
   }
 
   @override
@@ -269,7 +270,7 @@ final class InMemoryVfs implements Vfs {
     }
     final String normalized = _normalize(path);
     if (_files.remove(normalized) != null) {
-      return const Success<void>(null);
+      return const Ok<void>(null);
     }
     if (!_directories.contains(normalized)) {
       return _notFound<void>(normalized);
@@ -295,7 +296,7 @@ final class InMemoryVfs implements Vfs {
           directory == normalized || directory.startsWith(prefix),
     );
     _directories.add('/');
-    return const Success<void>(null);
+    return const Ok<void>(null);
   }
 
   void _createParents(String path) {
@@ -363,7 +364,7 @@ final class InMemoryLoggerSink implements LoggerSink {
       return _results.removeFirst();
     }
     records.add(record);
-    return const Success<void>(null);
+    return const Ok<void>(null);
   }
 }
 
@@ -380,19 +381,19 @@ final class InMemoryMetricsCollector implements MetricsCollector {
       return _results.removeFirst();
     }
     records.add(record);
-    return const Success<void>(null);
+    return const Ok<void>(null);
   }
 }
 
-Failure<T> _notFound<T>(String path) =>
+Err<T> _notFound<T>(String path) =>
     _failure<T>('path-not-found', 'Path not found', path, status: 404);
 
-Failure<T> _failure<T>(
+Err<T> _failure<T>(
   String id,
   String title,
   String detail, {
   int status = 500,
-}) => Failure<T>(
+}) => Err<T>(
   Problem(
     type: 'https://diene.atomicloud.com/problems/interfaces/1/$id',
     title: title,

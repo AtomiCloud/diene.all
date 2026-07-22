@@ -134,18 +134,14 @@ void main() {
     test('scripted results short-circuit every operation', () async {
       // Arrange.
       final InMemoryVfs vfs = InMemoryVfs();
-      final Failure<bool> existsFailure = failure<bool>('exists');
-      final Failure<List<int>> readBytesFailure = failure<List<int>>(
-        'read-bytes',
-      );
-      final Failure<String> readTextFailure = failure<String>('read-text');
-      final Failure<void> writeBytesFailure = failure<void>('write-bytes');
-      final Failure<void> writeTextFailure = failure<void>('write-text');
-      final Failure<List<VfsEntry>> listFailure = failure<List<VfsEntry>>(
-        'list',
-      );
-      final Failure<void> createFailure = failure<void>('create');
-      final Failure<void> deleteFailure = failure<void>('delete');
+      final Err<bool> existsFailure = failure<bool>('exists');
+      final Err<List<int>> readBytesFailure = failure<List<int>>('read-bytes');
+      final Err<String> readTextFailure = failure<String>('read-text');
+      final Err<void> writeBytesFailure = failure<void>('write-bytes');
+      final Err<void> writeTextFailure = failure<void>('write-text');
+      final Err<List<VfsEntry>> listFailure = failure<List<VfsEntry>>('list');
+      final Err<void> createFailure = failure<void>('create');
+      final Err<void> deleteFailure = failure<void>('delete');
       vfs.enqueueExistsResult(existsFailure);
       vfs.enqueueReadBytesResult(readBytesFailure);
       vfs.enqueueReadTextResult(readTextFailure);

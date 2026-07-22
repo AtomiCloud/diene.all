@@ -36,12 +36,10 @@ void main() {
     test('returns each queued result once before resuming state', () async {
       // Arrange.
       final InMemorySystem system = InMemorySystem();
-      final Failure<String?> environmentFailure = failure<String?>(
-        'environment',
-      );
-      final Failure<String> directoryFailure = failure<String>('directory');
-      final Failure<DateTime> clockFailure = failure<DateTime>('clock');
-      final Failure<void> delayFailure = failure<void>('delay');
+      final Err<String?> environmentFailure = failure<String?>('environment');
+      final Err<String> directoryFailure = failure<String>('directory');
+      final Err<DateTime> clockFailure = failure<DateTime>('clock');
+      final Err<void> delayFailure = failure<void>('delay');
       system.enqueueEnvironmentResult(environmentFailure);
       system.enqueueDirectoryResult(directoryFailure);
       system.enqueueClockResult(clockFailure);
