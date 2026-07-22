@@ -1,7 +1,7 @@
 # Go library baseline
 
 This template publishes the module
-`github.com/AtomiCloud/diene.go-lib`. A materialized child changes the final
+`github.com/AtomiCloud/diene.go-errors-problems`. A materialized child changes the final
 `go-lib` token to its library name in `.config/go-lib.yaml`, `go.mod`, mirror
 URLs, badges, documentation, and its usage-skill namespace. The mirror remains
 a single-module repository unless a concrete library proves otherwise.
@@ -13,10 +13,14 @@ Keep public packages small and cohesive. Put implementation-only packages under
 doc comment, and `Example*` functions are executable consumer documentation.
 All tests use external `_test` packages, and `export_test.go` is forbidden.
 
-The sample `note` package and Redis adapter are fenced by their directories for
-wholesale replacement in materialized children. The module has no `main` or
-`cmd` package. `go build ./...`, `go vet ./...`, golangci-lint, govulncheck,
-strict deadcode, examples, and `gorelease` protect the resulting library shape.
+The public surface lives in `lib/problem` (the RFC 9457 `Problem` envelope, the
+single-source type-URI builder, the typed registry and catalog export, the
+`FromObject` transformer, problem-typed errors, and `LocalError` wrapping) with
+a consumer-facing `testhelper` package. This library has NO non-stdlib runtime
+dependencies and no adapters, so the integration tier is empty and no-ops. The
+module has no `main` or `cmd` package. `go build ./...`, `go vet ./...`,
+golangci-lint, govulncheck, strict deadcode, examples, and `gorelease` protect
+the resulting library shape.
 
 ## Test pyramid and TestHelper
 
