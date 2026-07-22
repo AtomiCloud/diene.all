@@ -27,7 +27,7 @@ func main() {
 		}
 	}
 
-	envelope := problem.Problem{Type: uri, Title: "Entity not found", Status: 404, Detail: "d", Instance: "/i", Recoverable: false, Data: map[string]any{"resource": "user"}}
+	envelope := problem.Problem{Type: uri, Title: "Entity not found", Status: 404, Detail: new("d"), Instance: new("/i"), Recoverable: false, Data: map[string]any{"resource": "user"}}
 	encoded, _ := json.Marshal(envelope)
 	var decoded problem.Problem
 	_ = json.Unmarshal(encoded, &decoded)
@@ -97,8 +97,8 @@ func main() {
 		testhelper.ExpectTitle(sample.Title),
 		testhelper.ExpectStatus(sample.Status),
 		testhelper.ExpectRecoverable(sample.Recoverable),
-		testhelper.ExpectDetail(sample.Detail),
-		testhelper.ExpectInstance(sample.Instance),
+		testhelper.ExpectDetail("d"),
+		testhelper.ExpectInstance("/i"),
 		testhelper.ExpectData(sample.Data),
 	)
 	reporter := deadcodeReporter{}

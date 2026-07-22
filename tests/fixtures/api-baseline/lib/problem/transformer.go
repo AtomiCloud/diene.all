@@ -46,9 +46,16 @@ func FromObject(value any, options TransformOptions) Problem {
 		return envelope
 	}
 	if err, ok := value.(error); ok {
+		// errors.As also succeeds for a typed-nil *Error (a non-nil error
+		// interface holding a nil pointer). Dereferencing that as a Problem —
+		// or letting it fall through to detailFrom, whose Error() call would
+		// dereference nil — panics, so treat it as an empty uncatalogued value.
 		var problemErr *Error
 		if errors.As(err, &problemErr) {
-			return problemErr.Problem
+			if problemErr != nil {
+				return problemErr.Problem
+			}
+			return uncataloguedProblem(nil, options)
 		}
 	}
 	if options.Registry != nil {
@@ -84,11 +91,15 @@ func uncataloguedProblem(value any, options TransformOptions) Problem {
 	if err != nil {
 		typeURI = blankType
 	}
+	var detail *string
+	if text := detailFrom(value); text != "" {
+		detail = &text
+	}
 	return Problem{
 		Type:        typeURI,
 		Title:       unexpectedProblemTitle,
 		Status:      options.DefaultStatus,
-		Detail:      detailFrom(value),
+		Detail:      detail,
 		Recoverable: false,
 		Data:        map[string]any{},
 	}

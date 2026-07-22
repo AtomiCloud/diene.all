@@ -23,8 +23,11 @@ const (
 // The standard RFC 9457 members are Type, Title, Status, Detail, and Instance.
 // The extensions are Data (the typed payload whose schema is published per
 // problem in the catalog) and Recoverable (the flag the frontend classifier
-// splits retry-vs-fatal on). Detail and Instance are optional: an empty string
-// is treated as absent and omitted from the wire form.
+// splits retry-vs-fatal on). Detail and Instance are optional Go `*string`
+// values mirroring RFC 9457's (and the Dart sibling's) nullable members: a nil
+// pointer is absent and omitted from the wire form, while a non-nil pointer —
+// including a pointer to an empty string — is present and emitted. This keeps a
+// wire envelope with `"detail":""`/`"instance":""` losslessly round-trippable.
 //
 // Type is always a URI minted by [TypeURI]; this type never formats the
 // template itself.
@@ -36,9 +39,12 @@ type Problem struct {
 	// Status is the RFC 9457 origin-generated HTTP status code.
 	Status int
 	// Detail is the RFC 9457 human-readable, occurrence-specific explanation.
-	Detail string
-	// Instance is the RFC 9457 URI identifying the specific occurrence.
-	Instance string
+	// It is optional: nil is omitted from the wire form, a non-nil pointer
+	// (including a pointer to an empty string) is emitted.
+	Detail *string
+	// Instance is the RFC 9457 URI identifying the specific occurrence. It is
+	// optional with the same nil-omitted / present-emitted semantics as Detail.
+	Instance *string
 	// Recoverable reports whether the frontend may offer a retry (C0 §2/§14).
 	Recoverable bool
 	// Data is the typed payload extension (schema published per problem).
@@ -47,7 +53,8 @@ type Problem struct {
 
 // MarshalJSON renders the envelope in its canonical wire shape
 // (`type,title,status,detail?,instance?,recoverable,data`). Detail and Instance
-// are omitted when empty; Data always renders as an object (never null).
+// are omitted when nil and emitted (even for an empty string) when non-nil;
+// Data always renders as an object (never null).
 func (p Problem) MarshalJSON() ([]byte, error) {
 	out := map[string]any{
 		"type":        p.Type,
@@ -56,11 +63,11 @@ func (p Problem) MarshalJSON() ([]byte, error) {
 		"recoverable": p.Recoverable,
 		"data":        p.dataOrEmpty(),
 	}
-	if p.Detail != "" {
-		out["detail"] = p.Detail
+	if p.Detail != nil {
+		out["detail"] = *p.Detail
 	}
-	if p.Instance != "" {
-		out["instance"] = p.Instance
+	if p.Instance != nil {
+		out["instance"] = *p.Instance
 	}
 	return json.Marshal(out)
 }
@@ -109,8 +116,8 @@ func problemFromMap(raw map[string]any) Problem {
 		Type:        stringField(raw, "type", blankType),
 		Title:       stringField(raw, "title", unexpectedProblemTitle),
 		Status:      intField(raw, "status", defaultProblemStatus),
-		Detail:      stringField(raw, "detail", ""),
-		Instance:    stringField(raw, "instance", ""),
+		Detail:      optionalString(raw, "detail"),
+		Instance:    optionalString(raw, "instance"),
 		Recoverable: boolField(raw, "recoverable"),
 		Data:        dataField(raw, "data"),
 	}
@@ -121,6 +128,17 @@ func stringField(raw map[string]any, key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+// optionalString reads a presence-preserving RFC 9457 nullable member: a string
+// value that is present in the raw map (including an explicit empty string)
+// yields a non-nil pointer, while an absent or non-string member yields nil so
+// the key is omitted on re-marshal.
+func optionalString(raw map[string]any, key string) *string {
+	if value, ok := raw[key].(string); ok {
+		return &value
+	}
+	return nil
 }
 
 func intField(raw map[string]any, key string, fallback int) int {

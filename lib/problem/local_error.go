@@ -24,9 +24,9 @@ func (NoopErrorSink) Capture(_ context.Context, _ Problem) error {
 }
 
 // LocalError wraps unexpected errors into a `local-error` [Problem] carrying the
-// message and stack in `data`, and captures it on a [ErrorSink]. The type URI
-// flows through the single-source builder so even local errors share one
-// identity shape.
+// `message` and `stackTrace` in `data`, and captures it on a [ErrorSink]. The
+// type URI flows through the single-source builder so even local errors share
+// one identity shape.
 type LocalError struct {
 	// Sink is the destination for captured local-error problems.
 	Sink ErrorSink
@@ -62,11 +62,11 @@ func (local LocalError) Wrap(ctx context.Context, cause error, stack string) (Pr
 		Type:        typeURI,
 		Title:       localErrorTitle,
 		Status:      defaultProblemStatus,
-		Detail:      message,
+		Detail:      &message,
 		Recoverable: false,
 		Data: map[string]any{
-			"message": message,
-			"stack":   stack,
+			"message":    message,
+			"stackTrace": stack,
 		},
 	}
 	if captureErr := local.Sink.Capture(ctx, envelope); captureErr != nil {

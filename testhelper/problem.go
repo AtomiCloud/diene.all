@@ -91,24 +91,35 @@ func ExpectRecoverable(want bool) Option {
 	})
 }
 
-// ExpectDetail asserts the envelope's Detail equals want.
+// ExpectDetail asserts the envelope's Detail is present and equals want. A nil
+// (absent) Detail never matches.
 func ExpectDetail(want string) Option {
 	return field(func(actual problem.Problem) error {
-		if actual.Detail != want {
-			return fmt.Errorf("detail mismatch: expected %q, got %q", want, actual.Detail)
+		if actual.Detail == nil || *actual.Detail != want {
+			return fmt.Errorf("detail mismatch: expected %q, got %s", want, quoteOptional(actual.Detail))
 		}
 		return nil
 	})
 }
 
-// ExpectInstance asserts the envelope's Instance equals want.
+// ExpectInstance asserts the envelope's Instance is present and equals want. A
+// nil (absent) Instance never matches.
 func ExpectInstance(want string) Option {
 	return field(func(actual problem.Problem) error {
-		if actual.Instance != want {
-			return fmt.Errorf("instance mismatch: expected %q, got %q", want, actual.Instance)
+		if actual.Instance == nil || *actual.Instance != want {
+			return fmt.Errorf("instance mismatch: expected %q, got %s", want, quoteOptional(actual.Instance))
 		}
 		return nil
 	})
+}
+
+// quoteOptional renders an optional wire string for mismatch messages: a
+// present value is quoted, an absent (nil) value renders as <nil>.
+func quoteOptional(value *string) string {
+	if value == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("%q", *value)
 }
 
 // ExpectData asserts the envelope's Data deep-equals want.
@@ -162,6 +173,11 @@ func CheckError(err error, opts ...Option) (problem.Problem, error) {
 	var problemErr *problem.Error
 	if !errors.As(err, &problemErr) {
 		return problem.Problem{}, fmt.Errorf("expected a *problem.Error, got %T", err)
+	}
+	// errors.As also matches a typed-nil *problem.Error; guard it so the helper
+	// returns a descriptive mismatch instead of dereferencing nil.
+	if problemErr == nil {
+		return problem.Problem{}, fmt.Errorf("expected a non-nil *problem.Error, got a typed-nil %T", err)
 	}
 	if checkErr := CheckProblem(problemErr.Problem, opts...); checkErr != nil {
 		return problem.Problem{}, checkErr

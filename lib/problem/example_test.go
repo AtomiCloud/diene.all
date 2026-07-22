@@ -115,7 +115,7 @@ func ExampleCatalog() {
 // 5xx problem for an unrecognised error (C0 §14).
 func ExampleFromObject() {
 	envelope := problem.FromObject(errors.New("disk full"), problem.DefaultTransformOptions())
-	fmt.Println(envelope.Status, envelope.Detail)
+	fmt.Println(envelope.Status, *envelope.Detail)
 	// Output: 500 disk full
 }
 

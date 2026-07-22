@@ -108,8 +108,8 @@ func TestFromObjectUncataloguedForPlainError(t *testing.T) {
 	if got.Title != "Unexpected problem" || got.Status != 500 {
 		t.Fatalf("unexpected uncatalogued problem: %+v", got)
 	}
-	if got.Detail != "boom" {
-		t.Fatalf("expected detail from error, got %q", got.Detail)
+	if got.Detail == nil || *got.Detail != "boom" {
+		t.Fatalf("expected detail from error, got %v", got.Detail)
 	}
 	if got.Type == "" || got.Type == "about:blank" {
 		t.Fatalf("expected a built uncatalogued type URI, got %q", got.Type)
@@ -123,19 +123,38 @@ func TestFromObjectUncataloguedInvalidPortalFallsBackToBlank(t *testing.T) {
 	if got.Type != "about:blank" {
 		t.Fatalf("expected about:blank fallback, got %q", got.Type)
 	}
-	if got.Detail != "bare string" {
-		t.Fatalf("expected string detail, got %q", got.Detail)
+	if got.Detail == nil || *got.Detail != "bare string" {
+		t.Fatalf("expected string detail, got %v", got.Detail)
 	}
 }
 
 func TestFromObjectDetailVariants(t *testing.T) {
 	t.Parallel()
 	options := problem.DefaultTransformOptions()
-	if got := problem.FromObject(nil, options); got.Detail != "" {
-		t.Fatalf("nil detail should be empty, got %q", got.Detail)
+	if got := problem.FromObject(nil, options); got.Detail != nil {
+		t.Fatalf("nil value should yield absent detail, got %v", got.Detail)
 	}
-	if got := problem.FromObject(42, options); got.Detail != "42" {
-		t.Fatalf("int detail should be %q, got %q", "42", got.Detail)
+	if got := problem.FromObject(42, options); got.Detail == nil || *got.Detail != "42" {
+		t.Fatalf("int detail should be %q, got %v", "42", got.Detail)
+	}
+}
+
+// TestFromObjectTypedNilProblemErrorDoesNotPanic is the Blocker-2 regression: a
+// typed-nil *problem.Error satisfies the error interface and matches errors.As,
+// but must NOT be dereferenced as a Problem. FromObject must fall through to the
+// uncatalogued path and never panic.
+func TestFromObjectTypedNilProblemErrorDoesNotPanic(t *testing.T) {
+	t.Parallel()
+	var nilErr *problem.Error
+	got := problem.FromObject(nilErr, problem.DefaultTransformOptions())
+	if got.Title != "Unexpected problem" || got.Status != 500 {
+		t.Fatalf("typed-nil *Error should yield an uncatalogued problem, got %+v", got)
+	}
+	if got.Type == "" || got.Type == "about:blank" {
+		t.Fatalf("expected a built uncatalogued type URI, got %q", got.Type)
+	}
+	if got.Detail != nil {
+		t.Fatalf("typed-nil *Error carries no detail, got %v", got.Detail)
 	}
 }
 

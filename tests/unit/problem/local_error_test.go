@@ -43,7 +43,8 @@ func TestLocalErrorWrapWithCause(t *testing.T) {
 	if envelope.Status != 500 || envelope.Title != "Local Error" {
 		t.Fatalf("unexpected envelope: %+v", envelope)
 	}
-	if envelope.Detail != "boom" || envelope.Data["message"] != "boom" || envelope.Data["stack"] != "stack-trace" {
+	if envelope.Detail == nil || *envelope.Detail != "boom" ||
+		envelope.Data["message"] != "boom" || envelope.Data["stackTrace"] != "stack-trace" {
 		t.Fatalf("unexpected payload: %+v", envelope)
 	}
 	want := "https://local.atomi.cloud/docs/local/go/app/core/v1/local-error"
@@ -63,8 +64,10 @@ func TestLocalErrorWrapWithNilCause(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if envelope.Detail != "" || envelope.Data["message"] != "" {
-		t.Fatalf("nil cause should yield empty message: %+v", envelope)
+	// A nil cause yields an empty message, but detail stays present (a non-nil
+	// pointer to "") to mirror the Dart sibling, which always sets detail.
+	if envelope.Detail == nil || *envelope.Detail != "" || envelope.Data["message"] != "" {
+		t.Fatalf("nil cause should yield present-empty message: %+v", envelope)
 	}
 }
 

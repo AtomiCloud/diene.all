@@ -25,12 +25,13 @@ func (r *recordingT) Fatalf(format string, args ...any) {
 }
 
 func goodProblem() problem.Problem {
+	detail, instance := "missing", "/x"
 	return problem.Problem{
 		Type:        "https://h/docs/l/p/s/m/v1/entity-not-found",
 		Title:       "Entity not found",
 		Status:      404,
-		Detail:      "missing",
-		Instance:    "/x",
+		Detail:      &detail,
+		Instance:    &instance,
 		Recoverable: false,
 		Data:        map[string]any{"resource": "user", "id": 42},
 	}
@@ -46,8 +47,8 @@ func TestCheckProblemPassesOnEveryField(t *testing.T) {
 		testhelper.ExpectTitle(good.Title),
 		testhelper.ExpectStatus(good.Status),
 		testhelper.ExpectRecoverable(good.Recoverable),
-		testhelper.ExpectDetail(good.Detail),
-		testhelper.ExpectInstance(good.Instance),
+		testhelper.ExpectDetail(*good.Detail),
+		testhelper.ExpectInstance(*good.Instance),
 		testhelper.ExpectData(good.Data),
 	)
 	if err != nil {
@@ -111,10 +112,43 @@ func TestCheckErrorRecoversEnvelope(t *testing.T) {
 	}
 }
 
+func TestExpectDetailAndInstanceRejectAbsentPointers(t *testing.T) {
+	t.Parallel()
+	// A nil (absent) Detail/Instance never matches a wanted value, and the
+	// matcher reports a descriptive mismatch rather than dereferencing nil.
+	absent := problem.Problem{Type: "t", Title: "T", Status: 500}
+	detailErr := testhelper.CheckProblem(absent, testhelper.ExpectDetail("missing"))
+	if detailErr == nil || !strings.Contains(detailErr.Error(), "detail mismatch") {
+		t.Fatalf("absent detail should fail with a mismatch, got %v", detailErr)
+	}
+	instanceErr := testhelper.CheckProblem(absent, testhelper.ExpectInstance("/x"))
+	if instanceErr == nil || !strings.Contains(instanceErr.Error(), "instance mismatch") {
+		t.Fatalf("absent instance should fail with a mismatch, got %v", instanceErr)
+	}
+}
+
 func TestCheckErrorRejectsNil(t *testing.T) {
 	t.Parallel()
 	if _, err := testhelper.CheckError(nil); err == nil {
 		t.Fatal("nil error should be rejected")
+	}
+}
+
+// TestCheckErrorRejectsTypedNilProblemError is the Blocker-2 regression for the
+// consumer TestHelper: a typed-nil *problem.Error matches errors.As but must be
+// reported as a descriptive mismatch instead of panicking on a nil deref.
+func TestCheckErrorRejectsTypedNilProblemError(t *testing.T) {
+	t.Parallel()
+	var nilErr *problem.Error
+	recovered, err := testhelper.CheckError(nilErr)
+	if err == nil {
+		t.Fatal("typed-nil *problem.Error should be rejected")
+	}
+	if !strings.Contains(err.Error(), "typed-nil") {
+		t.Fatalf("expected a descriptive typed-nil mismatch, got %q", err.Error())
+	}
+	if !recovered.Equal(problem.Problem{}) {
+		t.Fatalf("expected a zero envelope on rejection, got %+v", recovered)
 	}
 }
 

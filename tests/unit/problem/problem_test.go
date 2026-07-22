@@ -41,8 +41,8 @@ func TestMarshalJSONIncludesDetailInstanceAndData(t *testing.T) {
 		Type:     "t",
 		Title:    "T",
 		Status:   404,
-		Detail:   "missing",
-		Instance: "/x",
+		Detail:   new("missing"),
+		Instance: new("/x"),
 		Data:     map[string]any{"resource": "user"},
 	}
 	encoded, err := json.Marshal(envelope)
@@ -76,7 +76,8 @@ func TestUnmarshalJSONRoundTrip(t *testing.T) {
 	if envelope.Type != "t" || envelope.Title != "T" || envelope.Status != 404 {
 		t.Fatalf("core members wrong: %+v", envelope)
 	}
-	if envelope.Detail != "d" || envelope.Instance != "/i" || !envelope.Recoverable {
+	if envelope.Detail == nil || *envelope.Detail != "d" ||
+		envelope.Instance == nil || *envelope.Instance != "/i" || !envelope.Recoverable {
 		t.Fatalf("optional members wrong: %+v", envelope)
 	}
 	if envelope.Data["k"] != "v" {
@@ -99,7 +100,7 @@ func TestUnmarshalJSONAppliesDefaults(t *testing.T) {
 	if envelope.Status != 500 {
 		t.Fatalf("status default wrong: %d", envelope.Status)
 	}
-	if envelope.Detail != "" || envelope.Instance != "" || envelope.Recoverable {
+	if envelope.Detail != nil || envelope.Instance != nil || envelope.Recoverable {
 		t.Fatalf("optional defaults wrong: %+v", envelope)
 	}
 	if envelope.Data == nil || len(envelope.Data) != 0 {
@@ -159,5 +160,56 @@ func TestString(t *testing.T) {
 	want := "Problem(https://x/v1/entity-not-found, 404, Entity not found)"
 	if got != want {
 		t.Fatalf("String() = %q, want %q", got, want)
+	}
+}
+
+// TestUnmarshalMarshalPreservesExplicitEmptyDetailInstance is the Blocker-1
+// regression: an envelope carrying explicit empty `detail`/`instance` survives
+// an unmarshal→marshal cycle byte-identically (the keys are retained as ""),
+// matching the Dart sibling's nullable-field wire behavior (present-empty is
+// distinct from absent).
+func TestUnmarshalMarshalPreservesExplicitEmptyDetailInstance(t *testing.T) {
+	t.Parallel()
+	source := []byte(
+		`{"data":{},"detail":"","instance":"","recoverable":false,"status":400,"title":"T","type":"t"}`,
+	)
+	var envelope problem.Problem
+	if err := json.Unmarshal(source, &envelope); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if envelope.Detail == nil || *envelope.Detail != "" {
+		t.Fatalf("explicit empty detail should be present-empty, got %v", envelope.Detail)
+	}
+	if envelope.Instance == nil || *envelope.Instance != "" {
+		t.Fatalf("explicit empty instance should be present-empty, got %v", envelope.Instance)
+	}
+	encoded, err := json.Marshal(envelope)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if string(encoded) != string(source) {
+		t.Fatalf("round-trip not byte-identical:\n got=%s\nwant=%s", encoded, source)
+	}
+}
+
+// TestUnmarshalMarshalDoesNotInventDetailInstance is the Blocker-1 regression
+// for the absent case: an envelope WITHOUT `detail`/`instance` must not gain
+// those keys after an unmarshal→marshal cycle.
+func TestUnmarshalMarshalDoesNotInventDetailInstance(t *testing.T) {
+	t.Parallel()
+	source := []byte(`{"data":{},"recoverable":false,"status":400,"title":"T","type":"t"}`)
+	var envelope problem.Problem
+	if err := json.Unmarshal(source, &envelope); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if envelope.Detail != nil || envelope.Instance != nil {
+		t.Fatalf("absent members should stay nil, got detail=%v instance=%v", envelope.Detail, envelope.Instance)
+	}
+	encoded, err := json.Marshal(envelope)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if string(encoded) != string(source) {
+		t.Fatalf("absent keys must not be invented:\n got=%s\nwant=%s", encoded, source)
 	}
 }
