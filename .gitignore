@@ -5,6 +5,8 @@
 result
 result-*
 !probes/result-problem.ts
+!contracts/c0/cases/result-wire.json
+!contracts/c0/provenance/result-semantics.md
 
 ### workspace
 #### source: workspace

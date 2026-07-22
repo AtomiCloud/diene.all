@@ -6,56 +6,95 @@ import 'package:diene_problems/diene_problems.dart'
     show ErrorPortal, problemTypeUri;
 import 'package:test/test.dart';
 
-/// LOCAL problem-envelope vectors (C0 §2-SHAPED), NOT authoritative C0
-/// fixtures. Authoritative, source-owned C0 fixture conformance is
-/// INTEGRATION-HELD pending the C0 owner (see `test/fixtures/c0/PROVENANCE.md`
-/// and the node note); these are kept only as local behavioural tests of this
-/// engine's problem-envelope handling. The Dart family is EXEMPT from the C0
-/// otel config block (frontend-only; Faro).
+// Authoritative C0 R2 projection for the D-class API obligation in the frozen
+// coverage map. This package claims no identity, config, result-wire, or
+// N-class coverage; see test/fixtures/c0/PROVENANCE.md.
+const String _releaseId = 'c0-fixtures-r2';
+const String _releaseDigest =
+    '0e64439c681a22fb4f02285c082ed8ffb7b465e732fde4e49757e9e3c9a5783e';
 
-/// The documented ErrorPortal the fixture's type URI is built from (C0 §2).
+/// The ErrorPortal assembled from R2 `typeUri.valid[0].segments`.
 const ErrorPortal _portal = ErrorPortal(
   scheme: 'https',
   host: 'docs.raichu.cluster.atomi.cloud',
   landscape: 'raichu',
-  platform: 'diene',
-  service: 'sample',
-  module: 'users',
+  platform: 'dotnet',
+  service: 'user',
+  module: 'api',
 );
 
-Map<String, Object?> _loadFixture(String name) =>
-    jsonDecode(File('test/fixtures/c0/$name').readAsStringSync())
-        as Map<String, Object?>;
+Map<String, Object?> _loadProjection() => _map(
+  jsonDecode(File('test/fixtures/c0/problem-envelope.json').readAsStringSync()),
+);
 
-String _canonical(Map<String, Object?> json) {
-  final List<String> keys = json.keys.toList()..sort();
-  return jsonEncode(<String, Object?>{for (final String k in keys) k: json[k]});
+Map<String, Object?> _problemEnvelope(Map<String, Object?> projection) =>
+    Map<String, Object?>.of(projection)..remove(r'$generated');
+
+Map<String, Object?> _map(Object? value) =>
+    Map<String, Object?>.from(value! as Map<dynamic, dynamic>);
+
+String _canonical(Map<String, Object?> json) => jsonEncode(_sortJson(json));
+
+Object? _sortJson(Object? value) {
+  if (value is Map<String, Object?>) {
+    final List<String> keys = value.keys.toList()..sort();
+    return <String, Object?>{
+      for (final String key in keys) key: _sortJson(value[key]),
+    };
+  }
+  if (value is List<Object?>) {
+    return value.map<Object?>(_sortJson).toList(growable: false);
+  }
+  return value;
 }
 
 void main() {
-  group('local problem-envelope vector (C0-shaped; authoritative HELD)', () {
-    final Map<String, Object?> fixture = _loadFixture('problem_envelope.json');
+  group('authoritative C0 R2 API projection', () {
+    final Map<String, Object?> projection = _loadProjection();
+    final Map<String, Object?> fixture = _problemEnvelope(projection);
 
-    test('type matches the owned single-source builder (local check)', () {
-      // Local consistency check: the vector's type equals the C0 §2 template
-      // output — a hand-edited type fails here. This is NOT authoritative C0
-      // fixture provenance (that is integration-held pending the C0 owner).
-      expect(
-        fixture['type'],
-        problemTypeUri(portal: _portal, version: 'v1', id: 'entity-not-found'),
-      );
+    test('records the frozen generated provenance', () {
+      expect(_map(projection[r'$generated']), <String, Object?>{
+        'generator': 'tool/gen_c0_projection.dart',
+        'releaseDigest': _releaseDigest,
+        'releaseId': _releaseId,
+      });
+      expect(projection.keys.toSet(), <String>{
+        r'$generated',
+        'data',
+        'detail',
+        'instance',
+        'recoverable',
+        'status',
+        'title',
+        'type',
+      });
     });
 
-    test('round-trips losslessly through diene_result Problem', () {
+    test('type matches R2 typeUri.valid[0] through the owned builder', () {
+      final String expected = problemTypeUri(
+        portal: _portal,
+        version: 'v1',
+        id: 'entity-not-found',
+      );
+      expect(
+        expected,
+        'https://docs.raichu.cluster.atomi.cloud/docs/raichu/'
+        'dotnet/user/api/v1/entity-not-found',
+      );
+      expect(fixture['type'], expected);
+    });
+
+    test('round-trips the authoritative envelope losslessly', () {
       final Problem problem = Problem.fromJson(fixture);
       expect(problem.status, 404);
       expect(problem.recoverable, isFalse);
-      expect(problem.data['entity'], 'user');
-      // Canonical round-trip equality.
+      expect(problem.data['id'], 42);
+      expect(problem.data['resource'], 'user');
       expect(_canonical(problem.toJson()), _canonical(fixture));
     });
 
-    test('gate discriminates a mutated fixture (red drill)', () {
+    test('red drill discriminates a mutated type URI', () {
       final Map<String, Object?> mutated = <String, Object?>{
         ...fixture,
         'type': 'https://evil.example.com/not/the/template',
@@ -71,17 +110,18 @@ void main() {
       );
     });
 
-    test('api-engine consumes the C0 problem body via toResult', () {
-      // A 404 whose body is the fixture problem → Err(that Problem).
+    test('api-engine consumes the authoritative problem body via toResult', () {
       final Result<Map<String, Object?>> result =
           toResult<Map<String, Object?>>(
             Received(HttpResponse(status: 404, body: jsonEncode(fixture))),
             decode: (Map<String, Object?> json) => json,
-            endpoint: '/users/42',
+            endpoint: '/user/42',
           );
       expect(result.isErr, isTrue);
       expect(result.unwrapErr().type, fixture['type']);
       expect(result.unwrapErr().status, 404);
+      expect(result.unwrapErr().data['id'], 42);
+      expect(result.unwrapErr().data['resource'], 'user');
     });
   });
 
