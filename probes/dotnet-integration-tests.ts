@@ -6,7 +6,7 @@ export default {
   probes: [
     {
       name: 'baseline-dotnet-integration-tests-green',
-      description: 'The Redis adapter passes against a real Testcontainers dependency.',
+      description: 'The source-owned versioned C0 fixture round-trips through the shipped codecs.',
       kind: 'baseline',
       async run(repo: any) {
         await expectGreen(repo, 'nix develop .#ci -c pls test:int', 'dotnet-integration-tests', 600000);
@@ -14,20 +14,13 @@ export default {
     },
     {
       name: 'mutation-dotnet-integration-tests-caught',
-      description: 'Breaking the adapter read path turns the integration tier red.',
+      description: 'Changing the source-owned C0 Ok payload turns the integration tier red.',
       kind: 'mutation',
-      expectedImpact: [
-        'dotnet-integration-coverage',
-        'dotnet-deadcode-all',
-        'dotnet-deadcode-production',
-        'dotnet-dev',
-        'dotnet-run',
-        'dotnet-preview',
-      ],
+      expectedImpact: ['dotnet-integration-coverage'],
       async run(repo: any) {
-        await repo.patch('App/Adapters/Redis/RedisNoteRepository.cs', {
-          find: '        return data?.ToDomain();',
-          replace: '        return null;',
+        await repo.patch('fixtures/c0/monad-v1.json', {
+          find: '    "ok": ["ok", 42],',
+          replace: '    "ok": ["ok", 43],',
         });
         await expectRed(repo, 'nix develop .#ci -c pls test:int', 'dotnet-integration-tests', 600000);
       },

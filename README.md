@@ -1,4 +1,4 @@
-# Diene .NET library template
+# AtomiCloud.Diene.Result
 
 <!-- ### nix-root -->
 <!-- #### source: main -->
@@ -56,10 +56,10 @@ contracts standard.
 
 ## .NET 10 foundation
 
-[![CI](https://github.com/AtomiCloud/diene.dotnet-lib/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.dotnet-lib/actions/workflows/ci.yaml)
-[![Unit coverage](https://codecov.io/gh/AtomiCloud/diene.dotnet-lib/graph/badge.svg?flag=unit)](https://codecov.io/gh/AtomiCloud/diene.dotnet-lib)
-[![Integration coverage](https://codecov.io/gh/AtomiCloud/diene.dotnet-lib/graph/badge.svg?flag=int)](https://codecov.io/gh/AtomiCloud/diene.dotnet-lib)
-[![Commit activity](https://img.shields.io/github/commit-activity/m/AtomiCloud/diene.dotnet-lib)](https://github.com/AtomiCloud/diene.dotnet-lib/commits/main)
+[![CI](https://github.com/AtomiCloud/diene.dotnet-result/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.dotnet-result/actions/workflows/ci.yaml)
+[![Unit coverage](https://codecov.io/gh/AtomiCloud/diene.dotnet-result/graph/badge.svg?flag=unit)](https://codecov.io/gh/AtomiCloud/diene.dotnet-result)
+[![Integration coverage](https://codecov.io/gh/AtomiCloud/diene.dotnet-result/graph/badge.svg?flag=int)](https://codecov.io/gh/AtomiCloud/diene.dotnet-result)
+[![Commit activity](https://img.shields.io/github/commit-activity/m/AtomiCloud/diene.dotnet-result)](https://github.com/AtomiCloud/diene.dotnet-result/commits/main)
 
 This branch adds the .NET 10 toolchain, the `App`/`Lib`/`UnitTest`/`IntTest`
 sample, merged multi-project coverage, strict and LLM dead-code modes. See [the .NET baseline](docs/developer/dotnet-baseline.md).
@@ -70,35 +70,43 @@ Common commands:
 - `pls test`, `pls test:unit`, `pls test:int`, and the coverage variants
 - `pls deadcode` for the non-blocking review; CI owns strict dn-inspect
 
-The illustrative Note domain is documented in [docs/domain/note.md](docs/domain/note.md).
-Production observability is intentionally absent until the observability add-back.
+The Result/Option contract is documented in [docs/domain/result.md](docs/domain/result.md).
 
 <!-- ### dotnet-lib -->
 <!-- #### source: dotnet-lib -->
 
 ## Publishable library packages
 
-[![NuGet version](https://img.shields.io/nuget/v/AtomiCloud.Diene.Note)](https://www.nuget.org/packages/AtomiCloud.Diene.Note)
-[![NuGet downloads](https://img.shields.io/nuget/dt/AtomiCloud.Diene.Note)](https://www.nuget.org/packages/AtomiCloud.Diene.Note)
-[![Meta coverage](https://codecov.io/gh/AtomiCloud/diene.dotnet-lib/graph/badge.svg?flag=meta)](https://codecov.io/gh/AtomiCloud/diene.dotnet-lib)
+[![NuGet version](https://img.shields.io/nuget/v/AtomiCloud.Diene.Result)](https://www.nuget.org/packages/AtomiCloud.Diene.Result)
+[![NuGet downloads](https://img.shields.io/nuget/dt/AtomiCloud.Diene.Result)](https://www.nuget.org/packages/AtomiCloud.Diene.Result)
+[![Meta coverage](https://codecov.io/gh/AtomiCloud/diene.dotnet-result/graph/badge.svg?flag=meta)](https://codecov.io/gh/AtomiCloud/diene.dotnet-result)
 
-This template publishes `AtomiCloud.Diene.Note` and the companion
-`AtomiCloud.Diene.Note.TestHelper` package at one committed version. The Note
-domain is illustrative; the package lifecycle is the reusable product.
+This repository publishes `AtomiCloud.Diene.Result` and the companion
+`AtomiCloud.Diene.Result.TestHelper` package at one committed version. The
+library provides guarded rich structs for `Result<T, E>` and `Option<T>`,
+dotnet-idiomatic railway composition, explicit exception capture, async
+composition, and versioned C0 JSON tuple codecs. It has no runtime dependency
+and no dependency on a Problems package.
 
 ```bash
-dotnet add package AtomiCloud.Diene.Note
-dotnet add package AtomiCloud.Diene.Note.TestHelper
+dotnet add package AtomiCloud.Diene.Result
+dotnet add package AtomiCloud.Diene.Result.TestHelper
 ```
 
 ```csharp
-using AtomiCloud.Diene.Note;
-using AtomiCloud.Diene.Note.TestHelper.Note;
+using AtomiCloud.Diene.Results;
+using AtomiCloud.Diene.Results.TestHelper;
 
-var summariser = new NoteSummariser();
-var note = new NoteRecord { Title = "Hello", Body = "world" };
-summariser.AssertSummary(note, 80, "Hello — world");
+Result<int, string> parsed = Result.Ok<int, string>(21);
+var answer = parsed.Map(value => value * 2);
+answer.Should().BeOk(42);
 ```
+
+The package ID is singular but the namespace is plural
+`AtomiCloud.Diene.Results`; this avoids the namespace/type collision between a
+namespace tail and the `Result` type. Use `Result.Ok`/`Result.Err` when the
+success and error types are identical. Serialize only `ResultSerial` and
+`OptionSerial`, never the in-memory structs.
 
 Run `nix develop .#ci -c ./scripts/ci/pkg-validate.sh` to pack both packages,
 validate metadata and symbols, and restore them into a scratch consumer. See

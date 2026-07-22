@@ -1,4 +1,3 @@
-import { runWithRedis } from './lib/dotnet.ts';
 import { expectGreen } from './lib/helpers.ts';
 
 export default {
@@ -16,9 +15,8 @@ export default {
           'dotnet-dev-build',
           480000,
         );
-        await runWithRedis(
+        await expectGreen(
           repo,
-          'dotnet-base-probe-dev',
           `nix develop .#default -c sh -lc '
             set -eu
             log="$(mktemp)"
@@ -39,11 +37,8 @@ export default {
             }
             trap cleanup EXIT
             for attempt in $(seq 1 240); do
-              if rg -q Welcome "$log"; then
+              if rg -q "Success: 42" "$log"; then
                 exit 0
-              fi
-              if rg -q "could not be read back" "$log"; then
-                exit 1
               fi
               if ! kill -0 "$pid" 2>/dev/null; then
                 set +e
@@ -56,7 +51,8 @@ export default {
             done
             exit 124
           '`,
-          true,
+          'dotnet-base-probe-dev',
+          360000,
         );
       },
     },

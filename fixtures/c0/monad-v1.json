@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "contract": "cloud.atomi.diene.monad",
+  "version": 1,
+  "status": "local-regression-only",
+  "cases": {
+    "ok": ["ok", 42],
+    "err": ["err", "boom"],
+    "some": ["some", "value"],
+    "none": ["none", null]
+  }
+}
