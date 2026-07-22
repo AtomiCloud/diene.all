@@ -1,8 +1,9 @@
-# Neutral C0 Config and Problem fixture release
+# Neutral C0 fixture release
 
-`c0-fixtures-r1` is the single committed, versioned, machine-readable source
-for the C0 Config (§3) and Problem (§2 and §14) cases. It is owned by the
-conductor/C0-contracts authority, not by either Dart owner package.
+`c0-fixtures-r2` is the single committed, versioned, machine-readable source
+for the C0 Config (§3), Identity (§7, §8, §10, §12, and §13), Problem (§2 and
+§14), and Result-wire (§5) cases. It is owned by the conductor/C0-contracts
+authority, not by any downstream owner package.
 
 - `RELEASE.json` identifies the release and pins its prose sources.
 - `SHA256SUMS` exhaustively authenticates the cases, provenance, and this
