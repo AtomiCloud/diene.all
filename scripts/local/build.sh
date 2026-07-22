@@ -7,26 +7,41 @@ cd "${root_dir}"
 echo "🧹 Cleaning dist/..."
 rm -rf dist
 
-echo "🔨 Building ESM bundle..."
-bun build ./src/index.ts --outfile dist/index.js --format esm --target node --packages external
+echo "🔨 Building ESM bundles..."
+bun build ./src/index.ts --outfile dist/index.js --format esm --target node
+bun build ./src/test-helper.ts --outfile dist/test-helper.js --format esm --target node
 
-echo "🔨 Building CJS bundle..."
-bun build ./src/index.ts --outfile dist/index.cjs --format cjs --target node --packages external
+echo "🔨 Building CommonJS bundles..."
+bun build ./src/index.ts --outfile dist/index.cjs --format cjs --target node
+bun build ./src/test-helper.ts --outfile dist/test-helper.cjs --format cjs --target node
 
 echo "🔠 Typechecking..."
 bunx tsc -p tsconfig.json
 
-echo "📝 Emitting flat type declarations..."
+echo "📝 Emitting bundled declarations..."
 bunx dts-bundle-generator -o dist/index.d.ts src/index.ts --no-check
 cp dist/index.d.ts dist/index.d.cts
+bunx dts-bundle-generator -o dist/test-helper.d.ts src/test-helper.ts --no-check
+cp dist/test-helper.d.ts dist/test-helper.d.cts
 
-echo "🔎 Verifying artifacts..."
-for artifact in dist/index.js dist/index.cjs dist/index.d.ts dist/index.d.cts; do
-  [[ ! -f ${artifact} ]] && echo "❌ build artifact missing: ${artifact}" >&2 && exit 1
+echo "🔎 Verifying build artifacts..."
+for artifact in \
+  dist/index.js dist/index.cjs dist/index.d.ts dist/index.d.cts \
+  dist/test-helper.js dist/test-helper.cjs dist/test-helper.d.ts dist/test-helper.d.cts; do
+  [[ ! -f ${artifact} ]] && echo "❌ Build artifact missing: ${artifact}" >&2 && exit 1
 done
 
-echo "🏃 Verifying ESM and CJS runtime exports..."
-node --input-type=module -e "import { buildSampleKey } from './dist/index.js'; if (buildSampleKey('Build Proof', 'ESM') !== 'build-proof:esm') process.exit(1)"
-node -e "const { buildSampleKey } = require('./dist/index.cjs'); if (buildSampleKey('Build Proof', 'CJS') !== 'build-proof:cjs') process.exit(1)"
+cmp -s dist/index.d.ts dist/index.d.cts || {
+  echo "❌ dist/index.d.cts must be a byte-copy of dist/index.d.ts" >&2
+  exit 1
+}
+cmp -s dist/test-helper.d.ts dist/test-helper.d.cts || {
+  echo "❌ dist/test-helper.d.cts must be a byte-copy of dist/test-helper.d.ts" >&2
+  exit 1
+}
 
-echo "✅ Built dist/index.{js,cjs,d.ts,d.cts}"
+node -e 'import("./dist/index.js").then((library) => { if (library.Result.ok(1).map((value) => value + 1).unwrap() !== 2) process.exit(1) })'
+node -e 'const library = require("./dist/index.cjs"); if (library.Result.ok(1).map((value) => value + 1).unwrap() !== 2) process.exit(1)'
+node -e 'const library = require("./dist/index.cjs"); const helper = require("./dist/test-helper.cjs"); if (helper.beOk(library.Result.ok(1)) !== 1) process.exit(1)'
+
+echo "✅ Built dist/index.{js,cjs,d.ts,d.cts} and dist/test-helper.{js,cjs,d.ts,d.cts}"

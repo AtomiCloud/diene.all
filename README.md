@@ -71,41 +71,44 @@ boundary. TypeScript variants accompany the shared standards for
 <!-- ### bun-lib -->
 <!-- #### source: bun-lib -->
 
-## Library package
+## Result and Option monads
 
-`@atomicloud/diene.bun-lib` is the publishable Bun library baseline: a small
-TypeScript package shipped as dual **ESM + CommonJS** with bundled type
-declarations, validated on every push and published on `v*.*.*` tags. Library
-children rescope the package name, description, keywords, and badge URLs from
-this scaffold.
+[![npm version](https://img.shields.io/npm/v/@atomicloud/diene.result)](https://www.npmjs.com/package/@atomicloud/diene.result)
+[![npm downloads](https://img.shields.io/npm/dm/@atomicloud/diene.result)](https://www.npmjs.com/package/@atomicloud/diene.result)
+[![CI](https://github.com/AtomiCloud/diene.bun-result/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.bun-result/actions/workflows/ci.yaml)
 
-See the [npm release runbook](https://github.com/AtomiCloud/diene.bun-lib/blob/main/docs/developer/npm-release.md)
-for tag publishing, API-key rotation, retry behavior, and the deliberate
-no-provenance policy.
+`@atomicloud/diene.result` provides `Result<T, E>` and `Option<T>` as tagged
+discriminated unions with a generic error channel, dual ESM/CommonJS builds, and
+a dependency-light `/test-helper` subpath. It publishes JavaScript and
+declarations for both import styles and includes its usage skill in the tarball.
 
-[![npm version](https://img.shields.io/npm/v/@atomicloud/diene.bun-lib)](https://www.npmjs.com/package/@atomicloud/diene.bun-lib)
-[![npm downloads](https://img.shields.io/npm/dm/@atomicloud/diene.bun-lib)](https://www.npmjs.com/package/@atomicloud/diene.bun-lib)
-[![CI](https://github.com/AtomiCloud/diene.bun-lib/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.bun-lib/actions/workflows/ci.yaml)
+Package description: Result and Option monads with dual-format ESM/CJS builds and a dependency-light /test-helper for AtomiCloud/diene.bun-result
 
-### Installation
+Package keywords: atomicloud, result, option, monad, typescript, esm, commonjs, bun
 
 ```bash
-bun add @atomicloud/diene.bun-lib
-# or
-npm install @atomicloud/diene.bun-lib
+bun add @atomicloud/diene.result
 ```
 
-`ioredis` is a runtime dependency and is installed automatically.
-
-### Usage
-
 ```ts
-// ESM
-import { buildSampleKey, createRedisStore, persistSample } from '@atomicloud/diene.bun-lib';
-import type { IKeyValueStore, RedisConnection } from '@atomicloud/diene.bun-lib';
+import { Option, Result } from '@atomicloud/diene.result';
+
+const doubled = Result.ok<number, string>(21)
+  .map(value => value * 2)
+  .unwrapOr(0);
+
+const present = Option.fromNullable(process.env.HOME).isSome;
 ```
 
 ```js
-// CommonJS
-const { buildSampleKey, createRedisStore, persistSample } = require('@atomicloud/diene.bun-lib');
+const { Result } = require('@atomicloud/diene.result');
+
+const doubled = Result.ok(21)
+  .map(value => value * 2)
+  .unwrapOr(0);
 ```
+
+Assert variants in downstream suites through the `/test-helper` subpath
+(`beOk`/`beErr`/`beSome`/`beNone`). See the
+[Bun library baseline](docs/developer/bun-lib-baseline.md) for package
+validation, release authentication, token rotation, and promotion knobs.
