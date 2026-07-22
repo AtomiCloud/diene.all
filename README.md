@@ -1,14 +1,14 @@
-# Diene Go errors-problems library
+# Diene Go interfaces library
 
 <!-- ### go-base-badges -->
 <!-- #### source: go-base -->
 
-[![CI](https://github.com/AtomiCloud/diene.go-errors-problems/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.go-errors-problems/actions/workflows/ci.yaml)
-[![Unit coverage](https://codecov.io/gh/AtomiCloud/diene.go-errors-problems/branch/main/graph/badge.svg?flag=unit)](https://codecov.io/gh/AtomiCloud/diene.go-errors-problems)
-[![Integration coverage](https://codecov.io/gh/AtomiCloud/diene.go-errors-problems/branch/main/graph/badge.svg?flag=int)](https://codecov.io/gh/AtomiCloud/diene.go-errors-problems)
-[![Meta coverage](https://codecov.io/gh/AtomiCloud/diene.go-errors-problems/branch/main/graph/badge.svg?flag=meta)](https://codecov.io/gh/AtomiCloud/diene.go-errors-problems)
-[![Go Reference](https://pkg.go.dev/badge/github.com/AtomiCloud/diene.go-errors-problems.svg)](https://pkg.go.dev/github.com/AtomiCloud/diene.go-errors-problems)
-[![Commit activity](https://img.shields.io/github/commit-activity/m/AtomiCloud/diene.go-errors-problems)](https://github.com/AtomiCloud/diene.go-errors-problems/commits/main)
+[![CI](https://github.com/AtomiCloud/diene.go-interfaces/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.go-interfaces/actions/workflows/ci.yaml)
+[![Unit coverage](https://codecov.io/gh/AtomiCloud/diene.go-interfaces/branch/main/graph/badge.svg?flag=unit)](https://codecov.io/gh/AtomiCloud/diene.go-interfaces)
+[![Integration coverage](https://codecov.io/gh/AtomiCloud/diene.go-interfaces/branch/main/graph/badge.svg?flag=int)](https://codecov.io/gh/AtomiCloud/diene.go-interfaces)
+[![Meta coverage](https://codecov.io/gh/AtomiCloud/diene.go-interfaces/branch/main/graph/badge.svg?flag=meta)](https://codecov.io/gh/AtomiCloud/diene.go-interfaces)
+[![Go Reference](https://pkg.go.dev/badge/github.com/AtomiCloud/diene.go-interfaces.svg)](https://pkg.go.dev/github.com/AtomiCloud/diene.go-interfaces)
+[![Commit activity](https://img.shields.io/github/commit-activity/m/AtomiCloud/diene.go-interfaces)](https://github.com/AtomiCloud/diene.go-interfaces/commits/main)
 
 <!-- ### nix-root -->
 <!-- #### source: main -->
@@ -34,21 +34,20 @@ synchronization.
 
 ## Publishable Go module
 
-`github.com/AtomiCloud/diene.go-errors-problems` is the Go family's RFC 9457
-problem-details library — the Go "result slot" (C0 §5): no monad, idiomatic
-`(T, error)` with problem-typed errors. It ships the `Problem` envelope, the
-single-source type-URI builder, the typed registry and catalog export (C0 §14),
-the `FromObject` transformer, `LocalError` wrapping, and a consumer-facing
-`testhelper` package — all strict black-box tested and published by tag through
-the Go proxy.
+`github.com/AtomiCloud/diene.go-interfaces` is the Go family's
+implementation-free seam library. It defines portable system, virtual
+filesystem, terminal, logging, and metrics contracts, with ordinary `(T, error)`
+failure slots. Implementations return problem-typed errors from
+`diene.go-errors-problems`; this module ships deterministic in-memory mocks in
+its consumer-facing `testhelper` package.
 
 ```bash
-go get github.com/AtomiCloud/diene.go-errors-problems@latest
+go get github.com/AtomiCloud/diene.go-interfaces@latest
 ```
 
 ```go
-uri, _ := problem.TypeURI(portal, "v1", "entity-not-found")
-err := problem.NewError(problem.Problem{Type: uri, Title: "Entity not found", Status: 404})
+system := testhelper.NewInMemorySystem(testhelper.InMemorySystemOptions{})
+now, err := system.NowUTC()
 ```
 
 <!-- ### go-base-commands -->
