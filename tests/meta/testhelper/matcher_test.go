@@ -39,7 +39,8 @@ func goodProblem() problem.Problem {
 func TestCheckProblemPassesOnEveryField(t *testing.T) {
 	t.Parallel()
 	good := goodProblem()
-	err := testhelper.CheckProblem(good,
+	err := testhelper.CheckProblem(
+		good,
 		testhelper.ExpectType(good.Type),
 		testhelper.ExpectID("entity-not-found"),
 		testhelper.ExpectTitle(good.Title),

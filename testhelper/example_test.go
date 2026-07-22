@@ -20,7 +20,8 @@ func ExampleCheckError() {
 	}
 
 	_, err := load()
-	envelope, checkErr := testhelper.CheckError(err,
+	envelope, checkErr := testhelper.CheckError(
+		err,
 		testhelper.ExpectID("entity-not-found"),
 		testhelper.ExpectStatus(404),
 	)
