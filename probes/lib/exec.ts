@@ -1,6 +1,6 @@
 import type { ProbeExecResult, ProbeRepo } from "@cyanprint/contracts";
 
-const MAX_FAILURE_OUTPUT = 4_000;
+export const MAX_FAILURE_OUTPUT = 4_000;
 
 function safeFailureOutput(output: string): string {
   const redacted = output

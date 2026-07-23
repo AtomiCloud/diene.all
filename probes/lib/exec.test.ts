@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import type { ProbeExecResult, ProbeRepo } from "@cyanprint/contracts";
-import { expectSuccess } from "./exec";
+import { expectSuccess, MAX_FAILURE_OUTPUT } from "./exec";
 
 test("failure output is redacted and bounded", async () => {
   const repo: ProbeRepo = {
@@ -21,10 +21,19 @@ test("failure output is redacted and bounded", async () => {
     },
     async patch() {},
   };
-  await expect(expectSuccess(repo, "false")).rejects.toThrow(
-    "[REDACTED_GITHUB_TOKEN]",
+  const error = await expectSuccess(repo, "false").catch(
+    (reason: unknown) => reason,
   );
-  await expect(expectSuccess(repo, "false")).rejects.toThrow(
-    "[REDACTED_SECRET]",
+  expect(error).toBeInstanceOf(Error);
+
+  const message = (error as Error).message;
+  expect(message).toContain("[REDACTED_GITHUB_TOKEN]");
+  expect(message).toContain("[REDACTED_SECRET]");
+  expect(message).toContain("…[truncated]");
+  expect(message).not.toContain("x".repeat(5_000));
+  expect(message.length).toBeLessThanOrEqual(
+    "command failed (1): false\nstdout:\n".length +
+      MAX_FAILURE_OUTPUT +
+      "\n…[truncated]\nstderr:\n[REDACTED_SECRET]".length,
   );
 });
