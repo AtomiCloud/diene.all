@@ -89,20 +89,45 @@ done
 report="${coverage}/coverage.cobertura.xml"
 [ "${failed}" -ne 0 ] && echo "❌ ${kind} tests or merged coverage failed" >&2 && exit 1
 [ ! -f "${report}" ] && echo "❌ No merged ${kind} coverage report produced" >&2 && exit 1
+! command -v xmlstarlet >/dev/null && echo "❌ xmlstarlet is required to validate ${kind} Cobertura coverage" >&2 && exit 1
 
-valid="$(rg -o 'lines-valid="[0-9]+"' "${report}" | head -n 1 | rg -o '[0-9]+' || true)"
+valid="$(xmlstarlet sel -t -v '/coverage/@lines-valid' "${report}")"
 [ "${valid:-0}" -le 0 ] && echo "❌ ${kind} coverage measured zero lines" >&2 && exit 1
 
-assemblies="$(rg -o '<package name="[^"]+"' "${report}" | sed -E 's/^<package name="|"$//g' | sort -u)"
-[ -z "${assemblies}" ] && echo "❌ ${kind} coverage contains no assemblies" >&2 && exit 1
-if [ "${kind}" = "unit" ]; then
-  bad_assembly="$(echo "${assemblies}" | rg -v '^(Lib|AtomiCloud[.]Diene[.])' | head -n 1 || true)"
-elif [ "${kind}" = "int" ]; then
-  bad_assembly="$(echo "${assemblies}" | rg -v '^App' | head -n 1 || true)"
-else
-  bad_assembly="$(echo "${assemblies}" | rg -v '[.]TestHelper$' | head -n 1 || true)"
-fi
-[ -n "${bad_assembly}" ] && echo "❌ ${kind} coverage escaped its assembly ledger: ${bad_assembly}" >&2 && exit 1
+packages="$(xmlstarlet sel -t -m '/coverage/packages/package' -v '@name' -o $'\t' -v '@line-rate' -n "${report}")"
+[ -z "${packages}" ] && echo "❌ ${kind} coverage contains no packages" >&2 && exit 1
 
+while IFS=$'\t' read -r assembly line_rate; do
+  if [ "${kind}" = "unit" ]; then
+    [[ ${assembly} =~ ^Lib.*$ || ${assembly} == "AtomiCloud.Diene.Note" ]] || {
+      echo "❌ unit coverage escaped its [Lib*]* ledger: ${assembly}" >&2
+      exit 1
+    }
+  elif [ "${kind}" = "int" ]; then
+    [[ ${assembly} =~ ^App.*$ ]] || {
+      echo "❌ int coverage escaped its [App*]* ledger: ${assembly}" >&2
+      exit 1
+    }
+  else
+    [[ ${assembly} =~ [.]TestHelper$ ]] || {
+      echo "❌ meta coverage escaped its [*.TestHelper]* ledger: ${assembly}" >&2
+      exit 1
+    }
+  fi
+
+  awk -v rate="${line_rate}" -v minimum="${minimum}" '
+    BEGIN {
+      if (rate !~ /^[0-9]+([.][0-9]+)?$/) {
+        exit 1
+      }
+      exit !((rate * 100) + 0.0000001 >= minimum)
+    }
+  ' </dev/null || {
+    echo "❌ ${kind} Cobertura package ${assembly} has line-rate ${line_rate}, below ${minimum}%" >&2
+    exit 1
+  }
+done <<<"${packages}"
+
+echo "🔎 Parsed ${kind} Cobertura package scope and per-package line rates"
 echo "📦 Merged ${kind} coverage report: ${report}"
 echo "✅ ${kind} coverage meets the ${minimum}% minimum"
