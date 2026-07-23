@@ -29,9 +29,11 @@ rg -q 'scripts/ci/doctor-ios.sh|scripts/ci/publish-ios.sh' .github/workflows/⚡
   echo "❌ iOS publish workflow is not wired to the signing doctor chain" >&2
   exit 1
 }
-rg -q 'ANDROID_KEYSTORE_BASE64' .github/workflows/⚡reusable-publish-android.yaml || {
-  echo "❌ Android publish workflow lacks the keystore contract" >&2
-  exit 1
-}
+# Parsed, not grepped: a comment or 'ANDROID_KEYSTORE_BASE64: broken' must not satisfy the contract.
+android_publish='.github/workflows/⚡reusable-publish-android.yaml'
+# shellcheck disable=SC2016 # the literal GitHub expression is the expected value, not a shell expansion
+keystore_binding='${{ secrets.ANDROID_KEYSTORE_BASE64 }}'
+got_binding="$(yq '.jobs.publish.env.ANDROID_KEYSTORE_BASE64 // ""' "${android_publish}")"
+[ "${got_binding}" != "${keystore_binding}" ] && echo "❌ Android publish job must bind ANDROID_KEYSTORE_BASE64 to '${keystore_binding}', got '${got_binding}'" >&2 && exit 1
 
 echo "✅ iOS, Android, and CD matrix workflows are wired"
