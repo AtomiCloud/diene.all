@@ -15,7 +15,7 @@ gomplate --version
 test "$(gomplate -i '{{ add 1 1 }}')" = 2
 bash --version
 test "$(bash -lc 'printf probe')" = probe
-cyanprint --version | grep -qx 'cyanprint 4.8.0'
+cyanprint --version | grep -qx 'cyanprint 4.9.0'
 cache_dir="$(mktemp -d)"
 cyanprint cache inspect --cache-dir "$cache_dir" --json | jq -e '.status == "done" and .action == "inspect"' >/dev/null
 `;
