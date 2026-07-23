@@ -13,7 +13,7 @@ rm -rf "${artifacts}"
 mkdir -p "${artifacts}"
 
 echo "📦 Packing release ${version}..."
-dotnet pack dotnet-base.slnx -c Release --no-restore --output "${artifacts}"
+dotnet pack dotnet-base.slnx -c Release --output "${artifacts}"
 ./scripts/validate/dotnet-package.sh inventory "${artifacts}" "${version}"
 
 echo "🚀 Publishing packages and symbols with skip-duplicate..."
