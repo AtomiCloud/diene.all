@@ -43,7 +43,7 @@ Copy the skeleton from the `grafana-alert-set` skill's `templates/alert-template
 
 ## The Transformation Contract
 
-The standard does not ship a transformer — it **specifies the mapping** any deployment mechanism must implement. A conforming transformer reads the folder and produces **Grafana-managed alerts** (NOT `PrometheusRule` resources — no Prometheus/Mimir ruler is involved), deriving:
+The standard specifies the mapping implemented by the reusable primordial-chart helper. The service's primordial chart reads the folder and produces **Grafana-managed alerts** (NOT `PrometheusRule` resources — no Prometheus/Mimir ruler is involved), deriving:
 
 | Derived                                                                                                                                                                                                                                                       | From                                                                                                                             |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
@@ -92,9 +92,9 @@ spec:
         __panelId__: '2'
 ```
 
-**Implementations are pluggable and out of scope** — anything producing this output conforms: the service's own chart including a platform library template, a **central observability Helm chart** ingesting many services' `observability/` folders, a kustomize/CI step. The one-file-per-tier + one-file-per-CR mapping makes Helm implementations trivial: a single `.Files.Glob` loop where each file (`fromYaml` → a _dict_, never an array) emits one complete manifest; label injection is a native dict merge — e.g. `mergeOverwrite (dict "severity" (base $path | trimSuffix ".yaml")) $.Values.serviceTree` — and the `rules` list always has exactly one inline element. No array assembly, no grouping logic, no structural YAML surgery anywhere.
+**The deployment home is fixed** — the service's own primordial chart includes the helm-wrapper helper and deploys these resources to Primordial. The app chart stays pure runtime; there is no central many-repository observability chart. The one-file-per-tier + one-file-per-CR mapping keeps the implementation trivial: a single `.Files.Glob` loop where each file (`fromYaml` → a _dict_, never an array) emits one complete manifest; label injection is a native dict merge — e.g. `mergeOverwrite (dict "severity" (base $path | trimSuffix ".yaml")) $.Values.serviceTree` — and the `rules` list always has exactly one inline element. No array assembly, no grouping logic, no structural YAML surgery anywhere. See [Primordial-Chart Rendering](./primordial-chart.md).
 
-**Multi-datasource rules** (one condition over metrics AND logs) don't fit the minimal schema — and usually shouldn't exist: decompose into two single-signal alerts. A set that truly needs one ships a raw Grafana rule via its deployment mechanism directly, justified in the PR.
+**Multi-datasource rules** (one condition over metrics AND logs) don't fit the minimal schema — and usually shouldn't exist: decompose into two single-signal alerts. A set that truly needs one ships a justified raw `GrafanaAlertRuleGroup` from the same service-owned primordial chart.
 
 ---
 
@@ -228,6 +228,6 @@ A responder's first move is looking at the signal, not reading. The `panel` fiel
 
 There is no behavioral test for Grafana alert rules (deliberate simplicity trade — revisit if a dead alert ever bites). Three layers, no code in this repo:
 
-1. **The transformer validates structurally** — a conforming transformer refuses to produce output on: missing required fields (`title`/`datasource`/`expr`/`summary`/`description`), unknown tier filename (only `critical.yaml`/`warning.yaml`/`info.yaml`), title >48 chars, missing `runbook.md` in the folder. (A Helm implementation does this with `required`/`fail`, so `helm template` fails in CI and on every render.)
+1. **The primordial-chart transformer validates structurally** — it refuses to produce output on: missing required fields (`title`/`datasource`/`expr`/`summary`/`description`), unknown tier filename (only `critical.yaml`/`warning.yaml`/`info.yaml`), title >48 chars, missing `runbook.md` in the folder. The Helm helper uses `required`/`fail`, so `helm template` fails in CI and on every render.
 2. **PR review checklist (semantic)** — tier thresholds >20% apart; `panel` points at the right panel id in `overview.json`; runbook and overview sections complete; every SIGNALS.md Gate-6 folder exists and vice versa; slug is lowercase-kebab.
 3. **Preview before merge (manual)**: open the rule in Grafana (sandbox or dev stack) and use **Preview** to confirm the query returns data and the condition evaluates — the only check that catches an alert that can never fire (typo'd metric name, impossible threshold). State in the PR that Preview was done.

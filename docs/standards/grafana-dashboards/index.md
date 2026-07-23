@@ -4,7 +4,7 @@ Dashboards are the first thing a responder sees when an alert fires. This articl
 
 The core rule: **never ship a dashboard you have not seen rendered.** A dashboard that passes JSON validation can still be unreadable — wrong units, flat-lined axes, "No data" everywhere. Only rendering catches that.
 
-Tools: dashboard JSON (v1/"classic" schema) in `observability/dashboards/` (one file per dashboard, `overview.json` first), validated with `jq` + [`dashboard-linter`](https://github.com/grafana/dashboard-linter), rendered in the [docker sandbox](./sandbox.md). The deployment's conforming transformer emits a `GrafanaDashboard` CR per JSON (see [folder layout](../observability/index.md#contract-2-folder-layout--flat-chart-synced)).
+Tools: dashboard JSON (v1/"classic" schema) in `observability/dashboards/` (one file per dashboard, `overview.json` first), validated with `jq` + [`dashboard-linter`](https://github.com/grafana/dashboard-linter), rendered in the [docker sandbox](./sandbox.md). The service's primordial chart emits one `GrafanaDashboard` CR per JSON (see [folder layout](../observability/index.md#contract-2-folder-layout--flat-primordial-chart-synced) and the [rendering convention](../observability/primordial-chart.md)).
 
 ---
 
