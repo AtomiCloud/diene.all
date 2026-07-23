@@ -112,7 +112,12 @@ let
       let
         bunPkg = pkgs-2605.bun;
         manifest = builtins.fromJSON (builtins.readFile ../package.json);
-        cliName = builtins.head (builtins.attrNames manifest.bin);
+        cliNames = builtins.attrNames manifest.bin;
+        cliName =
+          if builtins.length cliNames == 1 then
+            builtins.head cliNames
+          else
+            builtins.throw "bun-cli package requires exactly one package.json bin entry";
         entry = manifest.bin.${cliName};
         src = pkgs.lib.cleanSourceWith {
           src = ../.;

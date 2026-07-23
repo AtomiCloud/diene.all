@@ -48,4 +48,22 @@ describe('RedisKeyValueStore (Testcontainers)', () => {
     // Assert
     should(actual).be.null();
   });
+
+  it('should expire a value written with a TTL', async () => {
+    // Arrange
+    const key = namespacedKey('Bun Base', `ttl-${crypto.randomUUID()}`);
+    const store = subject as IKeyValueStore;
+
+    // Act
+    await store.set(key, 'ephemeral', 1);
+    const deadline = Date.now() + 5_000;
+    let actual = await store.get(key);
+    while (actual !== null && Date.now() < deadline) {
+      await Bun.sleep(100);
+      actual = await store.get(key);
+    }
+
+    // Assert
+    should(actual).be.null();
+  }, 10_000);
 });

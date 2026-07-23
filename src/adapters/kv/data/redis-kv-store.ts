@@ -32,6 +32,10 @@ export class RedisKeyValueStore implements IKeyValueStore {
     return this.client.get(key);
   }
 
+  async delete(key: string): Promise<void> {
+    await this.client.del(key);
+  }
+
   async close(): Promise<void> {
     await this.client.quit();
   }

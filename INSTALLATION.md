@@ -1,8 +1,8 @@
 # Installing `bun-cli`
 
 `bun-cli` ships as a standalone binary (no Bun/Node runtime required) to every major channel.
-Pick the one that fits your platform. It publishes via the Gemfury account `atomicloud` and the
-Homebrew tap `AtomiCloud/homebrew-tap`.
+Pick the one that fits your platform. Release automation mirrors Debian/RPM packages to the
+Gemfury account `atomicloud` and publishes a cask to `AtomiCloud/homebrew-tap`.
 
 > **macOS caveat — unsigned binaries.** The binaries are not code-signed. On macOS, Gatekeeper
 > quarantines them on first run. Clear the quarantine attribute after install:
@@ -11,27 +11,29 @@ Homebrew tap `AtomiCloud/homebrew-tap`.
 > xattr -d com.apple.quarantine "$(command -v bun-cli)"
 > ```
 
-## Debian / Ubuntu (apt, via Gemfury)
+## Debian / Ubuntu (`.deb`)
+
+The `atomicloud` Gemfury repository does not currently publish a GPG key. Do not add it to APT
+with signature verification disabled. Until repository signing is provisioned, download the
+matching `bun-cli_<version>_linux_<amd64-or-arm64>.deb` and `checksums.txt` assets from the same
+[GitHub release](https://github.com/AtomiCloud/diene.bun-cli/releases), then verify and install:
 
 ```bash
-# add the Gemfury apt repository (once)
-echo "deb [trusted=yes] https://apt.fury.io/atomicloud/ /" | sudo tee /etc/apt/sources.list.d/atomicloud.list
-sudo apt update
-sudo apt install bun-cli
+package='bun-cli_<version>_linux_<amd64-or-arm64>.deb'
+grep " ${package}$" checksums.txt | sha256sum --check
+sudo apt install "./${package}"
 ```
 
-## Fedora / RHEL / CentOS (yum/dnf, via Gemfury)
+## Fedora / RHEL / CentOS (`.rpm`)
+
+The same signing prerequisite applies to the Gemfury Yum repository. Until its repository metadata
+and RPM packages are signed, download the matching `bun-cli_<version>_linux_<amd64-or-arm64>.rpm`
+and `checksums.txt` from the same GitHub release, then verify and install:
 
 ```bash
-# add the Gemfury yum repository (once)
-sudo tee /etc/yum.repos.d/atomicloud.repo <<'EOF'
-[atomicloud]
-name=AtomiCloud
-baseurl=https://yum.fury.io/atomicloud/
-enabled=1
-gpgcheck=0
-EOF
-sudo dnf install bun-cli
+package='bun-cli_<version>_linux_<amd64-or-arm64>.rpm'
+grep " ${package}$" checksums.txt | sha256sum --check
+sudo dnf install "./${package}"
 ```
 
 ## Homebrew (macOS)

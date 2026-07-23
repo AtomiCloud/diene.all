@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, spyOn } from 'bun:test';
+import { afterEach, describe, expect, it, mock, spyOn } from 'bun:test';
 import type { SingleBar } from 'cli-progress';
 import type inquirer from 'inquirer';
 import type { Ora } from 'ora';
@@ -10,6 +10,7 @@ import { OraSpinner } from '../../src/adapters/terminal/spinner';
 
 describe('terminal and system adapters', () => {
   afterEach(() => {
+    mock.restore();
     process.exitCode = 0;
   });
 

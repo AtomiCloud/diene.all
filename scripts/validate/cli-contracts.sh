@@ -10,7 +10,7 @@ arch)
   test -f src/lib/kv/interfaces.ts
   test -f src/adapters/terminal/console-io.ts
   rg -q 'console\.|process\.(stdin|stdout|stderr|exitCode)|from .(chalk|ora|cli-progress|inquirer).' src/lib src/adapters/kv && echo '❌ terminal/shell IO leaked into src/lib or src/adapters/kv' >&2 && exit 1
-  rg -q 'from .\./\.\./\.\./adapters|from .\./\.\./adapters|from .\./adapters' src/lib && echo '❌ src/lib imports an adapter (forbidden upward dependency)' >&2 && exit 1
+  rg -q "from ['\"](\\.\\./)+adapters(?:/|['\"])" src/lib && echo '❌ src/lib imports an adapter (forbidden upward dependency)' >&2 && exit 1
   ;;
 distroless)
   rg -Fx 'FROM gcr.io/distroless/cc-debian12:nonroot AS runtime' infra/Dockerfile
@@ -50,6 +50,15 @@ homebrew-cask)
 fury-wiring)
   rg -F './scripts/release/publish.sh' .github/workflows/cd.yaml
   rg -F './scripts/release/fury.sh' scripts/release/publish.sh
+  stage_line="$(rg -nF 'goreleaser release --clean --skip=publish --release-notes ./IncrementalChangelog.md' scripts/release/publish.sh | cut -d: -f1)"
+  fury_line="$(rg -nF './scripts/release/fury.sh' scripts/release/publish.sh | cut -d: -f1)"
+  publish_line="$(rg -nF 'goreleaser release --clean --release-notes ./IncrementalChangelog.md' scripts/release/publish.sh | cut -d: -f1)"
+  [ "${stage_line}" -lt "${fury_line}" ] && [ "${fury_line}" -lt "${publish_line}" ] || {
+    echo '❌ packages must be staged and sent to Gemfury before GoReleaser publishes GitHub + cask' >&2
+    exit 1
+  }
+  rg -F -- '--config "${credential_config}"' scripts/release/fury.sh
+  ! rg -F '${FURY_TOKEN}@' scripts/release/fury.sh
   ;;
 docker-release)
   yq -o=json '.' .github/workflows/cd.yaml | jq -e '.jobs.docker.uses == "./.github/workflows/⚡reusable-docker.yaml"'

@@ -19,9 +19,10 @@ describe('DoctorService', () => {
   });
 
   describe('probeBackend', () => {
-    it('should return true when the probe key round-trips through the store', async () => {
+    it('should round-trip a unique probe without overwriting a user-owned key', async () => {
       // Arrange
-      const store = new FakeKeyValueStore();
+      const userKey = 'doctor:probe';
+      const store = new FakeKeyValueStore({ [userKey]: 'user-owned' });
       const subject = new DoctorService(store, new FakeShell('Linux'));
 
       // Act
@@ -29,8 +30,13 @@ describe('DoctorService', () => {
 
       // Assert
       should(actual).be.true();
-      should(store.setCalls[0]?.key).equal('doctor:probe');
-      should(store.getCalls).deepEqual(['doctor:probe']);
+      const probeKey = store.setCalls[0]?.key ?? '';
+      should(probeKey).match(/^doctor:probe-/);
+      should(probeKey).not.equal(userKey);
+      should(store.setCalls[0]?.ttlSeconds).equal(30);
+      should(store.getCalls).deepEqual([probeKey]);
+      should(store.deleteCalls).deepEqual([probeKey]);
+      should(await store.get(userKey)).equal('user-owned');
     });
 
     it('should propagate the error when the store fails', async () => {

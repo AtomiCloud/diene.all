@@ -30,6 +30,8 @@ export class BinaryCliDriver implements CliDriver {
       env: { ...process.env, NO_COLOR: '1', ...this.baseEnv, ...env },
       stdout: 'pipe',
       stderr: 'pipe',
+      timeout: 30_000,
+      killSignal: 'SIGKILL',
     });
     const [out, err, code] = await Promise.all([
       new Response(proc.stdout).text(),

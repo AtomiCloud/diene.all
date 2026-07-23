@@ -9,9 +9,9 @@ export interface IProgressBar {
 
 export class CliProgressBar implements IProgressBar {
   constructor(
-    // noTTYOutput keeps CI logs sane.
+    // Keep progress output on interactive terminals; non-TTY logs stay quiet.
     private readonly bar: SingleBar = new cliProgress.SingleBar(
-      { noTTYOutput: true },
+      { noTTYOutput: false },
       cliProgress.Presets.shades_classic,
     ),
   ) {}

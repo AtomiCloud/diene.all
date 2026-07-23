@@ -1,7 +1,7 @@
-import type { IKeyValueStore, IProgressReporter, IShell } from '../../src/lib/kv/interfaces';
 import type { ICliIo } from '../../src/adapters/terminal/console-io';
 import type { IPrompt } from '../../src/adapters/terminal/prompt';
 import type { ISpinner } from '../../src/adapters/terminal/spinner';
+import type { IKeyValueStore, IProgressReporter, IShell } from '../../src/lib/kv/interfaces';
 
 /** Records a single `set` call so tests can assert the composed key, value, and ttl. */
 export interface SetCall {
@@ -14,6 +14,7 @@ export interface SetCall {
 export class FakeKeyValueStore implements IKeyValueStore {
   readonly setCalls: SetCall[] = [];
   readonly getCalls: string[] = [];
+  readonly deleteCalls: string[] = [];
   closed = false;
 
   constructor(
@@ -32,6 +33,12 @@ export class FakeKeyValueStore implements IKeyValueStore {
     if (this.failure) throw this.failure;
     const value = this.initial[key];
     return value === undefined ? null : value;
+  }
+
+  async delete(key: string): Promise<void> {
+    if (this.failure) throw this.failure;
+    this.deleteCalls.push(key);
+    delete this.initial[key];
   }
 
   async close(): Promise<void> {

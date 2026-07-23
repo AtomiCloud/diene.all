@@ -13,4 +13,5 @@ RUN target="$([ "${TARGETARCH}" = "arm64" ] && echo bun-linux-arm64 || echo bun-
 # cc-debian12 carries the libstdc++ the Bun binary links; :nonroot keeps the container unprivileged.
 FROM gcr.io/distroless/cc-debian12:nonroot AS runtime
 COPY --from=build /bun-cli /usr/bin/bun-cli
+USER 65532:65532
 ENTRYPOINT ["/usr/bin/bun-cli"]

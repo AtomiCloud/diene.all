@@ -16,7 +16,7 @@ rules remain in `docs/standards/`.
 - `pls lint` runs every generated pre-commit hook.
 - `pls test`, `pls test:unit`, `pls test:int`, and `pls test:sit` run the test
   tiers without coverage; SIT drives the freshly compiled binary.
-- `pls test:coverage`, `pls test:unit:coverage`, and
+- `pls test:coverage`, `pls test:unit:coverage`,
   `pls test:int:coverage`, and `pls test:sit:coverage` write scoped LCOV
   artifacts. SIT coverage uses the in-process driver only.
 - `pls test:watch` watches the unit tier.
