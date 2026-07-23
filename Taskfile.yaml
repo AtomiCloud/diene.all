@@ -22,6 +22,8 @@ tasks:
     desc: Set up generated workspace assets
     cmds:
       - ./scripts/local/skills-sync.sh
+      # ### dotnet-base-setup
+      # #### source: dotnet-base
       - ./scripts/local/setup.sh
 
   lint:

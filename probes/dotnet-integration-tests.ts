@@ -25,10 +25,18 @@ export default {
         'dotnet-preview',
       ],
       async run(repo: any) {
-        await repo.patch('App/Adapters/Redis/RedisNoteRepository.cs', {
-          find: '        return data?.ToDomain();',
-          replace: '        return null;',
-        });
+        let mutated = false;
+        for (const path of (await repo.glob('App*/Adapters/**/*.cs')).sort()) {
+          const source = await repo.read(path);
+          if (!/\breturn\s+[^;\n]+;/.test(source)) continue;
+          await repo.write(
+            path,
+            source.replace(/\breturn\s+[^;\n]+;/, 'throw new System.InvalidOperationException("probe");'),
+          );
+          mutated = true;
+          break;
+        }
+        if (!mutated) throw new Error('no adapter return statement found for the integration-test sabotage');
         await expectRed(repo, 'nix develop .#ci -c pls test:int', 'dotnet-integration-tests', 600000);
       },
     },

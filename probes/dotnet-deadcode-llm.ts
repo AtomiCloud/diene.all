@@ -9,7 +9,16 @@ export default {
       description: 'The broad LLM-oriented dead-code review emits findings without blocking.',
       kind: 'baseline',
       async run(repo: any) {
-        await expectGreen(repo, 'nix develop .#ci -c pls deadcode', 'dotnet-deadcode-llm', 900000);
+        await expectGreen(
+          repo,
+          `nix develop .#ci -c sh -ec '
+            output="$(pls deadcode)"
+            printf "%s\\n" "$output"
+            [ "$(printf "%s\\n" "$output" | rg -c "^📊 Total: [0-9]+ issue\\(s\\)$")" -eq 2 ]
+          '`,
+          'dotnet-deadcode-llm',
+          900000,
+        );
       },
     },
   ],
