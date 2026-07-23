@@ -1,6 +1,10 @@
-{ packages, formatter, pre-commit-lib }:
+{
+  packages,
+  formatter,
+  pre-commit-lib,
+}:
 pre-commit-lib.run {
-  src = ./.;
+  src = ../.;
 
   # hooks
   hooks = {
@@ -8,7 +12,7 @@ pre-commit-lib.run {
     treefmt = {
       enable = true;
       package = formatter;
-      excludes = [];
+      excludes = [ ];
     };
   };
 }
