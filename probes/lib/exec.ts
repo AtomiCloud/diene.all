@@ -1,10 +1,25 @@
 import type { ProbeExecResult, ProbeRepo } from "@cyanprint/contracts";
 
+const MAX_FAILURE_OUTPUT = 4_000;
+
+function safeFailureOutput(output: string): string {
+  const redacted = output
+    .replace(/gh[pousr]_[A-Za-z0-9_]+/g, "[REDACTED_GITHUB_TOKEN]")
+    .replace(/\b(?:token|secret|password)=\S+/gi, "[REDACTED_SECRET]");
+  return redacted.length > MAX_FAILURE_OUTPUT
+    ? `${redacted.slice(0, MAX_FAILURE_OUTPUT)}\n…[truncated]`
+    : redacted;
+}
+
 function commandFailure(command: string, result: ProbeExecResult): string {
   return [
     `command failed (${result.exitCode}): ${command}`,
-    result.stdout.trim() ? `stdout:\n${result.stdout.trim()}` : "",
-    result.stderr.trim() ? `stderr:\n${result.stderr.trim()}` : "",
+    result.stdout.trim()
+      ? `stdout:\n${safeFailureOutput(result.stdout.trim())}`
+      : "",
+    result.stderr.trim()
+      ? `stderr:\n${safeFailureOutput(result.stderr.trim())}`
+      : "",
   ]
     .filter(Boolean)
     .join("\n");

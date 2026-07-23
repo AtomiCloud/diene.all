@@ -89,6 +89,22 @@ describe("structural probe mutators", () => {
     );
   });
 
+  test("finds colocated TypeScript and Dart tests", async () => {
+    const tsRepo = new FakeRepo({
+      "src/domain/service.spec.ts": "expect(value).toBe(true);\n",
+    });
+    expect((await flipAssertion(tsRepo)).path).toBe(
+      "src/domain/service.spec.ts",
+    );
+
+    const dartRepo = new FakeRepo({
+      "lib/domain/service_test.dart": "expect(value, isTrue);\n",
+    });
+    expect((await flipAssertion(dartRepo)).path).toBe(
+      "lib/domain/service_test.dart",
+    );
+  });
+
   test("breaks a one-line shell guard", async () => {
     const repo = new FakeRepo({
       "scripts/local/secrets.sh":
@@ -111,6 +127,7 @@ describe("structural probe mutators", () => {
     const repo = new FakeRepo({});
     const result = await plantSecret(repo, { staged: true });
     expect(await repo.read(result.path)).toContain("PROBE_FAKE_GITHUB_TOKEN");
+    expect(await repo.read(result.path)).not.toContain("ghp_");
     expect(repo.commands).toEqual(["git add -- 'probe-secret.txt'"]);
   });
 

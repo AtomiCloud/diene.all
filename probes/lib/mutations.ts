@@ -13,6 +13,8 @@ type MutationResult = {
 const TEST_GLOBS = [
   "tests/**/*.{test,spec}.{ts,tsx,js,jsx}",
   "tests/**/*.test.dart",
+  "**/*.{test,spec}.{ts,tsx,js,jsx}",
+  "**/*_test.dart",
   "**/*Test*/**/*.cs",
   "**/*_test.go",
 ];
@@ -174,7 +176,7 @@ export async function plantSecret(
   options?: { staged?: boolean; path?: string; value?: string },
 ): Promise<MutationResult> {
   const path = options?.path ?? "probe-secret.txt";
-  const value = options?.value ?? "ghp_0123456789abcdefghijklmnopqrstuvwxyz";
+  const value = options?.value ?? "probe-fake-github-token-not-a-credential";
   await repo.write(path, `PROBE_FAKE_GITHUB_TOKEN=${value}\n`);
   if (options?.staged) {
     await expectSuccess(repo, `git add -- ${shellQuote(path)}`);
