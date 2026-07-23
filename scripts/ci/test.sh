@@ -2,7 +2,7 @@
 set -euo pipefail
 
 mode="${1:-}"
-[ -z "${mode}" ] && echo "❌ test mode not set" >&2 && exit 1
+[ "${mode}" != "unit" ] && [ "${mode}" != "int" ] && echo "❌ usage: test.sh <unit|int>" >&2 && exit 2
 
 ./scripts/ci/setup.sh
 ./scripts/local/test.sh "${mode}" true false
