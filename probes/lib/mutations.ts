@@ -22,6 +22,7 @@ const ASSERTION_FLIPS: Replacement[] = [
   { find: /\.toEqual\(true\)/, replace: '.toEqual(false)' },
   { find: /\.toBeTruthy\(\)/, replace: '.toBeFalsy()' },
   { find: /\.Should\(\)\.BeTrue\(\)/, replace: '.Should().BeFalse()' },
+  { find: /\.Should\(\)\.Be\(/, replace: '.Should().NotBe(' },
   { find: /\bAssert\.True\(/, replace: 'Assert.False(' },
   { find: /\brequire\.True\(t,/, replace: 'require.False(t,' },
   { find: /\bassert\.True\(t,/, replace: 'assert.False(t,' },
