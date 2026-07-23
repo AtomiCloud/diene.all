@@ -136,9 +136,12 @@ let
           inherit src;
           nativeBuildInputs = [ bunPkg ];
           dontConfigure = true;
+          # Production deps only: the compiled binary bundles runtime imports (all pure JS),
+          # and excluding devDependencies (notably the platform-specific @biomejs/biome binary)
+          # keeps node_modules identical across linux/darwin so one fixed-output hash suffices.
           buildPhase = ''
             export HOME="$TMPDIR"
-            bun install --frozen-lockfile --no-progress
+            bun install --frozen-lockfile --no-progress --production
           '';
           installPhase = ''
             mkdir -p "$out"
@@ -147,7 +150,7 @@ let
           dontFixup = true;
           outputHashMode = "recursive";
           outputHashAlgo = "sha256";
-          outputHash = "sha256-SpnLtJvmEIfnzXhU8odLN4Mj/2ap/TgxiX3VSOuDNnQ=";
+          outputHash = "sha256-g0JDKwlzg+Nm5IopmaDl8+2rVe7Lw6cj8+B+B1I73tk=";
         };
       in
       {
