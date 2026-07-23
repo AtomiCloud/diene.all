@@ -4,17 +4,22 @@ version: '3'
 
 includes:
   docker: tasks/Taskfile.docker.yaml
+  helm: tasks/Taskfile.helm.yaml
+  secret: tasks/Taskfile.secret.yaml
+
+  # ### go-base-test-includes
+  # #### source: go-base
   gotest:
     taskfile: tasks/Taskfile.test.yaml
     internal: true
-  helm: tasks/Taskfile.helm.yaml
-  secret: tasks/Taskfile.secret.yaml
 
 tasks:
   setup:
     desc: Set up generated workspace assets
     cmds:
       - ./scripts/local/skills-sync.sh
+      # ### go-base-setup
+      # #### source: go-base
       - go mod download
 
   lint:
@@ -90,7 +95,7 @@ tasks:
   run:
     desc: Run the Go composition root in development mode
     cmds:
-      - go run ./cmd/go-base -- {{.CLI_ARGS}}
+      - go run ./cmd/go-base {{.CLI_ARGS}}
 
   preview:
     desc: Run the compiled Go artifact
