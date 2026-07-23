@@ -54,6 +54,8 @@ fi
 if [[ ${mode} == "attw" || ${mode} == "all" ]]; then
   echo "🔎 Checking type resolvability (attw)..."
   ./node_modules/.bin/attw pkg.tgz --profile node16
+  echo "🔎 Checking root and TestHelper type identity..."
+  ./node_modules/.bin/tsc -p fixtures/package-consumer/tsconfig.json
 fi
 
 echo "✅ Package validation (${mode}) passed"
