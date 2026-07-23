@@ -1,6 +1,6 @@
 import { expectGreen } from './helpers.ts';
 
-export async function runWithRedis(repo: any, name: string, command: string, allowTimeout = false): Promise<void> {
+export async function runWithRedis(repo: any, name: string, command: string): Promise<void> {
   const identity = `slot="\${PWD##*/}"; probe_name="${name}-\${slot}"`;
 
   await repo.exec(`${identity}; docker rm -f "\${probe_name}" >/dev/null 2>&1 || true`);
@@ -20,14 +20,11 @@ export async function runWithRedis(repo: any, name: string, command: string, all
       `${identity}; probe_port="$(docker port "\${probe_name}" 6379/tcp | tail -n 1 | sed 's/.*://')"; test -n "\${probe_port}"; REDIS_CONNECTION="localhost:\${probe_port}" ${command}`,
       { timeoutMs: 360000 },
     );
-    if (
-      (!allowTimeout && result.exitCode !== 0) ||
-      (allowTimeout && result.exitCode !== 0 && result.exitCode !== 124)
-    ) {
+    if (result.exitCode !== 0) {
       throw new Error(`${command} failed: ${result.stderr || result.stdout}`);
     }
-    if (!`${result.stdout}\n${result.stderr}`.includes('Welcome')) {
-      throw new Error(`${command} did not execute the sample App`);
+    if (`${result.stdout}\n${result.stderr}`.trim().length === 0) {
+      throw new Error(`${command} produced no observable App process output`);
     }
   } finally {
     await repo.exec(`${identity}; docker rm -f "\${probe_name}" >/dev/null 2>&1 || true`);

@@ -13,7 +13,8 @@ public record User
 var renamed = user with { Name = "New name" };
 ```
 
-Pure logic belongs on injected, stateless objects. Avoid static helper classes
-and private logic: both hide dependencies and make behavior harder to replace or
-test. Fallible domain operations use the family Result package once introduced;
-do not encode expected failures as exceptions.
+Behavior with policy or dependencies belongs on injected, stateless objects.
+Avoid stateful or service-locator static classes and private logic; pure, obvious
+transformation extensions are permitted (see the utilities standard). Fallible
+domain operations use the family Result package once introduced; do not encode
+expected failures as exceptions.
