@@ -1,5 +1,15 @@
 [
   {
+    "pname": "AtomiCloud.Diene.Note",
+    "version": "1.0.0",
+    "hash": "sha256-0O/T/I4nJljobPPOOP5JUojh4uSrfL067vjyI8cY9w8="
+  },
+  {
+    "pname": "AtomiCloud.Diene.Note.TestHelper",
+    "version": "1.0.0",
+    "hash": "sha256-2pgnoYSeJVD4edL8iaYRjK5XCFby33yJ9uhZX1Y5/IQ="
+  },
+  {
     "pname": "BouncyCastle.Cryptography",
     "version": "2.6.2",
     "hash": "sha256-Yjk2+x/RcVeccGOQOQcRKCiYzyx1mlFnhS5auCII+Ms="

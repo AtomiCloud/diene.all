@@ -332,12 +332,22 @@
   },
   {
     "template": "diene/dotnet-lib",
+    "name": "dotnet-lib-api-compatibility",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-lib",
     "name": "dotnet-lib-dual-pack",
     "class": "smoke"
   },
   {
     "template": "diene/dotnet-lib",
     "name": "dotnet-lib-scratch-consumption",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/dotnet-lib",
+    "name": "dotnet-lib-publish-roundtrip",
     "class": "smoke"
   }
 ]
