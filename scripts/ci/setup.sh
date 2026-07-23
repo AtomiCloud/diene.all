@@ -13,6 +13,9 @@ if compgen -G '*.slnx' >/dev/null; then
 fi
 
 ./scripts/local/skills-sync.sh
+
+# ### dotnet-base-setup
+# #### source: dotnet-base
 ./scripts/local/setup.sh
 
 echo "✅ Repository setup complete"

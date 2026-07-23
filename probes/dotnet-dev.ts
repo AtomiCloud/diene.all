@@ -39,10 +39,10 @@ export default {
             }
             trap cleanup EXIT
             for attempt in $(seq 1 240); do
-              if rg -q Welcome "$log"; then
+              if rg -q "dotnet watch .*\\] Exited$" "$log"; then
                 exit 0
               fi
-              if rg -q "could not be read back" "$log"; then
+              if rg -q "dotnet watch .*\\] Exited with error|Build FAILED|Unhandled exception" "$log"; then
                 exit 1
               fi
               if ! kill -0 "$pid" 2>/dev/null; then
@@ -56,7 +56,6 @@ export default {
             done
             exit 124
           '`,
-          true,
         );
       },
     },
