@@ -13,7 +13,7 @@ invocation:
 
 One alert set = one folder: `observability/alerts/<alert-slug>/` containing **one flat file per tier** — `critical.yaml`/`warning.yaml`/`info.yaml` (the filename IS the severity; not everything needs tiers) — plus `runbook.md`. The folder structure is the enforcement: a set without its runbook fails the transformer. Write each tier file with `grafana-alert` starting from [templates/alert-template.yaml](./templates/alert-template.yaml), the runbook with `grafana-runbook`.
 
-**These become Grafana-managed alerts, NOT `PrometheusRule` resources** — the deployment's conforming transformer (e.g. a Helm library template, or a central observability chart) derives all plumbing (severity/emoji from the filename, uids, CR wrapper, LPSM labels, runbook/dashboard links) per the Transformation Contract. There is deliberately no behavioral test (none exists for Grafana rules): validation = transformer structural checks + PR review checklist + Grafana Preview before merge.
+**These become Grafana-managed alerts, NOT `PrometheusRule` resources** — the service's primordial chart uses the reusable helm-wrapper transformer to derive all plumbing (severity/emoji from the filename, uids, CR wrapper, LPSM labels, runbook/dashboard links) per the Transformation Contract. The runtime app chart never renders them, and there is no central observability chart. There is deliberately no behavioral test (none exists for Grafana rules): validation = transformer structural checks + PR review checklist + Grafana Preview before merge.
 
 Follow the authoritative set design (family/tier rules, cross-set dedup, noise budget in SIGNALS.md Gate 5, coverage) and the derivation table in **[observability/alerts.md](../../../docs/standards/observability/alerts.md)**.
 

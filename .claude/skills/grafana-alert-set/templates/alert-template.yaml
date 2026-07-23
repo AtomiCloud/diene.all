@@ -1,7 +1,7 @@
 # observability/alerts/{alert-slug}/{critical|warning|info}.yaml
 # ONE FILE PER TIER — the FILENAME is the severity (no severity field exists).
 # Pure Grafana-domain definition: no Kubernetes, no labels, no plumbing — the
-# deployment's conforming transformer derives everything else (emoji prefix,
+# service's primordial-chart transformer derives everything else (emoji prefix,
 # uid, CR wrapper, LPSM labels, runbook/dashboard links). Flat dict only.
 title: '{short symptom, ≤48 chars — NO emoji, it is derived from the filename}'
 datasource: '{metrics | logs}' # metrics = PromQL, logs = LogQL

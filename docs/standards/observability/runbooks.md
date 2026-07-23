@@ -1,6 +1,6 @@
 # Runbooks and the System Overview
 
-**Every alert has its own runbook, in the same folder as the alert.** The folder structure is the enforcement: a conforming transformer fails an alert set without a `runbook.md`. Shared context lives once in `observability/overview.md` — runbooks link to it instead of repeating it.
+**Every alert has its own runbook, in the same folder as the alert.** The folder structure is the enforcement: the primordial-chart transformer fails an alert set without a `runbook.md`. Shared context lives once in `observability/overview.md` — runbooks link to it instead of repeating it.
 
 ```text
 observability/
@@ -80,7 +80,7 @@ Style: imperative voice; code blocks contain only commands/queries/output; when 
 
 ## Verification
 
-The conforming transformer enforces the folder contract (every alert set has its tier files + `runbook.md` — it fails otherwise). Runbook section completeness and the overview's required sections are PR-review checks.
+The primordial-chart transformer enforces the folder contract (every alert set has its tier files + `runbook.md` — it fails otherwise). Runbook section completeness and the overview's required sections are PR-review checks.
 
 Then check manually:
 
