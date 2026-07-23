@@ -6,45 +6,21 @@
   pkgs-android,
 }:
 let
-  cyanprintVersion = "4.8.0";
-  cyanprintSystem = pkgs.stdenv.hostPlatform.system;
-  cyanprintPlatform =
-    ({
-      x86_64-linux = "linux_amd64";
-      aarch64-linux = "linux_arm64";
-      x86_64-darwin = "darwin_amd64";
-      aarch64-darwin = "darwin_arm64";
-    }).${cyanprintSystem};
-  cyanprintHash =
-    ({
-      x86_64-linux = "sha256-lxibv7rqcp0rQtvWb41ifxA+ORwt8yiSKM0NaRJmt1w=";
-      aarch64-linux = "sha256-XDx6CtFS4doSeswYWyTPT0GHPDcW8tb6YEzd5QJuv78=";
-      x86_64-darwin = "sha256-xGoTSpMkXAKdUm6NDDN75yfHu25nMgXP1hiIfGb9fvo=";
-      aarch64-darwin = "sha256-7xLzKKCK5UiU1saHf8l1z1UuInQm1CTjowIlwpGRM7Y=";
-    }).${cyanprintSystem};
-  cyanprint = pkgs.stdenvNoCC.mkDerivation {
-    pname = "cyanprint";
-    version = cyanprintVersion;
-    src = pkgs.fetchurl {
-      url = "https://github.com/AtomiCloud/sulfone.lite/releases/download/v${cyanprintVersion}/cyanprint_${cyanprintVersion}_${cyanprintPlatform}.tar.gz";
-      hash = cyanprintHash;
-    };
-    sourceRoot = ".";
-    strictDeps = true;
-    dontStrip = true;
-    nativeBuildInputs = pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.autoPatchelfHook ];
-    buildInputs = pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.glibc ];
-    installPhase = ''
-      runHook preInstall
-      install -Dm755 cyanprint "$out/bin/cyanprint"
-      runHook postInstall
-    '';
-    doInstallCheck = true;
-    installCheckPhase = ''
-      "$out/bin/cyanprint" --version | grep -Fx "cyanprint ${cyanprintVersion}"
-    '';
-    meta.mainProgram = "cyanprint";
+  cyanprintSource = pkgs.fetchFromGitHub {
+    owner = "AtomiCloud";
+    repo = "sulfone.lite";
+    rev = "2d238d5c4c7a0b4f72d12a31e177117d1b0f8f7b";
+    hash = "sha256-iLFbFcIFO84ex/oSI0QXK6Vlh9PciT+m+KJ1F3V2dNk=";
   };
+  cyanprintPackages = import "${cyanprintSource}/nix/packages.nix" {
+    inherit
+      atomi
+      pkgs
+      pkgs-2605
+      pkgs-unstable
+      ;
+  };
+  cyanprint = cyanprintPackages.cyanprint;
   # ### flutter-base-mobile-packages
   # #### source: flutter-base
   ruby-xcodeproj = pkgs-unstable.ruby.withPackages (rubyPackages: [ rubyPackages.xcodeproj ]);
