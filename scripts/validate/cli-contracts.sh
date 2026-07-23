@@ -9,8 +9,8 @@ arch)
   test -f bin/bun-cli.ts
   test -f src/lib/kv/interfaces.ts
   test -f src/adapters/terminal/console-io.ts
-  ! rg -n 'console\.|process\.(stdin|stdout|stderr|exitCode)|from .(chalk|ora|cli-progress|inquirer).' src/lib src/adapters/kv
-  ! rg -n 'from .\./\.\./\.\./adapters|from .\./\.\./adapters|from .\./adapters' src/lib
+  rg -q 'console\.|process\.(stdin|stdout|stderr|exitCode)|from .(chalk|ora|cli-progress|inquirer).' src/lib src/adapters/kv && echo '❌ terminal/shell IO leaked into src/lib or src/adapters/kv' >&2 && exit 1
+  rg -q 'from .\./\.\./\.\./adapters|from .\./\.\./adapters|from .\./adapters' src/lib && echo '❌ src/lib imports an adapter (forbidden upward dependency)' >&2 && exit 1
   ;;
 distroless)
   rg -Fx 'FROM gcr.io/distroless/cc-debian12:nonroot AS runtime' infra/Dockerfile
