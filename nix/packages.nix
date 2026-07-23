@@ -45,16 +45,19 @@ let
     meta.mainProgram = "cyanprint";
   };
   all = rec {
+    # ### dotnet-base
+    # #### source: dotnet-base
+    dotnet-base = {
+      dotnetlint = atomi.dotnetlint.override { dotnetPackage = pkgs-2605.dotnet-sdk_10; };
+      dn-inspect = atomi.dn-inspect.override { dotnetPackage = pkgs-2605.dotnet-sdk_10; };
+      inherit (pkgs-2605) dotnet-sdk_10 gitlint;
+    };
+
     # ### nix-root
     # #### source: main
     atomipkgs = (
       with atomi;
-      rec {
-        # ### dotnet-base-atomipkgs
-        # #### source: dotnet-base
-        dotnetlint = atomi.dotnetlint.override { dotnetPackage = nix-2605.dotnet-sdk_10; };
-        dn-inspect = atomi.dn-inspect.override { dotnetPackage = nix-2605.dotnet-sdk_10; };
-
+      {
         inherit
           atomiutils
           infralint
@@ -70,15 +73,6 @@ let
     nix-2605 = (
       with pkgs-2605;
       {
-        # ### dotnet-base-dotnet
-        # #### source: dotnet-base
-        inherit
-          dotnet-sdk_10
-          gitlint
-          ;
-
-        # ### workspace-packages
-        # #### source: workspace
         inherit
           actionlint
           bash
@@ -114,4 +108,4 @@ let
   };
 in
 with all;
-atomipkgs // nix-2605 // nix-unstable // root
+atomipkgs // nix-2605 // nix-unstable // root // dotnet-base

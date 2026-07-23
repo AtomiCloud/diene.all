@@ -64,7 +64,7 @@ for index in "${!projects[@]}"; do
   project_name="$(basename "${project_rel}" .csproj)"
   format="json"
   threshold_args=()
-  [ "${index}" -eq "${last_index}" ] && format="json%2ccobertura" && threshold_args=(/p:Threshold="${minimum}" /p:ThresholdType=line)
+  [ "${index}" -eq "${last_index}" ] && format="json%2ccobertura" && threshold_args=(/p:Threshold="${minimum}" /p:ThresholdType=line /p:ThresholdStat=total)
   merge_args=()
   [ -f "${accumulator}" ] && merge_args=(/p:MergeWith="${accumulator}")
 
