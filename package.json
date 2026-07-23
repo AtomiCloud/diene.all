@@ -1,6 +1,6 @@
 {
   "name": "@atomicloud/diene.result",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Result and Option monads with dual-format ESM/CJS builds and a dependency-light /test-helper for AtomiCloud/diene.bun-result",
   "type": "module",
   "main": "./dist/index.cjs",
