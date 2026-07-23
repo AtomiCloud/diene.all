@@ -41,6 +41,11 @@ fi
 test_status=$?
 set -e
 
+set +e
 ./scripts/local/coverage-check.sh "${mode}"
+coverage_status=$?
+set -e
+
 [[ ${test_status} -ne 0 ]] && echo "❌ ${mode} tests failed (exit ${test_status})" >&2 && exit "${test_status}"
+[[ ${coverage_status} -ne 0 ]] && exit "${coverage_status}"
 echo "✅ ${mode} tests passed"

@@ -68,8 +68,8 @@ boundary. TypeScript variants accompany the shared standards for
 [utilities](docs/standards/utilities/languages/typescript.md), and
 [validation](docs/standards/validation/languages/typescript.md).
 
-<!-- ### bun-lib -->
-<!-- #### source: bun-lib -->
+<!-- ### bun-result -->
+<!-- #### source: lib/bun/result -->
 
 ## Result and Option monads
 
@@ -88,7 +88,7 @@ interfaces, their concrete `KResult`/`KOption` implementations, and zero-depende
 factories. It publishes dual ESM/CommonJS bundles and types, plus a framework-free
 `/test-helper` subpath and usage skill.
 
-Package description: Result and Option monads with dual-format ESM/CJS builds and a dependency-light /test-helper for AtomiCloud/diene.bun-result
+Package description: Result and Option monads with dual-format ESM/CJS builds and a zero-dependency /test-helper for AtomiCloud/diene.bun-result
 
 Package keywords: atomicloud, result, option, monad, typescript, esm, commonjs, bun
 

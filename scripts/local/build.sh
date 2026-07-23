@@ -45,6 +45,7 @@ grep -qxF "import type { Option } from './index.cjs';" dist/test-helper.d.cts
 grep -qxF "import type { Result } from './index.cjs';" dist/test-helper.d.cts
 
 node --input-type=module -e "import { Ok } from './dist/index.js'; if (await Ok(1).map((value) => value + 1).unwrap() !== 2) process.exit(1)"
+node --input-type=module -e "import { Ok } from './dist/index.js'; import { expectOk } from './dist/test-helper.js'; if (await expectOk(Ok(1)) !== 1) process.exit(1)"
 node -e 'const { Ok } = require("./dist/index.cjs"); Ok(1).map((value) => value + 1).unwrap().then((value) => { if (value !== 2) process.exit(1) }).catch(() => process.exit(1))'
 node -e 'const { Ok } = require("./dist/index.cjs"); const { expectOk } = require("./dist/test-helper.cjs"); expectOk(Ok(1)).then((value) => { if (value !== 1) process.exit(1) }).catch(() => process.exit(1))'
 bunx tsc -p fixtures/package-consumer/tsconfig.json
