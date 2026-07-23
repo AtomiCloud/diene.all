@@ -1,0 +1,19 @@
+# ### bun-lib-reusable-package-validate
+# #### source: bun-lib
+name: ⚡ Reusable Package Validate
+
+on:
+  workflow_call:
+
+jobs:
+  package-validate:
+    name: Package Validation
+    runs-on:
+      - nscloud-ubuntu-22.04-amd64-4x8-with-cache
+      - nscloud-cache-size-50gb
+      - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
+    steps:
+      - uses: AtomiCloud/actions.setup-nix@v3
+      - uses: AtomiCloud/actions.cache-bun@v2
+      - name: Validate package (pack-content + publint + attw)
+        run: nix develop .#ci -c ./scripts/ci/pkg-validate.sh

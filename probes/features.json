@@ -274,5 +274,80 @@
     "template": "diene/bun-base",
     "name": "bun-codecov-config",
     "class": "presence"
+  },
+  {
+    "template": "diene/bun-lib",
+    "name": "pack-content",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-lib",
+    "name": "publint",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-lib",
+    "name": "attw",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-lib",
+    "name": "publish-version-guard",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-lib",
+    "name": "publish-tag-policy",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-lib",
+    "name": "publish-credential-policy",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-lib",
+    "name": "publish-command-policy",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-lib",
+    "name": "package-metadata",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-lib",
+    "name": "workflow-wiring-package-validate",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-lib",
+    "name": "workflow-wiring-publish",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-lib",
+    "name": "dual-build",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/bun-lib",
+    "name": "readme-tokenization",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/bun-lib",
+    "name": "package-pack",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/bun-lib",
+    "name": "publish-path",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/bun-lib",
+    "name": "usage-skill",
+    "class": "presence"
   }
 ]

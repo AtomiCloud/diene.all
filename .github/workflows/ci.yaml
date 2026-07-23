@@ -41,3 +41,12 @@ jobs:
       contents: read
     uses: ./.github/workflows/⚡reusable-build.yaml
     secrets: inherit
+
+  # ### bun-lib-ci
+  # #### source: bun-lib
+  package-validate:
+    name: Package Validation
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-package-validate.yaml
+    secrets: inherit

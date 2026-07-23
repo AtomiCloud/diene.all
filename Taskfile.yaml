@@ -45,7 +45,7 @@ tasks:
       - '[ -d node_modules ] && find node_modules -mindepth 1 -maxdepth 1 -exec rm -rf {} + || true'
 
   build:
-    desc: Build the Bun bundle to dist/
+    desc: Build the publishable library (ESM + CJS + types) to dist/
     cmds:
       - ./scripts/local/build.sh
 
