@@ -1,180 +1,217 @@
 import { describe, it } from 'bun:test';
 import should from 'should';
-import type { UnwrapError } from '../../src/error.ts';
-import { None, Option, Some } from '../../src/option.ts';
-import { Result } from '../../src/result.ts';
-import type { OptionSerial } from '../../src/wire.ts';
+import { UnwrapError } from '../../src/lib/error.js';
+import { KOption, None, Opt, Some, type Option, type OptionSerial } from '../../src/lib/option.js';
+import { Err, Ok } from '../../src/lib/result.js';
 
-describe('Option constructors', () => {
-  it('should build a Some that reports isSome', () => {
+describe('Option construction and serialization', () => {
+  it('should construct Some and None and map nullable native values', async () => {
+    // Arrange
+    const nativeValues = [0, null, undefined] as const;
+
     // Act
-    const actual = Option.some(3);
+    const some = Some(3);
+    const none = None<number>();
+    const mapped = nativeValues.map(value => Opt.fromNative(value));
 
     // Assert
-    should(actual).be.instanceof(Some);
-    should(actual.isSome).be.true();
-    should(actual.isNone).be.false();
+    should(some).be.instanceof(KOption);
+    should(await some.isSome()).be.true();
+    should(await some.isNone()).be.false();
+    should(await none.isNone()).be.true();
+    should(await none.isSome()).be.false();
+    should(await mapped[0]?.unwrap()).equal(0);
+    should(await mapped[1]?.isNone()).be.true();
+    should(await mapped[2]?.isNone()).be.true();
   });
 
-  it('should build a None that reports isNone', () => {
+  it('should round-trip both OptionSerial variants through JSON', async () => {
+    // Arrange
+    const someWire = JSON.parse(JSON.stringify(await Some(12).serial())) as OptionSerial<number>;
+    const noneWire = JSON.parse(JSON.stringify(await None<number>().serial())) as OptionSerial<number>;
+
     // Act
-    const actual = Option.none<number>();
+    const some = Opt.fromSerial(Promise.resolve(someWire));
+    const none = Opt.fromSerial(noneWire);
 
     // Assert
-    should(actual).be.instanceof(None);
-    should(actual.isNone).be.true();
-    should(actual.isSome).be.false();
+    should(await some.unwrap()).equal(12);
+    should(await none.isNone()).be.true();
+    should(await some.native()).equal(12);
+    should(await none.native()).be.null();
   });
 
-  it.each([
-    { label: 'null', input: null, some: false },
-    { label: 'undefined', input: undefined, some: false },
-    { label: 'a value', input: 0, some: true },
-  ])('should map $label through fromNullable', ({ input, some }) => {
+  it('should flatten async Options and collect only when every member is Some', async () => {
+    // Arrange
+    const promisedSome = Promise.resolve(Some(4));
+    const promisedNone = Promise.resolve(None<number>());
+
     // Act
-    const actual = Option.fromNullable<number>(input);
+    const some = Opt.fromAsync(promisedSome);
+    const none = Opt.fromAsync(promisedNone);
+    const asyncOption = Opt.async(async () => Some(8));
+    const allSome = Opt.all(Some(1), Some('two'));
+    const withNone = Opt.all(Some(1), None<string>());
 
     // Assert
-    should(actual.isSome).equal(some);
+    should(await some.unwrap()).equal(4);
+    should(await none.isNone()).be.true();
+    should(await asyncOption.unwrap()).equal(8);
+    should(await allSome.unwrap()).eql([1, 'two']);
+    should(await withNone.isNone()).be.true();
   });
 });
 
 describe('Option transforms', () => {
-  it('should map a Some and leave None untouched', () => {
-    // Act
-    const mappedSome = Option.some(2).map(value => value * 10);
-    const mappedNone = Option.none<number>().map(value => value * 10);
-
-    // Assert
-    should(mappedSome.unwrap()).equal(20);
-    should(mappedNone.isNone).be.true();
-  });
-
-  it('should andThen chain on Some and short-circuit on None', () => {
+  it('should map Some values and leave None values untouched', async () => {
     // Arrange
-    const half = (value: number) => Option.some(value / 2);
+    const some = Some(2);
+    const none = None<number>();
 
     // Act
-    const chainedSome = Option.some(8).andThen(half);
-    const chainedNone = Option.none<number>().andThen(half);
+    const mappedSome = some.map(async value => value * 10);
+    const mappedNone = none.map(value => value * 10);
 
     // Assert
-    should(chainedSome.unwrap()).equal(4);
-    should(chainedNone.isNone).be.true();
+    should(await mappedSome.unwrap()).equal(20);
+    should(await mappedNone.isNone()).be.true();
   });
 
-  it('should match both variants into one type', () => {
+  it('should chain Some values, propagate mapped None, and short-circuit original None', async () => {
     // Arrange
-    const fold = (option: Option<number>) => option.match({ some: v => `some:${v}`, none: () => 'none' });
+    const some = Some(6);
+    const none = None<number>();
 
-    // Act / Assert
-    should(fold(Option.some(4))).equal('some:4');
-    should(fold(Option.none<number>())).equal('none');
+    // Act
+    const chainedSome = some.andThen(async value => Some(`v:${value}`));
+    const chainedToNone = some.andThen(() => None<string>());
+    const chainedNone = none.andThen(value => Some(`v:${value}`));
+
+    // Assert
+    should(await chainedSome.unwrap()).equal('v:6');
+    should(await chainedToNone.isNone()).be.true();
+    should(await chainedNone.isNone()).be.true();
+  });
+
+  it('should match Some and both deferred and immediate None arms', async () => {
+    // Arrange
+    const some = Some(5);
+    const none = None<number>();
+
+    // Act
+    const someMatch = some.match({ some: value => `some:${value}`, none: 'none' });
+    const noneImmediate = none.match<string>({ some: value => `some:${value}`, none: Promise.resolve('none') });
+    const noneDeferred = none.match<string>({ some: value => `some:${value}`, none: async () => 'deferred' });
+
+    // Assert
+    should(await someMatch).equal('some:5');
+    should(await noneImmediate).equal('none');
+    should(await noneDeferred).equal('deferred');
   });
 });
 
-describe('Option unwrap family', () => {
-  it('should unwrap a Some and throw UnwrapError on a None', () => {
+describe('Option extraction and side effects', () => {
+  it('should unwrap Some and throw UnwrapError for explicit None unwrap', async () => {
+    // Arrange
+    const some = Some(9);
+    const none = None<number>();
+
     // Act
-    let caught: UnwrapError | undefined;
-    try {
-      Option.none<number>().unwrap();
-    } catch (error) {
-      caught = error as UnwrapError;
-    }
+    const rejected = (await none.unwrap().catch(error => error as UnwrapError)) as UnwrapError;
 
     // Assert
-    should(Option.some(9).unwrap()).equal(9);
-    should(caught?.monad).equal('option');
-    should(caught?.expected).equal('Some');
-    should(caught?.actual).equal('None');
+    should(await some.unwrap()).equal(9);
+    should(rejected).be.instanceof(UnwrapError);
+    should(rejected.type).equal('Expected Some got None');
+    should(rejected.monadType).equal('option');
   });
 
-  it('should provide unwrapOr and unwrapOrElse fallbacks', () => {
+  it('should return immediate, promised, sync-deferred, and async-deferred fallbacks', async () => {
+    // Arrange
+    const some = Some(1);
+    const none = None<number>();
+
     // Act / Assert
-    should(Option.some(1).unwrapOr(99)).equal(1);
-    should(Option.none<number>().unwrapOr(99)).equal(99);
-    should(Option.some(1).unwrapOrElse(() => 42)).equal(1);
-    should(Option.none<number>().unwrapOrElse(() => 42)).equal(42);
+    should(await some.unwrapOr(99)).equal(1);
+    should(await none.unwrapOr(99)).equal(99);
+    should(await none.unwrapOr(Promise.resolve(88))).equal(88);
+    should(await none.unwrapOr(() => 77)).equal(77);
+    should(await none.unwrapOr(async () => 66)).equal(66);
+  });
+
+  it('should run sync and async effects only for Some while preserving the Option', async () => {
+    // Arrange
+    const seen: number[] = [];
+    const some = Some(4);
+    const none = None<number>();
+
+    // Act
+    const afterSync = some.run(value => {
+      seen.push(value);
+    });
+    const afterAsync = afterSync.run(async value => {
+      seen.push(value + 1);
+    });
+    const afterNone = none.run(value => {
+      seen.push(value);
+    });
+
+    // Assert
+    should(await afterAsync.unwrap()).equal(4);
+    should(await afterNone.isNone()).be.true();
+    should(seen).eql([4, 5]);
   });
 });
 
-describe('Option to Result', () => {
-  it('should convert via okOr', () => {
-    // Act
-    const fromSome = Option.some(5).okOr<string>('missing');
-    const fromNone = Option.none<number>().okOr<string>('missing');
-
-    // Assert
-    should(fromSome.unwrap()).equal(5);
-    should(fromNone.unwrapErr()).equal('missing');
-  });
-
-  it('should convert via asResult arms', () => {
+describe('Option to Result conversion', () => {
+  it('should convert Some and None through asOk and asErr', async () => {
     // Arrange
-    const arms = {
-      some: (value: number) => Result.ok<string, string>(`v:${value}`),
-      none: () => Result.err<string, string>('empty'),
-    };
+    const some = Some(5);
+    const none = None<number>();
 
     // Act
-    const fromSome = Option.some(6).asResult(arms);
-    const fromNone = Option.none<number>().asResult(arms);
+    const someAsOk = some.asOk('missing');
+    const noneAsOk = none.asOk(Promise.resolve('missing'));
+    const someAsErr = some.asErr('fallback');
+    const noneAsErr = none.asErr(Promise.resolve('fallback'));
 
     // Assert
-    should(fromSome.unwrap()).equal('v:6');
-    should(fromNone.unwrapErr()).equal('empty');
+    should(await someAsOk.unwrap()).equal(5);
+    should(await noneAsOk.unwrapErr()).equal('missing');
+    should(await someAsErr.unwrapErr()).equal(5);
+    should(await noneAsErr.unwrap()).equal('fallback');
   });
 
-  it('should return the native representation', () => {
-    // Act / Assert
-    should(Option.some(7).native()).equal(7);
-    should(Option.none<number>().native()).be.undefined();
+  it('should map Some and every None arm shape through asResult', async () => {
+    // Arrange
+    const some = Some(3);
+    const none = None<number>();
+
+    // Act
+    const fromSome = some.asResult({ some: value => Ok<string, string>(`v:${value}`), none: Err('empty') });
+    const fromNoneValue = none.asResult({ some: value => Ok<string, string>(`v:${value}`), none: Err('empty') });
+    const fromNoneFunction = none.asResult({
+      some: value => Ok<string, string>(`v:${value}`),
+      none: async () => Ok<string, string>('fallback'),
+    });
+
+    // Assert
+    should(await fromSome.unwrap()).equal('v:3');
+    should(await fromNoneValue.unwrapErr()).equal('empty');
+    should(await fromNoneFunction.unwrap()).equal('fallback');
   });
 });
 
-describe('Option serial round-trip', () => {
-  it('should encode Some and None as tagged objects', () => {
-    // Act / Assert
-    should(Option.some(3).serial()).eql({ kind: 'some', value: 3 });
-    should(Option.none<number>().serial()).eql({ kind: 'none' });
-  });
-
-  it('should apply a custom Some encoder', () => {
-    // Act
-    const actual = Option.some(4).serial({ some: value => value * 2 });
-
-    // Assert
-    should(actual).eql({ kind: 'some', value: 8 });
-  });
-
-  it('should reconstruct an equal Some and None', () => {
+describe('Option type surface', () => {
+  it('should expose the interface separately from its concrete implementation', async () => {
     // Arrange
-    const some = Option.some(21);
-    const none = Option.none<number>();
+    const value: Option<number> = Some(10);
 
     // Act
-    const rebuiltSome = Option.fromSerial<number>(some.serial(), { some: value => value as number });
-    const rebuiltNone = Option.fromSerial<number>(none.serial(), { some: value => value as number });
+    const concrete = value as KOption<number>;
 
     // Assert
-    should(rebuiltSome.unwrap()).equal(21);
-    should(rebuiltNone.isNone).be.true();
-  });
-
-  it.each([
-    { label: 'a non-object wire', wire: 42 },
-    { label: 'an unknown kind', wire: { kind: 'maybe' } },
-    { label: 'a some missing its value', wire: { kind: 'some' } },
-    { label: 'a none carrying a value', wire: { kind: 'none', value: 1 } },
-  ])('should throw TypeError for $label', ({ wire }) => {
-    // Arrange
-    const serial = wire as unknown as OptionSerial;
-
-    // Act
-    const actual = () => Option.fromSerial<number>(serial, { some: value => value as number });
-
-    // Assert
-    should(actual).throw(TypeError);
+    should(concrete).be.instanceof(KOption);
+    should(await concrete.unwrap()).equal(10);
   });
 });

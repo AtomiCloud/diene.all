@@ -1,7 +1,9 @@
-const { Option, Result } = require('@atomicloud/diene.result');
+const { Ok, Opt } = require('@atomicloud/diene.result');
 
-module.exports.doubled = Result.ok(21)
-  .map(value => value * 2)
-  .unwrap();
-
-module.exports.present = Option.fromNullable('value').isSome;
+module.exports.consumeResult = async function consumeResult() {
+  const doubled = await Ok(21)
+    .map(value => value * 2)
+    .unwrap();
+  const present = await Opt.fromNative('value').isSome();
+  return { doubled, present };
+};

@@ -1,7 +1,9 @@
-import { Option, Result } from '@atomicloud/diene.result';
+import { Ok, Opt } from '@atomicloud/diene.result';
 
-export const doubled = Result.ok<number, string>(21)
-  .map(value => value * 2)
-  .unwrap();
-
-export const present = Option.fromNullable<string>('value').isSome;
+export async function consumeResult(): Promise<{ doubled: number; present: boolean }> {
+  const doubled = await Ok<number, string>(21)
+    .map(value => value * 2)
+    .unwrap();
+  const present = await Opt.fromNative('value').isSome();
+  return { doubled, present };
+}

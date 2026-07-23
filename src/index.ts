@@ -1,6 +1,5 @@
 // ─── DOMAIN WIRING · the Result/Option export surface ───────────────────────────────────────────
-export * from './error.ts';
-export * from './option.ts';
-export * from './result.ts';
-export type { OptionSerial, ResultSerial } from './wire.ts';
+export * from './lib/error.js';
+export * from './lib/option.js';
+export * from './lib/result.js';
 // ─── END DOMAIN WIRING ──────────────────────────────────────────────────────────────────────────

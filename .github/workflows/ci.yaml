@@ -26,15 +26,6 @@ jobs:
     with:
       mode: unit
 
-  int:
-    name: Integration Tests
-    permissions:
-      contents: read
-    uses: ./.github/workflows/⚡reusable-test.yaml
-    secrets: inherit
-    with:
-      mode: int
-
   # ### bun-lib-meta-ci
   # #### source: bun-lib
   meta:

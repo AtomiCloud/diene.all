@@ -1,273 +1,256 @@
 import { describe, it } from 'bun:test';
 import should from 'should';
-import { UnwrapError } from '../../src/error.ts';
-import { Err, Ok, Result } from '../../src/result.ts';
+import { UnwrapError } from '../../src/lib/error.js';
+import { Err, KResult, Ok, Res, type Result } from '../../src/lib/result.js';
 
-describe('Result constructors', () => {
-  it('should build an Ok that reports isOk', () => {
+describe('Result construction and serialization', () => {
+  it('should construct Ok and Err values from immediate and promised payloads', async () => {
     // Arrange
-    const value = 7;
+    const promisedValue = Promise.resolve(7);
+    const promisedError = Promise.resolve('boom');
 
     // Act
-    const actual = Result.ok<number, string>(value);
+    const ok = Ok<number, string>(promisedValue);
+    const err = Err<number, string>(promisedError);
 
     // Assert
-    should(actual).be.instanceof(Ok);
-    should(actual.isOk).be.true();
-    should(actual.isErr).be.false();
+    should(ok).be.instanceof(KResult);
+    should(await ok.isOk()).be.true();
+    should(await ok.isErr()).be.false();
+    should(await ok.unwrap()).equal(7);
+    should(await err.isErr()).be.true();
+    should(await err.isOk()).be.false();
+    should(await err.unwrapErr()).equal('boom');
   });
 
-  it('should build an Err that reports isErr', () => {
+  it('should round-trip both ResultSerial variants through JSON', async () => {
     // Arrange
-    const error = 'boom';
+    const okWire = JSON.parse(JSON.stringify(await Ok<number, string>(11).serial())) as ['ok', number];
+    const errWire = JSON.parse(JSON.stringify(await Err<number, string>('bad').serial())) as ['err', string];
 
     // Act
-    const actual = Result.err<string, number>(error);
+    const ok = Res.fromSerial<number, string>(Promise.resolve(okWire));
+    const err = Res.fromSerial<number, string>(errWire);
 
     // Assert
-    should(actual).be.instanceof(Err);
-    should(actual.isErr).be.true();
-    should(actual.isOk).be.false();
+    should(await ok.unwrap()).equal(11);
+    should(await err.unwrapErr()).equal('bad');
+  });
+
+  it('should flatten promised Results through fromAsync and async', async () => {
+    // Arrange
+    const promisedOk = Promise.resolve(Ok<number, string>(3));
+    const promisedErr = Promise.resolve(Err<number, string>('no'));
+
+    // Act
+    const ok = Res.fromAsync(promisedOk);
+    const err = Res.fromAsync(promisedErr);
+    const asyncResult = Res.async(async () => Ok<number, string>(9));
+
+    // Assert
+    should(await ok.unwrap()).equal(3);
+    should(await err.unwrapErr()).equal('no');
+    should(await asyncResult.unwrap()).equal(9);
+  });
+
+  it('should collect all Ok payloads and collect every Err payload', async () => {
+    // Arrange
+    const allOk = [Ok<number, string>(1), Ok<string, string>('two')] as const;
+    const mixed = [Ok<number, string>(1), Err<string, string>('first'), Err<boolean, string>('second')] as const;
+
+    // Act
+    const okResult = Res.all(...allOk);
+    const errResult = Res.all(...mixed);
+
+    // Assert
+    should(await okResult.unwrap()).eql([1, 'two']);
+    should(await errResult.unwrapErr()).eql(['first', 'second']);
   });
 });
 
 describe('Result transforms', () => {
-  it('should map the Ok channel and leave Err untouched', () => {
+  it('should map only Ok and mapErr only Err with async-aware mappers', async () => {
     // Arrange
-    const ok = Result.ok<number, string>(2);
-    const err = Result.err<string, number>('bad');
+    const ok = Ok<number, string>(2);
+    const err = Err<number, string>('bad');
 
     // Act
-    const mappedOk = ok.map(value => value * 10);
-    const mappedErr = err.map(value => value * 10);
+    const mappedOk = ok.map(async value => value * 10);
+    const untouchedErr = err.map(value => value * 10);
+    const untouchedOk = ok.mapErr(error => `${error}!`);
+    const mappedErr = err.mapErr(async error => `${error}!`);
 
     // Assert
-    should(mappedOk.unwrap()).equal(20);
-    should(mappedErr.unwrapErr()).equal('bad');
+    should(await mappedOk.unwrap()).equal(20);
+    should(await untouchedErr.unwrapErr()).equal('bad');
+    should(await untouchedOk.unwrap()).equal(2);
+    should(await mappedErr.unwrapErr()).equal('bad!');
   });
 
-  it('should mapErr the Err channel and leave Ok untouched', () => {
+  it('should chain Ok values and short-circuit Err values', async () => {
     // Arrange
-    const ok = Result.ok<number, string>(2);
-    const err = Result.err<string, number>('bad');
+    const ok = Ok<number, string>(4);
+    const err = Err<number, string>('stop');
 
     // Act
-    const mappedOk = ok.mapErr(error => `${error}!`);
-    const mappedErr = err.mapErr(error => `${error}!`);
+    const chainedOk = ok.andThen(async value => Ok<string, string>(`v:${value}`));
+    const chainedToErr = ok.andThen(value => Err<string, string>(`e:${value}`));
+    const chainedErr = err.andThen(value => Ok<string, string>(`v:${value}`));
 
     // Assert
-    should(mappedOk.unwrap()).equal(2);
-    should(mappedErr.unwrapErr()).equal('bad!');
+    should(await chainedOk.unwrap()).equal('v:4');
+    should(await chainedToErr.unwrapErr()).equal('e:4');
+    should(await chainedErr.unwrapErr()).equal('stop');
   });
 
-  it('should andThen chain on Ok and short-circuit on Err', () => {
+  it('should match both variants and expose their native payloads', async () => {
     // Arrange
-    const ok = Result.ok<number, string>(3);
-    const err = Result.err<string, number>('nope');
-    const half = (value: number) => Result.ok<number, string>(value / 2);
+    const ok = Ok<number, string>(5);
+    const err = Err<number, string>('x');
+    const arms = { ok: async (value: number) => `ok:${value}`, err: async (error: string) => `err:${error}` };
 
     // Act
-    const chainedOk = ok.andThen(half);
-    const chainedErr = err.andThen(half);
+    const okMatch = ok.match(arms);
+    const errMatch = err.match(arms);
 
     // Assert
-    should(chainedOk.unwrap()).equal(1.5);
-    should(chainedErr.unwrapErr()).equal('nope');
-  });
-
-  it('should match both variants into one type', () => {
-    // Arrange
-    const ok = Result.ok<number, string>(4);
-    const err = Result.err<string, number>('x');
-    const fold = (result: typeof ok) => result.match({ ok: v => `ok:${v}`, err: e => `err:${e}` });
-
-    // Act / Assert
-    should(fold(ok)).equal('ok:4');
-    should(fold(err as unknown as typeof ok)).equal('err:x');
+    should(await okMatch).equal('ok:5');
+    should(await errMatch).equal('err:x');
+    should(await ok.native()).equal(5);
+    should(await err.native()).equal('x');
   });
 });
 
-describe('Result run and exec', () => {
-  it('should run a side effect on Ok and skip it on Err', () => {
+describe('Result extraction and projection', () => {
+  it('should throw UnwrapError only for explicit wrong-variant unwraps', async () => {
+    // Arrange
+    const ok = Ok<number, string>(8);
+    const err = Err<number, string>('why');
+
+    // Act
+    const unwrapErrFromOk = (await ok.unwrapErr().catch(error => error as UnwrapError)) as UnwrapError;
+    const unwrapOkFromErr = (await err.unwrap().catch(error => error as UnwrapError)) as UnwrapError;
+
+    // Assert
+    should(unwrapErrFromOk).be.instanceof(UnwrapError);
+    should(unwrapErrFromOk.type).equal('Expected Err got Ok');
+    should(unwrapErrFromOk.monadType).equal('result');
+    should(unwrapOkFromErr).be.instanceof(UnwrapError);
+    should(unwrapOkFromErr.type).equal('Expected Ok got Error');
+    should(unwrapOkFromErr.monadType).equal('result');
+  });
+
+  it('should return immediate, promised, sync-deferred, and async-deferred fallbacks', async () => {
+    // Arrange
+    const ok = Ok<number, string>(1);
+    const err = Err<number, string>('four');
+
+    // Act / Assert
+    should(await ok.unwrapOr(99)).equal(1);
+    should(await err.unwrapOr(99)).equal(99);
+    should(await err.unwrapOr(Promise.resolve(88))).equal(88);
+    should(await err.unwrapOr(error => error.length)).equal(4);
+    should(await err.unwrapOr(async error => error.length + 1)).equal(5);
+  });
+
+  it('should project each channel into Option', async () => {
+    // Arrange
+    const ok = Ok<number, string>(2);
+    const err = Err<number, string>('z');
+
+    // Act
+    const okSome = ok.ok();
+    const okNone = err.ok();
+    const errNone = ok.err();
+    const errSome = err.err();
+
+    // Assert
+    should(await okSome.unwrap()).equal(2);
+    should(await okNone.isNone()).be.true();
+    should(await errNone.isNone()).be.true();
+    should(await errSome.unwrap()).equal('z');
+  });
+});
+
+describe('Result side effects', () => {
+  it('should run sync and async effects only for Ok while preserving the Result', async () => {
     // Arrange
     const seen: number[] = [];
-    const ok = Result.ok<number, string>(5);
-    const err = Result.err<string, number>('e');
+    const ok = Ok<number, string>(6);
+    const err = Err<number, string>('skip');
 
     // Act
-    const afterOk = ok.run(value => seen.push(value));
-    const afterErr = err.run(value => seen.push(value));
+    const afterSync = ok.run(value => {
+      seen.push(value);
+    });
+    const afterAsync = afterSync.run(async value => {
+      seen.push(value + 1);
+    });
+    const afterErr = err.run(value => {
+      seen.push(value);
+    });
 
     // Assert
-    should(seen).eql([5]);
-    should(afterOk.unwrap()).equal(5);
-    should(afterErr.unwrapErr()).equal('e');
+    should(await afterAsync.unwrap()).equal(6);
+    should(await afterErr.unwrapErr()).equal('skip');
+    should(seen).eql([6, 7]);
   });
 
-  it('should leave Ok untouched when exec side effect does not throw', () => {
+  it('should preserve successful exec values and normalize every thrown shape', async () => {
     // Arrange
-    const ok = Result.ok<number, string>(6);
+    const ok = Ok<number, string>(7);
 
     // Act
-    const actual = ok.exec(
+    const success = ok.exec(async () => undefined);
+    const fromError = ok.exec(() => {
+      throw new Error('error-shape');
+    });
+    const fromString = ok.exec(() => {
+      throw 'string-shape';
+    });
+    const fromObject = ok.exec(() => {
+      throw { shape: 'object' };
+    });
+
+    // Assert
+    should(await success.unwrap()).equal(7);
+    should((await fromError.unwrapErr()).message).equal('error-shape');
+    should((await fromString.unwrapErr()).message).equal('string-shape');
+    should((await fromObject.unwrapErr()).message).equal('{"shape":"object"}');
+  });
+
+  it('should map pre-existing Err values through the default and custom exec mappers', async () => {
+    // Arrange
+    const nativeError = new Error('native');
+    const errorErr = Err<number, Error>(nativeError);
+    const objectErr = Err<number, { code: number }>({ code: 4 });
+    const stringErr = Err<number, string>('raw');
+
+    // Act
+    const preserved = errorErr.exec(() => undefined);
+    const normalized = objectErr.exec(() => undefined);
+    const custom = stringErr.exec(
       () => undefined,
-      () => 'never',
+      async error => new Error(`mapped:${error}`),
     );
 
     // Assert
-    should(actual.unwrap()).equal(6);
-  });
-
-  it('should poison the chain into Err when exec side effect throws', () => {
-    // Arrange
-    const ok = Result.ok<number, string>(6);
-
-    // Act
-    const actual = ok.exec(
-      () => {
-        throw new Error('kaboom');
-      },
-      error => `caught:${(error as Error).message}`,
-    );
-
-    // Assert
-    should(actual.isErr).be.true();
-    should(actual.unwrapErr()).equal('caught:kaboom');
-  });
-
-  it('should leave an Err untouched under exec', () => {
-    // Arrange
-    const err = Result.err<string, number>('pre');
-
-    // Act
-    const actual = err.exec(
-      () => {
-        throw new Error('unreached');
-      },
-      () => 'mapped',
-    );
-
-    // Assert
-    should(actual.unwrapErr()).equal('pre');
+    should(await preserved.unwrapErr()).equal(nativeError);
+    should((await normalized.unwrapErr()).message).equal('{"code":4}');
+    should((await custom.unwrapErr()).message).equal('mapped:raw');
   });
 });
 
-describe('Result unwrap family', () => {
-  it('should unwrap an Ok value and throw UnwrapError on an Err', () => {
+describe('Result type surface', () => {
+  it('should expose the interface separately from its concrete implementation', async () => {
     // Arrange
-    const ok = Result.ok<number, string>(9);
-    const err = Result.err<string, number>('why');
-
-    // Act / Assert
-    should(ok.unwrap()).equal(9);
-    should(() => err.unwrap()).throw(UnwrapError);
-  });
-
-  it('should carry the offending payload when unwrap rejects an Err', () => {
-    // Arrange
-    const err = Result.err<string, number>('why');
+    const value: Result<number, string> = Ok<number, string>(10);
 
     // Act
-    let caught: UnwrapError | undefined;
-    try {
-      err.unwrap();
-    } catch (error) {
-      caught = error as UnwrapError;
-    }
+    const concrete = value as KResult<number, string>;
 
     // Assert
-    should(caught?.monad).equal('result');
-    should(caught?.expected).equal('Ok');
-    should(caught?.actual).equal('Err');
-    should(caught?.payload).equal('why');
-  });
-
-  it('should unwrapErr an Err error and throw UnwrapError on an Ok', () => {
-    // Arrange
-    const ok = Result.ok<number, string>(9);
-    const err = Result.err<string, number>('why');
-
-    // Act
-    let caught: UnwrapError | undefined;
-    try {
-      ok.unwrapErr();
-    } catch (error) {
-      caught = error as UnwrapError;
-    }
-
-    // Assert
-    should(err.unwrapErr()).equal('why');
-    should(caught?.expected).equal('Err');
-    should(caught?.actual).equal('Ok');
-    should(caught?.payload).equal(9);
-  });
-
-  it('should provide unwrapOr and unwrapOrElse fallbacks', () => {
-    // Arrange
-    const ok = Result.ok<number, string>(1);
-    const err = Result.err<string, number>('len');
-
-    // Act / Assert
-    should(ok.unwrapOr(99)).equal(1);
-    should(err.unwrapOr(99)).equal(99);
-    should(ok.unwrapOrElse(e => e.length)).equal(1);
-    should(err.unwrapOrElse(e => e.length)).equal(3);
-  });
-});
-
-describe('Result projections', () => {
-  it('should project ok() and err() into Option', () => {
-    // Arrange
-    const ok = Result.ok<number, string>(2);
-    const err = Result.err<string, number>('z');
-
-    // Act / Assert
-    should(ok.ok().isSome).be.true();
-    should(ok.err().isNone).be.true();
-    should(err.ok().isNone).be.true();
-    should(err.err().unwrap()).equal('z');
-  });
-
-  it('should return the native payload of whichever variant', () => {
-    // Arrange
-    const ok = Result.ok<number, string>(3);
-    const err = Result.err<string, number>('n');
-
-    // Act / Assert
-    should(ok.native()).equal(3);
-    should(err.native()).equal('n');
-  });
-});
-
-describe('Result monad laws', () => {
-  const f = (value: number) => Result.ok<number, string>(value + 1);
-  const g = (value: number) => Result.ok<number, string>(value * 2);
-
-  it('should satisfy left identity: ok(a).andThen(f) == f(a)', () => {
-    // Arrange
-    const a = 10;
-
-    // Act / Assert
-    should(Result.ok<number, string>(a).andThen(f).unwrap()).equal(f(a).unwrap());
-  });
-
-  it('should satisfy right identity: m.andThen(ok) == m', () => {
-    // Arrange
-    const m = Result.ok<number, string>(10);
-
-    // Act / Assert
-    should(m.andThen(value => Result.ok<number, string>(value)).unwrap()).equal(m.unwrap());
-  });
-
-  it('should satisfy associativity', () => {
-    // Arrange
-    const m = Result.ok<number, string>(10);
-
-    // Act
-    const left = m.andThen(f).andThen(g);
-    const right = m.andThen(value => f(value).andThen(g));
-
-    // Assert
-    should(left.unwrap()).equal(right.unwrap());
+    should(concrete).be.instanceof(KResult);
+    should(await concrete.unwrap()).equal(10);
   });
 });

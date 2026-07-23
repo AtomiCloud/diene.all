@@ -8,12 +8,12 @@ echo "🧹 Cleaning dist/..."
 rm -rf dist
 
 echo "🔨 Building ESM bundles..."
-bun build ./src/index.ts --outfile dist/index.js --format esm --target node
-bun build ./src/test-helper.ts --outfile dist/test-helper.js --format esm --target node
+bun build ./src/index.ts --outfile dist/index.js --format esm --target node --packages external
+bun build ./src/test-helper/index.ts --outfile dist/test-helper.js --format esm --target node --packages external
 
 echo "🔨 Building CommonJS bundles..."
-bun build ./src/index.ts --outfile dist/index.cjs --format cjs --target node
-bun build ./src/test-helper.ts --outfile dist/test-helper.cjs --format cjs --target node
+bun build ./src/index.ts --outfile dist/index.cjs --format cjs --target node --packages external
+bun build ./src/test-helper/index.ts --outfile dist/test-helper.cjs --format cjs --target node --packages external
 
 echo "🔠 Typechecking..."
 bunx tsc -p tsconfig.json
@@ -21,7 +21,7 @@ bunx tsc -p tsconfig.json
 echo "📝 Emitting bundled declarations..."
 bunx dts-bundle-generator -o dist/index.d.ts src/index.ts --no-check
 cp dist/index.d.ts dist/index.d.cts
-bunx dts-bundle-generator -o dist/test-helper.d.ts src/test-helper.ts --no-check
+bunx dts-bundle-generator -o dist/test-helper.d.ts src/test-helper/index.ts --no-check
 cp dist/test-helper.d.ts dist/test-helper.d.cts
 
 echo "🔎 Verifying build artifacts..."
@@ -40,8 +40,8 @@ cmp -s dist/test-helper.d.ts dist/test-helper.d.cts || {
   exit 1
 }
 
-node -e 'import("./dist/index.js").then((library) => { if (library.Result.ok(1).map((value) => value + 1).unwrap() !== 2) process.exit(1) })'
-node -e 'const library = require("./dist/index.cjs"); if (library.Result.ok(1).map((value) => value + 1).unwrap() !== 2) process.exit(1)'
-node -e 'const library = require("./dist/index.cjs"); const helper = require("./dist/test-helper.cjs"); if (helper.beOk(library.Result.ok(1)) !== 1) process.exit(1)'
+node --input-type=module -e "import { Ok } from './dist/index.js'; if (await Ok(1).map((value) => value + 1).unwrap() !== 2) process.exit(1)"
+node -e 'const { Ok } = require("./dist/index.cjs"); Ok(1).map((value) => value + 1).unwrap().then((value) => { if (value !== 2) process.exit(1) }).catch(() => process.exit(1))'
+node -e 'const { Ok } = require("./dist/index.cjs"); const { expectOk } = require("./dist/test-helper.cjs"); expectOk(Ok(1)).then((value) => { if (value !== 1) process.exit(1) }).catch(() => process.exit(1))'
 
 echo "✅ Built dist/index.{js,cjs,d.ts,d.cts} and dist/test-helper.{js,cjs,d.ts,d.cts}"

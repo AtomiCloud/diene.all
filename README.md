@@ -73,14 +73,20 @@ boundary. TypeScript variants accompany the shared standards for
 
 ## Result and Option monads
 
+### Package status
+
 [![npm version](https://img.shields.io/npm/v/@atomicloud/diene.result)](https://www.npmjs.com/package/@atomicloud/diene.result)
 [![npm downloads](https://img.shields.io/npm/dm/@atomicloud/diene.result)](https://www.npmjs.com/package/@atomicloud/diene.result)
 [![CI](https://github.com/AtomiCloud/diene.bun-result/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.bun-result/actions/workflows/ci.yaml)
+[![coverage](https://codecov.io/gh/AtomiCloud/diene.bun-result/branch/main/graph/badge.svg)](https://codecov.io/gh/AtomiCloud/diene.bun-result)
+[![unit coverage](https://codecov.io/gh/AtomiCloud/diene.bun-result/branch/main/graph/badge.svg?flag=unit)](https://codecov.io/gh/AtomiCloud/diene.bun-result/flags/unit)
+[![meta coverage](https://codecov.io/gh/AtomiCloud/diene.bun-result/branch/main/graph/badge.svg?flag=meta)](https://codecov.io/gh/AtomiCloud/diene.bun-result/flags/meta)
+[![commit activity](https://img.shields.io/github/commit-activity/m/AtomiCloud/diene.bun-result)](https://github.com/AtomiCloud/diene.bun-result/commits/main)
 
-`@atomicloud/diene.result` provides `Result<T, E>` and `Option<T>` as tagged
-discriminated unions with a generic error channel, dual ESM/CommonJS builds, and
-a dependency-light `/test-helper` subpath. It publishes JavaScript and
-declarations for both import styles and includes its usage skill in the tarball.
+`@atomicloud/diene.result` provides async-native `Result<T, E>` and `Option<T>`
+interfaces, their concrete `KResult`/`KOption` implementations, and zero-dependency
+factories. It publishes dual ESM/CommonJS bundles and types, plus a framework-free
+`/test-helper` subpath and usage skill.
 
 Package description: Result and Option monads with dual-format ESM/CJS builds and a dependency-light /test-helper for AtomiCloud/diene.bun-result
 
@@ -91,24 +97,28 @@ bun add @atomicloud/diene.result
 ```
 
 ```ts
-import { Option, Result } from '@atomicloud/diene.result';
+import { Ok, Opt } from '@atomicloud/diene.result';
 
-const doubled = Result.ok<number, string>(21)
+const doubled = await Ok<number, string>(21)
   .map(value => value * 2)
   .unwrapOr(0);
 
-const present = Option.fromNullable(process.env.HOME).isSome;
+const present = await Opt.fromNative(process.env.HOME).isSome();
 ```
 
 ```js
-const { Result } = require('@atomicloud/diene.result');
+const { Ok } = require('@atomicloud/diene.result');
 
-const doubled = Result.ok(21)
-  .map(value => value * 2)
-  .unwrapOr(0);
+async function double(value) {
+  return Ok(value)
+    .map(current => current * 2)
+    .unwrapOr(0);
+}
 ```
 
 Assert variants in downstream suites through the `/test-helper` subpath
-(`beOk`/`beErr`/`beSome`/`beNone`). See the
-[Bun library baseline](docs/developer/bun-lib-baseline.md) for package
-validation, release authentication, token rotation, and promotion knobs.
+(`expectOk`/`expectErr`/`expectSome`/`expectNone`). Read the
+[Result and Option standard](docs/standards/result/index.md) for the full API,
+serialization, Railway Oriented Programming, and meta-testing convention. See
+the [npm release runbook](docs/developer/npm-release.md) for package validation,
+release authentication, token rotation, and promotion knobs.
