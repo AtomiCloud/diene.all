@@ -1,0 +1,51 @@
+# Authoritative xenon provider × named-landscape enablement matrix.
+#
+# Every provider row names every landscape posture it supports. The validation
+# gate renders each referenced landscape's committed stack and compares actual
+# resource presence with both the provider and landscape expectations. This
+# makes every provider/landscape entry executable evidence rather than prose.
+# Final Garden profile membership beyond this chart contract remains deferred.
+
+providers:
+  - provider: eks-classic
+    preinstalled: false
+    enabled: true
+    kubeletTls: secure
+    landscapes: [pichu, pikachu, raichu]
+  - provider: eks-auto
+    preinstalled: false
+    enabled: true
+    kubeletTls: secure
+    landscapes: [pichu, pikachu, raichu]
+  - provider: doks
+    preinstalled: false
+    enabled: true
+    kubeletTls: secure
+    landscapes: [pichu, pikachu, raichu]
+  - provider: onprem
+    preinstalled: false
+    enabled: true
+    kubeletTls: cluster-overlay
+    landscapes: [onprem]
+  - provider: k3s
+    preinstalled: true
+    enabled: false
+    kubeletTls: bundled
+    landscapes: [lapras]
+
+landscapes:
+  - landscape: pichu
+    enabled: true
+    overlays: [chart/values.pichu.yaml]
+  - landscape: pikachu
+    enabled: true
+    overlays: [chart/values.pikachu.yaml]
+  - landscape: raichu
+    enabled: true
+    overlays: [chart/values.raichu.yaml]
+  - landscape: onprem
+    enabled: true
+    overlays: [chart/values.onprem.yaml]
+  - landscape: lapras
+    enabled: false
+    overlays: [chart/values.lapras.yaml, chart/values.k3d.yaml]

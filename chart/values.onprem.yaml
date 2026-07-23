@@ -1,0 +1,10 @@
+# Named on-prem posture overlay. Xenon remains ON. Secure kubelet certificate
+# validation is the baseline; a real cluster overlay may supply provider-specific
+# args when its kubelet serving certificates require them.
+global:
+  serviceTree:
+    landscape: onprem
+
+metricsServer:
+  enabled: true
+  args: []
