@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Publish version guard (M1): the release commit already stamped the manifest;
-# this verifies package.json .version == ${GITHUB_REF_NAME#v} and NEVER mutates.
+# Publish guard verifies the release-stamped manifest equals ${GITHUB_REF_NAME#v} and never mutates.
 root_dir="$(git rev-parse --show-toplevel)"
 cd "${root_dir}"
 

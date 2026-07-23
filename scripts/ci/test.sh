@@ -2,7 +2,7 @@
 set -euo pipefail
 
 mode="${1:-}"
-[[ ${mode} != "unit" && ${mode} != "int" && ${mode} != "sit" ]] && echo "❌ usage: $0 <unit|int|sit>" >&2 && exit 2
+[[ ${mode} != "unit" && ${mode} != "int" && ${mode} != "meta" && ${mode} != "sit" ]] && echo "❌ usage: $0 <unit|int|meta|sit>" >&2 && exit 2
 
 root_dir="$(git rev-parse --show-toplevel)"
 cd "${root_dir}"
@@ -23,15 +23,28 @@ coverage_dir="coverage/${mode}"
 coverage_file="${coverage_dir}/lcov.info"
 scope="src/lib/"
 [[ ${mode} == "int" ]] && scope="src/adapters/"
+[[ ${mode} == "meta" ]] && scope="src/test-helper/"
 source_list="$(mktemp)"
 coverage_list="$(mktemp)"
 trap 'rm -f "${source_list}" "${coverage_list}"' EXIT
 
-echo "🧪 Running ${mode} tests with coverage..."
 rm -rf "${coverage_dir}"
 
+if [[ ${mode} == "meta" ]]; then
+  helper_source="$(find src/test-helper -type f -name '*.ts' -print -quit 2>/dev/null || true)"
+  meta_test="$(find tests/meta -type f -name '*.test.ts' -print -quit 2>/dev/null || true)"
+  [[ -z ${helper_source} && -z ${meta_test} ]] && echo "⏭️ No TestHelper or meta tests exist; meta tier is a successful no-op" && exit 0
+  [[ -z ${helper_source} || -z ${meta_test} ]] && echo "❌ TestHelper source and meta tests must be added together" >&2 && exit 1
+fi
+
+echo "🧪 Running ${mode} tests with coverage..."
+
 set +e
-bun test --config="${config}" --coverage
+if [[ ${mode} == "meta" ]]; then
+  ./scripts/local/test-meta.sh "${config}" coverage
+else
+  bun test --config="${config}" --coverage
+fi
 test_status=$?
 set -e
 

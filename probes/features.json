@@ -241,6 +241,11 @@
     "class": "gate"
   },
   {
+    "template": "diene/bun-lib",
+    "name": "bun-meta-conditional",
+    "class": "gate"
+  },
+  {
     "template": "diene/bun-base",
     "name": "bun-deadcode",
     "class": "gate"

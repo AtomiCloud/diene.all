@@ -22,6 +22,10 @@ flags:
     paths:
       - src/
     carryforward: true
+  meta:
+    paths:
+      - src/test-helper/
+    carryforward: true
 
 comment:
   layout: 'reach, diff, flags, files'

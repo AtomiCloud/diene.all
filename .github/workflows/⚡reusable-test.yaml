@@ -6,7 +6,7 @@ on:
   workflow_call:
     inputs:
       mode:
-        description: Test mode to run (unit or int)
+        description: Test mode to run (unit, int, or conditional meta)
         required: true
         type: string
     secrets:
@@ -15,7 +15,7 @@ on:
 
 jobs:
   test:
-    name: ${{ inputs.mode == 'int' && 'Integration Tests' || 'Unit Tests' }}
+    name: ${{ inputs.mode == 'int' && 'Integration Tests' || inputs.mode == 'meta' && 'Meta Tests' || 'Unit Tests' }}
     runs-on:
       - nscloud-ubuntu-22.04-amd64-4x8-with-cache
       - nscloud-cache-size-50gb
@@ -28,14 +28,14 @@ jobs:
           TEST_MODE: ${{ inputs.mode }}
         run: nix develop .#ci -c ./scripts/ci/test.sh "$TEST_MODE"
       - name: Upload ${{ inputs.mode }} coverage artifact
-        if: always()
+        if: ${{ always() && hashFiles(format('coverage/{0}/lcov.info', inputs.mode)) != '' }}
         uses: actions/upload-artifact@v7
         with:
           name: coverage-${{ inputs.mode }}
           path: coverage/${{ inputs.mode }}
           if-no-files-found: warn
       - name: Upload ${{ inputs.mode }} coverage to Codecov
-        if: always()
+        if: ${{ always() && hashFiles(format('coverage/{0}/lcov.info', inputs.mode)) != '' }}
         continue-on-error: true
         uses: codecov/codecov-action@v7
         with:

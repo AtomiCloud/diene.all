@@ -18,9 +18,8 @@ esac
 echo "📦 Packing tarball..."
 bun pm pack --filename pkg.tgz
 
-run_content() {
+if [[ ${mode} == "content" || ${mode} == "all" ]]; then
   echo "🔎 Verifying tarball contents (pack-content)..."
-  local listing expected missing
   listing="$(tar -tzf pkg.tgz)"
   expected=(
     package/dist/index.js
@@ -38,27 +37,16 @@ run_content() {
   done
   [ "${missing}" -ne 0 ] && exit 1
   echo "✅ pack-content: all declared artifacts present"
-}
+fi
 
-run_publint() {
+if [[ ${mode} == "publint" || ${mode} == "all" ]]; then
   echo "🔎 Linting package shape (publint)..."
   ./node_modules/.bin/publint --strict
-}
+fi
 
-run_attw() {
+if [[ ${mode} == "attw" || ${mode} == "all" ]]; then
   echo "🔎 Checking type resolvability (attw)..."
   ./node_modules/.bin/attw pkg.tgz
-}
-
-case "${mode}" in
-content) run_content ;;
-publint) run_publint ;;
-attw) run_attw ;;
-all)
-  run_content
-  run_publint
-  run_attw
-  ;;
-esac
+fi
 
 echo "✅ Package validation (${mode}) passed"
