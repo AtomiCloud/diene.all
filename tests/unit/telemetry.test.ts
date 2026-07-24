@@ -95,7 +95,10 @@ describe('checkTelemetryAttributes', () => {
 
     // Assert - the check* variant returns the discriminated Checked, not a Result
     checked.ok.should.be.true();
-    if (checked.ok) checked.value?.should.eql({ a: 1 });
+    if (checked.ok) {
+      (checked.value === undefined).should.be.false();
+      if (checked.value !== undefined) checked.value.should.eql({ a: 1 });
+    }
   });
 
   it('should expose the rejected branch as a Checked value', () => {
