@@ -1,13 +1,3 @@
-# Independent local-cluster overlay. It contains no landscape decision.
-serviceTree:
-  cluster: lapras
-
-# The local install proves the ordinary Kubernetes resources only; the CRDs are owned by later nodes.
-secret:
-  enabled: false
-
-webhookRoute:
-  enabled: false
-
-primordial:
-  enabled: false
+distributionMode: GARDEN-LOCAL
+namespace: {name: lithium-lapras-001}
+garden: {instance: lapras-001, instanceUID: 00000000-0000-0000-0000-000000000001, allocationGeneration: '1', landscape: lapras, zone: localhost, databaseSecret: lithium-lapras-db, databaseKey: DB_URL, bootSecret: lithium-lapras-boot, bootClientIdKey: SEED_M2M_CLIENT_ID, bootClientSecretKey: SEED_M2M_CLIENT_SECRET}

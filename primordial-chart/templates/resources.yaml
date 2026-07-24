@@ -1,0 +1,41 @@
+{{- include "lithiumPrimordial.validate" . -}}
+{{- if eq .Values.distributionMode "FLEET" -}}
+{{- $root := . -}}
+{{- $seen := dict -}}
+{{- range $dependency := .Values.platformDependencies }}
+{{- $vlandscape := required "platformDependencies[].vlandscape is required" $dependency.vlandscape -}}
+{{- if hasKey $seen $vlandscape -}}{{ fail (printf "Conflict: duplicate PlatformDependency writer for platform %s and vlandscape %s" $root.Values.serviceTree.platform $vlandscape) }}{{ end -}}
+{{- $_ := set $seen $vlandscape true -}}
+---
+apiVersion: {{ $root.Values.apiVersion }}
+kind: PlatformDependency
+metadata:
+  name: {{ printf "lithium-%s" $vlandscape }}
+  namespace: {{ $root.Release.Namespace }}
+  labels: {{- include "lithiumPrimordial.labels" $root | nindent 4 }}
+spec:
+  platform: {{ $root.Values.serviceTree.platform }}
+  landscape: {{ $vlandscape }}
+  placement: {preferredHost: {{ required "platformDependencies[].placement.preferredHost is required" $dependency.placement.preferredHost }}}
+  database: {{- toYaml $dependency.database | nindent 4 }}
+  deletionPolicy: {{- toYaml $dependency.deletionPolicy | nindent 4 }}
+{{- end }}
+{{- range $row := .Values.servingRows }}
+{{- if $row.serve }}
+---
+apiVersion: {{ $root.Values.apiVersion }}
+kind: VirtualLandscapeService
+metadata:
+  name: {{ printf "lithium-%s-%s" (required "servingRows[].vlandscape is required" $row.vlandscape) (required "servingRows[].landscape is required" $row.landscape) }}
+  namespace: {{ $root.Release.Namespace }}
+  labels: {{- include "lithiumPrimordial.labels" $root | nindent 4 }}
+spec:
+  platform: {{ $root.Values.serviceTree.platform }}
+  vlandscape: {{ $row.vlandscape }}
+  service: lithium
+  module: api
+  landscape: {{ $row.landscape }}
+  serve: true
+{{- end }}
+{{- end }}
+{{- end }}

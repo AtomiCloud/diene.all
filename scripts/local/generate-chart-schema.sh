@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-output="${1:-chart/values.schema.json}"
+chart="${1:-chart}"
+output="${2:-${chart}/values.schema.json}"
 output_abs="$(realpath -m "${output}")"
 
-(cd chart && helm-schema --use-helm-docs --schema-root.title 'Diene Helm Wrapper Values' --schema-root.description 'Generated schema for the diene Helm wrapper sample.' --values values.yaml --output "${output_abs}")
+(cd "${chart}" && helm-schema --use-helm-docs --schema-root.title 'Diene Lithium Values' --schema-root.description 'Generated schema for one chart in the diene lithium app and primordial pair.' --values values.yaml --output "${output_abs}")
 
-echo "✅ Chart values schema generated at ${output}"
+echo "✅ ${chart} values schema generated at ${output}"

@@ -1,13 +1,7 @@
 apiVersion: v2
-name: diene-helm-wrapper
-description: Minimal production-grade Helm wrapper template for AtomiCloud platform charts
+name: diene-lithium
+description: Aldehyde Logto fork distribution for fleet and Garden-local identity
 type: application
 version: 0.1.0
-appVersion: '6.9.2'
+appVersion: '0.1.0'
 kubeVersion: '>=1.27.0-0'
-dependencies:
-  - name: podinfo
-    alias: upstream
-    version: 6.9.2
-    repository: oci://ghcr.io/stefanprodan/charts
-    condition: upstream.enabled

@@ -1,33 +1,55 @@
-# diene-helm-wrapper
+# diene-lithium
 
-![Version: 0.1.0](https://img.shields.io/badge/Version-0.1.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 6.9.2](https://img.shields.io/badge/AppVersion-6.9.2-informational?style=flat-square)
+![Version: 0.1.0](https://img.shields.io/badge/Version-0.1.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.1.0](https://img.shields.io/badge/AppVersion-0.1.0-informational?style=flat-square)
 
-Minimal production-grade Helm wrapper template for AtomiCloud platform charts
+Aldehyde Logto fork distribution for fleet and Garden-local identity
 
 ## Requirements
 
 Kubernetes: `>=1.27.0-0`
 
-| Repository | Name | Version |
-|------------|------|---------|
-| oci://ghcr.io/stefanprodan/charts | upstream(podinfo) | 6.9.2 |
-
 ## Values
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| contracts | object | `{"health":{"expectedStatus":"2xx","path":"/healthz"},"lpsm":{"instance":"run001","instanceZone":"local.example.invalid","landscape":"example","module":"api","ordinaryZone":"cluster.atomi.cloud","parseHostname":"","service":"wrapper"},"webhook":{"pathPrefix":"/internal/webhooks","provider":"example"}}` | Current health and webhook delivery conventions. |
-| fullnameOverride | string | `"wrapper-api"` | Primary workload fullname. It must be `<service>-<dashless-token>`. |
-| gateway | object | `{"aws":{"eipAllocationIds":[],"subnetIds":[]},"enabled":true,"oci":{"reservedPublicIp":""},"port":80,"provider":"digitalocean"}` | Provider-managed LoadBalancer service for the gateway. |
-| instance | object | `{"physicalId":"example-repository:run-001"}` | Optional physical-instance metadata. The instance remains outside LPSM. |
-| labelPrefix | string | `"atomi.cloud"` | Prefix used by every service-tree label and annotation helper. |
-| migration | object | `{"command":["sh","-c","echo migration-ready"],"enabled":true,"image":{"pullPolicy":"IfNotPresent","repository":"busybox","tag":"1.37.0-glibc"},"reloader":{"enabled":true},"resources":{"limits":{"cpu":"25m","memory":"32Mi"},"requests":{"cpu":"5m","memory":"8Mi"}}}` | Separate pre-sync migration hook. It never owns or recreates the Deployment. |
-| primordial | object | `{"apiVersions":{"edge":"edge.atomi.cloud/v1alpha1","fleet":"fleet.atomi.cloud/v1alpha1","identity":"identity.atomi.cloud/v1alpha1"},"cloudflareDeploy":{"enabled":true,"pin":true,"scriptName":"wrapper-web","tag":"0.1.0"},"enabled":true,"logtoApp":{"enabled":true,"extraRedirectUris":[],"paths":["/auth/callback"],"resourceRefs":["wrapper-api"]},"placement":{"preferredHost":"example-host"},"platformDependency":{"modules":{"cache":{"hot":{"credentialMode":"standard","delivery":"replicated","engine":{"dragonfly":{}},"ram":"128Mi","rotation":"on","type":"dragonfly"}},"database":{"maindb":{"backup":{"crossVendor":true},"cpu":1,"credentialMode":"standard","delivery":"external","engine":{"neon":{"tier":"example"}},"providerAccountRef":"example-neon","ram":"1Gi","rotation":"on","storage":"10Gi","type":"neon","version":"16"}},"kv":{"sessions":{"credentialMode":"standard","delivery":"external","engine":{"upstash":{}},"providerAccountRef":"example-upstash","ram":"128Mi","rotation":"on","type":"upstash"}},"store":{"assets":{"credentialMode":"standard","delivery":"external","engine":{"tigris":{}},"providerAccountRef":"example-tigris","rotation":"on","type":"tigris"}}}},"problem":{"enabled":true,"entries":[{"endpoints":[{"method":"GET","path":"/"}],"id":"example","recoverable":false,"schema":{},"status":500,"title":"Example problem","type":"https://errors.example.invalid/example"}],"version":"0.1.0"},"targetLandscape":"example","virtualLandscapeService":{"enabled":true,"serve":true},"vlandscape":"example-vlandscape"}` | Reusable primordial-chart CR helper inputs against the frozen T3 shapes. |
-| secret | object | `{"enabled":true,"refreshInterval":"1h","serviceFolder":"/wrapper","sharedFolder":"/shared","store":{"kind":"SecretStore","name":"sample-store"}}` | One service-scoped ExternalSecret with folder-prefix rewrites. |
-| serviceTree | object | `{"layer":"2","module":"api","platform":"sample","service":"wrapper"}` | Stable four-slot service-tree projection. Landscape and cluster are added by independent overlays. |
-| upstream | object | `{"enabled":false,"fullnameOverride":"wrapper-upstream","image":{"repository":"ghcr.io/stefanprodan/podinfo","tag":"6.9.2"},"podAnnotations":{"reloader.stakater.com/auto":"true"},"podSecurityContext":{"runAsGroup":10000,"runAsNonRoot":true,"runAsUser":10000},"resources":{"limits":{"cpu":"100m","memory":"128Mi"},"requests":{"cpu":"10m","memory":"32Mi"}},"securityContext":{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"readOnlyRootFilesystem":true,"runAsGroup":10000,"runAsNonRoot":true,"runAsUser":10000}}` | Pinned optional upstream chart. Every instantiated dependency must receive a conforming override. |
-| webhookRoute | object | `{"enabled":true,"parentGateway":"sample-gateway","parentNamespace":"gateway-system"}` | Optional Gateway API route scaffold for a webhook receiver. |
-| workload | object | `{"image":{"pullPolicy":"IfNotPresent","repository":"ghcr.io/stefanprodan/podinfo","tag":"6.9.2"},"podSecurityContext":{"fsGroup":10000,"runAsGroup":10000,"runAsNonRoot":true,"runAsUser":10000},"port":9898,"reloader":{"enabled":true},"replicas":1,"resources":{"limits":{"cpu":"100m","memory":"128Mi"},"requests":{"cpu":"10m","memory":"32Mi"}},"securityContext":{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"readOnlyRootFilesystem":true,"runAsGroup":10000,"runAsNonRoot":true,"runAsUser":10000}}` | Wrapper-owned sample workload. |
+| distributionMode | string | `"FLEET"` |  |
+| fleet.externalSecrets.bootPath | string | `"/diene/lithium"` |  |
+| fleet.externalSecrets.bootSecretName | string | `"lithium-boot"` |  |
+| fleet.externalSecrets.databasePath | string | `"/diene/lithium/database"` |  |
+| fleet.externalSecrets.databaseSecretName | string | `"lithium-database"` |  |
+| fleet.externalSecrets.refreshInterval | string | `"1h"` |  |
+| fleet.externalSecrets.secretStoreRef.kind | string | `"SecretStore"` |  |
+| fleet.externalSecrets.secretStoreRef.name | string | `"lithium-store"` |  |
+| fleet.issuerZone | string | `"cluster.atomi.cloud"` |  |
+| fleet.publicService.type | string | `"LoadBalancer"` |  |
+| fleet.vlandscape | string | `"mew"` |  |
+| garden.allocationGeneration | string | `"1"` |  |
+| garden.bootClientIdKey | string | `"SEED_M2M_CLIENT_ID"` |  |
+| garden.bootClientSecretKey | string | `"SEED_M2M_CLIENT_SECRET"` |  |
+| garden.bootSecret | string | `"lithium-boot"` |  |
+| garden.databaseKey | string | `"DB_URL"` |  |
+| garden.databaseSecret | string | `"lithium-database"` |  |
+| garden.instance | string | `"lapras-001"` |  |
+| garden.instanceUID | string | `"00000000-0000-0000-0000-000000000001"` |  |
+| garden.issuerScheme | string | `"http"` |  |
+| garden.landscape | string | `"lapras"` |  |
+| garden.zone | string | `"localhost"` |  |
+| image.pullPolicy | string | `"IfNotPresent"` |  |
+| image.repository | string | `"ghcr.io/atomicloud/aldehyde.logto"` |  |
+| image.tag | string | `"0.1.0"` |  |
+| labelPrefix | string | `"atomi.cloud"` |  |
+| namespace.name | string | `"diene"` |  |
+| serviceTree.landscape | string | `"raichu"` |  |
+| serviceTree.layer | string | `"1"` |  |
+| serviceTree.module | string | `"api"` |  |
+| serviceTree.platform | string | `"diene"` |  |
+| serviceTree.service | string | `"lithium"` |  |
+| workload.port | int | `3001` |  |
+| workload.replicas | int | `1` |  |
+| workload.resources.limits.cpu | string | `"500m"` |  |
+| workload.resources.limits.memory | string | `"512Mi"` |  |
+| workload.resources.requests.cpu | string | `"100m"` |  |
+| workload.resources.requests.memory | string | `"256Mi"` |  |
 
 ----------------------------------------------
 Autogenerated from chart metadata using [helm-docs v1.14.2](https://github.com/norwoodj/helm-docs/releases/v1.14.2)
