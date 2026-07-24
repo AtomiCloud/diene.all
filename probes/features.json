@@ -247,6 +247,11 @@
   },
   {
     "template": "diene/dotnet-base",
+    "name": "dotnet-coverage-artifact-scope",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-base",
     "name": "dotnet-deadcode-all",
     "class": "gate"
   },

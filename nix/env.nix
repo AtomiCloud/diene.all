@@ -55,6 +55,7 @@ with packages;
     # ### dotnet-base-main
     # #### source: dotnet-base
     dotnet-sdk_10
+    xmlstarlet
   ];
 
   # ### workspace-releaser-bootstrap
