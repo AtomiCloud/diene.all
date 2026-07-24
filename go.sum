@@ -1,0 +1,6 @@
+github.com/AtomiCloud/diene.go-errors-problems v1.0.0 h1:2PZyESuntrIZn5KY0K/fn4nE1BsHMhOIG1ebt5NDSfM=
+github.com/AtomiCloud/diene.go-errors-problems v1.0.0/go.mod h1:xKeBKhjFaGMLBKnnl5cROHhGlADsxj3sWGaowMKMbBU=
+github.com/AtomiCloud/diene.go-interfaces v1.0.2 h1:2PVCt7m4OwL9R25PVVWI7dVHk75s3oegvwVipknUPSo=
+github.com/AtomiCloud/diene.go-interfaces v1.0.2/go.mod h1:S8kGrC575lEtTIJpxJ3SkXdeXf6F5j98/hjEGv6ut5A=
+golang.org/x/text v0.39.0 h1:UbZz4pLOvn600D6Oh6GGEI6VAmndrEBLv8/6BEXzyus=
+golang.org/x/text v0.39.0/go.mod h1:3UwRclnC2g0TU9x8PZiyfOajCd1zaUNHF9cvqcQZ+ZM=

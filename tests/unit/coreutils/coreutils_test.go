@@ -9,6 +9,8 @@ import (
 
 	"github.com/AtomiCloud/diene.go-core-utils/lib/coreutils"
 	"github.com/AtomiCloud/diene.go-errors-problems/lib/problem"
+	"github.com/AtomiCloud/diene.go-interfaces/lib/interfaces"
+	"github.com/AtomiCloud/diene.go-interfaces/testhelper"
 )
 
 func TestSlugifyAndNamespacedKey(t *testing.T) {
@@ -168,6 +170,111 @@ func TestWireConstructorsAndSleep(t *testing.T) {
 	}
 	if errorValue := coreutils.Sleep(context.Background(), 0); errorValue != nil {
 		t.Fatal(errorValue)
+	}
+}
+
+func TestStableHash(t *testing.T) {
+	t.Parallel()
+	first, errorValue := coreutils.StableHash(map[string]any{"a": 1, "b": 2})
+	if errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	second, errorValue := coreutils.StableHash(map[string]any{"b": 2, "a": 1})
+	if errorValue != nil || first != second {
+		t.Fatalf("StableHash key order not stable: %q vs %q (%v)", first, second, errorValue)
+	}
+	if other, _ := coreutils.StableHash(map[string]any{"a": 1}); other == first {
+		t.Fatal("distinct values hashed identically")
+	}
+	if _, errorValue := coreutils.StableHash(make(chan int)); errorValue == nil {
+		t.Fatal("unencodable value accepted")
+	}
+}
+
+func TestFileAndClockSeams(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	filesystem := testhelper.NewInMemoryVfs(testhelper.InMemoryVfsOptions{})
+	if errorValue := filesystem.WriteText(ctx, "/greeting.txt", "hello", interfaces.WriteOptions{CreateParents: true}); errorValue != nil {
+		t.Fatal(errorValue)
+	}
+	digest, errorValue := coreutils.HashFile(ctx, filesystem, "/greeting.txt")
+	if errorValue != nil || digest != "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824" {
+		t.Fatalf("HashFile = %q, %v", digest, errorValue)
+	}
+	if _, errorValue = coreutils.HashFile(ctx, filesystem, "/missing.txt"); errorValue == nil {
+		t.Fatal("missing file accepted")
+	}
+
+	system := testhelper.NewInMemorySystem(testhelper.InMemorySystemOptions{})
+	system.SetNow(time.Date(2026, 7, 21, 1, 2, 3, 456000000, time.UTC))
+	instant, errorValue := coreutils.NowWireInstant(system)
+	if errorValue != nil || instant != "2026-07-21T01:02:03.456Z" {
+		t.Fatalf("NowWireInstant = %q, %v", instant, errorValue)
+	}
+	system.EnqueueClockResult(time.Time{}, errors.New("clock unavailable"))
+	if _, errorValue = coreutils.NowWireInstant(system); errorValue == nil {
+		t.Fatal("clock error not propagated")
+	}
+	system.SetNow(time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC))
+	if _, errorValue = coreutils.NowWireInstant(system); errorValue == nil {
+		t.Fatal("out of range instant accepted")
+	}
+}
+
+func TestMapConcurrent(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	doubled, errorValue := coreutils.MapConcurrent(ctx, []int{1, 2, 3, 4}, 2,
+		func(_ context.Context, value int) (int, error) { return value * 2, nil })
+	if errorValue != nil || !reflect.DeepEqual(doubled, []int{2, 4, 6, 8}) {
+		t.Fatalf("MapConcurrent = %v, %v", doubled, errorValue)
+	}
+	empty, errorValue := coreutils.MapConcurrent(ctx, []int{}, 0,
+		func(_ context.Context, value int) (int, error) { return value, nil })
+	if errorValue != nil || len(empty) != 0 {
+		t.Fatalf("empty MapConcurrent = %v, %v", empty, errorValue)
+	}
+	failing := errors.New("boom")
+	_, errorValue = coreutils.MapConcurrent(ctx, []int{1, 2, 3}, 1,
+		func(_ context.Context, value int) (int, error) {
+			if value == 1 {
+				return 0, failing
+			}
+			return value, nil
+		})
+	if !errors.Is(errorValue, failing) {
+		t.Fatalf("first error not returned: %v", errorValue)
+	}
+}
+
+func TestMapConcurrentParentCancellation(t *testing.T) {
+	t.Parallel()
+	parent, cancel := context.WithCancel(context.Background())
+	started := make(chan struct{})
+	release := make(chan struct{})
+	type outcome struct {
+		values []int
+		err    error
+	}
+	done := make(chan outcome, 1)
+	go func() {
+		values, err := coreutils.MapConcurrent(parent, []int{0, 1}, 1,
+			func(_ context.Context, value int) (int, error) {
+				if value == 0 {
+					close(started)
+					<-release
+				}
+				return value, nil
+			})
+		done <- outcome{values, err}
+	}()
+	<-started
+	cancel()
+	close(release)
+	got := <-done
+	if !errors.Is(got.err, context.Canceled) || got.values != nil {
+		t.Fatalf("cancelled MapConcurrent = %v, %v", got.values, got.err)
 	}
 }
 

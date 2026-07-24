@@ -33,5 +33,10 @@ func main() {
 	_ = coreutils.CoerceEnvironmentScalar("true")
 	_, _ = coreutils.EnvironmentToNestedMap(map[string]string{"APP_LIST__0": "one"}, "APP_")
 	_ = coreutils.Sleep(context.Background(), 0)
+	_, _ = coreutils.StableHash(map[string]any{"value": 1})
+	_, _ = coreutils.MapConcurrent(context.Background(), []int{1}, 1,
+		func(_ context.Context, value int) (int, error) { return value, nil })
+	_, _ = coreutils.HashFile(context.Background(), nil, "path")
+	_, _ = coreutils.NowWireInstant(nil)
 	fmt.Println(coreutils.Slugify(key), date.String(), timeOfDay.String(), duration.String(), zone.String())
 }
