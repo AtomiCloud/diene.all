@@ -2,6 +2,8 @@
   "schemaVersion": 1,
   "actions": {
     "AtomiCloud/actions.setup-nix": "trusted",
+    "actions/checkout": "non-trusted",
+    "actions/create-github-app-token": "non-trusted",
     "upsidr/merge-gatekeeper": "non-trusted"
   }
 }
