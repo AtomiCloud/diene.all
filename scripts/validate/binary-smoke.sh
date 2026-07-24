@@ -6,7 +6,7 @@ if [ -f package.json ]; then
   export PATH="${PWD}/node_modules/.bin:${PATH}"
 fi
 
-binaries=(actionlint bash cyanprint docker dpkg gh git go gomplate goreleaser hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pls pre-commit rg rpm sg shellcheck skopeo task treefmt yq)
+binaries=(actionlint bash cyanprint docker dpkg gh git go gomplate goreleaser hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pls pre-commit releaser rg rpm shellcheck skopeo task treefmt yq)
 [ -f package.json ] && binaries+=(bun biome knip tsc)
 
 for binary in "${binaries[@]}"; do
@@ -135,11 +135,14 @@ rg -q '^## Bun foundation$|^# Diene workspace baseline$' README.md
 rpm --version >/dev/null
 rpm --eval '%{_arch}' >/dev/null
 
-sg --version >/dev/null
-printf '%s\n' '[general]' 'contrib=CT1' 'ignore=B6' '' '[contrib-title-conventional-commits]' 'types = amend' >"${tmp}/.gitlint"
-yq '.gitlint = ".gitlint"' atomi_release.yaml >"${tmp}/sg-config.yaml"
-(cd "${tmp}" && sg gitlint -c sg-config.yaml >/dev/null 2>&1 || true)
-rg -q 'chore' "${tmp}/.gitlint"
+releaser --version | rg -qx '1.0.0'
+printf '%s\n' 'feat: add a smoke capability' >"${tmp}/good-commit.txt"
+releaser lint-commit -c atomi_release.yaml "${tmp}/good-commit.txt"
+printf '%s\n' 'wibble: not a real type' >"${tmp}/bad-commit.txt"
+releaser lint-commit -c atomi_release.yaml "${tmp}/bad-commit.txt" && {
+  echo "❌ releaser lint-commit accepted an invalid commit" >&2
+  exit 1
+}
 
 shellcheck --version >/dev/null
 shellcheck scripts/validate/binary-smoke.sh
@@ -158,10 +161,6 @@ treefmt --completion bash >"${tmp}/treefmt-completion.bash"
 yq --version >/dev/null
 yq -en '.ok = true | .ok == true' >/dev/null
 
-if command -v releaser >/dev/null; then
-  releaser --help >/dev/null
-else
-  echo "⏭️ releaser binary awaits the C2 step-2p tools/releaser publish"
-fi
+releaser --help >/dev/null
 
 echo "✅ Binary smoke passed"
