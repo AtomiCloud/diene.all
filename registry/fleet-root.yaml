@@ -4,9 +4,10 @@
 # its own sync (it does not manage itself — that is why registry/**'s include
 # glob below deliberately excludes this file and the compiler chart). Once
 # applied, ArgoCD reads this repo directly: fleet-root syncs the registry
-# topology CRs (Landscape / ClusterRegistration / VirtualLandscape) and the
-# platforms ApplicationSet, and from there the platforms AppSet materializes one
-# platform-<p> Application per AtomiCloud/*.carbon repo.
+# topology CRs (Landscape / ClusterRegistration / VirtualLandscape), the
+# authenticated ArgoCD webhook secret contract, and the platforms ApplicationSet;
+# from there the platforms AppSet materializes one platform-<p> Application per
+# AtomiCloud/*.carbon repo.
 #
 # The compiler chart under registry/charts/diene-platform is NOT applied here —
 # it is consumed as source A of every per-platform Application, pinned to the
@@ -31,7 +32,7 @@ spec:
       recurse: true
       # Only the registry topology CRs + the platforms AppSet. fleet-root.yaml
       # itself and charts/** (the compiler chart) are intentionally excluded.
-      include: '{landscapes/*.yaml,clusters/*.yaml,virtual-landscapes/*.yaml,platforms-appset.yaml}'
+      include: '{landscapes/*.yaml,clusters/*.yaml,virtual-landscapes/*.yaml,argocd-webhook-secret.yaml,platforms-appset.yaml}'
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
