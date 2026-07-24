@@ -51,5 +51,5 @@ Use the same entry points as CI:
 nix develop .#ci -c ./scripts/ci/pre-commit.sh
 ```
 
-Release execution is wired now but awaits the C2 step-2p `tools/releaser` fold;
-the workspace does not claim a working `releaser` binary before then.
+Release execution runs on `main` through the published `releaser` binary,
+provisioned from the pinned `AtomiCloud/releaser` `v1.0.0` Nix package.
