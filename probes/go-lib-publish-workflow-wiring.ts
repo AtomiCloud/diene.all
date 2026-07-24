@@ -7,7 +7,8 @@ export default defineGate({
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
   baseline: {
     name: 'baseline-go-lib-publish-workflow-wiring-green',
-    description: 'CD reaches the publication guard and proxy verification path.',
+    description:
+      'CD reaches the publication guard and proxy verification path, while Semantic Release resolves through the pinned releaser/npm runtime.',
     async run(repo: any) {
       await expectGreen(repo, gate, 'go-lib-publish-workflow-wiring');
     },
@@ -19,7 +20,7 @@ export default defineGate({
     async run(repo: any) {
       await repo.patch('.github/workflows/cd.yaml', {
         find: './.github/workflows/reusable-go-publish.yaml',
-        replace: './.github/workflows/⚡missing-go-publish.yaml',
+        replace: './.github/workflows/missing-go-publish.yaml',
       });
       await expectRed(repo, gate, 'go-lib-publish-workflow-wiring');
     },

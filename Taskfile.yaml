@@ -3,16 +3,21 @@
 version: '3'
 
 includes:
+  secret: tasks/Taskfile.secret.yaml
+
+  # ### go-base-test-includes
+  # #### source: go-base
   gotest:
     taskfile: tasks/Taskfile.test.yaml
     internal: true
-  secret: tasks/Taskfile.secret.yaml
 
 tasks:
   setup:
     desc: Set up generated workspace assets
     cmds:
       - ./scripts/local/skills-sync.sh
+      # ### go-base-setup
+      # #### source: go-base
       - go mod download
 
   lint:

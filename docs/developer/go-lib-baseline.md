@@ -8,10 +8,17 @@ a single-module repository unless a concrete library proves otherwise.
 
 ## Package and API shape
 
-Keep public packages small and cohesive. Put implementation-only packages under
-`internal/`; never expose logic solely for tests. Every exported symbol has a
+Keep public packages small and cohesive, and carry zero private (unexported)
+logic (B9). Private fields are fine; private logic is not — every unexported
+helper is a hidden dependency, so it graduates to either an injected service or
+a cohesive `internal/<name>` package whose exported surface is black-box tested
+like any other package and whose nondeterminism is reached through injected
+determinism seams. `internal/` keeps that surface unimportable outside the
+module without ever exposing logic solely for tests. Every exported symbol has a
 doc comment, and `Example*` functions are executable consumer documentation.
-All tests use external `_test` packages, and `export_test.go` is forbidden.
+All tests use external `_test` packages, and `export_test.go` is forbidden;
+`scripts/validate/go-black-box-tests.sh` (pre-commit hook `a-go-black-box`)
+enforces both by rejecting any `export_test.go` or non-`_test` test package.
 
 The public surface lives in `lib/coreutils`: deterministic slug/key,
 configuration-value, timing, and C0 temporal helpers. It depends on the family
