@@ -7,7 +7,6 @@ version="${1:-}"
 root_dir="$(git rev-parse --show-toplevel)"
 cd "${root_dir}"
 
-git checkout HEAD -- package.json VERSION
 bun pm pkg set "version=${version#v}"
 printf '%s\n' "${version#v}" >VERSION
 
