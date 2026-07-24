@@ -21,6 +21,13 @@ image:
 credentialGateImage:
   repository: busybox
   tag: 1.36.1
+  runAsUser: 10001
+
+# Felix-owned fork packaging contract: release images use this numeric non-root
+# USER. The chart does not infer a UID from upstream Logto, which has no USER.
+imageSecurity:
+  runAsUser: 10001
+  runAsGroup: 10001
 
 workload:
   replicas: 1
@@ -35,9 +42,12 @@ fleet:
   issuerZone: cluster.atomi.cloud
   externalSecrets:
     refreshInterval: 1h
-    secretStoreRef: {kind: SecretStore, name: lithium-store}
+    # Carbon owns this platform SecretStore; Lithium only consumes it.
+    secretStoreRef: {kind: SecretStore, name: carbon-store}
     # The dependency controller fans this standard payload into every serving row.
-    databasePath: /lithium/database
+    # C0 real Infisical folders are /{class}/{module}; SecretStore selection,
+    # not the folder name, carries the platform and environment boundary.
+    databasePath: /database/lithium
     databaseSecretName: lithium-database
     bootSecretName: lithium-boot
   publicService:
@@ -58,3 +68,5 @@ garden:
   bootSecret: lithium-boot
   bootClientIdKey: SEED_M2M_CLIENT_ID
   bootClientSecretKey: SEED_M2M_CLIENT_SECRET
+  operatorSelector: {app.kubernetes.io/name: logto-operator, app.kubernetes.io/part-of: lithium}
+  ordinaryRailSelector: {atomi.cloud/rail: ordinary}

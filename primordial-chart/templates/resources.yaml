@@ -37,6 +37,7 @@ spec:
   service: lithium
   module: api
   landscape: {{ $row.landscape }}
+  serve: true
 {{- end }}
 {{- end }}
 {{- end }}

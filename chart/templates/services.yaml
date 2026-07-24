@@ -9,7 +9,7 @@ metadata:
 spec:
   type: {{ if eq .Values.distributionMode "FLEET" }}{{ .Values.fleet.publicService.type }}{{ else }}ClusterIP{{ end }}
   selector: {{- include "lithium.selectorLabels" . | nindent 4 }}
-  ports: [{name: public, port: 80, targetPort: public, protocol: TCP}]
+  ports: [{name: public, port: 80, targetPort: {{ if eq .Values.distributionMode "FLEET" }}management{{ else }}public{{ end }}, protocol: TCP}]
 {{- if eq .Values.distributionMode "GARDEN-LOCAL" }}
 ---
 apiVersion: v1

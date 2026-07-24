@@ -3,12 +3,23 @@ set -euo pipefail
 
 mode="${1:-all}"
 tmp="$(mktemp -d)"
-trap 'rm -rf "${tmp}"' EXIT
+filter_container=""
+filter_upstream=""
+cleanup() {
+  if [ -n "${filter_upstream}" ]; then
+    docker rm -f "${filter_upstream}" >/dev/null 2>&1 || true
+  fi
+  if [ -n "${filter_container}" ]; then
+    docker rm -f "${filter_container}" >/dev/null 2>&1 || true
+  fi
+  rm -rf "${tmp}"
+}
+trap cleanup EXIT
 fleet_render() { helm template lithium chart --namespace diene "$@"; }
 primordial_render() { helm template lithium-primordial primordial-chart --namespace diene "$@"; }
 
 case "${mode}" in
-all | lint | fleet | garden | negative | labels | rendered-manifests | publish) ;;
+all | lint | fleet | garden | filter-runtime | negative | labels | rendered-manifests | publish) ;;
 *)
   echo "❌ unknown Lithium validation mode ${mode}" >&2
   exit 1
@@ -25,14 +36,37 @@ if [ "${mode}" = all ] || [ "${mode}" = fleet ]; then
   primordial_render >"${tmp}/primordial.yaml"
   rg -q 'type: LoadBalancer' "${tmp}/fleet.yaml"
   rg -q 'https://api.lithium.diene.mew.cluster.atomi.cloud' "${tmp}/fleet.yaml"
-  rg -q 'key: "/diene/lithium"' "${tmp}/fleet.yaml"
+  rg -q 'key: "/diene/lithium/SEED_M2M_CLIENT_ID"' "${tmp}/fleet.yaml"
+  rg -q 'key: "/diene/lithium/SEED_M2M_CLIENT_SECRET"' "${tmp}/fleet.yaml"
+  rg -q 'key: "/database/lithium/DB_URL"' "${tmp}/fleet.yaml"
+  rg -q 'name: carbon-store' "${tmp}/fleet.yaml"
+  if rg -q 'name: lithium-store' "${tmp}/fleet.yaml"; then
+    echo "❌ Fleet must consume the platform-owned carbon-store, not a chart-local store" >&2
+    exit 1
+  fi
   fleet_render --set serviceTree.platform=raichu >"${tmp}/fleet-raichu.yaml"
-  rg -q 'key: "/raichu/lithium"' "${tmp}/fleet-raichu.yaml"
-  if rg -q 'key: "/diene/lithium"' "${tmp}/fleet-raichu.yaml"; then
+  rg -q 'key: "/raichu/lithium/SEED_M2M_CLIENT_ID"' "${tmp}/fleet-raichu.yaml"
+  rg -q 'key: "/raichu/lithium/SEED_M2M_CLIENT_SECRET"' "${tmp}/fleet-raichu.yaml"
+  if rg -q 'key: "/diene/lithium/' "${tmp}/fleet-raichu.yaml"; then
     echo "❌ fleet boot path did not follow platform identity" >&2
     exit 1
   fi
+  rg -q 'key: "/database/lithium/DB_URL"' "${tmp}/fleet-raichu.yaml"
+  if rg -q 'key: "/lithium/database"|property:' "${tmp}/fleet.yaml" "${tmp}/fleet-raichu.yaml"; then
+    echo "❌ Fleet database path must be the C0 /database/lithium folder" >&2
+    exit 1
+  fi
   [ "$(rg -c '^kind: ExternalSecret$' "${tmp}/fleet.yaml")" = 2 ]
+  if rg -q '^kind: SecretStore$' "${tmp}/fleet.yaml"; then
+    echo "❌ Lithium must not render a chart-local SecretStore" >&2
+    exit 1
+  fi
+  [ "$(rg -c '^kind: Service$' "${tmp}/fleet.yaml")" = 1 ]
+  rg -q 'targetPort: management' "${tmp}/fleet.yaml"
+  if rg -q 'lithium-management|lithium-public-filter|kind: NetworkPolicy|name: public-filter' "${tmp}/fleet.yaml"; then
+    echo "❌ FLEET must expose raw OIDC and /api through one LB Service" >&2
+    exit 1
+  fi
   [ "$(rg -c '^kind: PlatformDependency$' "${tmp}/primordial.yaml")" = 1 ]
   [ "$(rg -c '^kind: VirtualLandscapeService$' "${tmp}/primordial.yaml")" = 1 ]
   if rg -q 'privatePath:' chart primordial-chart; then
@@ -54,6 +88,8 @@ if [ "${mode}" = all ] || [ "${mode}" = garden ]; then
     rg -q 'targetPort: public' "${tmp}/${profile}.yaml"
     rg -q 'targetPort: management' "${tmp}/${profile}.yaml"
     rg -q 'atomi.cloud/public-filter-version: v1' "${tmp}/${profile}.yaml"
+    rg -q '^kind: NetworkPolicy$' "${tmp}/${profile}.yaml"
+    rg -q 'name: lithium-management-isolation' "${tmp}/${profile}.yaml"
     if rg -q 'kind: ExternalSecret|kind: PlatformDependency|kind: VirtualLandscapeService|type: LoadBalancer|kind: HTTPRoute|kind: Certificate|kind: Gateway' "${tmp}/${profile}.yaml"; then
       echo "❌ ${profile} rendered a fleet or edge-owned object" >&2
       exit 1
@@ -68,6 +104,16 @@ if [ "${mode}" = all ] || [ "${mode}" = garden ]; then
   for profile in eevee plusle minun; do
     rg -q "https://api.lithium.diene.${profile}-001.${profile}.dev.atomi.cloud" "${tmp}/${profile}.yaml"
   done
+  rg -Fq 'location = /healthz { return 200; }' "${tmp}/lapras.yaml"
+  rg -Fq 'oidc/(?:\.well-known/openid-configuration|jwks|auth|token' "${tmp}/lapras.yaml"
+  rg -Fq 'api/experience(?:/|$)' "${tmp}/lapras.yaml"
+  rg -Fq 'sign-in|register|single-sign-on|consent|device' "${tmp}/lapras.yaml"
+  rg -Fq 'assets/' "${tmp}/lapras.yaml"
+  rg -Fq 'location / { return 404; }' "${tmp}/lapras.yaml"
+  if rg -F 'location ~ ^/api/' "${tmp}/lapras.yaml" | rg -Fv 'location ~ ^/api/experience' >/dev/null; then
+    echo "❌ Garden public filter widened to all /api routes" >&2
+    exit 1
+  fi
   rg -q 'name: lithium-lapras-db' "${tmp}/lapras.yaml"
   if rg -q 'name: lithium-lapras-db' "${tmp}/ditto.yaml"; then
     echo "❌ concurrent Garden instances shared a database Secret reference" >&2
@@ -78,6 +124,32 @@ if [ "${mode}" = all ] || [ "${mode}" = garden ]; then
     echo "❌ Garden-local primordial render was not empty" >&2
     exit 1
   fi
+fi
+
+if [ "${mode}" = filter-runtime ]; then
+  helm template lithium chart --namespace diene --values chart/values.lapras.yaml >"${tmp}/lapras.yaml"
+  mkdir -p "${tmp}/public-filter"
+  yq -r 'select(.kind == "ConfigMap" and .metadata.name == "lithium-public-filter") | .data."default.conf"' "${tmp}/lapras.yaml" >"${tmp}/public-filter/default.conf"
+  filter_container="lithium-public-filter-$RANDOM-$$"
+  docker run -d --rm --name "${filter_container}" --read-only --tmpfs /tmp:uid=101,gid=101 \
+    -v "${tmp}/public-filter/default.conf:/etc/nginx/conf.d/default.conf:ro" \
+    -p 127.0.0.1::8080 \
+    nginxinc/nginx-unprivileged@sha256:65e3e85dbaed8ba248841d9d58a899b6197106c23cb0ff1a132b7bfe0547e4c0 >/dev/null
+  filter_upstream="lithium-public-filter-upstream-$RANDOM-$$"
+  docker run -d --rm --name "${filter_upstream}" --network "container:${filter_container}" busybox:1.36.1 \
+    sh -ec 'mkdir -p /www/oidc/.well-known /www/sign-in/assets /www/api/experience; for path in /oidc/.well-known/openid-configuration /oidc/jwks /sign-in/assets/index.js /api/experience/interaction; do printf allowed >"/www${path}"; done; exec httpd -f -p 3001 -h /www' >/dev/null
+  filter_port="$(docker port "${filter_container}" 8080/tcp | awk -F: '{print $NF}')"
+  filter_status() {
+    curl --retry 10 --retry-connrefused --silent --show-error --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:${filter_port}$1"
+  }
+  [ "$(filter_status /healthz)" = 200 ]
+  # The private upstream returns 200 only for these v1.41 fixtures, proving that
+  # discovery, JWKS, Experience, and the sign-in SPA asset traverse the filter.
+  [ "$(filter_status /oidc/.well-known/openid-configuration)" = 200 ]
+  [ "$(filter_status /oidc/jwks)" = 200 ]
+  [ "$(filter_status /api/experience/interaction)" = 200 ]
+  [ "$(filter_status /sign-in/assets/index.js)" = 200 ]
+  [ "$(filter_status /api/applications)" = 404 ]
 fi
 
 if [ "${mode}" = all ] || [ "${mode}" = negative ]; then
@@ -99,6 +171,11 @@ if [ "${mode}" = all ] || [ "${mode}" = negative ]; then
   fleet_render >"${tmp}/gate.yaml"
   rg -q 'test -n.*DB_URL.*test -n.*SEED_M2M_CLIENT_ID.*test -n.*SEED_M2M_CLIENT_SECRET' "${tmp}/gate.yaml"
   rg -q 'image: "busybox:1.36.1"' "${tmp}/gate.yaml"
+  rg -q 'runAsUser: 10001' "${tmp}/gate.yaml"
+  rg -q 'runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001' "${tmp}/gate.yaml"
+  rg -Fq 'command: ["npm", "run", "cli", "db", "seed", "--", "--swe", "--dapc"]' "${tmp}/gate.yaml"
+  yq -e 'select(.kind == "Deployment") | .spec.template.spec.initContainers[] | select(.name == "database-bootstrap") | select((.env | length) == 1) | select(.env[0].name == "DB_URL")' "${tmp}/gate.yaml" >/dev/null
+  yq -e 'select(.kind == "Deployment") | .spec.template.spec.initContainers[] | select(.name == "database-bootstrap") | .volumeMounts[] | select(.mountPath == "/etc/logto/packages/cli/alteration-scripts")' "${tmp}/gate.yaml" >/dev/null
 fi
 
 if [ "${mode}" = all ] || [ "${mode}" = labels ]; then
@@ -116,8 +193,12 @@ if [ "${mode}" = all ] || [ "${mode}" = rendered-manifests ]; then
   kubeconform -strict -ignore-missing-schemas -summary \
     -schema-location 'schemas/{{ .ResourceKind }}.json' \
     "${tmp}/fleet.yaml" "${tmp}/primordial.yaml"
-  if rg -q 'serve:' "${tmp}/primordial.yaml"; then
-    echo "❌ VLS fragment must not emit a serve field" >&2
+  if ! rg -q 'serve: true' "${tmp}/primordial.yaml"; then
+    echo "❌ VLS fragment must emit its authoritative serve: true field" >&2
+    exit 1
+  fi
+  if yq -e 'select(.kind == "VirtualLandscapeService" and .spec.serve != true)' "${tmp}/primordial.yaml" >/dev/null 2>&1; then
+    echo "❌ every VLS fragment must set spec.serve: true" >&2
     exit 1
   fi
 fi

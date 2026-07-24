@@ -11,6 +11,7 @@ rg -q 'helm upgrade --install lithium chart' "${proof}"
 rg -q -- '--values chart/values.lapras.yaml' "${proof}"
 rg -q 'get service lithium-management' "${proof}"
 rg -q 'gate_case in missing blank' "${proof}"
+rg -q 'runAsNonRoot.*runAsUser.*10001' "${proof}"
 if rg -q 'primordial-chart' "${proof}"; then
   echo "❌ Garden-local proof must not install the primordial chart" >&2
   exit 1

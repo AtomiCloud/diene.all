@@ -13,14 +13,15 @@ Kubernetes: `>=1.27.0-0`
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | credentialGateImage.repository | string | `"busybox"` |  |
+| credentialGateImage.runAsUser | int | `10001` |  |
 | credentialGateImage.tag | string | `"1.36.1"` |  |
 | distributionMode | string | `"FLEET"` |  |
 | fleet.externalSecrets.bootSecretName | string | `"lithium-boot"` |  |
-| fleet.externalSecrets.databasePath | string | `"/lithium/database"` |  |
+| fleet.externalSecrets.databasePath | string | `"/database/lithium"` |  |
 | fleet.externalSecrets.databaseSecretName | string | `"lithium-database"` |  |
 | fleet.externalSecrets.refreshInterval | string | `"1h"` |  |
 | fleet.externalSecrets.secretStoreRef.kind | string | `"SecretStore"` |  |
-| fleet.externalSecrets.secretStoreRef.name | string | `"lithium-store"` |  |
+| fleet.externalSecrets.secretStoreRef.name | string | `"carbon-store"` |  |
 | fleet.issuerZone | string | `"cluster.atomi.cloud"` |  |
 | fleet.publicService.type | string | `"LoadBalancer"` |  |
 | fleet.vlandscape | string | `"mew"` |  |
@@ -35,11 +36,16 @@ Kubernetes: `>=1.27.0-0`
 | garden.issuerPort | int | `0` |  |
 | garden.issuerScheme | string | `"https"` |  |
 | garden.landscape | string | `"lapras"` |  |
+| garden.operatorSelector."app.kubernetes.io/name" | string | `"logto-operator"` |  |
+| garden.operatorSelector."app.kubernetes.io/part-of" | string | `"lithium"` |  |
+| garden.ordinaryRailSelector."atomi.cloud/rail" | string | `"ordinary"` |  |
 | garden.zone | string | `"admin.atomi.cloud"` |  |
 | image.digest | string | `""` |  |
 | image.pullPolicy | string | `"IfNotPresent"` |  |
 | image.repository | string | `"ghcr.io/atomicloud/aldehyde.logto"` |  |
 | image.tag | string | `"1.41.0"` |  |
+| imageSecurity.runAsGroup | int | `10001` |  |
+| imageSecurity.runAsUser | int | `10001` |  |
 | labelPrefix | string | `"atomi.cloud"` |  |
 | namespace.name | string | `"diene"` |  |
 | serviceTree.landscape | string | `"raichu"` |  |
