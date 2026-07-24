@@ -36,7 +36,10 @@ synchronization.
 `github.com/AtomiCloud/diene.go-core-utils` is the Go family's deterministic,
 result-free value layer. It provides NFKD kebab slugs, problem-typed namespaced
 keys, immutable configuration merge and environment coercion, context-aware
-timing, and C0 RFC 3339/ISO 8601/IANA temporal codecs.
+timing, a bounded concurrency map, stable content hashing, and C0
+RFC 3339/ISO 8601/IANA temporal codecs. File and clock helpers consume the
+`github.com/AtomiCloud/diene.go-interfaces` System and VFS seams, so callers
+inject an implementation rather than touching the OS directly.
 
 ```bash
 go get github.com/AtomiCloud/diene.go-core-utils@latest
@@ -45,6 +48,8 @@ go get github.com/AtomiCloud/diene.go-core-utils@latest
 ```go
 key, err := coreutils.NamespacedKey("Mobile App", "Current User")
 config, err := coreutils.EnvironmentToNestedMap(map[string]string{"ATOMI_AUTH__ENABLED": "true"}, "ATOMI_")
+digest, err := coreutils.HashFile(ctx, filesystem, "/config.yaml") // filesystem is an interfaces.Vfs
+now, err := coreutils.NowWireInstant(system)                       // system is an interfaces.System
 ```
 
 This library deliberately ships no `testhelper` package: its APIs are pure,

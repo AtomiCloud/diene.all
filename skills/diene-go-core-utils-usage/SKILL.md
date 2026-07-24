@@ -18,6 +18,14 @@ caller needs its C0 validation envelope.
 - Use `WireCodec`, `WireDate`, `WireTime`, `IsoDuration`, and `IanaTimezone`
   for C0 wire boundaries. Instants are always canonical RFC 3339 UTC `Z`.
 - Use `Sleep(ctx, duration)` so cancellation reaches timing work.
+- Use `StableHash` for cache keys and stale-fixture detection; it hashes the
+  canonical JSON encoding, so map key order never changes the digest.
+- Use `MapConcurrent(ctx, items, concurrency, fn)` for bounded parallel work.
+  Results keep input order; the first error cancels the rest and is returned.
+- Use `HashFile` and `NowWireInstant` with the `diene.go-interfaces` `Vfs` and
+  `System` seams: inject an implementation (or a `testhelper` mock in tests)
+  instead of reading the OS filesystem or wall clock directly. Every "now"
+  routed through `NowWireInstant` is a canonical RFC 3339 UTC instant.
 
 ## Future TestHelper criterion
 
