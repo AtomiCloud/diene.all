@@ -17,7 +17,10 @@ let
         || builtins.elem (baseNameOf path) [
           "bun.lock"
           "package.json"
-        ];
+        ]
+        # vendored, certified upstream tarball(s) the lockfile resolves via file:
+        # (temporary bridge while @atomicloud/diene.config is unpublished; see vendor/README.md)
+        || pkgs.lib.hasSuffix ".tgz" (baseNameOf path);
     };
     nativeBuildInputs = [
       packages.bun
@@ -40,7 +43,7 @@ let
     dontFixup = true;
     outputHashMode = "recursive";
     outputHashAlgo = "sha256";
-    outputHash = "sha256-V1hdZkEABk3JXUCIgrsbkZqFCKs80/g/lyzWND9hd9o=";
+    outputHash = "sha256-TEoDu67Q2bD+M9EJX16lXiudxyxpWXzwJFxNucxAGnE=";
   };
   bun-tool = name: "${packages.bun}/bin/bun ${bun-tooling}/node_modules/.bin/${name}";
   biome-platform =
