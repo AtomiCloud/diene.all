@@ -40,7 +40,7 @@ let
     dontFixup = true;
     outputHashMode = "recursive";
     outputHashAlgo = "sha256";
-    outputHash = "sha256-LyR0vdV9iZMoBjYb9wzAZUW0gtImGLcmtHw6t6cyhzI=";
+    outputHash = "sha256-NfnSJx4mdM19koLmUo0LWWvI9Iy+H7+3nEsPeoXBfdE=";
   };
   bun-tool = name: "${packages.bun}/bin/bun ${bun-tooling}/node_modules/.bin/${name}";
   biome-platform =

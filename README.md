@@ -68,8 +68,8 @@ boundary. TypeScript variants accompany the shared standards for
 [utilities](docs/standards/utilities/languages/typescript.md), and
 [validation](docs/standards/validation/languages/typescript.md).
 
-<!-- ### bun-frontend-utils-product -->
-<!-- #### source: lib/bun/frontend-utils -->
+<!-- ### bun-lib -->
+<!-- #### source: bun-lib -->
 
 ## Frontend utilities
 
@@ -80,6 +80,10 @@ explicit subpaths.
 
 See the [frontend-utils standard](docs/standards/frontend-utils/index.md) and
 [npm release runbook](docs/developer/npm-release.md).
+
+Package description: Portable, SSR-safe frontend mechanisms for AtomiCloud applications.
+
+Package keywords: atomicloud, bun, frontend, react, landscape, discovery, accessibility
 
 [![npm version](https://img.shields.io/npm/v/@atomicloud/diene.frontend-utils)](https://www.npmjs.com/package/@atomicloud/diene.frontend-utils)
 [![CI](https://github.com/AtomiCloud/diene.bun-frontend-utils/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.bun-frontend-utils/actions/workflows/ci.yaml)
