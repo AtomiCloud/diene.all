@@ -53,7 +53,7 @@ spec:
               - repoURL: 'oci://{{ $registry }}/{{`{{ .platform }}`}}-{{`{{ .service }}`}}-primordial'
                 targetRevision: '{{`{{ .pin.tag }}`}}'
                 helm:
-                  values: '{{`{{ .values | default dict | toRawJson }}`}}'
+                  values: '{{`{{ get . "values" | default dict | toRawJson }}`}}'
     # g2 — g1 × cluster generator (label-selected by landscape) → one per-cluster
     # Application per row per matching cluster. This is the SOLE membership
     # mechanism, so delivery: replicated modules land on EVERY landscape cluster.
@@ -80,7 +80,7 @@ spec:
               - repoURL: 'oci://{{ $registry }}/{{`{{ .platform }}`}}-{{`{{ .service }}`}}'
                 targetRevision: '{{`{{ .pin.tag }}`}}'
                 helm:
-                  values: '{{`{{ .values | default dict | toRawJson }}`}}'
+                  values: '{{`{{ get . "values" | default dict | toRawJson }}`}}'
   # Runtime guard for machine-written rows. A malformed row fails generation
   # before either Application is rendered; explicit row fields remain the only
   # identity values consumed downstream.

@@ -29,3 +29,7 @@ infra/root_chart/uploads/
 chart/files/config/
 dist/
 probe-report.json
+
+### fleet
+#### source: fleet
+sit-report/

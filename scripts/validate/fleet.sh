@@ -410,6 +410,12 @@ appset-scope)
     fail "g2 selector must consume explicit row landscape"
   as | jq -e '.spec.generators[1].matrix.template.spec.sources[0].repoURL == "oci://registry.atomi.cloud/{{ .platform }}-{{ .service }}"' >/dev/null ||
     fail "g2 OCI path must consume explicit row fields"
+  expected_values='{{ get . "values" | default dict | toRawJson }}'
+  as | jq -e --arg expected "${expected_values}" '
+    .spec.generators[0].git.template.spec.sources[0].helm.values == $expected and
+    .spec.generators[1].matrix.template.spec.sources[0].helm.values == $expected
+  ' >/dev/null ||
+    fail "g1/g2 must access optional row values with get under missingkey=error"
   as | jq -e '.spec.templatePatch | contains("ne .platform \"canary\"") and contains("has .service") and contains("ne .service $filenameService") and contains("ne .landscape $pathLandscape")' >/dev/null ||
     fail "AppSet templatePatch must validate row fields against roster/path/filename"
   as | jq -e '[.. | strings | select(test("path\\.segments|path\\.filename"))] | length == 1' >/dev/null ||
@@ -429,10 +435,18 @@ platforms-appset)
     fail "platforms AppSet must declare three sources (chart + carbon + services refs)"
   yq -e '.spec.template.spec.sources[0].targetRevision | test("canary.carbon.*main.*machinery-stable")' "${f}" >/dev/null ||
     fail "platforms AppSet source A must pin machinery-stable with the canary-on-main split"
+  yq -e '
+    .spec.template.spec.sources[0].repoURL == "https://github.com/AtomiCloud/fleet" and
+    .spec.template.spec.sources[2].repoURL == "https://github.com:443/AtomiCloud/fleet" and
+    .spec.template.spec.sources[2].targetRevision == "HEAD" and
+    .spec.template.spec.sources[2].ref == "services" and
+    .spec.template.spec.sources[0].repoURL != .spec.template.spec.sources[2].repoURL
+  ' "${f}" >/dev/null ||
+    fail "platforms AppSet must keep the HEAD services ref on its distinct explicit-443 Git identity"
   patch="$(yq -r '.spec.templatePatch' "${f}")"
   { echo "${patch}" | grep -q 'ne .repository "canary.carbon"' && echo "${patch}" | grep -q 'automated'; } ||
     fail "platforms AppSet must disable auto-sync for canary via templatePatch"
-  echo "  platforms AppSet: scmProvider *.carbon + 3-source + machinery-stable/main split + canary manual-sync ✓"
+  echo "  platforms AppSet: scmProvider *.carbon + 3-source + distinct HEAD roster identity + machinery-stable/main split + canary manual-sync ✓"
   ;;
 golden-mutation | golden-mutations)
   # Behavioural mutation sensitivity. Starting from the canary baseline render,

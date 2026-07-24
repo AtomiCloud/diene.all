@@ -146,6 +146,7 @@ forbidden=(
   scripts/ci/helm-wrapper.sh
   scripts/ci/publish.sh
   scripts/ci/release.sh
+  scripts/ci/setup.sh
   scripts/validate/helm-wrapper.sh
   scripts/validate/helm-wrapper-k3d.sh
   scripts/local/create-k3d-cluster.sh
@@ -153,6 +154,8 @@ forbidden=(
   scripts/local/vendor-chart-config.sh
   scripts/local/generate-chart-schema.sh
   scripts/local/latest-chart-upstreams.sh
+  scripts/local/secrets.sh
+  scripts/local/skills-sync.sh
   docs/developer/helm-wrapper-baseline.md
   .github/workflows/⚡reusable-helm.yaml
   .github/workflows/⚡reusable-helm-wrapper.yaml
@@ -192,10 +195,18 @@ if [ "${self_test}" -eq 1 ]; then
     schemas/platform.json
     schemas/warehouse.json
     scripts/ci/fleet.sh
+    scripts/ci/fleet-sit.sh
     scripts/ci/pre-commit.sh
     scripts/validate/fleet.sh
     scripts/validate/fleet-rows.sh
     scripts/validate/fleet-row-expansion.ts
+    scripts/validate/fleet-sit/assert.sh
+    scripts/validate/fleet-sit/derive-appset.sh
+    scripts/validate/fleet-sit/git-server.ts
+    scripts/validate/fleet-sit/github-webhook.ts
+    scripts/validate/fleet-sit/pins.env
+    scripts/validate/fleet-sit/fixtures/sitother-row.yaml
+    scripts/validate/fleet-sit/fixtures/sitother.services.yaml
     scripts/validate/registry-guard.sh
     scripts/validate/action-pins.sh
     scripts/validate/cache-tags.sh
@@ -264,6 +275,23 @@ if [ "${self_test}" -eq 1 ]; then
   git -C "${scratch}" cat-file -e HEAD || { echo "❌ target git history was clobbered" >&2 && fail=1; }
   if find "${scratch}" -path "${scratch}/.git" -prune -o -type f -name features.json -print | grep -q .; then
     echo "❌ features.json leaked into the materialized product" >&2
+    fail=1
+  fi
+
+  # A pre-populated receiver must be rejected even when rsync correctly leaves
+  # excluded files untouched. This proves the retained-target half of the S30
+  # boundary rather than only checking that forbidden source files were not
+  # copied into an initially empty checkout.
+  contaminated="${scratch}/contaminated-target"
+  mkdir -p "${contaminated}/probes"
+  git -C "${contaminated}" init -q
+  git -C "${contaminated}" config user.email materialize@fleet.local
+  git -C "${contaminated}" config user.name materialize-selftest
+  : >"${contaminated}/probes/stale"
+  git -C "${contaminated}" add -A
+  git -C "${contaminated}" commit -qm seed
+  if "${BASH_SOURCE[0]}" --check "${contaminated}" >/dev/null 2>&1; then
+    echo "❌ pre-existing probes tree was accepted in the target" >&2
     fail=1
   fi
 

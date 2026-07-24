@@ -13,7 +13,11 @@
 #             exception, pinned to `main` so it renders every compiler-chart
 #             commit first (its golden render + smoke test).
 #   source B  the carbon repo's platform.yaml   (ref: carbon → $carbon)
-#   source C  fleet's platforms/<p>/services.yaml (ref: services → $services)
+#   source C  fleet's platforms/<p>/services.yaml (ref: services → $services),
+#             read from HEAD through an explicit :443 URL identity. Argo rejects
+#             two revisions of one normalized repo URL; the distinct, valid
+#             GitHub URL keeps materializer-written rosters live while source A
+#             remains release-pinned.
 #
 # Canary runs with AUTO-SYNC DISABLED (see templatePatch): every compiler-chart
 # merge to main surfaces as a human-reviewed Argo out-of-sync render diff — the
@@ -66,7 +70,12 @@ spec:
           targetRevision: HEAD
           ref: carbon
         # source C — fleet's machine-written services.yaml roster.
-        - repoURL: https://github.com/AtomiCloud/fleet
+        # The explicit default port is intentional. Argo CD v3.4.5 preserves it
+        # when normalizing repository identities, so this public GitHub checkout
+        # may stay on HEAD while source A uses main/machinery-stable. The live
+        # SIT fails if an Argo upgrade collapses the identities or GitHub stops
+        # serving this valid URL.
+        - repoURL: https://github.com:443/AtomiCloud/fleet
           targetRevision: HEAD
           ref: services
       syncPolicy:

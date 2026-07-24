@@ -93,7 +93,13 @@ A three-source ArgoCD Application renders one platform's control plane:
   `machinery-stable` git tag (canary: `main`).
 - **source B** — the carbon repo's `platform.yaml` (`ref: carbon` → `$carbon`).
 - **source C** — fleet's `platforms/<p>/services.yaml` (`ref: services` →
-  `$services`).
+  `$services`) at `HEAD`. Its URL deliberately spells the public repository as
+  `https://github.com:443/AtomiCloud/fleet`: Argo CD rejects two revisions of
+  one normalized repository identity, while the explicit default port remains
+  a valid GitHub URL and a distinct identity in pinned Argo CD v3.4.5. This
+  keeps materializer-written rosters visible immediately without unpinning the
+  compiler chart. The live SIT proves both checkouts and will fail if an Argo
+  upgrade changes normalization behavior.
 
 It renders → the `Platform` CR → per-service Kargo `Project`/`Warehouse`/`Stage`
 → the platform's own AppSet with two generators:
@@ -324,7 +330,7 @@ Golden renders are committed at `registry/charts/diene-platform/tests/golden/`
 (`canary.prod.yaml`) and diffed by
 `scripts/validate/fleet.sh golden`.
 
-## Testing and deferred proofs
+## Testing and proof tiers
 
 `scripts/ci/fleet.sh` runs the local/static tier: chart lint; deliberate closed
 source-B/source-C values-schema positives and targeted negatives; schema drift;
@@ -336,22 +342,43 @@ the `values:` >7d guardrail; registry/rendered CR validation (including
 CloudflareDeploy rollout and Warehouse); rollout and WebhookEngine negatives;
 AppSet scope; platforms AppSet; registry guard policy; and presence.
 
-**Deferred to a serialized live proof window (reserved for orchestration
-authorization)** — every long proof here is LIVE, not a quiet-host static run:
+`scripts/ci/fleet-sit.sh` is the serialized live-local SIT tier. It creates a
+throwaway k3d cluster, installs checksum-pinned Argo CD v3.4.5, derives Argo
+cluster Secrets from the checked-in registry records, and exercises the real
+ApplicationSet and Application controllers. Run it from the repository root:
 
-- Fleet-owned ArgoCD machinery-tag/webhook refresh and Kargo row-promotion
-  traces use the exact bounded harnesses named in the proof-ready handoff.
-- machinery-stable / canary split, and webhook-driven refresh, against a live
-  ArgoCD instance.
-- registry-guard real behaviour + bot-tooling scope, against a public sandbox
-  repo (periodic, not per-PR — GitHub authorization is best proven against a
-  real repo).
+```sh
+nix develop .#ci -c ./scripts/ci/fleet-sit.sh
+```
+
+The structured result is `sit-report/sit-report.json`, with raw snapshots and
+HTTP evidence beside it. Full mode refuses a dirty worktree before creating
+the report and requires the recorded starting HEAD to remain unchanged and
+clean before it can mark the report passed. Its bounded legs prove signed webhook refresh,
+wrong/missing-signature rejection while polling is suppressed, polling-only
+fallback after clocks are re-enabled, row-edit scoping with no cross-row bleed,
+and the `main`/`machinery-stable` canary-manual/non-canary-automated split.
+
+The SIT reports three residuals rather than overstating them:
+
+- Real GitHub SCM-provider repository listing is replaced by a local list
+  generator; the derivation is reverse-diff-asserted against the committed
+  SCM-provider ApplicationSet so no other production behavior can drift.
+- OCI workload synchronization is not exercised; the live proof asserts the
+  generated Application specs and controller refresh behavior.
+- The seven-landscape canary manual DAG sync is not exercised while landscape
+  topology remains user-gated. No placeholder topology is synthesized.
+
+Registry-guard real behavior and bot-tooling scope remain a periodic live e2e
+against the public product repo (`.github/workflows/registry-guard-e2e.yaml`),
+not a per-PR test; GitHub authorization is best proven against the real repo.
 
 The new-platform-registration, materializer stub/roster sync, and
 `OrphanedSource` deletion journeys are **dependency-operator/platform-controller
 owned**. They are referenced for system completeness but are not claimed as
-runnable fleet-core proof. Canary manual-sync and human render-diff acceptance
-are site-review/HOLD resources, not automated fleet-core evidence.
+runnable fleet-core proof. Human acceptance of the canary render diff remains a
+site-review resource; the SIT proves that the canary stays manual and surfaces
+the diff, not that a human accepted it.
 
 Also deferred (ENV/site-review boundary held): ENTEI/exposure-materializer,
 fork-reaper, vcluster provisioning, Garden profiles, public-callback exposure,
