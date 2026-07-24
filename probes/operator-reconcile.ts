@@ -18,6 +18,7 @@ export default {
       name: 'mutation-operator-reconcile-caught',
       description: 'Bypassing the owned-resource apply must leave the Note un-converged (red).',
       kind: 'mutation',
+      expectedImpact: ['sample-domain-journey'],
       async run(repo: any) {
         await repo.patch('adapters/operator/controllers/note_controller.go', {
           find: 'for _, u := range dec.Upserts {',
