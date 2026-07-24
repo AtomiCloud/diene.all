@@ -156,10 +156,14 @@ fullname)
   ' >/dev/null
   ;;
 task-surface)
-  task --list-all | rg -q 'lapras:k3d:debug'
-  task --list-all | rg -q 'lapras:k3d:template'
-  task --list-all | rg -q 'lapras:k3d:install'
-  task --list-all | rg -q 'lapras:k3d:remove'
+  # Capture the task list once, then match against the buffer. Piping
+  # `task --list-all | rg -q` races a SIGPIPE (exit 141) under `pipefail`:
+  # `rg -q` closes the pipe on the first match while `task` is still writing.
+  task_surface="$(task --list-all)"
+  rg -q 'lapras:k3d:debug' <<<"${task_surface}"
+  rg -q 'lapras:k3d:template' <<<"${task_surface}"
+  rg -q 'lapras:k3d:install' <<<"${task_surface}"
+  rg -q 'lapras:k3d:remove' <<<"${task_surface}"
   ;;
 sit-handoff)
   bash -n ./scripts/validate/xenon-sit.sh
