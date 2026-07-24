@@ -542,6 +542,7 @@ check_sitother_recreated_without_operation() {
   kubectl -n argocd get application.argoproj.io platform-sitother -o json |
     jq -e --arg oldUid "${old_uid}" '
       .metadata.uid != $oldUid and
+      any(.metadata.ownerReferences[]?; .kind == "ApplicationSet" and .name == "platforms") and
       .spec.syncPolicy.automated.prune == true and
       .spec.syncPolicy.automated.selfHeal == true and
       .operation == null and
