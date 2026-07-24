@@ -36,7 +36,7 @@ spec:
           command: ["npm", "run", "cli", "db", "seed", "--", "--swe", "--dapc"]
           env:
             {{- include "lithium.databaseEnv" . | nindent 12 }}
-          volumeMounts: [{name: database-bootstrap-runtime, mountPath: /etc/logto/packages/cli/alteration-scripts}]
+          volumeMounts: [{name: alteration-scripts-runtime, mountPath: /etc/logto/packages/cli/alteration-scripts}]
           securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, capabilities: {drop: [ALL]}}
       containers:
         - name: logto
@@ -49,6 +49,7 @@ spec:
             - name: LOGTO_ENDPOINT
               value: {{ include "lithium.issuer" . | quote }}
             {{- include "lithium.secretEnv" . | nindent 12 }}
+          volumeMounts: [{name: alteration-scripts-runtime, mountPath: /etc/logto/packages/cli/alteration-scripts}]
           livenessProbe: {httpGet: {path: /, port: management}}
           readinessProbe: {httpGet: {path: /, port: management}}
           securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, capabilities: {drop: [ALL]}}
@@ -64,8 +65,9 @@ spec:
           securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, runAsNonRoot: true, capabilities: {drop: [ALL]}}
         {{- end }}
       volumes:
-        # Logto's database CLI materializes generated alteration scripts here.
-        - name: database-bootstrap-runtime
+        # Both the database CLI and core's startup precondition rewrite generated
+        # alteration scripts here; fsGroup makes this emptyDir writable by 10001.
+        - name: alteration-scripts-runtime
           emptyDir: {}
         {{- if eq .Values.distributionMode "GARDEN-LOCAL" }}
         - name: public-filter

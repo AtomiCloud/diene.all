@@ -175,7 +175,9 @@ if [ "${mode}" = all ] || [ "${mode}" = negative ]; then
   rg -q 'runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001' "${tmp}/gate.yaml"
   rg -Fq 'command: ["npm", "run", "cli", "db", "seed", "--", "--swe", "--dapc"]' "${tmp}/gate.yaml"
   yq -e 'select(.kind == "Deployment") | .spec.template.spec.initContainers[] | select(.name == "database-bootstrap") | select((.env | length) == 1) | select(.env[0].name == "DB_URL")' "${tmp}/gate.yaml" >/dev/null
-  yq -e 'select(.kind == "Deployment") | .spec.template.spec.initContainers[] | select(.name == "database-bootstrap") | .volumeMounts[] | select(.mountPath == "/etc/logto/packages/cli/alteration-scripts")' "${tmp}/gate.yaml" >/dev/null
+  yq -e 'select(.kind == "Deployment") | .spec.template.spec.initContainers[] | select(.name == "database-bootstrap") | .volumeMounts[] | select(.name == "alteration-scripts-runtime" and .mountPath == "/etc/logto/packages/cli/alteration-scripts")' "${tmp}/gate.yaml" >/dev/null
+  yq -e 'select(.kind == "Deployment") | .spec.template.spec.containers[] | select(.name == "logto") | .volumeMounts[] | select(.name == "alteration-scripts-runtime" and .mountPath == "/etc/logto/packages/cli/alteration-scripts" and .readOnly != true)' "${tmp}/gate.yaml" >/dev/null
+  yq -e 'select(.kind == "Deployment") | .spec.template.spec.volumes[] | select(.name == "alteration-scripts-runtime" and has("emptyDir"))' "${tmp}/gate.yaml" >/dev/null
 fi
 
 if [ "${mode}" = all ] || [ "${mode}" = labels ]; then

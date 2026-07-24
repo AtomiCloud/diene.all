@@ -54,9 +54,12 @@ Before the core container starts, a separate sequential `database-bootstrap` ini
 container runs the same Aldehyde image's `npm run cli db seed -- --swe --dapc`
 command with only `DB_URL`. `--swe` makes the operation safe for an existing
 schema; `--dapc` disables the seeded admin password breach call for the air-gapped
-platform path. Its dedicated `emptyDir` supplies the CLI's generated alteration
-scripts directory under `/etc/logto`; it is schema initialization, not a credential
-check.
+platform path. A shared `emptyDir` supplies the generated alteration scripts
+directory at `/etc/logto/packages/cli/alteration-scripts` to both the bootstrap
+and long-running core containers. Upstream's startup precondition deletes and
+recreates those files on every boot, so the pod's `fsGroup: 10001` must keep that
+mount writable for the non-root image. Bootstrap remains schema initialization,
+not a credential check.
 Upstream Logto `1.41.0` exposes 3001 and starts as `npm run start` from
 `/etc/logto`, but declares no image `USER`. Felix must therefore package the
 Aldehyde fork with numeric `USER 10001`; the chart enforces that same explicit
