@@ -67,9 +67,11 @@ with packages;
 
   # ### workspace-releaser-bootstrap
   # #### source: workspace
-  # C2: sg is retained only until tools/releaser is published at step 2p.
+  # C2: this bootstrap command is retained until tools/releaser is published at
+  # step 2p. Pin node/npm so sg uses the deterministic npm release runtime.
   releaser = [
-    sg
+    nodejs
+    releaser
   ];
 
   # ### nix-root-system

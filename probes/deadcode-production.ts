@@ -17,6 +17,7 @@ export default {
       name: 'mutation-deadcode-production-caught',
       description: 'A symbol reachable only from a test must turn the production pass red.',
       kind: 'mutation',
+      expectedImpact: ['go-lib-export-docs'],
       async run(repo: any) {
         await plantProductionOnlySymbol(repo);
         await expectRed(repo, 'nix develop .#ci -c ./scripts/local/deadcode.sh production', 'deadcode-production');

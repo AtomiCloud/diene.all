@@ -7,7 +7,7 @@ module="$(yq -r '.module' .config/go-lib.yaml)"
 proxy_module="$(yq -r '.proxyModule' .config/go-lib.yaml)"
 fixture="tests/fixtures/api-baseline"
 tmp="$(mktemp -d)"
-trap 'rm -rf "${tmp}"' EXIT
+trap 'chmod -R u+w "${tmp}" 2>/dev/null || true; rm -rf "${tmp}"' EXIT
 
 proxy="${tmp}/proxy"
 source="${tmp}/${module}@${baseline}"
@@ -20,8 +20,8 @@ printf '%s\n' "${baseline}" >"${version_dir}/list"
 printf '{"Version":"%s","Time":"2026-01-01T00:00:00Z"}\n' "${baseline}" >"${version_dir}/${baseline}.info"
 cp "${source}/go.mod" "${version_dir}/${baseline}.mod"
 (cd "${tmp}" && zip -q -r "${version_dir}/${baseline}.zip" "${module}@${baseline}")
-tar --exclude=.git --exclude=.direnv --exclude=coverage --exclude=dist --exclude=reports -cf - . | tar -C "${release}" -xf -
+tar --exclude=.git --exclude=.github --exclude=.direnv --exclude=coverage --exclude=dist --exclude=reports --exclude=tests -cf - . | tar -C "${release}" -xf -
 
-(cd "${release}" && GOPROXY="file://${proxy},https://proxy.golang.org" GOSUMDB=off gorelease -base="${baseline}" -version="${candidate}")
+(cd "${release}" && GOPATH="${tmp}/gopath" GOMODCACHE="${tmp}/modcache" GOCACHE="${tmp}/gocache" GOPROXY="file://${proxy},https://proxy.golang.org" GOSUMDB=off GONOPROXY='' GONOSUMDB='' gorelease -base="${baseline}" -version="${candidate}")
 
 echo "✅ Go public API is compatible with ${baseline}"

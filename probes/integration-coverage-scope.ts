@@ -21,6 +21,7 @@ export default {
       name: 'mutation-integration-coverage-caught',
       description: 'An uncovered adapter function must turn the integration ledger red.',
       kind: 'mutation',
+      expectedImpact: ['deadcode-whole-repo', 'deadcode-production', 'go-lib-export-docs'],
       async run(repo: any) {
         await plantGoFile(repo, 'adapters/**/*.go', 'probe_uncovered.go', 'func ProbeUncovered() int { return 1 }');
         await expectRed(
