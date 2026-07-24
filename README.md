@@ -53,15 +53,14 @@ Domain-specific documentation belongs under [docs/domain/](docs/domain/README.md
 The `docs/standards/contracts/` location is reserved for the separately owned C0
 contracts standard.
 
-<!-- ### helm-wrapper -->
-<!-- #### source: helm-wrapper -->
+<!-- ### zinc -->
+<!-- #### source: zinc -->
 
-## Helm wrapper sample
+## Zinc chart
 
-This branch adds the production-grade wrapper chart, stacked values, generated schema, rendered-manifest validation, k3d proof, and dual publish modes.
+This branch materializes the pure own-resources cert-manager issuer chart — the Let's Encrypt ACME DNS-01 (Cloudflare) `ClusterIssuer` set plus the Cloudflare-token `ExternalSecret` — with its stacked values, generated schema, LE-directory map, issuer-cardinality / ENTEI / no-Certificate gates, rendered-manifest validation, and k3d integration proof.
 
-- `pls build` — vendor external config and build pinned chart dependencies.
-- `pls test:unit` — run schema, lint, render, contracts, VAP, and publish dry-runs.
-- `pls test:int` — install on ephemeral k3d and round-trip the chart through a local OCI registry.
-- `pls example:lapras:template` — render the independent landscape + cluster stack.
-- [Helm wrapper baseline](docs/developer/helm-wrapper-baseline.md)
+- `pls test:unit` — run schema, lint, render, labels, LE-directory map, issuer cardinality, ENTEI overlay, no-Certificate, VAP, and publish dry-runs.
+- `pls test:int` — install on ephemeral k3d (with cert-manager + external-secrets CRDs) and assert the ClusterIssuers apply.
+- `pls example:lapras:template` — render the lapras landscape overlay.
+- [Zinc baseline](docs/developer/zinc-baseline.md)

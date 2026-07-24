@@ -1,0 +1,7 @@
+# pichu landscape overlay. LE STAGING directory (Q-I33) for rate-limit protection.
+serviceTree:
+  landscape: pichu
+issuer:
+  refs:
+    - name: zinc-letsencrypt
+      directory: staging

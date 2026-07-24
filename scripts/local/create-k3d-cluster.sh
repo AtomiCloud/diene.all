@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cluster_name="${K3D_CLUSTER_NAME:-diene-helm-wrapper}"
-registry_name="${K3D_REGISTRY_NAME:-diene-wrapper-registry}"
+cluster_name="${K3D_CLUSTER_NAME:-diene-zinc}"
+registry_name="${K3D_REGISTRY_NAME:-diene-zinc-registry}"
 registry_port="${K3D_REGISTRY_PORT:-5001}"
 http_port="${K3D_HTTP_PORT:-18080}"
 
