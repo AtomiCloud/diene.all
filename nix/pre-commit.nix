@@ -215,22 +215,22 @@ pre-commit-lib.run {
       language = "system";
     };
 
-    # ### helm-wrapper-hooks
-    # #### source: helm-wrapper
-    a-wrapper-helm-docs = {
+    # ### aluminium-hooks
+    # #### source: aluminium
+    a-aluminium-helm-docs = {
       enable = true;
-      name = "Helm wrapper docs";
+      name = "Aluminium Helm docs";
       entry = "${packages.infralint}/bin/helm-docs --chart-search-root chart";
       files = "^chart/.*";
       pass_filenames = false;
       language = "system";
     };
 
-    a-wrapper-helm-lint = {
+    a-aluminium-helm-lint = {
       enable = true;
-      name = "Helm wrapper lint";
-      entry = validator "scripts/validate/helm-wrapper.sh lint";
-      files = "^(chart/.*|config/.*|scripts/(local|validate)/.*)$";
+      name = "Aluminium Helm lint";
+      entry = validator "scripts/validate/aluminium.sh lint";
+      files = "^(chart/.*|scripts/(local|validate)/.*)$";
       pass_filenames = false;
       language = "system";
     };

@@ -1,6 +1,7 @@
-# Independent landscape overlay example.
-serviceTree:
-  landscape: example
-
-primordial:
-  targetLandscape: example
+# ### aluminium-example
+# #### source: aluminium
+# example landscape overlay — local/Garden tier-1 emulated stack endpoints.
+# Destinations stay OTLP/HTTP (Q-I28); only the cluster identity changes here.
+upstream:
+  cluster:
+    name: example

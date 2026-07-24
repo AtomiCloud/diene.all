@@ -1,5 +1,5 @@
-# ### helm-wrapper-reusable-publish
-# #### source: helm-wrapper
+# ### aluminium-reusable-publish
+# #### source: aluminium
 name: ⚡ Reusable Chart Publish
 
 on:

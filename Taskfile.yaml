@@ -8,8 +8,8 @@ includes:
   example:lapras:
     taskfile: tasks/Taskfile.cluster.yaml
     vars:
-      RELEASE_NAME: helm-wrapper
-      NAMESPACE: sample
+      RELEASE_NAME: aluminium
+      NAMESPACE: telemetry
       LANDSCAPE: example
       CLUSTER: lapras
 
@@ -30,9 +30,8 @@ tasks:
       - ./scripts/local/skills-sync.sh
 
   build:
-    desc: Vendor config and build chart dependencies
+    desc: Build chart dependencies
     cmds:
-      - ./scripts/local/vendor-chart-config.sh
       - helm dependency build chart
 
   update:
@@ -46,19 +45,19 @@ tasks:
       - ./scripts/local/latest-chart-upstreams.sh
 
   test:
-    desc: Run the Helm wrapper unit/static tier
+    desc: Run the aluminium unit/static tier
     cmds:
-      - ./scripts/ci/helm-wrapper.sh
+      - ./scripts/ci/aluminium.sh
 
   test:unit:
     desc: Run schema, lint, render, policy, and contract validation
     cmds:
-      - ./scripts/ci/helm-wrapper.sh
+      - ./scripts/ci/aluminium.sh
 
   test:int:
-    desc: Run the local k3d installation proof
+    desc: Run the local k3d installation proof (serialized)
     cmds:
-      - ./scripts/validate/helm-wrapper-k3d.sh
+      - K3D_ISOLATE_BY_PATH=true ./scripts/validate/aluminium-k3d.sh
 
   start:cluster:
     desc: Start the local k3d lapras proof cluster
