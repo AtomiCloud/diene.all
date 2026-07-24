@@ -1,0 +1,23 @@
+# Machine-checkable upstream selection evidence.
+observedAtUtc: '2026-07-19T10:44:00Z'
+chart:
+  repository: https://kubernetes-sigs.github.io/metrics-server
+  index: https://kubernetes-sigs.github.io/metrics-server/index.yaml
+  version: 3.13.1
+  appVersion: 0.8.1
+  sourceArchiveSha256: 084e6edb680cf4e2acc30bd496568c53fdf663cbacf6e17876b25785c35b7a13
+  patchedArchiveSha256: 864e39a3fab0016022233edda5ce2ef0c06ec336a060a24f6be932a04a1c307e
+  patch: chart/patches/metrics-server-3.13.1-xenon.patch
+image:
+  repository: registry.k8s.io/metrics-server/metrics-server
+  selectedTag: v0.8.1
+  observedLatestTag: v0.9.0
+  observedLatestRelease: https://github.com/kubernetes-sigs/metrics-server/releases/tag/v0.9.0
+compatibility:
+  source: https://github.com/kubernetes-sigs/metrics-server/blob/v0.9.0/README.md#compatibility-matrix
+  selectedKubernetesFloor: '1.31'
+  observedLatestKubernetesFloor: '1.34'
+  decision: >-
+    The official chart repository still selects app 0.8.1. Image v0.9.0 has no
+    released Helm chart and requires Kubernetes 1.34+, so chart 3.13.1/app 0.8.1
+    is the newest released chart contract and the wrapper floor is raised to 1.31.

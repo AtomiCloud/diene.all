@@ -1,0 +1,244 @@
+--- a/templates/_helpers.tpl
++++ b/templates/_helpers.tpl
+@@ -36,6 +36,7 @@ Common labels
+ {{- define "metrics-server.labels" -}}
+ helm.sh/chart: {{ include "metrics-server.chart" . }}
+ {{ include "metrics-server.selectorLabels" . }}
++{{ include "metrics-server.xenon.serviceTreeLabels" . }}
+ {{- if .Chart.AppVersion }}
+ app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+ {{- end }}
+@@ -43,8 +44,51 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
+ {{- if .Values.commonLabels }}
+ {{ toYaml .Values.commonLabels }}
+ {{- end }}
+-{{- end }}
+-
++{{- end }}
++
++{{/*
++Render the wrapper-owned service-tree identity in the dependency context. Global
++values are Helm's supported parent-to-subchart contract; platform is always the
++release namespace and can never be supplied independently.
++*/}}
++{{- define "metrics-server.xenon.serviceTreeLabels" -}}
++{{- $prefix := required "global.labelPrefix is required" .Values.global.labelPrefix | trimSuffix "/" -}}
++{{- $serviceTree := required "global.serviceTree is required" .Values.global.serviceTree -}}
++{{- $service := required "global.serviceTree.service is required" $serviceTree.service -}}
++{{- $module := required "global.serviceTree.module is required" $serviceTree.module -}}
++{{- $layer := required "global.serviceTree.layer is required" $serviceTree.layer -}}
++{{ printf "%s/platform" $prefix }}: {{ .Release.Namespace | quote }}
++{{ printf "%s/service" $prefix }}: {{ $service | quote }}
++{{ printf "%s/module" $prefix }}: {{ $module | quote }}
++{{ printf "%s/layer" $prefix }}: {{ $layer | quote }}
++{{- with $serviceTree.landscape }}
++{{ printf "%s/landscape" $prefix }}: {{ . | quote }}
++{{- end }}
++{{- with $serviceTree.cluster }}
++{{ printf "%s/cluster" $prefix }}: {{ . | quote }}
++{{- end }}
++{{- end }}
++
++{{/* Service-tree annotations use the same single prefix and namespace identity. */}}
++{{- define "metrics-server.xenon.serviceTreeAnnotations" -}}
++{{- include "metrics-server.xenon.serviceTreeLabels" . -}}
++{{- end }}
++
++{{/* Build an exactly-one-dash resource name from the wrapper service + token. */}}
++{{- define "metrics-server.xenon.resourceName" -}}
++{{- $serviceTree := required "global.serviceTree is required" .root.Values.global.serviceTree -}}
++{{- $service := required "global.serviceTree.service is required" $serviceTree.service | lower -}}
++{{- $token := required "resource token is required" .token | lower -}}
++{{- $token = regexReplaceAll "[^a-z0-9]+" $token "" -}}
++{{- if not (regexMatch "^[a-z0-9]+$" $service) -}}
++{{- fail (printf "service %q must be dash-less lowercase alphanumeric" $service) -}}
++{{- end -}}
++{{- if not (regexMatch "^[a-z0-9]+$" $token) -}}
++{{- fail (printf "token %q must normalize to a dash-less lowercase token" .token) -}}
++{{- end -}}
++{{- printf "%s-%s" $service $token -}}
++{{- end }}
++
+ {{/*
+ Selector labels
+ */}}
+@@ -84,3 +128,3 @@ ConfigMap name of addon resizer
+ {{- define "metrics-server.addonResizer.configMap" -}}
+-{{- printf "%s-%s" (include "metrics-server.fullname" .) "nanny-config" }}
++{{- include "metrics-server.xenon.resourceName" (dict "root" . "token" "nannyconfig") }}
+ {{- end }}
+@@ -91,3 +135,3 @@ Role name of addon resizer
+ {{- define "metrics-server.addonResizer.role" -}}
+-{{ printf "system:%s-nanny" (include "metrics-server.fullname" .) }}
++{{- include "metrics-server.xenon.resourceName" (dict "root" . "token" "nannyrole") }}
+ {{- end }}
+--- a/templates/certificate.yaml
++++ b/templates/certificate.yaml
+@@ -5,7 +5,7 @@ kind: Issuer
+ metadata:
+   annotations:
+     {{- toYaml .Values.additionalAnnotations | nindent 4 }}
+-  name: {{ include "metrics-server.fullname" . }}-issuer
++  name: {{ include "metrics-server.xenon.resourceName" (dict "root" . "token" "issuer") }}
+   namespace: {{ .Release.Namespace }}
+ spec:
+   selfSigned: {}
+@@ -40,7 +40,7 @@ spec:
+     name: {{ .Values.tls.certManager.existingIssuer.name }}
+     kind: {{ .Values.tls.certManager.existingIssuer.kind }}
+     {{- else }}
+-    name: {{ include "metrics-server.fullname" . }}-issuer
++    name: {{ include "metrics-server.xenon.resourceName" (dict "root" . "token" "issuer") }}
+     kind: Issuer
+     {{- end }}
+     group: cert-manager.io
+--- a/templates/clusterrole-aggregated-reader.yaml
++++ b/templates/clusterrole-aggregated-reader.yaml
+@@ -2,7 +2,7 @@
+ apiVersion: rbac.authorization.k8s.io/v1
+ kind: ClusterRole
+ metadata:
+-  name: {{ printf "system:%s-aggregated-reader" (include "metrics-server.name" .) }}
++  name: {{ include "metrics-server.xenon.resourceName" (dict "root" . "token" "reader") }}
+   labels:
+     {{- include "metrics-server.labels" . | nindent 4 }}
+     rbac.authorization.k8s.io/aggregate-to-admin: "true"
+--- a/templates/clusterrole-nanny.yaml
++++ b/templates/clusterrole-nanny.yaml
+@@ -2,7 +2,7 @@
+ apiVersion: rbac.authorization.k8s.io/v1
+ kind: ClusterRole
+ metadata:
+-  name: {{ printf "system:%s-nanny" (include "metrics-server.fullname" .) }}
++  name: {{ include "metrics-server.addonResizer.role" . }}
+   labels:
+     {{- include "metrics-server.labels" . | nindent 4 }}
+ rules:
+--- a/templates/clusterrole.yaml
++++ b/templates/clusterrole.yaml
+@@ -2,7 +2,7 @@
+ apiVersion: rbac.authorization.k8s.io/v1
+ kind: ClusterRole
+ metadata:
+-  name: {{ printf "system:%s" (include "metrics-server.fullname" .) }}
++  name: {{ include "metrics-server.fullname" . }}
+   labels:
+     {{- include "metrics-server.labels" . | nindent 4 }}
+ rules:
+@@ -30,7 +30,7 @@ rules:
+     resources:
+       - podsecuritypolicies
+     resourceNames:
+-      - {{ printf "privileged-%s" (include "metrics-server.fullname" .) }}
++      - {{ include "metrics-server.xenon.resourceName" (dict "root" . "token" "psp") }}
+     verbs:
+       - use
+   {{- end -}}
+--- a/templates/clusterrolebinding-auth-delegator.yaml
++++ b/templates/clusterrolebinding-auth-delegator.yaml
+@@ -2,7 +2,7 @@
+ apiVersion: rbac.authorization.k8s.io/v1
+ kind: ClusterRoleBinding
+ metadata:
+-  name: {{ printf "%s:system:auth-delegator" (include "metrics-server.fullname" .) }}
++  name: {{ include "metrics-server.xenon.resourceName" (dict "root" . "token" "authdelegator") }}
+   labels:
+     {{- include "metrics-server.labels" . | nindent 4 }}
+ roleRef:
+--- a/templates/clusterrolebinding-nanny.yaml
++++ b/templates/clusterrolebinding-nanny.yaml
+@@ -3,13 +3,13 @@
+ apiVersion: rbac.authorization.k8s.io/v1
+ kind: ClusterRoleBinding
+ metadata:
+-  name: {{ printf "system:%s-nanny" (include "metrics-server.fullname" .) }}
++  name: {{ include "metrics-server.xenon.resourceName" (dict "root" . "token" "nannybinding") }}
+   labels:
+     {{- include "metrics-server.labels" . | nindent 4 }}
+ roleRef:
+   apiGroup: rbac.authorization.k8s.io
+   kind: ClusterRole
+-  name: system:{{ template "metrics-server.fullname" . }}-nanny
++  name: {{ include "metrics-server.addonResizer.role" . }}
+ subjects:
+   - kind: ServiceAccount
+     name: {{ include "metrics-server.serviceAccountName" . }}
+--- a/templates/clusterrolebinding.yaml
++++ b/templates/clusterrolebinding.yaml
+@@ -2,13 +2,13 @@
+ apiVersion: rbac.authorization.k8s.io/v1
+ kind: ClusterRoleBinding
+ metadata:
+-  name: {{ printf "system:%s" (include "metrics-server.fullname" .) }}
++  name: {{ include "metrics-server.fullname" . }}
+   labels:
+     {{- include "metrics-server.labels" . | nindent 4 }}
+ roleRef:
+   apiGroup: rbac.authorization.k8s.io
+   kind: ClusterRole
+-  name: system:{{ template "metrics-server.fullname" . }}
++  name: {{ template "metrics-server.fullname" . }}
+ subjects:
+   - kind: ServiceAccount
+     name: {{ include "metrics-server.serviceAccountName" . }}
+--- a/templates/deployment.yaml
++++ b/templates/deployment.yaml
+@@ -5,8 +5,9 @@ metadata:
+   namespace: {{ .Release.Namespace }}
+   labels:
+     {{- include "metrics-server.labels" . | nindent 4 }}
+-  {{- with .Values.deploymentAnnotations }}
+   annotations:
++    {{- include "metrics-server.xenon.serviceTreeAnnotations" . | nindent 4 }}
++  {{- with .Values.deploymentAnnotations }}
+     {{- toYaml . | nindent 4 }}
+   {{- end }}
+ spec:
+@@ -25,11 +26,13 @@ spec:
+     metadata:
+       labels:
+         {{- include "metrics-server.selectorLabels" . | nindent 8 }}
++        {{- include "metrics-server.xenon.serviceTreeLabels" . | nindent 8 }}
+       {{- with .Values.podLabels }}
+         {{- toYaml . | nindent 8 }}
+       {{- end }}
+-      {{- with .Values.podAnnotations }}
+       annotations:
++        {{- include "metrics-server.xenon.serviceTreeAnnotations" . | nindent 8 }}
++      {{- with .Values.podAnnotations }}
+         {{- toYaml . | nindent 8 }}
+       {{- end }}
+     spec:
+--- a/templates/psp.yaml
++++ b/templates/psp.yaml
+@@ -2,7 +2,7 @@
+ apiVersion: policy/v1beta1
+ kind: PodSecurityPolicy
+ metadata:
+-  name: {{ printf "privileged-%s" (include "metrics-server.fullname" .) }}
++  name: {{ include "metrics-server.xenon.resourceName" (dict "root" . "token" "psp") }}
+   labels:
+     {{- include "metrics-server.labels" . | nindent 4 }}
+ spec:
+--- a/templates/rolebinding-nanny.yaml
++++ b/templates/rolebinding-nanny.yaml
+@@ -3,7 +3,7 @@
+ apiVersion: rbac.authorization.k8s.io/v1
+ kind: RoleBinding
+ metadata:
+-  name: {{ printf "%s-nanny" (include "metrics-server.fullname" .)  }}
++  name: {{ include "metrics-server.xenon.resourceName" (dict "root" . "token" "nannybinding") }}
+   namespace: {{ .Release.Namespace }}
+   labels:
+     {{- include "metrics-server.labels" . | nindent 4 }}
+--- a/templates/rolebinding.yaml
++++ b/templates/rolebinding.yaml
+@@ -2,7 +2,7 @@
+ apiVersion: rbac.authorization.k8s.io/v1
+ kind: RoleBinding
+ metadata:
+-  name: {{ printf "%s-auth-reader" (include "metrics-server.fullname" .)  }}
++  name: {{ include "metrics-server.xenon.resourceName" (dict "root" . "token" "authreader") }}
+   namespace: kube-system
+   labels:
+     {{- include "metrics-server.labels" . | nindent 4 }}

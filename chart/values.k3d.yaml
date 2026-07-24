@@ -1,0 +1,5 @@
+# Independent cluster overlay for the local k3d substrate. The paired lapras
+# landscape overlay owns the OFF toggle; this thin overlay contributes identity.
+global:
+  serviceTree:
+    cluster: k3d

@@ -1,228 +1,63 @@
-# @schema pattern:^[a-z0-9.-]+$;minLength:1
-# -- Prefix used by every service-tree label and annotation helper.
-labelPrefix: atomi.cloud
+# -- Values shared with the vendored metrics-server dependency through Helm's
+# supported parent-to-subchart global-values contract.
+global:
+  # @schema pattern:^[a-z0-9.-]+$;minLength:1;required:true
+  # -- Single prefix used by every service-tree label and annotation helper.
+  labelPrefix: atomi.cloud
 
-# @schema pattern:^[a-z0-9]+-[a-z0-9]+$;required:true
-# -- Primary workload fullname. It must be `<service>-<dashless-token>`.
-fullnameOverride: wrapper-api
+  # -- Stable service-tree projection. Platform is always the release namespace;
+  # landscape and cluster are added by independent overlays.
+  serviceTree:
+    # @schema pattern:^[a-z0-9]+$;required:true
+    # -- Service name.
+    service: xenon
+    # @schema pattern:^[a-z0-9]+$;required:true
+    # -- Module name.
+    module: metrics
+    # @schema pattern:^[0-9]+$;required:true
+    # -- Architecture layer.
+    layer: '1'
 
-# -- Stable four-slot service-tree projection. Landscape and cluster are added by independent overlays.
-serviceTree:
-  # @schema pattern:^[a-z0-9]+$;required:true
-  platform: sample
-  # @schema pattern:^[a-z0-9]+$;required:true
-  service: wrapper
-  # @schema pattern:^[a-z0-9]+$;required:true
-  module: api
-  # @schema pattern:^[0-9]+$;required:true
-  layer: '2'
+  # -- Optional physical-instance metadata. The instance remains outside LPSM.
+  instance:
+    # @schema pattern:^[a-z0-9._:/-]+$;minLength:1
+    # -- Repository-qualified physical instance id.
+    physicalId: example-repository:run-001
 
-# -- Optional physical-instance metadata. The instance remains outside LPSM.
-instance:
-  physicalId: example-repository:run-001
-
-# -- Wrapper-owned sample workload.
-workload:
-  replicas: 1 # @schema minimum:1
-  image:
-    repository: ghcr.io/stefanprodan/podinfo
-    tag: 6.9.2 # @schema pattern:^[A-Za-z0-9][A-Za-z0-9._-]*$
-    pullPolicy: IfNotPresent # @schema enum:[Always, IfNotPresent, Never]
-  port: 9898 # @schema minimum:1;maximum:65535
-  reloader:
-    enabled: true
-  podSecurityContext:
-    runAsNonRoot: true
-    runAsUser: 10000
-    runAsGroup: 10000
-    fsGroup: 10000
-  securityContext:
-    allowPrivilegeEscalation: false
-    readOnlyRootFilesystem: true
-    runAsNonRoot: true
-    runAsUser: 10000
-    runAsGroup: 10000
-    capabilities:
-      drop: [ALL]
-  resources:
-    requests:
-      cpu: 10m
-      memory: 32Mi
-    limits:
-      cpu: 100m
-      memory: 128Mi
-
-# -- Separate pre-sync migration hook. It never owns or recreates the Deployment.
-migration:
+# -- Per-landscape enablement toggle and the vendored metrics-server chart inputs.
+# The whole chart is gated by `metricsServer.enabled`: it defaults ON here for every
+# cloud and on-prem landscape (EKS classic/Auto, DOKS, and on-prem do not preinstall
+# metrics-server) and is flipped OFF only by the k3d/lapras overlay, because k3s
+# bundles metrics-server. Final per-profile ENV roster entries stay outside this node.
+metricsServer:
+  # @schema required:true
+  # -- Per-landscape toggle. ON for cloud/on-prem, OFF for k3d/lapras.
   enabled: true
-  image:
-    repository: busybox
-    tag: 1.37.0-glibc # @schema pattern:^[A-Za-z0-9][A-Za-z0-9._-]*$
-    pullPolicy: IfNotPresent # @schema enum:[Always, IfNotPresent, Never]
-  command: ['sh', '-c', 'echo migration-ready']
-  reloader:
-    enabled: true
-  resources:
-    requests:
-      cpu: 5m
-      memory: 8Mi
-    limits:
-      cpu: 25m
-      memory: 32Mi
-
-# -- One service-scoped ExternalSecret with folder-prefix rewrites.
-secret:
-  enabled: true
-  refreshInterval: 1h
-  store:
-    kind: SecretStore # @schema enum:[SecretStore, ClusterSecretStore]
-    name: sample-store
-  sharedFolder: /shared
-  serviceFolder: /wrapper
-
-# -- Provider-managed LoadBalancer service for the gateway.
-gateway:
-  enabled: true
-  provider: digitalocean # @schema enum:[aws, oci, digitalocean]
-  port: 80 # @schema minimum:1;maximum:65535
-  aws:
-    subnetIds: [] # @schema item:string;uniqueItems:true
-    eipAllocationIds: [] # @schema item:string;uniqueItems:true
-  oci:
-    reservedPublicIp: ''
-
-# -- Current health and webhook delivery conventions.
-contracts:
-  health:
-    path: /healthz # @schema pattern:^/.*
-    expectedStatus: 2xx
-  webhook:
-    provider: example # @schema pattern:^[a-z0-9-]+$
-    pathPrefix: /internal/webhooks # @schema pattern:^/.*
-  lpsm:
-    landscape: example # @schema pattern:^[a-z0-9-]+$
-    module: api # @schema pattern:^[a-z0-9-]+$
-    service: wrapper # @schema pattern:^[a-z0-9-]+$
-    instance: run001 # @schema pattern:^[a-z0-9-]+$
-    ordinaryZone: cluster.atomi.cloud
-    instanceZone: local.example.invalid
-    parseHostname: ''
-
-# -- Optional Gateway API route scaffold for a webhook receiver.
-webhookRoute:
-  enabled: true
-  parentGateway: sample-gateway
-  parentNamespace: gateway-system
-
-# -- Reusable primordial-chart CR helper inputs against the frozen T3 shapes.
-primordial:
-  enabled: true
-  apiVersions:
-    fleet: fleet.atomi.cloud/v1alpha1
-    identity: identity.atomi.cloud/v1alpha1
-    edge: edge.atomi.cloud/v1alpha1
-  targetLandscape: example
-  vlandscape: example-vlandscape
-  placement:
-    preferredHost: example-host
-  platformDependency:
-    modules:
-      database: # @schema mergeProperties:true
-        maindb:
-          type: neon
-          delivery: external
-          providerAccountRef: example-neon
-          credentialMode: standard
-          rotation: 'on'
-          cpu: 1
-          ram: 1Gi
-          storage: 10Gi
-          version: '16'
-          backup:
-            crossVendor: true
-          engine:
-            neon:
-              tier: example
-      kv: # @schema mergeProperties:true
-        sessions:
-          type: upstash
-          delivery: external
-          providerAccountRef: example-upstash
-          credentialMode: standard
-          rotation: 'on'
-          ram: 128Mi
-          engine:
-            upstash: {}
-      cache: # @schema mergeProperties:true
-        hot:
-          type: dragonfly
-          delivery: replicated
-          credentialMode: standard
-          rotation: 'on'
-          ram: 128Mi
-          engine:
-            dragonfly: {}
-      store: # @schema mergeProperties:true
-        assets:
-          type: tigris
-          delivery: external
-          providerAccountRef: example-tigris
-          credentialMode: standard
-          rotation: 'on'
-          engine:
-            tigris: {}
-  virtualLandscapeService:
-    enabled: true
-    serve: true
-  logtoApp:
-    enabled: true
-    paths: [/auth/callback]
-    extraRedirectUris: [] # @schema item:string;uniqueItems:true
-    resourceRefs: [wrapper-api] # @schema item:string;uniqueItems:true
-  problem:
-    enabled: true
-    version: 0.1.0
-    entries:
-      - id: example
-        type: https://errors.example.invalid/example
-        title: Example problem
-        status: 500
-        recoverable: false
-        schema: {}
-        endpoints:
-          - method: GET
-            path: /
-  cloudflareDeploy:
-    enabled: true
-    scriptName: wrapper-web
-    tag: 0.1.0
-    pin: true
-
-# -- Pinned optional upstream chart. Every instantiated dependency must receive a conforming override.
-upstream:
-  enabled: false
-  fullnameOverride: wrapper-upstream # @schema pattern:^[a-z0-9]+-[a-z0-9]+$
-  image:
-    repository: ghcr.io/stefanprodan/podinfo
-    tag: 6.9.2
+  # @schema pattern:^[a-z0-9]+-[a-z0-9]+$
+  # -- Conforming metrics-server fullname (`<service>-<dashless-token>`).
+  fullnameOverride: xenon-metrics
+  # @schema minimum:1
+  # -- Highly available replica count for managed-cloud deployments.
+  replicas: 2
+  # -- Reloader opt-in on the metrics-server pod. The vendored integration patch
+  # independently projects the global service-tree metadata onto the Deployment
+  # and pod; this map retains only the upstream-supported opt-out surface.
   podAnnotations:
     reloader.stakater.com/auto: 'true'
+  # -- Pod-level security context satisfying the baseline-plus VAP policy.
   podSecurityContext:
     runAsNonRoot: true
-    runAsUser: 10000
-    runAsGroup: 10000
-  securityContext:
-    allowPrivilegeEscalation: false
-    readOnlyRootFilesystem: true
-    runAsNonRoot: true
-    runAsUser: 10000
-    runAsGroup: 10000
-    capabilities:
-      drop: [ALL]
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+  # -- CPU and memory envelopes for the metrics-server container.
   resources:
     requests:
-      cpu: 10m
-      memory: 32Mi
+      cpu: 50m
+      memory: 64Mi
     limits:
-      cpu: 100m
-      memory: 128Mi
+      cpu: 200m
+      memory: 256Mi
+  # -- Kubelet scrape arguments. Secure TLS is the cloud/on-prem default; the
+  # k3d/insecure posture is an overlay decision documented in the README matrix.
+  args: []

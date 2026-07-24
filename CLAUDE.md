@@ -76,9 +76,9 @@ Domain-specific architecture and behavior belongs under
 [docs/domain/](docs/domain/README.md). The `docs/standards/contracts/` slot is
 reserved for the separately owned C0 contracts standard.
 
-<!-- ### helm-wrapper -->
-<!-- #### source: helm-wrapper -->
+<!-- ### xenon -->
+<!-- #### source: xenon -->
 
-## Helm wrapper sample
+## Xenon chart sample
 
-Read [docs/developer/helm-wrapper-baseline.md](docs/developer/helm-wrapper-baseline.md) before changing `chart/`, the stacked values, CR/LPSM helpers, provider LoadBalancer annotations, config vendoring, or chart publishing.
+Read [docs/developer/xenon-baseline.md](docs/developer/xenon-baseline.md) before changing `chart/`, the stacked values, the per-landscape enablement toggle, LPSM labels, or chart publishing.
