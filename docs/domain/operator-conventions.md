@@ -17,6 +17,42 @@ implements these conventions; it does not reinvent them. The toy `Note` and
 - One composition root, `cmd/manager`, wires N controllers explicitly with
   per-controller `--enable-<name>` flags and per-controller-scoped config.
 
+## Why marker completeness uses a custom gate
+
+A missing Kubebuilder marker is not a syntax error anywhere in the toolchain: it
+silently produces a weaker CRD. The marker-lint spike removed
+`+kubebuilder:subresource:status` from `Note` and re-ran the installed tools.
+
+- `controller-gen crd paths=./api/...` exited zero and emitted a complete CRD;
+  the only difference was `subresources: {}` where the committed artifact has
+  `subresources: {status: {}}`. A weaker schema, not a failure.
+- `golangci-lint run ./...` reported zero issues — marker comments are ordinary
+  comments to the Go linters.
+- `kubeconform` validates a rendered resource against a published JSON schema.
+  It has no vocabulary for "this repository requires a status subresource,
+  these print columns, these field constraints, and exactly these RBAC grants",
+  and in the offline gate it does not even carry a `CustomResourceDefinition`
+  schema. It cannot establish marker completeness.
+
+No installed tool covers omission of a valid-but-required marker, so the small
+custom gate is necessary. `scripts/validate/operator-markers.sh` extracts each
+marker comment block and attaches it to the declaration it precedes, then
+asserts a declared policy:
+
+- every served kind (read from the committed CRDs) declares
+  `object:root=true`, `subresource:status`, its `resource:` scope/shortName,
+  and its required print columns — at that kind, not merely somewhere in the
+  file;
+- every named spec field carries its required validation constraints, and any
+  spec field added later carries at least one `+kubebuilder:validation:` marker;
+- every controller declares exactly the expected RBAC grants — a missing grant
+  and an unlisted extra grant both redden the gate.
+
+Adding a served kind without a policy line reddens the gate too, so the policy
+cannot rot behind new API surface. The `a-operator-markers` hook makes the
+decision blocking, and its probe reddens the gate by dropping one required
+print column while every other marker family stays intact.
+
 ## Lifecycle patterns
 
 - Converge: compute the full desired state each reconcile; apply the diff; never

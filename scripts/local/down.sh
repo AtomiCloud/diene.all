@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-container="diene-go-base-redis"
+container="${OPERATOR_LEDGER_CONTAINER:-operator-template-ledger}"
 docker rm -f "${container}" >/dev/null 2>&1 || true
 
-echo "✅ Local dependencies stopped"
+echo "✅ Local MinIO ledger stopped"

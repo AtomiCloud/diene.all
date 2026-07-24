@@ -77,6 +77,34 @@ data:
           "targets": [
             { "refId": "A", "expr": "sum by (controller) (rate(operator_template_reconcile_ticks_total[5m]))" }
           ]
+        },
+        {
+          "id": 8,
+          "title": "DNS/vendor API failures by controller (consumer-extension)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+          "targets": [
+            { "refId": "A", "expr": "sum by (controller) (rate(operator_template_vendor_api_failures_total[5m]))" }
+          ]
+        },
+        {
+          "id": 9,
+          "title": "Provisioning duration p99 (consumer-extension)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
+          "targets": [
+            { "refId": "A", "expr": "histogram_quantile(0.99, sum by (le, controller) (rate(operator_template_provisioning_duration_seconds_bucket[30m])))" }
+          ]
+        },
+        {
+          "id": 10,
+          "title": "Webhook intake by six-state taxonomy (consumer-extension)",
+          "type": "timeseries",
+          "description": "owned/double-own/no-owner/misroute/dead-letter/lag",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
+          "targets": [
+            { "refId": "A", "expr": "sum by (state) (rate(operator_template_webhook_events_total{state=~\"owned|double-own|no-owner|misroute|dead-letter|lag\"}[5m]))" }
+          ]
         }
       ]
     }

@@ -1,4 +1,59 @@
+{{- /* A dict keeps GrafanaAlertRuleGroup rules parameterized for toy and consumer-extension controllers. */ -}}
+{{- define "operator-template.alertrule" }}
+    - uid: {{ .uid }}
+      title: {{ .title | quote }}
+      condition: C
+      for: {{ .for | default "5m" }}
+      noDataState: {{ .noData | default "OK" }}
+      execErrState: Error
+      labels:
+        severity: {{ .severity | default "warning" }}
+        controller: {{ .controller }}
+        source: {{ .source }}
+        {{- if .state }}
+        webhook_state: {{ .state }}
+        {{- end }}
+      annotations:
+        summary: {{ .summary | quote }}
+        {{- if eq .source "consumer-extension" }}
+        description: {{ .description | default (printf "Consumer-extension signal: the toy operator does not emit this metric. A real %s controller implements it; this parameterized rule is source that consumers inherit." .controller) | quote }}
+        {{- end }}
+      data:
+        - refId: A
+          relativeTimeRange:
+            from: 600
+            to: 0
+          datasourceUid: prometheus
+          model:
+            expr: {{ .expr }}
+            instant: true
+            refId: A
+        - refId: C
+          relativeTimeRange:
+            from: 0
+            to: 0
+          datasourceUid: __expr__
+          model:
+            type: threshold
+            expression: A
+            conditions:
+              - evaluator:
+                  type: {{ .evaluator | default "gt" }}
+                  params:
+                    - {{ .threshold | default 0 }}
+            refId: C
+{{- end -}}
 {{- if .Values.alerts.enabled }}
+{{- /* Enabled toy controllers emit the generic reconcile/ledger metrics. */ -}}
+{{- $toy := list }}
+{{- if .Values.controllers.note }}{{- $toy = append $toy "note" }}{{- end }}
+{{- if .Values.controllers.journal }}{{- $toy = append $toy "journal" }}{{- end }}
+{{- /* Downstream operators override these names when adopting the consumer-extension rules. */ -}}
+{{- $consumers := .Values.alerts.consumerControllers | default (list "cluster" "platform" "dependency" "traffic" "webhook" "cf-deploy") }}
+{{- $webhook := .Values.alerts.webhookController | default "webhook" }}
+{{- $latency := .Values.alerts.reconcileLatencySeconds | default 10 }}
+{{- $livenessRate := .Values.alerts.livenessMinTickRate | default "0.001" }}
+{{- $provisioningBudget := .Values.alerts.provisioningBudgetSeconds | default 300 }}
 apiVersion: grafana.integreatly.org/v1beta1
 kind: GrafanaAlertRuleGroup
 metadata:
@@ -13,79 +68,81 @@ spec:
   folderUID: {{ .Values.alerts.folderUID | quote }}
   interval: 1m
   rules:
-{{- $ctrls := list }}
-{{- if .Values.controllers.note }}{{- $ctrls = append $ctrls "note" }}{{- end }}
-{{- if .Values.controllers.journal }}{{- $ctrls = append $ctrls "journal" }}{{- end }}
-{{- range $ctrls }}
-    - uid: operator-template-{{ . }}-reconcile-errors
-      title: "operator-template {{ . }} reconcile errors elevated"
-      condition: C
-      for: 5m
-      noDataState: OK
-      execErrState: Error
-      labels:
-        severity: warning
-        controller: {{ . }}
-      annotations:
-        summary: "The {{ . }} controller reconcile error rate is elevated"
-      data:
-        - refId: A
-          relativeTimeRange:
-            from: 600
-            to: 0
-          datasourceUid: prometheus
-          model:
-            expr: sum(rate(controller_runtime_reconcile_errors_total{controller="{{ . }}"}[5m]))
-            instant: true
-            refId: A
-        - refId: C
-          relativeTimeRange:
-            from: 0
-            to: 0
-          datasourceUid: __expr__
-          model:
-            type: threshold
-            expression: A
-            conditions:
-              - evaluator:
-                  type: gt
-                  params:
-                    - 0
-            refId: C
-    - uid: operator-template-{{ . }}-ledger-failures
-      title: "operator-template {{ . }} durable-ledger failures"
-      condition: C
-      for: 5m
-      noDataState: OK
-      execErrState: Error
-      labels:
-        severity: warning
-        controller: {{ . }}
-      annotations:
-        summary: "The {{ . }} controller is failing durable-ledger operations"
-      data:
-        - refId: A
-          relativeTimeRange:
-            from: 600
-            to: 0
-          datasourceUid: prometheus
-          model:
-            expr: sum(rate(operator_template_ledger_failures_total{controller="{{ . }}"}[5m]))
-            instant: true
-            refId: A
-        - refId: C
-          relativeTimeRange:
-            from: 0
-            to: 0
-          datasourceUid: __expr__
-          model:
-            type: threshold
-            expression: A
-            conditions:
-              - evaluator:
-                  type: gt
-                  params:
-                    - 0
-            refId: C
+{{- range $ctrl := $toy }}
+{{- /* reconcile error rate */ -}}
+{{- include "operator-template.alertrule" (dict
+      "uid" (printf "operator-template-%s-reconcile-errors" $ctrl)
+      "title" (printf "operator-template %s reconcile errors elevated" $ctrl)
+      "summary" (printf "The %s controller reconcile error rate is elevated" $ctrl)
+      "controller" $ctrl "source" "toy" "severity" "warning" "for" "5m"
+      "expr" (printf "sum(rate(controller_runtime_reconcile_errors_total{controller=\"%s\"}[5m]))" $ctrl)
+      "evaluator" "gt" "threshold" 0) }}
+{{- /* reconcile latency (p99) */ -}}
+{{- include "operator-template.alertrule" (dict
+      "uid" (printf "operator-template-%s-reconcile-latency" $ctrl)
+      "title" (printf "operator-template %s reconcile latency high" $ctrl)
+      "summary" (printf "The %s controller p99 reconcile latency exceeds %v s" $ctrl $latency)
+      "controller" $ctrl "source" "toy" "severity" "warning" "for" "10m"
+      "expr" (printf "histogram_quantile(0.99, sum by (le) (rate(controller_runtime_reconcile_time_seconds_bucket{controller=\"%s\"}[5m])))" $ctrl)
+      "evaluator" "gt" "threshold" $latency) }}
+{{- /* poll-loop liveness / staleness — no successful ticks pages, even on no-data */ -}}
+{{- include "operator-template.alertrule" (dict
+      "uid" (printf "operator-template-%s-reconcile-liveness" $ctrl)
+      "title" (printf "operator-template %s reconcile loop stalled" $ctrl)
+      "summary" (printf "The %s reconcile/poll loop reported no successful ticks (stale = page)" $ctrl)
+      "controller" $ctrl "source" "toy" "severity" "critical" "for" "10m" "noData" "Alerting"
+      "expr" (printf "sum(rate(operator_template_reconcile_ticks_total{controller=\"%s\"}[10m]))" $ctrl)
+      "evaluator" "lt" "threshold" $livenessRate) }}
+{{- /* persistent condition state — Conflict/Unresolved/Drifted held True pages */ -}}
+{{- include "operator-template.alertrule" (dict
+      "uid" (printf "operator-template-%s-condition-state" $ctrl)
+      "title" (printf "operator-template %s persistent bad condition" $ctrl)
+      "summary" (printf "The %s controller holds a Conflict/Unresolved/Drifted condition True" $ctrl)
+      "controller" $ctrl "source" "toy" "severity" "critical" "for" "15m"
+      "expr" (printf "max by (type) (operator_template_condition{controller=\"%s\",type=~\"Conflict|Unresolved|Drifted\"})" $ctrl)
+      "evaluator" "gt" "threshold" 0) }}
+{{- /* durable-ledger failures */ -}}
+{{- include "operator-template.alertrule" (dict
+      "uid" (printf "operator-template-%s-ledger-failures" $ctrl)
+      "title" (printf "operator-template %s durable-ledger failures" $ctrl)
+      "summary" (printf "The %s controller is failing durable-ledger operations" $ctrl)
+      "controller" $ctrl "source" "toy" "severity" "warning" "for" "5m"
+      "expr" (printf "sum(rate(operator_template_ledger_failures_total{controller=\"%s\"}[5m]))" $ctrl)
+      "evaluator" "gt" "threshold" 0) }}
+{{- end }}
+{{- range $ctrl := $consumers }}
+{{- /* DNS/vendor API failure rate (consumer-extension) */ -}}
+{{- include "operator-template.alertrule" (dict
+      "uid" (printf "operator-template-%s-vendor-api-failures" $ctrl)
+      "title" (printf "operator-template %s DNS/vendor API failures" $ctrl)
+      "summary" (printf "The %s controller is seeing DNS/vendor API failures" $ctrl)
+      "controller" $ctrl "source" "consumer-extension" "severity" "warning" "for" "5m"
+      "expr" (printf "sum(rate(operator_template_vendor_api_failures_total{controller=\"%s\"}[5m]))" $ctrl)
+      "evaluator" "gt" "threshold" 0) }}
+{{- /* provisioning duration budget (consumer-extension) */ -}}
+{{- include "operator-template.alertrule" (dict
+      "uid" (printf "operator-template-%s-provisioning-duration" $ctrl)
+      "title" (printf "operator-template %s provisioning duration over budget" $ctrl)
+      "summary" (printf "The %s controller p99 provisioning duration exceeds %v s" $ctrl $provisioningBudget)
+      "controller" $ctrl "source" "consumer-extension" "severity" "warning" "for" "15m"
+      "expr" (printf "histogram_quantile(0.99, sum by (le) (rate(operator_template_provisioning_duration_seconds_bucket{controller=\"%s\"}[30m])))" $ctrl)
+      "evaluator" "gt" "threshold" $provisioningBudget) }}
+{{- end }}
+{{- /* owned is healthy and non-alerting; lag is a classified event rate, not a duration budget. */ -}}
+{{- $webhookAlerts := list
+      (dict "state" "double-own" "severity" "critical" "summary" "two owners claimed the same webhook route (double-own)")
+      (dict "state" "no-owner" "severity" "critical" "summary" "a webhook event matched no owner (no-owner)")
+      (dict "state" "misroute" "severity" "warning" "summary" "a webhook event was misrouted (misroute)")
+      (dict "state" "dead-letter" "severity" "critical" "summary" "a webhook event was dead-lettered (dead-letter)")
+      (dict "state" "lag" "severity" "warning" "summary" "webhook events classified as lagging (lag)") }}
+{{- range $wa := $webhookAlerts }}
+{{- include "operator-template.alertrule" (dict
+      "uid" (printf "operator-template-%s-%s" $webhook $wa.state)
+      "title" (printf "operator-template %s webhook %s" $webhook $wa.state)
+      "summary" $wa.summary
+      "controller" $webhook "source" "consumer-extension" "severity" $wa.severity "for" "5m"
+      "state" $wa.state
+      "expr" (printf "sum(rate(operator_template_webhook_events_total{controller=\"%s\",state=\"%s\"}[5m]))" $webhook $wa.state)
+      "evaluator" "gt" "threshold" 0) }}
 {{- end }}
 {{- end }}

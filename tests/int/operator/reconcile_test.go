@@ -12,8 +12,6 @@ import (
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
-	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	"github.com/AtomiCloud/diene.go-base/adapters/operator/controllers"
 	"github.com/AtomiCloud/diene.go-base/adapters/operator/kube"
@@ -307,17 +305,6 @@ func TestInvalidNoteRejectedBySchema(t *testing.T) {
 		Spec:       apiv1alpha1.NoteSpec{Title: "t", Body: "b", Category: "nonsense", Replicas: 1},
 	}
 	require.Error(t, k8sClient.Create(context.Background(), invalid))
-}
-
-func TestMultiControllerWiring(t *testing.T) {
-	mgr, err := manager.New(restConfig, manager.Options{Scheme: testScheme, Metrics: metricsserver.Options{BindAddress: "0"}})
-	require.NoError(t, err)
-	require.NoError(t, newNoteReconciler(newFakeLedgerStore(), false, 20).SetupWithManager(mgr))
-	journal := &controllers.JournalReconciler{
-		Client: k8sClient, Clock: fakeClock{t: time.Now()},
-		Recorder: kube.NewEventRecorder(record.NewFakeRecorder(8)), Metrics: metrics.NewPrometheus(),
-	}
-	require.NoError(t, journal.SetupWithManager(mgr))
 }
 
 func TestRealClockNow(t *testing.T) {

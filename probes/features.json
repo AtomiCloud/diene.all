@@ -392,6 +392,11 @@
   },
   {
     "template": "diene/operator-template",
+    "name": "manager-runtime",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/operator-template",
     "name": "k3d-install-toy-reconcile",
     "class": "smoke"
   },

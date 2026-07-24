@@ -19,10 +19,10 @@ export default {
       description: 'A native ineffassign violation must turn the owning hook red.',
       kind: 'mutation',
       async run(repo: any) {
-        await repo.patch('lib/note/note.go', {
-          find: 'func Slug(value string) string {\n\treturn strings.Join(strings.Fields(strings.ToLower(value)), "-")\n}',
+        await repo.patch('lib/operator/note/note.go', {
+          find: 'func CopyName(owner string, i int32) string {\n\treturn fmt.Sprintf("%s-copy-%d", owner, i)\n}',
           replace:
-            'func Slug(value string) string {\n\tnormalized := value\n\tnormalized = value\n\treturn strings.Join(strings.Fields(strings.ToLower(normalized)), "-")\n}',
+            'func CopyName(owner string, i int32) string {\n\tname := owner\n\tname = owner\n\treturn fmt.Sprintf("%s-copy-%d", name, i)\n}',
         });
         await expectRed(repo, gate, 'hook-golangci-lint');
       },

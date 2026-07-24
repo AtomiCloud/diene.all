@@ -8,7 +8,8 @@ export default {
   probes: [
     {
       name: 'baseline-hook-operator-marker-lint-green',
-      description: 'The marker-lint hook passes with all required kubebuilder markers present.',
+      description:
+        'The marker-lint hook passes with the required kubebuilder markers present at every declared kind, spec field, and controller.',
       kind: 'baseline',
       async run(repo: any) {
         await expectGreen(repo, cmd, 'hook-operator-marker-lint');
@@ -16,12 +17,13 @@ export default {
     },
     {
       name: 'mutation-hook-operator-marker-lint-caught',
-      description: 'Stripping the required status-subresource marker must redden the hook.',
+      description:
+        'Dropping one required print column from a root kind, while its other print columns and every other marker family stay intact, must redden the hook.',
       kind: 'mutation',
       async run(repo: any) {
         await repo.patch('api/v1alpha1/note_types.go', {
-          find: '// +kubebuilder:subresource:status',
-          replace: '// (subresource status marker removed)',
+          find: '+kubebuilder:printcolumn:name="Copies"',
+          replace: '(required print column removed)',
         });
         await expectRed(repo, cmd, 'hook-operator-marker-lint');
       },

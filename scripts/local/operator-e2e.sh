@@ -1,46 +1,28 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Reusable lapras/k3d end-to-end harness. Create a throwaway cluster, build and
-# import the manager image, stand up a MinIO ledger backend, install the chart,
-# apply a toy Note, wait for it to converge to Ready, assert its owned resources,
-# then tear everything down. All four dogfood consumers reuse this harness for
-# their own e2e (parameterize CHART/VALUES/FIXTURE for their CRDs).
-#
-# Parameters (env overrides):
-#   CLUSTER   k3d cluster name   (default: operator-template-e2e)
-#   CHART     chart path         (default: infra/root_chart)
-#   VALUES    values file        (default: infra/root_chart/values.lapras.yaml)
-#   FIXTURE   Note CR fixture     (default: tests/fixtures/operator/valid-note.yaml)
-#   IMAGE     manager image ref   (default: operator-template:e2e)
-#   TIMEOUT   readiness timeout   (default: 180s)
+# Consumers reuse this k3d harness by overriding the chart, values, fixtures, and image.
+cluster="${CLUSTER:-operator-template-e2e}"
+chart="${CHART:-infra/root_chart}"
+values="${VALUES:-infra/root_chart/values.lapras.yaml}"
+note_fixture="${NOTE_FIXTURE:-${FIXTURE:-tests/fixtures/operator/valid-note.yaml}}"
+image="${IMAGE:-operator-template:e2e}"
+timeout="${TIMEOUT:-180s}"
+namespace="${NAMESPACE:-operator-template}"
+release="${RELEASE:-operator-template}"
+trap 'k3d cluster delete "${cluster}" >/dev/null 2>&1 || true' EXIT
 
-CLUSTER="${CLUSTER:-operator-template-e2e}"
-CHART="${CHART:-infra/root_chart}"
-VALUES="${VALUES:-infra/root_chart/values.lapras.yaml}"
-FIXTURE="${FIXTURE:-tests/fixtures/operator/valid-note.yaml}"
-IMAGE="${IMAGE:-operator-template:e2e}"
-TIMEOUT="${TIMEOUT:-180s}"
-NAMESPACE="${NAMESPACE:-operator-template}"
+echo "🔨 Creating k3d cluster ${cluster}"
+k3d cluster create "${cluster}" --wait --timeout "${timeout}"
 
-cleanup() {
-  k3d cluster delete "${CLUSTER}" >/dev/null 2>&1 || true
-}
-trap cleanup EXIT
+echo "📦 Building and importing manager image ${image}"
+docker build -f infra/Dockerfile -t "${image}" .
+k3d image import "${image}" -c "${cluster}"
 
-echo "▶ creating k3d cluster ${CLUSTER}"
-k3d cluster create "${CLUSTER}" --wait --timeout "${TIMEOUT}"
+kubectl create namespace "${namespace}" --dry-run=client -o yaml | kubectl apply -f -
 
-echo "▶ building manager image ${IMAGE}"
-docker build -f infra/Dockerfile -t "${IMAGE}" .
-
-echo "▶ importing image into ${CLUSTER}"
-k3d image import "${IMAGE}" -c "${CLUSTER}"
-
-kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
-
-echo "▶ deploying MinIO ledger backend"
-kubectl apply -n "${NAMESPACE}" -f - <<'MINIO'
+echo "📦 Deploying the MinIO ledger"
+kubectl apply -n "${namespace}" -f - <<'MINIO'
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -73,41 +55,45 @@ spec:
     - port: 9000
       targetPort: 9000
 MINIO
-kubectl rollout status -n "${NAMESPACE}" deploy/minio --timeout "${TIMEOUT}"
+kubectl rollout status -n "${namespace}" deploy/minio --timeout "${timeout}"
+kubectl create secret generic "${release}-ledger" -n "${namespace}" --from-literal=accessKey=minioadmin --from-literal=secretKey=minioadmin --dry-run=client -o yaml | kubectl apply -f -
 
-echo "▶ creating ledger secret"
-kubectl create secret generic operator-template-ledger -n "${NAMESPACE}" \
-  --from-literal=accessKey=minioadmin \
-  --from-literal=secretKey=minioadmin \
-  --dry-run=client -o yaml | kubectl apply -f -
-
-echo "▶ installing manager chart"
-helm install operator-template "${CHART}" \
-  -n "${NAMESPACE}" \
-  -f "${VALUES}" \
-  --set image.repository="${IMAGE%%:*}" \
-  --set image.tag="${IMAGE##*:}" \
+echo "📦 Installing the manager chart"
+helm install "${release}" "${chart}" -n "${namespace}" -f "${values}" \
+  --set image.repository="${image%%:*}" \
+  --set image.tag="${image##*:}" \
   --set image.pullPolicy=IfNotPresent \
   --set serviceMonitor.enabled=false \
   --set alerts.enabled=false \
   --set dashboard.enabled=false \
+  --set controllers.note=true \
+  --set controllers.journal=true \
   --set ledger.endpoint=minio:9000 \
   --set ledger.secure=false \
-  --wait --timeout "${TIMEOUT}"
+  --wait --timeout "${timeout}"
+kubectl rollout status -n "${namespace}" "deploy/${release}" --timeout "${timeout}"
 
-echo "▶ applying toy Note"
-kubectl apply -n "${NAMESPACE}" -f "${FIXTURE}"
+pod="$(kubectl get pods -n "${namespace}" -l "app.kubernetes.io/instance=${release}" -o jsonpath='{.items[0].metadata.name}')"
+[ -z "${pod}" ] && echo "❌ manager pod was not created" >&2 && exit 1
+health="$(kubectl get --raw "/api/v1/namespaces/${namespace}/pods/${pod}:8081/proxy/healthz")"
+[ "${health}" != "ok" ] && echo "❌ manager /healthz returned '${health}'" >&2 && exit 1
+ready="$(kubectl get --raw "/api/v1/namespaces/${namespace}/pods/${pod}:8081/proxy/readyz")"
+[ "${ready}" != "ok" ] && echo "❌ manager /readyz returned '${ready}'" >&2 && exit 1
 
-echo "▶ waiting for Note to converge to Ready"
-kubectl wait -n "${NAMESPACE}" --for=condition=Ready --timeout "${TIMEOUT}" note/harness-note
+echo "🧪 Applying Note and Journal fixtures"
+kubectl apply -n "${namespace}" -f "${note_fixture}"
+kubectl apply -n "${namespace}" -f - <<'JOURNAL'
+apiVersion: sample.diene.atomi.cloud/v1alpha1
+kind: Journal
+metadata:
+  name: harness-journal
+spec:
+  message: converged by the k3d harness
+JOURNAL
+kubectl wait -n "${namespace}" --for=condition=Ready --timeout "${timeout}" note/harness-note
+kubectl wait -n "${namespace}" --for=condition=Ready --timeout "${timeout}" journal/harness-journal
 
-echo "▶ asserting owned ConfigMaps"
-copies="$(kubectl get configmaps -n "${NAMESPACE}" \
-  -l operator-template.diene.atomi.cloud/note=harness-note \
-  --no-headers 2>/dev/null | wc -l)"
-[ "${copies}" -eq 2 ] || {
-  echo "❌ expected 2 owned ConfigMaps, found ${copies}" >&2
-  exit 1
-}
+copies="$(kubectl get configmaps -n "${namespace}" -l operator-template.diene.atomi.cloud/note=harness-note -o name | wc -l | tr -d ' ')"
+[ "${copies}" -ne 2 ] && echo "❌ expected 2 owned ConfigMaps, found ${copies}" >&2 && exit 1
 
-echo "✅ operator k3d e2e journey passed (${copies} owned copies, Note Ready)"
+echo "✅ Operator k3d e2e passed: manager healthy, Note and Journal Ready, ${copies} owned ConfigMaps"

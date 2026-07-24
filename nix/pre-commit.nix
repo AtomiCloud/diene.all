@@ -6,10 +6,10 @@
 }:
 let
   go-deps = pkgs.buildGoModule {
-    pname = "diene-go-base-dependencies";
+    pname = "operator-template-dependencies";
     version = "0";
     src = ../.;
-    vendorHash = "sha256-pN7u36Rn1+8anH2xn2AG2zYZK7ckO0SG6LAPqfD+pt8=";
+    vendorHash = "sha256-nGbJT3usBF3cjTHoL6XM38uLKzn8C0b0ldrc6EhISFU=";
     proxyVendor = true;
   };
   go-lint-runtime = pkgs.buildEnv {
@@ -273,7 +273,7 @@ pre-commit-lib.run {
       enable = true;
       name = "Operator marker lint";
       entry = validator "scripts/validate/operator-markers.sh";
-      files = "^(api/|adapters/operator/controllers/).*\\.go$";
+      files = "^(api/|adapters/operator/controllers/).*\\.go$|^scripts/validate/operator-markers\\.sh$";
       pass_filenames = false;
       language = "system";
     };
@@ -282,7 +282,7 @@ pre-commit-lib.run {
       enable = true;
       name = "Operator architecture boundary";
       entry = operator-codegen "scripts/validate/operator-architecture.sh";
-      files = "^(lib/operator/|adapters/operator/controllers/|tools/archcheck/).*\\.go$";
+      files = "^(lib/operator/|adapters/operator/controllers/|tools/archcheck/).*\\.go$|^scripts/validate/operator-architecture\\.sh$";
       pass_filenames = false;
       language = "system";
     };
@@ -291,7 +291,7 @@ pre-commit-lib.run {
       enable = true;
       name = "Operator RBAC minimality";
       entry = operator-codegen "scripts/validate/operator-rbac.sh";
-      files = "^(adapters/operator/controllers/.*\\.go|infra/root_chart/templates/rbac/.*)$";
+      files = "^(adapters/operator/controllers/.*\\.go|infra/root_chart/templates/rbac/.*|scripts/validate/operator-rbac\\.sh)$";
       pass_filenames = false;
       language = "system";
     };
@@ -300,7 +300,7 @@ pre-commit-lib.run {
       enable = true;
       name = "Operator CRD drift";
       entry = operator-codegen "scripts/validate/operator-crd-drift.sh";
-      files = "^(api/.*\\.go|infra/root_chart/templates/crds/.*)$";
+      files = "^(api/.*\\.go|infra/root_chart/templates/crds/.*|scripts/validate/operator-crd-drift\\.sh)$";
       pass_filenames = false;
       language = "system";
     };

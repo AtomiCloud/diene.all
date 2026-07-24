@@ -7,6 +7,7 @@ RUN go mod download && go mod verify
 COPY api ./api
 COPY adapters ./adapters
 COPY cmd ./cmd
+COPY internal ./internal
 COPY lib ./lib
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags='-s -w' -o /out/manager ./cmd/manager
 

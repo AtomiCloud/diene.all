@@ -41,13 +41,14 @@ type NoteReconciler struct {
 	Landscape string
 }
 
-// +kubebuilder:rbac:groups=sample.diene.atomi.cloud,resources=notes,verbs=get;list;watch
+// +kubebuilder:rbac:groups=sample.diene.atomi.cloud,resources=notes,verbs=get;list;watch;update
 // +kubebuilder:rbac:groups=sample.diene.atomi.cloud,resources=notes/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=sample.diene.atomi.cloud,resources=notes/finalizers,verbs=update
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups=authentication.k8s.io,resources=tokenreviews,verbs=create
 // +kubebuilder:rbac:groups=authorization.k8s.io,resources=subjectaccessreviews,verbs=create
+// +kubebuilder:rbac:groups=coordination.k8s.io,resources=leases,verbs=get;create;update
 
 // Reconcile drives a Note toward its desired state.
 func (r *NoteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {

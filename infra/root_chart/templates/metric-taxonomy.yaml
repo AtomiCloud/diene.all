@@ -1,8 +1,5 @@
 {{- if .Values.dashboard.enabled }}
-# Parameterized metric-name source. The toy operator emits only the generic
-# metrics under emittedByToy; the provisioning/vendor/webhook taxonomy under
-# consumerExtensions is the agreed source surface real controllers implement — it
-# is documented here, not falsely claimed as toy output.
+# Consumer-extension metrics are inherited source contracts, never claimed as toy output.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -12,6 +9,7 @@ metadata:
     {{- include "operator-template.labels" . | nindent 4 }}
 data:
   taxonomy.yaml: |
+    # Metrics the toy manager actually registers and emits (adapters/operator/metrics).
     emittedByToy:
       - operator_template_condition
       - operator_template_ledger_failures_total
@@ -19,12 +17,25 @@ data:
       - controller_runtime_reconcile_total
       - controller_runtime_reconcile_errors_total
       - controller_runtime_reconcile_time_seconds
+    # Real consumer controllers implement these parameterized source contracts.
     consumerExtensions:
       provisioning:
-        - operator_template_provisioning_duration_seconds
+        metric: operator_template_provisioning_duration_seconds
+        histogramBucket: operator_template_provisioning_duration_seconds_bucket
       vendor:
-        - operator_template_vendor_api_failures_total
+        metric: operator_template_vendor_api_failures_total
+        covers:
+          - dns
+          - vendor-api
       webhook:
-        # labels: state=owned|double-own|no-owner|misroute|dead-letter|lag
-        - operator_template_webhook_events_total
+        metric: operator_template_webhook_events_total
+        # owned is healthy and non-alerting; lag is an event classification, not a duration.
+        healthyState: owned
+        states:
+          - owned
+          - double-own
+          - no-owner
+          - misroute
+          - dead-letter
+          - lag
 {{- end }}

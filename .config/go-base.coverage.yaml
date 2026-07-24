@@ -8,13 +8,5 @@ tiers:
     tests: ./tests/int/...
     packages: ./adapters/...
     pathMarker: /adapters/
-    # Downstream threshold adaptation (sanctioned by the go-baseline
-    # template-maintenance boundary: "coverage thresholds after adding real
-    # surface"). The operator adds real adapter surface — controller-runtime
-    # reconcilers and an S3/MinIO ledger store — whose defensive transport-error
-    # branches (apiserver 5xx, SetControllerReference failure, S3 connection and
-    # decode faults) are not deterministically reachable with real dependencies
-    # alone. Every functional path and every deterministically-injectable error is
-    # covered (envtest + testcontainers MinIO); the residual is the real-dependency
-    # boundary. See the session coverage-decision note for the enumerated gaps.
+    # 85% is sanctioned because healthy envtest/MinIO cannot deterministically schedule residual transport-failure and defensive-marshal branches; all functional paths and injected faults remain covered.
     threshold: 85

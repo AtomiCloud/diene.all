@@ -36,10 +36,17 @@ rules:
   verbs:
   - create
 - apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+  - get
+  - update
+- apiGroups:
   - sample.diene.atomi.cloud
   resources:
   - journals
-  - notes
   verbs:
   - get
   - list
@@ -53,6 +60,15 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - sample.diene.atomi.cloud
+  resources:
+  - notes
+  verbs:
+  - get
+  - list
+  - update
+  - watch
 - apiGroups:
   - sample.diene.atomi.cloud
   resources:
