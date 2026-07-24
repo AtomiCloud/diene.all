@@ -197,19 +197,28 @@ pre-commit-lib.run {
 
     # ### flutter-base-hooks
     # #### source: flutter-base
+    # `flutter analyze` implicitly runs `flutter pub get`, which on a fresh
+    # checkout (no `.dart_tool`) can leave the tree dirty and trip pre-commit's
+    # "files were modified by this hook" guard. Resolve dependencies explicitly
+    # and fail-closed (`--enforce-lockfile` never rewrites the tracked lock),
+    # then analyze with `--no-pub` so the gate cannot mutate tracked files.
     a-flutter-analyze = {
       enable = true;
       name = "Flutter analyze";
-      entry = "${packages.flutter}/bin/flutter analyze";
+      entry = "${packages.bash}/bin/bash -c '${packages.flutter}/bin/flutter pub get --enforce-lockfile && ${packages.flutter}/bin/flutter analyze --no-pub'";
       files = "^(lib|test)/.*[.]dart$|^(pubspec|analysis_options)[.]yaml$";
       pass_filenames = false;
       language = "system";
     };
 
+    # Same hermeticity guard as a-flutter-analyze: `flutter test` implicitly
+    # runs `flutter pub get`, which on a fresh checkout can dirty the tree and
+    # trip pre-commit's "files were modified by this hook" guard. Resolve
+    # dependencies explicitly and fail-closed, then test with `--no-pub`.
     a-flutter-test = {
       enable = true;
       name = "Flutter unit and widget tests";
-      entry = "${packages.flutter}/bin/flutter test";
+      entry = "${packages.bash}/bin/bash -c '${packages.flutter}/bin/flutter pub get --enforce-lockfile && ${packages.flutter}/bin/flutter test --no-pub'";
       files = "^(lib|test)/.*[.]dart$|^pubspec[.]yaml$";
       pass_filenames = false;
       language = "system";
