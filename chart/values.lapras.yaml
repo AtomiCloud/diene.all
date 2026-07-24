@@ -1,13 +1,5 @@
 # Independent local-cluster overlay. It contains no landscape decision.
+# The cluster slot flows into the derived upstream.global.commonLabels via
+# scripts/local/gen-identity-values.sh; no static label mirror is kept here.
 serviceTree:
   cluster: lapras
-
-# The local install proves the ordinary Kubernetes resources only; the CRDs are owned by later nodes.
-secret:
-  enabled: false
-
-webhookRoute:
-  enabled: false
-
-primordial:
-  enabled: false

@@ -76,9 +76,9 @@ Domain-specific architecture and behavior belongs under
 [docs/domain/](docs/domain/README.md). The `docs/standards/contracts/` slot is
 reserved for the separately owned C0 contracts standard.
 
-<!-- ### helm-wrapper -->
-<!-- #### source: helm-wrapper -->
+<!-- ### sulfur -->
+<!-- #### source: sulfur -->
 
-## Helm wrapper sample
+## Sulfur chart (cert-manager engine)
 
-Read [docs/developer/helm-wrapper-baseline.md](docs/developer/helm-wrapper-baseline.md) before changing `chart/`, the stacked values, CR/LPSM helpers, provider LoadBalancer annotations, config vendoring, or chart publishing.
+Read [docs/developer/sulfur-baseline.md](docs/developer/sulfur-baseline.md) before changing `chart/`, the stacked values, the cert-manager sequential-minor pin, Gateway API support, the engine/issuer split, workload hardening, or chart publishing.

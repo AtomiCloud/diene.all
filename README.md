@@ -53,15 +53,22 @@ Domain-specific documentation belongs under [docs/domain/](docs/domain/README.md
 The `docs/standards/contracts/` location is reserved for the separately owned C0
 contracts standard.
 
-<!-- ### helm-wrapper -->
-<!-- #### source: helm-wrapper -->
+<!-- ### sulfur -->
+<!-- #### source: sulfur -->
 
-## Helm wrapper sample
+## Sulfur chart (cert-manager engine)
 
-This branch adds the production-grade wrapper chart, stacked values, generated schema, rendered-manifest validation, k3d proof, and dual publish modes.
+This branch is the sulfur cert-manager engine chart — a pure-passthrough wrapper
+around `jetstack/cert-manager`, with the engine/issuer split (issuers live in
+zinc), sequential-minor upgrades, Gateway API support, and an ordinary testing
+pyramid.
 
-- `pls build` — vendor external config and build pinned chart dependencies.
-- `pls test:unit` — run schema, lint, render, contracts, VAP, and publish dry-runs.
-- `pls test:int` — install on ephemeral k3d and round-trip the chart through a local OCI registry.
+- `pls build` — build the pinned cert-manager chart dependency.
+- `pls test:unit` — run the unit pyramid: schema, lint, render, labels, Reloader,
+  the Q-G20 rendered-manifest stage, the Q-G22 sequential-minor gate, and the
+  contract negative fixtures.
+- `pls test:int` — install checksum-pinned Gateway API CRDs plus sulfur on
+  ephemeral k3d, then round-trip a self-signed Certificate to Ready (reserved
+  for the orchestrated proof window).
 - `pls example:lapras:template` — render the independent landscape + cluster stack.
-- [Helm wrapper baseline](docs/developer/helm-wrapper-baseline.md)
+- [Sulfur baseline](docs/developer/sulfur-baseline.md)

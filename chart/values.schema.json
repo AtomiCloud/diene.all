@@ -1,124 +1,19 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "Diene Helm Wrapper Values",
-    "description": "Generated schema for the diene Helm wrapper sample.",
+    "title": "Sulfur Values",
+    "description": "Generated schema for the sulfur cert-manager wrapper chart.",
     "type": "object",
-    "required": [
-        "fullnameOverride"
-    ],
     "properties": {
-        "contracts": {
-            "description": "Current health and webhook delivery conventions.",
+        "config": {
+            "description": "sulfur contract surface mirrored for static conformance. Values must match the upstream block.",
             "type": "object",
+            "required": [
+                "enableGatewayAPI"
+            ],
             "properties": {
-                "health": {
-                    "type": "object",
-                    "properties": {
-                        "expectedStatus": {
-                            "type": "string"
-                        },
-                        "path": {
-                            "type": "string",
-                            "pattern": "^/.*"
-                        }
-                    }
-                },
-                "lpsm": {
-                    "type": "object",
-                    "properties": {
-                        "instance": {
-                            "type": "string",
-                            "pattern": "^[a-z0-9-]+$"
-                        },
-                        "instanceZone": {
-                            "type": "string"
-                        },
-                        "landscape": {
-                            "type": "string",
-                            "pattern": "^[a-z0-9-]+$"
-                        },
-                        "module": {
-                            "type": "string",
-                            "pattern": "^[a-z0-9-]+$"
-                        },
-                        "ordinaryZone": {
-                            "type": "string"
-                        },
-                        "parseHostname": {
-                            "type": "string"
-                        },
-                        "service": {
-                            "type": "string",
-                            "pattern": "^[a-z0-9-]+$"
-                        }
-                    }
-                },
-                "webhook": {
-                    "type": "object",
-                    "properties": {
-                        "pathPrefix": {
-                            "type": "string",
-                            "pattern": "^/.*"
-                        },
-                        "provider": {
-                            "type": "string",
-                            "pattern": "^[a-z0-9-]+$"
-                        }
-                    }
-                }
-            }
-        },
-        "fullnameOverride": {
-            "description": "Primary workload fullname. It must be `\u003cservice\u003e-\u003cdashless-token\u003e`.",
-            "type": "string",
-            "pattern": "^[a-z0-9]+-[a-z0-9]+$"
-        },
-        "gateway": {
-            "description": "Provider-managed LoadBalancer service for the gateway.",
-            "type": "object",
-            "properties": {
-                "aws": {
-                    "type": "object",
-                    "properties": {
-                        "eipAllocationIds": {
-                            "type": "array",
-                            "uniqueItems": true,
-                            "items": {
-                                "type": "string"
-                            }
-                        },
-                        "subnetIds": {
-                            "type": "array",
-                            "uniqueItems": true,
-                            "items": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                },
-                "enabled": {
+                "enableGatewayAPI": {
+                    "description": "Gateway API support is required (kgateway integration); the canonical knob is upstream.config.enableGatewayAPI.",
                     "type": "boolean"
-                },
-                "oci": {
-                    "type": "object",
-                    "properties": {
-                        "reservedPublicIp": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "port": {
-                    "type": "integer",
-                    "maximum": 65535,
-                    "minimum": 1
-                },
-                "provider": {
-                    "type": "string",
-                    "enum": [
-                        "aws",
-                        "oci",
-                        "digitalocean"
-                    ]
                 }
             }
         },
@@ -132,419 +27,10 @@
             }
         },
         "labelPrefix": {
-            "description": "Prefix used by every service-tree label and annotation helper.",
+            "description": "Single source of truth for the service-tree label prefix. The supported render path (scripts/local/gen-identity-values.sh) derives the subchart upstream.global.commonLabels keys from this one value; there is no static mirror.",
             "type": "string",
             "pattern": "^[a-z0-9.-]+$",
             "minLength": 1
-        },
-        "migration": {
-            "description": "Separate pre-sync migration hook. It never owns or recreates the Deployment.",
-            "type": "object",
-            "properties": {
-                "command": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "enabled": {
-                    "type": "boolean"
-                },
-                "image": {
-                    "type": "object",
-                    "properties": {
-                        "pullPolicy": {
-                            "type": "string",
-                            "enum": [
-                                "Always",
-                                "IfNotPresent",
-                                "Never"
-                            ]
-                        },
-                        "repository": {
-                            "type": "string"
-                        },
-                        "tag": {
-                            "type": "string",
-                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
-                        }
-                    }
-                },
-                "reloader": {
-                    "type": "object",
-                    "properties": {
-                        "enabled": {
-                            "type": "boolean"
-                        }
-                    }
-                },
-                "resources": {
-                    "type": "object",
-                    "properties": {
-                        "limits": {
-                            "type": "object",
-                            "properties": {
-                                "cpu": {
-                                    "type": "string"
-                                },
-                                "memory": {
-                                    "type": "string"
-                                }
-                            }
-                        },
-                        "requests": {
-                            "type": "object",
-                            "properties": {
-                                "cpu": {
-                                    "type": "string"
-                                },
-                                "memory": {
-                                    "type": "string"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "primordial": {
-            "description": "Reusable primordial-chart CR helper inputs against the frozen T3 shapes.",
-            "type": "object",
-            "properties": {
-                "apiVersions": {
-                    "type": "object",
-                    "properties": {
-                        "edge": {
-                            "type": "string"
-                        },
-                        "fleet": {
-                            "type": "string"
-                        },
-                        "identity": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "cloudflareDeploy": {
-                    "type": "object",
-                    "properties": {
-                        "enabled": {
-                            "type": "boolean"
-                        },
-                        "pin": {
-                            "type": "boolean"
-                        },
-                        "scriptName": {
-                            "type": "string"
-                        },
-                        "tag": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "enabled": {
-                    "type": "boolean"
-                },
-                "logtoApp": {
-                    "type": "object",
-                    "properties": {
-                        "enabled": {
-                            "type": "boolean"
-                        },
-                        "extraRedirectUris": {
-                            "type": "array",
-                            "uniqueItems": true,
-                            "items": {
-                                "type": "string"
-                            }
-                        },
-                        "paths": {
-                            "type": "array",
-                            "items": {
-                                "type": "string"
-                            }
-                        },
-                        "resourceRefs": {
-                            "type": "array",
-                            "uniqueItems": true,
-                            "items": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                },
-                "placement": {
-                    "type": "object",
-                    "properties": {
-                        "preferredHost": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "platformDependency": {
-                    "type": "object",
-                    "properties": {
-                        "modules": {
-                            "type": "object",
-                            "properties": {
-                                "cache": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "object",
-                                        "properties": {
-                                            "credentialMode": {
-                                                "type": "string"
-                                            },
-                                            "delivery": {
-                                                "type": "string"
-                                            },
-                                            "engine": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "dragonfly": {
-                                                        "type": "object"
-                                                    }
-                                                }
-                                            },
-                                            "ram": {
-                                                "type": "string"
-                                            },
-                                            "rotation": {
-                                                "type": "string"
-                                            },
-                                            "type": {
-                                                "type": "string"
-                                            }
-                                        }
-                                    }
-                                },
-                                "database": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "object",
-                                        "properties": {
-                                            "backup": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "crossVendor": {
-                                                        "type": "boolean"
-                                                    }
-                                                }
-                                            },
-                                            "cpu": {
-                                                "type": "integer"
-                                            },
-                                            "credentialMode": {
-                                                "type": "string"
-                                            },
-                                            "delivery": {
-                                                "type": "string"
-                                            },
-                                            "engine": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "neon": {
-                                                        "type": "object",
-                                                        "properties": {
-                                                            "tier": {
-                                                                "type": "string"
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            },
-                                            "providerAccountRef": {
-                                                "type": "string"
-                                            },
-                                            "ram": {
-                                                "type": "string"
-                                            },
-                                            "rotation": {
-                                                "type": "string"
-                                            },
-                                            "storage": {
-                                                "type": "string"
-                                            },
-                                            "type": {
-                                                "type": "string"
-                                            },
-                                            "version": {
-                                                "type": "string"
-                                            }
-                                        }
-                                    }
-                                },
-                                "kv": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "object",
-                                        "properties": {
-                                            "credentialMode": {
-                                                "type": "string"
-                                            },
-                                            "delivery": {
-                                                "type": "string"
-                                            },
-                                            "engine": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "upstash": {
-                                                        "type": "object"
-                                                    }
-                                                }
-                                            },
-                                            "providerAccountRef": {
-                                                "type": "string"
-                                            },
-                                            "ram": {
-                                                "type": "string"
-                                            },
-                                            "rotation": {
-                                                "type": "string"
-                                            },
-                                            "type": {
-                                                "type": "string"
-                                            }
-                                        }
-                                    }
-                                },
-                                "store": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "object",
-                                        "properties": {
-                                            "credentialMode": {
-                                                "type": "string"
-                                            },
-                                            "delivery": {
-                                                "type": "string"
-                                            },
-                                            "engine": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "tigris": {
-                                                        "type": "object"
-                                                    }
-                                                }
-                                            },
-                                            "providerAccountRef": {
-                                                "type": "string"
-                                            },
-                                            "rotation": {
-                                                "type": "string"
-                                            },
-                                            "type": {
-                                                "type": "string"
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                },
-                "problem": {
-                    "type": "object",
-                    "properties": {
-                        "enabled": {
-                            "type": "boolean"
-                        },
-                        "entries": {
-                            "type": "array",
-                            "items": {
-                                "type": "object",
-                                "properties": {
-                                    "endpoints": {
-                                        "type": "array",
-                                        "items": {
-                                            "type": "object",
-                                            "properties": {
-                                                "method": {
-                                                    "type": "string"
-                                                },
-                                                "path": {
-                                                    "type": "string"
-                                                }
-                                            }
-                                        }
-                                    },
-                                    "id": {
-                                        "type": "string"
-                                    },
-                                    "recoverable": {
-                                        "type": "boolean"
-                                    },
-                                    "schema": {
-                                        "type": "object"
-                                    },
-                                    "status": {
-                                        "type": "integer"
-                                    },
-                                    "title": {
-                                        "type": "string"
-                                    },
-                                    "type": {
-                                        "type": "string"
-                                    }
-                                }
-                            }
-                        },
-                        "version": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "targetLandscape": {
-                    "type": "string"
-                },
-                "virtualLandscapeService": {
-                    "type": "object",
-                    "properties": {
-                        "enabled": {
-                            "type": "boolean"
-                        },
-                        "serve": {
-                            "type": "boolean"
-                        }
-                    }
-                },
-                "vlandscape": {
-                    "type": "string"
-                }
-            }
-        },
-        "secret": {
-            "description": "One service-scoped ExternalSecret with folder-prefix rewrites.",
-            "type": "object",
-            "properties": {
-                "enabled": {
-                    "type": "boolean"
-                },
-                "refreshInterval": {
-                    "type": "string"
-                },
-                "serviceFolder": {
-                    "type": "string"
-                },
-                "sharedFolder": {
-                    "type": "string"
-                },
-                "store": {
-                    "type": "object",
-                    "properties": {
-                        "kind": {
-                            "type": "string",
-                            "enum": [
-                                "SecretStore",
-                                "ClusterSecretStore"
-                            ]
-                        },
-                        "name": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
         },
         "serviceTree": {
             "description": "Stable four-slot service-tree projection. Landscape and cluster are added by independent overlays.",
@@ -575,183 +61,118 @@
             }
         },
         "upstream": {
-            "description": "Pinned optional upstream chart. Every instantiated dependency must receive a conforming override.",
+            "description": "Pure-passthrough cert-manager engine. Issuers live in zinc, never here.",
             "type": "object",
+            "required": [
+                "crds"
+            ],
             "properties": {
-                "enabled": {
-                    "type": "boolean"
-                },
-                "fullnameOverride": {
-                    "type": "string",
-                    "pattern": "^[a-z0-9]+-[a-z0-9]+$"
-                },
-                "image": {
+                "cainjector": {
                     "type": "object",
                     "properties": {
-                        "repository": {
-                            "type": "string"
-                        },
-                        "tag": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "podAnnotations": {
-                    "type": "object",
-                    "properties": {
-                        "reloader.stakater.com/auto": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "podSecurityContext": {
-                    "type": "object",
-                    "properties": {
-                        "runAsGroup": {
-                            "type": "integer"
-                        },
-                        "runAsNonRoot": {
-                            "type": "boolean"
-                        },
-                        "runAsUser": {
-                            "type": "integer"
-                        }
-                    }
-                },
-                "resources": {
-                    "type": "object",
-                    "properties": {
-                        "limits": {
+                        "containerSecurityContext": {
                             "type": "object",
                             "properties": {
-                                "cpu": {
-                                    "type": "string"
-                                },
-                                "memory": {
-                                    "type": "string"
+                                "runAsNonRoot": {
+                                    "type": "boolean"
                                 }
                             }
                         },
-                        "requests": {
+                        "podAnnotations": {
                             "type": "object",
                             "properties": {
-                                "cpu": {
-                                    "type": "string"
-                                },
-                                "memory": {
-                                    "type": "string"
+                                "reloader.stakater.com/auto": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
                                 }
                             }
-                        }
-                    }
-                },
-                "securityContext": {
-                    "type": "object",
-                    "properties": {
-                        "allowPrivilegeEscalation": {
-                            "type": "boolean"
                         },
-                        "capabilities": {
+                        "resources": {
                             "type": "object",
                             "properties": {
-                                "drop": {
-                                    "type": "array",
-                                    "items": {
-                                        "type": "string"
+                                "limits": {
+                                    "type": "object",
+                                    "properties": {
+                                        "cpu": {
+                                            "type": "string"
+                                        },
+                                        "memory": {
+                                            "type": "string"
+                                        }
+                                    }
+                                },
+                                "requests": {
+                                    "type": "object",
+                                    "properties": {
+                                        "cpu": {
+                                            "type": "string"
+                                        },
+                                        "memory": {
+                                            "type": "string"
+                                        }
                                     }
                                 }
                             }
-                        },
-                        "readOnlyRootFilesystem": {
-                            "type": "boolean"
-                        },
-                        "runAsGroup": {
-                            "type": "integer"
-                        },
-                        "runAsNonRoot": {
-                            "type": "boolean"
-                        },
-                        "runAsUser": {
-                            "type": "integer"
                         }
                     }
-                }
-            }
-        },
-        "webhookRoute": {
-            "description": "Optional Gateway API route scaffold for a webhook receiver.",
-            "type": "object",
-            "properties": {
-                "enabled": {
-                    "type": "boolean"
                 },
-                "parentGateway": {
-                    "type": "string"
-                },
-                "parentNamespace": {
-                    "type": "string"
-                }
-            }
-        },
-        "workload": {
-            "description": "Wrapper-owned sample workload.",
-            "type": "object",
-            "properties": {
-                "image": {
+                "config": {
+                    "description": "ControllerConfiguration. enableGatewayAPI is the canonical Gateway API knob (not the legacy feature gate).",
                     "type": "object",
                     "properties": {
-                        "pullPolicy": {
-                            "type": "string",
-                            "enum": [
-                                "Always",
-                                "IfNotPresent",
-                                "Never"
-                            ]
-                        },
-                        "repository": {
-                            "type": "string"
-                        },
-                        "tag": {
-                            "type": "string",
-                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                        "enableGatewayAPI": {
+                            "type": "boolean"
                         }
                     }
                 },
-                "podSecurityContext": {
+                "containerSecurityContext": {
+                    "description": "Container hardening. cert-manager defaults already supply drop ALL, readOnlyRootFilesystem, and allowPrivilegeEscalation:false; runAsNonRoot is added at container level so every workload satisfies the workload-baseline VAP.",
                     "type": "object",
                     "properties": {
-                        "fsGroup": {
-                            "type": "integer"
-                        },
-                        "runAsGroup": {
-                            "type": "integer"
-                        },
                         "runAsNonRoot": {
                             "type": "boolean"
-                        },
-                        "runAsUser": {
-                            "type": "integer"
                         }
                     }
                 },
-                "port": {
-                    "type": "integer",
-                    "maximum": 65535,
-                    "minimum": 1
-                },
-                "reloader": {
+                "crds": {
+                    "description": "cert-manager CRDs are installed by the engine chart; keep them on uninstall so certificates survive.",
                     "type": "object",
                     "properties": {
                         "enabled": {
                             "type": "boolean"
+                        },
+                        "keep": {
+                            "type": "boolean"
                         }
                     }
                 },
-                "replicas": {
-                    "type": "integer",
-                    "minimum": 1
+                "enabled": {
+                    "type": "boolean"
+                },
+                "imageNamespace": {
+                    "type": "string"
+                },
+                "imageRegistry": {
+                    "description": "Sequential-minor upgrade path from v1.15 is enforced by this repo's own CI (Q-G22).",
+                    "type": "string"
+                },
+                "podAnnotations": {
+                    "description": "Reloader opt-in on the controller pod (family default).",
+                    "type": "object",
+                    "properties": {
+                        "reloader.stakater.com/auto": {
+                            "description": "Nullable so a landscape/cluster overlay can opt a workload out by setting it to null.",
+                            "type": [
+                                "string",
+                                "null"
+                            ]
+                        }
+                    }
                 },
                 "resources": {
+                    "description": "Controller requests/limits. Required so rendered workloads satisfy the inherited workload-baseline VAP (requests+limits for cpu+memory).",
                     "type": "object",
                     "properties": {
                         "limits": {
@@ -778,34 +199,95 @@
                         }
                     }
                 },
-                "securityContext": {
+                "startupapicheck": {
+                    "description": "One-shot startup API check Job. No Reloader annotation (not a long-running workload).",
                     "type": "object",
                     "properties": {
-                        "allowPrivilegeEscalation": {
-                            "type": "boolean"
-                        },
-                        "capabilities": {
+                        "containerSecurityContext": {
                             "type": "object",
                             "properties": {
-                                "drop": {
-                                    "type": "array",
-                                    "items": {
-                                        "type": "string"
-                                    }
+                                "runAsNonRoot": {
+                                    "type": "boolean"
                                 }
                             }
                         },
-                        "readOnlyRootFilesystem": {
-                            "type": "boolean"
+                        "resources": {
+                            "type": "object",
+                            "properties": {
+                                "limits": {
+                                    "type": "object",
+                                    "properties": {
+                                        "cpu": {
+                                            "type": "string"
+                                        },
+                                        "memory": {
+                                            "type": "string"
+                                        }
+                                    }
+                                },
+                                "requests": {
+                                    "type": "object",
+                                    "properties": {
+                                        "cpu": {
+                                            "type": "string"
+                                        },
+                                        "memory": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "webhook": {
+                    "type": "object",
+                    "properties": {
+                        "containerSecurityContext": {
+                            "type": "object",
+                            "properties": {
+                                "runAsNonRoot": {
+                                    "type": "boolean"
+                                }
+                            }
                         },
-                        "runAsGroup": {
-                            "type": "integer"
+                        "podAnnotations": {
+                            "type": "object",
+                            "properties": {
+                                "reloader.stakater.com/auto": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                }
+                            }
                         },
-                        "runAsNonRoot": {
-                            "type": "boolean"
-                        },
-                        "runAsUser": {
-                            "type": "integer"
+                        "resources": {
+                            "type": "object",
+                            "properties": {
+                                "limits": {
+                                    "type": "object",
+                                    "properties": {
+                                        "cpu": {
+                                            "type": "string"
+                                        },
+                                        "memory": {
+                                            "type": "string"
+                                        }
+                                    }
+                                },
+                                "requests": {
+                                    "type": "object",
+                                    "properties": {
+                                        "cpu": {
+                                            "type": "string"
+                                        },
+                                        "memory": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }

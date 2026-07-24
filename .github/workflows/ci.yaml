@@ -26,9 +26,9 @@ jobs:
     with:
       chart_path: ./infra/root_chart
 
-  helm-wrapper:
-    name: Helm Wrapper
+  sulfur:
+    name: Sulfur Chart
     permissions:
       contents: read
-    uses: ./.github/workflows/⚡reusable-helm-wrapper.yaml
+    uses: ./.github/workflows/⚡reusable-sulfur.yaml
     secrets: inherit
