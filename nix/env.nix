@@ -6,7 +6,6 @@ with packages;
     go-task
     infisical
     pls
-    sg
     skopeo
   ];
 
@@ -14,7 +13,6 @@ with packages;
     actionlint
     dn-inspect
     dotnetlint
-    gitlint
     infralint
     kubeconform
     kyverno
@@ -37,12 +35,12 @@ with packages;
     ripgrep
     shellcheck
     skopeo
+    packages.releaser
     xmlstarlet
   ];
 
-  # C2: sg is retained only until tools/releaser is published at step 2p.
   releaser = [
-    sg
+    packages.releaser
   ];
 
   system = [

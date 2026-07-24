@@ -7,27 +7,27 @@ export default {
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
   probes: [
     {
-      name: 'baseline-hook-gitlint-green',
+      name: 'baseline-hook-releaser-commit-green',
       description: 'The installed commit-msg hook accepts a conventional subject.',
       kind: 'baseline',
       async run(repo: any) {
         await expectGreen(
           repo,
-          `message_path="$(mktemp)" && trap 'rm -f "$message_path"' EXIT && printf 'feat: valid commit message\n' >"$message_path" && ${syntheticAuthor} nix develop .#ci -c pre-commit run gitlint --hook-stage commit-msg --commit-msg-filename "$message_path"`,
-          'hook-gitlint',
+          `message_path="$(mktemp)" && trap 'rm -f "$message_path"' EXIT && printf 'feat: valid commit message\\n' >"$message_path" && ${syntheticAuthor} nix develop .#ci -c pre-commit run a-releaser-commit --hook-stage commit-msg --commit-msg-filename "$message_path"`,
+          'hook-releaser-commit',
         );
       },
     },
     {
-      name: 'mutation-hook-gitlint-caught',
+      name: 'mutation-hook-releaser-commit-caught',
       description: 'A non-conventional subject turns the installed commit-msg hook red.',
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
         await expectRed(
           repo,
-          `message_path="$(mktemp)" && trap 'rm -f "$message_path"' EXIT && printf 'not conventional\n' >"$message_path" && ${syntheticAuthor} nix develop .#ci -c pre-commit run gitlint --hook-stage commit-msg --commit-msg-filename "$message_path"`,
-          'hook-gitlint',
+          `message_path="$(mktemp)" && trap 'rm -f "$message_path"' EXIT && printf 'not conventional\\n' >"$message_path" && ${syntheticAuthor} nix develop .#ci -c pre-commit run a-releaser-commit --hook-stage commit-msg --commit-msg-filename "$message_path"`,
+          'hook-releaser-commit',
         );
       },
     },

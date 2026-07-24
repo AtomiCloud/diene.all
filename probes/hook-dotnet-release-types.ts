@@ -6,7 +6,7 @@ export default {
   probes: [
     {
       name: 'baseline-hook-dotnet-release-types-green',
-      description: 'The generated hook enforces one release and commit-type vocabulary.',
+      description: 'The generated hook enforces the canonical .NET release vocabulary.',
       kind: 'baseline',
       async run(repo: any) {
         await expectGreen(
@@ -18,13 +18,13 @@ export default {
     },
     {
       name: 'mutation-hook-dotnet-release-types-caught',
-      description: 'Removing one .gitlint type turns the vocabulary hook red.',
+      description: 'Removing one releaser type turns the vocabulary hook red.',
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        await repo.patch('.gitlint', {
-          find: ',style,test',
-          replace: ',style',
+        await repo.patch('atomi_release.yaml', {
+          find: '  - type: test',
+          replace: '  - type: tests',
         });
         await expectRed(
           repo,

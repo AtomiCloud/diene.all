@@ -3,6 +3,7 @@
   pkgs,
   pkgs-2605,
   pkgs-unstable,
+  releaser-src,
 }:
 let
   cyanprintVersion = "4.9.0";
@@ -48,7 +49,7 @@ let
     dotnet-base = {
       dotnetlint = atomi.dotnetlint.override { dotnetPackage = pkgs-2605.dotnet-sdk_10; };
       dn-inspect = atomi.dn-inspect.override { dotnetPackage = pkgs-2605.dotnet-sdk_10; };
-      inherit (pkgs-2605) dotnet-sdk_10 gitlint xmlstarlet;
+      inherit (pkgs-2605) dotnet-sdk_10 xmlstarlet;
     };
     atomipkgs = (
       with atomi;
@@ -58,7 +59,6 @@ let
           infralint
           infrautils
           pls
-          sg
           ;
       }
     );
@@ -91,6 +91,10 @@ let
 
     root = {
       inherit cyanprint;
+
+      # ### dotnet-base-releaser
+      # #### source: dotnet-base
+      releaser = releaser-src.packages.${pkgs.stdenv.hostPlatform.system}.releaser;
     };
   };
 in

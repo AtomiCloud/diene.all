@@ -6,22 +6,15 @@ title: Semantic Release
 # Semantic Release
 
 `atomi_release.yaml` is the single source of truth for commit types, release
-levels, generated commit-convention documentation, and the semantic-release
-plugin chain. Do not add a standalone `.gitlint` file.
+levels, generated commit-convention documentation, and releaser behavior. Do
+not add a standalone `.gitlint` file or legacy semantic-release plugin chain.
 
-## Build-order boundary
+## Immutable tool boundary
 
-The workspace baseline registers the future commands now, but the `releaser`
-binary is published by `tools/releaser` at C2 step 2p. Until that fold lands:
-
-- the repository-owned validators check the configuration schema, plugin chain,
-  and exact D3 type vocabulary;
-- the commit-msg hook remains registered but its binary is unavailable;
-- release execution is not considered locally available; and
-- `sg` remains only as a temporary Nix-shell bootstrap dependency.
-
-After step 2p, `releaser` replaces that bootstrap dependency and the registered
-commit and release commands become executable.
+The repository consumes `AtomiCloud/releaser` v1.0.0 directly as an immutable
+flake input. The repository-owned validators enforce the canonical schema and
+exact D3 type vocabulary, while the real releaser binary implements the
+registered commit and release commands.
 
 ## Commands
 
@@ -36,17 +29,17 @@ releaser release -c atomi_release.yaml
 
 ## Configuration
 
-The plugin chain is declared in the `plugins:` list of `atomi_release.yaml`. Each
-entry names its `module:`, its pinned `version:`, and a `config:` block holding
-that plugin's own settings — which files it writes, which it commits, and what
-commands it runs. Read the list in order; the order is itself part of the
-contract.
+The canonical v2 `release` section declares the `main` branch, `v${version}`
+tag format, and `Changelog.md` output. Its commit assets are `Changelog.md`,
+`VERSION`, and the generated commit-conventions document. The `afterWrite`
+prepare hook runs `scripts/release/bump.sh ${version}`, which stamps `VERSION`;
+GitHub publication is enabled for this template through `release.github`.
 
-Two things about that file are fixed policy rather than free configuration: the
-base plugin chain and the unified D3 commit-type vocabulary. Both are enforced by
-`scripts/validate/release-config.sh`, which holds the exact expected values —
-read it to see what the `a-release-config` gate will accept. Changing either
-means changing the validator and the configuration together, deliberately.
+The unified D3 commit-type vocabulary is:
+
+```text
+amend, build, chore, ci, config, dep, docs, feat, fix, perf, refactor, style, test
+```
 
 Both commit validation and release calculation consume this same configuration,
 so the vocabularies cannot drift independently.
@@ -61,4 +54,5 @@ the release Nix shell, and that script runs `releaser release`, which calculates
 the version, updates the changelog and generated files, creates the tag, and
 publishes the GitHub release.
 
-Actual release execution remains gated on the C2 step-2p `tools/releaser` fold.
+Release execution is available through the immutable flake input; normal
+repository release authorization still applies.
