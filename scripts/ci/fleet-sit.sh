@@ -896,7 +896,8 @@ run_full() {
 
   sit_leg_begin 'L5-machinery-tag-and-automated-policy' \
     'webhook-L5-application.json' 'git-C5-tag.txt' 'l5-reset-and-tag.json' \
-    'platform-sitother-before-L5.json' 'platform-sitother-reset-L5.json' \
+    'platform-sitother-before-L5.json' 'platform-sitother-finalizer-reset-L5.json' \
+    'applicationset-reset-trigger-L5.txt' 'platform-sitother-reset-L5.json' \
     'platform-sitother-after-L5.json' 'platform-canary-after-L5.json'
   cp "${report}/platform-sitother-after-L4.json" "${report}/platform-sitother-before-L5.json"
   local previous_uid recreated_uid tag_moved_at
@@ -904,7 +905,15 @@ run_full() {
   [ -n "${previous_uid}" ] && [ "${previous_uid}" != 'null' ] ||
     sit_fail 'platform-sitother had no UID before the L5 reset'
   scale_application_controller 0
-  kubectl -n argocd delete application.argoproj.io platform-sitother --wait=true
+  kubectl -n argocd patch application.argoproj.io platform-sitother --type merge \
+    -p '{"metadata":{"finalizers":null}}' -o json \
+    >"${report}/platform-sitother-finalizer-reset-L5.json"
+  jq -e '(.metadata.finalizers // []) | length == 0' \
+    "${report}/platform-sitother-finalizer-reset-L5.json" >/dev/null
+  kubectl -n argocd delete application.argoproj.io platform-sitother --wait=true --timeout=30s
+  kubectl -n argocd annotate applicationset.argoproj.io platforms \
+    'argocd.argoproj.io/application-set-refresh=true' --overwrite \
+    >"${report}/applicationset-reset-trigger-L5.txt"
   sit_wait_for 90 'ApplicationSet controller to recreate platform-sitother without an operation' \
     check_sitother_recreated_without_operation "${previous_uid}"
   kubectl -n argocd get application.argoproj.io platform-sitother -o json \
