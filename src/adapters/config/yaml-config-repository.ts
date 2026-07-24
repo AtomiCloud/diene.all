@@ -1,7 +1,7 @@
-import { ConfigError } from '../../lib/errors';
+import type { ReleaserConfig } from '../../lib/config/model';
 import { detectSchemaVersion, parseCanonicalV2 } from '../../lib/config/schema';
 import { translateV1 } from '../../lib/config/translator';
-import type { ReleaserConfig } from '../../lib/config/model';
+import { ConfigError } from '../../lib/errors';
 import type { IConfigRepository, IFileSystem, LoadedConfig } from '../../lib/release/ports';
 
 export class YamlConfigRepository implements IConfigRepository {

@@ -1,6 +1,6 @@
 import type { Command } from 'commander';
-import { userMessage } from '../../lib/release/release-service';
 import type { MigrationService } from '../../lib/migration/migration-service';
+import { userMessage } from '../../lib/release/release-service';
 import type { ICliIo } from '../terminal/console-io';
 import { EXIT_ERROR, EXIT_SUCCESS } from './exit-codes';
 

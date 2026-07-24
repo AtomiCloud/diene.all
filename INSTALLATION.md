@@ -1,23 +1,39 @@
 # Installing `releaser`
 
-`releaser` is a standalone binary; Bun and Node are not required at runtime.
-Releases publish through the `atomicloud` Gemfury account and the
-`AtomiCloud/homebrew-tap` cask repository.
+`releaser` ships as a standalone binary (no Bun/Node runtime required) to every major channel.
+Pick the one that fits your platform. Release automation mirrors Debian/RPM packages to the
+Gemfury account `atomicloud` and publishes a cask to `AtomiCloud/homebrew-tap`.
 
-## Debian and Ubuntu
+> **macOS caveat — unsigned binaries.** The binaries are not code-signed. On macOS, Gatekeeper
+> quarantines them on first run. Clear the quarantine attribute after install:
+>
+> ```bash
+> xattr -d com.apple.quarantine "$(command -v releaser)"
+> ```
+
+## Debian / Ubuntu (`.deb`)
+
+The `atomicloud` Gemfury repository does not currently publish a GPG key. Do not add it to APT
+with signature verification disabled. Until repository signing is provisioned, download the
+matching `releaser_<version>_linux_<amd64-or-arm64>.deb` and `checksums.txt` assets from the same
+[GitHub release](https://github.com/AtomiCloud/releaser/releases), then verify and install:
 
 ```bash
-echo "deb [trusted=yes] https://apt.fury.io/atomicloud/ /" | sudo tee /etc/apt/sources.list.d/atomicloud.list
-sudo apt update
-sudo apt install releaser
+package='releaser_<version>_linux_<amd64-or-arm64>.deb'
+grep " ${package}$" checksums.txt | sha256sum --check
+sudo apt install "./${package}"
 ```
 
-## Fedora, RHEL, and CentOS
+## Fedora / RHEL / CentOS (`.rpm`)
 
-Add `https://yum.fury.io/atomicloud/` as a package repository, then install:
+The same signing prerequisite applies to the Gemfury Yum repository. Until its repository metadata
+and RPM packages are signed, download the matching `releaser_<version>_linux_<amd64-or-arm64>.rpm`
+and `checksums.txt` from the same GitHub release, then verify and install:
 
 ```bash
-sudo dnf install releaser
+package='releaser_<version>_linux_<amd64-or-arm64>.rpm'
+grep " ${package}$" checksums.txt | sha256sum --check
+sudo dnf install "./${package}"
 ```
 
 ## Homebrew on macOS

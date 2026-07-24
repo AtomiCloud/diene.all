@@ -1,5 +1,5 @@
-import { dirname, isAbsolute, resolve } from 'node:path';
 import { mkdir, open, rename, rm, stat } from 'node:fs/promises';
+import { dirname, isAbsolute, resolve } from 'node:path';
 import type { IFileSystem } from '../../lib/release/ports';
 
 function absolutePath(root: string, path: string): string {

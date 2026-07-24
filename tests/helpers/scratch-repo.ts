@@ -1,6 +1,6 @@
-import { join } from 'node:path';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 export async function run(args: readonly string[], cwd: string): Promise<string> {
   const processHandle = Bun.spawn([...args], { cwd, stdout: 'pipe', stderr: 'pipe' });

@@ -9,8 +9,8 @@ arch)
   test -f bin/releaser.ts
   test -f src/lib/release/ports.ts
   test -f src/adapters/terminal/console-io.ts
-  ! rg -n 'console\.|process\.(stdin|stdout|stderr|exitCode)|Bun\.(spawn|file)|node:(fs|path|process)|from .commander.' src/lib
-  ! rg -n 'from .*(/|^)adapters/' src/lib
+  rg -q 'console\.|process\.(stdin|stdout|stderr|exitCode)|Bun\.(spawn|file)|node:(fs|path|process)|from .commander.' src/lib && echo '❌ terminal, filesystem, process, or CLI IO leaked into src/lib' >&2 && exit 1
+  rg -q "from ['\"](\\.\\./)+adapters(?:/|['\"])" src/lib && echo '❌ src/lib imports an adapter (forbidden upward dependency)' >&2 && exit 1
   for config in knip.json knip.llm.json knip.production.json knip.production.llm.json; do
     jq -e '.entry | index("bin/releaser.ts") != null' "${config}" >/dev/null || {
       echo "❌ ${config} must retain bin/releaser.ts as a real entry" >&2
@@ -50,6 +50,15 @@ homebrew-cask)
 fury-wiring)
   rg -F './scripts/release/publish.sh' .github/workflows/cd.yaml
   rg -F './scripts/release/fury.sh' scripts/release/publish.sh
+  stage_line="$(rg -nF 'goreleaser release --clean --skip=publish --release-notes ./IncrementalChangelog.md' scripts/release/publish.sh | cut -d: -f1)"
+  fury_line="$(rg -nF './scripts/release/fury.sh' scripts/release/publish.sh | cut -d: -f1)"
+  publish_line="$(rg -nF 'goreleaser release --clean --release-notes ./IncrementalChangelog.md' scripts/release/publish.sh | cut -d: -f1)"
+  [ "${stage_line}" -lt "${fury_line}" ] && [ "${fury_line}" -lt "${publish_line}" ] || {
+    echo '❌ packages must be staged and sent to Gemfury before GoReleaser publishes GitHub + cask' >&2
+    exit 1
+  }
+  rg -F -- '--config "${credential_config}"' scripts/release/fury.sh
+  ! rg -F '${FURY_TOKEN}@' scripts/release/fury.sh
   ;;
 installer-checksum)
   rg -F 'checksums.txt' scripts/release/install.sh

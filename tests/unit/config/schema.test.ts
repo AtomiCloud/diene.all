@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
-import { ConfigError } from '../../../src/lib/errors';
 import { detectSchemaVersion, parseCanonicalV2 } from '../../../src/lib/config/schema';
+import { ConfigError } from '../../../src/lib/errors';
 
 function minimal(): Record<string, unknown> {
   return {

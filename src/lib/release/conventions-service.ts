@@ -1,5 +1,5 @@
-import { ConfigError } from '../errors';
 import type { CommitType, ReleaseLevel, ReleaserConfig } from '../config/model';
+import { ConfigError } from '../errors';
 
 const MARKERS = ['CONVENTION_DOCS_PLACEHOLDER', 'var___convention_docs___'] as const;
 

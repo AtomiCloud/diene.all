@@ -20,7 +20,9 @@ if [ "${mode}" = "wiring" ]; then
     while IFS=$'\t' read -r job reusable; do
       if [ -z "${reusable}" ]; then
         [ "${orchestrator}:${job}" != ".github/workflows/cd.yaml:goreleaser" ] && echo "❌ '${orchestrator}' job '${job}' must call a reusable workflow" >&2 && exit 1
-        rg -q 'scripts/release/publish[.]sh' "${orchestrator}" || {
+        yq -o=json '.jobs.goreleaser.steps' "${orchestrator}" | jq -e '
+          any(.[]; (.run // "") | contains("scripts/release/publish.sh"))
+        ' >/dev/null || {
           echo "❌ direct GoReleaser job does not call scripts/release/publish.sh" >&2
           exit 1
         }

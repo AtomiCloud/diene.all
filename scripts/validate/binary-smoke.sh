@@ -68,6 +68,9 @@ go version >/dev/null
 go env GOOS >/dev/null
 
 goreleaser --version >/dev/null
+if ! git remote get-url origin >/dev/null 2>&1; then
+  git remote add origin https://github.com/AtomiCloud/diene.all.git
+fi
 goreleaser check >/dev/null
 
 helm-docs --version >/dev/null

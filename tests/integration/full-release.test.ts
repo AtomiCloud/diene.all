@@ -1,15 +1,15 @@
 import { afterEach, describe, expect, it } from 'bun:test';
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import { BunFileSystem } from '../../src/adapters/filesystem/bun-filesystem';
 import { YamlConfigRepository } from '../../src/adapters/config/yaml-config-repository';
+import { BunFileSystem } from '../../src/adapters/filesystem/bun-filesystem';
 import { GitCli } from '../../src/adapters/git/git-cli';
 import { BunHookRunner } from '../../src/adapters/process/bun-hook-runner';
-import { ReleaseService } from '../../src/lib/release/release-service';
-import { VersionService } from '../../src/lib/release/version-service';
-import { NotesService } from '../../src/lib/release/notes-service';
 import { ConventionsService } from '../../src/lib/release/conventions-service';
 import { HookTemplate } from '../../src/lib/release/hook-template';
+import { NotesService } from '../../src/lib/release/notes-service';
+import { ReleaseService } from '../../src/lib/release/release-service';
+import { VersionService } from '../../src/lib/release/version-service';
 import { FakeClock, FakeGitHub } from '../helpers/fakes';
 import { commitAll, run, scratchRepository } from '../helpers/scratch-repo';
 

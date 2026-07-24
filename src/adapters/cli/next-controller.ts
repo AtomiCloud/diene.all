@@ -1,5 +1,5 @@
 import type { Command } from 'commander';
-import { userMessage, type ReleaseService } from '../../lib/release/release-service';
+import { type ReleaseService, userMessage } from '../../lib/release/release-service';
 import type { ICliIo } from '../terminal/console-io';
 import { EXIT_ERROR, EXIT_NO_RELEASE, EXIT_SUCCESS } from './exit-codes';
 

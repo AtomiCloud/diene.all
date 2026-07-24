@@ -1,3 +1,4 @@
+import type { ICliIo } from '../../src/adapters/terminal/console-io';
 import type { RawCommit } from '../../src/lib/commits/model';
 import type { ReleaserConfig } from '../../src/lib/config/model';
 import type {
@@ -10,7 +11,6 @@ import type {
   IHookRunner,
   LoadedConfig,
 } from '../../src/lib/release/ports';
-import type { ICliIo } from '../../src/adapters/terminal/console-io';
 
 export const TEST_CONFIG: ReleaserConfig = {
   schemaVersion: 2,

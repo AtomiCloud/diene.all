@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
-import { UnsupportedModuleError } from '../../../src/lib/errors';
 import { translateV1 } from '../../../src/lib/config/translator';
+import { UnsupportedModuleError } from '../../../src/lib/errors';
 import { HookTemplate } from '../../../src/lib/release/hook-template';
 
 function legacy(): Record<string, unknown> {

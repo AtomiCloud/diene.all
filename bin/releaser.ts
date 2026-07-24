@@ -12,7 +12,7 @@ import { BunFileSystem } from '../src/adapters/filesystem/bun-filesystem';
 import { GitCli } from '../src/adapters/git/git-cli';
 import { GitHubApi } from '../src/adapters/github/github-api';
 import { BunHookRunner } from '../src/adapters/process/bun-hook-runner';
-import { type ICliIo, ConsoleIo } from '../src/adapters/terminal/console-io';
+import { ConsoleIo, type ICliIo } from '../src/adapters/terminal/console-io';
 import { CommitLinter } from '../src/lib/commits/linter';
 import { MigrationService } from '../src/lib/migration/migration-service';
 import { ConventionsService } from '../src/lib/release/conventions-service';

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Release orchestration (mirrors sulfone.iridium):
-#   publish.sh            → real release: GoReleaser owns the GitHub release, then push to Gemfury
+#   publish.sh            → real release: stage packages, push to Gemfury, then publish GH + cask
 #   publish.sh --snapshot → dry-run: build everything into dist/ with NO publish
 SNAPSHOT=0
 [ "${1:-}" = "--snapshot" ] && SNAPSHOT=1
@@ -34,10 +34,13 @@ else
   [ "${ec}" -gt 1 ] && echo "❌ changelog diff failed" >&2 && exit 1
 fi
 
-echo "📦 GoReleaser release (creates the GitHub release, publishes the cask) ..."
-goreleaser release --clean --release-notes ./IncrementalChangelog.md
+echo "📦 Staging release artifacts without publishing ..."
+goreleaser release --clean --skip=publish --release-notes ./IncrementalChangelog.md
 
 echo "📤 Pushing Linux packages to Gemfury ..."
 ./scripts/release/fury.sh
+
+echo "📦 GoReleaser release (creates the GitHub release, publishes the cask) ..."
+goreleaser release --clean --release-notes ./IncrementalChangelog.md
 
 echo "✅ Release complete."

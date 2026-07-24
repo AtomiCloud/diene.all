@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'bun:test';
-import cases from '../fixtures/lint/cases.json';
-import { BunFileSystem } from '../../src/adapters/filesystem/bun-filesystem';
 import { YamlConfigRepository } from '../../src/adapters/config/yaml-config-repository';
+import { BunFileSystem } from '../../src/adapters/filesystem/bun-filesystem';
 import { CommitLinter } from '../../src/lib/commits/linter';
 import { ConventionsService } from '../../src/lib/release/conventions-service';
+import cases from '../fixtures/lint/cases.json';
 
 const names = ['bun-base', 'bun-cli', 'bun-consumer', 'bun-lib', 'dotnet-api', 'dotnet-base', 'dotnet-lib', 'shared'];
 

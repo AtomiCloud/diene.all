@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { translateV1 } from '../../../src/lib/config/translator';
 import { MigrationService } from '../../../src/lib/migration/migration-service';
-import { FakeConfigRepository, MemoryFileSystem, loadedConfig } from '../../helpers/fakes';
+import { FakeConfigRepository, loadedConfig, MemoryFileSystem } from '../../helpers/fakes';
 
 describe('migration service', () => {
   it('should atomically write v2 before deleting legacy files and print the checklist', async () => {

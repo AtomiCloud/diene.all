@@ -8,9 +8,8 @@ import { ReleaseController } from '../../src/adapters/cli/release-controller';
 import { ConsoleIo } from '../../src/adapters/terminal/console-io';
 import { CommitLinter } from '../../src/lib/commits/linter';
 import type { MigrationService } from '../../src/lib/migration/migration-service';
-import type { ReleasePreview } from '../../src/lib/release/release-service';
-import type { ReleaseService } from '../../src/lib/release/release-service';
-import { FakeConfigRepository, MemoryFileSystem, TEST_CONFIG, captureIo, loadedConfig } from '../helpers/fakes';
+import type { ReleasePreview, ReleaseService } from '../../src/lib/release/release-service';
+import { captureIo, FakeConfigRepository, loadedConfig, MemoryFileSystem, TEST_CONFIG } from '../helpers/fakes';
 
 const PREVIEW: ReleasePreview = {
   config: TEST_CONFIG,

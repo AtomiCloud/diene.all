@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it } from 'bun:test';
 import { mkdtemp, rm } from 'node:fs/promises';
-import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { BunFileSystem } from '../../src/adapters/filesystem/bun-filesystem';
+import { join } from 'node:path';
 import { YamlConfigRepository } from '../../src/adapters/config/yaml-config-repository';
+import { BunFileSystem } from '../../src/adapters/filesystem/bun-filesystem';
 import { GitCli } from '../../src/adapters/git/git-cli';
 import { NotesService } from '../../src/lib/release/notes-service';
 import { VersionService } from '../../src/lib/release/version-service';

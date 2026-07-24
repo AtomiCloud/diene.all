@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'bun:test';
 import { createProgram, registerDomain } from '../../bin/releaser';
 import {
+  captureIo,
   FakeClock,
   FakeConfigRepository,
   FakeGit,
   FakeGitHub,
   FakeHookRunner,
-  MemoryFileSystem,
-  captureIo,
   loadedConfig,
+  MemoryFileSystem,
 } from '../helpers/fakes';
 
 describe('controller registration', () => {

@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it } from 'bun:test';
 import { mkdtemp, open, rm, stat } from 'node:fs/promises';
-import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { BunFileSystem } from '../../src/adapters/filesystem/bun-filesystem';
+import { join } from 'node:path';
 import { YamlConfigRepository } from '../../src/adapters/config/yaml-config-repository';
+import { BunFileSystem } from '../../src/adapters/filesystem/bun-filesystem';
 
 const roots: string[] = [];
 

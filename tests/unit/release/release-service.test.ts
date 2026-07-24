@@ -1,21 +1,20 @@
 import { describe, expect, it } from 'bun:test';
-import { ReleaseService } from '../../../src/lib/release/release-service';
-import { VersionService } from '../../../src/lib/release/version-service';
-import { NotesService } from '../../../src/lib/release/notes-service';
-import { ConventionsService } from '../../../src/lib/release/conventions-service';
-import { HookTemplate } from '../../../src/lib/release/hook-template';
 import type { ReleaserConfig } from '../../../src/lib/config/model';
 import { ReleaseError } from '../../../src/lib/errors';
-import { userMessage } from '../../../src/lib/release/release-service';
+import { ConventionsService } from '../../../src/lib/release/conventions-service';
+import { HookTemplate } from '../../../src/lib/release/hook-template';
+import { NotesService } from '../../../src/lib/release/notes-service';
+import { ReleaseService, userMessage } from '../../../src/lib/release/release-service';
+import { VersionService } from '../../../src/lib/release/version-service';
 import {
   FakeClock,
   FakeConfigRepository,
   FakeGit,
   FakeGitHub,
   FakeHookRunner,
+  loadedConfig,
   MemoryFileSystem,
   TEST_CONFIG,
-  loadedConfig,
 } from '../../helpers/fakes';
 
 function fixture(config = TEST_CONFIG): {

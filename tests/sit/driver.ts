@@ -22,6 +22,8 @@ class BinaryCliDriver implements CliDriver {
       env: { ...process.env, ...env },
       stdout: 'pipe',
       stderr: 'pipe',
+      timeout: 30_000,
+      killSignal: 'SIGKILL',
     });
     const [out, err, code] = await Promise.all([
       new Response(processHandle.stdout).text(),

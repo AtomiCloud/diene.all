@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'bun:test';
 import { mkdtemp, rm } from 'node:fs/promises';
-import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { BunHookRunner } from '../../src/adapters/process/bun-hook-runner';
 import { HookTemplate } from '../../src/lib/release/hook-template';
 

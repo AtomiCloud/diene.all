@@ -1,7 +1,7 @@
 import type { Command } from 'commander';
 import type { CommitLinter } from '../../lib/commits/linter';
-import { userMessage } from '../../lib/release/release-service';
 import type { IConfigRepository, IFileSystem } from '../../lib/release/ports';
+import { userMessage } from '../../lib/release/release-service';
 import type { ICliIo } from '../terminal/console-io';
 import { EXIT_ERROR, EXIT_SUCCESS } from './exit-codes';
 

@@ -58,7 +58,12 @@ let
       let
         bunPkg = pkgs-2605.bun;
         manifest = builtins.fromJSON (builtins.readFile ../package.json);
-        cliName = builtins.head (builtins.attrNames manifest.bin);
+        cliNames = builtins.attrNames manifest.bin;
+        cliName =
+          if builtins.length cliNames == 1 then
+            builtins.head cliNames
+          else
+            builtins.throw "CLI package requires exactly one package.json bin entry";
         entry = manifest.bin.${cliName};
         src = pkgs.lib.cleanSourceWith {
           src = ../.;
@@ -82,9 +87,12 @@ let
           inherit src;
           nativeBuildInputs = [ bunPkg ];
           dontConfigure = true;
+          # Production deps only: the compiled binary bundles runtime imports (all pure JS),
+          # and excluding devDependencies (notably the platform-specific @biomejs/biome binary)
+          # keeps node_modules identical across linux/darwin so one fixed-output hash suffices.
           buildPhase = ''
             export HOME="$TMPDIR"
-            bun install --frozen-lockfile --no-progress --backend=copyfile --cpu='*' --os='*'
+            bun install --frozen-lockfile --no-progress --production
           '';
           installPhase = ''
             mkdir -p "$out"

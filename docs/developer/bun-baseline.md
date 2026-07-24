@@ -11,14 +11,21 @@ toolchain and test boundaries.
 
 ## Local commands
 
-- `pls setup` installs the frozen lockfile.
-- `pls lint` runs generated pre-commit hooks.
-- `pls test:unit`, `pls test:int`, and `pls test:sit` run the three tiers.
-- `pls test:*:coverage` writes the corresponding LCOV ledger.
-- `pls build` bundles `bin/releaser.ts`.
+- `pls setup` installs the locked Bun dependencies after synchronizing vendored
+  package skills.
+- `pls lint` runs every generated pre-commit hook.
+- `pls test`, `pls test:unit`, `pls test:int`, and `pls test:sit` run the test
+  tiers without coverage; SIT drives the freshly compiled binary.
+- `pls test:coverage`, `pls test:unit:coverage`,
+  `pls test:int:coverage`, and `pls test:sit:coverage` write scoped LCOV
+  artifacts. SIT coverage uses the in-process driver only.
+- `pls test:watch` watches the unit tier.
+- `pls build` bundles the `package.json` `bin` entry to `dist/releaser.js`.
 - `pls compile` emits `releaser-linux-x64-baseline`,
-  `releaser-linux-arm64`, and `releaser-darwin-arm64`.
-- `pls run -- <args>` runs source; `pls preview -- <args>` runs the host binary.
+  `releaser-linux-arm64`, and `releaser-darwin-arm64` under `dist/bin/`.
+- `pls deadcode` runs the two non-blocking LLM-review Knip configurations.
+- `pls run -- <args>` executes the source entry point.
+- `pls preview -- <args>` compiles and executes this host's standalone binary.
 
 There are no sample dependency, `up`/`down`, probe-matrix, or Docker tasks.
 
