@@ -31,7 +31,12 @@ export default {
       name: 'mutation-dotnet-multi-project-coverage-caught',
       description: 'An uncovered Lib2 member is caught without filter, Codecov, or CI surgery.',
       kind: 'mutation',
-      expectedImpact: ['dotnet-unit-coverage', 'dotnet-deadcode-all', 'dotnet-deadcode-production'],
+      expectedImpact: [
+        'dotnet-coverage-artifact-scope',
+        'dotnet-unit-coverage',
+        'dotnet-deadcode-all',
+        'dotnet-deadcode-production',
+      ],
       async run(repo: any) {
         await addSecondUnitProject(repo, true);
         await expectRed(repo, 'nix develop .#ci -c pls test:unit:coverage', 'dotnet-multi-project-coverage', 600000);

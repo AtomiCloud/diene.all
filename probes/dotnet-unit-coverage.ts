@@ -16,7 +16,12 @@ export default {
       name: 'mutation-dotnet-unit-coverage-caught',
       description: 'One uncovered Lib member turns the merged unit threshold red.',
       kind: 'mutation',
-      expectedImpact: ['dotnet-multi-project-coverage', 'dotnet-deadcode-all', 'dotnet-deadcode-production'],
+      expectedImpact: [
+        'dotnet-coverage-artifact-scope',
+        'dotnet-multi-project-coverage',
+        'dotnet-deadcode-all',
+        'dotnet-deadcode-production',
+      ],
       async run(repo: any) {
         await repo.write(
           'Lib/CoverageGap.cs',
