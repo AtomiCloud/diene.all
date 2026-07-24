@@ -6,15 +6,11 @@
 }:
 let
   go-deps = pkgs.buildGoModule {
-    pname = "diene-go-base-dependencies";
+    pname = "diene-go-interfaces-dependencies";
     version = "0";
     src = ../.;
-    # errors-problems is a zero-dependency module: `go mod download` yields no
-    # modules, so buildGoModule's vendored-deps derivation must be null. A
-    # non-null hash over an empty vendor fails the fresh clean-closure build
-    # ("vendor folder is empty, please set 'vendorHash = null;'") — the T5 RED
-    # bake 20260722t145529z-7ba1be. No deps ⇒ no proxy vendoring needed.
-    vendorHash = null;
+    vendorHash = "sha256-PzoYXRMJbfOE+qyKXwNU9CyKktxNHWku0KKWF/L8Eng=";
+    proxyVendor = true;
   };
   go-lint-runtime = pkgs.buildEnv {
     name = "go-base-lint-runtime";
@@ -23,6 +19,8 @@ let
       packages.git
       packages.go
       packages.golangci-lint
+      packages.jq
+      packages.ripgrep
       pkgs.coreutils
     ];
   };
@@ -199,7 +197,7 @@ pre-commit-lib.run {
     a-skills-freshness = {
       enable = true;
       name = "Vendored skills freshness";
-      entry = validator "scripts/validate/skills-freshness.sh";
+      entry = "${packages.bash}/bin/bash -c 'export PATH=${go-lint-runtime}/bin; export CGO_ENABLED=0; export GOPROXY=file://${go-deps.goModules}; export GOSUMDB=off; export GONOPROXY=\"\"; export GONOSUMDB=\"\"; export GOMODCACHE=\"\${TMPDIR:-/tmp}/go-base-mod-cache\"; exec ${packages.bash}/bin/bash scripts/validate/skills-freshness.sh'";
       pass_filenames = false;
       language = "system";
     };

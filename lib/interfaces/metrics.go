@@ -48,7 +48,8 @@ func (r MetricRecord) Clone() MetricRecord {
 	return NewMetricRecord(r.Timestamp, r.Name, r.Kind, r.Value, r.Unit, r.Attributes)
 }
 
-// MetricsCollector receives structured application metric samples.
+// MetricsCollector receives structured application metric samples. Every
+// non-nil error returned by an implementation must be problem-typed.
 type MetricsCollector interface {
 	// Emit delivers record.
 	Emit(record MetricRecord) error

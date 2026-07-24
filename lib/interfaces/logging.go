@@ -69,7 +69,8 @@ func CloneAttributes(attributes map[string]any) map[string]any {
 	return maps.Clone(attributes)
 }
 
-// LoggerSink receives structured application logs.
+// LoggerSink receives structured application logs. Every non-nil error returned
+// by an implementation must be problem-typed.
 type LoggerSink interface {
 	// Emit delivers record.
 	Emit(record LogRecord) error

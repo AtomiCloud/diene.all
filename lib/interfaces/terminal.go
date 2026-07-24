@@ -28,10 +28,11 @@ func NewTerminalCommand(executable string, args []string, workingDirectory *stri
 	command := TerminalCommand{
 		Executable:               executable,
 		Args:                     append([]string(nil), args...),
-		Environment:              cloneStringMap(environment),
+		Environment:              make(map[string]string, len(environment)),
 		IncludeParentEnvironment: includeParentEnvironment,
 		RunInShell:               runInShell,
 	}
+	maps.Copy(command.Environment, environment)
 	if workingDirectory != nil {
 		copied := *workingDirectory
 		command.WorkingDirectory = &copied
@@ -59,14 +60,8 @@ func (o TerminalOutput) Succeeded() bool { return o.ExitCode == 0 }
 
 // Terminal is a process-execution boundary. A non-zero child exit code is a
 // successful TerminalOutput; only a launch failure is returned as an error.
+// Every non-nil launch error must be problem-typed.
 type Terminal interface {
 	// Run executes command.
 	Run(ctx context.Context, command TerminalCommand) (TerminalOutput, error)
-}
-
-func cloneStringMap(values map[string]string) map[string]string {
-	if values == nil {
-		return map[string]string{}
-	}
-	return maps.Clone(values)
 }

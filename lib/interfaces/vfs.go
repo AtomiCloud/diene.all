@@ -72,7 +72,8 @@ type DirectoryOptions struct {
 type VfsDirectoryOptions = DirectoryOptions
 
 // Vfs is a portable virtual filesystem boundary. Paths are opaque strings;
-// normalization and sandbox policy belong to implementations.
+// normalization and sandbox policy belong to implementations. Every non-nil
+// error returned by an implementation must be problem-typed.
 type Vfs interface {
 	// Exists reports whether path names an entry.
 	Exists(ctx context.Context, path string) (bool, error)

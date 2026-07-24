@@ -1,8 +1,7 @@
 // Package interfaces defines implementation-free seams for system, virtual
 // filesystem, terminal, logging, and metrics work.
 //
-// Implementations return ordinary Go errors. Implementations in the Diene
-// family use problem-typed errors from diene.go-errors-problems for expected
-// failures, allowing callers to inspect structured details without a Result or
-// Option wrapper.
+// Every non-nil error returned through these seams must carry a *problem.Error
+// from diene.go-errors-problems, allowing callers to recover structured
+// details with errors.As while preserving cause matching with errors.Is.
 package interfaces

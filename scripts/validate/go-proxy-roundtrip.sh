@@ -11,8 +11,8 @@ trap 'rm -rf "${tmp}"' EXIT
 cd "${tmp}"
 go mod init example.invalid/go-lib-consumer >/dev/null
 GOPROXY="${proxy}" GOSUMDB=sum.golang.org go get "${module}@${tag}"
-printf 'package main\n\nimport (\n\t"fmt"\n\t"%s/lib/problem"\n)\n\nfunc main() { fmt.Println(problem.EntityNotFound().ID) }\n' "${module}" >main.go
+printf 'package main\n\nimport (\n\t"context"\n\t"fmt"\n\n\t"%s/lib/interfaces"\n\t"%s/testhelper"\n)\n\nfunc main() {\n\tterminal := testhelper.NewInMemoryTerminal()\n\tterminal.EnqueueResult(interfaces.TerminalOutput{Stdout: "ok"}, nil)\n\toutput, err := terminal.Run(context.Background(), interfaces.NewTerminalCommand("echo", nil, nil, nil, true, false))\n\tfmt.Println(output.Stdout, err == nil)\n}\n' "${module}" "${module}" >main.go
 GOPROXY="${proxy}" GOSUMDB=sum.golang.org go build -o consumer .
-[ "$(./consumer)" != "entity-not-found" ] && echo "❌ proxy consumer returned an unexpected result" >&2 && exit 1
+[ "$(./consumer)" != "ok true" ] && echo "❌ proxy consumer returned an unexpected result" >&2 && exit 1
 
 echo "✅ Go proxy resolved ${module}@${tag} into a clean consumer"

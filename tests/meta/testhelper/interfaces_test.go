@@ -7,9 +7,15 @@ import (
 	"time"
 
 	"github.com/AtomiCloud/diene.go-errors-problems/lib/problem"
+	probtest "github.com/AtomiCloud/diene.go-errors-problems/testhelper"
 	"github.com/AtomiCloud/diene.go-interfaces/lib/interfaces"
 	"github.com/AtomiCloud/diene.go-interfaces/testhelper"
 )
+
+// canonicalTypePrefix is the fixed testhelper fault type-URI prefix. Every
+// intrinsic fault resolves its type through problem.TypeURI from the fixed
+// portal, so the id is the final canonical path segment.
+const canonicalTypePrefix = "https://docs.diene.atomicloud.com/docs/diene/go/interfaces/testhelper/v1/"
 
 func TestInMemorySystem(t *testing.T) {
 	value := "value"
@@ -271,12 +277,133 @@ func TestInMemoryTerminalLoggerAndMetrics(t *testing.T) {
 	}
 }
 
+// TestInjectedErrorsAreProblemTyped proves every seam of every mock normalizes
+// an injected plain error so it is recoverable as *problem.Error while
+// errors.Is still reaches the original cause.
+func TestInjectedErrorsAreProblemTyped(t *testing.T) {
+	ctx := context.Background()
+	seams := map[string]func(injected error) error{
+		"system.environment": func(injected error) error {
+			s := testhelper.NewInMemorySystem(testhelper.InMemorySystemOptions{})
+			s.EnqueueEnvironmentResult(nil, injected)
+			_, err := s.Environment("x")
+			return err
+		},
+		"system.directory": func(injected error) error {
+			s := testhelper.NewInMemorySystem(testhelper.InMemorySystemOptions{})
+			s.EnqueueDirectoryResult("", injected)
+			_, err := s.CurrentDirectory()
+			return err
+		},
+		"system.clock": func(injected error) error {
+			s := testhelper.NewInMemorySystem(testhelper.InMemorySystemOptions{})
+			s.EnqueueClockResult(time.Time{}, injected)
+			_, err := s.NowUTC()
+			return err
+		},
+		"system.delay": func(injected error) error {
+			s := testhelper.NewInMemorySystem(testhelper.InMemorySystemOptions{})
+			s.EnqueueDelayResult(injected)
+			return s.Delay(ctx, time.Second)
+		},
+		"vfs.exists": func(injected error) error {
+			v := testhelper.NewInMemoryVfs(testhelper.InMemoryVfsOptions{})
+			v.EnqueueExistsResult(false, injected)
+			_, err := v.Exists(ctx, "/x")
+			return err
+		},
+		"vfs.readBytes": func(injected error) error {
+			v := testhelper.NewInMemoryVfs(testhelper.InMemoryVfsOptions{})
+			v.EnqueueReadBytesResult(nil, injected)
+			_, err := v.ReadBytes(ctx, "/x")
+			return err
+		},
+		"vfs.readText": func(injected error) error {
+			v := testhelper.NewInMemoryVfs(testhelper.InMemoryVfsOptions{})
+			v.EnqueueReadTextResult("", injected)
+			_, err := v.ReadText(ctx, "/x")
+			return err
+		},
+		"vfs.writeBytes": func(injected error) error {
+			v := testhelper.NewInMemoryVfs(testhelper.InMemoryVfsOptions{})
+			v.EnqueueWriteBytesResult(injected)
+			return v.WriteBytes(ctx, "/x", nil, interfaces.WriteOptions{})
+		},
+		"vfs.writeText": func(injected error) error {
+			v := testhelper.NewInMemoryVfs(testhelper.InMemoryVfsOptions{})
+			v.EnqueueWriteTextResult(injected)
+			return v.WriteText(ctx, "/x", "", interfaces.WriteOptions{})
+		},
+		"vfs.list": func(injected error) error {
+			v := testhelper.NewInMemoryVfs(testhelper.InMemoryVfsOptions{})
+			v.EnqueueListResult(nil, injected)
+			_, err := v.List(ctx, "/", interfaces.ListOptions{})
+			return err
+		},
+		"vfs.createDirectory": func(injected error) error {
+			v := testhelper.NewInMemoryVfs(testhelper.InMemoryVfsOptions{})
+			v.EnqueueCreateDirectoryResult(injected)
+			return v.CreateDirectory(ctx, "/x", interfaces.DirectoryOptions{})
+		},
+		"vfs.delete": func(injected error) error {
+			v := testhelper.NewInMemoryVfs(testhelper.InMemoryVfsOptions{})
+			v.EnqueueDeleteResult(injected)
+			return v.Delete(ctx, "/x", interfaces.DirectoryOptions{})
+		},
+		"terminal.run": func(injected error) error {
+			term := testhelper.NewInMemoryTerminal()
+			term.EnqueueResult(interfaces.TerminalOutput{}, injected)
+			_, err := term.Run(ctx, interfaces.NewTerminalCommand("tool", nil, nil, nil, false, false))
+			return err
+		},
+		"logger.emit": func(injected error) error {
+			logger := testhelper.NewInMemoryLoggerSink()
+			logger.EnqueueResult(injected)
+			return logger.Emit(interfaces.NewLogRecord(time.Now(), interfaces.LogLevelInfo, "m", nil, nil, nil))
+		},
+		"metrics.emit": func(injected error) error {
+			metrics := testhelper.NewInMemoryMetricsCollector()
+			metrics.EnqueueResult(injected)
+			return metrics.Emit(interfaces.NewMetricRecord(time.Now(), "c", interfaces.MetricKindCounter, 1, nil, nil))
+		},
+	}
+	for name, run := range seams {
+		t.Run(name, func(t *testing.T) {
+			injected := errors.New("injected cause")
+			err := run(injected)
+			var problemErr *problem.Error
+			if !errors.As(err, &problemErr) || problemErr == nil {
+				t.Fatalf("expected a *problem.Error, got %#v", err)
+			}
+			if !errors.Is(err, injected) {
+				t.Fatal("errors.Is must still reach the injected cause")
+			}
+		})
+	}
+}
+
+// TestScriptedProblemErrorPreserved proves an already problem-typed injected
+// error is preserved verbatim rather than re-wrapped.
+func TestScriptedProblemErrorPreserved(t *testing.T) {
+	original := problem.NewError(probtest.SampleProblem())
+	logger := testhelper.NewInMemoryLoggerSink()
+	logger.EnqueueResult(original)
+	err := logger.Emit(interfaces.NewLogRecord(time.Now(), interfaces.LogLevelInfo, "m", nil, nil, nil))
+	if !errors.Is(err, original) {
+		t.Fatalf("expected the original problem error preserved, got %#v", err)
+	}
+	probtest.AssertError(t, err, probtest.ExpectID("entity-not-found"), probtest.ExpectStatus(404))
+}
+
 func mustErr[T any](_ T, err error) error { return err }
 
 func assertProblem(t *testing.T, err error, id string, status int) {
 	t.Helper()
-	var typed *problem.Error
-	if !errors.As(err, &typed) || typed.Problem.Data["id"] != id || typed.Problem.Status != status {
-		t.Fatalf("unexpected problem: %#v", err)
-	}
+	probtest.AssertError(
+		t, err,
+		probtest.ExpectType(canonicalTypePrefix+id),
+		probtest.ExpectID(id),
+		probtest.ExpectStatus(status),
+		probtest.ExpectData(map[string]any{"id": id}),
+	)
 }

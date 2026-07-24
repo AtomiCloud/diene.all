@@ -37,7 +37,7 @@ synchronization.
 `github.com/AtomiCloud/diene.go-interfaces` is the Go family's
 implementation-free seam library. It defines portable system, virtual
 filesystem, terminal, logging, and metrics contracts, with ordinary `(T, error)`
-failure slots. Implementations return problem-typed errors from
+failure slots. Every non-nil seam error carries a problem-typed error from
 `diene.go-errors-problems`; this module ships deterministic in-memory mocks in
 its consumer-facing `testhelper` package.
 

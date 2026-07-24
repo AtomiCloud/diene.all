@@ -5,13 +5,12 @@ package testhelper
 import (
 	"context"
 	"maps"
-	"slices"
-	"strings"
 	"sync"
 	"time"
 
-	"github.com/AtomiCloud/diene.go-errors-problems/lib/problem"
 	"github.com/AtomiCloud/diene.go-interfaces/lib/interfaces"
+	"github.com/AtomiCloud/diene.go-interfaces/testhelper/internal/faults"
+	"github.com/AtomiCloud/diene.go-interfaces/testhelper/internal/vfsstore"
 )
 
 type scripted[T any] struct {
@@ -32,6 +31,10 @@ type InMemorySystemOptions struct {
 // InMemorySystem is a deterministic System with mutable in-memory process
 // state and FIFO-scriptable results.
 type InMemorySystem struct {
+	state *inMemorySystemState
+}
+
+type inMemorySystemState struct {
 	mu                 sync.Mutex
 	environment        map[string]string
 	directory          string
@@ -53,47 +56,58 @@ func NewInMemorySystem(options InMemorySystemOptions) *InMemorySystem {
 	if now.IsZero() {
 		now = time.Unix(0, 0).UTC()
 	}
-	return &InMemorySystem{environment: copyStringMap(options.Environment), directory: directory, now: now.UTC()}
+	environment := make(map[string]string, len(options.Environment))
+	maps.Copy(environment, options.Environment)
+	return &InMemorySystem{state: &inMemorySystemState{environment: environment, directory: directory, now: now.UTC()}}
 }
 
 // EnqueueEnvironmentResult adds a FIFO Environment result.
 func (s *InMemorySystem) EnqueueEnvironmentResult(value *string, err error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.environmentResults = append(s.environmentResults, scripted[*string]{value: copyString(value), err: err})
+	s.state.mu.Lock()
+	defer s.state.mu.Unlock()
+	var copied *string
+	if value != nil {
+		owned := *value
+		copied = &owned
+	}
+	s.state.environmentResults = append(s.state.environmentResults, scripted[*string]{value: copied, err: faults.Normalize(err)})
 }
 
 // EnqueueDirectoryResult adds a FIFO CurrentDirectory result.
 func (s *InMemorySystem) EnqueueDirectoryResult(value string, err error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.directoryResults = append(s.directoryResults, scripted[string]{value: value, err: err})
+	s.state.mu.Lock()
+	defer s.state.mu.Unlock()
+	s.state.directoryResults = append(s.state.directoryResults, scripted[string]{value: value, err: faults.Normalize(err)})
 }
 
 // EnqueueClockResult adds a FIFO NowUTC result.
 func (s *InMemorySystem) EnqueueClockResult(value time.Time, err error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.clockResults = append(s.clockResults, scripted[time.Time]{value: value.UTC(), err: err})
+	s.state.mu.Lock()
+	defer s.state.mu.Unlock()
+	s.state.clockResults = append(s.state.clockResults, scripted[time.Time]{value: value.UTC(), err: faults.Normalize(err)})
 }
 
 // EnqueueDelayResult adds a FIFO Delay result.
 func (s *InMemorySystem) EnqueueDelayResult(err error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.delayResults = append(s.delayResults, err)
+	s.state.mu.Lock()
+	defer s.state.mu.Unlock()
+	s.state.delayResults = append(s.state.delayResults, faults.Normalize(err))
 }
 
 // Environment implements interfaces.System.
 func (s *InMemorySystem) Environment(name string) (*string, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if len(s.environmentResults) > 0 {
-		result := s.environmentResults[0]
-		s.environmentResults = s.environmentResults[1:]
-		return copyString(result.value), result.err
+	s.state.mu.Lock()
+	defer s.state.mu.Unlock()
+	if len(s.state.environmentResults) > 0 {
+		result := s.state.environmentResults[0]
+		s.state.environmentResults = s.state.environmentResults[1:]
+		if result.value == nil {
+			return nil, result.err
+		}
+		copied := *result.value
+		return &copied, result.err
 	}
-	value, ok := s.environment[name]
+	value, ok := s.state.environment[name]
 	if !ok {
 		return nil, nil
 	}
@@ -102,67 +116,67 @@ func (s *InMemorySystem) Environment(name string) (*string, error) {
 
 // CurrentDirectory implements interfaces.System.
 func (s *InMemorySystem) CurrentDirectory() (string, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if len(s.directoryResults) > 0 {
-		result := s.directoryResults[0]
-		s.directoryResults = s.directoryResults[1:]
+	s.state.mu.Lock()
+	defer s.state.mu.Unlock()
+	if len(s.state.directoryResults) > 0 {
+		result := s.state.directoryResults[0]
+		s.state.directoryResults = s.state.directoryResults[1:]
 		return result.value, result.err
 	}
-	return s.directory, nil
+	return s.state.directory, nil
 }
 
 // NowUTC implements interfaces.System.
 func (s *InMemorySystem) NowUTC() (time.Time, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if len(s.clockResults) > 0 {
-		result := s.clockResults[0]
-		s.clockResults = s.clockResults[1:]
+	s.state.mu.Lock()
+	defer s.state.mu.Unlock()
+	if len(s.state.clockResults) > 0 {
+		result := s.state.clockResults[0]
+		s.state.clockResults = s.state.clockResults[1:]
 		return result.value.UTC(), result.err
 	}
-	return s.now.UTC(), nil
+	return s.state.now.UTC(), nil
 }
 
 // Delay implements interfaces.System without sleeping.
 func (s *InMemorySystem) Delay(_ context.Context, duration time.Duration) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.requestedDelays = append(s.requestedDelays, duration)
-	if len(s.delayResults) == 0 {
+	s.state.mu.Lock()
+	defer s.state.mu.Unlock()
+	s.state.requestedDelays = append(s.state.requestedDelays, duration)
+	if len(s.state.delayResults) == 0 {
 		return nil
 	}
-	err := s.delayResults[0]
-	s.delayResults = s.delayResults[1:]
+	err := s.state.delayResults[0]
+	s.state.delayResults = s.state.delayResults[1:]
 	return err
 }
 
 // RequestedDelays returns an independently owned snapshot of requested delays.
 func (s *InMemorySystem) RequestedDelays() []time.Duration {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return append([]time.Duration(nil), s.requestedDelays...)
+	s.state.mu.Lock()
+	defer s.state.mu.Unlock()
+	return append([]time.Duration(nil), s.state.requestedDelays...)
 }
 
 // SetEnvironment sets or replaces one in-memory environment variable.
 func (s *InMemorySystem) SetEnvironment(name, value string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.environment[name] = value
+	s.state.mu.Lock()
+	defer s.state.mu.Unlock()
+	s.state.environment[name] = value
 }
 
 // SetDirectory replaces the in-memory working directory.
 func (s *InMemorySystem) SetDirectory(directory string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.directory = directory
+	s.state.mu.Lock()
+	defer s.state.mu.Unlock()
+	s.state.directory = directory
 }
 
 // SetNow replaces the in-memory UTC clock.
 func (s *InMemorySystem) SetNow(now time.Time) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.now = now.UTC()
+	s.state.mu.Lock()
+	defer s.state.mu.Unlock()
+	s.state.now = now.UTC()
 }
 
 // InMemoryVfsOptions configures an InMemoryVfs.
@@ -173,11 +187,16 @@ type InMemoryVfsOptions struct {
 	Directories []string
 }
 
-// InMemoryVfs is a stateful byte-backed Vfs with FIFO-scriptable results.
+// InMemoryVfs is a stateful byte-backed Vfs with FIFO-scriptable results. It is
+// the synchronized, scriptable adapter around a vfsstore.Store that owns the
+// storage algorithms.
 type InMemoryVfs struct {
+	state *inMemoryVfsState
+}
+
+type inMemoryVfsState struct {
 	mu                     sync.Mutex
-	files                  map[string][]byte
-	directories            map[string]struct{}
+	store                  *vfsstore.Store
 	existsResults          []scripted[bool]
 	readBytesResults       []scripted[[]byte]
 	readTextResults        []scripted[string]
@@ -190,328 +209,227 @@ type InMemoryVfs struct {
 
 // NewInMemoryVfs creates a byte-backed filesystem from options.
 func NewInMemoryVfs(options InMemoryVfsOptions) *InMemoryVfs {
-	vfs := &InMemoryVfs{files: map[string][]byte{}, directories: map[string]struct{}{"/": {}}}
-	for path, bytes := range options.Files {
-		vfs.files[normalize(path)] = append([]byte(nil), bytes...)
-	}
-	for _, directory := range options.Directories {
-		vfs.directories[normalize(directory)] = struct{}{}
-	}
-	return vfs
+	store := vfsstore.New()
+	store.Seed(options.Files, options.Directories)
+	return &InMemoryVfs{state: &inMemoryVfsState{store: store}}
 }
 
 // EnqueueExistsResult adds a FIFO Exists result.
 func (v *InMemoryVfs) EnqueueExistsResult(value bool, err error) {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	v.existsResults = append(v.existsResults, scripted[bool]{value: value, err: err})
+	v.state.mu.Lock()
+	defer v.state.mu.Unlock()
+	v.state.existsResults = append(v.state.existsResults, scripted[bool]{value: value, err: faults.Normalize(err)})
 }
 
 // EnqueueReadBytesResult adds a FIFO ReadBytes result.
 func (v *InMemoryVfs) EnqueueReadBytesResult(value []byte, err error) {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	v.readBytesResults = append(v.readBytesResults, scripted[[]byte]{value: append([]byte(nil), value...), err: err})
+	v.state.mu.Lock()
+	defer v.state.mu.Unlock()
+	v.state.readBytesResults = append(v.state.readBytesResults, scripted[[]byte]{value: append([]byte(nil), value...), err: faults.Normalize(err)})
 }
 
 // EnqueueReadTextResult adds a FIFO ReadText result.
 func (v *InMemoryVfs) EnqueueReadTextResult(value string, err error) {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	v.readTextResults = append(v.readTextResults, scripted[string]{value: value, err: err})
+	v.state.mu.Lock()
+	defer v.state.mu.Unlock()
+	v.state.readTextResults = append(v.state.readTextResults, scripted[string]{value: value, err: faults.Normalize(err)})
 }
 
 // EnqueueWriteBytesResult adds a FIFO WriteBytes result.
 func (v *InMemoryVfs) EnqueueWriteBytesResult(err error) {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	v.writeBytesResults = append(v.writeBytesResults, err)
+	v.state.mu.Lock()
+	defer v.state.mu.Unlock()
+	v.state.writeBytesResults = append(v.state.writeBytesResults, faults.Normalize(err))
 }
 
 // EnqueueWriteTextResult adds a FIFO WriteText result.
 func (v *InMemoryVfs) EnqueueWriteTextResult(err error) {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	v.writeTextResults = append(v.writeTextResults, err)
+	v.state.mu.Lock()
+	defer v.state.mu.Unlock()
+	v.state.writeTextResults = append(v.state.writeTextResults, faults.Normalize(err))
 }
 
 // EnqueueListResult adds a FIFO List result.
 func (v *InMemoryVfs) EnqueueListResult(value []interfaces.VfsEntry, err error) {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	v.listResults = append(v.listResults, scripted[[]interfaces.VfsEntry]{value: cloneEntries(value), err: err})
+	v.state.mu.Lock()
+	defer v.state.mu.Unlock()
+	copied := make([]interfaces.VfsEntry, len(value))
+	for index, entry := range value {
+		copied[index] = interfaces.NewVfsEntry(entry.Path, entry.Type, entry.Size, entry.ModifiedAt)
+	}
+	v.state.listResults = append(v.state.listResults, scripted[[]interfaces.VfsEntry]{value: copied, err: faults.Normalize(err)})
 }
 
 // EnqueueCreateDirectoryResult adds a FIFO CreateDirectory result.
 func (v *InMemoryVfs) EnqueueCreateDirectoryResult(err error) {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	v.createDirectoryResults = append(v.createDirectoryResults, err)
+	v.state.mu.Lock()
+	defer v.state.mu.Unlock()
+	v.state.createDirectoryResults = append(v.state.createDirectoryResults, faults.Normalize(err))
 }
 
 // EnqueueDeleteResult adds a FIFO Delete result.
 func (v *InMemoryVfs) EnqueueDeleteResult(err error) {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	v.deleteResults = append(v.deleteResults, err)
+	v.state.mu.Lock()
+	defer v.state.mu.Unlock()
+	v.state.deleteResults = append(v.state.deleteResults, faults.Normalize(err))
 }
 
 // Exists implements interfaces.Vfs.
 func (v *InMemoryVfs) Exists(_ context.Context, path string) (bool, error) {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	if len(v.existsResults) > 0 {
-		result := v.existsResults[0]
-		v.existsResults = v.existsResults[1:]
+	v.state.mu.Lock()
+	defer v.state.mu.Unlock()
+	if len(v.state.existsResults) > 0 {
+		result := v.state.existsResults[0]
+		v.state.existsResults = v.state.existsResults[1:]
 		return result.value, result.err
 	}
-	normalized := normalize(path)
-	_, file := v.files[normalized]
-	_, directory := v.directories[normalized]
-	return file || directory, nil
+	return v.state.store.Exists(path), nil
 }
 
 // ReadBytes implements interfaces.Vfs.
 func (v *InMemoryVfs) ReadBytes(_ context.Context, path string) ([]byte, error) {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	if len(v.readBytesResults) > 0 {
-		result := v.readBytesResults[0]
-		v.readBytesResults = v.readBytesResults[1:]
+	v.state.mu.Lock()
+	defer v.state.mu.Unlock()
+	if len(v.state.readBytesResults) > 0 {
+		result := v.state.readBytesResults[0]
+		v.state.readBytesResults = v.state.readBytesResults[1:]
 		return append([]byte(nil), result.value...), result.err
 	}
-	normalized := normalize(path)
-	bytes, ok := v.files[normalized]
-	if !ok {
-		return nil, pathNotFound(normalized)
-	}
-	return append([]byte(nil), bytes...), nil
+	return v.state.store.ReadBytes(path)
 }
 
 // ReadText implements interfaces.Vfs.
 func (v *InMemoryVfs) ReadText(_ context.Context, path string) (string, error) {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	if len(v.readTextResults) > 0 {
-		result := v.readTextResults[0]
-		v.readTextResults = v.readTextResults[1:]
+	v.state.mu.Lock()
+	defer v.state.mu.Unlock()
+	if len(v.state.readTextResults) > 0 {
+		result := v.state.readTextResults[0]
+		v.state.readTextResults = v.state.readTextResults[1:]
 		return result.value, result.err
 	}
-	normalized := normalize(path)
-	bytes, ok := v.files[normalized]
-	if !ok {
-		return "", pathNotFound(normalized)
-	}
-	return string(bytes), nil
+	return v.state.store.ReadText(path)
 }
 
 // WriteBytes implements interfaces.Vfs.
 func (v *InMemoryVfs) WriteBytes(_ context.Context, path string, bytes []byte, options interfaces.WriteOptions) error {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	if len(v.writeBytesResults) > 0 {
-		err := v.writeBytesResults[0]
-		v.writeBytesResults = v.writeBytesResults[1:]
+	v.state.mu.Lock()
+	defer v.state.mu.Unlock()
+	if len(v.state.writeBytesResults) > 0 {
+		err := v.state.writeBytesResults[0]
+		v.state.writeBytesResults = v.state.writeBytesResults[1:]
 		return err
 	}
-	return v.write(path, bytes, options)
+	return v.state.store.Write(path, bytes, options)
 }
 
 // WriteText implements interfaces.Vfs.
 func (v *InMemoryVfs) WriteText(_ context.Context, path, content string, options interfaces.WriteOptions) error {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	if len(v.writeTextResults) > 0 {
-		err := v.writeTextResults[0]
-		v.writeTextResults = v.writeTextResults[1:]
+	v.state.mu.Lock()
+	defer v.state.mu.Unlock()
+	if len(v.state.writeTextResults) > 0 {
+		err := v.state.writeTextResults[0]
+		v.state.writeTextResults = v.state.writeTextResults[1:]
 		return err
 	}
-	return v.write(path, []byte(content), options)
+	return v.state.store.Write(path, []byte(content), options)
 }
 
 // List implements interfaces.Vfs.
 func (v *InMemoryVfs) List(_ context.Context, path string, options interfaces.ListOptions) ([]interfaces.VfsEntry, error) {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	if len(v.listResults) > 0 {
-		result := v.listResults[0]
-		v.listResults = v.listResults[1:]
-		return cloneEntries(result.value), result.err
-	}
-	normalized := normalize(path)
-	if _, ok := v.directories[normalized]; !ok {
-		return nil, pathNotFound(normalized)
-	}
-	prefix := normalized
-	if prefix != "/" {
-		prefix += "/"
-	}
-	entries := make([]interfaces.VfsEntry, 0)
-	for directory := range v.directories {
-		if directory != normalized && strings.HasPrefix(directory, prefix) && (options.Recursive || !strings.Contains(strings.TrimPrefix(directory, prefix), "/")) {
-			entries = append(entries, interfaces.NewVfsEntry(directory, interfaces.VfsEntryTypeDirectory, 0, nil))
+	v.state.mu.Lock()
+	defer v.state.mu.Unlock()
+	if len(v.state.listResults) > 0 {
+		result := v.state.listResults[0]
+		v.state.listResults = v.state.listResults[1:]
+		copied := make([]interfaces.VfsEntry, len(result.value))
+		for index, entry := range result.value {
+			copied[index] = interfaces.NewVfsEntry(entry.Path, entry.Type, entry.Size, entry.ModifiedAt)
 		}
+		return copied, result.err
 	}
-	for file, bytes := range v.files {
-		if strings.HasPrefix(file, prefix) && (options.Recursive || !strings.Contains(strings.TrimPrefix(file, prefix), "/")) {
-			entries = append(entries, interfaces.NewVfsEntry(file, interfaces.VfsEntryTypeFile, int64(len(bytes)), nil))
-		}
-	}
-	slices.SortFunc(entries, func(left, right interfaces.VfsEntry) int { return strings.Compare(left.Path, right.Path) })
-	return entries, nil
+	return v.state.store.List(path, options)
 }
 
 // CreateDirectory implements interfaces.Vfs.
 func (v *InMemoryVfs) CreateDirectory(_ context.Context, path string, options interfaces.DirectoryOptions) error {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	if len(v.createDirectoryResults) > 0 {
-		err := v.createDirectoryResults[0]
-		v.createDirectoryResults = v.createDirectoryResults[1:]
+	v.state.mu.Lock()
+	defer v.state.mu.Unlock()
+	if len(v.state.createDirectoryResults) > 0 {
+		err := v.state.createDirectoryResults[0]
+		v.state.createDirectoryResults = v.state.createDirectoryResults[1:]
 		return err
 	}
-	normalized := normalize(path)
-	parent := parent(normalized)
-	if _, ok := v.directories[parent]; !ok && !options.Recursive {
-		return pathNotFound(parent)
-	}
-	if options.Recursive {
-		v.createParents(normalized)
-	} else {
-		v.directories[normalized] = struct{}{}
-	}
-	return nil
+	return v.state.store.CreateDirectory(path, options)
 }
 
 // Delete implements interfaces.Vfs.
 func (v *InMemoryVfs) Delete(_ context.Context, path string, options interfaces.DirectoryOptions) error {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	if len(v.deleteResults) > 0 {
-		err := v.deleteResults[0]
-		v.deleteResults = v.deleteResults[1:]
+	v.state.mu.Lock()
+	defer v.state.mu.Unlock()
+	if len(v.state.deleteResults) > 0 {
+		err := v.state.deleteResults[0]
+		v.state.deleteResults = v.state.deleteResults[1:]
 		return err
 	}
-	normalized := normalize(path)
-	if _, ok := v.files[normalized]; ok {
-		delete(v.files, normalized)
-		return nil
-	}
-	if _, ok := v.directories[normalized]; !ok {
-		return pathNotFound(normalized)
-	}
-	prefix := normalized
-	if prefix != "/" {
-		prefix += "/"
-	}
-	for file := range v.files {
-		if strings.HasPrefix(file, prefix) && !options.Recursive {
-			return directoryNotEmpty(normalized)
-		}
-	}
-	for directory := range v.directories {
-		if directory != normalized && strings.HasPrefix(directory, prefix) && !options.Recursive {
-			return directoryNotEmpty(normalized)
-		}
-	}
-	for file := range v.files {
-		if strings.HasPrefix(file, prefix) {
-			delete(v.files, file)
-		}
-	}
-	for directory := range v.directories {
-		if directory == normalized || strings.HasPrefix(directory, prefix) {
-			delete(v.directories, directory)
-		}
-	}
-	v.directories["/"] = struct{}{}
-	return nil
+	return v.state.store.Delete(path, options)
 }
 
 // Files returns an independently owned snapshot of file contents.
 func (v *InMemoryVfs) Files() map[string][]byte {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	copied := make(map[string][]byte, len(v.files))
-	for path, bytes := range v.files {
-		copied[path] = append([]byte(nil), bytes...)
-	}
-	return copied
+	v.state.mu.Lock()
+	defer v.state.mu.Unlock()
+	return v.state.store.Files()
 }
 
 // Directories returns a sorted, independently owned snapshot of directory paths.
 func (v *InMemoryVfs) Directories() []string {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	directories := make([]string, 0, len(v.directories))
-	for directory := range v.directories {
-		directories = append(directories, directory)
-	}
-	slices.Sort(directories)
-	return directories
-}
-
-func (v *InMemoryVfs) write(path string, bytes []byte, options interfaces.WriteOptions) error {
-	normalized := normalize(path)
-	parentPath := parent(normalized)
-	if _, ok := v.directories[parentPath]; !ok {
-		if !options.CreateParents {
-			return pathNotFound(parentPath)
-		}
-		v.createParents(parentPath)
-	}
-	v.files[normalized] = append([]byte(nil), bytes...)
-	return nil
-}
-
-func (v *InMemoryVfs) createParents(path string) {
-	var current strings.Builder
-	for segment := range strings.SplitSeq(path, "/") {
-		if segment != "" {
-			current.WriteByte('/')
-			current.WriteString(segment)
-			v.directories[current.String()] = struct{}{}
-		}
-	}
-	v.directories["/"] = struct{}{}
+	v.state.mu.Lock()
+	defer v.state.mu.Unlock()
+	return v.state.store.Directories()
 }
 
 // InMemoryTerminal is a FIFO-scripted Terminal that records every command.
 type InMemoryTerminal struct {
+	state *inMemoryTerminalState
+}
+
+type inMemoryTerminalState struct {
 	mu       sync.Mutex
 	commands []interfaces.TerminalCommand
 	results  []scripted[interfaces.TerminalOutput]
 }
 
 // NewInMemoryTerminal creates an empty terminal mock.
-func NewInMemoryTerminal() *InMemoryTerminal { return &InMemoryTerminal{} }
+func NewInMemoryTerminal() *InMemoryTerminal {
+	return &InMemoryTerminal{state: &inMemoryTerminalState{}}
+}
 
 // EnqueueResult adds a FIFO terminal result.
 func (t *InMemoryTerminal) EnqueueResult(value interfaces.TerminalOutput, err error) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	t.results = append(t.results, scripted[interfaces.TerminalOutput]{value: value, err: err})
+	t.state.mu.Lock()
+	defer t.state.mu.Unlock()
+	t.state.results = append(t.state.results, scripted[interfaces.TerminalOutput]{value: value, err: faults.Normalize(err)})
 }
 
 // Run implements interfaces.Terminal.
 func (t *InMemoryTerminal) Run(_ context.Context, command interfaces.TerminalCommand) (interfaces.TerminalOutput, error) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	t.commands = append(t.commands, command.Clone())
-	if len(t.results) == 0 {
-		return interfaces.TerminalOutput{}, terminalNotScripted(command.Executable)
+	t.state.mu.Lock()
+	defer t.state.mu.Unlock()
+	t.state.commands = append(t.state.commands, command.Clone())
+	if len(t.state.results) == 0 {
+		return interfaces.TerminalOutput{}, faults.TerminalNotScripted(command.Executable)
 	}
-	result := t.results[0]
-	t.results = t.results[1:]
+	result := t.state.results[0]
+	t.state.results = t.state.results[1:]
 	return result.value, result.err
 }
 
 // Commands returns an independently owned snapshot of requested commands.
 func (t *InMemoryTerminal) Commands() []interfaces.TerminalCommand {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	commands := make([]interfaces.TerminalCommand, len(t.commands))
-	for index, command := range t.commands {
+	t.state.mu.Lock()
+	defer t.state.mu.Unlock()
+	commands := make([]interfaces.TerminalCommand, len(t.state.commands))
+	for index, command := range t.state.commands {
 		commands[index] = command.Clone()
 	}
 	return commands
@@ -519,40 +437,46 @@ func (t *InMemoryTerminal) Commands() []interfaces.TerminalCommand {
 
 // InMemoryLoggerSink is a FIFO-scriptable LoggerSink that records successful emissions.
 type InMemoryLoggerSink struct {
+	state *inMemoryLoggerSinkState
+}
+
+type inMemoryLoggerSinkState struct {
 	mu      sync.Mutex
 	records []interfaces.LogRecord
 	results []error
 }
 
 // NewInMemoryLoggerSink creates an empty logger mock.
-func NewInMemoryLoggerSink() *InMemoryLoggerSink { return &InMemoryLoggerSink{} }
+func NewInMemoryLoggerSink() *InMemoryLoggerSink {
+	return &InMemoryLoggerSink{state: &inMemoryLoggerSinkState{}}
+}
 
 // EnqueueResult adds a FIFO logger result.
 func (s *InMemoryLoggerSink) EnqueueResult(err error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.results = append(s.results, err)
+	s.state.mu.Lock()
+	defer s.state.mu.Unlock()
+	s.state.results = append(s.state.results, faults.Normalize(err))
 }
 
 // Emit implements interfaces.LoggerSink.
 func (s *InMemoryLoggerSink) Emit(record interfaces.LogRecord) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if len(s.results) > 0 {
-		err := s.results[0]
-		s.results = s.results[1:]
+	s.state.mu.Lock()
+	defer s.state.mu.Unlock()
+	if len(s.state.results) > 0 {
+		err := s.state.results[0]
+		s.state.results = s.state.results[1:]
 		return err
 	}
-	s.records = append(s.records, record.Clone())
+	s.state.records = append(s.state.records, record.Clone())
 	return nil
 }
 
 // Records returns an independently owned snapshot of emitted records.
 func (s *InMemoryLoggerSink) Records() []interfaces.LogRecord {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	records := make([]interfaces.LogRecord, len(s.records))
-	for index, record := range s.records {
+	s.state.mu.Lock()
+	defer s.state.mu.Unlock()
+	records := make([]interfaces.LogRecord, len(s.state.records))
+	for index, record := range s.state.records {
 		records[index] = record.Clone()
 	}
 	return records
@@ -560,102 +484,49 @@ func (s *InMemoryLoggerSink) Records() []interfaces.LogRecord {
 
 // InMemoryMetricsCollector is a FIFO-scriptable MetricsCollector that records successful emissions.
 type InMemoryMetricsCollector struct {
+	state *inMemoryMetricsCollectorState
+}
+
+type inMemoryMetricsCollectorState struct {
 	mu      sync.Mutex
 	records []interfaces.MetricRecord
 	results []error
 }
 
 // NewInMemoryMetricsCollector creates an empty metrics mock.
-func NewInMemoryMetricsCollector() *InMemoryMetricsCollector { return &InMemoryMetricsCollector{} }
+func NewInMemoryMetricsCollector() *InMemoryMetricsCollector {
+	return &InMemoryMetricsCollector{state: &inMemoryMetricsCollectorState{}}
+}
 
 // EnqueueResult adds a FIFO metrics result.
 func (s *InMemoryMetricsCollector) EnqueueResult(err error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.results = append(s.results, err)
+	s.state.mu.Lock()
+	defer s.state.mu.Unlock()
+	s.state.results = append(s.state.results, faults.Normalize(err))
 }
 
 // Emit implements interfaces.MetricsCollector.
 func (s *InMemoryMetricsCollector) Emit(record interfaces.MetricRecord) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if len(s.results) > 0 {
-		err := s.results[0]
-		s.results = s.results[1:]
+	s.state.mu.Lock()
+	defer s.state.mu.Unlock()
+	if len(s.state.results) > 0 {
+		err := s.state.results[0]
+		s.state.results = s.state.results[1:]
 		return err
 	}
-	s.records = append(s.records, record.Clone())
+	s.state.records = append(s.state.records, record.Clone())
 	return nil
 }
 
 // Records returns an independently owned snapshot of emitted records.
 func (s *InMemoryMetricsCollector) Records() []interfaces.MetricRecord {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	records := make([]interfaces.MetricRecord, len(s.records))
-	for index, record := range s.records {
+	s.state.mu.Lock()
+	defer s.state.mu.Unlock()
+	records := make([]interfaces.MetricRecord, len(s.state.records))
+	for index, record := range s.state.records {
 		records[index] = record.Clone()
 	}
 	return records
-}
-
-func copyString(value *string) *string {
-	if value == nil {
-		return nil
-	}
-	copied := *value
-	return &copied
-}
-
-func copyStringMap(values map[string]string) map[string]string {
-	copied := make(map[string]string, len(values))
-	maps.Copy(copied, values)
-	return copied
-}
-
-func cloneEntries(entries []interfaces.VfsEntry) []interfaces.VfsEntry {
-	copied := make([]interfaces.VfsEntry, len(entries))
-	for index, entry := range entries {
-		copied[index] = interfaces.NewVfsEntry(entry.Path, entry.Type, entry.Size, entry.ModifiedAt)
-	}
-	return copied
-}
-
-func normalize(path string) string {
-	segments := make([]string, 0)
-	for segment := range strings.SplitSeq(path, "/") {
-		if segment != "" {
-			segments = append(segments, segment)
-		}
-	}
-	return "/" + strings.Join(segments, "/")
-}
-
-func parent(path string) string {
-	if path == "/" {
-		return "/"
-	}
-	index := strings.LastIndex(path, "/")
-	if index == 0 {
-		return "/"
-	}
-	return path[:index]
-}
-
-func pathNotFound(path string) error {
-	return interfacesProblem("path-not-found", "Path not found", path, 404)
-}
-
-func directoryNotEmpty(path string) error {
-	return interfacesProblem("directory-not-empty", "Directory not empty", path, 409)
-}
-
-func terminalNotScripted(executable string) error {
-	return interfacesProblem("terminal-result-not-scripted", "Terminal result not scripted", executable, 500)
-}
-
-func interfacesProblem(id, title, detail string, status int) error {
-	return problem.NewError(problem.Problem{Type: "https://diene.atomicloud.com/problems/interfaces/1/" + id, Title: title, Status: status, Detail: &detail, Data: map[string]any{"id": id}})
 }
 
 var (
