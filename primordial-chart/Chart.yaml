@@ -1,6 +1,6 @@
 apiVersion: v2
-name: diene-carbon-primordial
-description: Platform-shared vlandscape dependency declarations for a materialized carbon platform home
+name: diene-lithium-primordial
+description: Fleet-only Lithium PlatformDependency and VirtualLandscapeService fragments
 type: application
 version: 0.1.0
 appVersion: '0.1.0'

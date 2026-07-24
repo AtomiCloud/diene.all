@@ -19,7 +19,14 @@ chart_paths=(chart primordial-chart)
 for chart_path in "${chart_paths[@]}"; do
   manifest_version="$(yq -r '.version' "${chart_path}/Chart.yaml")"
   [ "${manifest_version}" != "${version}" ] && echo "❌ ${chart_path} version ${manifest_version} does not match tag ${version}" >&2 && exit 1
+  manifest_app_version="$(yq -r '.appVersion' "${chart_path}/Chart.yaml")"
+  [ "${manifest_app_version}" != "${version}" ] && echo "❌ ${chart_path} appVersion ${manifest_app_version} does not match tag ${version}" >&2 && exit 1
 done
+
+[ "$(yq -r '.image.tag' chart/values.yaml)" = "${version}" ] || {
+  echo "❌ chart image tag must match the chart-pair release version" >&2
+  exit 1
+}
 
 bash ./scripts/ci/setup.sh
 mkdir -p "${output_dir}"
@@ -57,4 +64,4 @@ if [ "${mode}" = "oci" ]; then
 fi
 
 [ "${dry_run}" = "true" ] && result="dry-run" || result="round-trip"
-echo "✅ ${mode} Carbon chart-pair publish ${result} complete for ${version}"
+echo "✅ ${mode} Lithium chart-pair publish ${result} complete for ${version}"

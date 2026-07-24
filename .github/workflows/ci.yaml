@@ -26,9 +26,9 @@ jobs:
     with:
       chart_path: ./infra/root_chart
 
-  carbon:
-    name: Carbon Platform Charts
+  lithium:
+    name: Lithium Distribution Charts
     permissions:
       contents: read
-    uses: ./.github/workflows/⚡reusable-carbon.yaml
+    uses: ./.github/workflows/⚡reusable-lithium.yaml
     secrets: inherit

@@ -1,10 +1,10 @@
 username: atomi
-name: carbon
-description: AtomiCloud materialized platform-home scaffold
-project: https://github.com/AtomiCloud/diene.carbon
-source: https://github.com/AtomiCloud/diene.carbon
+name: lithium
+description: AtomiCloud Aldehyde Logto distribution chart pair
+project: https://github.com/AtomiCloud/aldehyde.logto
+source: https://github.com/AtomiCloud/aldehyde.logto
 email: ernest@atomi.cloud
-tags: [atomi, carbon, platform, helm]
+tags: [atomi, lithium, logto, helm]
 readme: README.md
 templates: []
 processors:

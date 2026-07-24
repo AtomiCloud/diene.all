@@ -8,8 +8,8 @@ includes:
   example:lapras:
     taskfile: tasks/Taskfile.cluster.yaml
     vars:
-      RELEASE_NAME: carbon
-      NAMESPACE: feature-carbon-123
+      RELEASE_NAME: lithium
+      NAMESPACE: lithium-lapras-001
       LANDSCAPE: example
       CLUSTER: lapras
 
@@ -30,19 +30,19 @@ tasks:
       - ./scripts/local/skills-sync.sh
 
   test:
-    desc: Run the Carbon host-safe validation tier
+    desc: Run the Lithium host-safe validation tier
     cmds:
-      - ./scripts/ci/carbon.sh
+      - ./scripts/ci/lithium.sh
 
   test:unit:
     desc: Run schema, lint, render, policy, and contract validation
     cmds:
-      - ./scripts/ci/carbon.sh
+      - ./scripts/ci/lithium.sh
 
   test:int:
     desc: Run the local k3d installation proof
     cmds:
-      - K3D_ISOLATE_BY_PATH=true ./scripts/validate/carbon-k3d.sh
+      - K3D_ISOLATE_BY_PATH=true ./scripts/validate/lithium-k3d.sh
 
   start:cluster:
     desc: Start the local k3d lapras proof cluster

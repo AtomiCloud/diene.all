@@ -53,19 +53,19 @@ Domain-specific documentation belongs under [docs/domain/](docs/domain/README.md
 The `docs/standards/contracts/` location is reserved for the separately owned C0
 contracts standard.
 
-<!-- ### carbon -->
-<!-- #### source: carbon -->
+<!-- ### lithium -->
+<!-- #### source: aldehyde.logto -->
 
-## Carbon platform charts
+## Lithium distribution charts
 
-Carbon is the platform boundary: the application chart owns the platform namespace,
-its token `ExternalSecret`, and its namespaced Infisical `SecretStore`; the primordial
-chart owns only platform-shared `PlatformDependency` declarations. The accompanying
-Cyan scaffold asks only for the platform name and ships the canonical four-landscape
-stage topology.
+Lithium distributes the Aldehyde Logto fork. The application chart has explicit
+`FLEET` and `GARDEN-LOCAL` modes; the primordial chart is fleet-only and owns the
+single-vlandscape dependency writer plus serving fragments. Garden-local consumes
+only Garden-owned database and boot Secrets and never emits fleet control-plane or
+secret-provider resources.
 
-- `pls test:unit` — run schemas, render contracts, negative fixtures, workflow gates,
-  policy wiring, scaffold drift, and publish dry-runs.
-- `pls test:int` — run the explicitly reserved, isolated k3d integration harness.
+- `pls test:unit` — run chart schema/lint/template, mode contracts, all seven Garden
+  fixtures, rendered-manifest validation, and publish dry-runs.
+- `pls test:int` — run the isolated Garden-local k3d install harness.
 - `pls example:lapras:template` — render the Garden branch namespace overlay.
-- [Carbon baseline](docs/developer/carbon-baseline.md)
+- [Lithium distribution](docs/developer/lithium-distribution.md)

@@ -1,0 +1,3 @@
+distributionMode: GARDEN-LOCAL
+namespace: {name: lithium-eevee-001}
+garden: {instance: eevee-001, instanceUID: 00000000-0000-0000-0000-000000000005, allocationGeneration: '1', landscape: eevee, zone: dev.atomi.cloud, issuerScheme: https, databaseSecret: lithium-eevee-db, databaseKey: DB_URL, bootSecret: lithium-eevee-boot, bootClientIdKey: SEED_M2M_CLIENT_ID, bootClientSecretKey: SEED_M2M_CLIENT_SECRET}

@@ -76,9 +76,9 @@ Domain-specific architecture and behavior belongs under
 [docs/domain/](docs/domain/README.md). The `docs/standards/contracts/` slot is
 reserved for the separately owned C0 contracts standard.
 
-<!-- ### carbon -->
-<!-- #### source: carbon -->
+<!-- ### lithium -->
+<!-- #### source: aldehyde.logto -->
 
-## Carbon platform charts
+## Lithium distribution charts
 
-Read [docs/developer/carbon-baseline.md](docs/developer/carbon-baseline.md) before changing the application or primordial chart, the platform scaffold, dependency declarations, or Carbon validation and publishing.
+Read [docs/developer/lithium-distribution.md](docs/developer/lithium-distribution.md) before changing the application or primordial chart, mode contracts, dependency declarations, or Lithium validation and publishing.

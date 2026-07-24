@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cluster_name="${K3D_CLUSTER_NAME:-diene-carbon}"
-registry_name="${K3D_REGISTRY_NAME:-diene-carbon-registry}"
+cluster_name="${K3D_CLUSTER_NAME:-diene-lithium}"
+registry_name="${K3D_REGISTRY_NAME:-diene-lithium-registry}"
 ownership_marker="${K3D_OWNERSHIP_MARKER:-}"
 owner_id="${K3D_OWNER_ID:-}"
 

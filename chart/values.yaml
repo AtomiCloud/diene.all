@@ -1,64 +1,54 @@
 # @schema pattern:^[a-z0-9.-]+$;minLength:1
-# -- Prefix used by every service-tree label and annotation helper.
 labelPrefix: atomi.cloud
+distributionMode: FLEET # @schema enum:[FLEET,GARDEN-LOCAL]
 
-# -- Platform identity stays stable when Garden projects the chart into a branch namespace.
 serviceTree:
-  # @schema pattern:^[a-z0-9]([-a-z0-9]*[a-z0-9])?$;required:true
   platform: diene
-  # @schema const:carbon;required:true
-  service: carbon
-  # @schema const:platform;required:true
-  module: platform
-  # @schema pattern:^[0-9]+$;required:true
+  service: lithium
+  module: api
   layer: '1'
-  # @schema pattern:^[a-z0-9]([-a-z0-9]*[a-z0-9])?$;required:true
-  landscape: pichu
+  landscape: raichu
 
-# -- Runtime namespace. Real landscapes use the platform name; Garden overrides only
-# this value with the branch name while preserving serviceTree.platform.
 namespace:
-  # @schema pattern:^[a-z0-9]([-a-z0-9]*[a-z0-9])?$;required:true
   name: diene
 
-# -- Pull the platform Universal Auth pair from cobalt's landscape-scoped SoS
-# ClusterSecretStore. dataFrom.extract preserves the folder as the address and never
-# hand-writes individual key mappings.
-tokenExternalSecret:
-  # @schema type:boolean
-  enabled: true
-  # @schema pattern:^[a-z0-9]+-[a-z0-9]+$;required:true
-  name: carbon-token
-  # @schema pattern:^[a-z0-9]+-[a-z0-9]+$;required:true
-  targetSecretName: carbon-token
-  # @schema pattern:^[1-9][0-9]*(s|m|h)$;required:true
-  refreshInterval: 1h
-  source:
-    # @schema const:ClusterSecretStore;required:true
-    kind: ClusterSecretStore
-    # @schema const:cobalt-sos;required:true
-    name: cobalt-sos
-    # @schema pattern:^/platforms/[a-z0-9]([-a-z0-9]*[a-z0-9])?$;required:true
-    folder: /platforms/diene
+image:
+  repository: ghcr.io/atomicloud/aldehyde.logto
+  tag: 0.1.0
+  pullPolicy: IfNotPresent
 
-# -- Namespaced Infisical store used by every service in this platform namespace.
-# Its auth Secret is materialized by tokenExternalSecret through cobalt's SoS store.
-platformSecretStore:
-  # @schema type:boolean
-  enabled: true
-  # @schema pattern:^[a-z0-9]+-[a-z0-9]+$;required:true
-  name: carbon-store
-  infisical:
-    # @schema pattern:^https://.*;required:true
-    hostAPI: https://secrets.atomi.cloud/api
-    # @schema pattern:^[a-z0-9]([-a-z0-9]*[a-z0-9])?$;required:true
-    projectSlug: diene
-    # -- Landscape environment. A landscape overlay replaces this default per row.
-    environmentSlug: pichu
-    # @schema pattern:^/.*$;required:true
-    secretsPath: /
-    # @schema type:boolean
-    recursive: true
-  auth:
-    clientIdKey: clientId
-    clientSecretKey: clientSecret
+workload:
+  replicas: 1
+  port: 3001
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {cpu: 500m, memory: 512Mi}
+
+# Fleet consumes, but never writes, the platform-owned secret store.
+fleet:
+  vlandscape: mew
+  issuerZone: cluster.atomi.cloud
+  externalSecrets:
+    refreshInterval: 1h
+    secretStoreRef: {kind: SecretStore, name: lithium-store}
+    databasePath: /diene/lithium/database
+    bootPath: /diene/lithium
+    databaseSecretName: lithium-database
+    bootSecretName: lithium-boot
+  publicService:
+    type: LoadBalancer
+
+# Garden supplies local Secrets and the exact exposure-derived issuer. This chart
+# deliberately owns neither an edge route nor a certificate in this mode.
+garden:
+  instance: lapras-001
+  instanceUID: 00000000-0000-0000-0000-000000000001
+  allocationGeneration: '1'
+  landscape: lapras
+  zone: localhost
+  issuerScheme: http
+  databaseSecret: lithium-database
+  databaseKey: DB_URL
+  bootSecret: lithium-boot
+  bootClientIdKey: SEED_M2M_CLIENT_ID
+  bootClientSecretKey: SEED_M2M_CLIENT_SECRET

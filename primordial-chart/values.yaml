@@ -1,29 +1,15 @@
-# @schema pattern:^[a-z0-9.-]+$;minLength:1
 labelPrefix: atomi.cloud
-
-# @schema const:fleet.atomi.cloud/v1alpha1;required:true
+distributionMode: FLEET # @schema enum:[FLEET,GARDEN-LOCAL]
 apiVersion: fleet.atomi.cloud/v1alpha1
+serviceTree: {platform: diene, service: lithium, module: api, layer: '1'}
 
-serviceTree:
-  # @schema pattern:^[a-z0-9]([-a-z0-9]*[a-z0-9])?$;required:true
-  platform: diene
-  # @schema const:carbon;required:true
-  service: carbon
-  # @schema const:platformdeps;required:true
-  module: platformdeps
-  # @schema pattern:^[0-9]+$;required:true
-  layer: '1'
-
-# -- One entry is one platform-shared declaration keyed by this platform and one
-# virtual landscape. Duplicate landscapes are a loud render-time Conflict.
+# Exactly one row is allowed for each platform/vlandscape writer.
 platformDependencies:
-  - landscape: mew
-    placement:
-      preferredHost: raichu
-    deletionPolicy:
-      retainSecret: 168h
+  - vlandscape: mew
+    placement: {preferredHost: raichu}
+    deletionPolicy: {retainSecret: 168h}
     database:
-      shared:
+      lithium:
         type: neon
         delivery: external
         providerAccountRef: nonprod-neon
@@ -33,8 +19,10 @@ platformDependencies:
         ram: 1Gi
         storage: 10Gi
         version: '16'
-        backup:
-          crossVendor: true
-        engine:
-          neon:
-            tier: launch
+        engine: {neon: {tier: launch}}
+
+# A fragment is emitted only for a row that declares serve: true.
+servingRows:
+  - vlandscape: mew
+    landscape: raichu
+    serve: true

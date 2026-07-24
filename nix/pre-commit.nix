@@ -230,22 +230,22 @@ pre-commit-lib.run {
       language = "system";
     };
 
-    # ### carbon-hooks
-    # #### source: carbon
-    a-carbon-helm-docs = {
+    # ### lithium-hooks
+    # #### source: aldehyde.logto
+    a-lithium-helm-docs = {
       enable = true;
-      name = "Carbon helm docs";
+      name = "Lithium helm docs";
       entry = "${packages.bash}/bin/bash -c '${packages.infralint}/bin/helm-docs --chart-search-root chart && ${packages.infralint}/bin/helm-docs --chart-search-root primordial-chart'";
       files = "^(chart|primordial-chart)/.*";
       pass_filenames = false;
       language = "system";
     };
 
-    a-carbon-validation = {
+    a-lithium-validation = {
       enable = true;
-      name = "Carbon chart and scaffold validation";
-      entry = validator "scripts/ci/carbon.sh --offline";
-      files = "^(chart|primordial-chart|cyan|templates|tests|schemas|policies)/.*|^(platform|cyan)[.]|^scripts/(local|validate|ci)/.*";
+      name = "Lithium chart validation";
+      entry = validator "scripts/ci/lithium.sh --offline";
+      files = "^(chart|primordial-chart|tests|schemas|policies)/.*|^scripts/(local|validate|ci)/.*";
       pass_filenames = false;
       language = "system";
     };

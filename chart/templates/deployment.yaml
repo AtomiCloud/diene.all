@@ -1,0 +1,59 @@
+{{- include "lithium.validate" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "lithium.name" . }}
+  namespace: {{ required "namespace.name is required" .Values.namespace.name }}
+  labels:
+    {{- include "lithium.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.workload.replicas }}
+  selector:
+    matchLabels:
+      {{- include "lithium.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "lithium.labels" . | nindent 8 }}
+    spec:
+      securityContext: {runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001, fsGroup: 10001}
+      initContainers:
+        - name: credential-gate
+          image: {{ printf "%s:%s" .Values.image.repository .Values.image.tag | quote }}
+          command: ["/bin/sh", "-ec", "test -n \"$DB_URL\" && test -n \"$SEED_M2M_CLIENT_ID\" && test -n \"$SEED_M2M_CLIENT_SECRET\""]
+          env:
+            {{- include "lithium.secretEnv" . | nindent 12 }}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, runAsNonRoot: true, capabilities: {drop: [ALL]}}
+      containers:
+        - name: logto
+          image: {{ printf "%s:%s" .Values.image.repository .Values.image.tag | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports: [{name: http, containerPort: {{ .Values.workload.port }}, protocol: TCP}]
+          env:
+            - name: ENDPOINT
+              value: {{ include "lithium.issuer" . | quote }}
+            - name: LOGTO_ENDPOINT
+              value: {{ include "lithium.issuer" . | quote }}
+            {{- include "lithium.secretEnv" . | nindent 12 }}
+          livenessProbe: {httpGet: {path: /, port: http}}
+          readinessProbe: {httpGet: {path: /, port: http}}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, runAsNonRoot: true, capabilities: {drop: [ALL]}}
+          resources:
+            {{- toYaml .Values.workload.resources | nindent 12 }}
+{{- define "lithium.secretEnv" -}}
+{{- if eq .Values.distributionMode "FLEET" }}
+- name: DB_URL
+  valueFrom: {secretKeyRef: {name: {{ .Values.fleet.externalSecrets.databaseSecretName }}, key: DB_URL}}
+- name: SEED_M2M_CLIENT_ID
+  valueFrom: {secretKeyRef: {name: {{ .Values.fleet.externalSecrets.bootSecretName }}, key: SEED_M2M_CLIENT_ID}}
+- name: SEED_M2M_CLIENT_SECRET
+  valueFrom: {secretKeyRef: {name: {{ .Values.fleet.externalSecrets.bootSecretName }}, key: SEED_M2M_CLIENT_SECRET}}
+{{- else }}
+- name: DB_URL
+  valueFrom: {secretKeyRef: {name: {{ .Values.garden.databaseSecret }}, key: {{ .Values.garden.databaseKey }}}}
+- name: SEED_M2M_CLIENT_ID
+  valueFrom: {secretKeyRef: {name: {{ .Values.garden.bootSecret }}, key: {{ .Values.garden.bootClientIdKey }}}}
+- name: SEED_M2M_CLIENT_SECRET
+  valueFrom: {secretKeyRef: {name: {{ .Values.garden.bootSecret }}, key: {{ .Values.garden.bootClientSecretKey }}}}
+{{- end }}
+{{- end -}}

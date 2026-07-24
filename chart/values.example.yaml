@@ -1,6 +1,4 @@
-# Landscape overlay: real landscapes keep namespace == platform.
-serviceTree:
-  landscape: pichu
-platformSecretStore:
-  infisical:
-    environmentSlug: pichu
+# Fleet overlay: the issuer is always derived from platform and vlandscape.
+distributionMode: FLEET
+serviceTree: {platform: diene, landscape: raichu}
+fleet: {vlandscape: mew, issuerZone: cluster.atomi.cloud}
