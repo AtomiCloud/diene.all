@@ -59,6 +59,15 @@ mkdir -p "${coverage}"
 accumulator="${coverage}/coverage.json"
 last_index=$((${#projects[@]} - 1))
 
+# Build every registered project before measuring. Coverlet instruments assemblies after
+# the build that `dotnet test` performs implicitly; on a clean tree that ordering can hand
+# the test host an uninstrumented copy and report a fully exercised assembly as 0 covered
+# lines. Building first makes the instrumented output deterministic.
+for project_rel in "${projects[@]}"; do
+  echo "🏗️ Building ${kind} coverage project: ${project_rel}"
+  dotnet build "${root}/${project_rel}" -c Release
+done
+
 for index in "${!projects[@]}"; do
   project_rel="${projects[${index}]}"
   project_name="$(basename "${project_rel}" .csproj)"
