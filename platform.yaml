@@ -1,0 +1,5 @@
+landscapes: [pichu, pikachu, raichu, amphoros]
+stages:
+  - pichu
+  - pikachu
+  - [raichu, amphoros]

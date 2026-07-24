@@ -1,0 +1,7 @@
+apiVersion: v2
+name: let__platform__-carbon
+description: Platform namespace and pull-only SecretStore bootstrap for a materialized carbon platform home
+type: application
+version: 0.1.0
+appVersion: '0.1.0'
+kubeVersion: '>=1.27.0-0'

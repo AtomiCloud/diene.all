@@ -76,9 +76,9 @@ Domain-specific architecture and behavior belongs under
 [docs/domain/](docs/domain/README.md). The `docs/standards/contracts/` slot is
 reserved for the separately owned C0 contracts standard.
 
-<!-- ### cobalt -->
-<!-- #### source: cobalt -->
+<!-- ### carbon -->
+<!-- #### source: carbon -->
 
-## Cobalt chart
+## Carbon platform charts
 
-Read [docs/developer/cobalt-baseline.md](docs/developer/cobalt-baseline.md) before changing `chart/`, the stacked values, the Infisical ClusterSecretStore, the ESO subchart overrides, or chart validation and publishing.
+Read [docs/developer/carbon-baseline.md](docs/developer/carbon-baseline.md) before changing the application or primordial chart, the platform scaffold, dependency declarations, or Carbon validation and publishing.

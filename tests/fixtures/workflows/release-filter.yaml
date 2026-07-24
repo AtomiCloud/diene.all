@@ -1,0 +1,12 @@
+name: Release
+on:
+  workflow_run:
+    workflows: [CI]
+    branches: [develop]
+    types: [completed]
+concurrency:
+  group: release
+jobs:
+  release:
+    if: github.event.workflow_run.conclusion == 'success'
+    uses: ./.github/workflows/⚡reusable-release.yaml

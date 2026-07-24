@@ -4,6 +4,7 @@ with packages;
   # ### workspace-dev
   # #### source: workspace
   dev = [
+    bun
     git
     gitlint
     go-task
@@ -19,6 +20,7 @@ with packages;
   # #### source: workspace
   lint = [
     actionlint
+    bun
     gitlint
     helm-schema
     infralint
@@ -35,6 +37,7 @@ with packages;
   # ### workspace-main
   # #### source: workspace
   main = [
+    bun
     cyanprint
     docker-client
     git

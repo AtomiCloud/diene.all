@@ -1,0 +1,43 @@
+{{- include "carbonPrimordial.validateServiceTree" . -}}
+{{- $root := . -}}
+{{- $seen := dict -}}
+{{- range $dependency := .Values.platformDependencies }}
+{{- $landscape := required "platformDependencies[].landscape is required" $dependency.landscape -}}
+{{- if hasKey $seen $landscape -}}
+{{- fail (printf "Conflict: duplicate PlatformDependency writer for platform %s and vlandscape %s" $root.Values.serviceTree.platform $landscape) -}}
+{{- end -}}
+{{- $_ := set $seen $landscape true -}}
+---
+apiVersion: {{ $root.Values.apiVersion }}
+kind: PlatformDependency
+metadata:
+  name: {{ printf "carbon-%s" $landscape }}
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "carbonPrimordial.labels" $root | nindent 4 }}
+  annotations:
+    {{- include "carbonPrimordial.annotations" $root | nindent 4 }}
+spec:
+  platform: {{ $root.Values.serviceTree.platform }}
+  landscape: {{ $landscape }}
+  placement:
+    preferredHost: {{ required "platformDependencies[].placement.preferredHost is required" $dependency.placement.preferredHost }}
+  {{- with $dependency.database }}
+  database:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $dependency.kv }}
+  kv:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $dependency.cache }}
+  cache:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $dependency.store }}
+  store:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  deletionPolicy:
+    retainSecret: {{ required "platformDependencies[].deletionPolicy.retainSecret is required" $dependency.deletionPolicy.retainSecret | quote }}
+{{- end }}
