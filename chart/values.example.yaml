@@ -1,6 +1,4 @@
-# Independent landscape overlay example.
-serviceTree:
-  landscape: example
-
-primordial:
-  targetLandscape: example
+# Independent landscape overlay. `example` is the sample landscape identity.
+global:
+  serviceTree:
+    landscape: example

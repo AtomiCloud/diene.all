@@ -1,13 +1,12 @@
 apiVersion: v2
-name: diene-helm-wrapper
-description: Minimal production-grade Helm wrapper template for AtomiCloud platform charts
+name: diene-chlorine
+description: Minimal Reloader wrapper chart — the last hop of the secret-rotation chain
 type: application
 version: 0.1.0
-appVersion: '6.9.2'
+appVersion: '1.4.19'
 kubeVersion: '>=1.27.0-0'
 dependencies:
-  - name: podinfo
-    alias: upstream
-    version: 6.9.2
-    repository: oci://ghcr.io/stefanprodan/charts
-    condition: upstream.enabled
+  - name: reloader
+    version: 2.2.14
+    repository: oci://ghcr.io/stakater/charts
+    condition: reloader.enabled
