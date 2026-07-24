@@ -18,10 +18,6 @@ flags:
     paths:
       - src/
     carryforward: true
-  int:
-    paths:
-      - src/
-    carryforward: true
   meta:
     paths:
       - src/test-helper/

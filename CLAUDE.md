@@ -81,3 +81,12 @@ Read [the Bun baseline](docs/developer/bun-baseline.md) before changing the Bun
 toolchain, task surface, test tiers, coverage ledgers, build, or illustrative
 sample. Follow the TypeScript variants linked from that baseline alongside the
 shared engineering standards.
+
+<!-- ### bun-problems -->
+<!-- #### source: lib/bun/problems -->
+
+## RFC 9457 Problems
+
+Read [the Problems standard](docs/standards/problems/index.md) before changing
+the envelope, registry, URI builder, catalog export, Problem CR shape, or
+TestHelper. The versioned type URI is built only in `src/lib/uri.ts`.
