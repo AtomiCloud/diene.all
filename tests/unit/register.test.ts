@@ -1,7 +1,7 @@
 import { ConfigRegistry } from '@atomicloud/diene.config';
 import { describe, expect, it } from 'bun:test';
 import { cache, kv, postgres, storage } from '../../src/index';
-import { PRESETS, registerStandardConfigs } from '../../src/register';
+import { PRESETS, registerStandardConfigs } from '../../src/lib/register';
 
 describe('PRESETS', () => {
   it('maps every frozen block key to its schema', () => {

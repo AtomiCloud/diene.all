@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'bun:test';
-import { cache, cacheEntry } from '../../src/presets/cache';
-import { kv, kvEntry } from '../../src/presets/kv';
-import { postgres, postgresEntry } from '../../src/presets/postgres';
-import { redisConnectionEntry } from '../../src/presets/redis';
-import { StorageError, storage, storageEntry } from '../../src/presets/storage';
+import { cache, cacheEntry } from '../../src/lib/presets/cache';
+import { kv, kvEntry } from '../../src/lib/presets/kv';
+import { postgres, postgresEntry } from '../../src/lib/presets/postgres';
+import { redisConnectionEntry } from '../../src/lib/presets/redis';
+import { StorageError, storage, storageEntry } from '../../src/lib/presets/storage';
 
 const pgEntry = {
   host: 'db.host',

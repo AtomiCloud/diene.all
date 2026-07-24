@@ -1,8 +1,8 @@
 import { ConfigRegistry, generateJsonSchema, loadConfig } from '@atomicloud/diene.config';
 import { InMemoryConfigSource } from '@atomicloud/diene.config/test-helper';
 import { describe, expect, it } from 'bun:test';
-import { named } from '../../src/presets/keyed';
-import { registerStandardConfigs } from '../../src/register';
+import { named } from '../../src/lib/presets/keyed';
+import { registerStandardConfigs } from '../../src/lib/register';
 
 const registry = registerStandardConfigs(ConfigRegistry.create(), {
   which: ['postgres', 'cache'] as const,

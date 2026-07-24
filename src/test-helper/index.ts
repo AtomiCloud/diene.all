@@ -1,8 +1,8 @@
 import { createHash, createHmac } from 'node:crypto';
 import { Ok, type Result } from '@atomicloud/diene.result';
 import type { StartedTestContainer } from 'testcontainers';
-import type { PostgresEntry } from '../presets/postgres';
-import type { RedisConnectionEntry } from '../presets/redis';
+import type { PostgresEntry } from '../lib/presets/postgres';
+import type { RedisConnectionEntry } from '../lib/presets/redis';
 import type {
   BlockStorage,
   SaveInput,
@@ -10,7 +10,7 @@ import type {
   StorageEntry,
   StorageError,
   StoredObject,
-} from '../presets/storage';
+} from '../lib/presets/storage';
 
 // ─── In-memory block-storage fake ───────────────────────────────────────────────
 // A dependency-free {@link BlockStorage} for UNIT tiers — deterministic links, no

@@ -3,5 +3,5 @@ root = "tests/unit"
 coverageReporter = ["text", "lcov"]
 coverageDir = "coverage/unit"
 coverageSkipTestFiles = true
-# Unit ledger = the domain tier only (presets + register, 100% goal); adapters/glue/test-helper belong to other tiers, tests/** never counts.
+# Unit ledger = the domain tier only (src/lib: presets + register, 100% goal); adapters/glue/test-helper belong to other tiers, tests/** never counts.
 coveragePathIgnorePatterns = ["src/adapters/**", "src/test-helper/**", "src/index.ts", "tests/**"]

@@ -6,7 +6,7 @@ import {
   StorageError,
   type StorageEntry,
   type StoredObject,
-} from '../presets/storage';
+} from '../lib/presets/storage';
 
 const DEFAULT_EXPIRES_IN = 900;
 

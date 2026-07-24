@@ -3,7 +3,7 @@ import { describe, expect, it } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
-import { type PresetName, registerStandardConfigs } from '../../src/register';
+import { type PresetName, registerStandardConfigs } from '../../src/lib/register';
 
 const examplesDir = join(import.meta.dir, '../../docs/standards/standard-config/examples');
 

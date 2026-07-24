@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { z } from 'zod';
-import { keyedPreset, named, StandardConfigError, UPPERCASE_KEY } from '../../src/presets/keyed';
+import { keyedPreset, named, StandardConfigError, UPPERCASE_KEY } from '../../src/lib/presets/keyed';
 
 describe('UPPERCASE_KEY', () => {
   it('matches UPPERCASE snake names', () => {

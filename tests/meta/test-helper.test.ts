@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { S3BlockStorage } from '../../src/adapters/s3-block-storage';
-import { cache } from '../../src/presets/cache';
-import { kv } from '../../src/presets/kv';
-import { postgres } from '../../src/presets/postgres';
-import type { BlockStorage } from '../../src/presets/storage';
-import { storage } from '../../src/presets/storage';
+import { cache } from '../../src/lib/presets/cache';
+import { kv } from '../../src/lib/presets/kv';
+import { postgres } from '../../src/lib/presets/postgres';
+import type { BlockStorage } from '../../src/lib/presets/storage';
+import { storage } from '../../src/lib/presets/storage';
 import {
   InMemoryBlockStorage,
   createS3Bucket,

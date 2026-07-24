@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { S3BlockStorage } from '../../src/adapters/s3-block-storage';
-import type { StorageEntry } from '../../src/presets/storage';
+import type { StorageEntry } from '../../src/lib/presets/storage';
 import { type StartedPreset, startStorage } from '../../src/test-helper';
 
 const tigrisStyle: StorageEntry = {
