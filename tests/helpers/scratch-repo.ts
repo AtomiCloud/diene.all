@@ -17,7 +17,7 @@ export async function scratchRepository(): Promise<{ readonly root: string; read
   const root = await mkdtemp(join(tmpdir(), 'releaser-repo-'));
   const remote = await mkdtemp(join(tmpdir(), 'releaser-remote-'));
   await run(['git', 'init', '-q', '--initial-branch=main'], root);
-  await run(['git', 'init', '-q', '--bare'], remote);
+  await run(['git', 'init', '-q', '--bare', '--initial-branch=main'], remote);
   await run(['git', 'config', 'user.name', 'Releaser Test'], root);
   await run(['git', 'config', 'user.email', 'releaser@example.invalid'], root);
   await run(['git', 'remote', 'add', 'origin', remote], root);
