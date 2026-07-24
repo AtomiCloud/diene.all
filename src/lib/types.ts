@@ -41,6 +41,9 @@ export interface RescueTrip {
   trip(context: RescueTripContext): void | Promise<void>;
 }
 
+/** The sole retry profile: one fresh retry after an opaque network failure. */
+export type RetryProfile = 'opaque-network-once';
+
 export interface BackendBinding<TClient extends object = object> {
   readonly coordinate: LpsmCoordinate;
   readonly baseUrl: string;
@@ -48,6 +51,7 @@ export interface BackendBinding<TClient extends object = object> {
   readonly auth: IAuthStateRetriever;
   readonly createClient: (context: BackendClientContext) => TClient;
   readonly timeoutMs?: number;
+  readonly retry?: RetryProfile;
   readonly rescue?: RescueTrip;
 }
 

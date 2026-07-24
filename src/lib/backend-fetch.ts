@@ -89,19 +89,16 @@ type Attempt =
   | { readonly kind: 'failure'; readonly error: unknown }
   | { readonly kind: 'abort'; readonly reason: string };
 
+type AttemptRequest = Parameters<FetchLike>[0] & { readonly signal: AbortSignal };
+
 function isAborted(signal: AbortSignal | null | undefined): boolean {
   return signal?.aborted === true;
 }
 
-async function attempt(
-  fetch: FetchLike,
-  input: Parameters<FetchLike>[0],
-  init: RequestInit,
-  timeoutMs: number,
-): Promise<Attempt> {
+async function attempt(fetch: FetchLike, request: AttemptRequest, timeoutMs: number): Promise<Attempt> {
   const controller = new AbortController();
   let timedOut = false;
-  const sourceSignal = init.signal ?? (input instanceof Request ? input.signal : undefined);
+  const sourceSignal = request.signal;
   if (isAborted(sourceSignal)) {
     return { kind: 'abort', reason: 'Request was aborted before a response was received.' };
   }
@@ -114,7 +111,7 @@ async function attempt(
   }, timeoutMs);
 
   try {
-    const response = await fetch(input, { ...init, signal: controller.signal });
+    const response = await fetch(request, { signal: controller.signal });
     return { kind: 'response', response };
   } catch (error) {
     if (timedOut) return { kind: 'abort', reason: `Request timed out after ${timeoutMs}ms.` };
@@ -143,15 +140,20 @@ export function createBackendFetch(options: BackendFetchOptions): FetchLike {
     headers.set('authorization', `Bearer ${token}`);
 
     const authorizedInit: RequestInit = { ...init, headers };
+    const authorizedRequest =
+      input instanceof Request ? new Request(input, authorizedInit) : new Request(input.toString(), authorizedInit);
+    // Clone both attempts before either fetch can consume the body stream.
+    const firstRequest = authorizedRequest.clone() as unknown as AttemptRequest;
+    const secondRequest = authorizedRequest.clone() as unknown as AttemptRequest;
 
-    const first = await attempt(options.fetch, input, authorizedInit, options.timeoutMs);
+    const first = await attempt(options.fetch, firstRequest, options.timeoutMs);
     if (first.kind === 'response') return first.response;
     if (first.kind === 'abort') {
       throw new ApiBoundaryError(createTransportProblem(options.problems, options.backendKey, first.reason));
     }
     if (hasReceivedStatus(first.error)) throw first.error;
 
-    const second = await attempt(options.fetch, input, authorizedInit, options.timeoutMs);
+    const second = await attempt(options.fetch, secondRequest, options.timeoutMs);
     if (second.kind === 'response') return second.response;
     if (second.kind === 'abort') {
       throw new ApiBoundaryError(createTransportProblem(options.problems, options.backendKey, second.reason));

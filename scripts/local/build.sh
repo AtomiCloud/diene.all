@@ -32,8 +32,8 @@ for artifact in \
 done
 
 echo "🏃 Verifying ESM and CJS runtime exports..."
-node --input-type=module -e "import { API_PROBLEM_VERSION } from './dist/index.js'; if (API_PROBLEM_VERSION !== 'v1') process.exit(1)"
-node -e "const { API_PROBLEM_VERSION } = require('./dist/index.cjs'); if (API_PROBLEM_VERSION !== 'v1') process.exit(1)"
+node --input-type=module -e "import * as api from './dist/index.js'; if (api.API_PROBLEM_VERSION !== 'v1' || typeof api.toResult !== 'function' || typeof api.apiEngineConfigBlockSchema?.safeParse !== 'function') process.exit(1)"
+node -e "const api = require('./dist/index.cjs'); if (api.API_PROBLEM_VERSION !== 'v1' || typeof api.toResult !== 'function' || typeof api.apiEngineConfigBlockSchema?.safeParse !== 'function') process.exit(1)"
 node --input-type=module -e "import { testPortal } from './dist/test-helper.js'; if (testPortal.module !== 'tests') process.exit(1)"
 node -e "const { testPortal } = require('./dist/test-helper.cjs'); if (testPortal.module !== 'tests') process.exit(1)"
 

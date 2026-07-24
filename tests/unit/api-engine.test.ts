@@ -82,6 +82,10 @@ function fetchClient(context: BackendClientContext) {
   };
 }
 
+function requestHeaders(input: Parameters<FetchLike>[0], init?: RequestInit): Headers {
+  return new Headers(input instanceof Request ? input.headers : init?.headers);
+}
+
 describe('SDK result reconciliation', () => {
   test('returns typed/direct success as Ok', async () => {
     const scripted = createScriptedKiotaClient({ root: [{ kind: 'return', value: { id: 7 } }] });
@@ -404,8 +408,8 @@ describe('per-backend auth and fetch policy', () => {
     const secondResource = { ...resource, service: 'billing', resourceName: 'billing-api' };
     const secondKey = await canonicalTestResource(secondResource);
     const headers: string[] = [];
-    const fetch: FetchLike = async (_input, init) => {
-      headers.push(new Headers(init?.headers).get('authorization') ?? '');
+    const fetch: FetchLike = async (input, init) => {
+      headers.push(requestHeaders(input, init).get('authorization') ?? '');
       return jsonResponse({ ok: true });
     };
     const firstAuth = fakeAuthed({ [resourceKey]: 'orders-token' });
@@ -443,8 +447,8 @@ describe('per-backend auth and fetch policy', () => {
     const auth = fakeUnauthed({ [resourceKey]: 'forced-token' });
     const seen: string[] = [];
     const client = await createFetchResolvedClient(
-      async (_input, init) => {
-        seen.push(new Headers(init?.headers).get('authorization') ?? '');
+      async (input, init) => {
+        seen.push(requestHeaders(input, init).get('authorization') ?? '');
         return statusOnlyResponse(204);
       },
       undefined,
@@ -503,6 +507,33 @@ describe('per-backend auth and fetch policy', () => {
     const client = await createFetchResolvedClient(fetch);
     expect(await client.root().serial()).toEqual(['ok', { recovered: true }]);
     expect(calls).toBe(2);
+  });
+
+  test('retries a POST with two fresh Request clones carrying the same body and auth', async () => {
+    const requests: Request[] = [];
+    const methods: string[] = [];
+    const bodies: string[] = [];
+    const authorizations: string[] = [];
+    const fetch: FetchLike = async input => {
+      expect(input).toBeInstanceOf(Request);
+      const request = input as Request;
+      requests.push(request);
+      methods.push(request.method);
+      authorizations.push(request.headers.get('authorization') ?? '');
+      bodies.push(await request.text());
+      if (requests.length === 1) throw new TypeError('opaque first-attempt failure');
+      return jsonResponse({ recovered: true });
+    };
+    const client = await createFetchResolvedClient(fetch);
+
+    expect(
+      await client.root({ method: 'POST', body: 'same-body', headers: { 'content-type': 'text/plain' } }).serial(),
+    ).toEqual(['ok', { recovered: true }]);
+    expect(requests).toHaveLength(2);
+    expect(requests[0]).not.toBe(requests[1]);
+    expect(methods).toEqual(['POST', 'POST']);
+    expect(bodies).toEqual(['same-body', 'same-body']);
+    expect(authorizations).toEqual(['Bearer token', 'Bearer token']);
   });
 
   test('trips rescue only after two opaque failures when enabled', async () => {

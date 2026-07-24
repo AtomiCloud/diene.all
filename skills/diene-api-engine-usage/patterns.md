@@ -22,6 +22,10 @@ const binding = {
 };
 ```
 
+Validate the block through `apiEngineConfigBlockSchema`; use the fixed
+`OPAQUE_NETWORK_RETRY_ONCE` literal when the composed config makes retry policy
+explicit.
+
 The client only needs to be structurally Kiota-shaped: synchronous construction,
 namespace objects, and methods returning values, promises, or `Response` objects.
 
@@ -37,6 +41,10 @@ const order = engine
 
 Treat the `Problem` as the only failure channel. Do not add `try/catch` around a
 proxied SDK call and do not call throwing `unwrap` in runtime code.
+
+For an unproxied SDK value or `Response`, use `toResult(value, context)`. The
+public `isProblem` and `isProblemDetail` guards delegate to diene.problems;
+`isResponse` recognizes the Web-standard response boundary.
 
 ## Rescue trips
 

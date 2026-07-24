@@ -1,5 +1,8 @@
 # API engine domain contract
 
+See the [API client standard](../standards/api-client/index.md) for the public
+registration walkthrough and Result-typed call convention.
+
 ## Registration and identity
 
 `createApiEngine` is the single backend registration point. It accepts an

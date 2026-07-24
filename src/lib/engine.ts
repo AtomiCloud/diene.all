@@ -3,7 +3,8 @@ import type { Problem } from '@atomicloud/diene.problems';
 import { Err, Ok, Res, type Result, type ResultSerial } from '@atomicloud/diene.result';
 
 import { createBackendFetch } from './backend-fetch';
-import { validateBaseUrl, validateCoordinate } from './lpsm';
+import { apiEngineConfigBlockSchema } from './config';
+import { validateCoordinate } from './lpsm';
 import { createBackendNotFoundProblem, createConfigurationProblem } from './problems';
 import { proxyApiClient } from './proxy';
 import type {
@@ -17,8 +18,6 @@ import type {
   ResolvedBackend,
 } from './types';
 
-const DEFAULT_TIMEOUT_MS = 15_000;
-
 interface ReadyBinding {
   readonly binding: BackendBinding;
   readonly coordinate: LpsmCoordinate;
@@ -26,11 +25,6 @@ interface ReadyBinding {
   readonly baseUrl: string;
   readonly resourceKey: CanonicalResourceKey;
   readonly timeoutMs: number;
-}
-
-function validTimeout(value: number | undefined): number | undefined {
-  const timeout = value ?? DEFAULT_TIMEOUT_MS;
-  return Number.isFinite(timeout) && timeout > 0 ? timeout : undefined;
 }
 
 function globalFetch(): FetchLike {
@@ -41,7 +35,16 @@ async function prepare(options: ApiEngineOptions): Promise<ResultSerial<readonly
   const entries: ReadyBinding[] = [];
   const keys = new Set<LpsmKey>();
 
-  for (const binding of options.bindings) {
+  for (const input of options.bindings) {
+    const initialCoordinate = validateCoordinate(input.coordinate);
+    const inputLabel = initialCoordinate.ok ? initialCoordinate.key : 'invalid/coordinate';
+    const parsed = apiEngineConfigBlockSchema.safeParse(input);
+    if (!parsed.success) {
+      const reason = parsed.error.issues.map(issue => issue.message).join(' ');
+      return ['err', createConfigurationProblem(options.problems, inputLabel, reason)];
+    }
+
+    const binding = parsed.data;
     const coordinate = validateCoordinate(binding.coordinate);
     const label = coordinate.ok ? coordinate.key : 'invalid/coordinate';
     if (!coordinate.ok) {
@@ -54,22 +57,6 @@ async function prepare(options: ApiEngineOptions): Promise<ResultSerial<readonly
           options.problems,
           coordinate.key,
           `Duplicate backend registration for ${coordinate.key}.`,
-        ),
-      ];
-    }
-
-    const url = validateBaseUrl(binding.baseUrl);
-    if (!url.ok) {
-      return ['err', createConfigurationProblem(options.problems, coordinate.key, url.reason)];
-    }
-    const timeoutMs = validTimeout(binding.timeoutMs);
-    if (timeoutMs === undefined) {
-      return [
-        'err',
-        createConfigurationProblem(
-          options.problems,
-          coordinate.key,
-          'Backend timeoutMs must be a finite positive number.',
         ),
       ];
     }
@@ -95,9 +82,9 @@ async function prepare(options: ApiEngineOptions): Promise<ResultSerial<readonly
         binding,
         coordinate: coordinate.coordinate,
         key: coordinate.key,
-        baseUrl: url.baseUrl,
+        baseUrl: binding.baseUrl,
         resourceKey: resource[1],
-        timeoutMs,
+        timeoutMs: binding.timeoutMs,
       }),
     );
   }

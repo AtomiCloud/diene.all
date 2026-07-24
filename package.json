@@ -39,11 +39,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/AtomiCloud/diene.api-engine.git"
+    "url": "git+https://github.com/AtomiCloud/diene.bun-api-engine.git"
   },
-  "homepage": "https://github.com/AtomiCloud/diene.api-engine#readme",
+  "homepage": "https://github.com/AtomiCloud/diene.bun-api-engine#readme",
   "bugs": {
-    "url": "https://github.com/AtomiCloud/diene.api-engine/issues"
+    "url": "https://github.com/AtomiCloud/diene.bun-api-engine/issues"
   },
   "license": "MIT",
   "author": "AtomiCloud",
