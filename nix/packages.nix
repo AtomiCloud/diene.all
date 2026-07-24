@@ -76,7 +76,7 @@ let
       with pkgs-2605;
       {
         controller-gen = kubernetes-controller-tools;
-        inherit kubebuilder setup-envtest;
+        inherit bun kubebuilder setup-envtest;
         # Offline envtest asset directory: kube-apiserver + etcd + kubectl from the
         # pinned nixpkgs, so `KUBEBUILDER_ASSETS` never triggers a runtime download
         # (M14 cold-runner discipline). Consumed by the shell hook, not on PATH.
