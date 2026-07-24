@@ -50,7 +50,7 @@ let
     dotnet-base = {
       dotnetlint = atomi.dotnetlint.override { dotnetPackage = pkgs-2605.dotnet-sdk_10; };
       dn-inspect = atomi.dn-inspect.override { dotnetPackage = pkgs-2605.dotnet-sdk_10; };
-      inherit (pkgs-2605) dotnet-sdk_10 gitlint;
+      inherit (pkgs-2605) dotnet-sdk_10 gitlint xmlstarlet;
     };
 
     # ### nix-root
