@@ -41,8 +41,9 @@ The formatters treefmt drives are the `programs` attribute set in
 [`nix/fmt.nix`](../../../nix/fmt.nix); each entry enables one formatter and may
 carry its own `excludes`.
 
-The commit-msg hook's binary is published by `tools/releaser` at C2 step 2p and is
-not available before that fold. There is no `.gitlint` hook or file.
+The commit-msg stage registers `releaser lint-commit -c atomi_release.yaml`
+from the immutable `AtomiCloud/releaser` v1.0.0 flake input. No `.gitlint` hook
+or file exists.
 
 ## Configuration rules
 

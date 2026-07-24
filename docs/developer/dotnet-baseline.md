@@ -63,8 +63,8 @@ enforced in Release builds.
 The Dockerfile is a minimal non-root stub, and the Helm chart keeps an empty
 template directory for descendants to replace. The Helm axis is complete:
 lint/docs hooks, local tasks, OCI packaging, CI/CD jobs, and dependabot coverage
-are all active. Semantic release writes the repository `VERSION`; `.gitlint` and
-`atomi_release.yaml` share one commit-type vocabulary.
+are all active. Releaser writes the repository `VERSION`; its canonical
+`atomi_release.yaml` is the single commit-type vocabulary.
 
 ## Template-maintenance boundary
 
