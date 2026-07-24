@@ -19,6 +19,7 @@ coverage:
     exclude:
       - '[Lib*]*'
       - '[*.TestHelper]*'
+      - '[*]*.Program'
   meta:
     minimum: 100
     projects:

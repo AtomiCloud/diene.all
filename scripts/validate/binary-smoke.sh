@@ -22,11 +22,18 @@ docker --version >/dev/null
 docker info --format '{{.ServerVersion}}' >/dev/null
 
 dn-inspect --version >/dev/null
+dotnet tool restore >/dev/null
+mkdir -p "${tmp}/dotnet-smoke"
+printf '%s\n' '<Project Sdk="Microsoft.NET.Sdk">' '  <PropertyGroup>' '    <OutputType>Exe</OutputType>' '    <TargetFramework>net10.0</TargetFramework>' '    <ImplicitUsings>enable</ImplicitUsings>' '  </PropertyGroup>' '</Project>' >"${tmp}/dotnet-smoke/Smoke.csproj"
+printf '%s\n' 'Console.WriteLine("smoke");' >"${tmp}/dotnet-smoke/Program.cs"
+dotnet restore "${tmp}/dotnet-smoke/Smoke.csproj" >/dev/null
+dn-inspect --projects "${tmp}/dotnet-smoke/Smoke.csproj" --filter '^$' | rg -q 'Total: 0 issue\(s\)'
 
 dotnet --version >/dev/null
 dotnet sln dotnet-base.slnx list | rg -q 'App/App.csproj'
 
 dotnetlint --version >/dev/null
+(cd "${tmp}/dotnet-smoke" && dotnetlint) | rg -q 'Processing project:'
 
 git --version >/dev/null
 git rev-parse --is-inside-work-tree >/dev/null
@@ -77,7 +84,7 @@ pre-commit --version >/dev/null
 pre-commit validate-config .pre-commit-config.yaml
 
 rg --version >/dev/null
-rg -q 'Diene .NET base template' README.md
+rg -q '^# Diene \.NET (base|library) template$' README.md
 
 sg --version >/dev/null
 printf '%s\n' '[general]' 'contrib=CT1' 'ignore=B6' '' '[contrib-title-conventional-commits]' 'types = amend' >"${tmp}/.gitlint"

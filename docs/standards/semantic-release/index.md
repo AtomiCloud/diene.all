@@ -18,18 +18,18 @@ binary is published by `tools/releaser` at C2 step 2p. Until that fold lands:
   and exact D3 type vocabulary;
 - the commit-msg hook remains registered as
   `releaser lint-commit -c atomi_release.yaml`;
-- release execution is not considered locally available; and
-- `sg` remains only as a temporary Nix-shell bootstrap dependency.
+- release execution uses `sg release -c atomi_release.yaml -i npm`; and
+- `sg` remains the temporary Nix-shell bootstrap dependency.
 
-After step 2p, `releaser` replaces that bootstrap dependency and the registered
-commit and release commands become executable.
+After step 2p, `releaser` replaces that bootstrap dependency and the release
+script switches to the compiled command surface.
 
 ## Commands
 
 ```bash
 releaser lint-commit -c atomi_release.yaml <commit-message-file>
 releaser conventions
-releaser release -c atomi_release.yaml
+sg release -c atomi_release.yaml -i npm
 ```
 
 `releaser conventions` maintains
@@ -64,8 +64,6 @@ so the vocabularies cannot drift independently.
 2. `release.yaml` starts through `workflow_run` with concurrency group
    `release`.
 3. `scripts/ci/release.sh` runs inside `nix develop .#releaser`.
-4. `releaser release -c atomi_release.yaml` calculates the version, updates the
+4. `sg release -c atomi_release.yaml -i npm` calculates the version, updates the
    changelog and generated files, creates the tag, and publishes the GitHub
    release.
-
-Actual release execution remains gated on the C2 step-2p `tools/releaser` fold.
