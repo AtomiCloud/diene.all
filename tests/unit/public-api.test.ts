@@ -1,4 +1,5 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, it } from 'bun:test';
+import should from 'should';
 
 import {
   apiEngineConfigBlockSchema,
@@ -50,27 +51,33 @@ function validConfigBlock() {
 }
 
 describe('engine-owned config block', () => {
-  test('accepts the complete backend block and applies fixed defaults', () => {
-    const parsed = apiEngineConfigBlockSchema.parse(validConfigBlock());
-    expect(parsed.coordinate).toEqual(coordinate);
-    expect(parsed.baseUrl).toBe('https://orders.local.test/api');
-    expect(parsed.timeoutMs).toBe(250);
-    expect(parsed.retry).toBe(OPAQUE_NETWORK_RETRY_ONCE);
-    expect(parsed.auth).toBe(auth);
-    expect(parsed.rescue?.enabled).toBe(true);
+  it('should accept the complete backend block and apply fixed defaults', () => {
+    // Arrange
+    const input = validConfigBlock();
 
+    // Act
+    const actual = apiEngineConfigBlockSchema.parse(input);
     const defaults = apiEngineConfigBlockSchema.parse({
-      ...validConfigBlock(),
+      ...input,
       timeoutMs: undefined,
       retry: undefined,
     });
-    expect(defaults.timeoutMs).toBe(DEFAULT_BACKEND_TIMEOUT_MS);
-    expect(defaults.retry).toBe(OPAQUE_NETWORK_RETRY_ONCE);
+
+    // Assert
+    should(actual.coordinate).deepEqual(coordinate);
+    should(actual.baseUrl).equal('https://orders.local.test/api');
+    should(actual.timeoutMs).equal(250);
+    should(actual.retry).equal(OPAQUE_NETWORK_RETRY_ONCE);
+    should(actual.auth).equal(auth);
+    should(actual.rescue?.enabled).be.true();
+    should(defaults.timeoutMs).equal(DEFAULT_BACKEND_TIMEOUT_MS);
+    should(defaults.retry).equal(OPAQUE_NETWORK_RETRY_ONCE);
   });
 
-  test('rejects malformed coordinates, URLs, timeouts, retry profiles, and collaborators', () => {
+  it('should reject malformed coordinates, URLs, timeouts, retry profiles, and collaborators', () => {
+    // Arrange
     const base = validConfigBlock();
-    const invalid = [
+    const input = [
       { ...base, coordinate: { ...coordinate, module: 'bad/module' } },
       { ...base, baseUrl: 'file:///tmp/orders' },
       { ...base, timeoutMs: 0 },
@@ -79,34 +86,65 @@ describe('engine-owned config block', () => {
       { ...base, createClient: 7 },
       { ...base, rescue: { enabled: true, trip: 'not-a-function' } },
     ];
-    for (const candidate of invalid) expect(apiEngineConfigBlockSchema.safeParse(candidate).success).toBe(false);
+
+    // Act
+    const actual = input.map(candidate => apiEngineConfigBlockSchema.safeParse(candidate).success);
+
+    // Assert
+    should(actual).deepEqual([false, false, false, false, false, false, false]);
   });
 });
 
 describe('public bridge and adapter facade', () => {
-  test('delegates Problem guards and recognizes Responses', () => {
+  it('should delegate Problem guards and recognize Responses', () => {
+    // Arrange
     const problem = problemFixture(problems.TransportFailure, { backend: 'orders', reason: 'offline' });
-    expect(isProblem(problem)).toBe(true);
-    expect(isProblemDetail(problem)).toBe(true);
-    expect(isProblem({ type: problem.type })).toBe(false);
-    expect(isProblemDetail({})).toBe(false);
-    expect(isResponse(Response.json({ ok: true }))).toBe(true);
-    expect(isResponse({ status: 200 })).toBe(false);
+
+    // Act
+    const actual = {
+      problem: isProblem(problem),
+      detail: isProblemDetail(problem),
+      incompleteProblem: isProblem({ type: problem.type }),
+      emptyDetail: isProblemDetail({}),
+      response: isResponse(Response.json({ ok: true })),
+      plainObject: isResponse({ status: 200 }),
+    };
+
+    // Assert
+    should(actual).deepEqual({
+      problem: true,
+      detail: true,
+      incompleteProblem: false,
+      emptyDetail: false,
+      response: true,
+      plainObject: false,
+    });
   });
 
-  test('toResult uses full reconciliation and never rejects', async () => {
-    expect(await toResult(Promise.resolve(Response.json({ bridged: true })), context).serial()).toEqual([
-      'ok',
-      { bridged: true },
-    ]);
-    const failure = await toResult(Promise.reject(new Error('bridge failure')), context).serial();
-    expect(failure[0]).toBe('err');
-    if (failure[0] === 'err') expect(failure[1].type).toBe(problems.TransportFailure.type);
+  it('should use full reconciliation without rejecting', async () => {
+    // Arrange
+    const success = toResult(Promise.resolve(Response.json({ bridged: true })), context);
+    const failure = toResult(Promise.reject(new Error('bridge failure')), context);
+
+    // Act
+    const actualSuccess = await success.serial();
+    const actualFailure = await failure.serial();
+
+    // Assert
+    should(actualSuccess).deepEqual(['ok', { bridged: true }]);
+    should(actualFailure[0]).equal('err');
+    if (actualFailure[0] === 'err') should(actualFailure[1].type).equal(problems.TransportFailure.type);
   });
 
-  test('exports the recursive Swagger adapter through both public names', async () => {
-    expect(createSwaggerAdapter).toBe(proxyApiClient);
+  it('should export the recursive Swagger adapter through both public names', async () => {
+    // Arrange
     const client = createSwaggerAdapter({ root: () => ({ adapted: true }) }, context);
-    expect(await client.root().serial()).toEqual(['ok', { adapted: true }]);
+
+    // Act
+    const actual = await client.root().serial();
+
+    // Assert
+    should(createSwaggerAdapter).equal(proxyApiClient);
+    should(actual).deepEqual(['ok', { adapted: true }]);
   });
 });

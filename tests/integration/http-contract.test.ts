@@ -1,4 +1,5 @@
-import { afterAll, describe, expect, test } from 'bun:test';
+import { afterAll, describe, it } from 'bun:test';
+import should from 'should';
 
 import { type BackendClientContext, createApiEngine } from '../../src';
 import { canonicalTestResource, createApiTestProblems, fakeAuthed, problemFixture } from '../../src/test-helper';
@@ -85,41 +86,62 @@ async function realClient(baseUrl = server.url.origin) {
 }
 
 describe('real HTTP reconciliation contract', () => {
-  test('handles OK JSON and RFC 9457', async () => {
+  it('should handle OK JSON and RFC 9457', async () => {
+    // Arrange
     const client = await realClient();
-    expect(await client.get('/ok').serial()).toEqual(['ok', { source: 'real-server' }]);
-    const problem = await client.get('/problem').serial();
-    expect(problem[0]).toBe('err');
-    if (problem[0] === 'err') expect(problem[1]).toMatchObject({ type: rfcProblem.type, status: 409 });
+
+    // Act
+    const actualOk = await client.get('/ok').serial();
+    const actualProblem = await client.get('/problem').serial();
+
+    // Assert
+    should(actualOk).deepEqual(['ok', { source: 'real-server' }]);
+    should(actualProblem[0]).equal('err');
+    if (actualProblem[0] === 'err') should(actualProblem[1]).match({ type: rfcProblem.type, status: 409 });
   });
 
-  test('classifies JSON non-Problem, non-JSON, and status-only failures', async () => {
+  it('should classify JSON, plain-text, and status-only failures', async () => {
+    // Arrange
     const client = await realClient();
+
+    // Act
     const legacy = await client.get('/legacy-json').serial();
     const plain = await client.get('/plain').serial();
     const statusOnly = await client.get('/status-only').serial();
-    if (legacy[0] === 'err') expect(legacy[1].type).toBe(problems.UpstreamFailure.type);
+
+    // Assert
+    if (legacy[0] === 'err') should(legacy[1].type).equal(problems.UpstreamFailure.type);
     else throw new Error('expected legacy JSON failure');
-    if (plain[0] === 'err') expect(plain[1].type).toBe(problems.TransportFailure.type);
+    if (plain[0] === 'err') should(plain[1].type).equal(problems.TransportFailure.type);
     else throw new Error('expected plain transport failure');
-    if (statusOnly[0] === 'err') expect(statusOnly[1].type).toBe(problems.TransportFailure.type);
+    if (statusOnly[0] === 'err') should(statusOnly[1].type).equal(problems.TransportFailure.type);
     else throw new Error('expected status-only transport failure');
   });
 
-  test('maps a real streamed body failure to transport Err', async () => {
+  it('should map a real streamed body failure to a transport Err', async () => {
+    // Arrange
     const client = await realClient();
-    const serial = await client.get('/body-failure').serial();
-    expect(serial[0]).toBe('err');
-    if (serial[0] === 'err') expect(serial[1].type).toBe(problems.TransportFailure.type);
+
+    // Act
+    const actual = await client.get('/body-failure').serial();
+
+    // Assert
+    should(actual[0]).equal('err');
+    if (actual[0] === 'err') should(actual[1].type).equal(problems.TransportFailure.type);
   });
 
-  test('maps a closed local port/network failure after the bounded retry', async () => {
+  it('should map a closed local port to a transport Err after the bounded retry', async () => {
+    // Arrange
     const disposable = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: () => new Response('ok') });
     const closedOrigin = disposable.url.origin;
     disposable.stop(true);
     const client = await realClient(closedOrigin);
-    const serial = await client.get('/closed').serial();
-    expect(serial[0]).toBe('err');
-    if (serial[0] === 'err') expect(serial[1].type).toBe(problems.TransportFailure.type);
+
+    // Act
+    const actual = await client.get('/closed').serial();
+
+    // Assert
+    should(actual[0]).equal('err');
+    if (actual[0] === 'err') should(actual[1].type).equal(problems.TransportFailure.type);
   });
 });

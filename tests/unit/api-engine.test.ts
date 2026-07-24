@@ -1,4 +1,5 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, it } from 'bun:test';
+import should from 'should';
 import { ProblemRegistry } from '@atomicloud/diene.problems';
 import { Err, Ok } from '@atomicloud/diene.result';
 
@@ -87,13 +88,20 @@ function requestHeaders(input: Parameters<FetchLike>[0], init?: RequestInit): He
 }
 
 describe('SDK result reconciliation', () => {
-  test('returns typed/direct success as Ok', async () => {
+  it('returns typed/direct success as Ok', async () => {
+    // Arrange
     const scripted = createScriptedKiotaClient({ root: [{ kind: 'return', value: { id: 7 } }] });
     const client = await resolvedClient(scripted.client);
-    expect(await client.root().serial()).toEqual(['ok', { id: 7 }]);
+
+    // Act
+    const serial = await client.root().serial();
+
+    // Assert
+    should(serial).eql(['ok', { id: 7 }]);
   });
 
-  test('flattens a direct Result without throwing unwrap', async () => {
+  it('flattens a direct Result without throwing unwrap', async () => {
+    // Arrange
     const scripted = createScriptedKiotaClient({
       root: [
         { kind: 'return', value: Ok({ source: 'result' }) },
@@ -101,28 +109,71 @@ describe('SDK result reconciliation', () => {
       ],
     });
     const client = await resolvedClient(scripted.client);
-    expect(await client.root().serial()).toEqual(['ok', { source: 'result' }]);
-    expect((await client.root().serial())[0]).toBe('err');
+
+    // Act
+    const success = await client.root().serial();
+    const failure = await client.root().serial();
+
+    // Assert
+    should(success).eql(['ok', { source: 'result' }]);
+    should(failure[0]).equal('err');
   });
 
-  test('decodes a successful JSON Response', async () => {
+  it('decodes a successful JSON Response', async () => {
+    // Arrange
     const scripted = createScriptedKiotaClient({
       root: [{ kind: 'resolve', value: jsonResponse({ items: [1, 2] }) }],
     });
     const client = await resolvedClient(scripted.client);
-    expect(await client.root().serial()).toEqual(['ok', { items: [1, 2] }]);
+
+    // Act
+    const serial = await client.root().serial();
+
+    // Assert
+    should(serial).eql(['ok', { items: [1, 2] }]);
   });
 
-  test('passes successful non-JSON/stream Responses through without consuming them', async () => {
+  it('keeps nested Problem-shaped audit data successful in direct and JSON values', async () => {
+    // Arrange
+    const problem = problemFixture(
+      problems.UpstreamFailure,
+      { backend: 'local/platform/orders/public', status: 409 },
+      'historical failure',
+    );
+    const audit = { history: { latestProblem: problem } };
+    const scripted = createScriptedKiotaClient({
+      root: [
+        { kind: 'return', value: audit },
+        { kind: 'resolve', value: jsonResponse(audit) },
+      ],
+    });
+    const client = await resolvedClient(scripted.client);
+
+    // Act
+    const direct = await client.root().serial();
+    const json = await client.root().serial();
+
+    // Assert
+    should(direct).eql(['ok', audit]);
+    should(json).eql(['ok', audit]);
+  });
+
+  it('passes successful non-JSON/stream Responses through without consuming them', async () => {
+    // Arrange
     const response = textResponse('download');
     const scripted = createScriptedKiotaClient({ root: [{ kind: 'resolve', value: response }] });
     const client = await resolvedClient(scripted.client);
+
+    // Act
     const serial = await client.root().serial();
-    expect(serial).toEqual(['ok', response]);
-    expect(response.bodyUsed).toBe(false);
+
+    // Assert
+    should(serial).eql(['ok', response]);
+    should(response.bodyUsed).equal(false);
   });
 
-  test('maps direct and nested Problems to Err', async () => {
+  it('maps direct and nested Problems to Err', async () => {
+    // Arrange
     const problem = problemFixture(
       problems.UpstreamFailure,
       { backend: 'local/platform/orders/public', status: 409 },
@@ -135,11 +186,45 @@ describe('SDK result reconciliation', () => {
       ],
     });
     const client = await resolvedClient(scripted.client);
-    expect(await client.root().serial()).toEqual(['err', problem]);
-    expect(await client.root().serial()).toEqual(['err', problem]);
+
+    // Act
+    const direct = await client.root().serial();
+    const nested = await client.root().serial();
+
+    // Assert
+    should(direct).eql(['err', problem]);
+    should(nested).eql(['err', problem]);
   });
 
-  test('maps RFC 9457 and nested RFC 9457 HTTP bodies to Err', async () => {
+  it('finds Problems through Error causes and terminates cyclic cause chains', async () => {
+    // Arrange
+    const problem = problemFixture(
+      problems.UpstreamFailure,
+      { backend: 'local/platform/orders/public', status: 409 },
+      'caused failure',
+    );
+    const cyclic = new Error('cyclic failure');
+    Object.defineProperty(cyclic, 'cause', { value: cyclic });
+    const scripted = createScriptedKiotaClient({
+      root: [
+        { kind: 'throw', error: new Error('wrapper', { cause: problem }) },
+        { kind: 'throw', error: cyclic },
+      ],
+    });
+    const client = await resolvedClient(scripted.client);
+
+    // Act
+    const causedSerial = await client.root().serial();
+    const cyclicSerial = await client.root().serial();
+
+    // Assert
+    should(causedSerial).eql(['err', problem]);
+    should(cyclicSerial[0]).equal('err');
+    if (cyclicSerial[0] === 'err') should(cyclicSerial[1].type).equal(problems.TransportFailure.type);
+  });
+
+  it('maps RFC 9457 and nested RFC 9457 HTTP bodies to Err', async () => {
+    // Arrange
     const problem = problemFixture(
       problems.UpstreamFailure,
       { backend: 'local/platform/orders/public', status: 422 },
@@ -152,11 +237,18 @@ describe('SDK result reconciliation', () => {
       ],
     });
     const client = await resolvedClient(scripted.client);
-    expect((await client.root().serial())[1]).toMatchObject({ type: problem.type, status: 422 });
-    expect((await client.root().serial())[1]).toMatchObject({ type: problem.type, status: 422 });
+
+    // Act
+    const direct = await client.root().serial();
+    const nested = await client.root().serial();
+
+    // Assert
+    should(direct[1]).match({ type: problem.type, status: 422 });
+    should(nested[1]).match({ type: problem.type, status: 422 });
   });
 
-  test('distinguishes JSON non-Problem server failure from transport failures', async () => {
+  it('distinguishes JSON non-Problem server failure from transport failures', async () => {
+    // Arrange
     const scripted = createScriptedKiotaClient({
       root: [
         { kind: 'resolve', value: jsonResponse({ message: 'legacy failure' }, 500) },
@@ -165,20 +257,33 @@ describe('SDK result reconciliation', () => {
       ],
     });
     const client = await resolvedClient(scripted.client);
-    expect((await client.root().serial())[1]).toMatchObject({ type: problems.UpstreamFailure.type });
-    expect((await client.root().serial())[1]).toMatchObject({ type: problems.TransportFailure.type });
-    expect((await client.root().serial())[1]).toMatchObject({ type: problems.TransportFailure.type });
+
+    // Act
+    const json = await client.root().serial();
+    const text = await client.root().serial();
+    const empty = await client.root().serial();
+
+    // Assert
+    should(json[1]).match({ type: problems.UpstreamFailure.type });
+    should(text[1]).match({ type: problems.TransportFailure.type });
+    should(empty[1]).match({ type: problems.TransportFailure.type });
   });
 
-  test('turns response-body failures into transport Problems', async () => {
+  it('turns response-body failures into transport Problems', async () => {
+    // Arrange
     const scripted = createScriptedKiotaClient({ root: [{ kind: 'resolve', value: unreadableResponse() }] });
     const client = await resolvedClient(scripted.client);
+
+    // Act
     const serial = await client.root().serial();
-    expect(serial[0]).toBe('err');
-    expect(serial[1]).toMatchObject({ type: problems.TransportFailure.type });
+
+    // Assert
+    should(serial[0]).equal('err');
+    should(serial[1]).match({ type: problems.TransportFailure.type });
   });
 
-  test('catches sync throws and rejected promises so proxied calls never reject', async () => {
+  it('catches sync throws and rejected promises so proxied calls never reject', async () => {
+    // Arrange
     const scripted = createScriptedKiotaClient({
       root: [
         { kind: 'throw', error: new Error('sync exploded') },
@@ -186,29 +291,44 @@ describe('SDK result reconciliation', () => {
       ],
     });
     const client = await resolvedClient(scripted.client);
-    expect((await client.root().serial())[0]).toBe('err');
-    expect((await client.root().serial())[0]).toBe('err');
+
+    // Act
+    const synchronous = await client.root().serial();
+    const asynchronous = await client.root().serial();
+
+    // Assert
+    should(synchronous[0]).equal('err');
+    should(asynchronous[0]).equal('err');
   });
 });
 
 describe('recursive SDK proxy', () => {
-  test('proxies namespaces, preserves method this, and leaves Promise properties alone', async () => {
+  it('proxies namespaces, preserves method this, and leaves Promise properties alone', async () => {
+    // Arrange
     const scripted = createScriptedKiotaClient({
       root: [{ kind: 'return', value: 'root' }],
       'nested.call': [{ kind: 'return', value: 'nested' }],
     });
     const client = await resolvedClient(scripted.client);
-    expect(await client.root('a').serial()).toEqual(['ok', 'root']);
-    expect(await client.nested.call('b').serial()).toEqual(['ok', 'nested']);
-    expect(scripted.backend.calls[0]?.owner).toBe(scripted.client);
-    expect(scripted.backend.calls[1]?.owner).toBe(scripted.client.nested);
-    expect(await client.promisedNamespace).toEqual({ untouched: true });
-    expect('serial' in client.promisedNamespace).toBe(false);
+
+    // Act
+    const root = await client.root('a').serial();
+    const nested = await client.nested.call('b').serial();
+    const promisedNamespace = await client.promisedNamespace;
+
+    // Assert
+    should(root).eql(['ok', 'root']);
+    should(nested).eql(['ok', 'nested']);
+    should(scripted.backend.calls[0]?.owner).equal(scripted.client);
+    should(scripted.backend.calls[1]?.owner).equal(scripted.client.nested);
+    should(promisedNamespace).eql({ untouched: true });
+    should('serial' in client.promisedNamespace).equal(false);
   });
 });
 
 describe('immutable LPSM backend tree', () => {
-  test('rejects duplicate registration and reports missing resolution as Results', async () => {
+  it('rejects duplicate registration and reports missing resolution as Results', async () => {
+    // Arrange
     const auth = fakeAuthed({ [resourceKey]: 'token' });
     const binding = {
       coordinate,
@@ -217,23 +337,27 @@ describe('immutable LPSM backend tree', () => {
       auth,
       createClient: () => ({ root: () => true }),
     };
-    const duplicate = await createApiEngine({ problems, bindings: [binding, binding] }).serial();
-    expect(duplicate[0]).toBe('err');
-    if (duplicate[0] === 'err') expect(duplicate[1].type).toBe(problems.ConfigurationFailure.type);
 
+    // Act
+    const duplicate = await createApiEngine({ problems, bindings: [binding, binding] }).serial();
     const engine = await createApiEngine({ problems, bindings: [binding] }).serial();
     if (engine[0] === 'err') throw new Error('engine setup failed');
     const missing = await engine[1].resolve({ ...coordinate, module: 'missing' }).serial();
-    expect(missing[0]).toBe('err');
-    if (missing[0] === 'err') expect(missing[1].type).toBe(problems.BackendNotFound.type);
-    expect(engine[1].list()[0]).toMatchObject({
+
+    // Assert
+    should(duplicate[0]).equal('err');
+    if (duplicate[0] === 'err') should(duplicate[1].type).equal(problems.ConfigurationFailure.type);
+    should(missing[0]).equal('err');
+    if (missing[0] === 'err') should(missing[1].type).equal(problems.BackendNotFound.type);
+    should(engine[1].list()[0]).match({
       key: 'local/platform/orders/public',
       baseUrl: 'https://orders.local.test',
       resourceKey,
     });
   });
 
-  test('rejects invalid coordinates, URLs, resources, and asynchronous factories as Results', async () => {
+  it('rejects invalid coordinates, URLs, resources, and asynchronous factories as Results', async () => {
+    // Arrange
     const auth = fakeAuthed({ [resourceKey]: 'token' });
     const base = {
       coordinate,
@@ -248,18 +372,25 @@ describe('immutable LPSM backend tree', () => {
       { ...base, resource: { ...resource, resourceName: '' } },
       { ...base, timeoutMs: 0 },
     ];
-    for (const binding of invalids)
-      expect((await createApiEngine({ problems, bindings: [binding] }).serial())[0]).toBe('err');
 
+    // Act
+    const invalidSerials = await Promise.all(
+      invalids.map(binding => createApiEngine({ problems, bindings: [binding] }).serial()),
+    );
     const ready = await createApiEngine({
       problems,
       bindings: [{ ...base, createClient: (() => Promise.resolve({})) as never }],
     }).serial();
     if (ready[0] === 'err') throw new Error('engine setup failed');
-    expect((await ready[1].resolve(coordinate).serial())[0]).toBe('err');
+    const asynchronousFactory = await ready[1].resolve(coordinate).serial();
+
+    // Assert
+    for (const serial of invalidSerials) should(serial[0]).equal('err');
+    should(asynchronousFactory[0]).equal('err');
   });
 
-  test('returns malformed coordinate and base URL forms as configuration Problems', async () => {
+  it('returns malformed coordinate and base URL forms as configuration Problems', async () => {
+    // Arrange
     const auth = fakeAuthed({ [resourceKey]: 'token' });
     const base = {
       coordinate,
@@ -275,34 +406,49 @@ describe('immutable LPSM backend tree', () => {
       { ...base, baseUrl: 'https://user:secret@orders.local.test' },
       { ...base, baseUrl: 'not a URL' },
     ];
-    for (const binding of invalids) {
-      expect((await createApiEngine({ problems, bindings: [binding] }).serial())[0]).toBe('err');
-    }
-
     const hostile = { problems } as ApiEngineOptions;
     Object.defineProperty(hostile, 'bindings', {
       get() {
         throw new Error('hostile bindings getter');
       },
     });
-    expect((await createApiEngine(hostile).serial())[0]).toBe('err');
+
+    // Act
+    const invalidSerials = await Promise.all(
+      invalids.map(binding => createApiEngine({ problems, bindings: [binding] }).serial()),
+    );
+    const hostileSerial = await createApiEngine(hostile).serial();
+
+    // Assert
+    for (const serial of invalidSerials) should(serial[0]).equal('err');
+    should(hostileSerial[0]).equal('err');
   });
 });
 
 describe('problem registration contract', () => {
-  test('compatibly reuses definitions and rejects a conflicting contract', async () => {
+  it('compatibly reuses definitions and rejects a conflicting contract', async () => {
+    // Arrange
     const registry = new ProblemRegistry(testPortal);
-    expect((await registerApiProblems(registry).serial())[0]).toBe('ok');
-    expect((await registerApiProblems(registry).serial())[0]).toBe('ok');
-
     const conflicting = new ProblemRegistry(testPortal);
     conflicting.register({ ...ApiConfigurationFailure, title: 'Different title' });
-    const serial = await registerApiProblems(conflicting).serial();
-    expect(serial[0]).toBe('err');
-    if (serial[0] === 'err') expect(serial[1].type).toBe('about:blank');
+
+    // Act
+    const first = await registerApiProblems(registry).serial();
+    const second = await registerApiProblems(registry).serial();
+    const conflictingSerial = await registerApiProblems(conflicting).serial();
+
+    // Assert
+    should(first[0]).equal('ok');
+    should(second[0]).equal('ok');
+    should(conflictingSerial[0]).equal('err');
+    if (conflictingSerial[0] === 'err') {
+      const expectedType = new ProblemRegistry(testPortal).register(ApiConfigurationFailure).type;
+      should(conflictingSerial[1].type).equal(expectedType);
+    }
   });
 
-  test('maps a non-Error registry failure to a registration Problem', async () => {
+  it('maps a non-Error registry failure to a registration Problem', async () => {
+    // Arrange
     const failingRegistry = {
       portal: testPortal,
       get: () => undefined,
@@ -310,16 +456,28 @@ describe('problem registration contract', () => {
         throw 'registry failed';
       },
     } as unknown as ProblemRegistry;
+
+    // Act
     const serial = await registerApiProblems(failingRegistry).serial();
-    expect(serial[0]).toBe('err');
-    if (serial[0] === 'err') expect(serial[1].detail).toContain('could not be registered');
+
+    // Assert
+    should(serial[0]).equal('err');
+    if (serial[0] === 'err') {
+      const expectedType = new ProblemRegistry(testPortal).register(ApiConfigurationFailure).type;
+      should(serial[1].type).equal(expectedType);
+      should(serial[1].detail).equal('registry failed');
+    }
   });
 
-  test('creates authentication failures through the registered definition', () => {
-    expect(createAuthenticationProblem(problems, 'backend', 'missing token')).toMatchObject({
-      type: problems.AuthenticationFailure.type,
-      status: 401,
-    });
+  it('creates authentication failures through the registered definition', () => {
+    // Arrange
+    const expected = { type: problems.AuthenticationFailure.type, status: 401 };
+
+    // Act
+    const problem = createAuthenticationProblem(problems, 'backend', 'missing token');
+
+    // Assert
+    should(problem).match(expected);
   });
 });
 
@@ -330,7 +488,8 @@ describe('defensive reconciliation paths', () => {
     problems,
   };
 
-  test('maps invalid successful JSON, invalid failed JSON, and empty JSON deterministically', async () => {
+  it('maps invalid successful JSON, invalid failed JSON, and empty JSON deterministically', async () => {
+    // Arrange
     const scripted = createScriptedKiotaClient({
       root: [
         {
@@ -357,12 +516,20 @@ describe('defensive reconciliation paths', () => {
       ],
     });
     const client = await resolvedClient(scripted.client);
-    expect((await client.root().serial())[0]).toBe('err');
-    expect((await client.root().serial())[0]).toBe('err');
-    expect(await client.root().serial()).toEqual(['ok', undefined]);
+
+    // Act
+    const invalidSuccess = await client.root().serial();
+    const invalidFailure = await client.root().serial();
+    const emptySuccess = await client.root().serial();
+
+    // Assert
+    should(invalidSuccess[0]).equal('err');
+    should(invalidFailure[0]).equal('err');
+    should(emptySuccess).eql(['ok', undefined]);
   });
 
-  test('handles Kiota status/body shapes and every fallback detail shape', async () => {
+  it('handles Kiota status/body shapes and every fallback detail shape', async () => {
+    // Arrange
     const scripted = createScriptedKiotaClient({
       root: [
         {
@@ -376,34 +543,53 @@ describe('defensive reconciliation paths', () => {
       ],
     });
     const client = await resolvedClient(scripted.client);
-    expect((await client.root().serial())[1]).toMatchObject({ type: problems.UpstreamFailure.type });
-    for (let index = 0; index < 4; index += 1) {
-      expect((await client.root().serial())[1]).toMatchObject({ type: problems.TransportFailure.type });
-    }
+
+    // Act
+    const upstream = await client.root().serial();
+    const transports = [
+      await client.root().serial(),
+      await client.root().serial(),
+      await client.root().serial(),
+      await client.root().serial(),
+    ];
+
+    // Assert
+    should(upstream[1]).match({ type: problems.UpstreamFailure.type });
+    for (const transport of transports) should(transport[1]).match({ type: problems.TransportFailure.type });
   });
 
-  test('reconciles nested Responses and fail-closes a rejected successful Response', async () => {
-    const nested = await reconcileApiFailure(
-      { response: jsonResponse({ message: 'nested response' }, 500) },
-      reconciliationContext,
-    );
-    expect(nested[0]).toBe('err');
-    const impossible = await reconcileApiFailure(textResponse('ok'), reconciliationContext);
-    expect(impossible[0]).toBe('err');
-    expect(impossible[1].detail).toContain('unexpectedly contained');
+  it('reconciles nested Responses and fail-closes a rejected successful Response', async () => {
+    // Arrange
+    const nestedResponse = { response: jsonResponse({ message: 'nested response' }, 500) };
+    const successfulResponse = textResponse('ok');
+
+    // Act
+    const nested = await reconcileApiFailure(nestedResponse, reconciliationContext);
+    const impossible = await reconcileApiFailure(successfulResponse, reconciliationContext);
+
+    // Assert
+    should(nested[0]).equal('err');
+    should(impossible[0]).equal('err');
+    should(impossible[1].detail).containEql('unexpectedly contained');
   });
 
-  test('keeps built-in response-like values out of namespace proxying', async () => {
+  it('keeps built-in response-like values out of namespace proxying', async () => {
+    // Arrange
     const response = textResponse('raw');
+
+    // Act
     const client = await resolvedClient({ response, bytes: new Uint8Array([1]), value: null });
-    expect((client as unknown as { response: Response }).response).toBe(response);
-    expect((client as unknown as { bytes: Uint8Array }).bytes).toBeInstanceOf(Uint8Array);
-    expect((client as unknown as { value: null }).value).toBeNull();
+
+    // Assert
+    should((client as unknown as { response: Response }).response).equal(response);
+    should((client as unknown as { bytes: Uint8Array }).bytes).be.instanceOf(Uint8Array);
+    should((client as unknown as { value: null }).value).equal(null);
   });
 });
 
 describe('per-backend auth and fetch policy', () => {
-  test('uses each backend canonical ResourceKey without token bleed', async () => {
+  it('uses each backend canonical ResourceKey without token bleed', async () => {
+    // Arrange
     const secondCoordinate: LpsmCoordinate = { ...coordinate, service: 'billing' };
     const secondResource = { ...resource, service: 'billing', resourceName: 'billing-api' };
     const secondKey = await canonicalTestResource(secondResource);
@@ -414,6 +600,8 @@ describe('per-backend auth and fetch policy', () => {
     };
     const firstAuth = fakeAuthed({ [resourceKey]: 'orders-token' });
     const secondAuth = fakeAuthed({ [secondKey]: 'billing-token' });
+
+    // Act
     const engine = await createApiEngine({
       problems,
       fetch,
@@ -440,10 +628,13 @@ describe('per-backend auth and fetch policy', () => {
     if (first[0] === 'err' || second[0] === 'err') throw new Error('client setup failed');
     await first[1].root().serial();
     await second[1].root().serial();
-    expect(headers).toEqual(['Bearer orders-token', 'Bearer billing-token']);
+
+    // Assert
+    should(headers).eql(['Bearer orders-token', 'Bearer billing-token']);
   });
 
-  test('forces token state once when the canonical resource token is initially absent', async () => {
+  it('forces token state once when the canonical resource token is initially absent', async () => {
+    // Arrange
     const auth = fakeUnauthed({ [resourceKey]: 'forced-token' });
     const seen: string[] = [];
     const client = await createFetchResolvedClient(
@@ -455,13 +646,18 @@ describe('per-backend auth and fetch policy', () => {
       undefined,
       auth,
     );
+
+    // Act
     await client.root().serial();
-    expect(auth.getCalls).toBe(1);
-    expect(auth.forceCalls).toBe(1);
-    expect(seen).toEqual(['Bearer forced-token']);
+
+    // Assert
+    should(auth.getCalls).equal(1);
+    should(auth.forceCalls).equal(1);
+    should(seen).eql(['Bearer forced-token']);
   });
 
-  test('returns an authentication Problem when forceTokenSet still has no resource token', async () => {
+  it('returns an authentication Problem when forceTokenSet still has no resource token', async () => {
+    // Arrange
     let calls = 0;
     const auth = fakeUnauthed();
     const client = await createFetchResolvedClient(
@@ -473,13 +669,18 @@ describe('per-backend auth and fetch policy', () => {
       undefined,
       auth,
     );
+
+    // Act
     const serial = await client.root().serial();
-    expect(serial[0]).toBe('err');
-    if (serial[0] === 'err') expect(serial[1].type).toBe(problems.AuthenticationFailure.type);
-    expect(calls).toBe(0);
+
+    // Assert
+    should(serial[0]).equal('err');
+    if (serial[0] === 'err') should(serial[1].type).equal(problems.AuthenticationFailure.type);
+    should(calls).equal(0);
   });
 
-  test('does not retry a received 5xx response', async () => {
+  it('does not retry a received 5xx response', async () => {
+    // Arrange
     let calls = 0;
     const auth = fakeAuthed({ [resourceKey]: 'token' });
     const engine = await createApiEngine({
@@ -493,11 +694,52 @@ describe('per-backend auth and fetch policy', () => {
     if (engine[0] === 'err') throw new Error('engine setup failed');
     const client = await engine[1].resolve<ReturnType<typeof fetchClient>>(coordinate).serial();
     if (client[0] === 'err') throw new Error('client setup failed');
-    expect((await client[1].root().serial())[0]).toBe('err');
-    expect(calls).toBe(1);
+
+    // Act
+    const serial = await client[1].root().serial();
+
+    // Assert
+    should(serial[0]).equal('err');
+    should(calls).equal(1);
   });
 
-  test('retries one opaque failure and succeeds on the second attempt', async () => {
+  it('does not retry a received status carried by an Error cause', async () => {
+    // Arrange
+    let calls = 0;
+    const client = await createFetchResolvedClient(async () => {
+      calls += 1;
+      throw new Error('wrapped response failure', { cause: { status: 503 } });
+    });
+
+    // Act
+    const serial = await client.root().serial();
+
+    // Assert
+    should(serial[0]).equal('err');
+    should(calls).equal(1);
+  });
+
+  it('retries a status-free cyclic cause failure exactly once', async () => {
+    // Arrange
+    let calls = 0;
+    const cyclic = new Error('opaque cyclic failure');
+    Object.defineProperty(cyclic, 'cause', { value: cyclic });
+    const client = await createFetchResolvedClient(async () => {
+      calls += 1;
+      if (calls === 1) throw cyclic;
+      return jsonResponse({ recovered: true });
+    });
+
+    // Act
+    const serial = await client.root().serial();
+
+    // Assert
+    should(serial).eql(['ok', { recovered: true }]);
+    should(calls).equal(2);
+  });
+
+  it('retries one opaque failure and succeeds on the second attempt', async () => {
+    // Arrange
     let calls = 0;
     const fetch: FetchLike = async () => {
       calls += 1;
@@ -505,17 +747,23 @@ describe('per-backend auth and fetch policy', () => {
       return jsonResponse({ recovered: true });
     };
     const client = await createFetchResolvedClient(fetch);
-    expect(await client.root().serial()).toEqual(['ok', { recovered: true }]);
-    expect(calls).toBe(2);
+
+    // Act
+    const serial = await client.root().serial();
+
+    // Assert
+    should(serial).eql(['ok', { recovered: true }]);
+    should(calls).equal(2);
   });
 
-  test('retries a POST with two fresh Request clones carrying the same body and auth', async () => {
+  it('retries a POST with two fresh Request clones carrying the same body and auth', async () => {
+    // Arrange
     const requests: Request[] = [];
     const methods: string[] = [];
     const bodies: string[] = [];
     const authorizations: string[] = [];
     const fetch: FetchLike = async input => {
-      expect(input).toBeInstanceOf(Request);
+      should(input).be.instanceOf(Request);
       const request = input as Request;
       requests.push(request);
       methods.push(request.method);
@@ -526,17 +774,22 @@ describe('per-backend auth and fetch policy', () => {
     };
     const client = await createFetchResolvedClient(fetch);
 
-    expect(
-      await client.root({ method: 'POST', body: 'same-body', headers: { 'content-type': 'text/plain' } }).serial(),
-    ).toEqual(['ok', { recovered: true }]);
-    expect(requests).toHaveLength(2);
-    expect(requests[0]).not.toBe(requests[1]);
-    expect(methods).toEqual(['POST', 'POST']);
-    expect(bodies).toEqual(['same-body', 'same-body']);
-    expect(authorizations).toEqual(['Bearer token', 'Bearer token']);
+    // Act
+    const serial = await client
+      .root({ method: 'POST', body: 'same-body', headers: { 'content-type': 'text/plain' } })
+      .serial();
+
+    // Assert
+    should(serial).eql(['ok', { recovered: true }]);
+    should(requests).have.length(2);
+    should(requests[0]).not.equal(requests[1]);
+    should(methods).eql(['POST', 'POST']);
+    should(bodies).eql(['same-body', 'same-body']);
+    should(authorizations).eql(['Bearer token', 'Bearer token']);
   });
 
-  test('trips rescue only after two opaque failures when enabled', async () => {
+  it('trips rescue only after two opaque failures when enabled', async () => {
+    // Arrange
     let calls = 0;
     let trips = 0;
     const fetch: FetchLike = async () => {
@@ -547,16 +800,21 @@ describe('per-backend auth and fetch policy', () => {
       enabled: true,
       trip(context) {
         trips += 1;
-        expect(context.attempts).toBe(2);
+        should(context.attempts).equal(2);
       },
     });
+
+    // Act
     const serial = await client.root().serial();
-    expect(serial[0]).toBe('err');
-    expect(calls).toBe(2);
-    expect(trips).toBe(1);
+
+    // Assert
+    should(serial[0]).equal('err');
+    should(calls).equal(2);
+    should(trips).equal(1);
   });
 
-  test('does not trip rescue when disabled', async () => {
+  it('does not trip rescue when disabled', async () => {
+    // Arrange
     let trips = 0;
     const client = await createFetchResolvedClient(
       async () => {
@@ -569,11 +827,16 @@ describe('per-backend auth and fetch policy', () => {
         },
       },
     );
+
+    // Act
     await client.root().serial();
-    expect(trips).toBe(0);
+
+    // Assert
+    should(trips).equal(0);
   });
 
-  test('maps timeout and caller abort to transport Problems without retry', async () => {
+  it('maps timeout and caller abort to transport Problems without retry', async () => {
+    // Arrange
     let calls = 0;
     const fetch: FetchLike = async (_input, init) => {
       calls += 1;
@@ -583,23 +846,39 @@ describe('per-backend auth and fetch policy', () => {
         });
       });
     };
+
+    // Act
     const timed = await createFetchResolvedClient(fetch, undefined, 5);
     const timedSerial = await timed.root().serial();
-    expect(timedSerial[0]).toBe('err');
-    if (timedSerial[0] === 'err') assertProblem(timedSerial[1], problems.TransportFailure.type);
-    expect(calls).toBe(1);
 
+    // Assert
+    should(timedSerial[0]).equal('err');
+    if (timedSerial[0] === 'err') assertProblem(timedSerial[1], problems.TransportFailure.type);
+    should(calls).equal(1);
+
+    // Arrange
     const controller = new AbortController();
     controller.abort();
     const aborted = await createFetchResolvedClient(fetch);
-    expect((await aborted.root({ signal: controller.signal }).serial())[0]).toBe('err');
-    expect(calls).toBe(1);
 
+    // Act
+    const preAbortedSerial = await aborted.root({ signal: controller.signal }).serial();
+
+    // Assert
+    should(preAbortedSerial[0]).equal('err');
+    should(calls).equal(1);
+
+    // Arrange
     const liveController = new AbortController();
+
+    // Act
     const liveAbort = aborted.root({ signal: liveController.signal }).serial();
     setTimeout(() => liveController.abort(), 1);
-    expect((await liveAbort)[0]).toBe('err');
-    expect(calls).toBe(2);
+    const liveAbortSerial = await liveAbort;
+
+    // Assert
+    should(liveAbortSerial[0]).equal('err');
+    should(calls).equal(2);
   });
 });
 

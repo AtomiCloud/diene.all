@@ -28,15 +28,28 @@ class ApiBoundaryError extends Error {
 }
 
 function hasReceivedStatus(error: unknown): boolean {
-  if (error instanceof Response) return true;
-  if (!isRecord(error)) return false;
-  for (const field of ['status', 'statusCode', 'responseStatusCode'] as const) {
-    const status = error[field];
-    if (typeof status === 'number' && Number.isInteger(status) && status >= 100 && status <= 599) {
-      return true;
+  let current = error;
+  const visited = new Set<object>();
+
+  while ((typeof current === 'object' && current !== null) || typeof current === 'function') {
+    if (current instanceof Response) return true;
+    if (visited.has(current)) return false;
+    visited.add(current);
+
+    if (isRecord(current)) {
+      for (const field of ['status', 'statusCode', 'responseStatusCode'] as const) {
+        const status = current[field];
+        if (typeof status === 'number' && Number.isInteger(status) && status >= 100 && status <= 599) {
+          return true;
+        }
+      }
+      if (current.response instanceof Response) return true;
     }
+
+    current = (current as { readonly cause?: unknown }).cause;
   }
-  return error.response instanceof Response;
+
+  return false;
 }
 
 async function readAuthState(

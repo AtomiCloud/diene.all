@@ -31,7 +31,8 @@
   "files": [
     "dist",
     "skills",
-    "docs/domain"
+    "docs/domain",
+    "docs/standards/api-client"
   ],
   "sideEffects": false,
   "publishConfig": {
@@ -73,6 +74,7 @@
     "dts-bundle-generator": "^9",
     "knip": "^6.23.0",
     "publint": "^0.3.16",
+    "should": "^13.2.3",
     "typescript": "^6.0.3"
   }
 }

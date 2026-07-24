@@ -38,8 +38,13 @@ export function findNestedProblem(value: unknown): Problem | undefined {
   while (pending.length > 0) {
     const current = pending.shift();
     if (isProblem(current)) return current;
-    if (!isRecord(current) || visited.has(current)) continue;
+    if (((typeof current !== 'object' || current === null) && typeof current !== 'function') || visited.has(current)) {
+      continue;
+    }
     visited.add(current);
+
+    // Error.cause is non-enumerable by specification, so Object.values cannot see it.
+    if (current instanceof Error && current.cause !== undefined) pending.push(current.cause);
     for (const child of Object.values(current)) {
       if ((typeof child === 'object' && child !== null) || typeof child === 'function') {
         pending.push(child);
@@ -114,8 +119,7 @@ async function reconcileResponse(
     if (text === '') return ['ok', undefined];
     try {
       const parsed: unknown = JSON.parse(text);
-      const problem = findNestedProblem(parsed);
-      return problem === undefined ? ['ok', parsed] : ['err', problem];
+      return ['ok', parsed];
     } catch (error) {
       return [
         'err',
@@ -181,8 +185,7 @@ export async function reconcileApiValue(
       return serial[0] === 'ok' ? reconcileApiValue(serial[1], context) : reconcileFailure(serial[1], context);
     }
     if (value instanceof Response) return reconcileResponse(value, context);
-    const problem = findNestedProblem(value);
-    return problem === undefined ? ['ok', value] : ['err', problem];
+    return isProblem(value) ? ['err', value] : ['ok', value];
   } catch (error) {
     return reconcileFailure(error, context);
   }

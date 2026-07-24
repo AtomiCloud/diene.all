@@ -1,9 +1,10 @@
 import {
   buildProblemTypeUri,
   createProblem,
+  fromError,
   type Problem,
   type ProblemDefinition,
-  type ProblemRegistry,
+  ProblemRegistry,
   type RegisteredProblem,
 } from '@atomicloud/diene.problems';
 import { Err, Ok, type Result } from '@atomicloud/diene.result';
@@ -63,14 +64,20 @@ export interface ApiProblems {
   readonly UpstreamFailure: RegisteredProblem<typeof upstreamDataSchema>;
 }
 
-function registrationFailure(error: unknown): Problem {
-  const detail = error instanceof Error ? error.message : 'API problem definitions could not be registered.';
-  return Object.freeze({
-    type: 'about:blank',
-    title: ApiConfigurationFailure.title,
-    status: ApiConfigurationFailure.status,
-    detail,
-    data: { backend: 'api-engine', reason: detail },
+function registrationFailure(registry: ProblemRegistry, error: unknown): Problem {
+  const fallbackRegistry = new ProblemRegistry(registry.portal);
+  const fallback = fallbackRegistry.register(ApiConfigurationFailure);
+  return fromError(error, {
+    fallback,
+    fallbackData: failure => ({
+      backend: 'api-engine',
+      reason:
+        failure instanceof Error
+          ? failure.message
+          : typeof failure === 'string'
+            ? failure
+            : 'API problem definitions could not be registered.',
+    }),
   });
 }
 
@@ -109,7 +116,7 @@ export function registerApiProblems(registry: ProblemRegistry): Result<ApiProble
       }),
     );
   } catch (error) {
-    return Err(registrationFailure(error));
+    return Err(registrationFailure(registry, error));
   }
 }
 
