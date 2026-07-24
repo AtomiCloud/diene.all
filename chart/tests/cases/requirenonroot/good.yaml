@@ -1,0 +1,18 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nonroot
+spec:
+  template:
+    metadata:
+      labels:
+        app: demo
+    spec:
+      initContainers: []
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: app
+          image: demo:1.0.0
+          securityContext:
+            runAsNonRoot: true
