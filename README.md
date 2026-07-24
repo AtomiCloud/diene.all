@@ -53,15 +53,15 @@ Domain-specific documentation belongs under [docs/domain/](docs/domain/README.md
 The `docs/standards/contracts/` location is reserved for the separately owned C0
 contracts standard.
 
-<!-- ### helm-wrapper -->
-<!-- #### source: helm-wrapper -->
+<!-- ### cobalt -->
+<!-- #### source: cobalt -->
 
-## Helm wrapper sample
+## Cobalt chart
 
-This branch adds the production-grade wrapper chart, stacked values, generated schema, rendered-manifest validation, k3d proof, and dual publish modes.
+This branch is the External Secrets Operator plus the Infisical source-of-secrets `ClusterSecretStore` gateway: a materialized chart product with stacked values, generated schema, rendered-manifest validation, dual publish modes, and a reserved k3d integration tier.
 
-- `pls build` — vendor external config and build pinned chart dependencies.
-- `pls test:unit` — run schema, lint, render, contracts, VAP, and publish dry-runs.
-- `pls test:int` — install on ephemeral k3d and round-trip the chart through a local OCI registry.
+- `pls build` — build the pinned upstream chart dependency.
+- `pls test:unit` — run schema, lint, render, VAP, store-contract, and publish dry-runs.
+- `pls test:int` — install on ephemeral k3d and round-trip the chart through a local OCI registry (reserved proof).
 - `pls example:lapras:template` — render the independent landscape + cluster stack.
-- [Helm wrapper baseline](docs/developer/helm-wrapper-baseline.md)
+- [Cobalt baseline](docs/developer/cobalt-baseline.md)
