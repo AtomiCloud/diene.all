@@ -40,10 +40,13 @@ global:
 # chart; sulfur owns only the cert-manager engine. This map carries only the
 # minimal upstream overrides: CRD installation, the stable Gateway API config
 # field, resource envelopes, container hardening, and Reloader opt-in.
-certManager:
+certmanager:
   # -- Pin the canonical upstream `cert-manager*` object names (pure passthrough).
-  # Without this the aliased dependency would fold the alias into every name and
-  # emit non-DNS-1123 identifiers.
+  # Without these the aliased dependency folds the `certmanager` alias into every
+  # rendered name — including container names, which the API server rejects as
+  # non-RFC-1123. `nameOverride` fixes the chart-name-derived identifiers
+  # (container names, app labels); `fullnameOverride` fixes the object names.
+  nameOverride: cert-manager
   fullnameOverride: cert-manager
 
   # -- CRD lifecycle stance. CRDs are installed as Helm-managed objects and kept

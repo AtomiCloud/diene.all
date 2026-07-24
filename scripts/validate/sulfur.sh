@@ -65,6 +65,25 @@ lint)
   ;;
 render)
   stacks_render "${tmp}/render"
+  # Container names and DNS-1123 object names must be valid RFC-1123 labels/
+  # subdomains — kubeconform does not enforce this, but the API server does (the
+  # aliased dependency once leaked an uppercase container name). RBAC/CRD/webhook
+  # object names legitimately use colons and are exempt from the object-name check.
+  for f in "${tmp}/render-base.yaml" "${tmp}/render-stack.yaml"; do
+    yq eval-all -o=json '.' "${f}" | jq -se '
+      def dnslabel: test("^[a-z0-9]([-a-z0-9]*[a-z0-9])?$");
+      def dnssubdomain: test("^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$");
+      ["Deployment","StatefulSet","DaemonSet","Job","Service","ConfigMap","Secret","ServiceAccount"] as $dns
+      | (map(select(type == "object" and has("kind")))) as $r
+      | (all($r[] | select(.kind as $k | $dns | index($k)); (.metadata.name // "") | dnssubdomain))
+        and (all($r[] | select(.kind == "Deployment" or .kind == "StatefulSet" or .kind == "DaemonSet" or .kind == "Job");
+              (((.spec.template.spec.containers // []) + (.spec.template.spec.initContainers // []))
+               | [.[] | select((.name // "") | dnslabel | not)] | length) == 0))
+    ' >/dev/null || {
+      echo "❌ rendered a non-RFC-1123 workload/service object or container name in ${f}" >&2
+      exit 1
+    }
+  done
   ;;
 labels)
   yq -e '.global.serviceTree | has("platform") | not' chart/values.yaml >/dev/null
@@ -128,9 +147,9 @@ reloader)
       and all(.[]; .metadata.annotations["reloader.stakater.com/auto"] == "true")
   ' >/dev/null
   helm template "${release}" chart --namespace "${namespace}" --values "${landscape_overlay}" \
-    --set-string certManager.deploymentAnnotations."reloader\.stakater\.com/auto"=false \
-    --set-string certManager.webhook.deploymentAnnotations."reloader\.stakater\.com/auto"=false \
-    --set-string certManager.cainjector.deploymentAnnotations."reloader\.stakater\.com/auto"=false >"${tmp}/optout.yaml"
+    --set-string certmanager.deploymentAnnotations."reloader\.stakater\.com/auto"=false \
+    --set-string certmanager.webhook.deploymentAnnotations."reloader\.stakater\.com/auto"=false \
+    --set-string certmanager.cainjector.deploymentAnnotations."reloader\.stakater\.com/auto"=false >"${tmp}/optout.yaml"
   yq eval-all -o=json '.' "${tmp}/optout.yaml" | jq -se '
     map(select(type == "object" and .kind == "Deployment"))
     | length == 3
@@ -146,7 +165,7 @@ gateway-api)
   ' >/dev/null
   # Negative: disabling the flag must red the same assertion.
   helm template "${release}" chart --namespace "${namespace}" --values "${landscape_overlay}" \
-    --set certManager.config.enableGatewayAPI=false >"${tmp}/off.yaml"
+    --set certmanager.config.enableGatewayAPI=false >"${tmp}/off.yaml"
   if yq eval-all -o=json '.' "${tmp}/off.yaml" | jq -se '
     map(select(type == "object" and .kind == "ConfigMap" and .metadata.name == "cert-manager"))[0].data["config.yaml"]
     | test("enableGatewayAPI:\\s*true")
@@ -171,7 +190,7 @@ dead-flag)
   fi
   # Negative: injecting the dead gate must be catchable by the same grep.
   helm template "${release}" chart --namespace "${namespace}" --values "${landscape_overlay}" \
-    --set certManager.config.featureGates.ExperimentalGatewayAPISupport=true >"${tmp}/dirty.yaml"
+    --set certmanager.config.featureGates.ExperimentalGatewayAPISupport=true >"${tmp}/dirty.yaml"
   if ! rg -q 'ExperimentalGatewayAPISupport' "${tmp}/dirty.yaml"; then
     echo "❌ dead-flag negative fixture did not inject the gate; hygiene gate is not exercised" >&2
     exit 1
@@ -208,7 +227,7 @@ FIXTURE
   ;;
 crds)
   # skipCrds/SSA stance is declared in values.
-  yq -e '.certManager.crds.enabled == true and .certManager.crds.keep == true' chart/values.yaml >/dev/null
+  yq -e '.certmanager.crds.enabled == true and .certmanager.crds.keep == true' chart/values.yaml >/dev/null
   crd_count() {
     yq eval-all -o=json '.' "$1" | jq -s '[.[] | select(type == "object" and .kind == "CustomResourceDefinition" and (.metadata.name | test("cert-manager[.]io$|acme[.]cert-manager[.]io$")))] | length'
   }
@@ -216,7 +235,7 @@ crds)
   [ "$(crd_count "${tmp}/on.yaml")" -lt 6 ] && echo "❌ crds.enabled=true did not render the cert-manager CRD set" >&2 && exit 1
   # Negative: crds.enabled=false renders no CRDs, reddening the presence assertion.
   helm template "${release}" chart --namespace "${namespace}" --values "${landscape_overlay}" \
-    --set certManager.crds.enabled=false >"${tmp}/off.yaml"
+    --set certmanager.crds.enabled=false >"${tmp}/off.yaml"
   [ "$(crd_count "${tmp}/off.yaml")" -ne 0 ] && echo "❌ crds.enabled=false still rendered CRDs" >&2 && exit 1
   ;;
 sequential-minor)
@@ -241,7 +260,7 @@ rendered-manifests)
   done
   ;;
 vap-sabotage)
-  helm template "${release}" chart --namespace "${namespace}" --values "${landscape_overlay}" --set certManager.image.tag=latest >"${tmp}/rendered.yaml" 2>/dev/null
+  helm template "${release}" chart --namespace "${namespace}" --values "${landscape_overlay}" --set certmanager.image.tag=latest >"${tmp}/rendered.yaml" 2>/dev/null
   yq eval-all 'select(.kind == "Deployment" or .kind == "Service")' "${tmp}/rendered.yaml" >"${tmp}/vap-resources.yaml"
   if kyverno apply policies/vap --resource "${tmp}/vap-resources.yaml" --remove-color >/dev/null 2>&1; then
     echo "❌ :latest wiring sabotage was not caught by the VAP stage" >&2

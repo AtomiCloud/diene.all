@@ -4,7 +4,7 @@
     "description": "Generated schema for the diene sulfur cert-manager engine wrapper chart.",
     "type": "object",
     "properties": {
-        "certManager": {
+        "certmanager": {
             "description": "Pure passthrough of the vendored jetstack/cert-manager engine. The wrapper adds NO Issuer/ClusterIssuer of its own — the issuer set is zinc's separate chart; sulfur owns only the cert-manager engine. This map carries only the minimal upstream overrides: CRD installation, the stable Gateway API config field, resource envelopes, container hardening, and Reloader opt-in.",
             "type": "object",
             "properties": {
@@ -141,7 +141,10 @@
                     }
                 },
                 "fullnameOverride": {
-                    "description": "Pin the canonical upstream `cert-manager*` object names (pure passthrough). Without this the aliased dependency would fold the alias into every name and emit non-DNS-1123 identifiers.",
+                    "type": "string"
+                },
+                "nameOverride": {
+                    "description": "Pin the canonical upstream `cert-manager*` object names (pure passthrough). Without these the aliased dependency folds the `certmanager` alias into every rendered name — including container names, which the API server rejects as non-RFC-1123. `nameOverride` fixes the chart-name-derived identifiers (container names, app labels); `fullnameOverride` fixes the object names.",
                     "type": "string"
                 },
                 "replicaCount": {

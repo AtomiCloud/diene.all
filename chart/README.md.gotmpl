@@ -15,10 +15,10 @@ The engine and the issuer set are deliberately independent concerns.
 
 The wrapper carries only minimal upstream overrides:
 
-- `certManager.crds.enabled: true` / `certManager.crds.keep: true` — CRDs install
+- `certmanager.crds.enabled: true` / `certmanager.crds.keep: true` — CRDs install
   with the release and survive uninstall so issued certificates are not garbage
   collected. No separate skipCrds/Server-Side-Apply CRD channel is used.
-- `certManager.config.enableGatewayAPI: true` — Gateway/HTTPRoute TLS support for
+- `certmanager.config.enableGatewayAPI: true` — Gateway/HTTPRoute TLS support for
   kgateway, enabled through the **stable** config field, never the dead
   `ExperimentalGatewayAPISupport` feature gate (a no-op since it defaulted true in
   v1.15).

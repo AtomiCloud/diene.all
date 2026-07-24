@@ -22,7 +22,7 @@ and the issuer set are deliberately independent concerns. The unit
 Certificate objects are created only at the integration tier, as test-time
 custom resources in the cluster — never as committed chart templates.
 
-The wrapper carries only minimal upstream overrides, all under the `certManager`
+The wrapper carries only minimal upstream overrides, all under the `certmanager`
 alias: `crds.enabled`/`crds.keep`, `config.enableGatewayAPI`, resource
 envelopes, container hardening, Reloader annotations, and the canonical
 `fullnameOverride: cert-manager`.
@@ -49,7 +49,7 @@ three engine Deployments carry the static commonLabels.
 ## Gateway API and the dead feature gate
 
 Gateway API support (Gateway/HTTPRoute TLS for kgateway) is enabled through the
-**stable** `certManager.config.enableGatewayAPI: true` config field. The dead
+**stable** `certmanager.config.enableGatewayAPI: true` config field. The dead
 `ExperimentalGatewayAPISupport` feature gate — a no-op since it defaulted true in
 v1.15 — is deliberately absent. The `gateway-api` gate asserts the rendered
 controller ConfigMap enables it (negative: disabling the flag reddens); the
@@ -58,7 +58,7 @@ output (negative: injecting it is caught by the same grep).
 
 ## CRDs
 
-`certManager.crds.enabled: true` / `crds.keep: true` install the cert-manager
+`certmanager.crds.enabled: true` / `crds.keep: true` install the cert-manager
 CRDs as Helm-managed objects that survive uninstall, so issued certificates are
 not garbage collected. cert-manager applies CRDs through Helm's ordinary object
 channel; no separate skipCrds/Server-Side-Apply CRD path is used. The `crds`
