@@ -95,6 +95,9 @@ let
           treefmt
           yq-go
           ;
+        # Go toolchain for the Kargo YAML-engine integration test under
+        # scripts/validate/kargo-yaml-update (pinned go 1.25.x).
+        go = go_1_25;
       }
     );
 

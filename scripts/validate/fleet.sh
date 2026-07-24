@@ -229,7 +229,7 @@ kargo-values-preservation)
   yq -e '.values.workload.replicas==3 and (.valuesMeta.addedAt|length>0)' \
     platforms/canary/landscapes/raichu/dummy.yaml >/dev/null ||
     fail "canary raichu row values: override or valuesMeta missing"
-  echo "  Kargo promotion touches only the pin; values: override preserved ✓"
+  echo "  Kargo promotion template config is pin-only; values: fixture is present ✓"
   ;;
 row-values-persistence)
   # >7d persistence guardrail (unit, injected clock). A values: block present in
@@ -261,33 +261,101 @@ row-values-persistence)
   echo "  row values: >7d persistence guardrail proven (fresh passes, aged fires) ✓"
   ;;
 registry-cr)
-  # Registry topology CRs validate against the frozen T3 CRD schemas; a
-  # schema-invalid manifest turns this red. ArgoCD Application/ApplicationSet
-  # are upstream kinds (skipped — no diene schema).
+  # Registry CRs validate against frozen fleet-owned slices. Application and
+  # ApplicationSet use hand-reduced, pinned Argo CD v3.4.5 schemas.
   kubeconform -strict -summary \
     -schema-location default \
     -schema-location 'schemas/{{ .ResourceKind }}.json' \
-    -skip Application,ApplicationSet \
     registry/landscapes registry/clusters registry/virtual-landscapes \
-    registry/fleet-root.yaml registry/platforms-appset.yaml
+    registry/fleet-root.yaml registry/argocd-webhook-secret.yaml \
+    registry/platforms-appset.yaml
+
+  # Deterministic negative: Applications may not declare an empty source URL.
+  cp registry/fleet-root.yaml "${tmp}/invalid-application.yaml"
+  yq -i '.spec.source.repoURL = ""' "${tmp}/invalid-application.yaml"
+  if kubeconform -strict -summary \
+    -schema-location default \
+    -schema-location 'schemas/{{ .ResourceKind }}.json' \
+    "${tmp}/invalid-application.yaml" >/dev/null 2>&1; then
+    fail "Application schema accepted an empty source repoURL"
+  fi
   yq -e '.kind == "Landscape" and .metadata.name == "lapras"' registry/landscapes/lapras.yaml >/dev/null ||
     fail "lapras secrets-side Landscape anchor is missing"
   while IFS= read -r cluster; do
     [ "$(yq -r '.spec.landscape // ""' "${cluster}")" = "lapras" ] &&
       fail "lapras ClusterRegistration is forbidden by WAL Q-L9: ${cluster}"
   done < <(find registry/clusters -type f -name '*.yaml' | sort)
+  echo "  registry CRs validate against frozen schemas; invalid Application source is rejected ✓"
+  ;;
+webhook-secret)
+  # Build-time semantic contract for the authenticated GitHub -> ArgoCD
+  # refresh path. The secret value never enters git: ESO merges exactly the
+  # Infisical-backed webhook.github.secret key into the existing argocd-secret.
+  webhook_contract() {
+    yq -e '
+      .apiVersion == "external-secrets.io/v1" and
+      .kind == "ExternalSecret" and
+      .metadata.namespace == "argocd" and
+      .spec.secretStoreRef.kind == "ClusterSecretStore" and
+      .spec.secretStoreRef.name == "infisical" and
+      .spec.target.name == "argocd-secret" and
+      .spec.target.creationPolicy == "Merge" and
+      .spec.target.deletionPolicy == "Retain" and
+      (.spec.data | length) == 1 and
+      .spec.data[0].secretKey == "webhook.github.secret" and
+      .spec.data[0].remoteRef.key == "/argocd/webhook/webhook.github.secret" and
+      (.spec | has("dataFrom") | not)
+    ' "$1" >/dev/null 2>&1
+  }
+
+  webhook=registry/argocd-webhook-secret.yaml
+  kubeconform -strict -summary \
+    -schema-location default \
+    -schema-location 'schemas/{{ .ResourceKind }}.json' \
+    "${webhook}" >/dev/null
+  webhook_contract "${webhook}" ||
+    fail "ArgoCD webhook ExternalSecret is not the exact Infisical -> argocd-secret merge contract"
+
+  cp "${webhook}" "${tmp}/wrong-key.yaml"
+  yq -i '.spec.data[0].secretKey = "webhook.github.wrong"' "${tmp}/wrong-key.yaml"
+  if webhook_contract "${tmp}/wrong-key.yaml"; then
+    fail "webhook contract accepted a wrong ArgoCD secret key"
+  fi
+
+  cp "${webhook}" "${tmp}/wrong-target.yaml"
+  yq -i '.spec.target.name = "replacement-secret" | .spec.target.creationPolicy = "Owner"' "${tmp}/wrong-target.yaml"
+  if webhook_contract "${tmp}/wrong-target.yaml"; then
+    fail "webhook contract accepted replacement of the existing argocd-secret"
+  fi
+
+  include="$(yq -r '.spec.source.directory.include' registry/fleet-root.yaml)"
+  grep -Fq 'argocd-webhook-secret.yaml' <<<"${include}" ||
+    fail "fleet-root does not sync the ArgoCD webhook ExternalSecret"
+  echo "  authenticated webhook secret: Infisical -> ESO Merge -> argocd-secret/webhook.github.secret; wrong key/target rejected ✓"
   ;;
 rendered-cr)
-  # The compiler chart's own diene CRD kinds validate against the frozen
-  # schemas. Upstream ArgoCD/Kargo Project/Stage kinds are skipped. Warehouse
-  # uses the pinned Kargo v1.9.10 validation slice; CloudflareDeploy including
-  # optional rollout validates against the frozen T3 shape.
+  # The compiler chart's own diene CRD kinds and rendered ArgoCD
+  # ApplicationSets validate against frozen schemas. Project/Stage remain
+  # upstream Kargo kinds without a diene slice. Warehouse uses pinned Kargo
+  # v1.9.10 validation; CloudflareDeploy including optional rollout validates
+  # against the frozen T3 shape.
   render >"${tmp}/r.yaml"
   kubeconform -strict -summary \
     -schema-location default \
     -schema-location 'schemas/{{ .ResourceKind }}.json' \
-    -skip Application,ApplicationSet,Project,Stage \
+    -skip Project,Stage \
     "${tmp}/r.yaml"
+  # Deterministic negative: fleet ApplicationSets require Go templating for
+  # generator variables and the templatePatch row guard.
+  yq eval-all 'select(.kind == "ApplicationSet")' "${tmp}/r.yaml" >"${tmp}/invalid-applicationset.yaml"
+  yq -i '.spec.goTemplate = false' "${tmp}/invalid-applicationset.yaml"
+  if kubeconform -strict -summary \
+    -schema-location default \
+    -schema-location 'schemas/{{ .ResourceKind }}.json' \
+    "${tmp}/invalid-applicationset.yaml" >/dev/null 2>&1; then
+    fail "ApplicationSet schema accepted goTemplate=false"
+  fi
+  echo "  rendered ApplicationSets validate; goTemplate=false is rejected ✓"
   ;;
 cloudflare-rollout-negative)
   render >"${tmp}/r.yaml"
@@ -366,6 +434,145 @@ platforms-appset)
     fail "platforms AppSet must disable auto-sync for canary via templatePatch"
   echo "  platforms AppSet: scmProvider *.carbon + 3-source + machinery-stable/main split + canary manual-sync ✓"
   ;;
+golden-mutation | golden-mutations)
+  # Behavioural mutation sensitivity. Starting from the canary baseline render,
+  # every accepted one-at-a-time change to a major source-B machinery section
+  # MUST alter the rendered output. These are valid mutations (helm still
+  # renders them), not malformed-schema negatives — they prove the golden render
+  # actually consumes each section rather than dropping it on the floor.
+  render >"${tmp}/base.yaml"
+  mut() {
+    local label="$1" expr="$2"
+    cp "${fixture}" "${tmp}/m.yaml"
+    yq -i "${expr}" "${tmp}/m.yaml"
+    helm template "${release}" "${chart}" --namespace "${namespace}" \
+      --values "${services}" --values "${tmp}/m.yaml" >"${tmp}/m.out" 2>"${tmp}/m.err" ||
+      fail "mutation '${label}' was rejected — expected a valid accepted mutation: $(tail -1 "${tmp}/m.err")"
+    cmp -s "${tmp}/base.yaml" "${tmp}/m.out" &&
+      fail "mutation '${label}' left the rendered output unchanged (section not wired into the render)"
+    echo "  ${label} → render changed ✓"
+  }
+  mut "platform/Infisical identity (projectSlug)" '.infisical.projectSlug = "canary-alt"'
+  mut "platform/Infisical identity (sos.register)" '.sos.register = false'
+  mut "stages (object-form soak)" '.stages[1][1].soak = "2h"'
+  mut "dependencies.database (neon representative)" '.dependencies.database.maindb.cpu = 2'
+  mut "dependencies.kv (upstash representative)" '.dependencies.kv.sessions.ram = "256Mi"'
+  mut "dependencies.cache (dragonfly representative)" '.dependencies.cache.hot.ram = "256Mi"'
+  mut "dependencies.store (tigris representative)" '.dependencies.store.assets.rotation = "off"'
+  mut "virtualLandscapeServices" '.virtualLandscapeServices[0].serve = false'
+  mut "webhookEngine" '.webhookEngine.retryWindow = "48h"'
+  mut "cloudflareDeploy" '.cloudflareDeploy[0].tag = "0.2.0"'
+  mut "problems" '.problems[0].entries[0].status = 400'
+  echo "  every major source-B machinery section is render-sensitive to a valid mutation ✓"
+  ;;
+row-expansion)
+  # Deterministic AppSet contract tier, not a live Argo reconciliation trace.
+  # The temporary fixture begins with a committed row, adds a second service,
+  # and supplies Secret-shaped cluster-generator inputs to prove row isolation.
+  render >"${tmp}/r.yaml"
+  yq eval-all -o=json 'select(.kind=="ApplicationSet")' "${tmp}/r.yaml" >"${tmp}/appset.json"
+  bun ./scripts/validate/fleet-row-expansion.ts platforms "${tmp}/appset.json" ||
+    fail "row-scoped AppSet expansion violated the row-isolation contract"
+  ;;
+machinery-pin | machinery-stable)
+  # Deterministic contract tier (no live cluster/tag mutation). A throwaway local
+  # git repo models the compiler chart (source A of the platforms Application).
+  # Using the REAL committed revision split, canary (pinned main) observes a
+  # main-only commit while a machinery-stable consumer stays on the old commit
+  # until the tag moves — proven with git rev-parse in the throwaway repo only.
+  f=registry/platforms-appset.yaml
+  rev="$(yq -r '.spec.template.spec.sources[0].targetRevision' "${f}")"
+  canary_ref="$(sed -E 's/.*canary\.carbon" *\}\}([^{]*)\{\{ *else.*/\1/' <<<"${rev}")"
+  other_ref="$(sed -E 's/.*else *\}\}([^{]*)\{\{ *end.*/\1/' <<<"${rev}")"
+  [ "${canary_ref}" = "main" ] ||
+    fail "committed split must pin canary to main (got '${canary_ref}')"
+  [ "${other_ref}" = "machinery-stable" ] ||
+    fail "committed split must pin non-canary to machinery-stable (got '${other_ref}')"
+
+  repo="${tmp}/compiler"
+  mkdir -p "${repo}"
+  git -C "${repo}" init -q -b main
+  git -C "${repo}" config user.email fleet-test@atomi.cloud
+  git -C "${repo}" config user.name fleet-test
+  printf 'compiler v1\n' >"${repo}/compiler"
+  git -C "${repo}" add -A && git -C "${repo}" commit -qm 'compiler v1'
+  old="$(git -C "${repo}" rev-parse HEAD)"
+  git -C "${repo}" tag machinery-stable
+  printf 'compiler v2\n' >"${repo}/compiler"
+  git -C "${repo}" add -A && git -C "${repo}" commit -qm 'compiler v2 (main-only)'
+  new="$(git -C "${repo}" rev-parse HEAD)"
+
+  resolve() { git -C "${repo}" rev-parse "$1^{commit}"; }
+  [ "${old}" != "${new}" ] || fail "test setup produced identical commits"
+  [ "$(resolve "${canary_ref}")" = "${new}" ] ||
+    fail "canary (main) did not observe the new main-only compiler commit"
+  [ "$(resolve "${other_ref}")" = "${old}" ] ||
+    fail "machinery-stable consumer did not stay on the old commit before the tag moved"
+  git -C "${repo}" tag -f machinery-stable >/dev/null
+  [ "$(resolve "${other_ref}")" = "${new}" ] ||
+    fail "machinery-stable consumer did not catch up after the tag moved"
+
+  # Manual-sync contract from the committed AppSet: canary base template carries
+  # no automated block; the templatePatch enables automated only for non-canary.
+  yq -e '.spec.template.spec.syncPolicy.automated == null' "${f}" >/dev/null ||
+    fail "platforms AppSet base template must leave canary manual (no automated block)"
+  patch="$(yq -r '.spec.templatePatch' "${f}")"
+  { grep -q 'ne .repository "canary.carbon"' <<<"${patch}" && grep -q 'automated' <<<"${patch}"; } ||
+    fail "platforms AppSet templatePatch must enable automated sync only for non-canary"
+  echo "  main/machinery-stable split observes main-only change, catches up on tag move, canary-manual/non-canary-auto ✓"
+  ;;
+kargo-row-update-contract | kargo-row-update | kargo-yaml-update-contract)
+  # Fast deterministic contract model — NOT Kargo-controller e2e evidence.
+  # Check the fixed configured yaml-update target against a copied real row,
+  # then prove the model leaves the raw human values: block unchanged.
+  render >"${tmp}/r.yaml"
+  row="platforms/canary/landscapes/raichu/dummy.yaml"
+  stages="$(yq eval-all -o=json '.' "${tmp}/r.yaml" | jq -s '[.[] | select(.kind=="Stage")]')"
+  jq -e '
+    length > 0 and
+    all(.[];
+      ([.spec.promotionTemplate.spec.steps[] | select(.uses=="yaml-update")] | length == 1) and
+      ([.spec.promotionTemplate.spec.steps[] | select(.uses=="yaml-update") | .config.updates] |
+        (length == 1) and (.[0] | type == "array" and length == 1 and .[0].key == "pin.tag"))
+    )
+  ' <<<"${stages}" >/dev/null ||
+    fail "every rendered Stage must configure exactly one yaml-update with only pin.tag"
+  update="$(jq -c --arg path "./repo/${row}" '
+    [.[] | select(
+      [.spec.promotionTemplate.spec.steps[] | select(.uses=="yaml-update") | .config.path] == [$path]
+    )] | if length == 1 then .[0].spec.promotionTemplate.spec.steps[] | select(.uses=="yaml-update") | .config else empty end
+  ' <<<"${stages}")"
+  [ -n "${update}" ] || fail "exactly one Stage must target the copied Raichu row ${row}"
+  key="$(jq -r '.updates[0].key' <<<"${update}")"
+  [ "${key}" = "pin.tag" ] || fail "Raichu Stage yaml-update key must be pin.tag"
+  yq -e 'has("values")' "${row}" >/dev/null ||
+    fail "expected the raichu row to carry a human values: block"
+  values_block() { awk '/^values:/{f=1} f' "$1"; }
+  values_block "${row}" >"${tmp}/values.before"
+
+  cp "${row}" "${tmp}/row.yaml"
+  old_tag="$(yq -r '.pin.tag' "${tmp}/row.yaml")"
+  bun ./scripts/validate/fleet-yaml-update.ts "${tmp}/row.yaml" "${key}" 0.9.9-canary ||
+    fail "fast yaml-update contract model failed on the configured pin.tag target"
+  new_tag="$(yq -r '.pin.tag' "${tmp}/row.yaml")"
+  { [ "${new_tag}" = "0.9.9-canary" ] && [ "${new_tag}" != "${old_tag}" ]; } ||
+    fail "pin.tag was not updated (${old_tag} -> ${new_tag})"
+  values_block "${tmp}/row.yaml" >"${tmp}/values.after"
+  cmp -s "${tmp}/values.before" "${tmp}/values.after" ||
+    fail "values: block changed during a pin.tag-only update (must be byte-identical)"
+
+  # Negative: the raw-block guard must detect a values: mutation.
+  cp "${row}" "${tmp}/bad.yaml"
+  bun ./scripts/validate/fleet-yaml-update.ts "${tmp}/bad.yaml" values.workload.replicas 99 ||
+    fail "fast yaml-update contract model failed to seed the values: negative"
+  values_block "${tmp}/bad.yaml" >"${tmp}/values.bad"
+  cmp -s "${tmp}/values.before" "${tmp}/values.bad" &&
+    fail "byte-identical guard failed to detect a mutated values: block"
+  if bun ./scripts/validate/fleet-yaml-update.ts "${tmp}/bad.yaml" missing.path value >/dev/null 2>&1; then
+    fail "fast yaml-update contract model accepted a missing update path"
+  fi
+  echo "  fast yaml-update contract model: exact Raichu pin.tag target, raw values bytes, and negatives ✓"
+  ;;
 guard)
   bash ./scripts/validate/registry-guard.sh
   ;;
@@ -374,13 +581,17 @@ presence)
   test -s .github/CODEOWNERS || fail "CODEOWNERS missing"
   test -s .github/rulesets/registry-guard-main.json || fail "registry ruleset payload missing"
   test -s scripts/local/registry-guard-apply.sh || fail "registry-guard apply script missing"
+  test -s .github/workflows/registry-guard-e2e.yaml || fail "periodic registry-guard e2e workflow missing"
+  test -s registry/argocd-webhook-secret.yaml || fail "ArgoCD webhook ExternalSecret missing"
   test -s "${chart}/values.schema.json" || fail "compiler chart values.schema.json missing"
   test -s "${chart}/values.schema.source.json" || fail "deliberate compiler schema source missing"
   test -s "${golden_dir}/canary.prod.yaml" || fail "prod golden render missing"
   # pin-management + webhook-wiring docs are published in the domain doc.
   rg -q '^## The `machinery-stable` tag' docs/domain/fleet-repo.md || fail "machinery-stable pin doc missing"
   rg -q '^## The `mercury-stable` pin' docs/domain/fleet-repo.md || fail "mercury-stable pin doc missing"
-  rg -q 'webhook' docs/domain/fleet-repo.md || fail "ArgoCD webhook wiring doc missing"
+  rg -q '^## ArgoCD webhook wiring' docs/domain/fleet-repo.md || fail "ArgoCD webhook wiring doc missing"
+  rg -q '⚠ S11 ASSUMED-GREEN' docs/domain/fleet-repo.md || fail "S11 assumption marker missing"
+  rg -q 'MINUN USER-REVIEW' docs/domain/fleet-repo.md || fail "MINUN user-review marker missing"
   ;;
 *)
   echo "❌ unknown validation mode '${mode}'" >&2

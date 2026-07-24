@@ -76,8 +76,11 @@ values:
   folded back into the chart within 7 days. `scripts/validate/fleet.sh
 row-values-persistence` (injected clock) flags any block older than 7 days.
 - **Kargo preserves `values:` byte-for-byte**: the fixed git-update promotion
-  template bumps only `pin.tag`; it never touches the `values:` block. Proven by
-  `scripts/validate/fleet.sh kargo-values-preservation`.
+  template bumps only `pin.tag`; it never touches the `values:` block. The
+  render check and fast contract model prove the configured target and guard;
+  `scripts/validate/kargo-yaml-update` separately imports Kargo v1.9.10's real
+  `pkg/yaml` engine and proves on the checked-in row that a `pin.tag` mutation
+  preserves the raw block, while a `values.*` negative trips the byte guard.
 - **Break-glass**: rows are plain git files. A row-file commit bypassing Kargo
   is legal (Kargo gates _planned_ changes only, never DR). CODEOWNERS does NOT
   cover `platforms/**`, so a break-glass row change is an ordinary fast PR.
@@ -227,6 +230,18 @@ offline policy-validation gate (per-PR). This is orthogonal to the tag
 mechanism: the guard governs _who can write_ `registry/**`; the tag governs
 _when a write takes effect_.
 
+The periodic live tier is `.github/workflows/registry-guard-e2e.yaml` (weekly +
+manual). It mints the repository-scoped AtomiCloud Auth Bot token, proves that
+the bot can directly add and remove one exact file below `platforms/**`, asserts
+the staged diff never escapes that path, and has an always-run cleanup step. The
+2026-07-24 commissioning run is
+[`30106082233`](https://github.com/AtomiCloud/fleet/actions/runs/30106082233):
+both protected-`main` pushes reported the PR-rule bypass, creation commit
+`9813f990b02db40df864a9900559dffa50f48996` was removed by cleanup commit
+`752170d700411ae4393e5dd92e9871708561932b`, and the proof path was absent at the
+verified final tip. The commissioning PR was closed without merge and its branch
+deleted after evidence capture.
+
 ## ArgoCD webhook wiring
 
 AppSet refresh is **webhook-driven, not polling**. The fleet repo's push webhook
@@ -235,8 +250,41 @@ endpoint for prompt re-render. The endpoint is configured **with a shared
 secret**: ArgoCD natively validates `webhook.github.secret` from
 `argocd-secret`, sourced from Infisical via the standard ESO path. An
 unauthenticated refresh endpoint would be a refresh-DoS surface, so the secret is
-verified at build time. **Polling is the fallback only** — disabling the webhook
-still refreshes, just slower; a wrong/missing secret is rejected.
+verified at build time. `registry/argocd-webhook-secret.yaml` is the executable
+wiring: ESO reads `/argocd/webhook/webhook.github.secret` from
+`ClusterSecretStore/infisical` and **merges** it as the exact
+`webhook.github.secret` key into the existing `argocd-secret`; the fleet-root
+Application syncs that manifest. `scripts/validate/fleet.sh webhook-secret`
+schema-validates the object and rejects a renamed key or replacement Secret
+target. No credential value is committed.
+
+**Polling is the fallback only** — disabling the webhook still refreshes at the
+ApplicationSet controller's configured reconciliation interval, just slower; a
+wrong/missing shared secret is rejected at the webhook endpoint. The live
+webhook/wrong-secret/poll timing trace remains a fleet-owned ArgoCD SIT proof,
+separate from the build-time secret-object contract.
+
+Q-WH13/Q-I36 are referenced here, not implemented by fleet: this compiler only
+asserts the frozen render shape for `WebhookEngine` and `CloudflareDeploy`.
+Webhook config-plane reconciliation belongs to mercury.webhook and
+dependency-operator.
+
+## Environment integration boundary
+
+Fleet carries final ENV-SPEC/Q-ENV47 as an integration contract, including the
+dotted `module.service.platform.instance.landscape.zone` coordinate with
+`instance` outside LPSM. It does **not** synthesize missing topology: the seven
+workload Landscape records and ENTEI ClusterRegistration/Landscape remain
+user-gated while topology is under discussion, and no concrete or logical
+placeholder values are emitted. The related hosted-profile, vcluster allocation,
+local-Logto, Infisical-write, sulfoxide-consumption, and durable-reaper proof tail
+stays dependency/site owned until that ruling lands.
+
+`⚠ S11 ASSUMED-GREEN`: fleet composes helm-wrapper's load-balancer Service and
+fixed-IP annotations and supplies topology to the Route53 backup-domain rail; it
+does not reimplement LB/EIP behavior. The live EKS Auto Mode EIP confirmation is
+user-owned. `MINUN USER-REVIEW` remains a visible safety gate for the
+prod-derived-data baseline; fleet does not treat it as implicitly approved.
 
 ## Registering a new platform
 
@@ -283,6 +331,7 @@ source-B/source-C values-schema positives and targeted negatives; schema drift;
 render; explicit-row identity plus mismatch negatives; golden diff; feature and
 DAG checks; registered-fleet delivery boundary; Kargo-native image/chart Freight
 alignment (including mercury and skew rejection); Kargo `values:` preservation;
+the pinned Kargo v1.9.10 YAML-engine integration test and its guard negative;
 the `values:` >7d guardrail; registry/rendered CR validation (including
 CloudflareDeploy rollout and Warehouse); rollout and WebhookEngine negatives;
 AppSet scope; platforms AppSet; registry guard policy; and presence.
