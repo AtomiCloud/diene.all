@@ -202,7 +202,7 @@
   {
     "template": "diene/workspace",
     "name": "releaser-hook-registration",
-    "class": "gate"
+    "class": "presence"
   },
   {
     "template": "diene/workspace",
