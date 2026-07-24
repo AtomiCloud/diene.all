@@ -19,8 +19,6 @@ let
       packages.git
       packages.go
       packages.golangci-lint
-      packages.jq
-      packages.ripgrep
       pkgs.coreutils
     ];
   };
@@ -197,7 +195,7 @@ pre-commit-lib.run {
     a-skills-freshness = {
       enable = true;
       name = "Vendored skills freshness";
-      entry = "${packages.bash}/bin/bash -c 'export PATH=${go-lint-runtime}/bin; export CGO_ENABLED=0; export GOPROXY=file://${go-deps.goModules}; export GOSUMDB=off; export GONOPROXY=\"\"; export GONOSUMDB=\"\"; export GOMODCACHE=\"\${TMPDIR:-/tmp}/go-base-mod-cache\"; exec ${packages.bash}/bin/bash scripts/validate/skills-freshness.sh'";
+      entry = validator "scripts/validate/skills-freshness.sh";
       pass_filenames = false;
       language = "system";
     };
