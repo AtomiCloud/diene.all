@@ -9,7 +9,6 @@ with packages;
     infisical
     jq
     pls
-    skopeo
   ];
 
   # ### workspace-lint
@@ -33,8 +32,6 @@ with packages;
     # ### bun-base-main
     # #### source: bun-base
     bun
-    cyanprint
-    docker-client
     git
     go-task
     infisical
@@ -43,25 +40,22 @@ with packages;
     kubernetes-helm
     kyverno
     pls
-    releaser
+    packages.releaser
     ripgrep
     shellcheck
-    skopeo
     yq-go
   ];
 
   # ### workspace-releaser-bootstrap
-  # #### source: bun-base
+  # #### source: workspace
   releaser = [
-    # ### bun-cli-release-tools
-    # #### source: bun-cli
     dpkg
     gh
     git
     go
     goreleaser
+    packages.releaser
     rpm
-    releaser
   ];
 
   # ### nix-root-system

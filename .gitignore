@@ -30,7 +30,7 @@ dist/
 coverage/
 *.tsbuildinfo
 
-### bun-cli
-#### source: bun-cli
+### releaser
+#### source: releaser
 prebuilt/
 IncrementalChangelog.md

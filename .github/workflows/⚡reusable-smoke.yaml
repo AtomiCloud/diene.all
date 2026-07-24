@@ -1,5 +1,5 @@
-# ### bun-cli-reusable-smoke
-# #### source: bun-cli
+# ### releaser-reusable-smoke
+# #### source: releaser
 name: ⚡ Reusable Smoke
 on:
   workflow_call:
@@ -24,7 +24,9 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: cli-binaries
-          path: dist/bin
+          path: dist
+      - name: Restore executable modes from the archive
+        run: tar -xzf dist/cli-binaries.tar.gz -C dist
       # `binary` goes through env: so caller input is never expanded into shell source.
       - name: Smoke
         env:

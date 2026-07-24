@@ -1,5 +1,5 @@
-# ### bun-cli-reusable-compile
-# #### source: bun-cli
+# ### releaser-reusable-compile
+# #### source: releaser
 name: ⚡ Reusable Compile
 on:
   workflow_call:
@@ -14,10 +14,12 @@ jobs:
       - uses: AtomiCloud/actions.setup-nix@v3
       - uses: AtomiCloud/actions.cache-bun@v2
       - name: Cross-compile standalone binaries
-        run: nix develop .#ci -c ./scripts/release/compile.sh
-      - name: Upload binaries
+        run: nix develop .#ci -c env BUN_INSTALL_OFFLINE=1 ./scripts/release/compile.sh
+      - name: Preserve executable modes in an archive
+        run: tar -C dist -czf cli-binaries.tar.gz bin
+      - name: Upload binary archive
         uses: actions/upload-artifact@v7
         with:
           name: cli-binaries
-          path: dist/bin/
+          path: cli-binaries.tar.gz
           if-no-files-found: error

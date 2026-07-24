@@ -5,29 +5,25 @@ title: Semantic Release
 
 # Semantic Release
 
-`atomi_release.yaml` is the single source of truth for commit types, release
-levels, generated commit-convention documentation, and `releaser` release
-behavior. It uses `schemaVersion: 2`; the legacy semantic-release plugin chain
-is forbidden. Do not add a standalone `.gitlint` file.
+`atomi_release.yaml` schema version 2 is the single source of truth for commit
+types and scopes, lint rules, release levels, generated convention
+documentation, hooks, Git assets, and GitHub ownership. The repository has no
+standalone `.gitlint`, `sg` bootstrap, semantic-release runtime, or dynamic
+plugin chain.
 
-## Provisioning
-
-The `releaser` binary is the published `AtomiCloud/releaser` `v1.0.0` release,
-consumed as a pinned Nix flake input
-(`github:AtomiCloud/releaser/v1.0.0#releaser`) and exposed through the `releaser`
-package and the `.#releaser` dev shell:
-
-- the repository-owned validators check the configuration schema and the exact
-  D3 type vocabulary;
-- the commit-msg hook runs `releaser lint-commit -c atomi_release.yaml`; and
-- `releaser release -c atomi_release.yaml` executes the release inside
-  `nix develop .#releaser`.
+`releaser` also reads the proven legacy v1 shape. Its built-in translator
+accepts only changelog, exec, git, and GitHub modules, converts them to the
+strict v2 model, and rejects every unknown module. `releaser migrate` writes
+canonical v2 and reports the remaining consumer changes.
 
 ## Commands
 
 ```bash
 releaser lint-commit -c atomi_release.yaml <commit-message-file>
+releaser next
+releaser changelog
 releaser conventions
+releaser migrate
 releaser release -c atomi_release.yaml
 ```
 
@@ -35,19 +31,19 @@ releaser release -c atomi_release.yaml
 `docs/developer/CommitConventions.md`. The generated file must not be edited by
 hand.
 
-## Configuration
+## Configuration and ownership
 
-`atomi_release.yaml` uses `schemaVersion: 2`. The release pipeline is fixed:
+Prepare hooks are ordered as `beforeWrite` or `afterWrite`; success hooks run
+only after a successful push and optional GitHub work. The core never installs
+packages or mutates package manifests/locks. The configured Git assets form a
+strict mutation fence.
 
-1. write the changelog to `Changelog.md`;
-2. run the `afterWrite` hook `scripts/release/bump.sh ${version}`, which stamps
-   `package.json` and `VERSION`;
-3. commit `Changelog.md`, `package.json`, `VERSION`, and the generated
-   commit-conventions document; and
-4. publish the GitHub release.
-
-Compiled CLI variants prepend an exec step that snapshots `Changelog.old.md`
-and omit the GitHub plugin because GoReleaser owns the release and assets.
+This repository sets `release.github: false`. `releaser release` calculates
+the version, writes configured assets, creates the exact release commit and tag,
+and atomically pushes them. The tag-triggered GoReleaser CD job owns the GitHub
+release, archives, checksums, deb/rpm packages, Homebrew cask, and Fury channel.
+Consumer repositories may instead enable the strict GitHub object for built-in
+release/comment/label behavior.
 
 The unified D3 commit-type vocabulary is:
 
@@ -65,5 +61,6 @@ so the vocabularies cannot drift independently.
    `release`.
 3. `scripts/ci/release.sh` runs inside `nix develop .#releaser`.
 4. `releaser release -c atomi_release.yaml` calculates the version, updates the
-   changelog and generated files, creates the tag, and publishes the GitHub
-   release.
+   configured assets, creates the commit and tag, and atomically pushes them.
+5. The pushed tag starts `CD`, where GoReleaser validates the Nix package and
+   publishes this repository's configured distribution channels.

@@ -87,6 +87,17 @@ if [ "${mode}" = "wiring" ]; then
       exit 1
     }
   done
+  rg -F 'tar -C dist -czf cli-binaries.tar.gz bin' .github/workflows/⚡reusable-compile.yaml
+  rg -F 'tar -xzf dist/cli-binaries.tar.gz -C dist' .github/workflows/⚡reusable-sit.yaml
+  rg -F 'tar -xzf dist/cli-binaries.tar.gz -C dist' .github/workflows/⚡reusable-smoke.yaml
+  yq -o=json '.' .github/workflows/⚡reusable-sit.yaml | jq -e '
+    [.jobs.sit.steps[] | select(.name == "Run SIT")][0].env.CLI_BIN == "dist/bin/releaser-linux-x64-baseline" and
+    ([.jobs.sit.steps[] | select(.name == "Run SIT")][0].run | contains("scripts/ci/test.sh sit"))
+  ' >/dev/null || {
+    echo "❌ SIT workflow must route the transported binary into the CI test entrypoint" >&2
+    exit 1
+  }
+  rg -F 'SIT_DRIVER=binary CLI_BIN="${CLI_BIN}" bun test --config=bunfig.sit.toml' scripts/ci/test.sh
   yq -o=json '.' .github/workflows/⚡reusable-smoke.yaml | jq -e '
     [.jobs.smoke.steps[] | select((.uses // "") | startswith("actions/checkout@"))][0].with["persist-credentials"] == false and
     [.jobs.smoke.steps[] | select(.name == "Smoke")][0].env.BINARY == "${{ inputs.binary }}" and

@@ -6,29 +6,29 @@ contract="${1:-}"
 
 case "${contract}" in
 arch)
-  test -f bin/bun-cli.ts
-  test -f src/lib/kv/interfaces.ts
+  test -f bin/releaser.ts
+  test -f src/lib/release/ports.ts
   test -f src/adapters/terminal/console-io.ts
-  rg -q 'console\.|process\.(stdin|stdout|stderr|exitCode)|from .(chalk|ora|cli-progress|inquirer).' src/lib src/adapters/kv && echo '❌ terminal/shell IO leaked into src/lib or src/adapters/kv' >&2 && exit 1
+  rg -q 'console\.|process\.(stdin|stdout|stderr|exitCode)|Bun\.(spawn|file)|node:(fs|path|process)|from .commander.' src/lib && echo '❌ terminal, filesystem, process, or CLI IO leaked into src/lib' >&2 && exit 1
   rg -q "from ['\"](\\.\\./)+adapters(?:/|['\"])" src/lib && echo '❌ src/lib imports an adapter (forbidden upward dependency)' >&2 && exit 1
-  ;;
-distroless)
-  rg -Fx 'FROM gcr.io/distroless/cc-debian12:nonroot AS runtime' infra/Dockerfile
-  ;;
-nonroot)
-  rg -F ':nonroot AS runtime' infra/Dockerfile
+  for config in knip.json knip.llm.json knip.production.json knip.production.llm.json; do
+    jq -e '.entry | index("bin/releaser.ts") != null' "${config}" >/dev/null || {
+      echo "❌ ${config} must retain bin/releaser.ts as a real entry" >&2
+      exit 1
+    }
+  done
   ;;
 release-backup-order)
   yq -o=json '.' atomi_release.yaml | jq -e '
-    .plugins[0].module == "@semantic-release/exec" and
-    .plugins[0].config.prepareCmd == "./scripts/release/backup-changelog.sh" and
-    ([.plugins[].module] | index("@semantic-release/github") == null)'
+    .schemaVersion == 2 and
+    .release.hooks.prepare[0] == {"phase":"beforeWrite","command":"./scripts/release/backup-changelog.sh"} and
+    .release.hooks.prepare[1].phase == "afterWrite" and
+    .release.github == false'
   ;;
 changelog-asset)
   test -f Changelog.old.md
   yq -o=json '.' atomi_release.yaml | jq -e '
-    [.plugins[] | select(.module == "@semantic-release/git") | .config.assets[]] |
-    index("Changelog.old.md") != null'
+    .release.commit.assets | index("Changelog.old.md") != null'
   rg -F -- '--release-notes ./IncrementalChangelog.md' scripts/release/publish.sh
   ;;
 release-artifacts)
@@ -60,9 +60,6 @@ fury-wiring)
   rg -F -- '--config "${credential_config}"' scripts/release/fury.sh
   ! rg -F '${FURY_TOKEN}@' scripts/release/fury.sh
   ;;
-docker-release)
-  yq -o=json '.' .github/workflows/cd.yaml | jq -e '.jobs.docker.uses == "./.github/workflows/⚡reusable-docker.yaml"'
-  ;;
 installer-checksum)
   rg -F 'checksums.txt' scripts/release/install.sh
   rg -e 'sha256sum -c|shasum -a 256' scripts/release/install.sh
@@ -77,11 +74,11 @@ installation-parity)
   rg -F 'scripts/release/install.sh' .goreleaser.yaml
   rg -F "name_template: '{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}'" .goreleaser.yaml
   rg -F 'checksums.txt' .goreleaser.yaml
-  rg -F 'bun-cli_<os>_<arch>.tar.gz' INSTALLATION.md
+  rg -F 'releaser_<os>_<arch>.tar.gz' INSTALLATION.md
   ;;
 nix-release-wiring)
-  rg -F 'bun-cli = pkgs.stdenv.mkDerivation' nix/packages.nix
-  rg -F 'nix build .#bun-cli' .github/workflows/cd.yaml
+  rg -F 'releaser = pkgs.stdenv.mkDerivation' nix/packages.nix
+  rg -F 'nix build .#releaser' .github/workflows/cd.yaml
   ;;
 *)
   echo "❌ unknown CLI contract: ${contract}" >&2

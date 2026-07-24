@@ -3,48 +3,8 @@
   pkgs,
   pkgs-2605,
   pkgs-unstable,
-  releaser-pkg,
 }:
 let
-  cyanprintVersion = "4.9.0";
-  cyanprintSystem = pkgs.stdenv.hostPlatform.system;
-  cyanprintPlatform =
-    ({
-      x86_64-linux = "linux_amd64";
-      aarch64-linux = "linux_arm64";
-      x86_64-darwin = "darwin_amd64";
-      aarch64-darwin = "darwin_arm64";
-    }).${cyanprintSystem};
-  cyanprintHash =
-    ({
-      x86_64-linux = "sha256-z5whvbKPJTgyR5qWeYefN7NuTKY1pWaRkYDnyyaNG9k=";
-      aarch64-linux = "sha256-SrhazRJbeK3vJHGvv0TwKHdz/ulqZM04qMtKgX0AJgA=";
-      x86_64-darwin = "sha256-XIolxZN+KVf/Ui5/rQjg+k3OXLrbJuGGxh6iYkki+/k=";
-      aarch64-darwin = "sha256-xugPBTO6CTixUjpq9PPq2WOQySci735gfuOXZSn75Ew=";
-    }).${cyanprintSystem};
-  cyanprint = pkgs.stdenvNoCC.mkDerivation {
-    pname = "cyanprint";
-    version = cyanprintVersion;
-    src = pkgs.fetchurl {
-      url = "https://github.com/AtomiCloud/sulfone.lite/releases/download/v${cyanprintVersion}/cyanprint_${cyanprintVersion}_${cyanprintPlatform}.tar.gz";
-      hash = cyanprintHash;
-    };
-    sourceRoot = ".";
-    strictDeps = true;
-    dontStrip = true;
-    nativeBuildInputs = pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.autoPatchelfHook ];
-    buildInputs = pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.glibc ];
-    installPhase = ''
-      runHook preInstall
-      install -Dm755 cyanprint "$out/bin/cyanprint"
-      runHook postInstall
-    '';
-    doInstallCheck = true;
-    installCheckPhase = ''
-      "$out/bin/cyanprint" --version | grep -Fx "cyanprint ${cyanprintVersion}"
-    '';
-    meta.mainProgram = "cyanprint";
-  };
   all = rec {
     # ### nix-root
     # #### source: main
@@ -68,11 +28,8 @@ let
         inherit
           actionlint
           bash
-          # ### bun-base-packages
-          # #### source: bun-base
           bun
           dpkg
-          docker-client
           gh
           git
           go
@@ -87,33 +44,16 @@ let
           ripgrep
           rpm
           shellcheck
-          skopeo
           treefmt
           yq-go
           ;
       }
     );
 
-    # ### nix-unstable
-    # #### source: main
-    nix-unstable = (
-      with pkgs-unstable;
-      {
-      }
-    );
+    nix-unstable = (with pkgs-unstable; { });
 
-    # ### bun-base-releaser
-    # #### source: bun-base
-    releaser-pkgs = {
-      releaser = releaser-pkg;
-    };
-
-    root = {
-      inherit cyanprint;
-    };
-
-    # ### bun-cli-package
-    # #### source: bun-cli
+    # ### releaser-package
+    # #### source: releaser
     cli =
       let
         bunPkg = pkgs-2605.bun;
@@ -123,7 +63,7 @@ let
           if builtins.length cliNames == 1 then
             builtins.head cliNames
           else
-            builtins.throw "bun-cli package requires exactly one package.json bin entry";
+            builtins.throw "CLI package requires exactly one package.json bin entry";
         entry = manifest.bin.${cliName};
         src = pkgs.lib.cleanSourceWith {
           src = ../.;
@@ -161,11 +101,11 @@ let
           dontFixup = true;
           outputHashMode = "recursive";
           outputHashAlgo = "sha256";
-          outputHash = "sha256-g0JDKwlzg+Nm5IopmaDl8+2rVe7Lw6cj8+B+B1I73tk=";
+          outputHash = "sha256-QS0fN9OiIBGKAxxWCsvZBP9hmErPoL5vWN6NG6lbfPc=";
         };
       in
       {
-        bun-cli = pkgs.stdenv.mkDerivation {
+        releaser = pkgs.stdenv.mkDerivation {
           pname = cliName;
           version = manifest.version;
           inherit src;
@@ -173,13 +113,11 @@ let
           dontConfigure = true;
           buildPhase = ''
             export HOME="$TMPDIR"
-            cp -r ${deps}/node_modules ./node_modules
-            chmod -R u+w node_modules
+            cp -r --no-preserve=mode ${deps}/node_modules ./node_modules
             bun build "./${entry}" --compile --outfile "${cliName}"
           '';
           installPhase = ''
-            mkdir -p "$out/bin"
-            cp "${cliName}" "$out/bin/${cliName}"
+            install -Dm755 "${cliName}" "$out/bin/${cliName}"
           '';
           dontFixup = true;
           meta.mainProgram = cliName;
@@ -188,4 +126,4 @@ let
   };
 in
 with all;
-atomipkgs // nix-2605 // nix-unstable // releaser-pkgs // root // cli
+atomipkgs // nix-2605 // nix-unstable // cli

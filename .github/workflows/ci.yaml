@@ -42,20 +42,8 @@ jobs:
     uses: ./.github/workflows/⚡reusable-build.yaml
     secrets: inherit
 
-  docker:
-    name: Docker Image
-    permissions:
-      contents: read
-      id-token: write
-      packages: write
-    uses: ./.github/workflows/⚡reusable-docker.yaml
-    secrets: inherit
-    with:
-      image_name: diene-bun-cli
-      dockerfile: ./infra/Dockerfile
-
-  # ### bun-cli-ci
-  # #### source: bun-cli
+  # ### releaser-ci
+  # #### source: releaser
   compile:
     name: Compile Binaries
     permissions:
@@ -81,13 +69,13 @@ jobs:
       matrix:
         include:
           - target: linux-x64-baseline
-            binary: bun-cli-linux-x64-baseline
+            binary: releaser-linux-x64-baseline
             runs_on: '["ubuntu-22.04"]'
           - target: linux-arm64
-            binary: bun-cli-linux-arm64
+            binary: releaser-linux-arm64
             runs_on: '["ubuntu-24.04-arm"]'
           - target: darwin-arm64
-            binary: bun-cli-darwin-arm64
+            binary: releaser-darwin-arm64
             runs_on: '["macos-14"]'
     uses: ./.github/workflows/⚡reusable-smoke.yaml
     secrets: inherit

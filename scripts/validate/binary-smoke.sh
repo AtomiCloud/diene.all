@@ -6,7 +6,7 @@ if [ -f package.json ]; then
   export PATH="${PWD}/node_modules/.bin:${PATH}"
 fi
 
-binaries=(actionlint bash cyanprint docker dpkg gh git go gomplate goreleaser hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pls pre-commit releaser rg rpm shellcheck skopeo task treefmt yq)
+binaries=(actionlint bash dpkg gh git go goreleaser helm helm-docs infisical jq kubeconform kubectl kyverno nix pls pre-commit releaser rg rpm shellcheck task treefmt yq)
 [ -f package.json ] && binaries+=(bun biome knip tsc)
 
 for binary in "${binaries[@]}"; do
@@ -25,17 +25,6 @@ actionlint "${tmp}/workflow.yaml"
 
 bash --version >/dev/null
 [ "$(bash -c 'printf smoke')" != "smoke" ] && echo "❌ bash failed a real invocation" >&2 && exit 1
-
-mapfile -t cyanprint_versions < <(
-  awk -F'"' '/^[[:space:]]*cyanprintVersion = "[^"]+";$/ { print $2 }' nix/packages.nix
-)
-if [ "${#cyanprint_versions[@]}" -ne 1 ]; then
-  echo "❌ expected exactly one cyanprintVersion pin in nix/packages.nix" >&2
-  exit 1
-fi
-cyanprint --version | rg -Fqx "cyanprint ${cyanprint_versions[0]}"
-mkdir -p "${tmp}/cyanprint-cache"
-cyanprint cache inspect --cache-dir "${tmp}/cyanprint-cache" --json | jq -e '.status == "done" and .action == "inspect"' >/dev/null
 
 if [ -f package.json ]; then
   bun --version >/dev/null
@@ -66,9 +55,6 @@ if [ -f package.json ]; then
   tsc --project "${tmp}/tsc/tsconfig.json"
 fi
 
-docker --version >/dev/null
-docker info --format '{{.ServerVersion}}' >/dev/null
-
 dpkg --version >/dev/null
 dpkg --print-architecture >/dev/null
 
@@ -80,12 +66,6 @@ git rev-parse --is-inside-work-tree >/dev/null
 
 go version >/dev/null
 go env GOOS >/dev/null
-
-gomplate --version >/dev/null
-[ "$(gomplate -i '{{ add 1 1 }}')" != "2" ] && echo "❌ gomplate failed a real template" >&2 && exit 1
-
-hadolint --version >/dev/null
-hadolint infra/Dockerfile
 
 goreleaser --version >/dev/null
 if ! git remote get-url origin >/dev/null 2>&1; then
@@ -109,9 +89,6 @@ git -C "${tmp}" commit -qm smoke
 jq --version >/dev/null
 jq -en '1 + 1 == 2' >/dev/null
 
-k3d version >/dev/null
-k3d cluster list --no-headers >/dev/null
-
 kubeconform -v >/dev/null
 
 kubectl version --client >/dev/null
@@ -130,26 +107,13 @@ pre-commit --version >/dev/null
 pre-commit validate-config .pre-commit-config.yaml
 
 rg --version >/dev/null
-rg -q '^## Bun foundation$|^# Diene workspace baseline$' README.md
+rg -q '^# Releaser$' README.md
 
 rpm --version >/dev/null
 rpm --eval '%{_arch}' >/dev/null
 
-releaser --version | rg -qx '1.0.0'
-printf '%s\n' 'feat: add a smoke capability' >"${tmp}/good-commit.txt"
-releaser lint-commit -c atomi_release.yaml "${tmp}/good-commit.txt"
-printf '%s\n' 'wibble: not a real type' >"${tmp}/bad-commit.txt"
-releaser lint-commit -c atomi_release.yaml "${tmp}/bad-commit.txt" && {
-  echo "❌ releaser lint-commit accepted an invalid commit" >&2
-  exit 1
-}
-
 shellcheck --version >/dev/null
 shellcheck scripts/validate/binary-smoke.sh
-
-skopeo --version >/dev/null
-printf '%s\n' '{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{"mediaType":"application/vnd.oci.image.config.v1+json","digest":"sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a","size":2},"layers":[]}' >"${tmp}/manifest.json"
-skopeo manifest-digest "${tmp}/manifest.json" | rg -q '^sha256:[0-9a-f]{64}$'
 
 task --version >/dev/null
 task --list >/dev/null
@@ -161,6 +125,14 @@ treefmt --completion bash >"${tmp}/treefmt-completion.bash"
 yq --version >/dev/null
 yq -en '.ok = true | .ok == true' >/dev/null
 
+releaser --version | rg -qx '1.0.0'
 releaser --help >/dev/null
+printf '%s\n' 'feat: add a smoke capability' >"${tmp}/good-commit.txt"
+releaser lint-commit -c atomi_release.yaml "${tmp}/good-commit.txt"
+printf '%s\n' 'wibble: not a real type' >"${tmp}/bad-commit.txt"
+if releaser lint-commit -c atomi_release.yaml "${tmp}/bad-commit.txt"; then
+  echo "❌ releaser lint-commit accepted an invalid commit" >&2
+  exit 1
+fi
 
 echo "✅ Binary smoke passed"

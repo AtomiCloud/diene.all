@@ -1,13 +1,13 @@
 ---
 id: bun-baseline
-title: Bun Baseline
+title: Releaser Bun Baseline
 ---
 
-# Bun Baseline
+# Releaser Bun baseline
 
-`bun-base` is the Bun and TypeScript foundation inherited by the Bun sample
-family. This page documents only language-layer behavior; general engineering
-rules remain in `docs/standards/`.
+This repository is a materialized Bun/TypeScript CLI product. General
+engineering rules remain in `docs/standards/`; this page records the local
+toolchain and test boundaries.
 
 ## Local commands
 
@@ -20,50 +20,26 @@ rules remain in `docs/standards/`.
   `pls test:int:coverage`, and `pls test:sit:coverage` write scoped LCOV
   artifacts. SIT coverage uses the in-process driver only.
 - `pls test:watch` watches the unit tier.
-- `pls build` bundles the `package.json` `bin` entry to `dist/bun-cli.js`.
-- `pls compile` emits the three supported standalone binaries under `dist/bin/`.
+- `pls build` bundles the `package.json` `bin` entry to `dist/releaser.js`.
+- `pls compile` emits `releaser-linux-x64-baseline`,
+  `releaser-linux-arm64`, and `releaser-darwin-arm64` under `dist/bin/`.
 - `pls deadcode` runs the two non-blocking LLM-review Knip configurations.
 - `pls run -- <args>` executes the source entry point.
 - `pls preview -- <args>` compiles and executes this host's standalone binary.
-- `pls up` and `pls down` manage the sample Redis used for interactive CLI runs.
-- `pls docker:build` and `pls docker:run` build and run the Bun image.
 
-There is no `pls dev` surface. Integration and SIT own isolated Redis containers;
-`up`/`down` exist only for interactive sample commands.
+There are no sample dependency, `up`/`down`, probe-matrix, or Docker tasks.
 
-## Quality gates
+## Architecture and quality gates
 
-Biome is lint-only; treefmt owns formatting. TypeScript uses strict no-emit
-typechecking. Knip runs twice as blocking hooks: the repository view includes
-tests, while the production view starts at `bin/bun-cli.ts` and catches files
-used only by tests. The LLM Knip variants are review-only and never suppress
-strict findings.
+The composition root is `bin/releaser.ts`. Pure business logic and ports live in
+`src/lib`; concrete Git, filesystem, HTTP, process, configuration, and terminal
+implementations live in `src/adapters`. TypeScript uses strict no-emit checking,
+Biome linting, treefmt formatting, and strict repository/production Knip views.
 
-## Test and coverage tiers
-
-- Unit tests live under `tests/unit/` and cover only `src/lib/**`.
-- Integration tests live under `tests/integration/`, use Testcontainers Redis,
-  and cover only `src/adapters/**`.
-- SIT lives under `tests/sit/`: binary mode is black-box, while in-process mode
-  records the full-system `coverage/sit/lcov.info` ledger.
-- Both CI entry points require an LCOV artifact, reject paths outside their
-  tier ledger, and require every ledger line to be hit.
-- Codecov is informational and uploads the independent `unit` and `int` flags
-  with carryforward enabled.
-
-Tests use `bun:test`, `describe`/`it`, AAA comments, and `should` assertions.
-Container images are version-pinned without digests.
-
-## Build and runtime
-
-The local build and CI build share `scripts/local/build.sh`. The Dockerfile
-compiles in a version-pinned `oven/bun` stage and copies only the binary into
-`gcr.io/distroless/cc-debian12:nonroot`. `REDIS_HOST` and `REDIS_PORT` select
-the Redis endpoint and reject blank or invalid overrides.
-
-Application descendants use pino JSON logging with trace-context injection
-from `@atomicloud/diene.otel`. That application logging layer is intentionally
-not duplicated in this toolchain sample before the shared library is consumed.
+Unit tests cover the pure library. Integration tests use temporary directories,
+scratch Git repositories, local bare remotes, and fake HTTP only. SIT runs the
+same user journeys through either the in-process composition seam or the freshly
+compiled Linux x64 binary. No test contacts GitHub or publishes an artifact.
 
 ## TypeScript standards
 
@@ -77,11 +53,3 @@ Read the TypeScript variants alongside their shared standards:
 - [testing](../standards/testing/languages/typescript.md)
 - [utilities](../standards/utilities/languages/typescript.md)
 - [validation](../standards/validation/languages/typescript.md)
-
-## Template maintenance boundary
-
-Downstream templates may adapt package identity, coverage thresholds, the
-Docker entry point, badges, and the fenced illustrative `src/` plus `tests/`
-sample. They should not fork the inherited task, workflow, release, Nix, lint,
-or standards machinery. Shared fixes land at the earliest owning branch and
-merge down.

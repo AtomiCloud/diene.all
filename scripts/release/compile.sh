@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Cross-compile the standalone CLI (entry from package.json .bin) for every supported target.
-./scripts/ci/setup.sh
+BUN_INSTALL_OFFLINE="${BUN_INSTALL_OFFLINE:-0}" ./scripts/ci/setup.sh
 
 ENTRY="$(jq -r '.bin | to_entries[0].value' package.json)"
 [ -z "${ENTRY}" ] && echo "❌ no .bin entry in package.json" >&2 && exit 1

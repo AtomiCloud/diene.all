@@ -3,8 +3,8 @@
 version: '3'
 
 vars:
-  # ### bun-cli-identity
-  # #### source: bun-cli
+  # ### releaser-identity
+  # #### source: releaser
   ARTIFACT_PREFIX:
     sh: jq -r '.bin | to_entries[0].key' package.json
   ARTIFACT: '{{.ARTIFACT_PREFIX}}-{{OS}}-{{if eq ARCH "arm64"}}arm64{{else}}x64-baseline{{end}}'
@@ -12,10 +12,9 @@ vars:
     sh: jq -r '.bin | to_entries[0].value' package.json
 
 includes:
-  # ### bun-cli-compile-include
-  # #### source: bun-cli
+  # ### releaser-compile-include
+  # #### source: releaser
   compile: tasks/Taskfile.compile.yaml
-  docker: tasks/Taskfile.docker.yaml
   secret: tasks/Taskfile.secret.yaml
   # ### bun-base-test-includes
   # #### source: bun-base
@@ -129,13 +128,3 @@ tasks:
     deps: [compile]
     cmds:
       - ./dist/bin/{{.ARTIFACT}} {{.CLI_ARGS}}
-
-  up:
-    desc: Start the sample Redis dependency in the background
-    cmds:
-      - docker run -d --rm --name {{.ARTIFACT_PREFIX}}-redis -p 6379:6379 redis:7.4.5-alpine
-
-  down:
-    desc: Stop the sample Redis dependency
-    cmds:
-      - docker rm -f {{.ARTIFACT_PREFIX}}-redis

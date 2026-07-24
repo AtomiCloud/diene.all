@@ -10,10 +10,10 @@ cd "${root_dir}"
 ./scripts/ci/setup.sh
 
 if [[ ${mode} == "sit" ]]; then
-  [[ -d dist/bin ]] && chmod -R +x dist/bin
-  [[ -n ${CLI_BIN:-} ]] && chmod +x "${CLI_BIN}"
+  [[ -z ${CLI_BIN:-} ]] && echo "❌ CLI_BIN must name the transported executable" >&2 && exit 1
+  [[ ! -x ${CLI_BIN} ]] && echo "❌ CLI binary is not executable: ${CLI_BIN}" >&2 && exit 1
   echo "🧪 Running sit tests..."
-  bun test --config=bunfig.sit.toml
+  SIT_DRIVER=binary CLI_BIN="${CLI_BIN}" bun test --config=bunfig.sit.toml
   echo "✅ sit tests passed"
   exit 0
 fi

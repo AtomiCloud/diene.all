@@ -1,5 +1,5 @@
-# ### bun-cli-reusable-sit
-# #### source: bun-cli
+# ### releaser-reusable-sit
+# #### source: releaser
 name: ⚡ Reusable SIT
 on:
   workflow_call:
@@ -17,6 +17,10 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: cli-binaries
-          path: dist/bin
+          path: dist
+      - name: Restore executable modes from the archive
+        run: tar -xzf dist/cli-binaries.tar.gz -C dist
       - name: Run SIT
+        env:
+          CLI_BIN: dist/bin/releaser-linux-x64-baseline
         run: nix develop .#ci -c ./scripts/ci/test.sh sit

@@ -77,13 +77,14 @@ scripts.
 ```
 scripts/
 ├── ci/
-│   ├── setup.sh          # CI setup stub
+│   ├── setup.sh          # frozen offline dependency setup
 │   ├── pre-commit.sh     # Pre-commit hooks
-│   ├── docker.sh         # Image build and publish
-│   └── release.sh        # Release process
-├── local/                # Developer-facing helpers
-├── release/              # Release-time helpers
-└── validate/             # Repository-owned policy checks
+│   ├── test.sh           # unit/int coverage and transported-binary SIT
+│   ├── build.sh          # Bun bundle validation
+│   └── release.sh        # releaser entrypoint
+├── local/                # setup, build, dead-code, and skill helpers
+├── release/              # compile, package, install, and release hooks
+└── validate/             # repository-owned static policy checks
 ```
 
 ## Summary

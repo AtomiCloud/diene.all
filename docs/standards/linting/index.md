@@ -36,8 +36,8 @@ The workspace owns these mechanisms:
 - workflow job-to-script wiring.
 
 The commit-msg stage also registers
-`releaser lint-commit -c atomi_release.yaml`, provisioned from the pinned
-`AtomiCloud/releaser` `v1.0.0` Nix package; no `.gitlint` hook or file exists.
+`releaser lint-commit -c atomi_release.yaml`, provisioned from this repository's
+self-built `.#releaser` Nix package; no `.gitlint` hook or file exists.
 
 ## Configuration rules
 
