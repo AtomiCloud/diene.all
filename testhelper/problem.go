@@ -26,28 +26,24 @@ type TestingT interface {
 	Fatalf(format string, args ...any)
 }
 
-type expectation struct {
-	checks []func(problem.Problem) error
-}
-
 // Option constrains one expected field of a [problem.Problem]. Only the fields
 // named by the supplied options are checked, and the first mismatch wins.
-type Option func(*expectation)
+type Option func(problem.Problem) error
 
 // ExpectType asserts the envelope's Type equals want.
 func ExpectType(want string) Option {
-	return field(func(actual problem.Problem) error {
+	return func(actual problem.Problem) error {
 		if actual.Type != want {
 			return fmt.Errorf("type mismatch: expected %q, got %q", want, actual.Type)
 		}
 		return nil
-	})
+	}
 }
 
 // ExpectID asserts the final path segment of the envelope's Type equals want,
 // so callers can match a problem id without spelling out the full type URI.
 func ExpectID(want string) Option {
-	return field(func(actual problem.Problem) error {
+	return func(actual problem.Problem) error {
 		got := actual.Type
 		if index := strings.LastIndex(got, "/"); index >= 0 {
 			got = got[index+1:]
@@ -56,97 +52,86 @@ func ExpectID(want string) Option {
 			return fmt.Errorf("id mismatch: expected %q, got %q (from type %q)", want, got, actual.Type)
 		}
 		return nil
-	})
+	}
 }
 
 // ExpectTitle asserts the envelope's Title equals want.
 func ExpectTitle(want string) Option {
-	return field(func(actual problem.Problem) error {
+	return func(actual problem.Problem) error {
 		if actual.Title != want {
 			return fmt.Errorf("title mismatch: expected %q, got %q", want, actual.Title)
 		}
 		return nil
-	})
+	}
 }
 
 // ExpectStatus asserts the envelope's Status equals want.
 func ExpectStatus(want int) Option {
-	return field(func(actual problem.Problem) error {
+	return func(actual problem.Problem) error {
 		if actual.Status != want {
 			return fmt.Errorf("status mismatch: expected %d, got %d", want, actual.Status)
 		}
 		return nil
-	})
+	}
 }
 
 // ExpectRecoverable asserts the envelope's Recoverable flag equals want.
 //
 //nolint:revive // want is a matched value, not a control flag.
 func ExpectRecoverable(want bool) Option {
-	return field(func(actual problem.Problem) error {
+	return func(actual problem.Problem) error {
 		if actual.Recoverable != want {
 			return fmt.Errorf("recoverable mismatch: expected %t, got %t", want, actual.Recoverable)
 		}
 		return nil
-	})
+	}
 }
 
 // ExpectDetail asserts the envelope's Detail is present and equals want. A nil
 // (absent) Detail never matches.
 func ExpectDetail(want string) Option {
-	return field(func(actual problem.Problem) error {
+	return func(actual problem.Problem) error {
 		if actual.Detail == nil || *actual.Detail != want {
-			return fmt.Errorf("detail mismatch: expected %q, got %s", want, quoteOptional(actual.Detail))
+			got := "<nil>"
+			if actual.Detail != nil {
+				got = fmt.Sprintf("%q", *actual.Detail)
+			}
+			return fmt.Errorf("detail mismatch: expected %q, got %s", want, got)
 		}
 		return nil
-	})
+	}
 }
 
 // ExpectInstance asserts the envelope's Instance is present and equals want. A
 // nil (absent) Instance never matches.
 func ExpectInstance(want string) Option {
-	return field(func(actual problem.Problem) error {
+	return func(actual problem.Problem) error {
 		if actual.Instance == nil || *actual.Instance != want {
-			return fmt.Errorf("instance mismatch: expected %q, got %s", want, quoteOptional(actual.Instance))
+			got := "<nil>"
+			if actual.Instance != nil {
+				got = fmt.Sprintf("%q", *actual.Instance)
+			}
+			return fmt.Errorf("instance mismatch: expected %q, got %s", want, got)
 		}
 		return nil
-	})
-}
-
-// quoteOptional renders an optional wire string for mismatch messages: a
-// present value is quoted, an absent (nil) value renders as <nil>.
-func quoteOptional(value *string) string {
-	if value == nil {
-		return "<nil>"
 	}
-	return fmt.Sprintf("%q", *value)
 }
 
 // ExpectData asserts the envelope's Data deep-equals want.
 func ExpectData(want map[string]any) Option {
-	return field(func(actual problem.Problem) error {
+	return func(actual problem.Problem) error {
 		if !reflect.DeepEqual(actual.Data, want) {
 			return fmt.Errorf("data mismatch: expected %v, got %v", want, actual.Data)
 		}
 		return nil
-	})
-}
-
-func field(check func(problem.Problem) error) Option {
-	return func(state *expectation) {
-		state.checks = append(state.checks, check)
 	}
 }
 
 // CheckProblem returns the first field mismatch between actual and the supplied
 // expectations, or nil when every checked field matches.
 func CheckProblem(actual problem.Problem, opts ...Option) error {
-	state := &expectation{}
 	for _, opt := range opts {
-		opt(state)
-	}
-	for _, check := range state.checks {
-		if err := check(actual); err != nil {
+		if err := opt(actual); err != nil {
 			return err
 		}
 	}

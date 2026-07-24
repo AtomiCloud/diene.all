@@ -69,8 +69,10 @@ func (local LocalError) Wrap(ctx context.Context, cause error, stack string) (Pr
 			"stackTrace": stack,
 		},
 	}
-	if captureErr := local.Sink.Capture(ctx, envelope); captureErr != nil {
-		return envelope, captureErr
+	if local.Sink != nil {
+		if captureErr := local.Sink.Capture(ctx, envelope); captureErr != nil {
+			return envelope, captureErr
+		}
 	}
 	return envelope, nil
 }

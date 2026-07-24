@@ -2,6 +2,7 @@ package problem
 
 import (
 	"encoding/json"
+	"errors"
 	"strconv"
 )
 
@@ -56,12 +57,16 @@ type Problem struct {
 // are omitted when nil and emitted (even for an empty string) when non-nil;
 // Data always renders as an object (never null).
 func (p Problem) MarshalJSON() ([]byte, error) {
+	data := p.Data
+	if data == nil {
+		data = map[string]any{}
+	}
 	out := map[string]any{
 		"type":        p.Type,
 		"title":       p.Title,
 		"status":      p.Status,
 		"recoverable": p.Recoverable,
-		"data":        p.dataOrEmpty(),
+		"data":        data,
 	}
 	if p.Detail != nil {
 		out["detail"] = *p.Detail
@@ -79,83 +84,59 @@ func (p *Problem) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
-	*p = problemFromMap(raw)
+	if raw == nil {
+		return errors.New("problem must be a JSON object")
+	}
+
+	problemType := blankType
+	if value, ok := raw["type"].(string); ok {
+		problemType = value
+	}
+	title := unexpectedProblemTitle
+	if value, ok := raw["title"].(string); ok {
+		title = value
+	}
+	status := defaultProblemStatus
+	if value, ok := raw["status"].(float64); ok {
+		status = int(value)
+	}
+	var detail *string
+	if value, ok := raw["detail"].(string); ok {
+		detail = &value
+	}
+	var instance *string
+	if value, ok := raw["instance"].(string); ok {
+		instance = &value
+	}
+	recoverable := false
+	if value, ok := raw["recoverable"].(bool); ok {
+		recoverable = value
+	}
+	problemData, ok := raw["data"].(map[string]any)
+	if !ok {
+		problemData = map[string]any{}
+	}
+	*p = Problem{
+		Type:        problemType,
+		Title:       title,
+		Status:      status,
+		Detail:      detail,
+		Instance:    instance,
+		Recoverable: recoverable,
+		Data:        problemData,
+	}
 	return nil
 }
 
 // Equal reports whether p and other serialize to the same canonical JSON. It
 // is value equality tolerant of int-vs-float numeric decoding across the wire.
 func (p Problem) Equal(other Problem) bool {
-	left := marshalProblem(p)
-	right := marshalProblem(other)
-	return left != "" && left == right
+	left, leftErr := json.Marshal(p)
+	right, rightErr := json.Marshal(other)
+	return leftErr == nil && rightErr == nil && string(left) == string(right)
 }
 
 // String returns a compact human-readable form of the envelope.
 func (p Problem) String() string {
 	return "Problem(" + p.Type + ", " + strconv.Itoa(p.Status) + ", " + p.Title + ")"
-}
-
-func (p Problem) dataOrEmpty() map[string]any {
-	if p.Data == nil {
-		return map[string]any{}
-	}
-	return p.Data
-}
-
-func marshalProblem(p Problem) string {
-	encoded, err := json.Marshal(p)
-	if err != nil {
-		return ""
-	}
-	return string(encoded)
-}
-
-func problemFromMap(raw map[string]any) Problem {
-	return Problem{
-		Type:        stringField(raw, "type", blankType),
-		Title:       stringField(raw, "title", unexpectedProblemTitle),
-		Status:      intField(raw, "status", defaultProblemStatus),
-		Detail:      optionalString(raw, "detail"),
-		Instance:    optionalString(raw, "instance"),
-		Recoverable: boolField(raw, "recoverable"),
-		Data:        dataField(raw, "data"),
-	}
-}
-
-func stringField(raw map[string]any, key, fallback string) string {
-	if value, ok := raw[key].(string); ok {
-		return value
-	}
-	return fallback
-}
-
-// optionalString reads a presence-preserving RFC 9457 nullable member: a string
-// value that is present in the raw map (including an explicit empty string)
-// yields a non-nil pointer, while an absent or non-string member yields nil so
-// the key is omitted on re-marshal.
-func optionalString(raw map[string]any, key string) *string {
-	if value, ok := raw[key].(string); ok {
-		return &value
-	}
-	return nil
-}
-
-func intField(raw map[string]any, key string, fallback int) int {
-	if value, ok := raw[key].(float64); ok {
-		return int(value)
-	}
-	return fallback
-}
-
-func boolField(raw map[string]any, key string) bool {
-	value, ok := raw[key].(bool)
-	return ok && value
-}
-
-func dataField(raw map[string]any, key string) map[string]any {
-	if value, ok := raw[key].(map[string]any); ok {
-		return value
-	}
-	return map[string]any{}
 }

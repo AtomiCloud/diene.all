@@ -94,3 +94,15 @@ func TestLocalErrorWrapInvalidPortalFallsBackToBlank(t *testing.T) {
 		t.Fatalf("expected about:blank fallback, got %q", envelope.Type)
 	}
 }
+
+func TestLocalErrorWrapWithoutSink(t *testing.T) {
+	t.Parallel()
+	local := problem.NewLocalError(nil)
+	envelope, err := local.Wrap(context.Background(), errors.New("boom"), "stack")
+	if err != nil {
+		t.Fatalf("nil sink should be a no-op, got %v", err)
+	}
+	if envelope.Title != "Local Error" {
+		t.Fatalf("unexpected envelope: %+v", envelope)
+	}
+}

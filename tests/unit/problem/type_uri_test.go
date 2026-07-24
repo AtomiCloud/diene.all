@@ -56,6 +56,36 @@ func TestTypeURIRejectsSlashSegment(t *testing.T) {
 	}
 }
 
+func TestTypeURIRejectsUnsafeSegments(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name   string
+		mutate func(*problem.ErrorPortal)
+		id     string
+		want   string
+	}{
+		{name: "scheme", mutate: func(portal *problem.ErrorPortal) { portal.Scheme = "ht:tp" }, id: "id", want: "scheme"},
+		{name: "host", mutate: func(portal *problem.ErrorPortal) { portal.Host = "bad host" }, id: "id", want: "host"},
+		{name: "path query", mutate: func(_ *problem.ErrorPortal) {}, id: "bad?id", want: "id"},
+		{name: "path fragment", mutate: func(_ *problem.ErrorPortal) {}, id: "bad#id", want: "id"},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			portal := problem.LocalErrorPortal()
+			testCase.mutate(&portal)
+			_, err := problem.TypeURI(portal, "v1", testCase.id)
+			var segmentErr *problem.InvalidSegmentError
+			if !errors.As(err, &segmentErr) {
+				t.Fatalf("expected *InvalidSegmentError, got %v", err)
+			}
+			if segmentErr.Name != testCase.want {
+				t.Fatalf("segment = %q, want %q", segmentErr.Name, testCase.want)
+			}
+		})
+	}
+}
+
 func TestLocalErrorPortalIsValid(t *testing.T) {
 	t.Parallel()
 	if _, err := problem.TypeURI(problem.LocalErrorPortal(), "v1", "local-error"); err != nil {

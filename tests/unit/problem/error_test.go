@@ -49,3 +49,14 @@ func TestErrorRecoverableViaErrorsAs(t *testing.T) {
 		t.Fatalf("recovered problem mismatch: %+v", problemErr.Problem)
 	}
 }
+
+func TestTypedNilErrorMethodsAreSafe(t *testing.T) {
+	t.Parallel()
+	var err *problem.Error
+	if err.Error() != "<nil problem error>" {
+		t.Fatalf("typed-nil Error() = %q", err.Error())
+	}
+	if err.Unwrap() != nil {
+		t.Fatalf("typed-nil Unwrap() = %v, want nil", err.Unwrap())
+	}
+}

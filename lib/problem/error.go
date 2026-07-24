@@ -28,6 +28,9 @@ func WrapError(problem Problem, cause error) *Error {
 
 // Error implements the error interface, appending the wrapped cause when present.
 func (e *Error) Error() string {
+	if e == nil {
+		return "<nil problem error>"
+	}
 	if e.wrapped != nil {
 		return e.Problem.String() + ": " + e.wrapped.Error()
 	}
@@ -37,5 +40,8 @@ func (e *Error) Error() string {
 // Unwrap returns the wrapped cause (nil when none), enabling errors.Is and
 // errors.As to traverse the chain.
 func (e *Error) Unwrap() error {
+	if e == nil {
+		return nil
+	}
 	return e.wrapped
 }

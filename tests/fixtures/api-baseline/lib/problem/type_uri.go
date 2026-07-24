@@ -1,8 +1,8 @@
 package problem
 
 import (
+	"net/url"
 	"strconv"
-	"strings"
 )
 
 // ErrorPortal is the service-tree config block the problem type-URI template is
@@ -66,12 +66,19 @@ func (e *InvalidSegmentError) Error() string {
 // its `type` through this function. Each segment must be a non-empty single
 // path segment; otherwise an [InvalidSegmentError] is returned.
 func TypeURI(portal ErrorPortal, version, id string) (string, error) {
+	schemeURI, schemeErr := url.Parse(portal.Scheme + ":")
+	if portal.Scheme == "" || schemeErr != nil || schemeURI.Scheme != portal.Scheme || schemeURI.Opaque != "" {
+		return "", &InvalidSegmentError{Name: "scheme", Value: portal.Scheme}
+	}
+	hostURI, hostErr := url.Parse("//" + portal.Host)
+	if portal.Host == "" || hostErr != nil || hostURI.Host != portal.Host || hostURI.User != nil ||
+		hostURI.Path != "" || hostURI.RawQuery != "" || hostURI.Fragment != "" {
+		return "", &InvalidSegmentError{Name: "host", Value: portal.Host}
+	}
 	segments := [...]struct {
 		name  string
 		value string
 	}{
-		{"scheme", portal.Scheme},
-		{"host", portal.Host},
 		{"landscape", portal.Landscape},
 		{"platform", portal.Platform},
 		{"service", portal.Service},
@@ -80,7 +87,7 @@ func TypeURI(portal ErrorPortal, version, id string) (string, error) {
 		{"id", id},
 	}
 	for _, segment := range segments {
-		if segment.value == "" || strings.Contains(segment.value, "/") {
+		if segment.value == "" || url.PathEscape(segment.value) != segment.value {
 			return "", &InvalidSegmentError{Name: segment.name, Value: segment.value}
 		}
 	}

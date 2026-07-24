@@ -131,6 +131,14 @@ func TestUnmarshalJSONRejectsInvalidJSON(t *testing.T) {
 	}
 }
 
+func TestUnmarshalJSONRejectsNull(t *testing.T) {
+	t.Parallel()
+	var envelope problem.Problem
+	if err := json.Unmarshal([]byte(`null`), &envelope); err == nil {
+		t.Fatal("expected error for a null problem")
+	}
+}
+
 func TestEqual(t *testing.T) {
 	t.Parallel()
 	base := problem.Problem{Type: "t", Title: "T", Status: 404, Data: map[string]any{"id": 42}}

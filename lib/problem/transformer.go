@@ -55,44 +55,52 @@ func FromObject(value any, options TransformOptions) Problem {
 			if problemErr != nil {
 				return problemErr.Problem
 			}
-			return uncataloguedProblem(nil, options)
+			value = nil
 		}
 	}
 	if options.Registry != nil {
-		if id := problemIDFrom(value); id != "" {
-			if problemType, ok := options.Registry.Lookup(id); ok {
-				return registeredProblem(options, problemType, dataFrom(value))
+		if fields, ok := value.(map[string]any); ok {
+			if id, ok := fields["problemId"].(string); ok && id != "" {
+				if problemType, found := options.Registry.Lookup(id); found {
+					status := problemType.Status
+					if status == 0 {
+						status = options.DefaultStatus
+					}
+					typeURI, typeErr := options.Registry.TypeURIFor(problemType)
+					if typeErr != nil {
+						typeURI = blankType
+					}
+					problemData, dataOK := fields["data"].(map[string]any)
+					if !dataOK {
+						problemData = map[string]any{}
+					}
+					return Problem{
+						Type:        typeURI,
+						Title:       problemType.Title,
+						Status:      status,
+						Recoverable: problemType.Recoverable,
+						Data:        problemData,
+					}
+				}
 			}
 		}
 	}
-	return uncataloguedProblem(value, options)
-}
-
-func registeredProblem(options TransformOptions, problemType Type, data map[string]any) Problem {
-	status := problemType.Status
-	if status == 0 {
-		status = options.DefaultStatus
-	}
-	typeURI, err := options.Registry.TypeURIFor(problemType)
-	if err != nil {
-		typeURI = blankType
-	}
-	return Problem{
-		Type:        typeURI,
-		Title:       problemType.Title,
-		Status:      status,
-		Recoverable: problemType.Recoverable,
-		Data:        data,
-	}
-}
-
-func uncataloguedProblem(value any, options TransformOptions) Problem {
 	typeURI, err := TypeURI(options.Portal, options.DefaultVersion, UncataloguedProblemID)
 	if err != nil {
 		typeURI = blankType
 	}
 	var detail *string
-	if text := detailFrom(value); text != "" {
+	text := ""
+	switch typed := value.(type) {
+	case nil:
+	case error:
+		text = typed.Error()
+	case string:
+		text = typed
+	default:
+		text = fmt.Sprint(typed)
+	}
+	if text != "" {
 		detail = &text
 	}
 	return Problem{
@@ -102,36 +110,5 @@ func uncataloguedProblem(value any, options TransformOptions) Problem {
 		Detail:      detail,
 		Recoverable: false,
 		Data:        map[string]any{},
-	}
-}
-
-func problemIDFrom(value any) string {
-	if fields, ok := value.(map[string]any); ok {
-		if id, ok := fields["problemId"].(string); ok {
-			return id
-		}
-	}
-	return ""
-}
-
-func dataFrom(value any) map[string]any {
-	if fields, ok := value.(map[string]any); ok {
-		if data, ok := fields["data"].(map[string]any); ok {
-			return data
-		}
-	}
-	return map[string]any{}
-}
-
-func detailFrom(value any) string {
-	switch typed := value.(type) {
-	case nil:
-		return ""
-	case error:
-		return typed.Error()
-	case string:
-		return typed
-	default:
-		return fmt.Sprint(typed)
 	}
 }
