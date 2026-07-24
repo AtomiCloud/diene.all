@@ -323,12 +323,13 @@ wait_argo_rollouts() {
 
 configure_clocks() {
   local interval="$1"
+  local revision_cache_expiration='30s'
   kubectl -n argocd patch configmap argocd-cm --type merge \
     -p "$(jq -cn --arg interval "${interval}" '{data:{"timeout.reconciliation":$interval,"timeout.reconciliation.jitter":"0s"}}')"
-  kubectl -n argocd patch configmap argocd-cmd-params-cm --type merge \
-    -p "$(jq -cn --arg interval "${interval}" '{data:{"reposerver.repo.cache.expiration":$interval}}')"
   kubectl -n argocd set env deployment/argocd-applicationset-controller \
     "ARGOCD_APPLICATIONSET_CONTROLLER_REQUEUE_AFTER=${interval}"
+  kubectl -n argocd set env deployment/argocd-repo-server \
+    "ARGOCD_RECONCILIATION_TIMEOUT=${revision_cache_expiration}"
   kubectl -n argocd rollout restart deployment/argocd-applicationset-controller
   kubectl -n argocd rollout restart deployment/argocd-repo-server
   kubectl -n argocd rollout restart statefulset/argocd-application-controller
@@ -770,6 +771,7 @@ run_full() {
     'git-services-ls-remote.txt' 'git-services-alias.json' 'git-smart-http.headers' \
     'platforms-appset.authorized-diff.json' 'canary-appset.yaml' 'cluster-secret-inputs.json' \
     'runtime-chart-schema-relaxation.diff' 'server-http-runtime.json' \
+    'polling-clock-baseline.json' \
     'implementation-inventory.sha256'
   prepare_repositories
   cp "${work}/runtime-chart-schema-relaxation.diff" "${report}/runtime-chart-schema-relaxation.diff"
@@ -813,6 +815,34 @@ run_full() {
   kubectl -n argocd patch secret argocd-secret --type merge \
     -p "$(jq -cn --arg key "${webhook_key}" --arg secret "${SIT_SECRET}" '{stringData:{($key):$secret}}')"
   configure_clocks '24h'
+  kubectl -n argocd get configmap argocd-cm -o json >"${work}/argocd-cm-L0.json"
+  kubectl -n argocd get deployment argocd-applicationset-controller -o json \
+    >"${work}/applicationset-controller-L0.json"
+  kubectl -n argocd get deployment argocd-repo-server -o json \
+    >"${work}/repo-server-L0.json"
+  jq -n \
+    --slurpfile config "${work}/argocd-cm-L0.json" \
+    --slurpfile applicationSet "${work}/applicationset-controller-L0.json" \
+    --slurpfile repoServer "${work}/repo-server-L0.json" '
+    {
+      applicationReconciliation: $config[0].data["timeout.reconciliation"],
+      applicationSetRequeue: (
+        $applicationSet[0].spec.template.spec.containers[0].env[] |
+        select(.name == "ARGOCD_APPLICATIONSET_CONTROLLER_REQUEUE_AFTER") |
+        .value
+      ),
+      repoRevisionCacheExpiration: (
+        $repoServer[0].spec.template.spec.containers[0].env[] |
+        select(.name == "ARGOCD_RECONCILIATION_TIMEOUT") |
+        .value
+      )
+    }
+  ' >"${report}/polling-clock-baseline.json"
+  jq -e '
+    .applicationReconciliation == "24h" and
+    .applicationSetRequeue == "24h" and
+    .repoRevisionCacheExpiration == "30s"
+  ' "${report}/polling-clock-baseline.json" >/dev/null
   kubectl -n argocd patch configmap argocd-cmd-params-cm --type merge \
     -p '{"data":{"server.insecure":"true"}}' -o json |
     jq '{configMap:.metadata.name,serverInsecure:.data["server.insecure"],webhookTransport:"http"}' \
@@ -1132,31 +1162,25 @@ run_full() {
     >"${work}/applicationset-controller-L7.json"
   kubectl -n argocd get deployment argocd-repo-server -o json \
     >"${work}/repo-server-L7.json"
-  kubectl -n argocd get configmap argocd-cmd-params-cm -o json \
-    >"${work}/cmd-params-L7.json"
   jq -n \
     --slurpfile applicationSet "${work}/applicationset-controller-L7.json" \
-    --slurpfile repoServer "${work}/repo-server-L7.json" \
-    --slurpfile params "${work}/cmd-params-L7.json" '
+    --slurpfile repoServer "${work}/repo-server-L7.json" '
     {
       applicationSetRequeue: (
         $applicationSet[0].spec.template.spec.containers[0].env[] |
         select(.name == "ARGOCD_APPLICATIONSET_CONTROLLER_REQUEUE_AFTER") |
         .value
       ),
-      repoCacheExpiration: $params[0].data["reposerver.repo.cache.expiration"],
-      repoCacheEnvRef: (
+      repoRevisionCacheExpiration: (
         $repoServer[0].spec.template.spec.containers[0].env[] |
-        select(.name == "ARGOCD_REPO_CACHE_EXPIRATION") |
-        .valueFrom.configMapKeyRef
+        select(.name == "ARGOCD_RECONCILIATION_TIMEOUT") |
+        .value
       )
     }
   ' >"${report}/polling-runtime-L7.json"
   jq -e '
     .applicationSetRequeue == "30s" and
-    .repoCacheExpiration == "30s" and
-    .repoCacheEnvRef.name == "argocd-cmd-params-cm" and
-    .repoCacheEnvRef.key == "reposerver.repo.cache.expiration"
+    .repoRevisionCacheExpiration == "30s"
   ' "${report}/polling-runtime-L7.json" >/dev/null
   capture_child_specs 'S6-poll-baseline'
   before_sha="${C6B_SHA}"
