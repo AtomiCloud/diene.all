@@ -30,12 +30,16 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        const sources = (await repo.glob('packages/*/lib/src/**/*.dart')).sort();
-        const target = sources[0];
-        if (!target) {
-          throw new Error('deadcode-whole-package: no library source file to sabotage');
+        // dart_code_linter's check-unused-code does not flag unused top-level
+        // functions, but check-unused-files flags an orphan library file. Drop an
+        // orphan source under the member's lib/src that nothing references so the
+        // whole-package pass (which chains check-unused-files) reddens.
+        const members = (await repo.glob('packages/*/lib/src')).sort();
+        const srcDir = members[0];
+        if (!srcDir) {
+          throw new Error('deadcode-whole-package: no member lib/src directory to sabotage');
         }
-        await repo.write(target, `${await repo.read(target)}\nint _probeDeadCode() => 1;\n`);
+        await repo.write(`${srcDir}/__probe_dead_whole.dart`, 'int probeDeadWhole() => 1;\n');
         await expectRed(repo, WHOLE_PASS, 'deadcode-whole-package');
       },
     },

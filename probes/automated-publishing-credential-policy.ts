@@ -37,7 +37,7 @@ export default {
         if (!credentialPolicyHolds(source)) {
           throw new Error('automated-publishing-credential-policy: policy already broken before sabotage');
         }
-        await repo.write(REUSABLE_PUBLISH, source.replace('id-token: write', 'id-token: none'));
+        await repo.write(REUSABLE_PUBLISH, source.split('id-token: write').join('id-token: none'));
         if (credentialPolicyHolds(await repo.read(REUSABLE_PUBLISH))) {
           throw new Error('automated-publishing-credential-policy: policy survived sabotage');
         }

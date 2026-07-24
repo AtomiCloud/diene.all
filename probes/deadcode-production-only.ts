@@ -18,16 +18,6 @@ const PRODUCTION_PASS = [
   "dart run dart_code_linter:metrics check-unused-files .'",
 ].join('');
 
-async function findBarrel(repo: any): Promise<string> {
-  const candidates = (await repo.glob(`${MEMBER}/lib/*.dart`)).sort();
-  for (const candidate of candidates) {
-    if ((await repo.read(candidate)).includes("export 'src/")) {
-      return candidate;
-    }
-  }
-  throw new Error('deadcode-production-only: no library barrel exporting src/ found');
-}
-
 export default {
   contractVersion: 1,
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
@@ -51,12 +41,17 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
+        // Add a library file referenced ONLY by a test. In the whole-package view
+        // the test keeps it live, but the production-only pass excludes tests, so
+        // check-unused-files surfaces it as dead. (An unused top-level function is
+        // NOT flagged by check-unused-code, so the sabotage must be a file.)
+        await repo.write(`${MEMBER}/lib/src/probe_production_only.dart`, 'int probeProductionOnly() => 1;\n');
         await repo.write(
-          `${MEMBER}/lib/src/probe_production_only.dart`,
-          'int probeProductionOnly() {\n  return 1;\n}\n',
+          `${MEMBER}/test/unit/probe_production_only_test.dart`,
+          "import 'package:diene_dart_lib/src/probe_production_only.dart';\n" +
+            "import 'package:test/test.dart';\n\n" +
+            "void main() {\n  test('probe production only', () {\n    expect(probeProductionOnly(), 1);\n  });\n}\n",
         );
-        const barrel = await findBarrel(repo);
-        await repo.write(barrel, `${await repo.read(barrel)}\nexport 'src/probe_production_only.dart';\n`);
         await expectRed(repo, PRODUCTION_PASS, 'deadcode-production-only');
       },
     },
