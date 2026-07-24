@@ -1,5 +1,4 @@
 import { expectBunGreen, expectBunRed } from './lib/bun-command.ts';
-import { assertScopedLcov } from './lib/lcov.ts';
 
 const command = 'nix develop .#ci -c ./scripts/ci/test.sh int';
 
@@ -9,27 +8,24 @@ export default {
   probes: [
     {
       name: 'baseline-bun-integration-coverage-green',
-      description: 'Integration coverage is complete and scoped only to src/adapters.',
+      description: 'Integration runs real-server contracts without claiming a second production ledger.',
       kind: 'baseline',
       async run(repo: any) {
         await expectBunGreen(repo, command, 'bun-integration-coverage');
-        await assertScopedLcov(repo, 'coverage/int/lcov.info', 'src/adapters/');
+        if ((await repo.glob('coverage/int/lcov.info')).length !== 0) {
+          throw new Error('integration must not emit a duplicate production coverage ledger');
+        }
       },
     },
     {
       name: 'mutation-bun-integration-coverage-caught',
-      description: 'An uncovered adapter source file turns the integration coverage ledger red.',
+      description: 'A broken real-server expectation turns the integration contract gate red.',
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        await repo.write(
-          'src/adapters/__probe_uncovered__.ts',
-          'export function probeAdapterUncovered(): number {\n  return 1;\n}\n',
-        );
-        await repo.write(
-          'src/index.ts',
-          `${await repo.read('src/index.ts')}\nexport { probeAdapterUncovered } from './adapters/__probe_uncovered__';\n`,
-        );
+        const path = 'tests/integration/http-contract.test.ts';
+        const source = await repo.read(path);
+        await repo.write(path, source.replace("source: 'real-server'", "source: 'mutated-server'"));
         await expectBunRed(repo, command, 'bun-integration-coverage');
       },
     },

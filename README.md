@@ -68,44 +68,53 @@ boundary. TypeScript variants accompany the shared standards for
 [utilities](docs/standards/utilities/languages/typescript.md), and
 [validation](docs/standards/validation/languages/typescript.md).
 
-<!-- ### bun-lib -->
-<!-- #### source: bun-lib -->
+<!-- ### api-engine -->
+<!-- #### source: api-engine -->
 
-## Library package
+## API engine package
 
-`@atomicloud/diene.bun-lib` is the publishable Bun library baseline: a small
-TypeScript package shipped as dual **ESM + CommonJS** with bundled type
-declarations, validated on every push and published on `v*.*.*` tags. Library
-children rescope the package name, description, keywords, and badge URLs from
-this scaffold.
-
-See the [npm release runbook](https://github.com/AtomiCloud/diene.bun-lib/blob/main/docs/developer/npm-release.md)
-for tag publishing, API-key rotation, retry behavior, and the deliberate
-no-provenance policy.
-
-[![npm version](https://img.shields.io/npm/v/@atomicloud/diene.bun-lib)](https://www.npmjs.com/package/@atomicloud/diene.bun-lib)
-[![npm downloads](https://img.shields.io/npm/dm/@atomicloud/diene.bun-lib)](https://www.npmjs.com/package/@atomicloud/diene.bun-lib)
-[![CI](https://github.com/AtomiCloud/diene.bun-lib/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.bun-lib/actions/workflows/ci.yaml)
+`@atomicloud/diene.api-engine` turns generated Kiota TypeScript SDKs into an
+immutable multi-backend client tree whose calls always return
+`Result<T, Problem>`. It ships ESM, CommonJS, declarations, and a
+`@atomicloud/diene.api-engine/test-helper` subpath.
 
 ### Installation
 
 ```bash
-bun add @atomicloud/diene.bun-lib
-# or
-npm install @atomicloud/diene.bun-lib
+bun add @atomicloud/diene.api-engine
 ```
 
-`ioredis` is a runtime dependency and is installed automatically.
+### Registration
 
-### Usage
+Register API problems in the application's existing registry, then provide one
+complete binding list. There is no later registration point.
 
 ```ts
-// ESM
-import { buildSampleKey, createRedisStore, persistSample } from '@atomicloud/diene.bun-lib';
-import type { IKeyValueStore, RedisConnection } from '@atomicloud/diene.bun-lib';
+const engine = registerApiProblems(problemRegistry).andThen(problems =>
+  createApiEngine({
+    problems,
+    bindings: [
+      {
+        coordinate: { landscape: 'prod', platform: 'commerce', service: 'orders', module: 'public' },
+        baseUrl: config.ordersApiUrl,
+        resource: config.ordersResource,
+        auth: ordersAuthStateRetriever,
+        createClient: ({ baseUrl, fetch }) => createOrdersKiotaClient({ baseUrl, fetch }),
+      },
+    ],
+  }),
+);
 ```
 
-```js
-// CommonJS
-const { buildSampleKey, createRedisStore, persistSample } = require('@atomicloud/diene.bun-lib');
-```
+Each backend owns one config-derived hostname, one published
+`IAuthStateRetriever`, and one auth-engine `ResourceKey`. Api-engine derives the
+canonical resource key and reads only its entry from `TokenSet.accessTokens`, so
+tokens cannot bleed between backends.
+
+Resolve clients and invoke their structurally Kiota-shaped namespaces through
+`Result`; use `match`, `map`, or `andThen`, not throwing `unwrap`. Only opaque
+no-status failures receive a second attempt. Rescue is an injected trip callback
+after both attempts; the application owns all routing.
+
+See [the domain contract](docs/domain/README.md) for the reconciliation matrix,
+auth flow, retry rules, and TestHelper guidance.
