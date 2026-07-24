@@ -1,0 +1,18 @@
+{{- include "lithium.validate" . -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lithium-public-filter
+  namespace: {{ .Values.namespace.name }}
+  labels: {{- include "lithium.labels" . | nindent 4 }}
+  annotations:
+    {{- include "lithium.annotations" . | nindent 4 }}
+    atomi.cloud/public-filter-version: v1
+    atomi.cloud/aldehyde-image: {{ include "lithium.imageRef" . | quote }}
+data:
+  default.conf: |
+    server {
+      listen 8080;
+      location ~ ^/(\.well-known|oidc/(auth|token|userinfo|session|sign-out)|api/jwks|api/interaction) { proxy_pass http://127.0.0.1:{{ .Values.workload.port }}; }
+      location / { return 404; }
+    }

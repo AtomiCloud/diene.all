@@ -2,6 +2,6 @@ apiVersion: v2
 name: diene-lithium-primordial
 description: Fleet-only Lithium PlatformDependency and VirtualLandscapeService fragments
 type: application
-version: 0.1.0
-appVersion: '0.1.0'
+version: 1.41.0
+appVersion: '1.41.0'
 kubeVersion: '>=1.27.0-0'
