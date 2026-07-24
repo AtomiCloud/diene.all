@@ -20,7 +20,7 @@ kubectl --context "k3d-${K3D_CLUSTER_NAME}" -n lithium-lapras-001 create secret 
 kubectl --context "k3d-${K3D_CLUSTER_NAME}" -n lithium-lapras-001 create secret generic lithium-lapras-boot --from-literal=SEED_M2M_CLIENT_ID=seed --from-literal=SEED_M2M_CLIENT_SECRET=seed
 for gate_case in missing blank; do
   # shellcheck disable=SC2016 # The pod, not this shell, expands credential variables.
-  args=(run "lithium-gate-${gate_case}" --image=busybox:1.36.1 --restart=Never --command -- sh -ec 'test -n "$DB_URL" && test -n "$SEED_M2M_CLIENT_ID" && test -n "$SEED_M2M_CLIENT_SECRET"')
+  args=(run "lithium-gate-${gate_case}" --image=busybox:1.36.1 --restart=Never --overrides='{"spec":{"securityContext":{"runAsNonRoot":true,"runAsUser":10001,"runAsGroup":10001}}}' --command -- sh -ec 'test -n "$DB_URL" && test -n "$SEED_M2M_CLIENT_ID" && test -n "$SEED_M2M_CLIENT_SECRET"')
   if [ "${gate_case}" = blank ]; then
     args+=(--env=DB_URL= --env=SEED_M2M_CLIENT_ID= --env=SEED_M2M_CLIENT_SECRET=)
   fi
