@@ -135,9 +135,14 @@ func (s Service) Confirm(ctx context.Context, coord Coordinate) (Entry, error) {
 	if !ok {
 		return Entry{}, fmt.Errorf("ledger: cannot confirm missing entry %s", coord.Key())
 	}
-	entry.Phase = PhaseConfirmed
-	if err := s.store.Put(ctx, entry); err != nil {
-		return Entry{}, err
+	// Enforce the state machine: confirm only advances created -> confirmed. A
+	// confirmed entry is returned idempotently, and an orphaned entry is never
+	// resurrected as confirmed (defense-in-depth against a future caller bug).
+	if entry.Phase == PhaseCreated {
+		entry.Phase = PhaseConfirmed
+		if err := s.store.Put(ctx, entry); err != nil {
+			return Entry{}, err
+		}
 	}
 	return entry, nil
 }

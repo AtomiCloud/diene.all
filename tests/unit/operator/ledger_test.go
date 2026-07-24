@@ -190,6 +190,35 @@ func TestConfirmPutError(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestConfirmDoesNotSkipIntent(t *testing.T) {
+	store := newFakeStore()
+	seed(store, ledger.PhaseIntent)
+	store.putErr = errors.New("boom") // an intent entry must not be confirmed or written
+	e, err := ledger.NewService(store).Confirm(context.Background(), coord())
+	require.NoError(t, err)
+	require.Equal(t, ledger.PhaseIntent, e.Phase)
+	require.Equal(t, ledger.PhaseIntent, store.entries[coord().Key()].Phase)
+}
+
+func TestConfirmIdempotentForConfirmed(t *testing.T) {
+	store := newFakeStore()
+	seed(store, ledger.PhaseConfirmed)
+	store.putErr = errors.New("boom") // a re-confirm must not write
+	e, err := ledger.NewService(store).Confirm(context.Background(), coord())
+	require.NoError(t, err)
+	require.Equal(t, ledger.PhaseConfirmed, e.Phase)
+}
+
+func TestConfirmDoesNotResurrectOrphaned(t *testing.T) {
+	store := newFakeStore()
+	seed(store, ledger.PhaseOrphaned)
+	store.putErr = errors.New("boom") // an orphaned entry must never be written back
+	e, err := ledger.NewService(store).Confirm(context.Background(), coord())
+	require.NoError(t, err)
+	require.Equal(t, ledger.PhaseOrphaned, e.Phase)                            // returned unchanged
+	require.Equal(t, ledger.PhaseOrphaned, store.entries[coord().Key()].Phase) // never resurrected
+}
+
 func TestOrphanMarksOrphaned(t *testing.T) {
 	store := newFakeStore()
 	seed(store, ledger.PhaseConfirmed)

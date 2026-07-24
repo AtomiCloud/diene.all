@@ -10,10 +10,28 @@ image="${IMAGE:-operator-template:e2e}"
 timeout="${TIMEOUT:-180s}"
 namespace="${NAMESPACE:-operator-template}"
 release="${RELEASE:-operator-template}"
-trap 'k3d cluster delete "${cluster}" >/dev/null 2>&1 || true' EXIT
+
+if [[ ${image} == *@* ]]; then
+  echo "❌ IMAGE digest references are unsupported by this tag-based harness: ${image}" >&2
+  exit 2
+fi
+
+image_basename="${image##*/}"
+if [[ ${image_basename} == *:* ]]; then
+  image_tag="${image_basename##*:}"
+  image_repository="${image%:"${image_tag}"}"
+else
+  image_repository="${image}"
+  image_tag="latest"
+fi
+
+note_name="$(yq -r '.metadata.name // ""' "${note_fixture}")"
+[ -z "${note_name}" ] && echo "❌ Note fixture has no metadata.name: ${note_fixture}" >&2 && exit 2
+expected_copies="${EXPECTED_COPIES:-$(yq -r '.spec.replicas // 1' "${note_fixture}")}"
 
 echo "🔨 Creating k3d cluster ${cluster}"
 k3d cluster create "${cluster}" --wait --timeout "${timeout}"
+trap 'k3d cluster delete "${cluster}" >/dev/null 2>&1 || true' EXIT
 
 echo "📦 Building and importing manager image ${image}"
 docker build -f infra/Dockerfile -t "${image}" .
@@ -60,8 +78,8 @@ kubectl create secret generic "${release}-ledger" -n "${namespace}" --from-liter
 
 echo "📦 Installing the manager chart"
 helm install "${release}" "${chart}" -n "${namespace}" -f "${values}" \
-  --set image.repository="${image%%:*}" \
-  --set image.tag="${image##*:}" \
+  --set image.repository="${image_repository}" \
+  --set image.tag="${image_tag}" \
   --set image.pullPolicy=IfNotPresent \
   --set serviceMonitor.enabled=false \
   --set alerts.enabled=false \
@@ -90,10 +108,10 @@ metadata:
 spec:
   message: converged by the k3d harness
 JOURNAL
-kubectl wait -n "${namespace}" --for=condition=Ready --timeout "${timeout}" note/harness-note
+kubectl wait -n "${namespace}" --for=condition=Ready --timeout "${timeout}" "note/${note_name}"
 kubectl wait -n "${namespace}" --for=condition=Ready --timeout "${timeout}" journal/harness-journal
 
-copies="$(kubectl get configmaps -n "${namespace}" -l operator-template.diene.atomi.cloud/note=harness-note -o name | wc -l | tr -d ' ')"
-[ "${copies}" -ne 2 ] && echo "❌ expected 2 owned ConfigMaps, found ${copies}" >&2 && exit 1
+copies="$(kubectl get configmaps -n "${namespace}" -l "operator-template.diene.atomi.cloud/note=${note_name}" -o name | wc -l | tr -d ' ')"
+[ "${copies}" -ne "${expected_copies}" ] && echo "❌ expected ${expected_copies} owned ConfigMaps, found ${copies}" >&2 && exit 1
 
 echo "✅ Operator k3d e2e passed: manager healthy, Note and Journal Ready, ${copies} owned ConfigMaps"

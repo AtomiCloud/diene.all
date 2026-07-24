@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 // Parse rendered YAML and embedded payloads so the presence proof cannot false-green on text matches.
 
-import { execSync } from 'node:child_process';
+import { execFileSync, execSync } from 'node:child_process';
 
 const CHART = 'infra/root_chart';
 const failures: string[] = [];
@@ -10,17 +10,17 @@ function fail(msg: string): void {
   failures.push(msg);
 }
 
-function render(extraArgs: string): string {
-  return execSync(`helm template t ${CHART} ${extraArgs}`, {
+function render(extraArgs: string[]): string {
+  return execFileSync('helm', ['template', 't', CHART, ...extraArgs], {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
     maxBuffer: 32 * 1024 * 1024,
   });
 }
 
-function renderFails(extraArgs: string): boolean {
+function renderFails(extraArgs: string[]): boolean {
   try {
-    execSync(`helm template t ${CHART} ${extraArgs}`, { stdio: 'ignore', maxBuffer: 32 * 1024 * 1024 });
+    execFileSync('helm', ['template', 't', CHART, ...extraArgs], { stdio: 'ignore', maxBuffer: 32 * 1024 * 1024 });
     return false;
   } catch {
     return true;
@@ -45,7 +45,7 @@ function check(cond: boolean, msg: string): void {
   if (!cond) fail(msg);
 }
 
-const docs = toDocs(render('--set controllers.note=true --set controllers.journal=true'));
+const docs = toDocs(render(['--set', 'controllers.note=true', '--set', 'controllers.journal=true']));
 
 check(
   byKind(docs, 'PrometheusRule').length === 0,
@@ -265,7 +265,12 @@ check(
 
 {
   const ext = toDocs(
-    render('--set serviceMonitor.scraper.create=false --set serviceMonitor.scraper.externalSecret.name=prom-token'),
+    render([
+      '--set',
+      'serviceMonitor.scraper.create=false',
+      '--set',
+      'serviceMonitor.scraper.externalSecret.name=prom-token',
+    ]),
   );
   const sm = byKind(ext, 'ServiceMonitor')[0];
   check(
@@ -274,13 +279,18 @@ check(
   );
 
   check(
-    renderFails('--set serviceMonitor.scraper.create=false'),
+    renderFails(['--set', 'serviceMonitor.scraper.create=false']),
     'an enabled ServiceMonitor with neither scraper nor external secret must fail to render',
   );
   check(
-    renderFails(
-      '--set serviceMonitor.scraper.create=false --set serviceMonitor.scraper.externalSecret.name=prom-token --set serviceMonitor.scraper.externalSecret.key=',
-    ),
+    renderFails([
+      '--set',
+      'serviceMonitor.scraper.create=false',
+      '--set',
+      'serviceMonitor.scraper.externalSecret.name=prom-token',
+      '--set',
+      'serviceMonitor.scraper.externalSecret.key=',
+    ]),
     'an external secret with a blank key must fail to render',
   );
 }

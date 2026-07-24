@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"time"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -224,7 +225,11 @@ func productionDependencies(ctx context.Context, config Config) (ControllerDepen
 		return ControllerDependencies{}, fmt.Errorf("build ledger client: %w", err)
 	}
 	store := ledgerstore.NewMinioStore(client, config.LedgerBucket, config.LedgerNotePrefix)
-	if err := store.EnsureBucket(ctx); err != nil {
+	// Bound the startup bucket check: a black-holed ledger endpoint must fail fast
+	// rather than block manager.Start (and the health server) indefinitely.
+	bctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	if err := store.EnsureBucket(bctx); err != nil {
 		return ControllerDependencies{}, fmt.Errorf("ensure ledger bucket: %w", err)
 	}
 	service := ledger.NewService(store)

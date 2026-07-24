@@ -30,7 +30,9 @@ func NewMinioStore(client *minio.Client, bucket, prefix string) *MinioStore {
 	return &MinioStore{client: client, bucket: bucket, prefix: prefix}
 }
 
-// EnsureBucket creates the ledger bucket when it is absent.
+// EnsureBucket creates the ledger bucket when it is absent. The check-then-create
+// pair races when multiple managers start before leader election, so a concurrent
+// creator winning the MakeBucket is tolerated as success (see IsBucketExistsRace).
 func (s *MinioStore) EnsureBucket(ctx context.Context) error {
 	exists, err := s.client.BucketExists(ctx, s.bucket)
 	if err != nil {
@@ -39,7 +41,27 @@ func (s *MinioStore) EnsureBucket(ctx context.Context) error {
 	if exists {
 		return nil
 	}
-	return s.client.MakeBucket(ctx, s.bucket, minio.MakeBucketOptions{})
+	if err := s.client.MakeBucket(ctx, s.bucket, minio.MakeBucketOptions{}); err != nil {
+		if IsBucketExistsRace(err) {
+			return nil
+		}
+		return err
+	}
+	return nil
+}
+
+// IsBucketExistsRace reports whether a MakeBucket error is the benign
+// already-exists outcome of two managers racing bucket creation before leader
+// election. minio-go surfaces the loser's attempt as BucketAlreadyOwnedByYou or
+// BucketAlreadyExists; EnsureBucket treats both as success so a replica does not
+// crash at startup. All other errors propagate unchanged.
+func IsBucketExistsRace(err error) bool {
+	switch minio.ToErrorResponse(err).Code {
+	case "BucketAlreadyOwnedByYou", "BucketAlreadyExists":
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *MinioStore) objectName(key string) string {

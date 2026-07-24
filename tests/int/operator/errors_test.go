@@ -119,6 +119,24 @@ func TestConvergeConfirmError(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestConvergeConfirmErrorPublishesAppliedCount(t *testing.T) {
+	// The Note converges once (owned=1), then its replicas grow to 3 and the
+	// confirm-after-write ledger transition fails. The published count must be the
+	// freshly applied 3 (dec.OwnedCount), not the stale pre-write status value of 1.
+	finalizedNote(t, "err-confirm-count")
+	require.Equal(t, int32(1), getNote(t, "err-confirm-count").Status.OwnedConfigMaps)
+
+	current := getNote(t, "err-confirm-count")
+	current.Spec.Replicas = 3
+	require.NoError(t, k8sClient.Update(context.Background(), current))
+
+	// Ledger present + created so the reconcile writes then fails only at confirm.
+	r := reconcilerWith(stubConfigMaps{}, putFailLedgerStore{present: true, phase: ledger.PhaseCreated})
+	_, err := r.Reconcile(context.Background(), request("err-confirm-count"))
+	require.Error(t, err)
+	require.Equal(t, int32(3), getNote(t, "err-confirm-count").Status.OwnedConfigMaps)
+}
+
 func TestConvergeCreatedError(t *testing.T) {
 	finalizedNote(t, "err-created")
 	// Phase intent + a failing Put makes the intent->created transition error.

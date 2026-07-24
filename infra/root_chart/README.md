@@ -14,7 +14,7 @@ Manager chart for the operator skeleton template (CRDs, RBAC, deployment, observ
 | blastBrakeCap | int | `20` | Destructive-write percentage-per-tick blast-brake cap. |
 | controllers | object | `{"journal":true,"note":false}` | Per-controller enablement flags. |
 | controllers.journal | bool | `true` | Enable the Journal controller (no external dependency). |
-| controllers.note | bool | `false` | enable it together with a real ledger.endpoint. |
+| controllers.note | bool | `false` | Enable the ledger-backed Note controller. Off by default so a zero-config install never crashes on an empty ledger endpoint; landscape/e2e overlays enable it together with a real ledger.endpoint. |
 | dashboard | object | `{"enabled":true}` | Grafana dashboard shipped as a sidecar-labelled ConfigMap. |
 | dashboard.enabled | bool | `true` | Ship the dashboard ConfigMap. |
 | image | object | `{"pullPolicy":"IfNotPresent","repository":"ghcr.io/atomicloud/operator-template","tag":""}` | Manager container image repository. |
@@ -32,12 +32,12 @@ Manager chart for the operator skeleton template (CRDs, RBAC, deployment, observ
 | replicas | int | `1` | Number of manager replicas. Leader election keeps a single active manager. |
 | resources | object | `{"limits":{"cpu":"500m","memory":"256Mi"},"requests":{"cpu":"50m","memory":"64Mi"}}` | Manager resource requests and limits. |
 | serviceAccount | object | `{"name":""}` | ServiceAccount name override; defaults to the release fullname. |
-| serviceMonitor | object | `{"enabled":true,"interval":"30s","scraper":{"create":true,"externalSecret":{"key":"token","name":""},"serviceAccountName":""}}` | present an authorized identity, not merely the manager's own token. |
+| serviceMonitor | object | `{"enabled":true,"interval":"30s","scraper":{"create":true,"externalSecret":{"key":"token","name":""},"serviceAccountName":""}}` | ServiceMonitor for Prometheus scraping of the secured metrics endpoint. The endpoint uses controller-runtime's authn/authz filter, so the scraper must present an authorized identity, not merely the manager's own token. |
 | serviceMonitor.enabled | bool | `true` | Ship a ServiceMonitor. |
 | serviceMonitor.interval | string | `"30s"` | Scrape interval. |
 | serviceMonitor.scraper | object | `{"create":true,"externalSecret":{"key":"token","name":""},"serviceAccountName":""}` | Least-privilege scraper identity with get on the /metrics non-resource URL. |
 | serviceMonitor.scraper.create | bool | `true` | Create the scraper ServiceAccount, ClusterRole, binding, and token Secret. |
-| serviceMonitor.scraper.externalSecret | object | `{"key":"token","name":""}` | allowed. |
+| serviceMonitor.scraper.externalSecret | object | `{"key":"token","name":""}` | When create=false, an externally-provisioned authorized bearer-token Secret must be named here (with its key). An enabled ServiceMonitor with neither create=true nor an external secret is rejected at render time — an unauthenticated scrape of the authn/authz-filtered endpoint is never allowed. |
 | serviceMonitor.scraper.serviceAccountName | string | `""` | ServiceAccount name; defaults to <release>-metrics-reader when empty. |
 
 ----------------------------------------------

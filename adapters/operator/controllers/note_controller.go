@@ -115,6 +115,9 @@ func (r *NoteReconciler) converge(ctx context.Context, note *apiv1alpha1.Note) (
 		if dec.ConfirmAfter {
 			ref, cerr := r.confirmLedger(ctx, coord)
 			if cerr != nil {
+				// Writes already applied: publish the freshly applied count, not the
+				// stale pre-write status value, before flipping WaitingForEndpoint.
+				note.Status.OwnedConfigMaps = dec.OwnedCount
 				return r.ledgerUnavailable(ctx, note, cerr)
 			}
 			note.Status.LedgerRef = ref
