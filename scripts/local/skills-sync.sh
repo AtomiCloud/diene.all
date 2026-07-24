@@ -46,6 +46,14 @@ if [ -f .dart_tool/package_config.json ]; then
   done < <(jq -r '.packages[] | select(.name | startswith("diene_")) | [.name, .rootUri] | @tsv' .dart_tool/package_config.json)
 fi
 
+if [ -d "${vendor_dir}" ] && git diff --no-index --quiet -- "${staging}" "${vendor_dir}"; then
+  chmod -R u+w "${staging}"
+  rm -rf "${staging}"
+  trap - EXIT
+  echo "✅ Vendored skills synchronized"
+  exit 0
+fi
+
 chmod -R u+w "${staging}"
 if [ -d "${vendor_dir}" ]; then
   chmod -R u+w "${vendor_dir}"
