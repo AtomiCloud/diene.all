@@ -3,6 +3,14 @@ import { expectGreen, expectRed } from './lib/helpers.ts';
 export default {
   contractVersion: 1,
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
+  // dart-lib venue: skills-sync resolves the pub workspace to locate the member's
+  // shipped usage skill; restore .dart_tool from the warm PUB_CACHE first so the
+  // vendored copy is regenerated identically (otherwise skills-sync drops it).
+  setup: {
+    post: [
+      'nix develop .#ci --no-write-lock-file -c dart pub get --offline || nix develop .#ci --no-write-lock-file -c dart pub get',
+    ],
+  },
   probes: [
     {
       name: 'baseline-skills-freshness-green',
