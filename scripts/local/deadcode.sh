@@ -4,23 +4,22 @@ set -euo pipefail
 mode="${1:-}"
 [ -z "${mode}" ] && echo "❌ deadcode mode not set" >&2 && exit 1
 
-strict_deadcode() {
-  local report
-  report="$(deadcode -json "$@")"
-  jq -e '(. // []) | length == 0' <<<"${report}" >/dev/null || {
-    jq . <<<"${report}" >&2
-    return 1
-  }
-}
-
 case "${mode}" in
 whole)
   staticcheck -tests=true ./...
-  strict_deadcode -test ./...
+  report="$(deadcode -json -test ./...)"
+  jq -e '(. // []) | length == 0' <<<"${report}" >/dev/null || {
+    jq . <<<"${report}" >&2
+    exit 1
+  }
   ;;
 production)
   staticcheck -tests=false ./...
-  strict_deadcode ./...
+  report="$(deadcode -json ./...)"
+  jq -e '(. // []) | length == 0' <<<"${report}" >/dev/null || {
+    jq . <<<"${report}" >&2
+    exit 1
+  }
   ;;
 lax)
   mkdir -p reports

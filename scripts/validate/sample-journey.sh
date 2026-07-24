@@ -1,21 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Manager runtime journey: build the composition root and prove the packaged
-# manager binary runs and reports its controller/observe interface. The full
-# health-endpoint + toy-CR reconcile journey against a live cluster is the
-# k3d-install-toy-reconcile smoke (scripts/local/operator-e2e.sh).
+container="diene-go-base-journey-$$"
+trap 'docker rm -f "${container}" >/dev/null 2>&1 || true' EXIT
 
-./scripts/local/build.sh
+source_result="$(pls run -- slug "Sample Journey" | tail -n 1)"
+[ "${source_result}" != "sample-journey" ] && echo "❌ source task returned '${source_result}'" >&2 && exit 1
+preview_result="$(pls preview -- slug "Sample Journey" | tail -n 1)"
+[ "${preview_result}" != "sample-journey" ] && echo "❌ preview task returned '${preview_result}'" >&2 && exit 1
+docker run -d --name "${container}" -p 127.0.0.1::6379 redis:7.4.5-alpine >/dev/null
+for _ in $(seq 1 30); do
+  docker exec "${container}" redis-cli ping 2>/dev/null | rg -q '^PONG$' && break
+  sleep 1
+done
+port="$(docker port "${container}" 6379/tcp | awk -F: 'END {print $NF}')"
+result="$(./dist/go-base note "127.0.0.1:${port}" "Sample Journey" "connected")"
+[ "${result}" != "sample-journey=connected" ] && echo "❌ sample journey returned '${result}'" >&2 && exit 1
 
-output="$(./dist/manager --help 2>&1 || true)"
-echo "${output}" | rg -q -- 'enable-note' || {
-  echo "❌ manager runtime did not report its controller enable flags" >&2
-  exit 1
-}
-echo "${output}" | rg -q -- 'observe' || {
-  echo "❌ manager runtime did not report the observe flag" >&2
-  exit 1
-}
-
-echo "✅ Manager runtime journey passed"
+echo "✅ Sample domain journey passed"

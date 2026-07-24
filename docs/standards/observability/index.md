@@ -8,6 +8,9 @@ How AtomiCloud instruments, visualizes, alerts, and responds. This is the umbrel
 | [Alerts](./alerts.md)                                | The rule contract, all seven alert types with worked examples, set/portfolio design, validation                     |
 | [Runbooks](./runbooks.md)                            | Runbook structure, triage flowchart/table, style rules                                                              |
 | [Grafana Dashboards](../grafana-dashboards/index.md) | Two-tier dashboard model, authoring rules, sandbox self-verification                                                |
+| [OpenTelemetry Alignment](./otel.md)                 | The canonical config block, resource identity, library ownership, lifecycle, and evidence boundary                  |
+| [Faro Frontend Variant](./faro.md)                   | Shared Next.js/Flutter initialization contract and consumer-owned module scaffolds                                  |
+| [Primordial-Chart Rendering](./primordial-chart.md)  | Root-source vendoring and Grafana Operator CR rendering in each service's primordial chart                          |
 
 Five skills trigger these standards, in order:
 
@@ -31,9 +34,9 @@ Every metric, log line, trace, alert, and dashboard carries the service-tree lab
 | `platform` / `service` / `module` | Position in the service tree (LPSM)                           | Once per service — chart values                     |
 | `severity`                        | Urgency of the _condition_: `critical` \| `warning` \| `info` | **The only label an alert author writes**, per rule |
 
-LPSM is **built in — never authored**. Alert and dashboard definitions are pure Grafana-domain objects (no Kubernetes, no labels beyond what the filename implies); the LPSM labels are merged in by whatever **conforming transformer** deploys them, per the [Transformation Contract](./alerts.md#the-transformation-contract). Definitions stay context-free and portable: the same definition serves every landscape, and routing decides what to do with each fired instance.
+LPSM is **built in — never authored**. Alert and dashboard definitions are pure Grafana-domain objects (no Kubernetes, no labels beyond what the filename implies); the service's primordial-chart transformer merges the LPSM labels, per the [Transformation Contract](./alerts.md#the-transformation-contract). Definitions stay context-free and portable: the same definition serves every landscape, and routing decides what to do with each fired instance.
 
-**How stamping works.** The standard specifies the _mapping_, not the tool: a conforming transformer reads each tier file (a flat YAML dict — the one-file-per-tier layout means there are no arrays to manipulate), derives severity + emoji from the filename, and merges the service-tree labels into the rule it emits. In a Helm implementation this is one native dict merge (`mergeOverwrite (dict "severity" (base $path | trimSuffix ".yaml")) $.Values.serviceTree`) plus fill-in-the-blanks templating — and `required`/`fail` calls make `helm template` refuse to render on structural violations. Result per rule:
+**How stamping works.** The standard specifies the mapping implemented by the reusable primordial-chart helper: it reads each tier file (a flat YAML dict — the one-file-per-tier layout means there are no arrays to manipulate), derives severity + emoji from the filename, and merges the service-tree labels into the rule it emits. In Helm this is one native dict merge (`mergeOverwrite (dict "severity" (base $path | trimSuffix ".yaml")) $.Values.serviceTree`) plus fill-in-the-blanks templating — and `required`/`fail` calls make `helm template` refuse to render on structural violations. Result per rule:
 
 ```yaml
 # transformed output (sketch)
@@ -52,9 +55,9 @@ This stamps **alert** labels. LPSM on metrics/logs/traces comes from the telemet
 
 **Rules never encode paging or environment logic** — what actually notifies whom is decided centrally by the platform's routing configuration, from the labels alerts already carry. The same rule fires in every landscape; the router decides what to do with it.
 
-## Contract 2: folder layout — flat, chart-synced
+## Contract 2: folder layout — flat, primordial-chart-synced
 
-This repo is one service. Its dashboard and alerts ship as Kubernetes CRs inside its Helm chart. The source of truth lives flat at the repo root; a Taskfile step syncs it into the chart (Helm cannot read files outside the chart directory, and out-of-chart symlinks are rejected):
+This repo is one service. Its dashboards and alerts ship as Kubernetes CRs from its primordial chart. The source of truth lives flat at the repo root; the chart build copies it into a gitignored generated directory inside `infra/primordial_chart/` (Helm cannot read files outside the chart directory, and out-of-chart symlinks are rejected):
 
 ```text
 .
@@ -70,7 +73,8 @@ This repo is one service. Its dashboard and alerts ship as Kubernetes CRs inside
             └── runbook.md        # THE runbook for this alert
 ```
 
-- **Deployment is out of scope** — the folder is pure Grafana-domain source; a **conforming transformer** (per the [Transformation Contract](./alerts.md#the-transformation-contract)) turns it into deployed Grafana alerts and dashboards. Any mechanism qualifies: the service's own Helm chart including a platform library template (with a gitignored sync-copy of `observability/` into the chart, since Helm can't read outside it), a **central observability chart** ingesting many services' folders, or a CI/kustomize step. The standard mandates the output, not the tool.
+- **Deployment is fixed by R20** — the folder is pure Grafana-domain source; the service's own **primordial chart** turns it into Grafana Operator resources on Primordial using the reusable helm-wrapper helper. The app chart remains pure runtime. A central many-repository observability chart and ad hoc CI/kustomize renderers are not conforming deployment homes.
+- **The chart copy is generated** — `observability/` remains authoritative. The copy inside `infra/primordial_chart/` is gitignored, rebuilt before lint/template/package/publish, and never hand-edited or committed. See [Primordial-Chart Rendering](./primordial-chart.md).
 - **Grafana folders mirror the service tree**: the transformer also emits a `GrafanaFolder` for this service (uid `<platform>-<service>-folder`, `parentFolderUID: <platform>`), and every rule group and dashboard references it via `folderRef`. The `-folder` suffix keeps the folder uid out of the `<platform>-<service>-<purpose>` dashboard / `<platform>-<service>-<slug>-<severity>` group id space — Grafana draws folder and dashboard uids from one shared pool, so the app folder needs its own distinct identity. The parent platform folder (uid `<platform>`) is the platform's, created once — deterministic UIDs mean no ordering coordination (the operator retries until the parent exists). Nobody hand-creates folders in the UI.
 - The LPSM "tree" is otherwise virtual — expressed by stamped labels, never by repo directories. Global assets (the generic dashboard, blanket alerts, routing configuration, the platform folder) are the platform's concern, not this repo's.
 
@@ -96,7 +100,7 @@ The alert title is the **notification title** — the transformer prefixes it wi
 
 ## Verification (how each artifact is "tested")
 
-This repo ships **no code**. Structural rules are enforced by the conforming transformer (a Helm implementation uses `required`/`fail` so `helm template` refuses to render on violations, in CI and at every render). Semantic rules are a PR-review checklist; behavior is checked in Grafana itself.
+The root folder ships no Kubernetes wrappers. Structural rules are enforced by the primordial-chart transformer (`required`/`fail` makes `helm template` refuse to render on violations, in CI and at every render). Semantic rules are a PR-review checklist; behavior is checked in Grafana itself.
 
 | Artifact           | Enforced by the transformer                                                       | Review checklist (manual)                                                                         |
 | ------------------ | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |

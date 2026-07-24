@@ -9,7 +9,7 @@ let
     pname = "diene-go-base-dependencies";
     version = "0";
     src = ../.;
-    vendorHash = "sha256-1J+A5KDVrMW+XD68SJ/ASUXzQK6AK49Gtan+rYtcLAo=";
+    vendorHash = "sha256-pN7u36Rn1+8anH2xn2AG2zYZK7ckO0SG6LAPqfD+pt8=";
     proxyVendor = true;
   };
   go-lint-runtime = pkgs.buildEnv {
@@ -320,7 +320,7 @@ pre-commit-lib.run {
       enable = true;
       name = "Markdown lint";
       entry = "${pkgs.markdownlint-cli2}/bin/markdownlint-cli2";
-      files = "^(CLAUDE\\.md|README\\.md|docs/developer/go-baseline\\.md|docs/standards/(authorization|contracts|contributor-docs|datetime|domain-driven-design|functional-practices|grafana-dashboards|observability|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/.*\\.md|\\.claude/skills/(authorization|contributor-docs|datetime|domain-driven-design|functional-practices|go-baseline|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/SKILL\\.md|\\.claude/skills/(grafana-alert|grafana-alert-set|grafana-dashboards|grafana-runbook|observability-check)/.*\\.md)$";
+      files = "^(CLAUDE\\.md|README\\.md|docs/developer/go-baseline\\.md|docs/standards/(authorization|contracts|contributor-docs|datetime|domain-driven-design|functional-practices|grafana-dashboards|observability|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/.*\\.md|observability/.*\\.md|probes/observability-.*\\.md|\\.claude/skills/(authorization|contributor-docs|datetime|domain-driven-design|functional-practices|go-baseline|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/SKILL\\.md|\\.claude/skills/(grafana-alert|grafana-alert-set|grafana-dashboards|grafana-runbook|observability-check)/.*\\.md)$";
       pass_filenames = true;
       language = "system";
     };
