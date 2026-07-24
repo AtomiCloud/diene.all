@@ -1,0 +1,7 @@
+apiVersion: v2
+name: vanadium
+description: Controller-free ValidatingAdmissionPolicy admission layer for AtomiCloud fleets
+type: application
+version: 0.1.0
+appVersion: '1.30.0'
+kubeVersion: '>=1.30.0-0'

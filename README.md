@@ -1,27 +1,63 @@
-# Development Environment
+# Diene workspace baseline
 
-All binaries, tools, and PATH are managed by **Nix**. Do not install tools manually or modify PATH outside of the nix configuration.
+<!-- ### nix-root -->
+<!-- #### source: main -->
 
-## Prerequisites
+Diene's reproducible development environment is managed by Nix. Run `direnv allow` once, then use `pls` tasks from the loaded shell.
 
-1. **[Nix](https://nixos.org/download)** — package manager
-2. **[Docker](https://docs.docker.com/get-docker)** — container runtime
-3. **[direnv](https://direnv.net/docs/installation.html)** — auto-loads the nix shell on `cd`
+<!-- ### workspace -->
+<!-- #### source: workspace -->
 
-## Getting Started
+This branch is the workspace baseline inherited by every downstream sample: split CI/CD, Helm, secrets, release configuration, validators, standards, and vendored agent-skill synchronization.
 
-```bash
-direnv allow    # first time only — loads the nix dev shell
-```
+## Commands
 
-Once allowed, direnv automatically loads the development environment whenever you enter the project directory.
+- `pls setup` — synchronize installed diene package skills.
+- `pls lint` — run every pre-commit gate.
+- `pls helm:lint` / `pls helm:template` — validate or render the root chart.
+- `pls secret:scan` — scan tracked content for secrets.
+- `pls skills:sync` — rebuild `.claude/skills/vendor/` from installed packages.
 
-## Nix Configuration
+## Standards
 
-See [docs/developer/standard/nix.md](docs/developer/standard/nix.md) for the full guide on:
+- [CI/CD workflows](docs/standards/ci-cd/index.md)
+- [conventional commits](docs/standards/conventional-commits/index.md)
+- [Helm charts and publishing](docs/standards/helm/index.md)
+- [Infisical and secrets](docs/standards/infisical/index.md)
+- [linting and pre-commit](docs/standards/linting/index.md)
+- [Nix flakes and development shells](docs/standards/nix/index.md)
+- [release automation](docs/standards/semantic-release/index.md)
+- [service-tree identity](docs/standards/service-tree/index.md)
+- [shell scripts](docs/standards/shell-scripts/index.md)
+- [Taskfile conventions](docs/standards/taskfile/index.md)
 
-- File structure (`flake.nix`, `nix/`, `.envrc`)
-- Adding/removing packages
-- Environment groups and shells
-- Formatters and pre-commit hooks
-- Adding registries
+<!-- ### shared -->
+<!-- #### source: shared -->
+
+## Shared standards
+
+- [Authorization](docs/standards/authorization/index.md)
+- [Contributor documentation](docs/standards/contributor-docs/index.md)
+- [Date and time](docs/standards/datetime/index.md)
+- [Domain-driven design](docs/standards/domain-driven-design/index.md)
+- [Functional practices](docs/standards/functional-practices/index.md)
+- [Software design philosophy](docs/standards/software-design-philosophy/index.md)
+- [SOLID principles](docs/standards/solid-principles/index.md)
+- [Stateless OOP and dependency injection](docs/standards/stateless-oop-di/index.md)
+- [Testing](docs/standards/testing/index.md)
+- [Three-layer architecture](docs/standards/three-layer-architecture/index.md)
+- [Utility libraries](docs/standards/utilities/index.md)
+- [Data validation](docs/standards/validation/index.md)
+
+Domain-specific documentation belongs under [docs/domain/](docs/domain/README.md).
+The `docs/standards/contracts/` location is reserved for the separately owned C0
+contracts standard.
+
+## Vanadium admission policies
+
+This branch ships native Kubernetes ValidatingAdmissionPolicies and bindings with
+an ordinary product testing pyramid.
+
+- `pls test:unit` — run schema, lint, render, and CEL conformance fixtures.
+- `pls test:int` — run the reserved, isolated k3d admission proof.
+- [Vanadium baseline](docs/developer/vanadium-baseline.md)

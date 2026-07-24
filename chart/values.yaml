@@ -1,0 +1,78 @@
+# @schema pattern:^[a-z0-9.-]+$;minLength:1
+# -- Prefix used by every service-tree label and annotation helper.
+labelPrefix: atomi.cloud
+
+# @schema pattern:^[a-z0-9]+-[a-z0-9]+$;required:true
+# -- Chart release fullname. Admission objects are cluster-scoped; the value still
+# follows the one-dash `<service>-<token>` convention used family-wide.
+fullnameOverride: vanadium-admission
+
+# -- Stable four-slot service-tree projection. Landscape and cluster are added by
+# independent overlays. Vanadium is fleet admission infrastructure, not a workload.
+serviceTree:
+  # @schema pattern:^[a-z0-9]+$;required:true
+  platform: fleet
+  # @schema pattern:^[a-z0-9]+$;required:true
+  service: vanadium
+  # @schema pattern:^[a-z0-9]+$;required:true
+  module: admission
+  # @schema pattern:^[0-9]+$;required:true
+  layer: '0'
+
+# -- Cluster admission context rendered into the value-checking CEL expressions.
+# The installed policy set carries no runtime params (paramKind), so the generic
+# rendered-manifest validation stage can evaluate it offline.
+params:
+  # @schema pattern:^[a-z0-9-]+$;required:true
+  # -- This cluster's landscape; the landscape-match rule renders it into CEL.
+  landscape: example
+  # @schema item:string;pattern:^[a-z0-9]+$;minItems:1;uniqueItems:true
+  # -- Platforms permitted to deploy into the fleet.
+  acceptedPlatforms: [nitroso, sample]
+  # @schema item:string;pattern:^[0-9]+$;minItems:1;uniqueItems:true
+  # -- Architecture layers allowed by the layer-range rule (0 infrastructure, 1 service, 2 app).
+  acceptedLayers: ['0', '1', '2']
+
+# -- Namespace-label exemption convention. A namespace labeled
+# `<prefix>/<labelKey>: "true"` is skipped by every binding.
+exemption:
+  # @schema pattern:^[a-z0-9-]+$
+  labelKey: policy-exempt
+
+# -- Per-rule enable + validationActions. The default fleet posture is the
+# pre-enforcement audit pair `[Warn, Audit]`; an enforcement landscape overlay
+# flips one or more rules to `[Deny]`.
+policies:
+  requireLabels:
+    enabled: true
+    actions: [Warn, Audit]
+  requireAnnotations:
+    enabled: true
+    actions: [Warn, Audit]
+  landscapeMatch:
+    enabled: true
+    actions: [Warn, Audit]
+  layerRange:
+    enabled: true
+    actions: [Warn, Audit]
+  platformAccepted:
+    enabled: true
+    actions: [Warn, Audit]
+  disallowLatest:
+    enabled: true
+    actions: [Warn, Audit]
+  requireResources:
+    enabled: true
+    actions: [Warn, Audit]
+  disallowNodePort:
+    enabled: true
+    actions: [Warn, Audit]
+  requireNonRoot:
+    enabled: true
+    actions: [Warn, Audit]
+  disallowPrivEscalation:
+    enabled: true
+    actions: [Warn, Audit]
+  restrictVolumeTypes:
+    enabled: true
+    actions: [Warn, Audit]

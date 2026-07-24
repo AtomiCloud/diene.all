@@ -1,0 +1,34 @@
+# ### workspace-ci
+# #### source: workspace
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  precommit:
+    name: Pre-Commit
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-precommit.yaml
+    secrets: inherit
+
+  helm:
+    name: Helm Chart
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    uses: ./.github/workflows/⚡reusable-helm.yaml
+    secrets: inherit
+    with:
+      chart_path: ./infra/root_chart
+
+  vanadium:
+    name: Vanadium Policies
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-vanadium.yaml
+    secrets: inherit

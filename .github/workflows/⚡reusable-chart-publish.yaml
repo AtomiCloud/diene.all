@@ -1,0 +1,33 @@
+# ### vanadium-reusable-publish
+# #### source: vanadium
+name: ⚡ Reusable Chart Publish
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+
+jobs:
+  publish:
+    name: Publish OCI Chart
+    runs-on:
+      - nscloud-ubuntu-22.04-amd64-4x8-with-cache
+      - nscloud-cache-size-50gb
+      - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: AtomiCloud/actions.setup-nix@v3
+      - name: Publish chart
+        env:
+          OCI_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          OCI_REGISTRY: ghcr.io
+          OCI_REPOSITORY: ${{ github.repository }}
+          OCI_USERNAME: ${{ github.actor }}
+          PUBLISH_DRY_RUN: 'false'
+          PUBLISH_MODE: oci
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: nix develop .#cd -c ./scripts/ci/publish.sh

@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: root-init
+spec:
+  selector:
+    matchLabels:
+      app: demo
+  template:
+    metadata:
+      labels:
+        app: demo
+    spec:
+      securityContext: {runAsNonRoot: true}
+      initContainers:
+        - name: setup
+          image: busybox:1.36.1
+      containers:
+        - name: app
+          image: nginx:1.27.2
+          securityContext: {runAsNonRoot: true}

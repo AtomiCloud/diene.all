@@ -1,0 +1,8 @@
+# ### workspace-template
+# #### source: workspace
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-workspace
+data:
+  message: {{ .Values.message | quote }}
