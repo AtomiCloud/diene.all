@@ -13,6 +13,7 @@ metadata:
   name: {{ printf "lithium-%s" $vlandscape }}
   namespace: {{ $root.Release.Namespace }}
   labels: {{- include "lithiumPrimordial.labels" $root | nindent 4 }}
+  annotations: {{- include "lithiumPrimordial.annotations" $root | nindent 4 }}
 spec:
   platform: {{ $root.Values.serviceTree.platform }}
   landscape: {{ $vlandscape }}
@@ -29,13 +30,13 @@ metadata:
   name: {{ printf "lithium-%s-%s" (required "servingRows[].vlandscape is required" $row.vlandscape) (required "servingRows[].landscape is required" $row.landscape) }}
   namespace: {{ $root.Release.Namespace }}
   labels: {{- include "lithiumPrimordial.labels" $root | nindent 4 }}
+  annotations: {{- include "lithiumPrimordial.annotations" $root | nindent 4 }}
 spec:
   platform: {{ $root.Values.serviceTree.platform }}
   vlandscape: {{ $row.vlandscape }}
   service: lithium
   module: api
   landscape: {{ $row.landscape }}
-  serve: true
 {{- end }}
 {{- end }}
 {{- end }}

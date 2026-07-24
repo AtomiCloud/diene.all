@@ -18,6 +18,15 @@ bash scripts/local/create-k3d-cluster.sh
 kubectl --context "k3d-${K3D_CLUSTER_NAME}" create namespace lithium-lapras-001
 kubectl --context "k3d-${K3D_CLUSTER_NAME}" -n lithium-lapras-001 create secret generic lithium-lapras-db --from-literal=DB_URL=postgres://local
 kubectl --context "k3d-${K3D_CLUSTER_NAME}" -n lithium-lapras-001 create secret generic lithium-lapras-boot --from-literal=SEED_M2M_CLIENT_ID=seed --from-literal=SEED_M2M_CLIENT_SECRET=seed
+for gate_case in missing blank; do
+  # shellcheck disable=SC2016 # The pod, not this shell, expands credential variables.
+  args=(run "lithium-gate-${gate_case}" --image=busybox:1.36.1 --restart=Never --command -- sh -ec 'test -n "$DB_URL" && test -n "$SEED_M2M_CLIENT_ID" && test -n "$SEED_M2M_CLIENT_SECRET"')
+  if [ "${gate_case}" = blank ]; then
+    args+=(--env=DB_URL= --env=SEED_M2M_CLIENT_ID= --env=SEED_M2M_CLIENT_SECRET=)
+  fi
+  kubectl --context "k3d-${K3D_CLUSTER_NAME}" -n lithium-lapras-001 "${args[@]}"
+  kubectl --context "k3d-${K3D_CLUSTER_NAME}" -n lithium-lapras-001 wait --for=jsonpath='{.status.containerStatuses[0].state.terminated.exitCode}'=1 "pod/lithium-gate-${gate_case}" --timeout=2m
+done
 helm upgrade --install lithium chart --namespace lithium-lapras-001 --kube-context "k3d-${K3D_CLUSTER_NAME}" --values chart/values.lapras.yaml
 kubectl --context "k3d-${K3D_CLUSTER_NAME}" -n lithium-lapras-001 get service lithium-management
 echo "✅ Lithium Garden-local chart installed on k3d (fork image readiness is external-fork CI)"

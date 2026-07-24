@@ -16,8 +16,13 @@
 {{- if ne .Values.serviceTree.service "lithium" }}{{ fail "serviceTree.service must be lithium" }}{{ end -}}
 {{- if ne .Values.serviceTree.module "api" }}{{ fail "serviceTree.module must be api" }}{{ end -}}
 {{- if eq .Values.distributionMode "GARDEN-LOCAL" -}}
-{{- range $key := list "instance" "instanceUID" "allocationGeneration" "landscape" "zone" "issuerScheme" -}}{{- $_ := required (printf "garden.%s is required for GARDEN-LOCAL" $key) (get $.Values.garden $key) -}}{{- end -}}
+{{- range $key := list "instance" "instanceUID" "allocationGeneration" "landscape" "zone" "issuerScheme" "issuerPort" -}}{{- $_ := required (printf "garden.%s is required for GARDEN-LOCAL" $key) (get $.Values.garden $key) -}}{{- end -}}
 {{- range $key := list "databaseSecret" "databaseKey" "bootSecret" "bootClientIdKey" "bootClientSecretKey" -}}{{- $_ := required (printf "garden.%s is required for GARDEN-LOCAL" $key) (get $.Values.garden $key) -}}{{- end -}}
+{{- if eq .Values.garden.issuerScheme "http" -}}
+{{- if or (ne .Values.garden.zone "localhost") (le (.Values.garden.issuerPort | int) 0) -}}{{ fail "local Garden issuer requires http, localhost, and issuerPort" }}{{- end -}}
+{{- else if eq .Values.garden.issuerScheme "https" -}}
+{{- if ne (.Values.garden.issuerPort | int) 0 -}}{{ fail "HTTPS Garden issuer must not carry a local port" }}{{- end -}}
+{{- else -}}{{ fail "garden.issuerScheme must be http or https" }}{{- end -}}
 {{- end -}}
 {{- end -}}
 
@@ -44,13 +49,22 @@ app.kubernetes.io/part-of: lithium
 {{- end -}}
 {{- define "lithium.annotations" -}}
 {{- $prefix := include "lithium.labelPrefix" . -}}
-{{- range $key, $value := .Values.serviceTree }}{{ printf "%s/%s" $prefix $key }}: {{ $value | quote }}
+{{- range $key, $value := .Values.serviceTree }}
+{{ printf "%s/%s" $prefix $key }}: {{ $value | quote }}
 {{- end }}
 {{- end -}}
+{{- define "lithium.imageRef" -}}
+{{- if .Values.image.digest -}}{{ printf "%s@%s" .Values.image.repository .Values.image.digest }}{{- else -}}{{ printf "%s:%s" .Values.image.repository .Values.image.tag }}{{- end -}}
+{{- end -}}
+{{- define "lithium.bootPath" -}}{{ printf "/%s/lithium" .Values.serviceTree.platform }}{{- end -}}
 {{- define "lithium.issuer" -}}
 {{- if eq .Values.distributionMode "FLEET" -}}
 {{ printf "https://api.lithium.%s.%s.%s" .Values.serviceTree.platform .Values.fleet.vlandscape .Values.fleet.issuerZone }}
 {{- else -}}
-{{ printf "%s://api.lithium.%s.%s.%s.%s" .Values.garden.issuerScheme .Values.serviceTree.platform .Values.garden.instance .Values.garden.landscape .Values.garden.zone }}
+{{- if eq .Values.garden.issuerScheme "http" -}}
+{{ printf "http://api.lithium.%s.%s.%s.localhost:%d" .Values.serviceTree.platform .Values.garden.instance .Values.garden.landscape (.Values.garden.issuerPort | int) }}
+{{- else -}}
+{{ printf "https://api.lithium.%s.%s.%s.%s" .Values.serviceTree.platform .Values.garden.instance .Values.garden.landscape .Values.garden.zone }}
+{{- end -}}
 {{- end -}}
 {{- end -}}

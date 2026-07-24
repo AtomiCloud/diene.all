@@ -8,14 +8,13 @@
     "metadata": { "type": "object", "required": ["name"] },
     "spec": {
       "type": "object",
-      "required": ["platform", "vlandscape", "service", "module", "landscape", "serve"],
+      "required": ["platform", "vlandscape", "service", "module", "landscape"],
       "properties": {
         "platform": { "type": "string" },
         "vlandscape": { "type": "string" },
         "service": { "type": "string" },
         "module": { "type": "string" },
-        "landscape": { "type": "string" },
-        "serve": { "type": "boolean" }
+        "landscape": { "type": "string" }
       },
       "additionalProperties": false
     }

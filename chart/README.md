@@ -1,6 +1,6 @@
 # diene-lithium
 
-![Version: 0.1.0](https://img.shields.io/badge/Version-0.1.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.1.0](https://img.shields.io/badge/AppVersion-0.1.0-informational?style=flat-square)
+![Version: 1.41.0](https://img.shields.io/badge/Version-1.41.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.41.0](https://img.shields.io/badge/AppVersion-1.41.0-informational?style=flat-square)
 
 Aldehyde Logto fork distribution for fleet and Garden-local identity
 
@@ -12,10 +12,11 @@ Kubernetes: `>=1.27.0-0`
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
+| credentialGateImage.repository | string | `"busybox"` |  |
+| credentialGateImage.tag | string | `"1.36.1"` |  |
 | distributionMode | string | `"FLEET"` |  |
-| fleet.externalSecrets.bootPath | string | `"/diene/lithium"` |  |
 | fleet.externalSecrets.bootSecretName | string | `"lithium-boot"` |  |
-| fleet.externalSecrets.databasePath | string | `"/diene/lithium/database"` |  |
+| fleet.externalSecrets.databasePath | string | `"/lithium/database"` |  |
 | fleet.externalSecrets.databaseSecretName | string | `"lithium-database"` |  |
 | fleet.externalSecrets.refreshInterval | string | `"1h"` |  |
 | fleet.externalSecrets.secretStoreRef.kind | string | `"SecretStore"` |  |
@@ -31,12 +32,14 @@ Kubernetes: `>=1.27.0-0`
 | garden.databaseSecret | string | `"lithium-database"` |  |
 | garden.instance | string | `"lapras-001"` |  |
 | garden.instanceUID | string | `"00000000-0000-0000-0000-000000000001"` |  |
-| garden.issuerScheme | string | `"http"` |  |
+| garden.issuerPort | int | `0` |  |
+| garden.issuerScheme | string | `"https"` |  |
 | garden.landscape | string | `"lapras"` |  |
-| garden.zone | string | `"localhost"` |  |
+| garden.zone | string | `"admin.atomi.cloud"` |  |
+| image.digest | string | `""` |  |
 | image.pullPolicy | string | `"IfNotPresent"` |  |
 | image.repository | string | `"ghcr.io/atomicloud/aldehyde.logto"` |  |
-| image.tag | string | `"0.1.0"` |  |
+| image.tag | string | `"1.41.0"` |  |
 | labelPrefix | string | `"atomi.cloud"` |  |
 | namespace.name | string | `"diene"` |  |
 | serviceTree.landscape | string | `"raichu"` |  |

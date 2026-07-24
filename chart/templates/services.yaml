@@ -2,13 +2,14 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: lithium-core
+  name: lithium-public
   namespace: {{ .Values.namespace.name }}
   labels: {{- include "lithium.labels" . | nindent 4 }}
+  annotations: {{- include "lithium.annotations" . | nindent 4 }}
 spec:
   type: {{ if eq .Values.distributionMode "FLEET" }}{{ .Values.fleet.publicService.type }}{{ else }}ClusterIP{{ end }}
   selector: {{- include "lithium.selectorLabels" . | nindent 4 }}
-  ports: [{name: http, port: 80, targetPort: http, protocol: TCP}]
+  ports: [{name: public, port: 80, targetPort: public, protocol: TCP}]
 {{- if eq .Values.distributionMode "GARDEN-LOCAL" }}
 ---
 apiVersion: v1
@@ -17,8 +18,9 @@ metadata:
   name: lithium-management
   namespace: {{ .Values.namespace.name }}
   labels: {{- include "lithium.labels" . | nindent 4 }}
+  annotations: {{- include "lithium.annotations" . | nindent 4 }}
 spec:
   type: ClusterIP
   selector: {{- include "lithium.selectorLabels" . | nindent 4 }}
-  ports: [{name: management, port: 80, targetPort: http, protocol: TCP}]
+  ports: [{name: management, port: 80, targetPort: management, protocol: TCP}]
 {{- end }}

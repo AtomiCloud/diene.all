@@ -14,8 +14,13 @@ namespace:
 
 image:
   repository: ghcr.io/atomicloud/aldehyde.logto
-  tag: 0.1.0
+  tag: 1.41.0
+  digest: '' # Garden target-pull supplies an immutable sha256 digest here.
   pullPolicy: IfNotPresent
+
+credentialGateImage:
+  repository: busybox
+  tag: 1.36.1
 
 workload:
   replicas: 1
@@ -31,8 +36,8 @@ fleet:
   externalSecrets:
     refreshInterval: 1h
     secretStoreRef: {kind: SecretStore, name: lithium-store}
-    databasePath: /diene/lithium/database
-    bootPath: /diene/lithium
+    # The dependency controller fans this standard payload into every serving row.
+    databasePath: /lithium/database
     databaseSecretName: lithium-database
     bootSecretName: lithium-boot
   publicService:
@@ -45,8 +50,9 @@ garden:
   instanceUID: 00000000-0000-0000-0000-000000000001
   allocationGeneration: '1'
   landscape: lapras
-  zone: localhost
-  issuerScheme: http
+  zone: admin.atomi.cloud
+  issuerScheme: https
+  issuerPort: 0
   databaseSecret: lithium-database
   databaseKey: DB_URL
   bootSecret: lithium-boot

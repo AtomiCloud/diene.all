@@ -14,3 +14,9 @@ app.kubernetes.io/part-of: lithium
 {{ printf "%s/%s" $prefix $key }}: {{ $value | quote }}
 {{- end }}
 {{- end -}}
+{{- define "lithiumPrimordial.annotations" -}}
+{{- $prefix := include "lithiumPrimordial.prefix" . -}}
+{{- range $key, $value := .Values.serviceTree }}
+{{ printf "%s/%s" $prefix $key }}: {{ $value | quote }}
+{{- end }}
+{{- end -}}

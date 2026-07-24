@@ -1,3 +1,4 @@
 distributionMode: GARDEN-LOCAL
+serviceTree: {landscape: rotom}
 namespace: {name: lithium-rotom-001}
-garden: {instance: rotom-001, instanceUID: 00000000-0000-0000-0000-000000000003, allocationGeneration: '1', landscape: rotom, zone: localhost, databaseSecret: lithium-rotom-db, databaseKey: DB_URL, bootSecret: lithium-rotom-boot, bootClientIdKey: SEED_M2M_CLIENT_ID, bootClientSecretKey: SEED_M2M_CLIENT_SECRET}
+garden: {instance: rotom-001, instanceUID: 00000000-0000-0000-0000-000000000003, allocationGeneration: '1', landscape: rotom, zone: localhost, issuerScheme: http, issuerPort: 18082, databaseSecret: lithium-rotom-db, databaseKey: DB_URL, bootSecret: lithium-rotom-boot, bootClientIdKey: SEED_M2M_CLIENT_ID, bootClientSecretKey: SEED_M2M_CLIENT_SECRET}
