@@ -3,11 +3,17 @@
 # platinum k3d integration proof (RB-244 repair).
 #
 # The proof previously fetched the standard channel live from a frozen upstream
-# release URL. Upstream renamed the v1.6.0 asset standard-channel.yaml to
+# release URL. Upstream renamed the standard-channel.yaml asset to
 # standard-install.yaml, so the frozen URL began returning HTTP 404 and the
 # proof went terminal red. The fixture is now vendored verbatim from the
 # authoritative upstream release and applied only after a fail-closed SHA-256
 # check, so the proof no longer depends on a live, renameable external resource.
+#
+# Version pin (corrected 2026-07-24): kgateway v2.2.9 supports only Gateway API
+# 1.2, 1.3, and 1.4 — installing the v1.6.0 standard channel made the kgateway
+# controller abort at startup ("unsupported Gateway API version") and crashloop,
+# so the Gateway never reached Programmed and the k3d proof failed. Pinned to
+# v1.4.0, the newest channel kgateway v2.2.9 accepts.
 #
 # Usage:
 #   gateway-api-crd-fixture.sh verify    fail-closed verify; prints abs path
@@ -17,17 +23,19 @@
 #   gateway-api-crd-fixture.sh describe  prints the full provenance
 set -euo pipefail
 
-# Pinned upstream version (Gateway API standard channel).
-GATEWAY_API_CRD_VERSION="v1.6.0"
+# Pinned upstream version (Gateway API standard channel). Must stay within the
+# kgateway-supported range (1.2-1.4 for kgateway v2.2.9); see the version-pin
+# note above.
+GATEWAY_API_CRD_VERSION="v1.4.0"
 # Fixture path relative to the repository root; verbatim upstream bytes.
-GATEWAY_API_CRD_FIXTURE_REL="tests/fixtures/gateway-api-standard-channel-v1.6.0.yaml"
+GATEWAY_API_CRD_FIXTURE_REL="tests/fixtures/gateway-api-standard-channel-v1.4.0.yaml"
 # SHA-256 of the vendored fixture (fail-closed pin). Stored with a "sha256:"
 # prefix, matching Chart.lock digest notation; the prefix is stripped before
 # comparison (sha256sum emits bare hex).
-GATEWAY_API_CRD_FIXTURE_SHA256="sha256:a557172e8348f758479e9ee4000bbbb4b4aa48302a6b73461823ea5349bad56d"
+GATEWAY_API_CRD_FIXTURE_SHA256="sha256:6a4029e661446d64add866a00ecdc40c14219b68777ab614c5cdaac0adb481f1"
 # Authoritative upstream source the bytes were vendored from (provenance only;
 # the proof never fetches this at run time).
-GATEWAY_API_CRD_SOURCE_URL="https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.0/standard-install.yaml"
+GATEWAY_API_CRD_SOURCE_URL="https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.4.0/standard-install.yaml"
 
 # Resolve the repository root from this file's location (scripts/local/ -> root)
 # so the verifier is correct regardless of the caller's working directory.

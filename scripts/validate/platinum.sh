@@ -213,7 +213,7 @@ presence)
   test -s chart/values.oci.yaml
   test -s chart/values.digitalocean.yaml
   test -s tests/fixtures/kgateway-v2.2.9-proxy-render.yaml
-  test -s tests/fixtures/gateway-api-standard-channel-v1.6.0.yaml
+  test -s tests/fixtures/gateway-api-standard-channel-v1.4.0.yaml
   test -s policies/vap/workload-baseline.yaml
   test -s policies/vap/service-baseline.yaml
   ;;
