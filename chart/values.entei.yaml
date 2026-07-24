@@ -1,0 +1,17 @@
+# ENTEI dev-host shared-Gateway overlay. ENTEI is a registered infrastructure-only host (traffic=false).
+# In this mode platinum owns the shared GatewayClass, Gateway, and LoadBalancer only; per-host
+# Certificate, ListenerSet, and HTTPRoute are owned by the exposure materializer, not this chart.
+serviceTree:
+  landscape: example
+
+devHost:
+  enabled: true
+
+registeredCertificates:
+  enabled: false
+
+healthBackend:
+  enabled: false
+
+gateway:
+  provider: digitalocean

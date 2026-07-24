@@ -8,8 +8,8 @@ includes:
   example:lapras:
     taskfile: tasks/Taskfile.cluster.yaml
     vars:
-      RELEASE_NAME: helm-wrapper
-      NAMESPACE: sample
+      RELEASE_NAME: platinum
+      NAMESPACE: sulfoxide
       LANDSCAPE: example
       CLUSTER: lapras
 
@@ -30,35 +30,34 @@ tasks:
       - ./scripts/local/skills-sync.sh
 
   build:
-    desc: Vendor config and build chart dependencies
+    desc: Build chart dependencies (platinum is config-free; no config vendoring)
     cmds:
-      - ./scripts/local/vendor-chart-config.sh
       - helm dependency build chart
 
   update:
-    desc: Refresh the pinned upstream chart dependency
+    desc: Refresh the pinned upstream chart dependencies (kgateway + kgateway-crds)
     cmds:
       - helm dependency update chart
 
   latest:
-    desc: Resolve the latest real upstream chart and image tags
+    desc: Resolve the latest real upstream kgateway chart, CRD, and image tags
     cmds:
       - ./scripts/local/latest-chart-upstreams.sh
 
   test:
-    desc: Run the Helm wrapper unit/static tier
+    desc: Run the platinum unit/static tier
     cmds:
-      - ./scripts/ci/helm-wrapper.sh
+      - ./scripts/ci/platinum.sh
 
   test:unit:
-    desc: Run schema, lint, render, policy, and contract validation
+    desc: Run schema, lint, render, VAP, gateway, LB, and publish dry-run validation
     cmds:
-      - ./scripts/ci/helm-wrapper.sh
+      - ./scripts/ci/platinum.sh
 
   test:int:
-    desc: Run the local k3d installation proof
+    desc: Run the local k3d installation + Gateway Programmed proof
     cmds:
-      - ./scripts/validate/helm-wrapper-k3d.sh
+      - ./scripts/validate/platinum-k3d.sh
 
   start:cluster:
     desc: Start the local k3d lapras proof cluster

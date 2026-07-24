@@ -1,0 +1,6 @@
+# Representative AWS provider overlay. Stack after one landscape overlay.
+gateway:
+  provider: aws
+  aws:
+    subnetIds: [subnet-az-a, subnet-az-b]
+    eipAllocationIds: [eipalloc-az-a, eipalloc-az-b]
