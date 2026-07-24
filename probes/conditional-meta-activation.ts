@@ -16,7 +16,7 @@ export default {
       kind: 'baseline',
       async run(repo: any) {
         const result = await repo.exec(
-          "nix develop .#ci --no-write-lock-file -c bash -lc 'TEST_HELPER_PATH=lib/__probe_absent_helper__.dart ./scripts/ci/test.sh meta coverage'",
+          "nix develop .#ci --no-write-lock-file -c bash -lc 'rm -rf packages/diene_dart_lib/coverage/meta && TEST_HELPER_PATH=lib/__probe_absent_helper__.dart ./scripts/ci/test.sh meta coverage'",
           { timeoutMs: 240000 },
         );
         if (result.exitCode !== 0) {

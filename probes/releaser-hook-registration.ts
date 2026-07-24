@@ -4,12 +4,13 @@ export default {
   probes: [
     {
       name: 'presence-releaser-hook-registration',
-      description: 'The future releaser commit hook is registered against the unified config.',
+      description:
+        'The conventional-commit hook is registered against the unified config. dart-lib uses the published gitlint tool (the tools/releaser stand-in) instead of the not-yet-published `releaser lint-commit`.',
       kind: 'baseline',
       async run(repo: any) {
         const source = await repo.read('nix/pre-commit.nix');
-        if (!source.includes('a-releaser-commit') || !source.includes('releaser lint-commit -c atomi_release.yaml')) {
-          throw new Error('the tools/releaser commit hook registration is missing');
+        if (!source.includes('a-releaser-commit') || !source.includes('gitlint --staged --msg-filename')) {
+          throw new Error('the conventional-commit (gitlint) hook registration is missing');
         }
       },
     },
