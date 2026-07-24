@@ -57,7 +57,8 @@ export default defineGate({
   },
   mutation: {
     name: 'mutation-dotnet-coverage-artifact-scope-caught',
-    description: 'A fully covered package admitted into the unit ledger is rejected by the Cobertura package-scope parse.',
+    description:
+      'A fully covered package admitted into the unit ledger is rejected by the Cobertura package-scope parse.',
     expectedImpact: ['dotnet-unit-coverage', 'dotnet-multi-project-coverage'],
     async run(repo: any) {
       await addEscapingUnitProject(repo);
