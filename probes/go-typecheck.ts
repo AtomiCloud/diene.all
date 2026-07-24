@@ -17,6 +17,21 @@ export default {
       name: 'mutation-go-typecheck-caught',
       description: 'A native Go type error must turn the typecheck gate red.',
       kind: 'mutation',
+      expectedImpact: [
+        'unit-tests',
+        'hook-golangci-lint',
+        'govulncheck',
+        'unit-coverage-scope',
+        'deadcode-whole-repo',
+        'deadcode-production',
+        'build-artifact',
+        'go-lib-vet',
+        'go-lib-examples',
+        'go-lib-export-docs',
+        'go-lib-api-compatibility',
+        'go-lib-meta-tests',
+        'go-lib-meta-coverage',
+      ],
       async run(repo: any) {
         await plantGoFile(repo, 'lib/**/*.go', 'probe_type_error.go', 'var ProbeTypeError int = "wrong"');
         await expectRed(repo, 'nix develop .#ci -c ./scripts/local/typecheck.sh', 'go-typecheck');

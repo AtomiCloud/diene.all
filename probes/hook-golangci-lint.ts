@@ -1,5 +1,4 @@
 import { expectGreen, expectRed } from './lib/helpers.ts';
-import { plantGoFile } from './lib/go.ts';
 
 const gate = 'nix develop .#ci -c pre-commit run a-golangci-lint --all-files';
 
@@ -20,12 +19,11 @@ export default {
       description: 'A native ineffassign violation must turn the owning hook red.',
       kind: 'mutation',
       async run(repo: any) {
-        await plantGoFile(
-          repo,
-          'lib/**/*.go',
-          'probe_lint.go',
-          'func ProbeLint() int { value := 1; value = 2; return value }',
-        );
+        await repo.patch('lib/note/note.go', {
+          find: 'func Slug(value string) string {\n\treturn strings.Join(strings.Fields(strings.ToLower(value)), "-")\n}',
+          replace:
+            'func Slug(value string) string {\n\tnormalized := value\n\tnormalized = value\n\treturn strings.Join(strings.Fields(strings.ToLower(normalized)), "-")\n}',
+        });
         await expectRed(repo, gate, 'hook-golangci-lint');
       },
     },
