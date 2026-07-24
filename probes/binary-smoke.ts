@@ -15,7 +15,14 @@ gomplate --version
 test "$(gomplate -i '{{ add 1 1 }}')" = 2
 bash --version
 test "$(bash -lc 'printf probe')" = probe
-cyanprint --version | grep -qx 'cyanprint 4.9.0'
+mapfile -t cyanprint_versions < <(
+  awk -F'"' '/^[[:space:]]*cyanprintVersion = "[^"]+";$/ { print $2 }' nix/packages.nix
+)
+if [ "\${#cyanprint_versions[@]}" -ne 1 ]; then
+  echo "expected exactly one cyanprintVersion pin in nix/packages.nix" >&2
+  exit 1
+fi
+cyanprint --version | grep -Fqx "cyanprint \${cyanprint_versions[0]}"
 cache_dir="$(mktemp -d)"
 cyanprint cache inspect --cache-dir "$cache_dir" --json | jq -e '.status == "done" and .action == "inspect"' >/dev/null
 `;
