@@ -21,7 +21,7 @@ release="${RELEASE:-zinc}"
 namespace="${NAMESPACE:-cert-manager}"
 context="k3d-${cluster_name}"
 cert_manager_version="${CERT_MANAGER_VERSION:-v1.20.3}"
-external_secrets_version="${EXTERNAL_SECRETS_VERSION:-v0.10.4}"
+external_secrets_version="${EXTERNAL_SECRETS_VERSION:-v0.19.2}"
 prod_url="https://acme-v02.api.letsencrypt.org/directory"
 staging_url="https://acme-staging-v02.api.letsencrypt.org/directory"
 tmp="$(mktemp -d)"
@@ -31,10 +31,11 @@ bash ./scripts/local/create-k3d-cluster.sh
 
 # The CRDs zinc's own resources bind to (owned by other nodes in production):
 # cert-manager supplies the ClusterIssuer/Certificate kinds; external-secrets
-# supplies the ExternalSecret kind.
-kubectl --context "${context}" apply -f \
+# supplies the ExternalSecret kind. Server-side apply avoids the client-side
+# last-applied-configuration annotation size limit on the large CRD schemas.
+kubectl --context "${context}" apply --server-side --force-conflicts -f \
   "https://github.com/cert-manager/cert-manager/releases/download/${cert_manager_version}/cert-manager.crds.yaml"
-kubectl --context "${context}" apply -f \
+kubectl --context "${context}" apply --server-side --force-conflicts -f \
   "https://raw.githubusercontent.com/external-secrets/external-secrets/${external_secrets_version}/deploy/crds/bundle.yaml"
 kubectl --context "${context}" wait --for=condition=Established \
   crd/clusterissuers.cert-manager.io crd/certificates.cert-manager.io crd/externalsecrets.external-secrets.io --timeout=2m
