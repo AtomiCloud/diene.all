@@ -2,6 +2,11 @@ import { defineGate, definePresence, defineSmoke } from './definition.ts';
 import { expectGreen, expectRed } from './helpers.ts';
 
 const sandbox = { snapshot: 'git' as const, preserve: ['.direnv'] };
+const scmSetup = {
+  post: [
+    'if ! git remote get-url origin >/dev/null 2>&1; then git remote add origin https://github.com/AtomiCloud/diene.all.git; fi',
+  ],
+};
 
 export interface Mutation {
   readonly path: string;
@@ -35,6 +40,7 @@ export function staticGate(name: string, contract: string, mutation: Mutation) {
 export function commandGate(name: string, command: string, mutation: Mutation) {
   return defineGate({
     sandbox,
+    setup: scmSetup,
     baseline: {
       name: `baseline-${name}-green`,
       description: `The ${name} mechanism passes through its real invocation path.`,
@@ -57,6 +63,7 @@ export function commandGate(name: string, command: string, mutation: Mutation) {
 export function commandSmoke(name: string, command: string) {
   return defineSmoke({
     sandbox,
+    setup: scmSetup,
     baseline: {
       name: `baseline-${name}-green`,
       description: `The ${name} operation completes successfully.`,
