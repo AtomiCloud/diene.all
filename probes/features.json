@@ -177,8 +177,7 @@
   {
     "template": "diene/workspace",
     "name": "releaser-hook-registration",
-    "class": "presence",
-    "deferredUntil": "tools/releaser step 2p publish"
+    "class": "presence"
   },
   {
     "template": "diene/workspace",
