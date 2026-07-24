@@ -32,6 +32,9 @@ tasks:
       # ### bun-base-setup
       # #### source: bun-base
       - ./scripts/local/setup.sh
+      # ### bun-interfaces-setup
+      # #### source: lib/bun/interfaces
+      - ./scripts/local/skills-sync.sh
 
   lint:
     desc: Run all repository gates
