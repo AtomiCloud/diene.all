@@ -15,12 +15,12 @@ export default defineGate({
   },
   mutation: {
     name: 'mutation-go-lib-publish-workflow-wiring-caught',
-    description: 'Removing the pinned npm runtime from the release invocation turns wiring validation red.',
+    description: 'Pointing CD at a missing reusable workflow turns wiring validation red.',
     expectedImpact: [],
     async run(repo: any) {
-      await repo.patch('scripts/ci/release.sh', {
-        find: 'releaser release -c atomi_release.yaml -i npm',
-        replace: 'releaser release -c atomi_release.yaml',
+      await repo.patch('.github/workflows/cd.yaml', {
+        find: './.github/workflows/reusable-go-publish.yaml',
+        replace: './.github/workflows/missing-go-publish.yaml',
       });
       await expectRed(repo, gate, 'go-lib-publish-workflow-wiring');
     },

@@ -18,7 +18,7 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        await repo.patch('.github/workflows/⚡reusable-precommit.yaml', {
+        await repo.patch('.github/workflows/reusable-precommit.yaml', {
           find: 'AtomiCloud/actions.setup-nix@v3',
           replace: 'AtomiCloud/actions.setup-nix@f366a9f3997acdf7f335445809fd85e3a157147f',
         });

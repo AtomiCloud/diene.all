@@ -22,8 +22,8 @@ CI script.
 
 ## Reusable workflows
 
-- `⚡reusable-precommit.yaml` runs `scripts/ci/pre-commit.sh` in `.#ci`.
-- `⚡reusable-release.yaml` runs `scripts/ci/release.sh` in `.#releaser`.
+- `reusable-precommit.yaml` runs `scripts/ci/pre-commit.sh` in `.#ci`.
+- `reusable-release.yaml` runs `scripts/ci/release.sh` in `.#releaser`.
 
 `AtomiCloud/actions.setup-nix@v3` checks out the repository, so do not add an
 adjacent `actions/checkout`.

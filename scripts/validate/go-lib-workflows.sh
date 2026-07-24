@@ -4,10 +4,14 @@ set -euo pipefail
 mode="${1:-all}"
 [ "${mode}" != "publish" ] && [ "${mode}" != "package" ] && [ "${mode}" != "all" ] && echo "❌ mode must be publish, package, or all" >&2 && exit 1
 
-publisher='.github/workflows/⚡reusable-go-publish.yaml'
-validator='.github/workflows/⚡reusable-go-lib-validate.yaml'
+publisher='.github/workflows/reusable-go-publish.yaml'
+validator='.github/workflows/reusable-go-lib-validate.yaml'
 
 if [ "${mode}" = "publish" ] || [ "${mode}" = "all" ]; then
+  if git -c core.quotePath=false ls-files '.github/workflows/*' | rg '[^\x00-\x7F]' >/dev/null; then
+    echo "❌ R-E11 requires ASCII workflow filenames in Go-proxy repositories" >&2
+    exit 1
+  fi
   [ "$(yq -r '.on.push.tags[0]' .github/workflows/cd.yaml)" != "v*.*.*" ] && echo "❌ CD must trigger on semantic version tags" >&2 && exit 1
   [ "$(yq -r '.jobs.publish.uses' .github/workflows/cd.yaml)" != "./${publisher}" ] && echo "❌ CD publish job is not wired to the reusable publisher" >&2 && exit 1
   [ "$(yq -r '.jobs.publish.secrets' .github/workflows/cd.yaml)" != "inherit" ] && echo "❌ CD publish job must forward secrets: inherit" >&2 && exit 1

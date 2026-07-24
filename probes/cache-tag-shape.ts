@@ -18,7 +18,7 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        await repo.patch('.github/workflows/⚡reusable-precommit.yaml', {
+        await repo.patch('.github/workflows/reusable-precommit.yaml', {
           find: 'nscloud-cache-tag-atomi-nix-store-cache-linux-amd64',
           replace: 'nscloud-cache-tag-atomi-nix-store-cache',
         });
