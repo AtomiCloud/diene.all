@@ -21,15 +21,13 @@ async function first(repo: ProbeRepo, glob: string): Promise<string> {
 }
 
 export async function flipGoAssertion(repo: ProbeRepo): Promise<void> {
-  const paths = (await repo.glob('tests/unit/**/*_test.go')).sort();
-  for (const path of paths) {
-    const source = await repo.read(path);
-    if (source.includes('; got != ')) {
-      await repo.write(path, source.replace('; got != ', '; got == '));
-      return;
-    }
+  const path = 'tests/unit/operator/note_test.go';
+  const source = await repo.read(path);
+  const target = 'require.Equal(t, "note-a-copy-2", note.CopyName("note-a", 2))';
+  if (!source.includes(target)) {
+    throw new Error('operator unit assertion target is missing');
   }
-  throw new Error('no structural Go assertion target found');
+  await repo.write(path, source.replace(target, 'require.Equal(t, "probe-wrong", note.CopyName("note-a", 2))'));
 }
 
 export async function plantWhiteBoxTest(repo: ProbeRepo): Promise<void> {
@@ -49,16 +47,13 @@ export async function plantWhiteBoxTest(repo: ProbeRepo): Promise<void> {
 }
 
 export async function breakAdapter(repo: ProbeRepo): Promise<void> {
-  const paths = (await repo.glob('adapters/**/*.go')).sort();
-  for (const path of paths) {
-    const source = await repo.read(path);
-    const target = '.Set(ctx, key, value, 0)';
-    if (source.includes(target)) {
-      await repo.write(path, source.replace(target, '.Set(ctx, key+"-probe", value, 0)'));
-      return;
-    }
+  const path = 'adapters/operator/kube/resources.go';
+  const source = await repo.read(path);
+  const target = 'cm.Data[payloadKey] = payload';
+  if (!source.includes(target)) {
+    throw new Error('operator adapter write target is missing');
   }
-  throw new Error('no structural adapter method target found');
+  await repo.write(path, source.replace(target, 'cm.Data[payloadKey] = "probe-wrong"'));
 }
 
 export async function plantGoFile(
