@@ -6,3 +6,9 @@ updates:
     directory: /
     schedule:
       interval: daily
+  # ### dart-lib-dependabot
+  # #### source: dart-lib
+  - package-ecosystem: pub
+    directory: /packages/diene_dart_lib
+    schedule:
+      interval: daily

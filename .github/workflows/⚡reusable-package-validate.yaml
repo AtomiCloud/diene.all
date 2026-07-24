@@ -1,0 +1,18 @@
+# ### dart-lib-reusable-package-validate
+# #### source: dart-lib
+name: ⚡ Reusable Dart Package Validate
+
+on:
+  workflow_call:
+
+jobs:
+  package-validate:
+    name: Package Validation
+    runs-on:
+      - nscloud-ubuntu-22.04-amd64-4x8-with-cache
+      - nscloud-cache-size-50gb
+      - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
+    steps:
+      - uses: AtomiCloud/actions.setup-nix@v3
+      - name: Validate pub.dev package
+        run: nix develop .#ci -c ./scripts/ci/package-validate.sh

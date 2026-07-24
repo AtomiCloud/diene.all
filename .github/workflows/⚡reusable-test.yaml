@@ -1,0 +1,46 @@
+# ### dart-lib-reusable-test
+# #### source: dart-lib
+name: ⚡ Reusable Dart Tests
+
+on:
+  workflow_call:
+    inputs:
+      mode:
+        description: Test mode to run (unit or meta)
+        required: true
+        type: string
+    secrets:
+      CODECOV_TOKEN:
+        required: false
+
+jobs:
+  test:
+    name: ${{ inputs.mode == 'meta' && 'TestHelper Meta' || 'Unit Tests' }}
+    runs-on:
+      - nscloud-ubuntu-22.04-amd64-4x8-with-cache
+      - nscloud-cache-size-50gb
+      - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
+    steps:
+      - uses: AtomiCloud/actions.setup-nix@v3
+      - name: Run ${{ inputs.mode }} tests
+        if: inputs.mode != 'meta' || hashFiles('packages/diene_dart_lib/lib/test_helper.dart') != ''
+        env:
+          TEST_MODE: ${{ inputs.mode }}
+        run: nix develop .#ci -c ./scripts/ci/test.sh "$TEST_MODE" coverage
+      - name: Upload ${{ inputs.mode }} coverage artifact
+        if: always() && (inputs.mode != 'meta' || hashFiles('packages/diene_dart_lib/lib/test_helper.dart') != '')
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-${{ inputs.mode }}
+          path: packages/diene_dart_lib/coverage/${{ inputs.mode }}
+          if-no-files-found: warn
+      - name: Upload ${{ inputs.mode }} coverage to Codecov
+        if: always() && (inputs.mode != 'meta' || hashFiles('packages/diene_dart_lib/lib/test_helper.dart') != '')
+        continue-on-error: true
+        uses: codecov/codecov-action@v7
+        with:
+          files: packages/diene_dart_lib/coverage/${{ inputs.mode }}/lcov.info
+          flags: ${{ inputs.mode }}
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+          disable_search: true

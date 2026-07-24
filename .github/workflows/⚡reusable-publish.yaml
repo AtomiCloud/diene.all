@@ -1,0 +1,25 @@
+# ### dart-lib-reusable-publish
+# #### source: dart-lib
+name: ⚡ Reusable Dart Publish
+
+on:
+  workflow_call:
+
+jobs:
+  publish:
+    name: Publish to pub.dev
+    # pub.dev automated publishing uses GitHub Actions OIDC — id-token: write
+    # mints the token pub.dev's trusted-publisher config exchanges. There is NO
+    # long-lived credential secret.
+    permissions:
+      id-token: write
+      contents: read
+    environment: pub.dev
+    runs-on:
+      - nscloud-ubuntu-22.04-amd64-4x8-with-cache
+      - nscloud-cache-size-50gb
+      - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
+    steps:
+      - uses: AtomiCloud/actions.setup-nix@v3
+      - name: Publish library
+        run: nix develop .#cd -c ./scripts/ci/publish.sh

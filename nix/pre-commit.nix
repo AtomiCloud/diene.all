@@ -9,6 +9,7 @@ let
     name = "workspace-validator-runtime";
     paths = [
       packages.bash
+      packages.dart
       packages.git
       packages.jq
       packages.ripgrep
@@ -159,7 +160,7 @@ pre-commit-lib.run {
     a-releaser-commit = {
       enable = true;
       name = "Conventional commit";
-      entry = "releaser lint-commit -c atomi_release.yaml";
+      entry = "${packages.gitlint}/bin/gitlint --staged --msg-filename";
       stages = [ "commit-msg" ];
       pass_filenames = true;
       language = "system";
@@ -187,6 +188,44 @@ pre-commit-lib.run {
       name = "Workflow job-to-script wiring";
       entry = validator "scripts/validate/workflows.sh wiring";
       files = "^\\.github/workflows/.*\\.ya?ml$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    # ### dart-lib-hooks
+    # #### source: dart-lib
+    a-dart-format = {
+      enable = true;
+      name = "Dart format";
+      entry = "${packages.dart}/bin/dart format --output=none --set-exit-if-changed";
+      files = "^packages/diene_dart_lib/(lib|test|example)/.*[.]dart$";
+      pass_filenames = true;
+      language = "system";
+    };
+
+    a-dart-analyze = {
+      enable = true;
+      name = "Dart analyze";
+      entry = validator "scripts/ci/analyze.sh";
+      files = "^packages/diene_dart_lib/(lib|test|example|tool)/.*[.]dart$|^(packages/diene_dart_lib/(pubspec|analysis_options)|pubspec)[.]yaml$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-dart-test = {
+      enable = true;
+      name = "Dart unit, C0, and meta tests";
+      entry = validator "scripts/ci/test-all.sh";
+      files = "^packages/diene_dart_lib/(lib|test)/.*[.]dart$|^(packages/diene_dart_lib/pubspec|pubspec)[.]yaml$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-dart-package = {
+      enable = true;
+      name = "Dart package and TestHelper boundary";
+      entry = validator "scripts/validate/dart-package.sh";
+      files = "^(packages/diene_dart_lib/(lib/.*[.]dart|pubspec[.]yaml|README[.]md|CHANGELOG[.]md|LICENSE|skills/.*|doc/diene_dart_lib[.]md)|pubspec[.]yaml|VERSION)$";
       pass_filenames = false;
       language = "system";
     };
