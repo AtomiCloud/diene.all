@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+mode="${1:-sync}"
+[ "${mode}" != "sync" ] && [ "${mode}" != "check" ] && echo "❌ unsupported skills sync mode" >&2 && exit 1
+
 vendor_dir=".claude/skills/vendor"
 staging="$(mktemp -d .claude/skills/.vendor.XXXXXX)"
 trap 'chmod -R u+w "${staging}" 2>/dev/null || true; rm -rf "${staging}"' EXIT
@@ -52,6 +55,12 @@ if [ -d "${vendor_dir}" ] && git diff --no-index --quiet -- "${staging}" "${vend
   trap - EXIT
   echo "✅ Vendored skills synchronized"
   exit 0
+fi
+
+if [ "${mode}" = "check" ]; then
+  git diff --no-index -- "${vendor_dir}" "${staging}" || true
+  echo "❌ Vendored skills are stale" >&2
+  exit 1
 fi
 
 chmod -R u+w "${staging}"
