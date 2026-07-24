@@ -89,6 +89,7 @@ let
           shellcheck
           skopeo
           treefmt
+          xmlstarlet
           yq-go
           ;
       }

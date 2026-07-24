@@ -50,6 +50,7 @@ with packages;
     ripgrep
     shellcheck
     skopeo
+    xmlstarlet
     yq-go
 
     # ### dotnet-base-main

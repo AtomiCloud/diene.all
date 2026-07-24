@@ -242,6 +242,11 @@
   },
   {
     "template": "diene/dotnet-base",
+    "name": "dotnet-cobertura-artifact-scope",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-base",
     "name": "dotnet-multi-project-coverage",
     "class": "gate"
   },
