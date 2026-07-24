@@ -1,4 +1,12 @@
-// ─── DOMAIN WIRING · the sample export surface (delete through END to replace the sample) ────────
-export type { IKeyValueStore, RedisConnection } from './adapters/kv-store';
-export * from './lib/sample';
-// ─── END DOMAIN WIRING ────────────────────────────────────────────────────────────────────────────
+// ─── DOMAIN WIRING · the config engine export surface ───────────────────────────────────────────
+export * from './adapters/yaml-source.js';
+export * from './lib/coerce.js';
+export * from './lib/env.js';
+export * from './lib/landscape.js';
+export * from './lib/loader.js';
+export * from './lib/merge.js';
+export * from './lib/registry.js';
+export * from './lib/schema.js';
+export * from './lib/source.js';
+export * from './lib/validator.js';
+// ─── END DOMAIN WIRING ──────────────────────────────────────────────────────────────────────────

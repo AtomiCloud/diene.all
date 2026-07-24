@@ -1,7 +1,7 @@
 {
-  "name": "@atomicloud/diene.bun-lib",
-  "version": "1.3.1",
-  "description": "Bun library baseline for AtomiCloud/diene.bun-lib — a publishable ESM + CJS + types sample.",
+  "name": "@atomicloud/diene.config",
+  "version": "1.0.0",
+  "description": "The config-loading engine for the AtomiCloud TypeScript family — 4-tier merge (base YAML → landscape overlay → build-time injection → runtime env), zod validation, and $schema generation.",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -16,6 +16,26 @@
         "types": "./dist/index.d.cts",
         "default": "./dist/index.cjs"
       }
+    },
+    "./build-time": {
+      "import": {
+        "types": "./dist/build-time.d.ts",
+        "default": "./dist/build-time.js"
+      },
+      "require": {
+        "types": "./dist/build-time.d.cts",
+        "default": "./dist/build-time.cjs"
+      }
+    },
+    "./test-helper": {
+      "import": {
+        "types": "./dist/test-helper.d.ts",
+        "default": "./dist/test-helper.js"
+      },
+      "require": {
+        "types": "./dist/test-helper.d.cts",
+        "default": "./dist/test-helper.cjs"
+      }
     }
   },
   "files": [
@@ -28,28 +48,32 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/AtomiCloud/diene.bun-lib.git"
+    "url": "git+https://github.com/AtomiCloud/diene.bun-config.git"
   },
-  "homepage": "https://github.com/AtomiCloud/diene.bun-lib#readme",
+  "homepage": "https://github.com/AtomiCloud/diene.bun-config#readme",
   "bugs": {
-    "url": "https://github.com/AtomiCloud/diene.bun-lib/issues"
+    "url": "https://github.com/AtomiCloud/diene.bun-config/issues"
   },
   "license": "MIT",
   "author": "AtomiCloud",
   "keywords": [
     "atomicloud",
     "bun",
-    "library",
+    "config",
+    "configuration",
+    "zod",
+    "yaml",
     "esm",
-    "cjs",
-    "redis",
-    "kv-store"
+    "cjs"
   ],
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
-    "ioredis": "^5.11.1"
+    "@atomicloud/diene.core-utils": "^1.0.0",
+    "@atomicloud/diene.result": "^1.0.2",
+    "yaml": "^2.9.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.2",
@@ -60,7 +84,6 @@
     "knip": "^6.23.0",
     "publint": "^0.3.16",
     "should": "^13.2.3",
-    "testcontainers": "^12.0.4",
     "typescript": "^6.0.3"
   }
 }

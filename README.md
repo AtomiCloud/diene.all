@@ -73,39 +73,44 @@ boundary. TypeScript variants accompany the shared standards for
 
 ## Library package
 
-`@atomicloud/diene.bun-lib` is the publishable Bun library baseline: a small
-TypeScript package shipped as dual **ESM + CommonJS** with bundled type
-declarations, validated on every push and published on `v*.*.*` tags. Library
-children rescope the package name, description, keywords, and badge URLs from
-this scaffold.
+`@atomicloud/diene.config` is the config-loading engine for the AtomiCloud
+TypeScript family: a 4-tier merge (base YAML → landscape overlay → build-time
+injection → runtime env), fail-fast zod validation on the final layer, and
+`$schema` generation. It ships as dual **ESM + CommonJS** with bundled type
+declarations across three entry points — the package root, `/build-time`, and
+`/test-helper` — validated on every push and published on `v*.*.*` tags.
 
-See the [npm release runbook](https://github.com/AtomiCloud/diene.bun-lib/blob/main/docs/developer/npm-release.md)
+Read the [configuration standard](docs/standards/config/index.md) for the full
+env-override contract, dimension matrix, and TestHelper details. See the
+[npm release runbook](https://github.com/AtomiCloud/diene.bun-config/blob/main/docs/developer/npm-release.md)
 for tag publishing, API-key rotation, retry behavior, and the deliberate
 no-provenance policy.
 
-[![npm version](https://img.shields.io/npm/v/@atomicloud/diene.bun-lib)](https://www.npmjs.com/package/@atomicloud/diene.bun-lib)
-[![npm downloads](https://img.shields.io/npm/dm/@atomicloud/diene.bun-lib)](https://www.npmjs.com/package/@atomicloud/diene.bun-lib)
-[![CI](https://github.com/AtomiCloud/diene.bun-lib/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.bun-lib/actions/workflows/ci.yaml)
+[![npm version](https://img.shields.io/npm/v/@atomicloud/diene.config)](https://www.npmjs.com/package/@atomicloud/diene.config)
+[![npm downloads](https://img.shields.io/npm/dm/@atomicloud/diene.config)](https://www.npmjs.com/package/@atomicloud/diene.config)
+[![CI](https://github.com/AtomiCloud/diene.bun-config/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.bun-config/actions/workflows/ci.yaml)
 
 ### Installation
 
 ```bash
-bun add @atomicloud/diene.bun-lib
+bun add @atomicloud/diene.config
 # or
-npm install @atomicloud/diene.bun-lib
+npm install @atomicloud/diene.config
 ```
 
-`ioredis` is a runtime dependency and is installed automatically.
+`@atomicloud/diene.result`, `@atomicloud/diene.core-utils`, `zod`, and `yaml` are
+runtime dependencies and are installed automatically.
 
 ### Usage
 
 ```ts
 // ESM
-import { buildSampleKey, createRedisStore, persistSample } from '@atomicloud/diene.bun-lib';
-import type { IKeyValueStore, RedisConnection } from '@atomicloud/diene.bun-lib';
+import { ConfigLoader, ConfigRegistry, YamlConfigSource } from '@atomicloud/diene.config';
+import { buildTimeValueMap } from '@atomicloud/diene.config/build-time';
+import { InMemoryConfigSource, stubConfig } from '@atomicloud/diene.config/test-helper';
 ```
 
 ```js
 // CommonJS
-const { buildSampleKey, createRedisStore, persistSample } = require('@atomicloud/diene.bun-lib');
+const { ConfigLoader, ConfigRegistry, YamlConfigSource } = require('@atomicloud/diene.config');
 ```
