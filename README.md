@@ -71,41 +71,40 @@ boundary. TypeScript variants accompany the shared standards for
 <!-- ### bun-lib -->
 <!-- #### source: bun-lib -->
 
-## Library package
+## Auth-engine package
 
-`@atomicloud/diene.bun-lib` is the publishable Bun library baseline: a small
-TypeScript package shipped as dual **ESM + CommonJS** with bundled type
-declarations, validated on every push and published on `v*.*.*` tags. Library
-children rescope the package name, description, keywords, and badge URLs from
-this scaffold.
+`@atomicloud/diene.auth-engine` is the edge-safe authentication and onboarding
+engine for Diene applications. It ships dual **ESM + CommonJS** bundles and a
+separate TestHelper subpath for consumer tests.
 
-See the [npm release runbook](https://github.com/AtomiCloud/diene.bun-lib/blob/main/docs/developer/npm-release.md)
-for tag publishing, API-key rotation, retry behavior, and the deliberate
-no-provenance policy.
+See the [authentication standard](docs/standards/auth/index.md) for resource
+registration, token lifetimes, deferred handoff, and per-backend onboarding.
 
-[![npm version](https://img.shields.io/npm/v/@atomicloud/diene.bun-lib)](https://www.npmjs.com/package/@atomicloud/diene.bun-lib)
-[![npm downloads](https://img.shields.io/npm/dm/@atomicloud/diene.bun-lib)](https://www.npmjs.com/package/@atomicloud/diene.bun-lib)
-[![CI](https://github.com/AtomiCloud/diene.bun-lib/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.bun-lib/actions/workflows/ci.yaml)
+[![npm version](https://img.shields.io/npm/v/@atomicloud/diene.auth-engine)](https://www.npmjs.com/package/@atomicloud/diene.auth-engine)
+[![npm downloads](https://img.shields.io/npm/dm/@atomicloud/diene.auth-engine)](https://www.npmjs.com/package/@atomicloud/diene.auth-engine)
+[![CI](https://github.com/AtomiCloud/diene.bun-auth-engine/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.bun-auth-engine/actions/workflows/ci.yaml)
 
 ### Installation
 
 ```bash
-bun add @atomicloud/diene.bun-lib
+bun add @atomicloud/diene.auth-engine
 # or
-npm install @atomicloud/diene.bun-lib
+npm install @atomicloud/diene.auth-engine
 ```
 
-`ioredis` is a runtime dependency and is installed automatically.
+`@logto/js`, `jose`, `zod`, and the Diene result/problem packages are runtime
+dependencies and are installed automatically.
 
 ### Usage
 
 ```ts
 // ESM
-import { buildSampleKey, createRedisStore, persistSample } from '@atomicloud/diene.bun-lib';
-import type { IKeyValueStore, RedisConnection } from '@atomicloud/diene.bun-lib';
+import { createResourceTree, ServerAuthStateRetriever } from '@atomicloud/diene.auth-engine';
+import type { ResourceTree } from '@atomicloud/diene.auth-engine';
+import { FakeAuthProvider } from '@atomicloud/diene.auth-engine/test-helper';
 ```
 
 ```js
 // CommonJS
-const { buildSampleKey, createRedisStore, persistSample } = require('@atomicloud/diene.bun-lib');
+const { createResourceTree } = require('@atomicloud/diene.auth-engine');
 ```

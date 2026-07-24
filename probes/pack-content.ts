@@ -8,7 +8,8 @@ export default {
   probes: [
     {
       name: 'baseline-pack-content-green',
-      description: 'The packed tarball carries every declared dist artifact and the usage skill.',
+      description:
+        'The packed tarball carries root/TestHelper artifacts and the usage skill, whose full docs point to the repository standard.',
       kind: 'baseline',
       async run(repo: any) {
         await expectBunGreen(repo, CONTENT, 'pack-content');
