@@ -65,5 +65,5 @@ Empty release versions produce commit builds; CD passes the tag as the version.
 Add another image as another caller job rather than putting repository-specific
 branching into the reusable workflow.
 
-Release execution is wired now but awaits the C2 step-2p `tools/releaser` fold;
-the workspace does not claim a working `releaser` binary before then.
+Release execution runs on `main` through the published `releaser` binary,
+provisioned from the pinned `AtomiCloud/releaser` `v1.0.0` Nix package.
