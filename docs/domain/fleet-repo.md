@@ -202,6 +202,10 @@ The guard, applied as code:
    require a PR + required code-owner review before merge, deletion + non-fast-
    forward protection, and **Kargo-bot bypass = Always** so its `platforms/**`
    promotion commits push directly.
+   The provisioned Kargo automation identity is the organization-owned
+   **AtomiCloud Auth Bot** GitHub App (`contents: write` only); the ruleset
+   records that App's integration actor ID, never a human or organization-admin
+   bypass.
 2. **CODEOWNERS** (`.github/CODEOWNERS`): `registry/**` → the
    `@AtomiCloud/fleet-admin` team; combined with the ruleset's
    `require_code_owner_review`, this is a hard fleet-admin gate on registry
@@ -215,11 +219,13 @@ push ruleset (which is then addable with no redesign). The residual is covered b
 a periodic sandbox test asserting the bot tooling never writes outside
 `platforms/**`.
 
-The config is managed as code: `scripts/local/registry-guard-apply.sh` is an
-idempotent `gh api` apply (human-run + re-runnable for drift repair), and
-`scripts/validate/registry-guard.sh` is the offline policy-validation gate
-(per-PR). This is orthogonal to the tag mechanism: the guard governs _who can
-write_ `registry/**`; the tag governs _when a write takes effect_.
+The config is managed as code: `scripts/local/registry-guard-apply.sh` refuses
+a non-public/non-`main` target, applies the payload idempotently, then verifies
+the exact live policy and the remote CODEOWNERS bytes. It is human-run and
+re-runnable for drift repair. `scripts/validate/registry-guard.sh` is the
+offline policy-validation gate (per-PR). This is orthogonal to the tag
+mechanism: the guard governs _who can write_ `registry/**`; the tag governs
+_when a write takes effect_.
 
 ## ArgoCD webhook wiring
 
