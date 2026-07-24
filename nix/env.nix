@@ -37,6 +37,7 @@ with packages;
     ripgrep
     shellcheck
     skopeo
+    xmlstarlet
   ];
 
   # C2: sg is retained only until tools/releaser is published at step 2p.
