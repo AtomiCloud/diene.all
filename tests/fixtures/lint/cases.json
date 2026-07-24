@@ -2,6 +2,16 @@
   { "name": "valid default", "message": "feat: add release support", "valid": true },
   { "name": "valid scope", "message": "dep(patch): update zod", "valid": true },
   { "name": "valid bang", "message": "feat!: replace release contract", "valid": true },
+  {
+    "name": "valid breaking change footer",
+    "message": "feat: replace release contract\n\nBREAKING CHANGE: This body describes the incompatible release contract.",
+    "valid": true
+  },
+  {
+    "name": "valid breaking changes footer",
+    "message": "feat: replace release contract\n\nBREAKING CHANGES: This body describes the incompatible release contracts.",
+    "valid": true
+  },
   { "name": "merge ignored", "message": "Merge branch 'main'", "valid": true },
   { "name": "header too short", "message": "fix:", "valid": false },
   {

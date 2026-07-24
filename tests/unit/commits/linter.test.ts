@@ -11,6 +11,18 @@ describe('commit linter', () => {
     expect(subject.lint('feat: add release', TEST_CONFIG)).toEqual([]);
     expect(subject.lint('fix: repair behavior\n\nThis body is comfortably long enough.', TEST_CONFIG)).toEqual([]);
     expect(subject.lint('feat(api)!: replace behavior', TEST_CONFIG)).toEqual([]);
+    expect(
+      subject.lint(
+        'feat: replace behavior\n\nBREAKING CHANGE: This body describes the incompatible change.',
+        TEST_CONFIG,
+      ),
+    ).toEqual([]);
+    expect(
+      subject.lint(
+        'feat: replace behavior\n\nBREAKING CHANGES: This body describes the incompatible changes.',
+        TEST_CONFIG,
+      ),
+    ).toEqual([]);
     expect(subject.lint('Merge branch main', TEST_CONFIG)).toEqual([]);
   });
 

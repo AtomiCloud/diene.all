@@ -90,6 +90,7 @@ export class CommitLinter {
     if (config.lint.body.requireBlankSecondLine && bodyLines.length > 0 && bodyLines[0]?.text !== '') {
       result.push(diagnostic(bodyLines[0]?.number ?? 2, 'B4', 'line 2 must be blank'));
     }
+    const breakingKeywords = [...config.keywords].sort((left, right) => right.length - left.length);
     for (const line of bodyLines) {
       if (codePointLength(line.text) > config.lint.body.maxLineLength) {
         result.push(diagnostic(line.number, 'B1', `body line exceeds ${config.lint.body.maxLineLength} characters`));
@@ -97,10 +98,14 @@ export class CommitLinter {
       if (line.text !== line.text.trimEnd())
         result.push(diagnostic(line.number, 'B2', 'body line has trailing whitespace'));
       if (line.text.includes('\t')) result.push(diagnostic(line.number, 'B3', 'body line contains a hard tab'));
-      for (const keyword of config.keywords) {
-        if (line.text.trimStart().startsWith(keyword) && !line.text.trimStart().startsWith(`${keyword}: `)) {
-          result.push(diagnostic(line.number, 'CT1', `breaking trailer "${keyword}" must use ": "`));
-        }
+      const trimmed = line.text.trimStart();
+      const keyword = breakingKeywords.find(candidate => {
+        if (!trimmed.startsWith(candidate)) return false;
+        const boundary = trimmed[candidate.length];
+        return boundary === undefined || boundary === ':' || /\s/.test(boundary);
+      });
+      if (keyword !== undefined && !trimmed.startsWith(`${keyword}: `)) {
+        result.push(diagnostic(line.number, 'CT1', `breaking trailer "${keyword}" must use ": "`));
       }
     }
     const bodyContent = bodyLines
