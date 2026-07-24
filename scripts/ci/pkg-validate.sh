@@ -21,13 +21,24 @@ bun pm pack --filename pkg.tgz
 if [[ ${mode} == "content" || ${mode} == "all" ]]; then
   echo "🔎 Verifying tarball contents (pack-content)..."
   listing="$(tar -tzf pkg.tgz)"
-  expected=(
-    package/dist/index.js
-    package/dist/index.cjs
-    package/dist/index.d.ts
-    package/dist/index.d.cts
-    package/skills/diene-bun-lib-usage/SKILL.md
+  entry_names=(
+    index module landscape content content-react theme theme-react discovery
+    urlstate persistence loader toast a11y test-helper
   )
+  expected=(
+    package/skills/diene-frontend-utils-usage/SKILL.md
+    package/skills/diene-frontend-utils-usage/agents/openai.yaml
+    package/skills/diene-frontend-utils-usage/assets/consumer.ts
+    package/skills/diene-frontend-utils-usage/assets/consumer-test.ts
+  )
+  for name in "${entry_names[@]}"; do
+    expected+=(
+      "package/dist/${name}.js"
+      "package/dist/${name}.cjs"
+      "package/dist/${name}.d.ts"
+      "package/dist/${name}.d.cts"
+    )
+  done
   missing=0
   for path in "${expected[@]}"; do
     if ! grep -qxF "${path}" <<<"${listing}"; then
@@ -46,7 +57,10 @@ fi
 
 if [[ ${mode} == "attw" || ${mode} == "all" ]]; then
   echo "🔎 Checking type resolvability (attw)..."
-  ./node_modules/.bin/attw pkg.tgz
+  # Node 10 predates package.json subpath exports. Profile Node 16 so attw
+  # checks the supported CJS, ESM, and bundler resolvers without false-failing
+  # every focused entry on an end-of-life resolver.
+  ./node_modules/.bin/attw pkg.tgz --profile node16
 fi
 
 echo "✅ Package validation (${mode}) passed"
