@@ -18,6 +18,7 @@ export default {
       name: 'mutation-operator-status-conditions-caught',
       description: 'Removing the Ready-condition update must fail the condition assertion (red).',
       kind: 'mutation',
+      expectedImpact: ['operator-multi-controller-wiring'],
       async run(repo: any) {
         await repo.patch('adapters/operator/controllers/note_controller.go', {
           find: 'r.publish(note, dec.OwnedCount, dec.Conditions, dec.Events)',
