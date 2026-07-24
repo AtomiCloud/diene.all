@@ -19,6 +19,7 @@ export default {
       kind: 'mutation',
       expectedImpact: [
         'unit-tests',
+        'integration-tests',
         'hook-golangci-lint',
         'govulncheck',
         'unit-coverage-scope',

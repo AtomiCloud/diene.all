@@ -1,0 +1,9 @@
+apiVersion: sample.diene.atomi.cloud/v1alpha1
+kind: Note
+metadata:
+  name: harness-note
+spec:
+  title: Harness Note
+  body: converged by the k3d harness
+  category: work
+  replicas: 2

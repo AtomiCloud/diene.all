@@ -58,6 +58,13 @@ with packages;
     go
     gotestsum
     govulncheck
+
+    # ### operator-template-main
+    # #### source: operator-template
+    bun
+    controller-gen
+    kubebuilder
+    setup-envtest
   ];
 
   # ### workspace-releaser-bootstrap

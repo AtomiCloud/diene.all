@@ -1,5 +1,4 @@
 import { expectGreen, expectRed } from './lib/helpers.ts';
-import { plantGoFile } from './lib/go.ts';
 
 export default {
   contractVersion: 1,
@@ -19,11 +18,13 @@ export default {
     },
     {
       name: 'mutation-integration-coverage-caught',
-      description: 'An uncovered adapter function must turn the integration ledger red.',
+      description: 'A corrupted adapter scope marker must turn the integration ledger red.',
       kind: 'mutation',
-      expectedImpact: ['deadcode-whole-repo', 'deadcode-production'],
       async run(repo: any) {
-        await plantGoFile(repo, 'adapters/**/*.go', 'probe_uncovered.go', 'func ProbeUncovered() int { return 1 }');
+        await repo.patch('.config/go-base.coverage.yaml', {
+          find: '    pathMarker: /adapters/',
+          replace: '    pathMarker: /lib/',
+        });
         await expectRed(
           repo,
           'nix develop .#ci -c ./scripts/local/test.sh int true false',

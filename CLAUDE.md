@@ -101,3 +101,13 @@ introduce `export_test.go`.
 - [OpenTelemetry alignment](docs/standards/observability/otel.md)
 - [Faro frontend variant](docs/standards/observability/faro.md)
 - [Primordial-chart rendering](docs/standards/observability/primordial-chart.md)
+
+<!-- ### operator-template -->
+<!-- #### source: operator-template -->
+
+## Operator conventions
+
+Read [docs/domain/operator-conventions.md](docs/domain/operator-conventions.md)
+before changing operator surface — controllers, CRDs, reconcile services, the
+durable ledger, blast-brake, observe mode, or the manager chart. The reusable
+machinery lives under `lib/operator/`, `adapters/operator/`, and `cmd/manager`.

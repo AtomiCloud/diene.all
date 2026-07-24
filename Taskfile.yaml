@@ -12,6 +12,7 @@ includes:
   gotest:
     taskfile: tasks/Taskfile.test.yaml
     internal: true
+  operator: tasks/Taskfile.operator.yaml
 
 tasks:
   setup:
@@ -93,22 +94,22 @@ tasks:
         vars: { MODE: unit, WATCH: 'true' }
 
   run:
-    desc: Run the Go composition root in development mode
+    desc: Run the manager composition root from source
     cmds:
-      - go run ./cmd/go-base {{.CLI_ARGS}}
+      - go run ./cmd/manager {{.CLI_ARGS}}
 
   preview:
-    desc: Run the compiled Go artifact
+    desc: Run the compiled manager artifact
     deps: [build]
     cmds:
-      - ./dist/go-base {{.CLI_ARGS}}
+      - ./dist/manager {{.CLI_ARGS}}
 
   up:
-    desc: Start every local dependency
+    desc: Start the local MinIO ledger
     cmds:
       - ./scripts/local/up.sh
 
   down:
-    desc: Stop every local dependency
+    desc: Stop the local MinIO ledger
     cmds:
       - ./scripts/local/down.sh

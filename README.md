@@ -1,12 +1,10 @@
-# Diene Go language base
+# operator-template
+
+The reusable kubebuilder/controller-runtime operator skeleton in family
+conventions — a manager image plus manager chart, proven on a toy CRD pair.
 
 <!-- ### go-base-badges -->
 <!-- #### source: go-base -->
-
-[![CI](https://github.com/AtomiCloud/diene.go-base/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.go-base/actions/workflows/ci.yaml)
-[![Unit coverage](https://codecov.io/gh/AtomiCloud/diene.go-base/branch/main/graph/badge.svg?flag=unit)](https://codecov.io/gh/AtomiCloud/diene.go-base)
-[![Integration coverage](https://codecov.io/gh/AtomiCloud/diene.go-base/branch/main/graph/badge.svg?flag=int)](https://codecov.io/gh/AtomiCloud/diene.go-base)
-[![Commit activity](https://img.shields.io/github/commit-activity/m/AtomiCloud/diene.go-base)](https://github.com/AtomiCloud/diene.go-base/commits/main)
 
 <!-- ### nix-root -->
 <!-- #### source: main -->
@@ -24,7 +22,7 @@ synchronization.
 
 - `pls setup` — synchronize installed diene package skills.
 - `pls lint` — run every pre-commit gate.
-- `pls docker:build` — build the local Go image.
+- `pls docker:build` — build the local manager image.
 - `pls helm:lint` / `pls helm:template` — validate or render the root chart.
 - `pls secret:scan` — scan tracked content for secrets.
 - `pls skills:sync` — rebuild `.claude/skills/vendor/` from installed packages.
@@ -34,16 +32,18 @@ synchronization.
 
 ## Go commands
 
-- `pls build` — create `dist/go-base`.
+- `pls build` — create `dist/manager`.
 - `pls typecheck` — compile every source package without running tests.
 - `pls test` / `pls test:coverage` — run both tiers normally or with scoped ledgers.
 - `pls deadcode` — run strict whole-repository and production passes plus the LLM-lax report.
-- `pls run -- slug "Hello World"` — execute from source.
-- `pls preview -- slug "Hello World"` — execute the compiled artifact.
-- `pls up` / `pls down` — start or stop local Redis.
+- `pls run -- --help` — run the manager from source.
+- `pls preview -- --help` — run the compiled manager artifact.
+- `pls operator:generate` — regenerate CRDs, RBAC, and deepcopy from the Go types.
+- `pls operator:e2e` — run the k3d end-to-end journey.
 
 See the [Go baseline](docs/developer/go-baseline.md) for the language contract and
-template-maintenance boundary.
+template-maintenance boundary, and the
+[operator conventions](docs/domain/operator-conventions.md) for the operator surface.
 
 ## Standards
 

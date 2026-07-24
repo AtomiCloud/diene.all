@@ -1,0 +1,8 @@
+# Landscape overlay: pichu.
+controllers:
+  note: true
+ledger:
+  landscape: pichu
+  endpoint: minio.pichu.svc.cluster.local:9000
+  secure: true
+mode: active

@@ -334,5 +334,85 @@
     "template": "diene/observability",
     "name": "observability-standards-present",
     "class": "presence"
+  },
+  {
+    "template": "diene/operator-template",
+    "name": "operator-reconcile",
+    "class": "gate"
+  },
+  {
+    "template": "diene/operator-template",
+    "name": "operator-crd-schema-validation",
+    "class": "gate"
+  },
+  {
+    "template": "diene/operator-template",
+    "name": "hook-operator-crd-drift",
+    "class": "gate"
+  },
+  {
+    "template": "diene/operator-template",
+    "name": "hook-operator-marker-lint",
+    "class": "gate"
+  },
+  {
+    "template": "diene/operator-template",
+    "name": "hook-operator-architecture",
+    "class": "gate"
+  },
+  {
+    "template": "diene/operator-template",
+    "name": "hook-operator-rbac-minimality",
+    "class": "gate"
+  },
+  {
+    "template": "diene/operator-template",
+    "name": "operator-status-conditions",
+    "class": "gate"
+  },
+  {
+    "template": "diene/operator-template",
+    "name": "operator-multi-controller-wiring",
+    "class": "gate"
+  },
+  {
+    "template": "diene/operator-template",
+    "name": "operator-ledger-semantics",
+    "class": "gate"
+  },
+  {
+    "template": "diene/operator-template",
+    "name": "operator-observe-no-write",
+    "class": "gate"
+  },
+  {
+    "template": "diene/operator-template",
+    "name": "operator-blast-brake",
+    "class": "gate"
+  },
+  {
+    "template": "diene/operator-template",
+    "name": "manager-runtime",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/operator-template",
+    "name": "k3d-install-toy-reconcile",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/operator-template",
+    "name": "manager-landscape-values",
+    "class": "presence"
+  },
+  {
+    "template": "diene/operator-template",
+    "name": "operator-observability-artifacts",
+    "class": "presence"
+  },
+  {
+    "template": "diene/operator-template",
+    "name": "k3d-harness-artifact",
+    "class": "presence"
   }
 ]

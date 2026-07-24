@@ -1,20 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-container="diene-go-base-journey-$$"
-trap 'docker rm -f "${container}" >/dev/null 2>&1 || true' EXIT
+source_help="$(pls run -- --help 2>&1)"
+! rg -q 'enable-note' <<<"${source_help}" && echo "❌ source manager did not report the Note enable flag" >&2 && exit 1
+! rg -q 'enable-journal' <<<"${source_help}" && echo "❌ source manager did not report the Journal enable flag" >&2 && exit 1
 
-source_result="$(pls run -- slug "Sample Journey" | tail -n 1)"
-[ "${source_result}" != "sample-journey" ] && echo "❌ source task returned '${source_result}'" >&2 && exit 1
-preview_result="$(pls preview -- slug "Sample Journey" | tail -n 1)"
-[ "${preview_result}" != "sample-journey" ] && echo "❌ preview task returned '${preview_result}'" >&2 && exit 1
-docker run -d --name "${container}" -p 127.0.0.1::6379 redis:7.4.5-alpine >/dev/null
-for _ in $(seq 1 30); do
-  docker exec "${container}" redis-cli ping 2>/dev/null | rg -q '^PONG$' && break
-  sleep 1
-done
-port="$(docker port "${container}" 6379/tcp | awk -F: 'END {print $NF}')"
-result="$(./dist/go-base note "127.0.0.1:${port}" "Sample Journey" "connected")"
-[ "${result}" != "sample-journey=connected" ] && echo "❌ sample journey returned '${result}'" >&2 && exit 1
+preview_help="$(pls preview -- --help 2>&1)"
+[ ! -x dist/manager ] && echo "❌ preview did not build dist/manager" >&2 && exit 1
+! rg -q 'health-probe-bind-address' <<<"${preview_help}" && echo "❌ compiled manager did not report its health endpoint flag" >&2 && exit 1
+! rg -q 'observe' <<<"${preview_help}" && echo "❌ compiled manager did not report the observe flag" >&2 && exit 1
 
-echo "✅ Sample domain journey passed"
+go test -count=1 -run '^TestMultiControllerWiring$' ./tests/int/operator/
+
+echo "✅ Operator sample journey passed"

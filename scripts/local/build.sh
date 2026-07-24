@@ -2,6 +2,6 @@
 set -euo pipefail
 
 mkdir -p dist
-go build -trimpath -o dist/go-base ./cmd/go-base
+go build -trimpath -o dist/manager ./cmd/manager
 
 echo "✅ Go binary built"

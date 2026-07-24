@@ -70,6 +70,25 @@ let
       }
     );
 
+    # ### operator-template
+    # #### source: operator-template
+    operator = (
+      with pkgs-2605;
+      {
+        controller-gen = kubernetes-controller-tools;
+        inherit bun kubebuilder setup-envtest;
+        # Offline envtest asset directory: kube-apiserver + etcd + kubectl from the
+        # pinned nixpkgs, so `KUBEBUILDER_ASSETS` never triggers a runtime download
+        # (M14 cold-runner discipline). Consumed by the shell hook, not on PATH.
+        envtest-assets = runCommandLocal "operator-envtest-assets" { } ''
+          mkdir -p "$out"
+          ln -s ${kubernetes}/bin/kube-apiserver "$out/kube-apiserver"
+          ln -s ${etcd}/bin/etcd "$out/etcd"
+          ln -s ${kubectl}/bin/kubectl "$out/kubectl"
+        '';
+      }
+    );
+
     # ### nix-root
     # #### source: main
     atomipkgs = (
@@ -125,4 +144,4 @@ let
   };
 in
 with all;
-atomipkgs // nix-2605 // nix-unstable // root // go-base
+atomipkgs // nix-2605 // nix-unstable // root // go-base // operator
