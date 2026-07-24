@@ -24,6 +24,22 @@ if [ "${mode}" = "publish" ] || [ "${mode}" = "all" ]; then
     echo "❌ reusable publisher does not propagate RELEASE_TAG into scripts/ci/publish.sh" >&2
     exit 1
   }
+  rg -Fx 'releaser release -c atomi_release.yaml -i npm' scripts/ci/release.sh >/dev/null || {
+    echo "❌ release job must invoke releaser with the pinned npm runtime" >&2
+    exit 1
+  }
+  rg -F 'writeShellScriptBin "releaser"' nix/packages.nix >/dev/null || {
+    echo "❌ releaser bootstrap executable is missing" >&2
+    exit 1
+  }
+  rg -F 'exec ${atomi.sg}/bin/sg "$@"' nix/packages.nix >/dev/null || {
+    echo "❌ releaser bootstrap must delegate to sg" >&2
+    exit 1
+  }
+  rg -U 'releaser = \[\n    nodejs\n    releaser\n  \];' nix/env.nix >/dev/null || {
+    echo "❌ releaser environment must include pinned node/npm and the releaser bootstrap" >&2
+    exit 1
+  }
 fi
 
 if [ "${mode}" = "package" ] || [ "${mode}" = "all" ]; then

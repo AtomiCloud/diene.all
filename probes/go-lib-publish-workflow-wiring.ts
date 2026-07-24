@@ -7,19 +7,20 @@ export default defineGate({
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
   baseline: {
     name: 'baseline-go-lib-publish-workflow-wiring-green',
-    description: 'CD reaches the publication guard and proxy verification path.',
+    description:
+      'CD reaches the publication guard and proxy verification path, while Semantic Release resolves through the pinned releaser/npm runtime.',
     async run(repo: any) {
       await expectGreen(repo, gate, 'go-lib-publish-workflow-wiring');
     },
   },
   mutation: {
     name: 'mutation-go-lib-publish-workflow-wiring-caught',
-    description: 'Pointing CD at a missing reusable workflow turns wiring validation red.',
+    description: 'Removing the pinned npm runtime from the release invocation turns wiring validation red.',
     expectedImpact: [],
     async run(repo: any) {
-      await repo.patch('.github/workflows/cd.yaml', {
-        find: './.github/workflows/⚡reusable-go-publish.yaml',
-        replace: './.github/workflows/⚡missing-go-publish.yaml',
+      await repo.patch('scripts/ci/release.sh', {
+        find: 'releaser release -c atomi_release.yaml -i npm',
+        replace: 'releaser release -c atomi_release.yaml',
       });
       await expectRed(repo, gate, 'go-lib-publish-workflow-wiring');
     },

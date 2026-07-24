@@ -120,6 +120,7 @@ let
           kubeconform
           kubernetes-helm
           kyverno
+          nodejs
           pre-commit
           ripgrep
           shellcheck
@@ -129,6 +130,15 @@ let
           ;
       }
     );
+
+    # ### workspace-releaser-bootstrap
+    # #### source: workspace
+    # C2: expose the pre-2p `releaser` command as a thin alias over sg.
+    releaser-bootstrap = {
+      releaser = pkgs.writeShellScriptBin "releaser" ''
+        exec ${atomi.sg}/bin/sg "$@"
+      '';
+    };
 
     # ### nix-unstable
     # #### source: main
@@ -144,4 +154,4 @@ let
   };
 in
 with all;
-atomipkgs // nix-2605 // nix-unstable // root // go-base // go-lib
+atomipkgs // nix-2605 // releaser-bootstrap // nix-unstable // root // go-base // go-lib
