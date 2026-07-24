@@ -18,7 +18,7 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        await repo.patch('.github/workflows/reusable-precommit.yaml', {
+        await repo.patch('.github/workflows/⚡reusable-precommit.yaml', {
           find: './scripts/ci/pre-commit.sh',
           replace: './scripts/ci/missing.sh',
         });

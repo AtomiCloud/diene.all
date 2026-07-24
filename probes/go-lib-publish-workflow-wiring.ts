@@ -18,7 +18,7 @@ export default defineGate({
     expectedImpact: [],
     async run(repo: any) {
       await repo.patch('.github/workflows/cd.yaml', {
-        find: './.github/workflows/reusable-go-publish.yaml',
+        find: './.github/workflows/⚡reusable-go-publish.yaml',
         replace: './.github/workflows/⚡missing-go-publish.yaml',
       });
       await expectRed(repo, gate, 'go-lib-publish-workflow-wiring');

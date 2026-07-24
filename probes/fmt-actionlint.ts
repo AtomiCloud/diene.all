@@ -18,7 +18,7 @@ export default {
       kind: 'mutation',
       expectedImpact: ['workflow-actionlint'],
       async run(repo: any) {
-        const path = '.github/workflows/reusable-precommit.yaml';
+        const path = '.github/workflows/⚡reusable-precommit.yaml';
         const original = await repo.read(path);
         try {
           await repo.patch(path, {

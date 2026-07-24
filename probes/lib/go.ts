@@ -109,7 +109,7 @@ export async function unformatGo(repo: ProbeRepo): Promise<void> {
 }
 
 export async function breakGoWorkflow(repo: ProbeRepo): Promise<void> {
-  const paths = (await repo.glob('.github/workflows/reusable-go-*.yaml')).sort();
+  const paths = (await repo.glob('.github/workflows/⚡reusable-go-*.yaml')).sort();
   for (const path of paths) {
     const source = await repo.read(path);
     const match = source.match(/\.\/scripts\/ci\/[A-Za-z0-9._/-]+\.sh/);

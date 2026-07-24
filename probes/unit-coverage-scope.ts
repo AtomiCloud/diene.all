@@ -17,7 +17,7 @@ export default {
       name: 'mutation-unit-coverage-caught',
       description: 'An uncovered public lib function must turn the unit ledger red.',
       kind: 'mutation',
-      expectedImpact: ['deadcode-whole-repo', 'deadcode-production'],
+      expectedImpact: ['deadcode-whole-repo', 'deadcode-production', 'go-lib-export-docs'],
       async run(repo: any) {
         await plantGoFile(repo, 'lib/**/*.go', 'probe_uncovered.go', 'func ProbeUncovered() int { return 1 }');
         await expectRed(repo, 'nix develop .#ci -c ./scripts/local/test.sh unit true false', 'unit-coverage-scope');

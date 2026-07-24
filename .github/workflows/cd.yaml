@@ -12,5 +12,5 @@ jobs:
     name: Verify Go module publication
     permissions:
       contents: read
-    uses: ./.github/workflows/reusable-go-publish.yaml
+    uses: ./.github/workflows/⚡reusable-go-publish.yaml
     secrets: inherit
