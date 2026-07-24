@@ -29,6 +29,36 @@ release:
 `;
 }
 
+function hookConfig(): string {
+  return `
+schemaVersion: 2
+types:
+  - type: feat
+    desc: Test type
+    section: Test changes
+    scopes:
+      default: { desc: Test change, release: minor }
+conventions:
+  path: CommitConventions.md
+  template: "# Conventions\\n\\nCONVENTION_DOCS_PLACEHOLDER\\n"
+release:
+  branches: [main]
+  changelog: { path: Changelog.md, title: "# Changelog" }
+  commit:
+    message: "release: \${version}\\n\\n\${notes}"
+    assets: [Changelog.md, CommitConventions.md, HookAsset.txt]
+  github: false
+  hooks:
+    prepare:
+      - phase: beforeWrite
+        command: "echo before > HookAsset.txt"
+      - phase: afterWrite
+        command: "echo after >> HookAsset.txt"
+    success:
+      - "echo done > .git/releaser-success.marker"
+`;
+}
+
 async function repository(message = 'feat: add release'): Promise<{ readonly root: string; readonly remote: string }> {
   const scratch = await scratchRepository();
   roots.push(scratch.root, scratch.remote);
@@ -91,6 +121,44 @@ describe(`releaser SIT (${process.env.SIT_DRIVER === 'binary' ? 'binary' : 'in-p
     expect((await run(['git', 'tag', '--list'], scratch.remote)).trim()).toBe('v1.0.0');
     expect(await run(['git', 'log', '-1', '--format=%s'], scratch.remote)).toBe('release: 1.0.0\n');
     expect(next).toMatchObject({ code: 2, err: 'no release necessary\n' });
+  });
+
+  it('should run ordered prepare hooks and a success hook, then leave a clean immutable tree', async () => {
+    // Arrange
+    const scratch = await scratchRepository();
+    roots.push(scratch.root, scratch.remote);
+    await Bun.write(join(scratch.root, 'atomi_release.yaml'), hookConfig());
+    await Bun.write(join(scratch.root, 'Changelog.md'), '# Changelog\n');
+    await Bun.write(join(scratch.root, 'CommitConventions.md'), '# old\n');
+    await Bun.write(join(scratch.root, 'package.json'), '{"name":"fixture","version":"1.0.0"}\n');
+    await Bun.write(join(scratch.root, 'bun.lock'), 'locked\n');
+    await commitAll(scratch.root, 'feat: add release');
+    await run(['git', 'push', '-q', '-u', 'origin', 'main'], scratch.root);
+    const beforePackage = await Bun.file(join(scratch.root, 'package.json')).text();
+    const beforeLock = await Bun.file(join(scratch.root, 'bun.lock')).text();
+
+    // Act
+    const release = await driver.run(['release'], scratch.root);
+
+    // Assert
+    expect(release).toMatchObject({ code: 0, out: 'released 1.0.0\n' });
+    // Prepare hooks ran in order: beforeWrite created the asset, afterWrite appended to it.
+    expect(await Bun.file(join(scratch.root, 'HookAsset.txt')).text()).toBe('before\nafter\n');
+    // Success hook executed; it wrote under .git so the working tree stays clean.
+    expect(await Bun.file(join(scratch.root, '.git', 'releaser-success.marker')).text()).toBe('done\n');
+    // Generated documents contain their expected content.
+    const changelog = await Bun.file(join(scratch.root, 'Changelog.md')).text();
+    expect(changelog).toContain('# Changelog');
+    expect(changelog).toContain('## 1.0.0');
+    const conventions = await Bun.file(join(scratch.root, 'CommitConventions.md')).text();
+    expect(conventions).toContain('# Conventions');
+    expect(conventions).toContain('## Types');
+    // The package manifest and lockfile are byte-identical (M1–M3): the tool never touches them.
+    expect(await Bun.file(join(scratch.root, 'package.json')).text()).toBe(beforePackage);
+    expect(await Bun.file(join(scratch.root, 'bun.lock')).text()).toBe(beforeLock);
+    // The working tree is clean, and the hook-produced asset landed in the release commit.
+    expect((await run(['git', 'status', '--porcelain'], scratch.root)).trim()).toBe('');
+    expect(await run(['git', 'show', '--name-only', '--format=', 'HEAD'], scratch.root)).toContain('HookAsset.txt');
   });
 
   it('should lint valid and invalid commit messages with stable diagnostics', async () => {

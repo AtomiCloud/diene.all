@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test';
+import type { ReleaserConfig } from '../../../src/lib/config/model';
 import { VersionService } from '../../../src/lib/release/version-service';
 import { TEST_CONFIG } from '../../helpers/fakes';
 
@@ -36,6 +37,34 @@ describe('version service', () => {
   it('should make special scopes override defaults and ignore unknown history', () => {
     expect(subject.analyze(TEST_CONFIG, null, [{ sha: 'a', message: 'feat(no-release): skip' }])).toBeNull();
     expect(subject.analyze(TEST_CONFIG, null, [{ sha: 'a', message: 'unknown!: skip' }])).toBeNull();
+  });
+
+  it('should treat a BREAKING CHANGE footer as a major release', () => {
+    // Act
+    const actual = subject.analyze(TEST_CONFIG, { major: 1, minor: 2, patch: 3 }, [
+      { sha: 'a', message: 'fix: repair a detail\n\nA descriptive body.\n\nBREAKING CHANGE: the contract changed' },
+    ]);
+
+    // Assert
+    expect(actual).toMatchObject({ level: 'major', version: { major: 2, minor: 0, patch: 0 } });
+  });
+
+  it('should apply a release-producing special scope across any type, overriding type rules', () => {
+    // Arrange
+    const config: ReleaserConfig = {
+      ...TEST_CONFIG,
+      specialScopes: { ...TEST_CONFIG.specialScopes, security: { desc: 'Security fix', release: 'major' } },
+    };
+
+    // Act / Assert: the special scope's major wins over `fix` (patch) and `docs` (no release), regardless of type.
+    expect(
+      subject.analyze(config, { major: 1, minor: 2, patch: 3 }, [{ sha: 'a', message: 'fix(security): patch a hole' }])
+        ?.level,
+    ).toBe('major');
+    expect(
+      subject.analyze(config, { major: 1, minor: 2, patch: 3 }, [{ sha: 'b', message: 'docs(security): note a hole' }])
+        ?.level,
+    ).toBe('major');
   });
 
   it('should compare major, minor, and patch components and reject malformed tag formats', () => {
