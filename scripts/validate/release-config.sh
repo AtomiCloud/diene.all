@@ -15,6 +15,7 @@ if [ "${mode}" = "schema" ] || [ "${mode}" = "all" ]; then
     .conventions.path == "docs/developer/CommitConventions.md" and
     .release.github.enabled == true and
     (.release.tagFormat | contains("${version}")) and
+    ([.release.commit.message] | all(contains("[skip ci]") | not)) and
     (.release.commit.assets | index("VERSION") != null) and
     (has("plugins") | not) and
     (has("gitlint") | not) and
