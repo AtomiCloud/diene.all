@@ -13,12 +13,12 @@ packages="$(yq -r ".tiers.${mode}.packages" .config/go-base.coverage.yaml)"
 # internal packages, which Go's internal-import rule keeps under testhelper/).
 read -ra test_patterns <<<"${tests}"
 
-if [ "${mode}" = "meta" ] && ! go list ./testhelper/... >/dev/null 2>&1; then
+if [ "${mode}" = "meta" ] && [ ! -d testhelper ]; then
   echo "✅ Go meta tests skipped: no testhelper package"
   exit 0
 fi
 
-if [ "${mode}" = "int" ] && ! go list ./adapters/... >/dev/null 2>&1; then
+if [ "${mode}" = "int" ] && [ ! -d adapters ]; then
   echo "✅ Go int tests skipped: no adapters package"
   exit 0
 fi

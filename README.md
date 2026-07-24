@@ -46,8 +46,32 @@ go get github.com/AtomiCloud/diene.go-interfaces@latest
 ```
 
 ```go
-system := testhelper.NewInMemorySystem(testhelper.InMemorySystemOptions{})
-now, err := system.NowUTC()
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/AtomiCloud/diene.go-interfaces/testhelper"
+)
+
+func main() {
+	ctx := context.Background()
+	system := testhelper.NewInMemorySystem(testhelper.InMemorySystemOptions{})
+	vfs := testhelper.NewInMemoryVfs(testhelper.InMemoryVfsOptions{})
+
+	now, err := system.NowUTC()
+	if err != nil {
+		panic(err)
+	}
+
+	exists, err := vfs.Exists(ctx, "/")
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(now, exists)
+}
 ```
 
 <!-- ### go-base-commands -->
