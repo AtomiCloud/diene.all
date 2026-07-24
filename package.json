@@ -1,7 +1,7 @@
 {
-  "name": "@atomicloud/diene.bun-lib",
-  "version": "1.3.1",
-  "description": "Bun library baseline for AtomiCloud/diene.bun-lib — a publishable ESM + CJS + types sample.",
+  "name": "@atomicloud/diene.core-utils",
+  "version": "0.0.0",
+  "description": "Result-based TypeScript core utilities and Temporal wire codecs for the AtomiCloud Bun family.",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -28,28 +28,32 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/AtomiCloud/diene.bun-lib.git"
+    "url": "git+https://github.com/AtomiCloud/diene.bun-core-utils.git"
   },
-  "homepage": "https://github.com/AtomiCloud/diene.bun-lib#readme",
+  "homepage": "https://github.com/AtomiCloud/diene.bun-core-utils#readme",
   "bugs": {
-    "url": "https://github.com/AtomiCloud/diene.bun-lib/issues"
+    "url": "https://github.com/AtomiCloud/diene.bun-core-utils/issues"
   },
   "license": "MIT",
   "author": "AtomiCloud",
   "keywords": [
     "atomicloud",
     "bun",
-    "library",
+    "core-utils",
+    "temporal",
+    "result",
+    "filesystem",
+    "concurrency",
     "esm",
-    "cjs",
-    "redis",
-    "kv-store"
+    "cjs"
   ],
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
-    "ioredis": "^5.11.1"
+    "@atomicloud/diene.interfaces": "1.0.0",
+    "@atomicloud/diene.result": "1.0.2",
+    "@js-temporal/polyfill": "^0.5.1"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.2",
@@ -60,7 +64,6 @@
     "knip": "^6.23.0",
     "publint": "^0.3.16",
     "should": "^13.2.3",
-    "testcontainers": "^12.0.4",
     "typescript": "^6.0.3"
   }
 }

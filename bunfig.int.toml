@@ -4,5 +4,16 @@ timeout = 120000
 coverageReporter = ["text", "lcov"]
 coverageDir = "coverage/int"
 coverageSkipTestFiles = true
-# Int ledger = the adapters tier only; the domain is the unit ledger, the glue is not an adapter, tests/** never counts.
-coveragePathIgnorePatterns = ["src/index.ts", "src/lib/**", "tests/**"]
+# Integration ledger = explicit-root filesystem helpers only.
+coveragePathIgnorePatterns = [
+  "src/concurrency.ts",
+  "src/fuzzy.ts",
+  "src/hash.ts",
+  "src/index.ts",
+  "src/record.ts",
+  "src/slug.ts",
+  "src/timing.ts",
+  "src/unique.ts",
+  "src/wire-date.ts",
+  "tests/**",
+]
