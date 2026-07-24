@@ -1,6 +1,6 @@
 import { createHash, createHmac } from 'node:crypto';
 import { Ok, type Result } from '@atomicloud/diene.result';
-import { GenericContainer, type StartedTestContainer, Wait } from 'testcontainers';
+import type { StartedTestContainer } from 'testcontainers';
 import type { PostgresEntry } from '../presets/postgres';
 import type { RedisConnectionEntry } from '../presets/redis';
 import type {
@@ -87,6 +87,13 @@ export class InMemoryBlockStorage implements BlockStorage {
 // valid against the matching preset schema (UPPERCASE key). A consumer int test is
 // then just: `const { block } = await startPostgres(); registerStandardConfigs(...)`.
 
+// `testcontainers` is an OPTIONAL peer dependency — imported lazily so importing
+// this module (e.g. for `InMemoryBlockStorage`) never requires it. Only the
+// container start helpers pull it in, on first use.
+let testcontainersModule: typeof import('testcontainers') | undefined;
+const loadTestcontainers = async (): Promise<typeof import('testcontainers')> =>
+  (testcontainersModule ??= await import('testcontainers'));
+
 /** A started preset container plus its schema-valid, keyed config block. */
 export interface StartedPreset<E> {
   /** The underlying Testcontainer. */
@@ -129,6 +136,7 @@ export const startPostgres = async (options: StartPostgresOptions = {}): Promise
   const database = options.database ?? 'app';
   const username = options.username ?? 'app';
   const password = options.password ?? 'app-secret';
+  const { GenericContainer, Wait } = await loadTestcontainers();
   const container = await new GenericContainer(options.image ?? 'postgres:16-alpine')
     .withExposedPorts(5432)
     .withEnvironment({ POSTGRES_DB: database, POSTGRES_USER: username, POSTGRES_PASSWORD: password })
@@ -161,6 +169,7 @@ const startRedis = async (
   const key = options.key ?? defaultKey;
   const password = options.password ?? '';
   const db = options.db ?? 0;
+  const { GenericContainer, Wait } = await loadTestcontainers();
   const container = await new GenericContainer(options.image ?? 'redis:7-alpine')
     .withExposedPorts(6379)
     .withWaitStrategy(Wait.forLogMessage(/Ready to accept connections/))
@@ -241,6 +250,7 @@ export const startStorage = async (options: StartStorageOptions = {}): Promise<S
   const region = options.region ?? 'us-east-1';
   const accessKeyId = options.accessKeyId ?? 'minioadmin';
   const secretAccessKey = options.secretAccessKey ?? 'minioadmin';
+  const { GenericContainer, Wait } = await loadTestcontainers();
   const container = await new GenericContainer(options.image ?? 'minio/minio:latest')
     .withExposedPorts(9000)
     .withEnvironment({ MINIO_ROOT_USER: accessKeyId, MINIO_ROOT_PASSWORD: secretAccessKey })
