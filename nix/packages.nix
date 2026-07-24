@@ -94,10 +94,28 @@ let
       }
     );
 
+    # ### dart-lib-packages
+    # #### source: dart-lib
+    dart-lib-packages = (
+      with pkgs-unstable;
+      {
+        dart = flutter.dart;
+      }
+    );
+
+    # ### dart-lib-tools
+    # #### source: dart-lib
+    dart-lib-tools = (
+      with pkgs-2605;
+      {
+        inherit gitlint;
+      }
+    );
+
     root = {
       inherit cyanprint;
     };
   };
 in
 with all;
-atomipkgs // nix-2605 // nix-unstable // root
+atomipkgs // nix-2605 // nix-unstable // dart-lib-packages // dart-lib-tools // root

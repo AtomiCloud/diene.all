@@ -11,6 +11,9 @@ with packages;
     pls
     sg
     skopeo
+    # ### dart-lib-dev
+    # #### source: dart-lib
+    dart
   ];
 
   # ### workspace-lint
@@ -26,6 +29,9 @@ with packages;
     shellcheck
     treefmt
     yq-go
+    # ### dart-lib-lint
+    # #### source: dart-lib
+    gitlint
   ];
 
   # ### workspace-main
@@ -45,6 +51,9 @@ with packages;
     shellcheck
     skopeo
     yq-go
+    # ### dart-lib-main
+    # #### source: dart-lib
+    dart
   ];
 
   # ### workspace-releaser-bootstrap

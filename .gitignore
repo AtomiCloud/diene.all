@@ -22,3 +22,13 @@ result-*
 .vscode/
 Thumbs.db
 desktop.ini
+
+### dart-lib
+#### source: dart-lib
+.dart_tool/
+.packages
+.pub-cache/
+build/
+coverage/
+doc/api/
+pubspec.lock
