@@ -81,3 +81,12 @@ Read [the Bun baseline](docs/developer/bun-baseline.md) before changing the Bun
 toolchain, task surface, test tiers, coverage ledgers, build, or illustrative
 sample. Follow the TypeScript variants linked from that baseline alongside the
 shared engineering standards.
+
+<!-- ### bun-otel -->
+<!-- #### source: lib/bun/otel -->
+
+## OpenTelemetry
+
+Read [docs/standards/otel/index.md](docs/standards/otel/index.md) before changing the
+OTel config block schema, resource mapping, signal init/flush, sampler, pino logs
+bridge, trace seam, or telemetry test-helper surface.

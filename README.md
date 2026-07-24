@@ -68,44 +68,65 @@ boundary. TypeScript variants accompany the shared standards for
 [utilities](docs/standards/utilities/languages/typescript.md), and
 [validation](docs/standards/validation/languages/typescript.md).
 
-<!-- ### bun-lib -->
-<!-- #### source: bun-lib -->
+<!-- ### bun-otel -->
+<!-- #### source: lib/bun/otel -->
 
 ## Library package
 
-`@atomicloud/diene.bun-lib` is the publishable Bun library baseline: a small
-TypeScript package shipped as dual **ESM + CommonJS** with bundled type
-declarations, validated on every push and published on `v*.*.*` tags. Library
-children rescope the package name, description, keywords, and badge URLs from
-this scaffold.
+`@atomicloud/diene.otel` is the Bun family's OpenTelemetry package, shipped as dual
+**ESM + CommonJS** with bundled type declarations, validated on every push and
+published on `v*.*.*` tags. It owns the engine-owned config block schema, the
+canonical resource identity, the signal lifecycle (init / flush), the pino logs
+bridge, and the language-local trace seam — plus framework-free telemetry test
+doubles. See the [otel standard](docs/standards/otel/index.md) for the canonical
+block, resource mapping, `OTEL_*` precedence, the logs stance, and the trace-seam
+ownership boundary.
 
-See the [npm release runbook](https://github.com/AtomiCloud/diene.bun-lib/blob/main/docs/developer/npm-release.md)
+See the [npm release runbook](https://github.com/AtomiCloud/diene.bun-otel/blob/main/docs/developer/npm-release.md)
 for tag publishing, API-key rotation, retry behavior, and the deliberate
 no-provenance policy.
 
-[![npm version](https://img.shields.io/npm/v/@atomicloud/diene.bun-lib)](https://www.npmjs.com/package/@atomicloud/diene.bun-lib)
-[![npm downloads](https://img.shields.io/npm/dm/@atomicloud/diene.bun-lib)](https://www.npmjs.com/package/@atomicloud/diene.bun-lib)
-[![CI](https://github.com/AtomiCloud/diene.bun-lib/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.bun-lib/actions/workflows/ci.yaml)
+[![npm version](https://img.shields.io/npm/v/@atomicloud/diene.otel)](https://www.npmjs.com/package/@atomicloud/diene.otel)
+[![npm downloads](https://img.shields.io/npm/dm/@atomicloud/diene.otel)](https://www.npmjs.com/package/@atomicloud/diene.otel)
+[![CI](https://github.com/AtomiCloud/diene.bun-otel/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.bun-otel/actions/workflows/ci.yaml)
+[![coverage](https://codecov.io/gh/AtomiCloud/diene.bun-otel/branch/main/graph/badge.svg)](https://codecov.io/gh/AtomiCloud/diene.bun-otel)
+[![commit activity](https://img.shields.io/github/commit-activity/m/AtomiCloud/diene.bun-otel)](https://github.com/AtomiCloud/diene.bun-otel/commits/main)
 
 ### Installation
 
 ```bash
-bun add @atomicloud/diene.bun-lib
+bun add @atomicloud/diene.otel
 # or
-npm install @atomicloud/diene.bun-lib
+npm install @atomicloud/diene.otel
 ```
 
-`ioredis` is a runtime dependency and is installed automatically.
+`@atomicloud/diene.interfaces`, `@atomicloud/diene.result`, and
+`@atomicloud/diene.core-utils` are runtime dependencies and are installed
+automatically.
 
 ### Usage
 
+Import the config **schema** from the package root, and the framework-free telemetry
+**doubles** from the `@atomicloud/diene.otel/test-helper` subpath:
+
 ```ts
-// ESM
-import { buildSampleKey, createRedisStore, persistSample } from '@atomicloud/diene.bun-lib';
-import type { IKeyValueStore, RedisConnection } from '@atomicloud/diene.bun-lib';
+// ESM — the engine-owned config block schema, inferred types, and bootstrap:
+import { initOtel, otelBlockSchema, type OtelBlock } from '@atomicloud/diene.otel';
+
+const block: OtelBlock = otelBlockSchema.parse(rawConfig.otel);
+const telemetry = initOtel(block, appIdentity);
+
+// The consumer lifecycle owns graceful shutdown; the library installs no hooks.
+await telemetry.shutdown();
+
+// In-memory trace double and OTel asserters live on the test-helper subpath:
+//   import { InMemoryTraceEmitter } from '@atomicloud/diene.otel/test-helper';
 ```
 
 ```js
 // CommonJS
-const { buildSampleKey, createRedisStore, persistSample } = require('@atomicloud/diene.bun-lib');
+const otel = require('@atomicloud/diene.otel');
 ```
+
+Logging and metrics doubles come from `@atomicloud/diene.interfaces/test-helper`; the
+trace double is owned here (RB-19).
