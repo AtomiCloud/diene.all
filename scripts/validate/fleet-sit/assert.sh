@@ -90,6 +90,7 @@ sit_report_init() {
         "the throwaway argocd-server sets server.insecure=true because the pinned install port-80 Service targets its default self-signed TLS listener; this permits hermetic HTTP webhook delivery without weakening signature validation",
         "the derived local ApplicationSet maps the explicit-port production identity for source C to fleet-services.git, an in-root symlink to fleet.git, while source A uses fleet.git; this preserves source C at HEAD while avoiding the pinned Argo same-identity different-revision rejection",
         "before L5 the throwaway harness stops both the Application and ApplicationSet controllers, clears the resources finalizer only on platform-sitother, deletes it while neither controller can restore that finalizer, then restores and explicitly refreshes its owning ApplicationSet; this recreates an operation-free UID and clears the intentionally CRD-light initial retry before the tag moves",
+        "L7 shortens both the ApplicationSet generator requeue and the repo-server repo-state cache expiration to 30s; these are the two pinned production polling layers, and matching them makes the real no-webhook fallback runnable within the bounded throwaway test",
         "the pinned Argo install uses server-side apply because its ApplicationSet CRD is larger than Kubernetes permits in a client-side last-applied annotation",
         "the planned static dumb-HTTP fixture transport was replaced after source and runtime verification: Argo CD v3.4.5 go-git remote.List rejects its static info/refs response, so the Bun wrapper invokes git http-backend for smart HTTP"
       ],
@@ -101,6 +102,8 @@ sit_report_init() {
         webhookNegativeOracle: "wrong and missing signatures must return pinned HTTP 400 rejection responses and cause no Application spec refresh",
         applicationSetRefreshBypassesRevisionCache: true,
         pollingPhaseRestartsRepoServer: true,
+        pollingPhaseApplicationSetRequeue: "30s",
+        pollingPhaseRepoCacheExpiration: "30s",
         nonCanaryAutomationOracle: "a newly recreated Application UID with source-A comparison at C4, root and status controller-initiated automatic operations pinned to C4, and operation start at or after the tag-move timestamp",
         sameRepositoryDifferentRevisionConstraint: "Argo CD v3.4.5 rejects different revisions when source URLs normalize to one identity",
         fleetServicesAlias: "fleet-services.git symlink to fleet.git with identical advertised refs and a distinct URL identity",

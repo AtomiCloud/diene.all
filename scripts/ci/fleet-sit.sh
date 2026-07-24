@@ -325,6 +325,8 @@ configure_clocks() {
   local interval="$1"
   kubectl -n argocd patch configmap argocd-cm --type merge \
     -p "$(jq -cn --arg interval "${interval}" '{data:{"timeout.reconciliation":$interval,"timeout.reconciliation.jitter":"0s"}}')"
+  kubectl -n argocd patch configmap argocd-cmd-params-cm --type merge \
+    -p "$(jq -cn --arg interval "${interval}" '{data:{"reposerver.repo.cache.expiration":$interval}}')"
   kubectl -n argocd set env deployment/argocd-applicationset-controller \
     "ARGOCD_APPLICATIONSET_CONTROLLER_REQUEUE_AFTER=${interval}"
   kubectl -n argocd rollout restart deployment/argocd-applicationset-controller
@@ -1123,8 +1125,39 @@ run_full() {
   sit_leg_pass 'two row files changed exactly their four-app union; a roster-only path changed zero specs for 90s'
 
   sit_leg_begin 'L7-polling-fallback' \
-    'git-C7.txt' 'polling-L7.json' 'apps-S7.json' 'child-specs-S7.json' 'changed-L7.json'
+    'git-C7.txt' 'polling-runtime-L7.json' 'polling-L7.json' \
+    'apps-S7.json' 'child-specs-S7.json' 'changed-L7.json'
   configure_clocks '30s'
+  kubectl -n argocd get deployment argocd-applicationset-controller -o json \
+    >"${work}/applicationset-controller-L7.json"
+  kubectl -n argocd get deployment argocd-repo-server -o json \
+    >"${work}/repo-server-L7.json"
+  kubectl -n argocd get configmap argocd-cmd-params-cm -o json \
+    >"${work}/cmd-params-L7.json"
+  jq -n \
+    --slurpfile applicationSet "${work}/applicationset-controller-L7.json" \
+    --slurpfile repoServer "${work}/repo-server-L7.json" \
+    --slurpfile params "${work}/cmd-params-L7.json" '
+    {
+      applicationSetRequeue: (
+        $applicationSet[0].spec.template.spec.containers[0].env[] |
+        select(.name == "ARGOCD_APPLICATIONSET_CONTROLLER_REQUEUE_AFTER") |
+        .value
+      ),
+      repoCacheExpiration: $params[0].data["reposerver.repo.cache.expiration"],
+      repoCacheEnvRef: (
+        $repoServer[0].spec.template.spec.containers[0].env[] |
+        select(.name == "ARGOCD_REPO_CACHE_EXPIRATION") |
+        .valueFrom.configMapKeyRef
+      )
+    }
+  ' >"${report}/polling-runtime-L7.json"
+  jq -e '
+    .applicationSetRequeue == "30s" and
+    .repoCacheExpiration == "30s" and
+    .repoCacheEnvRef.name == "argocd-cmd-params-cm" and
+    .repoCacheEnvRef.key == "reposerver.repo.cache.expiration"
+  ' "${report}/polling-runtime-L7.json" >/dev/null
   capture_child_specs 'S6-poll-baseline'
   before_sha="${C6B_SHA}"
   yq -i '.pin.tag = "0.1.4-sit-l7"' \
@@ -1137,8 +1170,12 @@ run_full() {
   sit_wait_for 180 '30s ApplicationSet polling fallback to update raichu' \
     check_child_revision raichu '0.1.4-sit-l7'
   poll_elapsed=$(($(sit_epoch) - poll_started))
-  jq -n --arg before "${before_sha}" --arg after "${C7_SHA}" --argjson elapsed "${poll_elapsed}" \
-    '{webhookSent:false,before:$before,after:$after,requeue:"30s",elapsed_s:$elapsed}' \
+  jq -n \
+    --arg before "${before_sha}" \
+    --arg after "${C7_SHA}" \
+    --argjson elapsed "${poll_elapsed}" \
+    --slurpfile runtime "${report}/polling-runtime-L7.json" \
+    '{webhookSent:false,before:$before,after:$after,runtime:$runtime[0],elapsed_s:$elapsed}' \
     >"${report}/polling-L7.json"
   capture_child_specs 'S7'
   assert_changed_landscapes "${report}/child-specs-S6-poll-baseline.json" \
