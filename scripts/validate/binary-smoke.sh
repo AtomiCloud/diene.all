@@ -49,7 +49,7 @@ deadcode -json -test ./... >/dev/null
 # #### source: operator-template
 controller-gen --version >/dev/null
 kubebuilder version >/dev/null 2>&1
-setup-envtest --help >/dev/null 2>&1
+setup-envtest version >/dev/null
 test -x "${KUBEBUILDER_ASSETS:-/nonexistent}/kube-apiserver"
 
 staticcheck -version >/dev/null
