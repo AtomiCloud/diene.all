@@ -290,21 +290,25 @@ check_webhook_endpoint() {
   esac
 }
 
-start_port_forwards() {
-  local server_log="${report}/port-forward-server.log"
+start_applicationset_port_forward() {
   local appset_log="${report}/port-forward-appset.log"
-  kubectl -n argocd port-forward --address 127.0.0.1 service/argocd-server :80 \
-    >"${server_log}" 2>&1 &
-  PF_SERVER_PID=$!
   kubectl -n argocd port-forward --address 127.0.0.1 service/argocd-applicationset-controller :7000 \
     >"${appset_log}" 2>&1 &
   PF_APPSET_PID=$!
-  sit_wait_for 20 'argocd-server port-forward' check_port_forward "${PF_SERVER_PID}" "${server_log}"
   sit_wait_for 20 'ApplicationSet webhook port-forward' check_port_forward "${PF_APPSET_PID}" "${appset_log}"
-  PF_SERVER_PORT="$(port_from_log "${server_log}")"
   PF_APPSET_PORT="$(port_from_log "${appset_log}")"
-  sit_wait_for 20 'argocd-server webhook endpoint' check_webhook_endpoint "${PF_SERVER_PORT}"
   sit_wait_for 20 'ApplicationSet webhook endpoint' check_webhook_endpoint "${PF_APPSET_PORT}"
+}
+
+start_port_forwards() {
+  local server_log="${report}/port-forward-server.log"
+  kubectl -n argocd port-forward --address 127.0.0.1 service/argocd-server :80 \
+    >"${server_log}" 2>&1 &
+  PF_SERVER_PID=$!
+  sit_wait_for 20 'argocd-server port-forward' check_port_forward "${PF_SERVER_PID}" "${server_log}"
+  PF_SERVER_PORT="$(port_from_log "${server_log}")"
+  sit_wait_for 20 'argocd-server webhook endpoint' check_webhook_endpoint "${PF_SERVER_PORT}"
+  start_applicationset_port_forward
 }
 
 wait_argo_rollouts() {
@@ -537,12 +541,44 @@ scale_application_controller() {
   fi
 }
 
+check_applicationset_controller_replicas() {
+  local expected="$1"
+  kubectl -n argocd get deployment argocd-applicationset-controller -o json |
+    jq -e --argjson expected "${expected}" '
+      (.status.replicas // 0) == $expected and
+      (.status.readyReplicas // 0) == $expected and
+      (.status.availableReplicas // 0) == $expected
+    ' >/dev/null 2>&1
+}
+
+scale_applicationset_controller() {
+  local replicas="$1"
+  kubectl -n argocd scale deployment argocd-applicationset-controller --replicas="${replicas}"
+  if [ "${replicas}" -eq 0 ]; then
+    sit_wait_for 60 'ApplicationSet controller to stop' check_applicationset_controller_replicas 0
+  else
+    kubectl -n argocd rollout status deployment/argocd-applicationset-controller --timeout=300s
+  fi
+}
+
+check_application_absent() {
+  local application="$1"
+  ! kubectl -n argocd get application.argoproj.io "${application}" >/dev/null 2>&1
+}
+
 check_sitother_recreated_without_operation() {
   local old_uid="$1"
+  local owner_uid="$2"
   kubectl -n argocd get application.argoproj.io platform-sitother -o json |
-    jq -e --arg oldUid "${old_uid}" '
+    jq -e --arg oldUid "${old_uid}" --arg ownerUid "${owner_uid}" '
       .metadata.uid != $oldUid and
-      any(.metadata.ownerReferences[]?; .kind == "ApplicationSet" and .name == "platforms") and
+      any(.metadata.ownerReferences[]?;
+        .apiVersion == "argoproj.io/v1alpha1" and
+        .kind == "ApplicationSet" and
+        .name == "platforms" and
+        .uid == $ownerUid and
+        .controller == true) and
+      .spec.sources[0].targetRevision == "machinery-stable" and
       .spec.syncPolicy.automated.prune == true and
       .spec.syncPolicy.automated.selfHeal == true and
       .operation == null and
@@ -560,6 +596,7 @@ check_sitother_c4_automation_live() {
       --arg uid "${expected_uid}" \
       --arg notBefore "${not_before}" '
       .metadata.uid == $uid and
+      .spec.sources[0].targetRevision == "machinery-stable" and
       .spec.syncPolicy.automated.prune == true and
       .spec.syncPolicy.automated.selfHeal == true and
       .status.sync.revisions[0] == $expected and
@@ -898,28 +935,101 @@ run_full() {
   sit_leg_begin 'L5-machinery-tag-and-automated-policy' \
     'webhook-L5-application.json' 'git-C5-tag.txt' 'l5-reset-and-tag.json' \
     'platform-sitother-before-L5.json' 'platform-sitother-finalizer-reset-L5.json' \
+    'controllers-stopped-L5.json' 'platform-sitother-absence-check-L5.txt' \
     'applicationset-reset-trigger-L5.txt' 'platform-sitother-reset-L5.json' \
     'platform-sitother-after-L5.json' 'platform-canary-after-L5.json'
   cp "${report}/platform-sitother-after-L4.json" "${report}/platform-sitother-before-L5.json"
-  local previous_uid recreated_uid tag_moved_at
+  local previous_uid recreated_uid platforms_appset_uid tag_moved_at
   previous_uid="$(jq -r '.metadata.uid' "${report}/platform-sitother-before-L5.json")"
   [ -n "${previous_uid}" ] && [ "${previous_uid}" != 'null' ] ||
     sit_fail 'platform-sitother had no UID before the L5 reset'
+  platforms_appset_uid="$(kubectl -n argocd get applicationset.argoproj.io platforms -o jsonpath='{.metadata.uid}')"
+  [ -n "${platforms_appset_uid}" ] || sit_fail 'ApplicationSet/platforms had no UID before the L5 reset'
   scale_application_controller 0
+  stop_pid "${PF_APPSET_PID}"
+  PF_APPSET_PID=''
+  PF_APPSET_PORT=''
+  scale_applicationset_controller 0
+  kubectl -n argocd get statefulset argocd-application-controller -o json \
+    >"${work}/application-controller-stopped-L5.json"
+  kubectl -n argocd get deployment argocd-applicationset-controller -o json \
+    >"${work}/applicationset-controller-stopped-L5.json"
+  jq -n \
+    --slurpfile application "${work}/application-controller-stopped-L5.json" \
+    --slurpfile applicationSet "${work}/applicationset-controller-stopped-L5.json" '
+    {
+      applicationController: {
+        kind: $application[0].kind,
+        name: $application[0].metadata.name,
+        specReplicas: ($application[0].spec.replicas // 0),
+        statusReplicas: ($application[0].status.replicas // 0),
+        readyReplicas: ($application[0].status.readyReplicas // 0),
+        currentReplicas: ($application[0].status.currentReplicas // 0)
+      },
+      applicationSetController: {
+        kind: $applicationSet[0].kind,
+        name: $applicationSet[0].metadata.name,
+        specReplicas: ($applicationSet[0].spec.replicas // 0),
+        statusReplicas: ($applicationSet[0].status.replicas // 0),
+        readyReplicas: ($applicationSet[0].status.readyReplicas // 0),
+        availableReplicas: ($applicationSet[0].status.availableReplicas // 0)
+      }
+    }
+  ' >"${report}/controllers-stopped-L5.json"
+  jq -e '
+    .applicationController |
+      .kind == "StatefulSet" and
+      .name == "argocd-application-controller" and
+      .specReplicas == 0 and .statusReplicas == 0 and
+      .readyReplicas == 0 and .currentReplicas == 0
+  ' "${report}/controllers-stopped-L5.json" >/dev/null
+  jq -e '
+    .applicationSetController |
+      .kind == "Deployment" and
+      .name == "argocd-applicationset-controller" and
+      .specReplicas == 0 and .statusReplicas == 0 and
+      .readyReplicas == 0 and .availableReplicas == 0
+  ' "${report}/controllers-stopped-L5.json" >/dev/null
   kubectl -n argocd patch application.argoproj.io platform-sitother --type merge \
     -p '{"metadata":{"finalizers":null}}' -o json \
     >"${report}/platform-sitother-finalizer-reset-L5.json"
   jq -e '(.metadata.finalizers // []) | length == 0' \
     "${report}/platform-sitother-finalizer-reset-L5.json" >/dev/null
   kubectl -n argocd delete application.argoproj.io platform-sitother --wait=true --timeout=30s
+  sit_wait_for 30 'platform-sitother to remain absent with both owning controllers stopped' \
+    check_application_absent platform-sitother
+  if kubectl -n argocd get application.argoproj.io platform-sitother \
+    >"${report}/platform-sitother-absence-check-L5.txt" 2>&1; then
+    sit_fail 'platform-sitother unexpectedly existed after its bounded L5 deletion'
+  fi
+  rg -qi 'not found' "${report}/platform-sitother-absence-check-L5.txt" ||
+    sit_fail 'platform-sitother absence check did not return the Kubernetes NotFound contract'
+  scale_applicationset_controller 1
+  start_applicationset_port_forward
   kubectl -n argocd annotate applicationset.argoproj.io platforms \
     'argocd.argoproj.io/application-set-refresh=true' --overwrite \
     >"${report}/applicationset-reset-trigger-L5.txt"
   sit_wait_for 90 'ApplicationSet controller to recreate platform-sitother without an operation' \
-    check_sitother_recreated_without_operation "${previous_uid}"
+    check_sitother_recreated_without_operation "${previous_uid}" "${platforms_appset_uid}"
   kubectl -n argocd get application.argoproj.io platform-sitother -o json \
     >"${report}/platform-sitother-reset-L5.json"
   recreated_uid="$(jq -r '.metadata.uid' "${report}/platform-sitother-reset-L5.json")"
+  jq -e \
+    --arg previousUid "${previous_uid}" \
+    --arg ownerUid "${platforms_appset_uid}" '
+    .metadata.uid != $previousUid and
+    any(.metadata.ownerReferences[]?;
+      .apiVersion == "argoproj.io/v1alpha1" and
+      .kind == "ApplicationSet" and
+      .name == "platforms" and
+      .uid == $ownerUid and
+      .controller == true) and
+    .spec.sources[0].targetRevision == "machinery-stable" and
+    .spec.syncPolicy.automated.prune == true and
+    .spec.syncPolicy.automated.selfHeal == true and
+    .operation == null and
+    .status.operationState == null
+  ' "${report}/platform-sitother-reset-L5.json" >/dev/null
   {
     git -C "${FLEET_SOURCE}" tag --force machinery-stable "${C4_SHA}"
     git -C "${FLEET_SOURCE}" push --quiet --force sit refs/tags/machinery-stable
@@ -929,9 +1039,20 @@ run_full() {
   jq -n \
     --arg previousUid "${previous_uid}" \
     --arg recreatedUid "${recreated_uid}" \
+    --arg platformsApplicationSetUid "${platforms_appset_uid}" \
     --arg tagMovedAt "${tag_moved_at}" \
     --arg c4 "${C4_SHA}" \
-    '{previousUid:$previousUid,recreatedUid:$recreatedUid,applicationControllerReplicasDuringReset:0,tagMovedAt:$tagMovedAt,machineryStableRevision:$c4}' \
+    --slurpfile controllersDuringDeletion "${report}/controllers-stopped-L5.json" \
+    '{
+      previousUid:$previousUid,
+      recreatedUid:$recreatedUid,
+      platformsApplicationSetUid:$platformsApplicationSetUid,
+      applicationControllerReplicasDuringDeletion:$controllersDuringDeletion[0].applicationController.statusReplicas,
+      applicationSetControllerReplicasDuringDeletion:$controllersDuringDeletion[0].applicationSetController.statusReplicas,
+      controllersDuringDeletion:$controllersDuringDeletion[0],
+      tagMovedAt:$tagMovedAt,
+      machineryStableRevision:$c4
+    }' \
     >"${report}/l5-reset-and-tag.json"
   send_webhook "http://127.0.0.1:${PF_SERVER_PORT}/api/webhook" correct \
     "${report}/webhook-L5-application.json" 'refs/tags/machinery-stable' "${C1_SHA}" "${C4_SHA}"
@@ -948,6 +1069,7 @@ run_full() {
     --arg uid "${recreated_uid}" \
     --arg tagMovedAt "${tag_moved_at}" '
     .metadata.uid == $uid and
+    .spec.sources[0].targetRevision == "machinery-stable" and
     .status.sync.revisions[0] == $c4 and
     .spec.syncPolicy.automated.prune == true and
     .spec.syncPolicy.automated.selfHeal == true and
@@ -959,7 +1081,7 @@ run_full() {
   ' "${report}/platform-sitother-after-L5.json" >/dev/null
   jq -e '.operation == null and .status.operationState == null and .spec.syncPolicy.automated == null' \
     "${report}/platform-canary-after-L5.json" >/dev/null
-  sit_leg_pass 'after an operation-free UID reset, machinery-stable moved to C4 and the restored controller launched a new automatic C4 operation; canary still had no operation'
+  sit_leg_pass 'after both owning controllers stopped for an operation-free UID reset, machinery-stable moved to C4 and the restored Application controller launched a new automatic C4 operation; canary still had no operation'
 
   sit_leg_begin 'L6-two-row-union-and-no-row' \
     'webhook-L6-two-row.json' 'webhook-L6-no-row.json' 'git-C6-two-row.txt' 'git-C6-no-row.txt' \
