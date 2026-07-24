@@ -1,6 +1,9 @@
-# Independent landscape overlay example.
-serviceTree:
-  landscape: example
-
-primordial:
-  targetLandscape: example
+# Independent landscape overlay (generic). sulfur is L1-generic: authentication
+# is a Cloudflare API token, not per-cloud IAM/IRSA, so this overlay contributes
+# only landscape identity — no landscape/cluster/zone topology or behavior. Final
+# per-profile ENV roster entries stay outside this node.
+global:
+  serviceTree:
+    landscape: example
+  commonLabels:
+    atomi.cloud/landscape: example

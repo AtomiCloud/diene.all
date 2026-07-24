@@ -1,49 +1,77 @@
-# @schema pattern:^[a-z0-9.-]+$;minLength:1
-# -- Prefix used by every service-tree label and annotation helper.
-labelPrefix: atomi.cloud
+# -- Values shared with the vendored cert-manager dependency through Helm's
+# supported parent-to-subchart global-values contract.
+global:
+  # @schema pattern:^[a-z0-9.-]+$;minLength:1;required:true
+  # -- Single prefix used by every wrapper service-tree label and annotation helper.
+  labelPrefix: atomi.cloud
 
-# @schema pattern:^[a-z0-9]+-[a-z0-9]+$;required:true
-# -- Primary workload fullname. It must be `<service>-<dashless-token>`.
-fullnameOverride: wrapper-api
+  # -- Stable service-tree projection. Platform is always the release namespace;
+  # landscape and cluster are added by independent overlays.
+  serviceTree:
+    # @schema pattern:^[a-z0-9]+$;required:true
+    # -- Service name.
+    service: sulfur
+    # @schema pattern:^[a-z0-9]+$;required:true
+    # -- Module name.
+    module: certs
+    # @schema pattern:^[0-9]+$;required:true
+    # -- Architecture layer.
+    layer: '1'
 
-# -- Stable four-slot service-tree projection. Landscape and cluster are added by independent overlays.
-serviceTree:
-  # @schema pattern:^[a-z0-9]+$;required:true
-  platform: sample
-  # @schema pattern:^[a-z0-9]+$;required:true
-  service: wrapper
-  # @schema pattern:^[a-z0-9]+$;required:true
-  module: api
-  # @schema pattern:^[0-9]+$;required:true
-  layer: '2'
+  # -- Optional physical-instance metadata. The instance remains outside LPSM.
+  instance:
+    # @schema pattern:^[a-z0-9._:/-]+$;minLength:1
+    # -- Repository-qualified physical instance id.
+    physicalId: example-repository:run-001
 
-# -- Optional physical-instance metadata. The instance remains outside LPSM.
-instance:
-  physicalId: example-repository:run-001
+  # -- Static service-tree labels projected onto every upstream cert-manager
+  # resource through cert-manager's supported `global.commonLabels` passthrough.
+  # The namespace-sourced platform label cannot be expressed as a static value,
+  # so the wrapper-owned LPSM ConfigMap carries the full dynamic LPSM projection.
+  # Overlays append the landscape label. Keys must stay consistent with
+  # `global.serviceTree`; the unit `labels` gate enforces the correspondence.
+  commonLabels:
+    atomi.cloud/service: sulfur
+    atomi.cloud/module: certs
+    atomi.cloud/layer: '1'
 
-# -- Wrapper-owned sample workload.
-workload:
-  replicas: 1 # @schema minimum:1
-  image:
-    repository: ghcr.io/stefanprodan/podinfo
-    tag: 6.9.2 # @schema pattern:^[A-Za-z0-9][A-Za-z0-9._-]*$
-    pullPolicy: IfNotPresent # @schema enum:[Always, IfNotPresent, Never]
-  port: 9898 # @schema minimum:1;maximum:65535
-  reloader:
+# -- Pure passthrough of the vendored jetstack/cert-manager engine. The wrapper
+# adds NO Issuer/ClusterIssuer of its own — the issuer set is zinc's separate
+# chart; sulfur owns only the cert-manager engine. This map carries only the
+# minimal upstream overrides: CRD installation, the stable Gateway API config
+# field, resource envelopes, container hardening, and Reloader opt-in.
+certManager:
+  # -- Pin the canonical upstream `cert-manager*` object names (pure passthrough).
+  # Without this the aliased dependency would fold the alias into every name and
+  # emit non-DNS-1123 identifiers.
+  fullnameOverride: cert-manager
+
+  # -- CRD lifecycle stance. CRDs are installed as Helm-managed objects and kept
+  # on release uninstall (`keep: true`) so issued Certificates/Issuers survive a
+  # chart removal. cert-manager applies CRDs through Helm's ordinary object
+  # channel (no separate skipCrds/Server-Side-Apply CRD path is used).
+  crds:
+    # -- Install the cert-manager CRDs with the release.
     enabled: true
-  podSecurityContext:
-    runAsNonRoot: true
-    runAsUser: 10000
-    runAsGroup: 10000
-    fsGroup: 10000
-  securityContext:
-    allowPrivilegeEscalation: false
-    readOnlyRootFilesystem: true
-    runAsNonRoot: true
-    runAsUser: 10000
-    runAsGroup: 10000
-    capabilities:
-      drop: [ALL]
+    # -- Retain CRDs on uninstall to protect existing custom resources.
+    keep: true
+
+  # -- cert-manager controller runtime configuration (ControllerConfiguration).
+  # Gateway API support (Gateway/HTTPRoute TLS for kgateway) is enabled through
+  # the stable `enableGatewayAPI` config field. The dead
+  # `ExperimentalGatewayAPISupport` feature gate (a no-op since it defaulted true
+  # in v1.15) is deliberately NOT set anywhere; the hygiene gate rejects it.
+  config:
+    apiVersion: controller.config.cert-manager.io/v1alpha1
+    kind: ControllerConfiguration
+    enableGatewayAPI: true
+
+  # -- Single controller replica; cert-manager leader-elects, so one active
+  # instance is the generic default.
+  replicaCount: 1
+
+  # -- CPU and memory envelopes for the controller container (VAP requires both
+  # requests and limits on every workload container).
   resources:
     requests:
       cpu: 10m
@@ -52,177 +80,70 @@ workload:
       cpu: 100m
       memory: 128Mi
 
-# -- Separate pre-sync migration hook. It never owns or recreates the Deployment.
-migration:
-  enabled: true
-  image:
-    repository: busybox
-    tag: 1.37.0-glibc # @schema pattern:^[A-Za-z0-9][A-Za-z0-9._-]*$
-    pullPolicy: IfNotPresent # @schema enum:[Always, IfNotPresent, Never]
-  command: ['sh', '-c', 'echo migration-ready']
-  reloader:
-    enabled: true
-  resources:
-    requests:
-      cpu: 5m
-      memory: 8Mi
-    limits:
-      cpu: 25m
-      memory: 32Mi
+  # -- Baseline-plus container hardening for the controller (upstream omits the
+  # container-level runAsNonRoot the VAP profile requires).
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    runAsNonRoot: true
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
 
-# -- One service-scoped ExternalSecret with folder-prefix rewrites.
-secret:
-  enabled: true
-  refreshInterval: 1h
-  store:
-    kind: SecretStore # @schema enum:[SecretStore, ClusterSecretStore]
-    name: sample-store
-  sharedFolder: /shared
-  serviceFolder: /wrapper
-
-# -- Provider-managed LoadBalancer service for the gateway.
-gateway:
-  enabled: true
-  provider: digitalocean # @schema enum:[aws, oci, digitalocean]
-  port: 80 # @schema minimum:1;maximum:65535
-  aws:
-    subnetIds: [] # @schema item:string;uniqueItems:true
-    eipAllocationIds: [] # @schema item:string;uniqueItems:true
-  oci:
-    reservedPublicIp: ''
-
-# -- Current health and webhook delivery conventions.
-contracts:
-  health:
-    path: /healthz # @schema pattern:^/.*
-    expectedStatus: 2xx
-  webhook:
-    provider: example # @schema pattern:^[a-z0-9-]+$
-    pathPrefix: /internal/webhooks # @schema pattern:^/.*
-  lpsm:
-    landscape: example # @schema pattern:^[a-z0-9-]+$
-    module: api # @schema pattern:^[a-z0-9-]+$
-    service: wrapper # @schema pattern:^[a-z0-9-]+$
-    instance: run001 # @schema pattern:^[a-z0-9-]+$
-    ordinaryZone: cluster.atomi.cloud
-    instanceZone: local.example.invalid
-    parseHostname: ''
-
-# -- Optional Gateway API route scaffold for a webhook receiver.
-webhookRoute:
-  enabled: true
-  parentGateway: sample-gateway
-  parentNamespace: gateway-system
-
-# -- Reusable primordial-chart CR helper inputs against the frozen T3 shapes.
-primordial:
-  enabled: true
-  apiVersions:
-    fleet: fleet.atomi.cloud/v1alpha1
-    identity: identity.atomi.cloud/v1alpha1
-    edge: edge.atomi.cloud/v1alpha1
-  targetLandscape: example
-  vlandscape: example-vlandscape
-  placement:
-    preferredHost: example-host
-  platformDependency:
-    modules:
-      database: # @schema mergeProperties:true
-        maindb:
-          type: neon
-          delivery: external
-          providerAccountRef: example-neon
-          credentialMode: standard
-          rotation: 'on'
-          cpu: 1
-          ram: 1Gi
-          storage: 10Gi
-          version: '16'
-          backup:
-            crossVendor: true
-          engine:
-            neon:
-              tier: example
-      kv: # @schema mergeProperties:true
-        sessions:
-          type: upstash
-          delivery: external
-          providerAccountRef: example-upstash
-          credentialMode: standard
-          rotation: 'on'
-          ram: 128Mi
-          engine:
-            upstash: {}
-      cache: # @schema mergeProperties:true
-        hot:
-          type: dragonfly
-          delivery: replicated
-          credentialMode: standard
-          rotation: 'on'
-          ram: 128Mi
-          engine:
-            dragonfly: {}
-      store: # @schema mergeProperties:true
-        assets:
-          type: tigris
-          delivery: external
-          providerAccountRef: example-tigris
-          credentialMode: standard
-          rotation: 'on'
-          engine:
-            tigris: {}
-  virtualLandscapeService:
-    enabled: true
-    serve: true
-  logtoApp:
-    enabled: true
-    paths: [/auth/callback]
-    extraRedirectUris: [] # @schema item:string;uniqueItems:true
-    resourceRefs: [wrapper-api] # @schema item:string;uniqueItems:true
-  problem:
-    enabled: true
-    version: 0.1.0
-    entries:
-      - id: example
-        type: https://errors.example.invalid/example
-        title: Example problem
-        status: 500
-        recoverable: false
-        schema: {}
-        endpoints:
-          - method: GET
-            path: /
-  cloudflareDeploy:
-    enabled: true
-    scriptName: wrapper-web
-    tag: 0.1.0
-    pin: true
-
-# -- Pinned optional upstream chart. Every instantiated dependency must receive a conforming override.
-upstream:
-  enabled: false
-  fullnameOverride: wrapper-upstream # @schema pattern:^[a-z0-9]+-[a-z0-9]+$
-  image:
-    repository: ghcr.io/stefanprodan/podinfo
-    tag: 6.9.2
-  podAnnotations:
+  # -- Reloader opt-in on the controller Deployment; restarts on config change.
+  deploymentAnnotations:
     reloader.stakater.com/auto: 'true'
-  podSecurityContext:
-    runAsNonRoot: true
-    runAsUser: 10000
-    runAsGroup: 10000
-  securityContext:
-    allowPrivilegeEscalation: false
-    readOnlyRootFilesystem: true
-    runAsNonRoot: true
-    runAsUser: 10000
-    runAsGroup: 10000
-    capabilities:
-      drop: [ALL]
-  resources:
-    requests:
-      cpu: 10m
-      memory: 32Mi
-    limits:
-      cpu: 100m
-      memory: 128Mi
+
+  webhook:
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      runAsNonRoot: true
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop:
+          - ALL
+    deploymentAnnotations:
+      reloader.stakater.com/auto: 'true'
+
+  cainjector:
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      runAsNonRoot: true
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop:
+          - ALL
+    deploymentAnnotations:
+      reloader.stakater.com/auto: 'true'
+
+  startupapicheck:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      runAsNonRoot: true
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop:
+          - ALL

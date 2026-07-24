@@ -1,0 +1,13 @@
+# cert-manager sequential-minor upgrade policy (Q-G22, enforced by this chart
+# repo's OWN CI). The wrapper may bump the pinned cert-manager minor by at most
+# one minor per version-bump PR — the v1.15 → ... → v1.20.3 path is walked minor
+# by minor, never skipped. The CRD upgrade path follows the same rule. A PR that
+# skips a minor (or downgrades) reddens `scripts/validate/check-sequential-minor.sh`.
+dependency: cert-manager
+# The minor currently pinned in chart/Chart.yaml (major.minor of the dependency).
+pinnedMinor: '1.20'
+# The minor the chart most recently upgraded FROM. The next allowed pinnedMinor is
+# previousMinor or previousMinor + 1 only.
+previousMinor: '1.19'
+# CRD upgrade path stance: same sequential-minor walk as the chart version.
+crdUpgradePath: sequential-minor

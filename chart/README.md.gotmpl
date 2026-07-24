@@ -1,0 +1,49 @@
+{{ template "chart.header" . }}
+
+{{ template "chart.versionBadge" . }}{{ template "chart.typeBadge" . }}{{ template "chart.appVersionBadge" . }}
+
+{{ template "chart.description" . }}
+
+{{ template "chart.requirementsSection" . }}
+
+## What sulfur owns (and does not)
+
+sulfur is a **pure passthrough** wrapper over the upstream `jetstack/cert-manager`
+engine (controller + cainjector + webhook). It adds **no Issuer/ClusterIssuer** of
+its own: the issuer set is [zinc](https://github.com/AtomiCloud)'s separate chart.
+The engine and the issuer set are deliberately independent concerns.
+
+The wrapper carries only minimal upstream overrides:
+
+- `certManager.crds.enabled: true` / `certManager.crds.keep: true` — CRDs install
+  with the release and survive uninstall so issued certificates are not garbage
+  collected. No separate skipCrds/Server-Side-Apply CRD channel is used.
+- `certManager.config.enableGatewayAPI: true` — Gateway/HTTPRoute TLS support for
+  kgateway, enabled through the **stable** config field, never the dead
+  `ExperimentalGatewayAPISupport` feature gate (a no-op since it defaulted true in
+  v1.15).
+- resource envelopes and baseline-plus container hardening on every rendered
+  workload (controller, webhook, cainjector, startupapicheck) so the shared VAP
+  profile passes.
+- Reloader opt-in (`reloader.stakater.com/auto`) on each engine Deployment.
+
+## Identity and labels
+
+`global.commonLabels` projects the static service-tree labels onto every upstream
+cert-manager resource. The namespace-sourced platform label cannot be a static
+value, so the wrapper-owned `sulfur-lpsm` ConfigMap carries the full dynamic LPSM
+projection (platform = release namespace, plus the landscape/service/module/layer
+slots and reversible physical-instance annotations). `global.serviceTree.platform`
+is forbidden as a value — platform always comes from the release namespace.
+
+## Upstream selection and upgrade policy
+
+The vendored dependency is official cert-manager chart `v1.20.3` / app `v1.20.3`,
+pinned pure-passthrough from the recorded source archive hash in
+`chart/upstream-evidence.yaml`. The official latest is `v1.21.0` (one sequential
+minor ahead); it is not adopted because the wrapper advances **one minor at a
+time** under the Q-G22 sequential-minor policy in `chart/upgrade-policy.yaml`. The
+CRD upgrade path follows the same rule. `pls latest` checks the official
+repository and image registry against the recorded evidence.
+
+{{ template "chart.valuesSection" . }}
