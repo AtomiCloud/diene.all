@@ -13,7 +13,7 @@ version="${RELEASE_VERSION:-}"
 [ "${push}" = "true" ] && [ -z "${GITHUB_SHA:-}" ] && echo "❌ 'GITHUB_SHA' env var not set" >&2 && exit 1
 
 helm lint "${CHART_PATH}"
-helm template operator-template "${CHART_PATH}" >/dev/null
+helm template boron "${CHART_PATH}" >/dev/null
 
 if [ "${push}" = "true" ]; then
   sha="$(echo "${GITHUB_SHA}" | head -c 6)"

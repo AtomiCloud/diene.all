@@ -183,7 +183,14 @@ echo "🧪 Exposure answers behind Access end-to-end (fake-CF edge)"
 #  1. the tunnel path reaches the backend (route programmed end-to-end);
 #  2. the Access gate holds: the exposure reports its ordered policy set and a
 #     bare request through the gate mirror is challenged.
-backend_ok="$(kubectl get --raw "/api/v1/namespaces/${namespace}/services/${backend_name}:${backend_port}/proxy/ping" 2>/dev/null || true)"
+kubectl rollout status -n "${namespace}" "deploy/${backend_name}" --timeout "${timeout}"
+backend_ok=""
+probe_deadline=$((SECONDS + 60))
+while [ "${SECONDS}" -lt "${probe_deadline}" ]; do
+  backend_ok="$(kubectl get --raw "/api/v1/namespaces/${namespace}/services/${backend_name}:${backend_port}/proxy/ping" 2>/dev/null || true)"
+  [ "${backend_ok}" = "OK" ] && break
+  sleep 2
+done
 [ "${backend_ok}" != "OK" ] && echo "❌ tunnel-route backend did not answer through the service path: '${backend_ok}'" >&2 && exit 1
 
 programmed_status="$(kubectl get -n "${namespace}" "exposure/${exposure_name}" -o jsonpath='{.status.conditions[?(@.type=="Programmed")].status}')"
