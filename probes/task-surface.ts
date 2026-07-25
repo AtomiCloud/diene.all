@@ -23,7 +23,7 @@ export default {
       async run(repo: any) {
         await repo.write('.probe-task-surface.sh', SCRIPT);
         const result = await repo.exec(
-          "nix develop .#ci -c bash -lc 'flock -w 3600 /tmp/diene-bunconsumer-sit.lock bash .probe-task-surface.sh'",
+          "nix develop .#ci -c bash -lc 'flock /tmp/diene-bunconsumer-sit.lock bash .probe-task-surface.sh'",
           { timeoutMs: 1800000 },
         );
         if (result.exitCode !== 0) {

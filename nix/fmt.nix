@@ -18,11 +18,11 @@ let
 
           # ### bun-consumer-prettier-excludes
           # #### source: bun-consumer
-          # Helm templates are Go templates, not YAML — prettier cannot parse them.
-          # Only `templates/**` is excluded: the primordial chart's values, schema,
-          # README, and CRD fixtures are ordinary YAML/JSON/Markdown and stay
-          # formatted. The app chart is already covered by the workspace entry above.
-          "infra/primordial_chart/templates/**"
+          # Generated surfaces stay byte-owned by their generators (helm-docs
+          # READMEs, the problems export, schema-gen output); prettier must not
+          # fight them. Mirrors the pre-commit treefmt hook's exclude set.
+          "infra/primordial_chart/**"
+          "schemas/**"
         ];
       };
       shfmt.enable = true;

@@ -5,7 +5,16 @@ set -euo pipefail
 ./scripts/local/setup.sh
 mkdir -p dist/run
 bun -e 'await Bun.write("dist/run/probe-heartbeat.json", JSON.stringify({ pid: 1, state: "healthy", timestamp: new Date().toISOString() }))'
-ATOMI_HEALTH__HEARTBEAT_FILE=dist/run/probe-heartbeat.json bun run ./src/index.ts --landscape lapras health
+# Secrets are blank-in-yaml (R14/M33); the env tier injects them, exactly as a landscape does.
+export ATOMI_AUTH__LOGTO__APP_ID=probe-consumer
+export ATOMI_AUTH__LOGTO__APP_SECRET=probe-secret
+export ATOMI_AUTH__LOGTO__MANAGEMENT__CLIENT_ID=probe-management
+export ATOMI_AUTH__LOGTO__MANAGEMENT__CLIENT_SECRET=probe-secret
+# A throwaway 32-byte key derived at run time — never a committed literal.
+ATOMI_ENCRYPTION__KEY="$(bun -e 'process.stdout.write(Buffer.alloc(32, 7).toString("base64"))')"
+export ATOMI_ENCRYPTION__KEY
+export ATOMI_HEALTH__HEARTBEAT_FILE=dist/run/probe-heartbeat.json
+bun run ./src/index.ts --landscape lapras health
 `;
 
 const BOOT = "nix develop .#ci -c bash -lc 'bash .probe-config-layering.sh'";

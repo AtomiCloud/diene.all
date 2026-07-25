@@ -10,7 +10,7 @@ export function sitJourneyCommand(journeyFile: string): string {
     './scripts/local/setup.sh && ./scripts/local/compile.sh && ./scripts/local/up.sh && ' +
     `rc=0; SIT_DRIVER=binary CLI_BIN=dist/bin/bun-consumer bun test --config=bunfig.sit.toml ${journeyFile} || rc=$?; ` +
     './scripts/local/down.sh || true; exit $rc';
-  return `nix develop .#ci -c bash -lc 'flock -w 3600 ${LOCK} bash -c ${JSON.stringify(inner)}'`;
+  return `nix develop .#ci -c bash -lc 'flock ${LOCK} bash -c ${JSON.stringify(inner)}'`;
 }
 
 export async function runSitJourney(repo: any, journeyFile: string, label: string, expectFail = false): Promise<void> {
