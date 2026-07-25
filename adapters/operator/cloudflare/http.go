@@ -27,9 +27,9 @@ func NewHTTP() *HTTP {
 }
 
 type envelope struct {
-	Success bool              `json:"success"`
-	Errors  []apiError        `json:"errors"`
-	Result  json.RawMessage   `json:"result"`
+	Success bool            `json:"success"`
+	Errors  []apiError      `json:"errors"`
+	Result  json.RawMessage `json:"result"`
 }
 
 type apiError struct {

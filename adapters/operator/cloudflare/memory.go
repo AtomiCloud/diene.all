@@ -35,8 +35,8 @@ func NewMemory() *Memory {
 	return &Memory{
 		InvalidTokens: map[string]bool{}, Policies: map[string]string{},
 		Tunnels: map[string]Tunnel{}, Configs: map[string][]IngressRule{},
-		ConfigPushes:   map[string]int{},
-		Applications:   map[string]AccessApplication{}, ApplicationIDs: map[string]string{},
+		ConfigPushes: map[string]int{},
+		Applications: map[string]AccessApplication{}, ApplicationIDs: map[string]string{},
 		DNS: map[string]string{}, UncoveredZones: map[string]bool{},
 	}
 }

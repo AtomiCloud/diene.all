@@ -1,4 +1,4 @@
-# operator-template
+# boron
 
 ![Version: 0.1.0](https://img.shields.io/badge/Version-0.1.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.1.0](https://img.shields.io/badge/AppVersion-0.1.0-informational?style=flat-square)
 
@@ -8,27 +8,28 @@ Manager chart for the operator skeleton template (CRDs, RBAC, deployment, observ
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| alerts | object | `{"enabled":true,"folderUID":"operator-template"}` | Grafana alert pack (GrafanaAlertRuleGroup, never PrometheusRule). |
+| alerts | object | `{"enabled":true,"folderUID":"boron"}` | Grafana alert pack (GrafanaAlertRuleGroup, never PrometheusRule). |
 | alerts.enabled | bool | `true` | Ship the GrafanaAlertRuleGroup. |
-| alerts.folderUID | string | `"operator-template"` | Grafana folder UID the rule group is filed under. |
-| blastBrakeCap | int | `20` | Destructive-write percentage-per-tick blast-brake cap. |
-| controllers | object | `{"journal":true,"note":false}` | Per-controller enablement flags. |
-| controllers.journal | bool | `true` | Enable the Journal controller (no external dependency). |
-| controllers.note | bool | `false` | Enable the ledger-backed Note controller. Off by default so a zero-config install never crashes on an empty ledger endpoint; landscape/e2e overlays enable it together with a real ledger.endpoint. |
+| alerts.folderUID | string | `"boron"` | Grafana folder UID the rule group is filed under. |
+| cloudflaredImage | string | `"cloudflare/cloudflared:2025.7.0"` | Pinned cloudflared tunnel client image. |
+| controllers | object | `{"account":true,"exposure":true,"tunnel":true}` | Per-controller enablement flags. |
+| controllers.account | bool | `true` | Enable the Account controller (credential validation). |
+| controllers.exposure | bool | `true` | Enable the Exposure controller (Access Application + DNS). |
+| controllers.tunnel | bool | `true` | Enable the Tunnel controller (cloudflared + remote config). |
 | dashboard | object | `{"enabled":true}` | Grafana dashboard shipped as a sidecar-labelled ConfigMap. |
 | dashboard.enabled | bool | `true` | Ship the dashboard ConfigMap. |
-| image | object | `{"pullPolicy":"IfNotPresent","repository":"ghcr.io/atomicloud/operator-template","tag":""}` | Manager container image repository. |
+| fakeCloudflare | bool | `false` | Use the in-memory fake Cloudflare adapter (SIT/e2e only, never production). |
+| image | object | `{"pullPolicy":"IfNotPresent","repository":"ghcr.io/atomicloud/boron","tag":""}` | Manager container image repository. |
 | image.pullPolicy | string | `"IfNotPresent"` | Image pull policy. |
 | image.tag | string | `""` | Image tag; defaults to the chart appVersion when empty. |
-| ledger | object | `{"bucket":"operator-template-ledger","endpoint":"","landscape":"lapras","platform":"diene","secure":true}` | Ledger coordinate scope and S3/MinIO backend. |
-| ledger.bucket | string | `"operator-template-ledger"` | Ledger bucket name. |
-| ledger.endpoint | string | `""` | S3/MinIO endpoint host:port. |
-| ledger.landscape | string | `"lapras"` | Landscape coordinate (overridden per landscape values file). |
-| ledger.platform | string | `"diene"` | Platform coordinate. |
-| ledger.secure | bool | `true` | Use TLS for the ledger endpoint. |
+| installation | object | `{"connected":false,"dittoInspect":false,"instance":"","landscape":"lapras","profile":"lapras"}` | Trusted installation identity (Garden-supplied; never CR input). |
+| installation.connected | bool | `false` | The profile is connected (required for lapras/ditto programming). |
+| installation.dittoInspect | bool | `false` | Explicitly enable Boron on a ditto inspection run. |
+| installation.instance | string | `""` | Trusted instance every Exposure must declare. |
+| installation.landscape | string | `"lapras"` | Trusted landscape every Exposure must declare. |
+| installation.profile | string | `"lapras"` | Installation profile: lapras, ditto, or registered. Hosted (eevee, plusle, minun) and hermetic (rotom, absol) profiles never install Boron. |
 | metrics | object | `{"port":8443}` | Secured metrics endpoint configuration. |
 | metrics.port | int | `8443` | Metrics bind port (HTTPS, authn/authz filtered). |
-| mode | string | `"active"` | Reconcile mode: observe (read-only, report the would-apply plan) or active. |
 | replicas | int | `1` | Number of manager replicas. Leader election keeps a single active manager. |
 | resources | object | `{"limits":{"cpu":"500m","memory":"256Mi"},"requests":{"cpu":"50m","memory":"64Mi"}}` | Manager resource requests and limits. |
 | serviceAccount | object | `{"name":""}` | ServiceAccount name override; defaults to the release fullname. |

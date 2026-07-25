@@ -13,9 +13,9 @@ import (
 
 // Metric names (also referenced by the chart dashboard and alert group).
 const (
-	ConditionMetric     = "boron_condition"
+	ConditionMetric       = "boron_condition"
 	ProviderFailureMetric = "boron_provider_failures_total"
-	ReconcileTickMetric = "boron_reconcile_ticks_total"
+	ReconcileTickMetric   = "boron_reconcile_ticks_total"
 )
 
 // Recorder is the metrics port controllers use.

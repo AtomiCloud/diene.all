@@ -83,35 +83,46 @@ type ProfileAdmission struct {
 	Message string
 }
 
+// InstallationIdentity is the trusted Garden-supplied identity admission runs
+// against — it is manager configuration, never CR input.
+type InstallationIdentity struct {
+	Profile      string
+	Connected    bool
+	DittoEnabled bool
+}
+
 // AdmitProfile decides whether this installation may program exposures at all.
 // Garden installs Boron only on a connected lapras profile and, when explicitly
 // requested for inspection, ditto. Hosted landscapes (eevee, plusle, minun) and
 // hermetic landscapes (rotom, absol) never run Boron. An independently approved
 // registered cluster is admitted regardless of connectivity.
-func AdmitProfile(profile string, connected, dittoEnabled bool) ProfileAdmission {
-	switch profile {
+func AdmitProfile(identity InstallationIdentity) ProfileAdmission {
+	switch identity.Profile {
 	case ProfileRegistered:
 		return ProfileAdmission{Allowed: true, Reason: ReasonAccepted, Message: "registered-cluster admin installation"}
 	case ProfileLapras:
-		if !connected {
+		if !identity.Connected {
 			return ProfileAdmission{Reason: ReasonProfileUnsupported, Message: "lapras profile is not connected; Boron programs exposures only on a connected laptop"}
 		}
 		return ProfileAdmission{Allowed: true, Reason: ReasonAccepted, Message: "connected lapras profile"}
 	case ProfileDitto:
-		if !connected || !dittoEnabled {
+		if !identity.Connected || !identity.DittoEnabled {
 			return ProfileAdmission{Reason: ReasonProfileUnsupported, Message: "ditto runs Boron only when explicitly enabled for inspection on a connected run"}
 		}
 		return ProfileAdmission{Allowed: true, Reason: ReasonAccepted, Message: "explicitly inspectable ditto profile"}
 	default:
 		return ProfileAdmission{
 			Reason:  ReasonProfileUnsupported,
-			Message: fmt.Sprintf("profile %q never runs Boron (hosted human traffic is ENTEI-owned; hermetic profiles are tunnel-free)", profile),
+			Message: fmt.Sprintf("profile %q never runs Boron (hosted human traffic is ENTEI-owned; hermetic profiles are tunnel-free)", identity.Profile),
 		}
 	}
 }
 
 // BackendURL produces the in-cluster origin URL for the tunnel ingress rule.
+// Plain HTTP is correct here: cloudflared terminates edge TLS and reaches the
+// backend Service over the cluster network.
 func BackendURL(namespace, name string, port int32) string {
+	//nolint:revive // in-cluster tunnel origin; TLS terminates at the CF edge
 	return fmt.Sprintf("http://%s.%s.svc.cluster.local:%d", name, namespace, port)
 }
 

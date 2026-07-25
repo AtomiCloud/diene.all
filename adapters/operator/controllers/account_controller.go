@@ -61,6 +61,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		case isInvalidToken(verr):
 			in.ProviderReachable = true
 		default:
+			r.Metrics.ProviderFailure(accountController)
 			in.ProviderMessage = verr.Error()
 		}
 	}

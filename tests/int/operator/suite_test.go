@@ -16,9 +16,8 @@ import (
 )
 
 // Shared envtest fixtures for the whole int suite. envtest runs a real
-// kube-apiserver + etcd from KUBEBUILDER_ASSETS (nix-provided, offline); it needs
-// no Docker. The MinIO ledger test (ledger_minio_test.go) uses testcontainers and
-// therefore Docker.
+// kube-apiserver + etcd from KUBEBUILDER_ASSETS (nix-provided, offline); it
+// needs no Docker.
 var (
 	k8sClient  client.Client
 	testScheme *runtime.Scheme
@@ -54,7 +53,7 @@ func runSuite(m *testing.M) (int, error) {
 		return 0, fmt.Errorf("register client-go scheme: %w", err)
 	}
 	if err = apiv1alpha1.AddToScheme(scheme); err != nil {
-		return 0, fmt.Errorf("register sample scheme: %w", err)
+		return 0, fmt.Errorf("register boron scheme: %w", err)
 	}
 
 	c, err := client.New(cfg, client.Options{Scheme: scheme})

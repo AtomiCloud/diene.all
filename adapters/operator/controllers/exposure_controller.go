@@ -117,16 +117,17 @@ func (r *ExposureReconciler) converge(ctx context.Context, exposure *apiv1alpha1
 		return ctrl.Result{}, r.Status().Update(ctx, exposure)
 	}
 
-	programmed := reconcile.ProgrammedCondition(true, "")
-	adopted := false
+	programmed := reconcile.ProgrammedLive()
 	appID, adopted, perr := r.ensureAccessApplication(ctx, credentials, exposure, decision.Program)
 	if perr != nil {
-		programmed = reconcile.ProgrammedCondition(false, perr.Error())
+		r.Metrics.ProviderFailure(exposureController)
+		programmed = reconcile.ProgrammedPending(perr.Error())
 	} else {
 		exposure.Status.AccessAppID = appID
 		target := tunnel.Status.TunnelID + ".cfargotunnel.com"
 		if derr := r.Provider.UpsertProxiedCNAME(ctx, credentials, tunnel.Spec.Zone, decision.Program.Hostname, target); derr != nil {
-			programmed = reconcile.ProgrammedCondition(false, derr.Error())
+			r.Metrics.ProviderFailure(exposureController)
+			programmed = reconcile.ProgrammedPending(derr.Error())
 		} else {
 			exposure.Status.ProgrammedRule = apiv1alpha1.ProgrammedRule{
 				Hostname: decision.Program.Hostname,
@@ -236,15 +237,16 @@ func (r *ExposureReconciler) resolveProviderReads(ctx context.Context, credentia
 	in.BackendPublic = backend.Public
 
 	hostname := reconcile.DeriveHostname(in.Coordinates, in.Instance, in.TunnelZone)
-	coverage, err := r.Provider.CheckTLSCoverage(ctx, credentials, in.TunnelZone, hostname)
-	if err != nil {
-		in.TLSChecked = true
-		in.TLSMessage = err.Error()
-		return nil
-	}
+	coverage, coverageErr := r.Provider.CheckTLSCoverage(ctx, credentials, in.TunnelZone, hostname)
 	in.TLSChecked = true
-	in.TLSCovered = coverage.Covered
-	in.TLSMessage = coverage.Message
+	if coverageErr != nil {
+		// A failed preflight is a fail-closed refusal (UnsupportedTLSCoverage),
+		// not a reconcile error: the decision service surfaces the message.
+		in.TLSMessage = coverageErr.Error()
+	} else {
+		in.TLSCovered = coverage.Covered
+		in.TLSMessage = coverage.Message
+	}
 
 	resolved, err := r.Provider.LookupPolicies(ctx, credentials, exposure.Spec.Policies)
 	if err != nil {
@@ -268,7 +270,7 @@ func (r *ExposureReconciler) resolveConflict(ctx context.Context, exposure *apiv
 		if rival.Namespace == exposure.Namespace && rival.Name == exposure.Name {
 			continue
 		}
-		if rival.Spec.TunnelRef.Name != exposure.Spec.TunnelRef.Name {
+		if rival.Namespace != exposure.Namespace || rival.Spec.TunnelRef.Name != exposure.Spec.TunnelRef.Name {
 			continue
 		}
 		rivalHostname := reconcile.DeriveHostname(reconcile.Coordinates{
@@ -332,13 +334,13 @@ func (r *ExposureReconciler) finalize(ctx context.Context, exposure *apiv1alpha1
 func (r *ExposureReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&apiv1alpha1.Exposure{}).
-		Watches(&apiv1alpha1.Tunnel{}, handler.EnqueueRequestsFromMapFunc(r.tunnelToExposures)).
+		Watches(&apiv1alpha1.Tunnel{}, handler.EnqueueRequestsFromMapFunc(r.TunnelToExposureRequests)).
 		Named(exposureController).
 		Complete(r)
 }
 
-// tunnelToExposures maps a Tunnel event to its Exposures' reconcile requests.
-func (r *ExposureReconciler) tunnelToExposures(ctx context.Context, object client.Object) []ctrl.Request {
+// TunnelToExposureRequests maps a Tunnel event to its Exposures' reconcile requests.
+func (r *ExposureReconciler) TunnelToExposureRequests(ctx context.Context, object client.Object) []ctrl.Request {
 	tunnel, ok := object.(*apiv1alpha1.Tunnel)
 	if !ok {
 		return nil

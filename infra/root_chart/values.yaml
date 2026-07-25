@@ -3,7 +3,7 @@
 
 # -- Manager container image repository.
 image:
-  repository: ghcr.io/atomicloud/operator-template
+  repository: ghcr.io/atomicloud/boron
   # -- Image tag; defaults to the chart appVersion when empty.
   tag: ''
   # -- Image pull policy.
@@ -12,33 +12,34 @@ image:
 # -- Number of manager replicas. Leader election keeps a single active manager.
 replicas: 1
 
-# -- Reconcile mode: observe (read-only, report the would-apply plan) or active.
-mode: active
-
-# -- Destructive-write percentage-per-tick blast-brake cap.
-blastBrakeCap: 20
-
-# -- Ledger coordinate scope and S3/MinIO backend.
-ledger:
-  # -- Platform coordinate.
-  platform: diene
-  # -- Landscape coordinate (overridden per landscape values file).
-  landscape: lapras
-  # -- S3/MinIO endpoint host:port.
-  endpoint: ''
-  # -- Ledger bucket name.
-  bucket: operator-template-ledger
-  # -- Use TLS for the ledger endpoint.
-  secure: true
-
 # -- Per-controller enablement flags.
 controllers:
-  # -- Enable the ledger-backed Note controller. Off by default so a zero-config
-  # install never crashes on an empty ledger endpoint; landscape/e2e overlays
-  # enable it together with a real ledger.endpoint.
-  note: false
-  # -- Enable the Journal controller (no external dependency).
-  journal: true
+  # -- Enable the Account controller (credential validation).
+  account: true
+  # -- Enable the Tunnel controller (cloudflared + remote config).
+  tunnel: true
+  # -- Enable the Exposure controller (Access Application + DNS).
+  exposure: true
+
+# -- Trusted installation identity (Garden-supplied; never CR input).
+installation:
+  # -- Installation profile: lapras, ditto, or registered. Hosted (eevee,
+  # plusle, minun) and hermetic (rotom, absol) profiles never install Boron.
+  profile: lapras
+  # -- The profile is connected (required for lapras/ditto programming).
+  connected: false
+  # -- Explicitly enable Boron on a ditto inspection run.
+  dittoInspect: false
+  # -- Trusted landscape every Exposure must declare.
+  landscape: lapras
+  # -- Trusted instance every Exposure must declare.
+  instance: ''
+
+# -- Pinned cloudflared tunnel client image.
+cloudflaredImage: cloudflare/cloudflared:2025.7.0
+
+# -- Use the in-memory fake Cloudflare adapter (SIT/e2e only, never production).
+fakeCloudflare: false
 
 # -- Manager resource requests and limits.
 resources:
@@ -82,7 +83,7 @@ alerts:
   # -- Ship the GrafanaAlertRuleGroup.
   enabled: true
   # -- Grafana folder UID the rule group is filed under.
-  folderUID: operator-template
+  folderUID: boron
 
 # -- Grafana dashboard shipped as a sidecar-labelled ConfigMap.
 dashboard:

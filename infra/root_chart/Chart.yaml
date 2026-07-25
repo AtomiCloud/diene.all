@@ -1,7 +1,7 @@
 # ### go-base-chart
 # #### source: go-base
 apiVersion: v2
-name: operator-template
+name: boron
 description: Manager chart for the operator skeleton template (CRDs, RBAC, deployment, observability)
 type: application
 version: 0.1.0

@@ -81,6 +81,7 @@ func (r *TunnelReconciler) converge(ctx context.Context, tunnel *apiv1alpha1.Tun
 	if in.AccountFound && in.AccountReady {
 		remote, terr := r.Provider.EnsureTunnel(ctx, credentials, tunnel.Name, tunnel.Spec.Zone)
 		if terr != nil {
+			r.Metrics.ProviderFailure(tunnelController)
 			in.ProviderMessage = terr.Error()
 		} else {
 			in.TunnelEnsured = true
@@ -102,6 +103,7 @@ func (r *TunnelReconciler) converge(ctx context.Context, tunnel *apiv1alpha1.Tun
 				return ctrl.Result{}, rerr
 			}
 			if perr := r.Provider.PushTunnelConfig(ctx, credentials, remote.ID, rules); perr != nil {
+				r.Metrics.ProviderFailure(tunnelController)
 				in.ProviderMessage = perr.Error()
 			} else {
 				in.ConfigPushed = true
@@ -159,7 +161,7 @@ func (r *TunnelReconciler) collectRules(ctx context.Context, tunnel *apiv1alpha1
 	var rules []cloudflare.IngressRule
 	for i := range exposures.Items {
 		e := &exposures.Items[i]
-		if e.Spec.TunnelRef.Name != tunnel.Name {
+		if e.Namespace != tunnel.Namespace || e.Spec.TunnelRef.Name != tunnel.Name {
 			continue
 		}
 		if e.Status.ProgrammedRule.Hostname == "" {
@@ -196,13 +198,37 @@ func (r *TunnelReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&apiv1alpha1.Tunnel{}).
 		Owns(&appsv1.Deployment{}).
-		Watches(&apiv1alpha1.Exposure{}, handler.EnqueueRequestsFromMapFunc(r.exposureToTunnel)).
+		Watches(&apiv1alpha1.Exposure{}, handler.EnqueueRequestsFromMapFunc(r.ExposureToTunnelRequests)).
+		Watches(&apiv1alpha1.Account{}, handler.EnqueueRequestsFromMapFunc(r.AccountToTunnelRequests)).
 		Named(tunnelController).
 		Complete(r)
 }
 
-// exposureToTunnel maps an Exposure event to its Tunnel's reconcile request.
-func (r *TunnelReconciler) exposureToTunnel(ctx context.Context, object client.Object) []ctrl.Request {
+// AccountToTunnelRequests maps an Account event to every Tunnel referencing it, so a
+// late-validating Account (Ready flip) re-syncs its dependent Tunnels.
+func (r *TunnelReconciler) AccountToTunnelRequests(ctx context.Context, object client.Object) []ctrl.Request {
+	account, ok := object.(*apiv1alpha1.Account)
+	if !ok {
+		return nil
+	}
+	var tunnels apiv1alpha1.TunnelList
+	if err := r.List(ctx, &tunnels); err != nil {
+		return nil
+	}
+	var requests []ctrl.Request
+	for i := range tunnels.Items {
+		if tunnels.Items[i].Namespace == account.Namespace && tunnels.Items[i].Spec.AccountRef.Name == account.Name {
+			requests = append(requests, ctrl.Request{NamespacedName: types.NamespacedName{
+				Namespace: tunnels.Items[i].Namespace,
+				Name:      tunnels.Items[i].Name,
+			}})
+		}
+	}
+	return requests
+}
+
+// ExposureToTunnelRequests maps an Exposure event to its Tunnel's reconcile request.
+func (r *TunnelReconciler) ExposureToTunnelRequests(ctx context.Context, object client.Object) []ctrl.Request {
 	exposure, ok := object.(*apiv1alpha1.Exposure)
 	if !ok || exposure.Spec.TunnelRef.Name == "" {
 		return nil
@@ -213,7 +239,7 @@ func (r *TunnelReconciler) exposureToTunnel(ctx context.Context, object client.O
 	}
 	var requests []ctrl.Request
 	for i := range tunnels.Items {
-		if tunnels.Items[i].Name == exposure.Spec.TunnelRef.Name {
+		if tunnels.Items[i].Namespace == exposure.Namespace && tunnels.Items[i].Name == exposure.Spec.TunnelRef.Name {
 			requests = append(requests, ctrl.Request{NamespacedName: types.NamespacedName{
 				Namespace: tunnels.Items[i].Namespace,
 				Name:      tunnels.Items[i].Name,

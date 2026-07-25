@@ -1,9 +1,6 @@
-# Landscape overlay: raichu (production landscape).
-controllers:
-  note: true
-ledger:
+# Landscape overlay: raichu (registered-fleet cluster; Boron remains
+# independently selectable for admin use — profile: registered).
+installation:
+  profile: registered
   landscape: raichu
-  endpoint: minio.raichu.svc.cluster.local:9000
-  secure: true
-mode: active
 replicas: 2

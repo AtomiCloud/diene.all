@@ -103,13 +103,3 @@ tasks:
     deps: [build]
     cmds:
       - ./dist/manager {{.CLI_ARGS}}
-
-  up:
-    desc: Start the local MinIO ledger
-    cmds:
-      - ./scripts/local/up.sh
-
-  down:
-    desc: Stop the local MinIO ledger
-    cmds:
-      - ./scripts/local/down.sh

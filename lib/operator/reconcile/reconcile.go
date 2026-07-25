@@ -14,7 +14,6 @@ import (
 	"fmt"
 
 	"github.com/AtomiCloud/diene.boron/lib/operator/boron"
-	
 )
 
 // Condition re-exports the pure, k8s-free condition type so controllers depend
@@ -249,11 +248,11 @@ type ExposureInput struct {
 	Path        string
 	Namespace   string
 
-	TunnelFound   bool
-	TunnelZone    string
-	TunnelID      string
-	AccountReady  bool
-	AccountFound  bool
+	TunnelFound  bool
+	TunnelZone   string
+	TunnelID     string
+	AccountReady bool
+	AccountFound bool
 
 	BackendFound       bool
 	BackendPortFound   bool
@@ -264,9 +263,9 @@ type ExposureInput struct {
 
 	// TLSCoverage reports the exact-host DNS/edge-TLS preflight for the derived
 	// hostname (checked=true when the preflight ran).
-	TLSChecked  bool
-	TLSCovered  bool
-	TLSMessage  string
+	TLSChecked bool
+	TLSCovered bool
+	TLSMessage string
 
 	// Policy resolution: names requested and the subset that resolved to ids.
 	PolicyNames    []string
@@ -274,8 +273,8 @@ type ExposureInput struct {
 
 	// Conflict: the oldest ConflictCandidate currently claiming this hostname+path
 	// (zero-valued when none), and this Exposure's own identity.
-	Self   ConflictCandidate
-	Oldest ConflictCandidate
+	Self     ConflictCandidate
+	Oldest   ConflictCandidate
 	HasRival bool
 }
 
@@ -302,7 +301,7 @@ type ExposureDecision struct {
 // closed), ref resolution (backend + every policy), the shared-backend
 // guardrail, and oldest-wins conflict determinism. ANY failure programs nothing.
 func DecideExposure(in ExposureInput) ExposureDecision {
-	admission := boron.AdmitProfile(in.Installation.Profile, in.Installation.Connected, in.Installation.DittoEnabled)
+	admission := boron.AdmitProfile(boron.InstallationIdentity{Profile: in.Installation.Profile, Connected: in.Installation.Connected, DittoEnabled: in.Installation.DittoEnabled})
 	if !admission.Allowed {
 		return exposureRefusedAccepted(admission.Reason, admission.Message)
 	}
@@ -377,8 +376,10 @@ func DecideExposure(in ExposureInput) ExposureDecision {
 			Conditions: []Condition{
 				accepted,
 				resolved,
-				{Type: TypeConflicted, Status: StatusTrue, Reason: boron.ReasonHostnameConflict,
-					Message: fmt.Sprintf("hostname+path already claimed by older exposure %s/%s (oldest wins)", in.Oldest.Namespace, in.Oldest.Name)},
+				{
+					Type: TypeConflicted, Status: StatusTrue, Reason: boron.ReasonHostnameConflict,
+					Message: fmt.Sprintf("hostname+path already claimed by older exposure %s/%s (oldest wins)", in.Oldest.Namespace, in.Oldest.Name),
+				},
 				{Type: TypeProgrammed, Status: StatusFalse, Reason: boron.ReasonHostnameConflict, Message: "conflicted exposure is not programmed"},
 			},
 			Events: []Event{{EventWarning, boron.ReasonHostnameConflict, "hostname+path conflict: oldest exposure wins"}},
@@ -401,13 +402,16 @@ func DecideExposure(in ExposureInput) ExposureDecision {
 	}
 }
 
-// ProgrammedCondition is the condition the controller flips after the provider
-// writes succeed (or fail). It is exported because the write outcome surfaces in
-// the controller's I/O path, not in DecideExposure.
-func ProgrammedCondition(ok bool, message string) Condition {
-	if ok {
-		return Condition{Type: TypeProgrammed, Status: StatusTrue, Reason: boron.ReasonProgrammed, Message: "dns, access application, and tunnel ingress rule are live"}
-	}
+// ProgrammedLive is the condition the controller flips after every provider
+// write succeeded. It is exported because the write outcome surfaces in the
+// controller's I/O path, not in DecideExposure.
+func ProgrammedLive() Condition {
+	return Condition{Type: TypeProgrammed, Status: StatusTrue, Reason: boron.ReasonProgrammed, Message: "dns, access application, and tunnel ingress rule are live"}
+}
+
+// ProgrammedPending is the condition the controller flips when a provider
+// write failed; message carries the failure.
+func ProgrammedPending(message string) Condition {
 	return Condition{Type: TypeProgrammed, Status: StatusFalse, Reason: boron.ReasonProgrammingPending, Message: message}
 }
 

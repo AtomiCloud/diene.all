@@ -1,0 +1,17 @@
+apiVersion: boron.atomi.cloud/v1alpha1
+kind: Exposure
+metadata:
+  name: oxygen-viewer
+  namespace: nitroso
+spec:
+  tunnelRef: { name: admin }
+  coordinates:
+    landscape: lapras
+    platform: nitroso
+    service: oxygen
+    module: viewer
+  instance: kirin
+  path: /*
+  backend: { name: oxygen-viewer, port: 8080 }
+  policies: [atomi-admins]
+  allowSharedBackend: false

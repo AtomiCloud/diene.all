@@ -65,7 +65,7 @@ jobs:
     uses: ./.github/workflows/⚡reusable-docker.yaml
     secrets: inherit
     with:
-      image_name: operator-template
+      image_name: boron
       dockerfile: ./infra/Dockerfile
 
   helm:
