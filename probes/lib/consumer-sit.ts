@@ -4,11 +4,14 @@
 // sequence serializes on a host-level mkdir spinlock (PROBES §5 addendum:
 // declared serialization where per-invocation uniqueness is genuinely
 // impractical; mkdir is atomic and portable where busybox flock is not).
+//
+// The script rides base64 on the command line and never lands in the sandbox
+// tree: a probe-authored file inside the repo would legitimately redden the
+// formatting/lint controls co-selected with this row.
 const LOCK = '/tmp/diene-bunconsumer-sit.lock.d';
 
 export function sitScript(journeyFile: string): string {
-  return `#!/usr/bin/env bash
-set -euo pipefail
+  return `set -euo pipefail
 while ! mkdir ${LOCK} 2>/dev/null; do
   pid="$(cat ${LOCK}/pid 2>/dev/null || true)"
   if [ -n "\${pid}" ] && ! kill -0 "\${pid}" 2>/dev/null; then rm -rf ${LOCK}; continue; fi
@@ -27,9 +30,13 @@ SIT_DRIVER=binary CLI_BIN=dist/bin/bun-consumer bun test --config=bunfig.sit.tom
 `;
 }
 
+export function sitCommand(journeyFile: string): string {
+  const encoded = Buffer.from(sitScript(journeyFile), 'utf8').toString('base64');
+  return `nix develop .#ci -c bash -lc 'echo ${encoded} | base64 -d | bash'`;
+}
+
 export async function runSitJourney(repo: any, journeyFile: string, label: string, expectFail = false): Promise<void> {
-  await repo.write('.probe-sit-journey.sh', sitScript(journeyFile));
-  const result = await repo.exec("nix develop .#ci -c bash -lc 'bash .probe-sit-journey.sh'", { timeoutMs: 1800000 });
+  const result = await repo.exec(sitCommand(journeyFile), { timeoutMs: 1800000 });
   if (!expectFail && result.exitCode !== 0) {
     throw new Error(`${label} failed on the healthy repo: ${result.stderr || result.stdout}`);
   }

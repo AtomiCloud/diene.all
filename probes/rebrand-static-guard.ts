@@ -34,7 +34,9 @@ export default {
         }
         const path = targets.sort()[0];
         const source = await repo.read(path);
-        await repo.write(path, `const hardcodedIdentity = '${service}';\nvoid hardcodedIdentity;\n${source}`);
+        // Appended in already-formatted shape: the fault under test is the hardcoded
+        // identity, not a formatting violation that would redden unrelated controls.
+        await repo.write(path, `${source}\nexport const HARDCODED_IDENTITY = '${service}';\n`);
         await expectRed(
           repo,
           "nix develop .#ci -c bash -lc './scripts/local/setup.sh && ./scripts/validate/rebrand.sh'",

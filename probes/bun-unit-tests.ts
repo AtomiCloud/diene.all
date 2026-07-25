@@ -25,11 +25,8 @@ export default {
         const paths = await repo.glob('tests/unit/**/*.test.ts');
         for (const path of paths) {
           const source = await repo.read(path);
-          if (source.includes('should(actual).equal(expected);')) {
-            await repo.write(
-              path,
-              source.replace('should(actual).equal(expected);', 'should(actual).not.equal(expected);'),
-            );
+          if (source.includes('should(actual).deepEqual(')) {
+            await repo.write(path, source.replace('should(actual).deepEqual(', 'should(actual).not.deepEqual('));
             await expectBunRed(
               repo,
               "nix develop .#ci -c bash -lc './scripts/local/setup.sh && pls test:unit'",
@@ -38,7 +35,7 @@ export default {
             return;
           }
         }
-        throw new Error('no structural should assertion target found');
+        throw new Error('no structural deepEqual assertion target found');
       },
     },
   ],

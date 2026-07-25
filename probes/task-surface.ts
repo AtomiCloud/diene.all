@@ -1,9 +1,10 @@
 // Serializes on the same host mkdir spinlock as the SIT rows: pls up/down binds
 // the dev.yaml host ports, so concurrent stacks would collide (PROBES §5 addendum).
+// The script rides base64 on the command line so no probe-authored file lands in
+// the sandbox tree to redden co-selected formatting controls.
 const LOCK = '/tmp/diene-bunconsumer-sit.lock.d';
 
-const SCRIPT = `#!/usr/bin/env bash
-set -euo pipefail
+const SCRIPT = `set -euo pipefail
 while ! mkdir ${LOCK} 2>/dev/null; do
   pid="$(cat ${LOCK}/pid 2>/dev/null || true)"
   if [ -n "\${pid}" ] && ! kill -0 "\${pid}" 2>/dev/null; then rm -rf ${LOCK}; continue; fi
@@ -32,8 +33,8 @@ export default {
         'The pls run/preview/up/down tasks execute their intended local operations; dev is exercised via its underlying script contract.',
       kind: 'baseline',
       async run(repo: any) {
-        await repo.write('.probe-task-surface.sh', SCRIPT);
-        const result = await repo.exec("nix develop .#ci -c bash -lc 'bash .probe-task-surface.sh'", {
+        const encoded = Buffer.from(SCRIPT, 'utf8').toString('base64');
+        const result = await repo.exec(`nix develop .#ci -c bash -lc 'echo ${encoded} | base64 -d | bash'`, {
           timeoutMs: 1800000,
         });
         if (result.exitCode !== 0) {
