@@ -1,6 +1,6 @@
 {
   "name": "@atomicloud/diene.e2e",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "The AtomiCloud Bun family version train: one dependency for ten coherent diene libraries and their test helpers.",
   "type": "module",
   "main": "./dist/index.cjs",
