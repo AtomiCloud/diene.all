@@ -29,3 +29,12 @@ node_modules/
 dist/
 coverage/
 *.tsbuildinfo
+
+### nextjs-frontend
+#### source: nextjs-frontend
+.next/
+.open-next/
+next-env.d.ts
+.wrangler/
+playwright-report/
+test-results/

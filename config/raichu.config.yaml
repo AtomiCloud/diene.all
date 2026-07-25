@@ -1,0 +1,8 @@
+# yaml-language-server: $schema=./schema.json
+app:
+  servicetree:
+    landscape: raichu
+seo:
+  baseUrl: https://webapp.nextjs-frontend.diene.raichu.cluster.atomi.cloud
+faro:
+  app: webapp.nextjs-frontend.raichu

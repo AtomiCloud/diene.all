@@ -1,0 +1,62 @@
+{
+  "home": {
+    "title": "Welcome",
+    "tagline": "A production-ready Next.js template on the AtomiCloud stack",
+    "cta": "Get started",
+    "search": "Search",
+    "searchPlaceholder": "Type to search — the URL follows you"
+  },
+  "nav": {
+    "home": "Home",
+    "profile": "Profile",
+    "settings": "Settings",
+    "signIn": "Sign in",
+    "signOut": "Sign out"
+  },
+  "theme": {
+    "toggle": "Toggle theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  },
+  "locale": {
+    "switch": "Switch language",
+    "en": "English",
+    "de": "German"
+  },
+  "content": {
+    "loading": "Loading",
+    "empty": "Nothing here yet",
+    "retry": "Try again"
+  },
+  "error": {
+    "title": "Something went wrong",
+    "recoverableHint": "This usually resolves itself — try again.",
+    "fatalHint": "We hit an unexpected problem. Our team has been notified.",
+    "copy": "Copy error details",
+    "copied": "Copied",
+    "home": "Back to home"
+  },
+  "onboarding": {
+    "title": "Set up your account",
+    "pending": "Preparing your workspace",
+    "finish": "All set",
+    "continue": "Continue"
+  },
+  "picker": {
+    "title": "Choose your home region",
+    "explainer": "Your account lives in one region. Pick the one closest to you.",
+    "measuring": "Measuring latency",
+    "confirm": "Use this region",
+    "legalTitle": "Before you continue",
+    "legalBody": "By continuing you agree to the terms of service and privacy policy.",
+    "legalAccept": "I agree"
+  },
+  "form": {
+    "draftRestored": "Draft restored",
+    "clear": "Clear",
+    "submit": "Submit",
+    "required": "This field is required",
+    "invalidEmail": "Enter a valid email address"
+  }
+}
