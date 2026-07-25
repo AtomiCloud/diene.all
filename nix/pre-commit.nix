@@ -17,10 +17,7 @@ let
         || builtins.elem (baseNameOf path) [
           "bun.lock"
           "package.json"
-        ]
-        # vendored, certified upstream tarball(s) the lockfile resolves via file:
-        # (temporary bridge while @atomicloud/diene.config is unpublished; see vendor/README.md)
-        || pkgs.lib.hasSuffix ".tgz" (baseNameOf path);
+        ];
     };
     nativeBuildInputs = [
       packages.bun

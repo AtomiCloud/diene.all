@@ -28,9 +28,6 @@
       },
     },
   },
-  "overrides": {
-    "@atomicloud/diene.config": "file:vendor/atomicloud-diene.config-1.0.0.tgz",
-  },
   "packages": {
     "@andrewbranch/untar.js": ["@andrewbranch/untar.js@1.0.3", "", {}, "sha512-Jh15/qVmrLGhkKJBdXlK1+9tY4lZruYjsgkDFj08ZmDiWVBLJcqkok7Z0/R0In+i1rScBpJlSvrTS2Lm41Pbnw=="],
 
@@ -38,7 +35,7 @@
 
     "@arethetypeswrong/core": ["@arethetypeswrong/core@0.18.5", "", { "dependencies": { "@andrewbranch/untar.js": "^1.0.3", "@loaderkit/resolve": "^1.0.2", "cjs-module-lexer": "^1.2.3", "fflate": "^0.8.3", "lru-cache": "^11.0.1", "semver": "^7.5.4", "typescript": "5.6.1-rc", "validate-npm-package-name": "^5.0.0" } }, "sha512-9ytjzGwxjm9Uz7I9avfbt5vlQt6uk9uRRESzJjqrznl6WKvI6dwYTo+vJ3U02Wrq/mR3iql/PzhvHhKdJIAjDQ=="],
 
-    "@atomicloud/diene.config": ["@atomicloud/diene.config@vendor/atomicloud-diene.config-1.0.0.tgz", { "dependencies": { "@atomicloud/diene.core-utils": "^1.0.0", "@atomicloud/diene.result": "^1.0.2", "yaml": "^2.9.0", "zod": "^4.4.3" } }, "sha512-4ixfkjtvs/uHUgr7hvjGJrlwTCplT6vetguyT/nC+kS80CLCpK2EAdk4/+uvNgxYFRDPnmwDGNaOHjn2/JWMqg=="],
+    "@atomicloud/diene.config": ["@atomicloud/diene.config@1.0.0", "", { "dependencies": { "@atomicloud/diene.core-utils": "^1.0.0", "@atomicloud/diene.result": "^1.0.2", "yaml": "^2.9.0", "zod": "^4.4.3" } }, "sha512-eejPbGvKsVmqwjAIjWcL6KnxicNwFMtmTSAtJ0MAVt0oBaMuCGw6dReV99DhJAOni5qzX7G3YpgjamoP+/Ry1A=="],
 
     "@atomicloud/diene.core-utils": ["@atomicloud/diene.core-utils@1.0.0", "", { "dependencies": { "@atomicloud/diene.interfaces": "1.0.0", "@atomicloud/diene.result": "1.0.2", "@js-temporal/polyfill": "^0.5.1" } }, "sha512-4dzr1Sr2m1rjZ+GTFttu5TGEKlysq7NDnEuJTS/crIrRt2RomFtsjVbUbpAPKl1lL0RC69HemE6t0kt8wn3Z0g=="],
 
