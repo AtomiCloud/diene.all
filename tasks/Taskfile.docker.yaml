@@ -3,7 +3,7 @@
 version: '3'
 
 vars:
-  IMAGE: operator-template:local
+  IMAGE: boron:local
 
 tasks:
   build:

@@ -1,13 +1,13 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "operator-template.fullname" . }}-metrics
+  name: {{ include "boron.fullname" . }}-metrics
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "operator-template.labels" . | nindent 4 }}
+    {{- include "boron.labels" . | nindent 4 }}
 spec:
   selector:
-    {{- include "operator-template.selectorLabels" . | nindent 4 }}
+    {{- include "boron.selectorLabels" . | nindent 4 }}
   ports:
     - name: metrics
       port: {{ .Values.metrics.port }}

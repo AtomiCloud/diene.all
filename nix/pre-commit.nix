@@ -6,10 +6,10 @@
 }:
 let
   go-deps = pkgs.buildGoModule {
-    pname = "operator-template-dependencies";
+    pname = "boron-dependencies";
     version = "0";
     src = ../.;
-    vendorHash = "sha256-nGbJT3usBF3cjTHoL6XM38uLKzn8C0b0ldrc6EhISFU=";
+    vendorHash = "sha256-S+b7Z5GjcCuWtXERxzWv628vZwXLnxlLB+C1zjetxrU=";
     proxyVendor = true;
   };
   go-lint-runtime = pkgs.buildEnv {
@@ -301,6 +301,35 @@ pre-commit-lib.run {
       name = "Operator CRD drift";
       entry = operator-codegen "scripts/validate/operator-crd-drift.sh";
       files = "^(api/.*\\.go|infra/root_chart/templates/crds/.*|scripts/validate/operator-crd-drift\\.sh)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    # ### boron-hooks
+    # #### source: boron
+    a-boron-secrets-law = {
+      enable = true;
+      name = "Boron secrets law (no inline token)";
+      entry = validator "scripts/validate/boron-secrets-law.sh";
+      files = "^(api/.*\\.go|infra/root_chart/.*|cmd/.*\\.go|internal/.*\\.go|adapters/.*\\.go|lib/.*\\.go|scripts/validate/boron-secrets-law\\.sh)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-boron-profile-render = {
+      enable = true;
+      name = "Boron Garden profile render filter";
+      entry = "${packages.bash}/bin/bash -c 'export PATH=${packages.kubernetes-helm}/bin:${packages.bash}/bin:${pkgs.coreutils}/bin; exec ${packages.bash}/bin/bash scripts/validate/boron-profile-render.sh'";
+      files = "^(infra/root_chart/.*|scripts/validate/boron-profile-render\\.sh)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-boron-observability-artifacts = {
+      enable = true;
+      name = "Boron observability artifacts";
+      entry = "${packages.bash}/bin/bash -c 'export PATH=${packages.bun}/bin:${packages.kubernetes-helm}/bin:${packages.yq-go}/bin:${pkgs.coreutils}/bin; exec ${packages.bun}/bin/bun scripts/validate/operator-observability-artifacts.ts'";
+      files = "^(infra/root_chart/.*|scripts/validate/operator-observability-artifacts\\.ts)$";
       pass_filenames = false;
       language = "system";
     };

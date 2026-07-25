@@ -45,8 +45,8 @@ GOVULNCHECK_TARGET=./lib/... ./scripts/local/vuln.sh >/dev/null
 
 deadcode -json -test ./... >/dev/null
 
-# ### operator-template
-# #### source: operator-template
+# ### boron
+# #### source: boron
 controller-gen --version >/dev/null
 kubebuilder version >/dev/null 2>&1
 setup-envtest version >/dev/null
@@ -65,7 +65,7 @@ helm-docs --version >/dev/null
 helm-docs --dry-run --chart-search-root infra/root_chart >/dev/null 2>&1
 
 helm version --short >/dev/null
-helm template operator-template infra/root_chart | kubeconform -strict -ignore-missing-schemas -summary >/dev/null
+helm template boron infra/root_chart | kubeconform -strict -ignore-missing-schemas -summary >/dev/null
 
 infisical --version >/dev/null
 git -C "${tmp}" init -q
@@ -100,7 +100,7 @@ pre-commit --version >/dev/null
 pre-commit validate-config .pre-commit-config.yaml
 
 rg --version >/dev/null
-rg -q 'operator-template' README.md
+rg -q 'boron' README.md
 ! rg -q 'diene[.-]go-base' README.md || {
   echo "❌ README retains the retired diene-go-base public product identity" >&2
   exit 1

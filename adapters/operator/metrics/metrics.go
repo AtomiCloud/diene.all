@@ -1,6 +1,6 @@
-// Package metrics registers and records the operator template's generic metrics
+// Package metrics registers and records Boron generic metrics
 // alongside the controller-runtime reconcile metrics: a condition-state gauge, a
-// durable-ledger failure counter, and a reconcile liveness counter. Consumers
+// provider failure counter, and a reconcile liveness counter. Consumers
 // extend the same names for their provisioning/vendor/webhook taxonomy (shipped
 // as parameterized dashboard and alert source in the chart).
 package metrics
@@ -13,17 +13,17 @@ import (
 
 // Metric names (also referenced by the chart dashboard and alert group).
 const (
-	ConditionMetric     = "operator_template_condition"
-	LedgerFailureMetric = "operator_template_ledger_failures_total"
-	ReconcileTickMetric = "operator_template_reconcile_ticks_total"
+	ConditionMetric       = "boron_condition"
+	ProviderFailureMetric = "boron_provider_failures_total"
+	ReconcileTickMetric   = "boron_reconcile_ticks_total"
 )
 
 // Recorder is the metrics port controllers use.
 type Recorder interface {
 	// Observe sets the condition-state gauge (1 for True, else 0) for each condition.
 	Observe(controller string, conditions []metav1.Condition)
-	// LedgerFailure increments the durable-ledger failure counter.
-	LedgerFailure(controller string)
+	// ProviderFailure increments the provider failure counter.
+	ProviderFailure(controller string)
 	// Tick increments the reconcile liveness counter.
 	Tick(controller string)
 }
@@ -34,9 +34,9 @@ var (
 		Help: "Operator condition state (1 True, 0 otherwise) by controller and type.",
 	}, []string{"controller", "type"})
 
-	ledgerFailures = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: LedgerFailureMetric,
-		Help: "Durable-ledger operation failures by controller.",
+	providerFailures = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: ProviderFailureMetric,
+		Help: "Provider operation failures by controller.",
 	}, []string{"controller"})
 
 	reconcileTicks = prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -48,7 +48,7 @@ var (
 )
 
 func register() bool {
-	crmetrics.Registry.MustRegister(conditionGauge, ledgerFailures, reconcileTicks)
+	crmetrics.Registry.MustRegister(conditionGauge, providerFailures, reconcileTicks)
 	return true
 }
 
@@ -69,9 +69,9 @@ func (Prometheus) Observe(controller string, conditions []metav1.Condition) {
 	}
 }
 
-// LedgerFailure increments the durable-ledger failure counter.
-func (Prometheus) LedgerFailure(controller string) {
-	ledgerFailures.WithLabelValues(controller).Inc()
+// ProviderFailure increments the provider failure counter.
+func (Prometheus) ProviderFailure(controller string) {
+	providerFailures.WithLabelValues(controller).Inc()
 }
 
 // Tick increments the reconcile liveness counter.

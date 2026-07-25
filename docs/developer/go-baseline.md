@@ -20,13 +20,12 @@ exclusion.
 - `cmd/manager/` is the single composition root and wires concrete adapters
   explicitly.
 - `tests/unit/` imports domain packages only through their public API.
-- `tests/int/` proves adapters against real dependencies with envtest and
-  testcontainers-go.
+- `tests/int/` proves adapters against real dependencies with envtest.
 
-The operator sample (toy `Note`/`Journal` CRDs, pure reconcile services, and the
-S3/MinIO ledger store) is fenced by these structural directories. Downstream
-templates may replace the sample while retaining the same gates and tier
-boundaries.
+The Boron operator surface (the `Account`/`Tunnel`/`Exposure` CRDs, pure
+reconcile services, and the Cloudflare provider adapter) is fenced by these
+structural directories under the same gates and tier boundaries the
+operator-template proves once.
 
 ## Commands
 
@@ -50,9 +49,9 @@ boundaries.
 Every `*_test.go` file must declare a package ending in `_test`, and
 `export_test.go` is forbidden. Unit coverage includes only `lib/**` and must be
 100%. Integration coverage includes only `adapters/**`; the operator's real
-adapter surface (controller-runtime reconcilers and the S3/MinIO ledger store)
-adapts the int threshold below 100 because defensive transport-error branches are
-not deterministically reachable with real dependencies — see the threshold
+adapter surface (controller-runtime reconcilers and the Cloudflare HTTP
+adapter) adapts the int threshold below 100 because defensive transport-error
+branches are not deterministically reachable with real dependencies — see the threshold
 comment in `.config/go-base.coverage.yaml`. Codecov flags are informational and
 carry forward independently.
 

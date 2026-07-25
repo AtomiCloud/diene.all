@@ -1,21 +1,22 @@
+{{- include "boron.assertProfile" . -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "operator-template.fullname" . }}
+  name: {{ include "boron.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "operator-template.labels" . | nindent 4 }}
+    {{- include "boron.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicas }}
   selector:
     matchLabels:
-      {{- include "operator-template.selectorLabels" . | nindent 6 }}
+      {{- include "boron.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "operator-template.selectorLabels" . | nindent 8 }}
+        {{- include "boron.selectorLabels" . | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "operator-template.serviceAccountName" . }}
+      serviceAccountName: {{ include "boron.serviceAccountName" . }}
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532
@@ -24,34 +25,22 @@ spec:
           type: RuntimeDefault
       containers:
         - name: manager
-          image: {{ include "operator-template.image" . | quote }}
+          image: {{ include "boron.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
             - --leader-elect=true
-            - --enable-note={{ .Values.controllers.note }}
-            - --enable-journal={{ .Values.controllers.journal }}
-            - --observe={{ eq .Values.mode "observe" }}
-            - --blast-brake-cap={{ .Values.blastBrakeCap }}
+            - --enable-account={{ .Values.controllers.account }}
+            - --enable-tunnel={{ .Values.controllers.tunnel }}
+            - --enable-exposure={{ .Values.controllers.exposure }}
             - --metrics-bind-address=:{{ .Values.metrics.port }}
             - --health-probe-bind-address=:8081
-            - --platform={{ .Values.ledger.platform }}
-            - --landscape={{ .Values.ledger.landscape }}
-            - --ledger-endpoint={{ .Values.ledger.endpoint }}
-            - --ledger-bucket={{ .Values.ledger.bucket }}
-            - --ledger-secure={{ .Values.ledger.secure }}
-          env:
-            - name: LEDGER_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "operator-template.fullname" . }}-ledger
-                  key: accessKey
-                  optional: true
-            - name: LEDGER_SECRET_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "operator-template.fullname" . }}-ledger
-                  key: secretKey
-                  optional: true
+            - --install-profile={{ .Values.installation.profile }}
+            - --connected={{ .Values.installation.connected }}
+            - --ditto-inspect={{ .Values.installation.dittoInspect }}
+            - --landscape={{ .Values.installation.landscape }}
+            - --instance={{ .Values.installation.instance }}
+            - --cloudflared-image={{ .Values.cloudflaredImage }}
+            - --fake-cloudflare={{ .Values.fakeCloudflare }}
           ports:
             - name: metrics
               containerPort: {{ .Values.metrics.port }}
