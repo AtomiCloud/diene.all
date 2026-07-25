@@ -45,3 +45,4 @@ test-results/
 # the build COPIES the authoritative root `observability/` in before
 # lint/template/package/publish — regenerated per build, never committed.
 charts/primordial/files/
+tests/integration/fixtures/config/config.yaml
