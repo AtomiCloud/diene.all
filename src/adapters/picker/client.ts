@@ -12,6 +12,7 @@ import {
   type Transport,
 } from '@atomicloud/diene.frontend-utils/discovery';
 import type { PickerConfig } from '@/config';
+import { pickerAllowlist, pickerPingRoot } from '@/lib/allowlist';
 
 export type { PingResult, AuthEngineHandoff };
 
@@ -31,11 +32,6 @@ const browserTransport: Transport = {
   },
 };
 
-const allowlistOf = (picker: PickerConfig) => ({
-  suffixes: picker.allowedSuffixes,
-  rescueRoots: [],
-});
-
 /**
  * Fetch Doc B (landscape selector — names+metadata ONLY, SIGN-UP ONLY). The
  * doc URL and every derived ping URL validate against the BAKED endpoint
@@ -43,7 +39,7 @@ const allowlistOf = (picker: PickerConfig) => ({
  * doc-sourced.
  */
 export const fetchDocB = async (picker: PickerConfig): Promise<DocB> => {
-  const validated = validateEndpoint(picker.docBUrl, allowlistOf(picker));
+  const validated = validateEndpoint(picker.docBUrl, pickerAllowlist(picker));
   const url = await validated.match({
     ok: parsed => parsed.toString(),
     err: error => {
@@ -62,8 +58,8 @@ export const fetchDocB = async (picker: PickerConfig): Promise<DocB> => {
 
 /** Ping every Doc B landscape at its convention-derived URL (ping-and-pick). */
 export const pingAll = async (doc: DocB, picker: PickerConfig): Promise<readonly PingResult[]> => {
-  const root = picker.allowedSuffixes[0]?.replace(/^\./, '') ?? 'cluster.atomi.cloud';
-  return pingLandscapes(doc, { root }, browserTransport, { now: () => performance.now() }, allowlistOf(picker));
+  const root = pickerPingRoot(picker);
+  return pingLandscapes(doc, { root }, browserTransport, { now: () => performance.now() }, pickerAllowlist(picker));
 };
 
 /** The user's confirmed pick → the auth-engine handoff boundary object. */

@@ -17,9 +17,9 @@ export default function HomePage({ params }: { readonly params: Promise<{ locale
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col gap-8 px-4 py-12">
-      <header className="flex items-center justify-between gap-4">
-        <h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
-        <div className="flex items-center gap-2">
+      <header className="flex flex-wrap items-center justify-between gap-4">
+        <h1 className="min-w-0 text-3xl font-bold tracking-tight">{t('title')}</h1>
+        <div className="flex shrink-0 items-center gap-2">
           <LocaleSwitcher />
           <ThemeToggle />
         </div>

@@ -2,6 +2,7 @@
 
 import { createDraftStore, type ClearTrigger, type DraftStore } from '@atomicloud/diene.frontend-utils/persistence';
 import { useEffect, useMemo, useState } from 'react';
+import { buildDraftKey, shouldOfferRestore } from '@/lib/form-draft';
 
 const browserStorage = {
   get: (key: string) => {
@@ -42,13 +43,16 @@ export interface FormDraftApi<T> {
  * triggers clear them (clear-on-submit is the form-lifecycle gate's journey).
  */
 export function useFormDraft<T extends Record<string, unknown>>(key: string, initial: T): FormDraftApi<T> {
-  const store = useMemo<DraftStore<T>>(() => createDraftStore<T>({ key, storage: browserStorage }), [key]);
+  const store = useMemo<DraftStore<T>>(
+    () => createDraftStore<T>({ key: buildDraftKey(key), storage: browserStorage }),
+    [key],
+  );
   const [values, setState] = useState<T>(initial);
   const [restored, setRestored] = useState(false);
 
   useEffect(() => {
     const draft = store.load();
-    if (draft !== undefined) {
+    if (draft !== undefined && shouldOfferRestore(draft)) {
       setState(draft);
       setRestored(true);
     }

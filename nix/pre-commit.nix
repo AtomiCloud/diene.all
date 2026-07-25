@@ -66,6 +66,10 @@ let
       pkgs.findutils
       pkgs.gnugrep
       pkgs.gnused
+      # ### nextjs-frontend-validator-runtime
+      # #### source: nextjs-frontend
+      # The chart-ownership guard renders the Garden app chart per profile.
+      packages.kubernetes-helm
     ];
   };
   validator =
@@ -280,6 +284,15 @@ pre-commit-lib.run {
 
     # ### nextjs-frontend-hooks
     # #### source: nextjs-frontend
+    a-chart-ownership = {
+      enable = true;
+      name = "Garden app chart ownership";
+      entry = validator "scripts/validate/chart-ownership.sh";
+      files = "^(infra/garden_app_chart/.*|scripts/validate/chart-ownership\\.sh)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
     a-i18n-keys = {
       enable = true;
       name = "i18n missing-key lint";
@@ -367,7 +380,7 @@ pre-commit-lib.run {
       enable = true;
       name = "Markdown lint";
       entry = "${pkgs.markdownlint-cli2}/bin/markdownlint-cli2";
-      files = "^(CLAUDE\\.md|README\\.md|docs/standards/(authorization|contracts|contributor-docs|datetime|domain-driven-design|frontend-ui-trend|frontend-ux|functional-practices|grafana-dashboards|observability|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/.*\\.md|docs/domain/.*\\.md|docs/developer/.*\\.md|observability/.*\\.md|probes/observability-.*\\.md|\\.claude/skills/(authorization|contributor-docs|datetime|domain-driven-design|functional-practices|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/SKILL\\.md|\\.claude/skills/(grafana-alert|grafana-alert-set|grafana-dashboards|grafana-runbook|observability-check)/.*\\.md|\\.claude/skills/(frontend-ux-check|vision-loop|write-search-bar|write-page|write-protected-page|write-onboarding-gated-app|write-form)/.*\\.md)$";
+      files = "^(CLAUDE\\.md|README\\.md|docs/standards/(authorization|contracts|contributor-docs|datetime|domain-driven-design|frontend-ui-trend|frontend-ux|functional-practices|grafana-dashboards|observability|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/.*\\.md|docs/domain/.*\\.md|docs/developer/nextjs-baseline\\.md|observability/.*\\.md|probes/observability-.*\\.md|\\.claude/skills/(authorization|contributor-docs|datetime|domain-driven-design|functional-practices|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/SKILL\\.md|\\.claude/skills/(grafana-alert|grafana-alert-set|grafana-dashboards|grafana-runbook|observability-check)/.*\\.md|\\.claude/skills/(frontend-ux-check|vision-loop|write-search-bar|write-page|write-protected-page|write-onboarding-gated-app|write-form)/.*\\.md)$";
       pass_filenames = true;
       language = "system";
     };

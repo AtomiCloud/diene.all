@@ -15,7 +15,9 @@ export default defineConfig({
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
     command: 'ATOMI_LANDSCAPE=base HOSTNAME=127.0.0.1 PORT=3000 node .next/standalone/server.js',
-    url: 'http://127.0.0.1:3000',
+    // The root redirects to the locale (307), which the readiness check
+    // rejects — probe a route that answers 200 directly.
+    url: 'http://127.0.0.1:3000/api/manifest',
     reuseExistingServer: process.env['CI'] === undefined,
     timeout: 60_000,
   },
