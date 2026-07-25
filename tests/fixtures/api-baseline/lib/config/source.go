@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io/fs"
+	"maps"
 	"os"
 	"strings"
 )
@@ -35,17 +36,20 @@ type BytesYAMLSource struct {
 	content []byte
 }
 
-// NewBytesYAMLSource creates an in-memory YAML layer named name.
+// NewBytesYAMLSource creates an in-memory YAML layer named name. It clones
+// content so later caller mutation cannot alter the layer; a nil document
+// stays nil (an absent layer).
 func NewBytesYAMLSource(name string, content []byte) BytesYAMLSource {
-	return BytesYAMLSource{name: name, content: content}
+	return BytesYAMLSource{name: name, content: append([]byte(nil), content...)}
 }
 
 // Name returns the layer name.
 func (s BytesYAMLSource) Name() string { return s.name }
 
-// Read returns the in-memory document. A nil content yields an absent layer.
+// Read returns a clone of the in-memory document, so a caller cannot mutate the
+// layer through the returned slice. A nil content yields an absent layer.
 func (s BytesYAMLSource) Read(_ context.Context) ([]byte, error) {
-	return s.content, nil
+	return append([]byte(nil), s.content...), nil
 }
 
 // FileYAMLSource is a YAMLSource backed by a filesystem path. A missing
@@ -114,15 +118,21 @@ type MapEnvSource struct {
 	vars map[string]string
 }
 
-// NewMapEnvSource creates an in-memory env layer named name.
+// NewMapEnvSource creates an in-memory env layer named name. It clones vars so
+// later caller mutation cannot alter the layer.
 func NewMapEnvSource(name string, vars map[string]string) MapEnvSource {
-	return MapEnvSource{name: name, vars: vars}
+	clone := make(map[string]string, len(vars))
+	maps.Copy(clone, vars)
+	return MapEnvSource{name: name, vars: clone}
 }
 
 // Name returns the layer name.
 func (s MapEnvSource) Name() string { return s.name }
 
-// Environ returns the in-memory environment.
+// Environ returns a clone of the in-memory environment, so a caller cannot
+// mutate the layer through the returned map.
 func (s MapEnvSource) Environ(_ context.Context) (map[string]string, error) {
-	return s.vars, nil
+	clone := make(map[string]string, len(s.vars))
+	maps.Copy(clone, s.vars)
+	return clone, nil
 }

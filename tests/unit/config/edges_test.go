@@ -112,3 +112,137 @@ func TestValidateReportsRootLevelIssue(t *testing.T) {
 		t.Fatalf("expected a root-anchored issue, got %v", issues)
 	}
 }
+
+func TestLoadRejectsExplicitTraversalLandscape(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "settings.yaml"), []byte(testhelper.BaseDocument()), 0o600); err != nil {
+		t.Fatalf("write base: %v", err)
+	}
+	// A planted file where a traversal would resolve must never be read.
+	if err := os.WriteFile(filepath.Join(dir, "settings.escape.yaml"), []byte(testhelper.OverlayDocument("escape")), 0o600); err != nil {
+		t.Fatalf("write planted: %v", err)
+	}
+	cfg, err := config.NewLoader(
+		config.WithEnvPrefix("ATOMI_"),
+		config.WithBaseDir(dir),
+		config.WithLandscape("../../../../etc/passwd"),
+		config.WithEnvSource(testhelper.EnvSource(nil)),
+		config.WithSchema(testhelper.Schema()),
+	).Load(context.Background())
+	loadErr := testhelper.RequireLoadError(t, cfg, err)
+	testhelper.RequireIssue(t, loadErr, "app.landscape")
+}
+
+func TestLoadRejectsBaseDerivedTraversalLandscape(t *testing.T) {
+	t.Parallel()
+	base := testhelper.SchemaPointer + `
+app:
+  landscape: "../../secret"
+  platform: sulfoxide
+  service: config
+  module: lib
+  version: 1.0.0
+demo:
+  region: local
+`
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "settings.yaml"), []byte(base), 0o600); err != nil {
+		t.Fatalf("write base: %v", err)
+	}
+	cfg, err := config.NewLoader(
+		config.WithEnvPrefix("ATOMI_"),
+		config.WithBaseDir(dir),
+		config.WithEnvSource(testhelper.EnvSource(nil)),
+		config.WithSchema(testhelper.Schema()),
+	).Load(context.Background())
+	loadErr := testhelper.RequireLoadError(t, cfg, err)
+	testhelper.RequireIssue(t, loadErr, "app.landscape")
+}
+
+func TestLoadRejectsMaliciousRegisteredLandscape(t *testing.T) {
+	t.Parallel()
+	// A malicious landscape registered as an explicit overlay is still rejected by
+	// the token grammar before the overlay is read.
+	cfg, err := config.NewLoader(
+		config.WithEnvPrefix("ATOMI_"),
+		config.WithBaseSource(testhelper.BaseSource(testhelper.BaseDocument())),
+		config.WithLandscape("../evil"),
+		config.WithOverlaySource("../evil", testhelper.OverlaySource("evil", testhelper.OverlayDocument("evil"))),
+		config.WithEnvSource(testhelper.EnvSource(nil)),
+		config.WithSchema(testhelper.Schema()),
+	).Load(context.Background())
+	loadErr := testhelper.RequireLoadError(t, cfg, err)
+	testhelper.RequireIssue(t, loadErr, "app.landscape")
+}
+
+func TestLoadRejectsMaliciousLandscapeWithoutOverlay(t *testing.T) {
+	t.Parallel()
+	// A malicious landscape with no overlay source and no base dir is still
+	// rejected rather than silently ignored.
+	cfg, err := config.NewLoader(
+		config.WithEnvPrefix("ATOMI_"),
+		config.WithBaseSource(testhelper.BaseSource(testhelper.BaseDocument())),
+		config.WithLandscape("../evil"),
+		config.WithEnvSource(testhelper.EnvSource(nil)),
+		config.WithSchema(testhelper.Schema()),
+	).Load(context.Background())
+	loadErr := testhelper.RequireLoadError(t, cfg, err)
+	testhelper.RequireIssue(t, loadErr, "app.landscape")
+}
+
+func TestNewConfigClonesCallerMap(t *testing.T) {
+	t.Parallel()
+	raw := map[string]any{"app": map[string]any{"service": "config"}}
+	cfg := config.NewConfig(raw)
+	raw["app"].(map[string]any)["service"] = "mutated"
+	var service string
+	if err := cfg.Decode("app.service", &service); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if service != "config" {
+		t.Fatalf("NewConfig must clone its input: %q", service)
+	}
+}
+
+func TestSchemaRootReturnsClone(t *testing.T) {
+	t.Parallel()
+	schema := config.ComposeSchema(config.AppBlockSchema())
+	root := schema.Root()
+	root["type"] = "mutated"
+	if schema.Root()["type"] != "object" {
+		t.Fatal("Schema.Root must return an independent clone")
+	}
+}
+
+func TestBytesSourceClonesContent(t *testing.T) {
+	t.Parallel()
+	content := []byte("a: 1")
+	source := config.NewBytesYAMLSource("x", content)
+	content[0] = 'b'
+	got, err := source.Read(context.Background())
+	if err != nil || string(got) != "a: 1" {
+		t.Fatalf("NewBytesYAMLSource must clone content: %q %v", got, err)
+	}
+}
+
+func TestMapEnvSourceClonesVars(t *testing.T) {
+	t.Parallel()
+	vars := map[string]string{"K": "V"}
+	source := config.NewMapEnvSource("x", vars)
+	vars["K"] = "mutated"
+	got, err := source.Environ(context.Background())
+	if err != nil || got["K"] != "V" {
+		t.Fatalf("NewMapEnvSource must clone vars: %v %v", got, err)
+	}
+}
+
+func TestNewBlockClonesFragment(t *testing.T) {
+	t.Parallel()
+	fragment := map[string]any{"type": "object"}
+	block := config.NewBlock("k", true, fragment)
+	fragment["type"] = "mutated"
+	if block.Schema["type"] != "object" {
+		t.Fatal("NewBlock must clone its fragment")
+	}
+}

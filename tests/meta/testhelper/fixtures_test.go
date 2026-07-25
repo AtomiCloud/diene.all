@@ -66,12 +66,27 @@ func TestInvalidSchemaBlockCannotCompile(t *testing.T) {
 	}
 }
 
-func TestStubBuildersProduceValidatedConfigs(t *testing.T) {
+func TestValidRawSatisfiesSchema(t *testing.T) {
 	t.Parallel()
-	stub := testhelper.StubConfig(testhelper.ValidRaw())
-	if err := testhelper.Schema().Validate(stub.Raw()); err != nil {
-		t.Fatalf("ValidRaw stub must satisfy the schema: %v", err)
+	// ValidRaw is the map documented as schema-valid, so the claim is proven.
+	if err := testhelper.Schema().Validate(testhelper.ValidRaw()); err != nil {
+		t.Fatalf("ValidRaw must satisfy the schema: %v", err)
 	}
+}
+
+func TestStubBuildersAreUncheckedWrappers(t *testing.T) {
+	t.Parallel()
+	// StubConfig is documented as an unchecked wrapper: it must accept a map that
+	// would fail schema validation, decoding it verbatim.
+	stub := testhelper.StubConfig(map[string]any{"demo": map[string]any{"region": "here"}})
+	if testhelper.Schema().Validate(stub.Raw()) == nil {
+		t.Fatal("the probe map should not satisfy the schema (proving StubConfig is unchecked)")
+	}
+	var region string
+	if err := stub.Decode("demo.region", &region); err != nil || region != "here" {
+		t.Fatalf("unchecked stub must still decode: %q %v", region, err)
+	}
+	// StubApp is likewise unchecked but decodes its app block.
 	app, err := testhelper.StubApp(config.AppBlock{
 		Landscape: "lapras", Platform: "sulfoxide",
 		Service: "config", Module: "lib", Version: "1.0.0",

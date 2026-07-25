@@ -16,7 +16,9 @@ problem-typed `(T, error)` values. Read the compiling examples in
 
 - Build a loader with `config.NewLoader(...)` and always set the required
   `config.WithEnvPrefix("ATOMI_")` — there is no default prefix; `ATOMI_` is only
-  an example. Supply the base via `config.WithBaseSource` or `config.WithBaseDir`.
+  an example. Supply the base via `config.WithBaseSource` or `config.WithBaseDir`,
+  and the required schema via `config.WithSchema`. `Loader.Load` fails fast when
+  the prefix, base, or schema is missing — startup validation is never skipped.
 - Layer precedence is base < overlay < environment. Resolve the landscape with
   `config.WithLandscape` or let it come from the base `app.landscape`; the
   sentinel `config.BaseLandscape` ("base") applies no overlay.
@@ -58,8 +60,10 @@ real loader over in-memory fakes without touching the filesystem or environment:
 - `testhelper.Schema()` composes the app block with a neutral demo block;
   `testhelper.InvalidSchemaBlock()` and `testhelper.InvalidOverlayDocument()`
   drive the fault and fail-fast paths.
-- `testhelper.StubConfig(raw)` / `testhelper.StubApp(app)` mint pre-validated
-  `*config.Config` stubs.
+- `testhelper.StubConfig(raw)` / `testhelper.StubApp(app)` are **unchecked**
+  decode/accessor stubs — they wrap a map you assert is valid and do NOT
+  validate. Use `testhelper.ValidRaw()` for a map proven to satisfy the schema,
+  or run the real `config.Loader` when validity matters.
 - `testhelper.RequireConfig(t, cfg, err)`, `RequireLoadError(t, cfg, err)`, and
   `RequireIssue(t, err, "app.version")` are framework-free assertions over the
   minimal `testhelper.TestingT` interface.

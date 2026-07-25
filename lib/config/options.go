@@ -58,8 +58,9 @@ func WithEnvSource(source EnvSource) Option {
 	return func(loader *Loader) { loader.env = source }
 }
 
-// WithSchema enables validation of the fully merged tree against schema.
-// Without a schema the loader merges layers but does not validate.
+// WithSchema sets the required schema the fully merged tree is validated
+// against. It is mandatory: [Loader.Load] fails fast when no schema is
+// configured, so startup validation can never be silently skipped.
 func WithSchema(schema Schema) Option {
 	return func(loader *Loader) {
 		loader.schema = schema

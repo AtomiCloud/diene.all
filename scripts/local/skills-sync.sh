@@ -3,7 +3,7 @@ set -euo pipefail
 
 vendor_dir=".claude/skills/vendor"
 staging="$(mktemp -d .claude/skills/.vendor.XXXXXX)"
-trap 'rm -rf "${staging}"' EXIT
+trap 'chmod -R u+w "${staging}" 2>/dev/null || true; rm -rf "${staging}"' EXIT
 
 touch "${staging}/.gitkeep"
 
@@ -33,7 +33,7 @@ if [ -f go.mod ]; then
     package="$(basename "${module}")"
     mkdir -p "${staging}/${package}"
     cp -R "${skills_dir}/." "${staging}/${package}/"
-  done < <(go list -m -json all | jq -r 'select(.Path | test("(^|/)diene[._-]")) | [.Path, .Dir] | @tsv')
+  done < <("${DIENE_SKILLS_GO:-go}" list -m -json all | jq -r 'select(.Path | test("(^|/)diene[._-]")) | [.Path, .Dir] | @tsv')
 fi
 
 if [ -f .dart_tool/package_config.json ]; then
@@ -46,6 +46,9 @@ if [ -f .dart_tool/package_config.json ]; then
   done < <(jq -r '.packages[] | select(.name | startswith("diene_")) | [.name, .rootUri] | @tsv' .dart_tool/package_config.json)
 fi
 
+# Dependency skills are copied from read-only module caches, so the previous
+# vendor tree can be read-only; make it writable before replacing it.
+[ -d "${vendor_dir}" ] && chmod -R u+w "${vendor_dir}"
 rm -rf "${vendor_dir}"
 mkdir -p "$(dirname "${vendor_dir}")"
 mv "${staging}" "${vendor_dir}"

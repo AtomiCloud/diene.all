@@ -38,6 +38,61 @@ func TestComposeSchemaOmitsRequiredWhenNoneMandatory(t *testing.T) {
 	}
 }
 
+func requiredKeys(t *testing.T, schema config.Schema) []any {
+	t.Helper()
+	required, ok := schema.Root()["required"].([]any)
+	if !ok {
+		return nil
+	}
+	return required
+}
+
+func countKey(entries []any, want string) int {
+	total := 0
+	for _, entry := range entries {
+		if entry == want {
+			total++
+		}
+	}
+	return total
+}
+
+// TestComposeSchemaLaterBlockWinsRequirement locks down last-block-wins
+// requirement state and unique required entries for duplicate keys.
+func TestComposeSchemaLaterBlockWinsRequirement(t *testing.T) {
+	t.Parallel()
+
+	// required -> optional: the later optional block drops the requirement.
+	requiredThenOptional := config.ComposeSchema(
+		config.NewBlock("x", true, map[string]any{"type": "object"}),
+		config.NewBlock("x", false, map[string]any{"type": "string"}),
+	)
+	if countKey(requiredKeys(t, requiredThenOptional), "x") != 0 {
+		t.Fatalf("a later optional block must drop the requirement: %v", requiredThenOptional.Root()["required"])
+	}
+	if requiredThenOptional.Root()["properties"].(map[string]any)["x"].(map[string]any)["type"] != "string" {
+		t.Fatal("a later block's property must win")
+	}
+
+	// optional -> required: the later required block adds the requirement.
+	optionalThenRequired := config.ComposeSchema(
+		config.NewBlock("x", false, map[string]any{"type": "object"}),
+		config.NewBlock("x", true, map[string]any{"type": "object"}),
+	)
+	if countKey(requiredKeys(t, optionalThenRequired), "x") != 1 {
+		t.Fatalf("a later required block must add the requirement once: %v", optionalThenRequired.Root()["required"])
+	}
+
+	// required -> required: the key appears exactly once in required.
+	requiredTwice := config.ComposeSchema(
+		config.NewBlock("x", true, map[string]any{"type": "object"}),
+		config.NewBlock("x", true, map[string]any{"type": "object"}),
+	)
+	if countKey(requiredKeys(t, requiredTwice), "x") != 1 {
+		t.Fatalf("a duplicate required block must not duplicate the required entry: %v", requiredTwice.Root()["required"])
+	}
+}
+
 func TestGenerateSchemaReflectsGoType(t *testing.T) {
 	t.Parallel()
 	raw, err := config.GenerateSchema(config.AppBlock{})

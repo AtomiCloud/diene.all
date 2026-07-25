@@ -10,12 +10,17 @@ type TestingT interface {
 	Fatalf(format string, args ...any)
 }
 
-// RequireConfig fails t when a load returned an error, and returns the config
-// on success. It is the assertion consumers use for the happy path.
+// RequireConfig fails t when a load returned an error or a nil config, and
+// returns the config on success. It is the assertion consumers use for the
+// happy path; a (nil, nil) result is a failure, never a silent success.
 func RequireConfig(t TestingT, cfg *config.Config, err error) *config.Config {
 	t.Helper()
 	if err != nil {
 		t.Fatalf("config testhelper: expected a valid configuration, got error: %v", err)
+		return nil
+	}
+	if cfg == nil {
+		t.Fatalf("%s", "config testhelper: expected a configuration, got nil with no error")
 		return nil
 	}
 	return cfg

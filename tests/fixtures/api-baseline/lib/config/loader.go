@@ -1,16 +1,14 @@
 package config
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"path/filepath"
-	"strings"
 
+	"github.com/AtomiCloud/diene.go-config/lib/config/internal/layers"
+	"github.com/AtomiCloud/diene.go-config/lib/config/internal/valid"
 	"github.com/AtomiCloud/diene.go-core-utils/lib/coreutils"
 	"github.com/AtomiCloud/diene.go-errors-problems/lib/problem"
-	"github.com/spf13/viper"
 )
 
 // Loader assembles a validated [Config] from a base YAML layer, an optional
@@ -29,8 +27,9 @@ type Loader struct {
 }
 
 // NewLoader creates a loader with the process-environment source as the env
-// layer and no base, overlay, or schema. Supply the required [WithEnvPrefix]
-// and a base via [WithBaseSource] or [WithBaseDir].
+// layer. Supply the required [WithEnvPrefix], a base via [WithBaseSource] or
+// [WithBaseDir], and a schema via [WithSchema]; [Loader.Load] fails fast when
+// any of the three is missing.
 func NewLoader(options ...Option) *Loader {
 	loader := &Loader{
 		overlays: map[string]YAMLSource{},
@@ -44,9 +43,11 @@ func NewLoader(options ...Option) *Loader {
 
 // Load reads, merges, validates, and returns the configuration. The base YAML
 // full defaults are overlaid by the resolved landscape's sparse overlay, and
-// the environment is folded on LAST. When a schema is configured the fully
-// merged tree is validated exactly once; an invalid final tree fails fast with
-// a problem-typed error.
+// the environment is folded on LAST. Layers merge with the core-utils canonical
+// rule, so a value spelled in any of snake, kebab, camel, or Pascal in one layer
+// overrides the same logical key in another. The fully merged tree is validated
+// exactly once against the required schema; an invalid tree fails fast with a
+// problem-typed error.
 func (l *Loader) Load(ctx context.Context) (*Config, error) {
 	if l.envPrefix == "" {
 		return nil, errors.New("config: an environment prefix is required (WithEnvPrefix); ATOMI_ is only an example")
@@ -54,16 +55,55 @@ func (l *Loader) Load(ctx context.Context) (*Config, error) {
 	if l.base == nil {
 		return nil, errors.New("config: a base source is required (WithBaseSource or WithBaseDir)")
 	}
-
-	baseViper, err := l.readLayer(ctx, l.base)
-	if err != nil {
-		return nil, err
+	if !l.hasSchema {
+		return nil, errors.New("config: a schema is required (WithSchema); Load validates the final merged tree")
 	}
 
-	landscape := l.resolveLandscape(baseViper)
-	if overlay, ok := l.overlayFor(landscape); ok {
-		if err := l.mergeOverlay(ctx, baseViper, overlay); err != nil {
-			return nil, err
+	baseContent, err := l.base.Read(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("config: read layer %q: %w", l.base.Name(), err)
+	}
+	baseViper, err := layers.BaseViper(baseContent)
+	if err != nil {
+		return nil, valid.Problem(l.portal, []valid.Issue{{Path: l.base.Name(), Message: err.Error()}})
+	}
+
+	// Resolve, token-check, and fold the sparse overlay for the landscape onto
+	// the base Viper with MergeConfigMap. This is bounded per-loader wiring over
+	// the layers package; the base sentinel and the empty landscape apply none.
+	landscape := layers.ResolveLandscape(baseViper.AllSettings(), l.landscape)
+	if landscape != "" && landscape != BaseLandscape {
+		overlaySource, ok := l.overlays[landscape]
+		switch {
+		case ok:
+			// Registered overlay: validate the landscape token grammar on its own.
+			if err = layers.ValidateLandscape(landscape); err != nil {
+				return nil, valid.Problem(l.portal, []valid.Issue{{Path: AppKey + ".landscape", Message: err.Error()}})
+			}
+		case l.overlayDir != "":
+			// File mode: OverlayPath validates the token grammar and containment.
+			path, pathErr := layers.OverlayPath(l.overlayDir, landscape)
+			if pathErr != nil {
+				return nil, valid.Problem(l.portal, []valid.Issue{{Path: AppKey + ".landscape", Message: pathErr.Error()}})
+			}
+			overlaySource = NewOptionalFileYAMLSource("overlay:"+landscape, path)
+			ok = true
+		default:
+			// No overlay configured; still reject a malicious landscape token.
+			if err = layers.ValidateLandscape(landscape); err != nil {
+				return nil, valid.Problem(l.portal, []valid.Issue{{Path: AppKey + ".landscape", Message: err.Error()}})
+			}
+		}
+		if ok {
+			content, readErr := overlaySource.Read(ctx)
+			if readErr != nil {
+				return nil, fmt.Errorf("config: read overlay %q: %w", overlaySource.Name(), readErr)
+			}
+			if content != nil {
+				if err = layers.MergeOverlay(baseViper, content); err != nil {
+					return nil, valid.Problem(l.portal, []valid.Issue{{Path: overlaySource.Name(), Message: err.Error()}})
+				}
+			}
 		}
 	}
 
@@ -71,112 +111,16 @@ func (l *Loader) Load(ctx context.Context) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("config: read env layer %q: %w", l.env.Name(), err)
 	}
-	envLayer, err := coreutils.EnvironmentToNestedMap(environment, l.envPrefix)
+	envSettings, err := coreutils.EnvironmentToNestedMap(environment, l.envPrefix)
 	if err != nil {
-		return nil, l.envProblem(err)
+		return nil, valid.Problem(l.portal, []valid.Issue{valid.EnvIssue(err)})
 	}
 
-	merged := coreutils.DeepMerge(baseViper.AllSettings(), envLayer)
-
-	if l.hasSchema {
-		if err := l.schema.WithPortal(l.portalOrLocal()).Validate(merged); err != nil {
-			return nil, err
-		}
+	// The environment layer is folded on LAST with the canonical deep merge, so
+	// an env value overrides the merged YAML key it matches across spellings.
+	merged := coreutils.DeepMerge(baseViper.AllSettings(), envSettings)
+	if err = valid.Evaluate(l.schema.root, l.portal, merged); err != nil {
+		return nil, err
 	}
 	return NewConfig(merged), nil
-}
-
-// readLayer reads a YAML source into a fresh viper instance seeded with the tin
-// loader shape (yaml type plus an env-key replacer).
-func (l *Loader) readLayer(ctx context.Context, source YAMLSource) (*viper.Viper, error) {
-	content, err := source.Read(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("config: read layer %q: %w", source.Name(), err)
-	}
-	layer := newYAMLViper()
-	if err := layer.ReadConfig(bytes.NewReader(content)); err != nil {
-		return nil, l.yamlProblem(source.Name(), err)
-	}
-	return layer, nil
-}
-
-// mergeOverlay reads the overlay into a second viper and folds it onto the base
-// via MergeConfigMap. An absent optional overlay is a no-op.
-func (l *Loader) mergeOverlay(ctx context.Context, base *viper.Viper, overlay YAMLSource) error {
-	content, err := overlay.Read(ctx)
-	if err != nil {
-		return fmt.Errorf("config: read overlay %q: %w", overlay.Name(), err)
-	}
-	if content == nil {
-		return nil
-	}
-	overlayViper := newYAMLViper()
-	if err := overlayViper.ReadConfig(bytes.NewReader(content)); err != nil {
-		return l.yamlProblem(overlay.Name(), err)
-	}
-	// MergeConfigMap only ever returns nil in viper; the overlay is folded on.
-	_ = base.MergeConfigMap(overlayViper.AllSettings())
-	return nil
-}
-
-// resolveLandscape returns the explicit landscape when set, otherwise the base
-// document's app.landscape.
-func (l *Loader) resolveLandscape(base *viper.Viper) string {
-	if l.landscape != "" {
-		return l.landscape
-	}
-	return base.GetString(AppKey + ".landscape")
-}
-
-// overlayFor resolves the overlay source for landscape: the base sentinel and
-// the empty landscape apply none, an explicit registration wins, and file mode
-// resolves settings.<landscape>.yaml under the base dir.
-func (l *Loader) overlayFor(landscape string) (YAMLSource, bool) {
-	if landscape == "" || landscape == BaseLandscape {
-		return nil, false
-	}
-	if source, ok := l.overlays[landscape]; ok {
-		return source, true
-	}
-	if l.overlayDir != "" {
-		path := filepath.Join(l.overlayDir, defaultOverlayPrefix+"."+landscape+".yaml")
-		return NewOptionalFileYAMLSource("overlay:"+landscape, path), true
-	}
-	return nil, false
-}
-
-// portalOrLocal returns the configured portal, defaulting to the client-local
-// portal.
-func (l *Loader) portalOrLocal() problem.ErrorPortal {
-	if l.portal.Host == "" {
-		return problem.LocalErrorPortal()
-	}
-	return l.portal
-}
-
-// yamlProblem reports a malformed YAML layer as a problem-typed validation
-// failure keyed by the layer name.
-func (l *Loader) yamlProblem(layer string, cause error) error {
-	return newValidationProblem(l.portalOrLocal(), []Issue{{Path: layer, Message: cause.Error()}})
-}
-
-// envProblem reports an environment coercion failure as a problem-typed
-// validation failure, preserving the offending key and reason.
-func (l *Loader) envProblem(cause error) error {
-	issue := Issue{Path: "(environment)", Message: cause.Error()}
-	var coercion *coreutils.EnvironmentCoercionError
-	if errors.As(cause, &coercion) {
-		issue = Issue{Path: coercion.Key, Message: coercion.Reason}
-	}
-	return newValidationProblem(l.portalOrLocal(), []Issue{issue})
-}
-
-// newYAMLViper builds a viper seeded with the tin loader shape: YAML config
-// type plus an env-key replacer. The env layer itself is produced by core-utils
-// rather than viper's AutomaticEnv, so lists arrive as indexed keys.
-func newYAMLViper() *viper.Viper {
-	instance := viper.New()
-	instance.SetConfigType("yaml")
-	instance.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "__"))
-	return instance
 }

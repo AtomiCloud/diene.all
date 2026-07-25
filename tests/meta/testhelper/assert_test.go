@@ -53,10 +53,16 @@ func TestRequireConfigPassesAndFails(t *testing.T) {
 	if got := testhelper.RequireConfig(pass, cfg, err); got == nil || pass.failed {
 		t.Fatalf("known-good load should pass: failed=%v msg=%s", pass.failed, pass.message)
 	}
-	fail := &recordingT{}
-	testhelper.RequireConfig(fail, nil, errors.New("boom"))
-	if !fail.failed {
+	errored := &recordingT{}
+	testhelper.RequireConfig(errored, nil, errors.New("boom"))
+	if !errored.failed {
 		t.Fatal("an errored load should fail the asserter")
+	}
+	// A (nil, nil) result is a silent-panic hazard and must fail, not pass.
+	nilConfig := &recordingT{}
+	testhelper.RequireConfig(nilConfig, nil, nil)
+	if !nilConfig.failed {
+		t.Fatal("a nil config with no error should fail the asserter")
 	}
 }
 

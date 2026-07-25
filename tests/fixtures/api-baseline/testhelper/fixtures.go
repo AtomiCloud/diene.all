@@ -98,13 +98,17 @@ func ValidRaw() map[string]any {
 	}
 }
 
-// StubConfig wraps an already-merged, already-validated map as a
-// [config.Config], bypassing the loader.
+// StubConfig wraps raw as a [config.Config] WITHOUT validating it. It is an
+// unchecked stub for decode/accessor tests; the caller is responsible for the
+// map's validity. Use [ValidRaw] for a map proven to satisfy [Schema], or run
+// the real loader when validation matters.
 func StubConfig(raw map[string]any) *config.Config {
 	return config.NewConfig(raw)
 }
 
-// StubApp builds a [config.Config] carrying app as its service-tree block.
+// StubApp builds an unchecked [config.Config] carrying only app as its
+// service-tree block. It is not validated against any schema — it exists so
+// App-block accessor tests need not spell out a full document.
 func StubApp(app config.AppBlock) *config.Config {
 	return config.NewConfig(map[string]any{
 		"app": map[string]any{
