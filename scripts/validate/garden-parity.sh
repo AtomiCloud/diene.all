@@ -107,6 +107,20 @@ doctor-installed)
   DIENE_INSTALLED_FILE=sulfoxide/fixtures/installed/eevee-green.json ./scripts/local/garden-doctor.sh installed eevee >/dev/null
   echo "✅ Installed digests match the owning definitions"
   ;;
+cluster-inventory-shape)
+  # The extractor's input shape is proven against the upstream Kubernetes schema rather
+  # than against our own belief about it: kubeconform is an oracle we do not author, so a
+  # fixture that drifts from what a real API server returns cannot pass (R-E29).
+  kubeconform -summary -strict sulfoxide/fixtures/cluster/pods-eevee.json >"${tmp}/kubeconform.log" 2>&1
+  rg -q 'Valid: 3, Invalid: 0, Errors: 0' "${tmp}/kubeconform.log" || {
+    echo "❌ the pod inventory fixture is not a schema-valid Kubernetes Pod list:" >&2
+    cat "${tmp}/kubeconform.log" >&2
+    exit 1
+  }
+  # imageID is the field the extractor depends on, so assert the schema kept it populated.
+  jq -e '[.items[].status.containerStatuses[].imageID] | length == 3 and all(test("@sha256:[0-9a-f]{64}$"))' sulfoxide/fixtures/cluster/pods-eevee.json >/dev/null
+  echo "✅ The pod inventory fixture is a schema-valid Pod list carrying real imageID digests"
+  ;;
 installed-extract)
   # The live path end to end: real kubelet imageID output becomes the tuple the doctor
   # compares, so the installed assertion does not depend on a hand-written tuple.

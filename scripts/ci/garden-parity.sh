@@ -11,6 +11,7 @@ bash ./scripts/validate/garden-parity.sh local-profile-edge
 bash ./scripts/validate/garden-parity.sh filter-drift-negative
 bash ./scripts/validate/garden-parity.sh doctor
 bash ./scripts/validate/garden-parity.sh doctor-installed
+bash ./scripts/validate/garden-parity.sh cluster-inventory-shape
 bash ./scripts/validate/garden-parity.sh installed-extract
 bash ./scripts/validate/garden-parity.sh installed-extract-negative
 bash ./scripts/validate/garden-parity.sh doctor-installed-negative
