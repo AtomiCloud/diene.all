@@ -26,6 +26,10 @@ if [ -f Directory.Packages.props ]; then
 fi
 
 if [ -f go.mod ] && command -v go >/dev/null 2>&1; then
+  # A fresh CI runner has no populated module cache yet. Download first so
+  # `go list -m` reports dependency directories instead of silently producing
+  # an empty skills staging tree.
+  go mod download
   while IFS=$'\t' read -r module module_dir; do
     [ -n "${module_dir}" ] || continue
     skills_dir="${module_dir}/skills"
