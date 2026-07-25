@@ -11,14 +11,14 @@ public sealed class HostVfs : IVfs
 {
     /// <inheritdoc />
     public Task<Result<bool, SeamError>> Exists(string path, CancellationToken cancellationToken = default) =>
-        Task.FromResult(Guarded<bool>(path, "exists", full => File.Exists(full) || Directory.Exists(full)));
+        Task.FromResult(Guarded<bool>(path, "exists", cancellationToken, full => File.Exists(full) || Directory.Exists(full)));
 
     /// <inheritdoc />
     public async Task<Result<ReadOnlyMemory<byte>, SeamError>> ReadBytes(
         string path,
         CancellationToken cancellationToken = default)
     {
-        var guarded = Guarded<string>(path, "readBytes", full => full);
+        var guarded = Guarded<string>(path, "readBytes", cancellationToken, full => full);
         if (guarded.IsFailure(out var error)) return Result.Err<ReadOnlyMemory<byte>, SeamError>(error);
         var full = guarded.Get();
         if (!File.Exists(full)) return SeamErrors.NotFound(full);
@@ -51,7 +51,7 @@ public sealed class HostVfs : IVfs
         VfsWriteOptions options = default,
         CancellationToken cancellationToken = default)
     {
-        var guarded = Guarded<string>(path, "writeBytes", full => full);
+        var guarded = Guarded<string>(path, "writeBytes", cancellationToken, full => full);
         if (guarded.IsFailure(out var error)) return Result.Err<Unit, SeamError>(error);
         var full = guarded.Get();
         var parent = Path.GetDirectoryName(full);
@@ -93,7 +93,7 @@ public sealed class HostVfs : IVfs
         VfsListOptions options = default,
         CancellationToken cancellationToken = default)
     {
-        var guarded = Guarded<string>(path, "list", full => full);
+        var guarded = Guarded<string>(path, "list", cancellationToken, full => full);
         if (guarded.IsFailure(out var error))
         {
             return Task.FromResult(Result.Err<IReadOnlyList<VfsEntry>, SeamError>(error));
@@ -134,7 +134,7 @@ public sealed class HostVfs : IVfs
         VfsDirectoryOptions options = default,
         CancellationToken cancellationToken = default)
     {
-        var guarded = Guarded<string>(path, "createDirectory", full => full);
+        var guarded = Guarded<string>(path, "createDirectory", cancellationToken, full => full);
         if (guarded.IsFailure(out var error)) return Task.FromResult(Result.Err<Unit, SeamError>(error));
         var full = guarded.Get();
         if (Directory.Exists(full) || File.Exists(full))
@@ -168,7 +168,7 @@ public sealed class HostVfs : IVfs
         VfsDirectoryOptions options = default,
         CancellationToken cancellationToken = default)
     {
-        var guarded = Guarded<string>(path, "delete", full => full);
+        var guarded = Guarded<string>(path, "delete", cancellationToken, full => full);
         if (guarded.IsFailure(out var error)) return Task.FromResult(Result.Err<Unit, SeamError>(error));
         var full = guarded.Get();
         try
@@ -214,8 +214,13 @@ public sealed class HostVfs : IVfs
 
     private static string Normalize(string path) => path.Replace('\\', '/');
 
-    private static Result<T, SeamError> Guarded<T>(string path, string operation, Func<string, T> body)
+    private static Result<T, SeamError> Guarded<T>(
+        string path,
+        string operation,
+        CancellationToken cancellationToken,
+        Func<string, T> body)
     {
+        if (cancellationToken.IsCancellationRequested) return SeamErrors.Cancelled(SeamKind.Vfs, operation);
         if (string.IsNullOrWhiteSpace(path))
         {
             return SeamErrors.InvalidArgument(SeamKind.Vfs, nameof(path), "The path must not be blank.");

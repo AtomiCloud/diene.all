@@ -42,8 +42,14 @@ public static class SeamContracts
         var nested = Join(deep, "nested.txt");
         var payload = Encoding.UTF8.GetBytes("bytes");
 
+        using var cancelled = new CancellationTokenSource();
+        await cancelled.CancelAsync().ConfigureAwait(false);
+
         List<ContractCase> cases =
         [
+            await Case(
+                "cancelled_operation_is_cancelled",
+                async () => Err(await vfs.Exists(scope, cancelled.Token), "cancelled")),
             await Case(
                 "create_directory_recursive_creates_scope",
                 async () => Ok(await vfs.CreateDirectory(scope, new VfsDirectoryOptions(true)))),

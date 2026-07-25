@@ -64,14 +64,14 @@ public sealed class InMemoryVfs(DateTimeOffset? modifiedAt = null) : IVfs
 
     /// <inheritdoc />
     public Task<Result<bool, SeamError>> Exists(string path, CancellationToken cancellationToken = default) =>
-        Task.FromResult(Locked<bool>(path, normalized =>
+        Task.FromResult(Locked<bool>(path, "exists", cancellationToken, normalized =>
             _files.ContainsKey(normalized) || _directories.Contains(normalized)));
 
     /// <inheritdoc />
     public Task<Result<ReadOnlyMemory<byte>, SeamError>> ReadBytes(
         string path,
         CancellationToken cancellationToken = default) =>
-        Task.FromResult(Locked<ReadOnlyMemory<byte>>(path, normalized =>
+        Task.FromResult(Locked<ReadOnlyMemory<byte>>(path, "readBytes", cancellationToken, normalized =>
             _files.TryGetValue(normalized, out var bytes)
                 ? Result.Ok<ReadOnlyMemory<byte>, SeamError>(bytes.ToArray())
                 : SeamErrors.NotFound(normalized)));
@@ -89,7 +89,7 @@ public sealed class InMemoryVfs(DateTimeOffset? modifiedAt = null) : IVfs
         ReadOnlyMemory<byte> bytes,
         VfsWriteOptions options = default,
         CancellationToken cancellationToken = default) =>
-        Task.FromResult(Locked<Unit>(path, normalized =>
+        Task.FromResult(Locked<Unit>(path, "writeBytes", cancellationToken, normalized =>
         {
             var parent = VfsPath.Parent(normalized).GetOr(VfsPath.Root);
             if (!_directories.Contains(parent))
@@ -118,7 +118,7 @@ public sealed class InMemoryVfs(DateTimeOffset? modifiedAt = null) : IVfs
         string path,
         VfsListOptions options = default,
         CancellationToken cancellationToken = default) =>
-        Task.FromResult(Locked<IReadOnlyList<VfsEntry>>(path, normalized =>
+        Task.FromResult(Locked<IReadOnlyList<VfsEntry>>(path, "list", cancellationToken, normalized =>
         {
             if (_files.ContainsKey(normalized)) return SeamErrors.NotADirectory(normalized);
             if (!_directories.Contains(normalized)) return SeamErrors.NotFound(normalized);
@@ -145,7 +145,7 @@ public sealed class InMemoryVfs(DateTimeOffset? modifiedAt = null) : IVfs
         string path,
         VfsDirectoryOptions options = default,
         CancellationToken cancellationToken = default) =>
-        Task.FromResult(Locked<Unit>(path, normalized =>
+        Task.FromResult(Locked<Unit>(path, "createDirectory", cancellationToken, normalized =>
         {
             if (_directories.Contains(normalized) || _files.ContainsKey(normalized))
             {
@@ -166,7 +166,7 @@ public sealed class InMemoryVfs(DateTimeOffset? modifiedAt = null) : IVfs
         string path,
         VfsDirectoryOptions options = default,
         CancellationToken cancellationToken = default) =>
-        Task.FromResult(Locked<Unit>(path, normalized =>
+        Task.FromResult(Locked<Unit>(path, "delete", cancellationToken, normalized =>
         {
             if (_files.Remove(normalized)) return Result.Ok<Unit, SeamError>(default);
             if (!_directories.Contains(normalized)) return SeamErrors.NotFound(normalized);
@@ -189,8 +189,13 @@ public sealed class InMemoryVfs(DateTimeOffset? modifiedAt = null) : IVfs
             return Result.Ok<Unit, SeamError>(default);
         }));
 
-    private Result<T, SeamError> Locked<T>(string path, Func<string, Result<T, SeamError>> body)
+    private Result<T, SeamError> Locked<T>(
+        string path,
+        string operation,
+        CancellationToken cancellationToken,
+        Func<string, Result<T, SeamError>> body)
     {
+        if (cancellationToken.IsCancellationRequested) return SeamErrors.Cancelled(SeamKind.Vfs, operation);
         lock (_gate)
         {
             if (_failures.TryDequeue(out var failure)) return failure;

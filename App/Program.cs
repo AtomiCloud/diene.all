@@ -50,7 +50,7 @@ public static class Program
         var read = await vfs.ReadText(file).ConfigureAwait(false);
         return read
             .Then(Parse)
-            .Do(value => logger.Emit(new LogRecord(
+            .Do(_ => logger.Emit(new LogRecord(
                 now.Get(),
                 LogLevel.Info,
                 "doubled the stored answer",
