@@ -1,0 +1,8 @@
+[test]
+root = "tests/sit"
+timeout = 120000
+coverageReporter = ["text", "lcov"]
+coverageDir = "coverage/sit"
+coverageSkipTestFiles = true
+# SIT coverage is full-system and in-process; only test sources are excluded from its ledger.
+coveragePathIgnorePatterns = ["tests/**"]

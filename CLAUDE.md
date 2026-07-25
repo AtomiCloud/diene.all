@@ -100,3 +100,11 @@ shared engineering standards.
 - [OpenTelemetry alignment](docs/standards/observability/otel.md)
 - [Faro frontend variant](docs/standards/observability/faro.md)
 - [Primordial-chart rendering](docs/standards/observability/primordial-chart.md)
+
+<!-- ### bun-consumer -->
+<!-- #### source: bun-consumer -->
+
+## Bun consumer
+
+Read [the Bun consumer delta](docs/developer/bun-consumer.md) before changing
+its worker/db-init/health composition, configuration, or SIT machinery.

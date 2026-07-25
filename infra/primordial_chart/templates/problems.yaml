@@ -22,15 +22,28 @@
 {{- end -}}
 {{- $raw := trim ($root.Files.Get $path) -}}
 {{- if $raw -}}
-{{- /* The exporter may emit either a bare array of entries or an envelope object
-       carrying them under `problems`. Accept both; anything else is a loud fail. */ -}}
+{{- /* The authoritative exporter emits a full Problem resource with entries at
+       `spec.problems`. Keep accepting the older bare-array and top-level envelope
+       shapes so previously generated catalogs remain renderable. */ -}}
 {{- $entries := list -}}
 {{- if hasPrefix "[" $raw -}}
 {{- $entries = fromJsonArray $raw -}}
 {{- else if hasPrefix "{" $raw -}}
-{{- $entries = (fromJson $raw).problems | default list -}}
+{{- $object := fromJson $raw -}}
+{{- if hasKey $object "problems" -}}
+{{- $entries = $object.problems | default list -}}
+{{- else if hasKey $object "spec" -}}
+{{- $spec := $object.spec -}}
+{{- if and (kindIs "map" $spec) (hasKey $spec "problems") -}}
+{{- $entries = $spec.problems | default list -}}
 {{- else -}}
-{{- fail (printf "%s is not valid JSON: expected an array of problem entries or an object carrying `problems`" $path) -}}
+{{- fail (printf "%s is not a Problem catalog: expected `spec.problems`" $path) -}}
+{{- end -}}
+{{- else -}}
+{{- fail (printf "%s is not a Problem catalog: expected `problems` or `spec.problems`" $path) -}}
+{{- end -}}
+{{- else -}}
+{{- fail (printf "%s is not valid JSON: expected an array or an object carrying `problems` or `spec.problems`" $path) -}}
 {{- end -}}
 {{- if $entries -}}
 {{- range $entry := $entries }}

@@ -71,3 +71,11 @@ boundary. TypeScript variants accompany the shared standards for
 [testing](docs/standards/testing/languages/typescript.md),
 [utilities](docs/standards/utilities/languages/typescript.md), and
 [validation](docs/standards/validation/languages/typescript.md).
+
+<!-- ### bun-consumer -->
+<!-- #### source: bun-consumer -->
+
+## Bun consumer
+
+See the [Bun consumer delta](docs/developer/bun-consumer.md) for its three
+subcommands, layered configuration, local dependency stack, and test tiers.

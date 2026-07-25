@@ -2,6 +2,12 @@
 # #### source: workspace
 version: '3'
 
+vars:
+  # ### bun-consumer-identity
+  # #### source: bun-consumer
+  ARTIFACT:
+    sh: jq -r '.bin | to_entries[0].key' package.json
+
 includes:
   docker: tasks/Taskfile.docker.yaml
   helm: tasks/Taskfile.helm.yaml
@@ -18,6 +24,13 @@ includes:
     vars:
       MODE: int
       CONFIG: bunfig.int.toml
+  # ### bun-consumer-test-includes
+  # #### source: bun-consumer
+  sit:
+    taskfile: tasks/Taskfile.test.yaml
+    vars:
+      MODE: sit
+      CONFIG: bunfig.sit.toml
 
 tasks:
   setup:
@@ -57,10 +70,11 @@ tasks:
       - ./scripts/local/deadcode.sh
 
   test:
-    desc: Run unit and integration suites without coverage
+    desc: Run unit, integration, and SIT suites without coverage
     cmds:
       - task: unit:default
       - task: int:default
+      - task: test:sit
 
   test:unit:
     desc: Run the unit suite without coverage
@@ -77,6 +91,7 @@ tasks:
     cmds:
       - task: unit:coverage
       - task: int:coverage
+      - task: test:sit:coverage
 
   test:unit:coverage:
     desc: Run the unit suite with coverage
@@ -94,12 +109,38 @@ tasks:
       - task: unit:watch
 
   run:
-    desc: Run the Bun source entry point
+    desc: Run the Bun consumer source entry point
     cmds:
-      - bun run ./src/index.ts -- {{.CLI_ARGS}}
+      - ./scripts/local/run.sh {{.CLI_ARGS}}
 
   preview:
-    desc: Build and run the bundled Bun artifact
-    deps: [build]
+    desc: Compile and run the Bun consumer artifact
     cmds:
-      - bun run ./dist/index.js -- {{.CLI_ARGS}}
+      - ./scripts/local/preview.sh {{.CLI_ARGS}}
+
+  # ### bun-consumer-tasks
+  # #### source: bun-consumer
+  dev:
+    desc: Run the worker with hot reload against the local dependency stack
+    cmds:
+      - ./scripts/local/dev.sh {{.CLI_ARGS}}
+
+  up:
+    desc: Start every local dependency and telemetry backend
+    cmds:
+      - ./scripts/local/up.sh
+
+  down:
+    desc: Stop every local dependency and telemetry backend
+    cmds:
+      - ./scripts/local/down.sh
+
+  test:sit:
+    desc: Run black-box journeys through the compiled binary
+    cmds:
+      - ./scripts/local/test-sit.sh binary
+
+  test:sit:coverage:
+    desc: Run SIT journeys in-process with coverage
+    cmds:
+      - ./scripts/local/test-sit.sh coverage

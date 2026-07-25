@@ -4,24 +4,39 @@ version: '3'
 
 vars:
   CHART: infra/root_chart
+  # ### bun-consumer-primordial-chart
+  # #### source: bun-consumer
+  PRIMORDIAL_CHART: infra/primordial_chart
 
 tasks:
   deps:
     desc: Build chart dependencies
     cmds:
       - helm dependency build {{.CHART}}
+      # ### bun-consumer-primordial-chart
+      # #### source: bun-consumer
+      - helm dependency build {{.PRIMORDIAL_CHART}}
 
   lint:
     desc: Lint the root chart
     cmds:
       - helm lint {{.CHART}}
+      # ### bun-consumer-primordial-chart
+      # #### source: bun-consumer
+      - helm lint {{.PRIMORDIAL_CHART}}
 
   template:
     desc: Render the root chart
     cmds:
       - helm template diene-workspace {{.CHART}} {{.CLI_ARGS}}
+      # ### bun-consumer-primordial-chart
+      # #### source: bun-consumer
+      - helm template bun-consumer-primordial {{.PRIMORDIAL_CHART}} {{.CLI_ARGS}}
 
   debug:
     desc: Render the root chart with debug output
     cmds:
       - helm template diene-workspace {{.CHART}} --debug {{.CLI_ARGS}}
+      # ### bun-consumer-primordial-chart
+      # #### source: bun-consumer
+      - helm template bun-consumer-primordial {{.PRIMORDIAL_CHART}} --debug {{.CLI_ARGS}}
