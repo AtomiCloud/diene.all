@@ -1,6 +1,6 @@
 import type { BackendBinding, BackendClientContext } from '@atomicloud/diene.api-engine';
 import type { IAuthStateRetriever } from '@atomicloud/diene.auth-engine';
-import type { RootConfig } from '@/lib/server-config';
+import type { RootConfig } from '@/adapters/server-config';
 
 /**
  * THE per-backend registration point (kept from argon by name and role).

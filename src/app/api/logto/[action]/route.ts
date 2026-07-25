@@ -1,6 +1,6 @@
 import { buildLoginRedirect, resolveReturnTo, continueTo } from '@atomicloud/diene.auth-engine';
 import { cookies } from 'next/headers';
-import { serverConfig, serverLandscape } from '@/lib/server-config';
+import { serverConfig, serverLandscape } from '@/adapters/server-config';
 import { serverAuth } from '@/adapters/auth/server';
 import { codeChallengeS256, randomToken } from '@/adapters/auth/pkce';
 

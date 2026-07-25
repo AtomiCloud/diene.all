@@ -8,14 +8,17 @@
         "@atomicloud/diene.api-engine": "1.0.0",
         "@atomicloud/diene.auth-engine": "1.0.0",
         "@atomicloud/diene.config": "1.0.0",
+        "@atomicloud/diene.core-utils": "^1.0.0",
         "@atomicloud/diene.frontend-utils": "1.0.0",
         "@atomicloud/diene.otel": "1.0.0",
         "@atomicloud/diene.problems": "1.0.0",
         "@atomicloud/diene.result": "1.0.2",
         "@grafana/faro-web-sdk": "^1.9.2",
         "@grafana/faro-web-tracing": "^1.9.2",
+        "@js-temporal/polyfill": "^0.5.1",
         "clsx": "^2.1.1",
         "ioredis": "^5.11.1",
+        "lottie-react": "^2.4.1",
         "lucide-react": "^0.525.0",
         "next": "15.3.4",
         "next-intl": "^4.3.4",
@@ -1193,6 +1196,10 @@
     "lodash.camelcase": ["lodash.camelcase@4.3.0", "", {}, "sha512-TwuEnCnxbc3rAvhf/LbG7tJUDzhqXyFnv3dtzLOPgCG/hODL7WFnsbwktkD7yUV0RrreP/l1PALq/YSg6VvjlA=="],
 
     "long": ["long@5.3.2", "", {}, "sha512-mNAgZ1GmyNhD7AuqnTG3/VQ26o760+ZYBPKjPvugO8+nLbYfX6TVpJPseBvopbdY+qpZ/lKUnmEc1LeZYS3QAA=="],
+
+    "lottie-react": ["lottie-react@2.4.1", "", { "dependencies": { "lottie-web": "^5.10.2" }, "peerDependencies": { "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0", "react-dom": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0" } }, "sha512-LQrH7jlkigIIv++wIyrOYFLHSKQpEY4zehPicL9bQsrt1rnoKRYCYgpCUe5maqylNtacy58/sQDZTkwMcTRxZw=="],
+
+    "lottie-web": ["lottie-web@5.13.0", "", {}, "sha512-+gfBXl6sxXMPe8tKQm7qzLnUy5DUPJPKIyRHwtpCpyUEYjHYRJC/5gjUvdkuO2c3JllrPtHXH5UJJK8LRYl5yQ=="],
 
     "lru-cache": ["lru-cache@11.5.2", "", {}, "sha512-4pfM1Ff0x50o0tQwb5ucw/RzNyD0/YJME6IVcStalZuMWxdt3sR3huStTtxz4PUmvZfRguvDejasvQ2kifR11g=="],
 

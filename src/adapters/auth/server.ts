@@ -13,7 +13,7 @@ import {
 import type { Problem } from '@atomicloud/diene.problems';
 import type { Result } from '@atomicloud/diene.result';
 import { cookies } from 'next/headers';
-import type { RootConfig } from '@/lib/server-config';
+import type { RootConfig } from '@/adapters/server-config';
 import { buildProblemRegistry } from '@/adapters/problem-reporter/registry';
 import { cookieTokenStorage, hasSessionCookie } from './session';
 

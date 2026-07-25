@@ -1,5 +1,5 @@
 import type { MetadataRoute } from 'next';
-import { serverConfig } from '@/lib/server-config';
+import { serverConfig } from '@/adapters/server-config';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const config = await serverConfig();

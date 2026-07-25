@@ -1,5 +1,5 @@
 import { emitProblemManifest } from '@atomicloud/diene.problems';
-import { serverConfig, serverLandscape } from '@/lib/server-config';
+import { serverConfig, serverLandscape } from '@/adapters/server-config';
 import { buildProblemRegistry } from '@/adapters/problem-reporter/registry';
 
 // Error-info publishing (ported from argon's pages/api/v1.0/error-info): the

@@ -1,6 +1,6 @@
 import { buildApiEngine } from '@/adapters/external/engine';
 import { serverAuth } from '@/adapters/auth/server';
-import { serverConfig, serverLandscape } from '@/lib/server-config';
+import { serverConfig, serverLandscape } from '@/adapters/server-config';
 
 /**
  * Backend inventory: resolves the api-engine per request (Workers caveat 7 —

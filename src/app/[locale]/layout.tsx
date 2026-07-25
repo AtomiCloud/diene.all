@@ -5,8 +5,10 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { routing } from '@/i18n/routing';
-import { clientSafeConfig, serverConfig, serverLandscape } from '@/lib/server-config';
+import { clientSafeConfig, serverConfig, serverLandscape } from '@/adapters/server-config';
+import { organizationJsonLd } from '@/lib/seo';
 import { Providers } from '@/adapters/atomi/Providers';
+import { SafeAreaShell } from '@/components/shell/SafeAreaShell';
 import '@/styles/globals.css';
 
 export function generateStaticParams() {
@@ -74,8 +76,15 @@ export default async function LocaleLayout({
         />
       </head>
       <body className="min-h-dvh bg-background text-foreground antialiased">
+        <script
+          type="application/ld+json"
+          // eslint-disable-next-line react/no-danger
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd(config.get('seo'))) }}
+        />
         <NextIntlClientProvider>
-          <Providers config={clientConfig}>{children}</Providers>
+          <Providers config={clientConfig}>
+            <SafeAreaShell>{children}</SafeAreaShell>
+          </Providers>
         </NextIntlClientProvider>
       </body>
     </html>

@@ -1,4 +1,4 @@
-import { serverConfig, serverLandscape } from '@/lib/server-config';
+import { serverConfig, serverLandscape } from '@/adapters/server-config';
 import { serverAuth } from '@/adapters/auth/server';
 
 /**

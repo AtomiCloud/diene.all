@@ -52,9 +52,10 @@ export const configRegistry = ConfigRegistry.create()
 export type AppConfig = z.infer<typeof appBlockSchema>;
 export type SeoConfig = z.infer<typeof seoBlockSchema>;
 export type ThemeConfig = z.infer<typeof themeBlockSchema>;
+export type DeeplinkConfig = z.infer<typeof deeplinkBlockSchema>;
+export type PickerConfig = z.infer<typeof pickerBlockSchema>;
 type BrandingConfig = z.infer<typeof brandingBlockSchema>;
 type FaroConfig = z.infer<typeof faroBlockSchema>;
-type PickerConfig = z.infer<typeof pickerBlockSchema>;
 type ErrorCatalogConfig = z.infer<typeof errorCatalogBlockSchema>;
 
 /**

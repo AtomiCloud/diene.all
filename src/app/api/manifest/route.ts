@@ -1,4 +1,4 @@
-import { serverConfig } from '@/lib/server-config';
+import { serverConfig } from '@/adapters/server-config';
 
 // PWA manifest served from config (R21): branding values are never hardcoded.
 export async function GET(): Promise<Response> {
