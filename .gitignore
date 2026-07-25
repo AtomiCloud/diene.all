@@ -39,3 +39,7 @@ coverage/
 infra/root_chart/files/
 infra/primordial_chart/files/observability/
 infra/primordial_chart/uploads/
+
+# ### bun-consumer-artifacts
+# #### source: bun-consumer
+probe-report.json
