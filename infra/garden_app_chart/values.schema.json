@@ -1,0 +1,379 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Diene nextjs-frontend Garden standalone app chart values",
+  "description": "The LOAD-BEARING gate for the optional in-cluster Garden rail (Q-ENV14). It accepts all seven ratified Garden workload profiles, carries the dotted module.service.platform.instance.landscape.zone identity with `instance` OUTSIDE LPSM, and admits ONLY the canonical exposure modes: a hosted Boron claim and any public-callback membership are unrepresentable, so values validation fails before a single object renders.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "labelPrefix",
+    "profile",
+    "instance",
+    "zone",
+    "serviceTree",
+    "exposure",
+    "image",
+    "workload",
+    "service",
+    "runtime",
+    "health",
+    "podSecurityContext",
+    "containerSecurityContext",
+    "scratch"
+  ],
+  "properties": {
+    "labelPrefix": {
+      "description": "The one configurable service-tree label/annotation prefix (R16/B26).",
+      "type": "string",
+      "pattern": "^[a-z0-9.-]+$",
+      "minLength": 1
+    },
+    "profile": {
+      "description": "The Garden workload profile (ENV-SPEC §2.1). All seven ratified profiles are accepted; nothing else is.",
+      "$ref": "#/$defs/profileName"
+    },
+    "instance": {
+      "description": "Instance key — a PROJECTION PARAMETER of the dotted surface name, never a fifth LPSM slot. It is carried here and stamped as its own label; it never enters `serviceTree`.",
+      "$ref": "#/$defs/dnsLabel"
+    },
+    "zone": {
+      "description": "DNS zone the dotted surface name projects into. Garden supplies the trusted value; the chart owns no DNS object.",
+      "type": "string",
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)+$"
+    },
+    "serviceTree": {
+      "description": "LPSM ONLY. `instance` is deliberately absent and `additionalProperties: false` keeps it out: instance metadata is separate from the LPSM labels.",
+      "type": "object",
+      "required": ["landscape", "platform", "service", "module"],
+      "additionalProperties": false,
+      "properties": {
+        "landscape": { "$ref": "#/$defs/dnsLabel" },
+        "cluster": { "$ref": "#/$defs/dnsLabel" },
+        "platform": { "$ref": "#/$defs/dnsLabel" },
+        "service": { "$ref": "#/$defs/dnsLabel" },
+        "module": { "$ref": "#/$defs/dnsLabel" }
+      }
+    },
+    "exposure": {
+      "description": "A DECLARATION, not an implementation. Garden's exposure-compile action owns the hostname, zone, policy, Gateway/Listener, certificate, and DNS; this chart emits the declaration and its ordinary ClusterIP Service and nothing else.",
+      "type": "object",
+      "required": ["enabled", "class", "mode", "surfaceId", "path", "required", "callbackMode"],
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "class": {
+          "description": "Exposure class (ENV-SPEC §6.1). The frontend may claim human, api, or oidc-public. `admin`, `management`, and `dependency` are denied roles, and `public-callback` membership is INVALID for this chart (goals: Q-ENV14) — none of them appears in this enum, so claiming one fails values validation.",
+          "type": "string",
+          "enum": ["human", "api", "oidc-public"]
+        },
+        "mode": {
+          "description": "Canonical exposure rails only. A hosted Boron claim is expressed as `boron-direct` on a hosted profile and is rejected by the per-profile rules below; there is no `hosted-boron`, `public-callback`, `callback-tunnel`, `kgateway-direct`, or `mercury-routing` member.",
+          "type": "string",
+          "enum": ["boron-direct", "local-loopback", "entei-service-sync"]
+        },
+        "surfaceId": { "$ref": "#/$defs/dnsLabel" },
+        "path": { "type": "string", "pattern": "^/([^?#]*)$" },
+        "required": { "type": "boolean" },
+        "callbackMode": {
+          "description": "Provider-callback participation. Pinned to `none`: the frontend never publishes a per-preview callback endpoint (§11.1), so `mercury-routing` is unrepresentable even on plusle/minun.",
+          "const": "none"
+        }
+      }
+    },
+    "image": {
+      "type": "object",
+      "required": ["repository", "pullPolicy"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "tag": { "type": "string" },
+        "digest": {
+          "description": "Immutable digest. One image is promoted across profiles by selection, never rebuilt per landscape.",
+          "type": "string",
+          "pattern": "^$|^sha256:[a-f0-9]{64}$"
+        },
+        "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] },
+        "pullSecrets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "properties": { "name": { "type": "string", "minLength": 1 } }
+          }
+        }
+      }
+    },
+    "workload": {
+      "type": "object",
+      "required": ["replicas", "rollingUpdate", "terminationGracePeriodSeconds", "resources"],
+      "properties": {
+        "replicas": { "type": "integer", "minimum": 1 },
+        "rollingUpdate": {
+          "type": "object",
+          "required": ["maxUnavailable", "maxSurge"],
+          "properties": {
+            "maxUnavailable": { "type": ["integer", "string"] },
+            "maxSurge": { "type": ["integer", "string"] }
+          }
+        },
+        "terminationGracePeriodSeconds": { "type": "integer", "minimum": 0 },
+        "resources": {
+          "description": "Requests AND limits are mandatory: an unbounded frontend starves the instance it shares a node with.",
+          "type": "object",
+          "required": ["requests", "limits"],
+          "properties": {
+            "requests": { "$ref": "#/$defs/resourceQuantities" },
+            "limits": { "$ref": "#/$defs/resourceQuantities" }
+          }
+        },
+        "nodeSelector": { "type": "object" },
+        "tolerations": { "type": "array" },
+        "affinity": { "type": "object" },
+        "topologySpreadConstraints": { "type": "array" }
+      }
+    },
+    "service": {
+      "description": "The ordinary Service. ClusterIP only — hosted profiles sync THIS Service to ENTEI and the materializer owns everything beyond it, so no LoadBalancer/NodePort/ExternalName form is representable.",
+      "type": "object",
+      "required": ["type", "port", "portName"],
+      "properties": {
+        "type": { "const": "ClusterIP" },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "portName": {
+          "description": "Uniquely named port: Garden surfaces reference the NAME, never the number.",
+          "type": "string",
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+          "maxLength": 15
+        }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "properties": {
+        "create": { "type": "boolean" },
+        "name": { "type": "string" },
+        "annotations": { "type": "object" }
+      }
+    },
+    "runtime": {
+      "description": "Server-only runtime configuration for the Node standalone server. Non-secret values ride the ConfigMap; secrets arrive EXCLUSIVELY through `secretRefs`/`secretEnv` and never enter a client-visible surface.",
+      "type": "object",
+      "required": ["port", "host", "env", "backends", "auth", "secretRefs", "secretEnv"],
+      "properties": {
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "host": { "type": "string", "minLength": 1 },
+        "landscape": {
+          "description": "Value fed to ATOMI_LANDSCAPE. Landscape is RUNTIME and SERVER-FED (R21) — never browser-detected. Empty means: use the LPSM landscape slot.",
+          "type": "string",
+          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+        },
+        "env": {
+          "description": "Non-secret env for the config tree's runtime tier, in the config library's ATOMI_-prefixed `__`-nested form. Secret-shaped keys are rejected here and belong in `secretEnv`.",
+          "type": "object",
+          "propertyNames": { "type": "string", "pattern": "^ATOMI_[A-Z0-9_]*$" },
+          "additionalProperties": { "type": ["string", "number", "boolean"] },
+          "not": {
+            "anyOf": [
+              { "required": ["ATOMI_AUTH__LOGTO__APPSECRET"] },
+              { "required": ["ATOMI_AUTH__LOGTO__MANAGEMENT__CLIENTSECRET"] },
+              { "required": ["ATOMI_CLIENT__FARO__BUILD__KEY"] }
+            ]
+          }
+        },
+        "backends": {
+          "description": "Backend coordinates the api-engine registers. Base URLs are non-secret; per-backend credentials ride secretRefs.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["key", "baseUrl"],
+            "additionalProperties": false,
+            "properties": {
+              "key": { "type": "string", "minLength": 1 },
+              "baseUrl": { "type": "string", "pattern": "^https?://" }
+            }
+          }
+        },
+        "auth": {
+          "description": "Non-secret issuer/auth values only. The client secrets are secretEnv entries and are structurally absent here.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "issuer": { "type": "string", "pattern": "^$|^https?://" },
+            "appId": { "type": "string" },
+            "managementEndpoint": { "type": "string", "pattern": "^$|^https?://" },
+            "managementClientId": { "type": "string" }
+          }
+        },
+        "secretRefs": {
+          "description": "Whole Secrets projected as env (envFrom). ESO/Garden owns each target Secret; this chart references and never creates one.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "additionalProperties": false,
+            "properties": {
+              "name": { "$ref": "#/$defs/dnsLabel" },
+              "optional": { "type": "boolean" }
+            }
+          }
+        },
+        "secretEnv": {
+          "description": "Individual secret keys projected as env. Reference only — no value is ever inlined.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "secretName", "secretKey"],
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string", "pattern": "^[A-Z_][A-Z0-9_]*$" },
+              "secretName": { "$ref": "#/$defs/dnsLabel" },
+              "secretKey": { "type": "string", "minLength": 1 },
+              "optional": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    "health": {
+      "type": "object",
+      "required": ["path", "liveness", "readiness"],
+      "properties": {
+        "path": { "type": "string", "pattern": "^/" },
+        "liveness": { "$ref": "#/$defs/probeTiming" },
+        "readiness": { "$ref": "#/$defs/probeTiming" }
+      }
+    },
+    "podSecurityContext": {
+      "description": "Nonroot is not negotiable.",
+      "type": "object",
+      "required": ["runAsNonRoot"],
+      "properties": {
+        "runAsNonRoot": { "const": true },
+        "runAsUser": { "type": "integer", "minimum": 1 },
+        "runAsGroup": { "type": "integer", "minimum": 1 },
+        "fsGroup": { "type": "integer", "minimum": 1 },
+        "seccompProfile": { "type": "object" }
+      }
+    },
+    "containerSecurityContext": {
+      "type": "object",
+      "required": ["runAsNonRoot", "allowPrivilegeEscalation", "readOnlyRootFilesystem"],
+      "properties": {
+        "runAsNonRoot": { "const": true },
+        "allowPrivilegeEscalation": { "const": false },
+        "privileged": { "const": false },
+        "readOnlyRootFilesystem": {
+          "description": "The image needs no writable root: /tmp and the Next.js cache are emptyDir mounts.",
+          "const": true
+        },
+        "capabilities": { "type": "object" }
+      }
+    },
+    "scratch": {
+      "type": "object",
+      "required": ["tmpSizeLimit", "cacheSizeLimit", "cachePath"],
+      "properties": {
+        "tmpSizeLimit": { "$ref": "#/$defs/quantity" },
+        "cacheSizeLimit": { "$ref": "#/$defs/quantity" },
+        "cachePath": { "type": "string", "pattern": "^/" }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "description": "The profile and the LPSM landscape slot name the same landscape. A release cannot claim ditto behavior while labelling itself lapras.",
+      "if": { "required": ["profile", "serviceTree"] },
+      "then": {
+        "properties": {
+          "serviceTree": {
+            "properties": { "landscape": { "$ref": "#/$defs/profileName" } }
+          }
+        }
+      }
+    },
+    {
+      "description": "lapras is the only Boron rail. `boron-direct` anywhere else is a hosted-Boron claim and is rejected.",
+      "if": {
+        "properties": { "exposure": { "properties": { "mode": { "const": "boron-direct" } }, "required": ["mode"] } },
+        "required": ["exposure"]
+      },
+      "then": { "properties": { "profile": { "const": "lapras" } } }
+    },
+    {
+      "description": "HOSTED PROFILES (eevee/plusle/minun) use entei-service-sync ONLY. The chart never installs Boron, kgateway, cert-manager, or zinc inside a hosted vcluster, so a hosted Boron mode fails here.",
+      "if": {
+        "properties": { "profile": { "enum": ["eevee", "plusle", "minun"] } },
+        "required": ["profile"]
+      },
+      "then": {
+        "properties": { "exposure": { "properties": { "mode": { "const": "entei-service-sync" } } } }
+      }
+    },
+    {
+      "description": "LOCAL kgateway profiles (ditto/rotom/absol) use the dotted local-loopback rail.",
+      "if": {
+        "properties": { "profile": { "enum": ["ditto", "rotom", "absol"] } },
+        "required": ["profile"]
+      },
+      "then": {
+        "properties": { "exposure": { "properties": { "mode": { "const": "local-loopback" } } } }
+      }
+    },
+    {
+      "description": "lapras exposes through Boron directly.",
+      "if": {
+        "properties": { "profile": { "const": "lapras" } },
+        "required": ["profile"]
+      },
+      "then": {
+        "properties": { "exposure": { "properties": { "mode": { "const": "boron-direct" } } } }
+      }
+    },
+    {
+      "description": "Every non-local profile pins an immutable digest: a tag alone is only for local iteration.",
+      "if": {
+        "properties": { "profile": { "enum": ["lapras", "eevee", "plusle", "minun"] } },
+        "required": ["profile"]
+      },
+      "then": {
+        "properties": {
+          "image": {
+            "properties": { "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" } },
+            "required": ["digest"]
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "profileName": {
+      "type": "string",
+      "enum": ["lapras", "ditto", "rotom", "absol", "eevee", "plusle", "minun"]
+    },
+    "dnsLabel": {
+      "type": "string",
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+      "maxLength": 63
+    },
+    "quantity": {
+      "type": "string",
+      "pattern": "^[0-9]+(\\.[0-9]+)?(m|Ki|Mi|Gi|Ti|k|M|G|T)?$"
+    },
+    "resourceQuantities": {
+      "type": "object",
+      "required": ["cpu", "memory"],
+      "properties": {
+        "cpu": { "$ref": "#/$defs/quantity" },
+        "memory": { "$ref": "#/$defs/quantity" }
+      }
+    },
+    "probeTiming": {
+      "type": "object",
+      "required": ["initialDelaySeconds", "periodSeconds", "timeoutSeconds", "failureThreshold"],
+      "properties": {
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}

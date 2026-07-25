@@ -1,0 +1,20 @@
+# ### nextjs-frontend-garden-app-profile-eevee
+# #### source: nextjs-frontend
+# EEVEE — hosted vcluster preview. edge.mode `entei-shared`, secret.mode
+# `infisical-readonly`, callback.mode `none` (ENV-SPEC §2.1). A hosted vcluster is
+# truncated-LAPRAS: NO inner kgateway, cert-manager, ClusterIssuer, or Boron. The
+# ClusterIP Service below is synced to ENTEI and the exposure materializer owns
+# the DNS/TLS/ListenerSet/HTTPRoute objects. `public-callback` is denied on eevee
+# and is unrepresentable in this chart regardless.
+profile: eevee
+instance: preview
+zone: entei.atomi.cloud
+serviceTree:
+  landscape: eevee
+exposure:
+  mode: entei-service-sync
+image:
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+runtime:
+  env:
+    ATOMI_SEO__BASEURL: https://webapp.nextjs-frontend.diene.preview.eevee.entei.atomi.cloud

@@ -1,0 +1,27 @@
+# ### nextjs-frontend-garden-app-profile-rejected
+# #### source: nextjs-frontend
+# NEGATIVE FIXTURE — this file MUST fail values validation. It is the sabotage
+# the `garden-app-chart schema/profile` gate flips: a hosted vcluster (eevee)
+# claiming the Boron rail, plus a public-callback class and a Mercury callback
+# mode. Every one of the three is unrepresentable:
+#
+#   - `exposure.class: public-callback` is not in the class enum (goals Q-ENV14:
+#     public-callback membership is invalid for the frontend chart);
+#   - `exposure.mode: boron-direct` on a hosted profile violates the
+#     hosted-profiles-use-entei-service-sync rule (the chart never installs Boron
+#     inside a hosted vcluster);
+#   - `exposure.callbackMode: mercury-routing` violates the `none` const (§11.1:
+#     the frontend never publishes a per-preview callback endpoint).
+#
+# Rendering with this file must exit non-zero. See infra/garden_app_chart/README.md.
+profile: eevee
+instance: preview
+zone: entei.atomi.cloud
+serviceTree:
+  landscape: eevee
+exposure:
+  class: public-callback
+  mode: boron-direct
+  callbackMode: mercury-routing
+image:
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000

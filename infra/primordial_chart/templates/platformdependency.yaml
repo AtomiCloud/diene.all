@@ -1,0 +1,58 @@
+{{- /* ### nextjs-frontend-primordial-platformdependency */ -}}
+{{- /* #### source: nextjs-frontend */ -}}
+{{- include "nextjsPrimordial.validateServiceTree" . -}}
+{{- /* ONE union-set CRD spanning the modules this service needs (B30).
+       Dependencies are requested through CRs in EVERY landscape, lapras
+       included — the operator realizes Dragonfly/CNPG/MinIO in-cluster locally
+       and the managed classes from Primordial. App charts never bundle
+       dependency sub-charts, and there is no local-vs-cloud values toggle.
+
+       `spec.landscape` may name a vlandscape; ONE CR per landscape, single
+       writer. A duplicate landscape is a loud render-time Conflict, never a
+       silent last-write-wins. */ -}}
+{{- $root := . -}}
+{{- $seen := dict -}}
+{{- range $dependency := .Values.platformDependencies }}
+{{- $landscape := required "platformDependencies[].landscape is required" $dependency.landscape -}}
+{{- if hasKey $seen $landscape -}}
+{{- fail (printf "Conflict: duplicate PlatformDependency writer for %s/%s and landscape %s" $root.Values.serviceTree.platform $root.Values.serviceTree.service $landscape) -}}
+{{- end -}}
+{{- $_ := set $seen $landscape true -}}
+{{- if not (or $dependency.database (or $dependency.kv (or $dependency.cache $dependency.store))) -}}
+{{- fail (printf "PlatformDependency for landscape %s declares no module; a zero-module row is an existence marker and this service is not one" $landscape) -}}
+{{- end -}}
+---
+apiVersion: {{ $root.Values.dependencyApiVersion }}
+kind: PlatformDependency
+metadata:
+  name: {{ printf "%s-%s" $root.Values.serviceTree.service $landscape }}
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "nextjsPrimordial.labels" $root | nindent 4 }}
+  annotations:
+    {{- include "nextjsPrimordial.annotations" $root | nindent 4 }}
+spec:
+  platform: {{ $root.Values.serviceTree.platform }}
+  service: {{ $root.Values.serviceTree.service }}
+  landscape: {{ $landscape }}
+  placement:
+    preferredHost: {{ required "platformDependencies[].placement.preferredHost is required" $dependency.placement.preferredHost }}
+  {{- with $dependency.database }}
+  database:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $dependency.kv }}
+  kv:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $dependency.cache }}
+  cache:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $dependency.store }}
+  store:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  deletionPolicy:
+    retainSecret: {{ required "platformDependencies[].deletionPolicy.retainSecret is required" $dependency.deletionPolicy.retainSecret | quote }}
+{{- end }}

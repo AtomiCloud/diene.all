@@ -1,0 +1,16 @@
+### nextjs-frontend-garden-image
+#### source: nextjs-frontend
+.git/
+.direnv/
+node_modules/
+.next/
+.open-next/
+.wrangler/
+coverage/
+dist/
+playwright-report/
+test-results/
+charts/
+result
+result-*
+*.tsbuildinfo

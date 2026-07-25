@@ -1,0 +1,99 @@
+{{- /* ### nextjs-frontend-primordial-grafana-alerts */ -}}
+{{- /* #### source: nextjs-frontend */ -}}
+{{- if .Values.observability.enabled -}}
+{{- include "nextjsPrimordial.validateServiceTree" . -}}
+{{- /* `alerts/{slug}/{severity}.yaml` -> ONE GrafanaAlertRuleGroup named
+       `<platform>-<service>-<slug>-<severity>`, each holding exactly ONE rule
+       written inline (primordial-chart.md, "One source file, one resource").
+
+       One flat `.Files.Glob` loop: each file is `fromYaml`-ed into a DICT, never
+       an array. No grouping, no array assembly, no structural YAML surgery. The
+       source files are pure Grafana-domain objects with no Kubernetes wrapper and
+       no hand-authored LPSM labels — the renderer injects identity.
+
+       The filename IS the severity, so a severity/emoji mismatch is
+       unrepresentable. `required`/`fail` make `helm template` refuse to render on
+       any structural violation.
+
+       Gate 5 defaults to NO. A repository whose SIGNALS.md has no Gate-5 YES ships
+       no `alerts/` directory at all — a valid outcome — and this template renders
+       cleanly with none present. */ -}}
+{{- $root := . -}}
+{{- $prefix := include "nextjsPrimordial.grafanaPrefix" . -}}
+{{- $folderUid := include "nextjsPrimordial.grafanaFolderUid" . -}}
+{{- $base := trimSuffix "/" .Values.observability.path -}}
+{{- $emoji := dict "critical" "🚨" "warning" "⚠️" "info" "ℹ️" -}}
+{{- $datasources := .Values.observability.datasourceUids -}}
+{{- range $path, $_ := .Files.Glob (printf "%s/alerts/*/*.yaml" $base) }}
+{{- $severity := base $path | trimSuffix ".yaml" -}}
+{{- $slug := base (dir $path) -}}
+{{- if not (hasKey $emoji $severity) -}}
+{{- fail (printf "%s: a severity filename must be critical.yaml, warning.yaml, or info.yaml" $path) -}}
+{{- end -}}
+{{- if not ($root.Files.Get (printf "%s/alerts/%s/runbook.md" $base $slug)) -}}
+{{- fail (printf "alert set %q has no runbook.md; every set ships its own runbook" $slug) -}}
+{{- end -}}
+{{- $alert := fromYaml ($root.Files.Get $path) -}}
+{{- if not (kindIs "map" $alert) -}}
+{{- fail (printf "%s must be one flat YAML dictionary" $path) -}}
+{{- end -}}
+{{- $title := required (printf "%s is missing `title`" $path) $alert.title -}}
+{{- $datasource := required (printf "%s is missing `datasource`" $path) $alert.datasource -}}
+{{- $expr := required (printf "%s is missing `expr`" $path) $alert.expr -}}
+{{- $summary := required (printf "%s is missing `summary`" $path) $alert.summary -}}
+{{- $description := required (printf "%s is missing `description`" $path) $alert.description -}}
+{{- if gt (len $title) 48 -}}
+{{- fail (printf "%s: title is %d characters; the authored title must stay <= 48 so the emoji-prefixed notification title survives a lock screen" $path (len $title)) -}}
+{{- end -}}
+{{- if not (hasKey $datasources $datasource) -}}
+{{- fail (printf "%s: datasource %q is not one of %s" $path $datasource (keys $datasources | sortAlpha | join ", ")) -}}
+{{- end -}}
+---
+apiVersion: {{ $root.Values.observability.apiVersion }}
+kind: GrafanaAlertRuleGroup
+metadata:
+  name: {{ printf "%s-%s-%s" $prefix $slug $severity }}
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "nextjsPrimordial.labels" $root | nindent 4 }}
+  annotations:
+    {{- include "nextjsPrimordial.annotations" $root | nindent 4 }}
+spec:
+  folderRef: {{ $folderUid }}
+  instanceSelector:
+    {{- toYaml $root.Values.observability.instanceSelector | nindent 4 }}
+  interval: {{ $root.Values.observability.alertInterval }}
+  rules:
+    - uid: {{ printf "%s-%s" $slug $severity }}
+      title: {{ printf "%s %s" (get $emoji $severity) $title | quote }}
+      condition: A
+      for: {{ $alert.for | default "5m" | quote }}
+      noDataState: OK
+      execErrState: Error
+      data:
+        - refId: A
+          relativeTimeRange:
+            from: {{ $root.Values.observability.relativeTimeRangeFrom }}
+            to: 0
+          datasourceUid: {{ get $datasources $datasource }}
+          model:
+            expr: {{ $expr | quote }}
+            instant: true
+            refId: A
+      labels:
+        {{- /* Contract 1: LPSM is built in, never authored. Severity comes from
+               the filename, so it cannot disagree with the emoji. */}}
+        severity: {{ $severity }}
+        {{- include "nextjsPrimordial.alertLabels" $root | trim | nindent 8 }}
+      annotations:
+        summary: {{ $summary | quote }}
+        description: {{ $description | quote }}
+        runbook_url: {{ printf "%s/observability/alerts/%s/runbook.md" (trimSuffix "/" $root.Values.observability.repositoryUrl) $slug }}
+        {{- if hasKey $alert "panel" }}
+        __dashboardUid__: {{ printf "%s-overview" $prefix }}
+        __panelId__: {{ $alert.panel | quote }}
+        {{- else }}
+        __dashboardUid__: {{ $root.Values.observability.genericDashboardUid | quote }}
+        {{- end }}
+{{- end }}
+{{- end }}

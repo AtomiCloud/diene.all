@@ -44,5 +44,5 @@ test-results/
 # Build-phase chart vendoring. Helm cannot read outside a chart directory, so
 # the build COPIES the authoritative root `observability/` in before
 # lint/template/package/publish — regenerated per build, never committed.
-charts/primordial/files/
+infra/primordial_chart/files/
 tests/integration/fixtures/config/config.yaml

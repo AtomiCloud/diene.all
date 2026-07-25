@@ -1,0 +1,9 @@
+# ### nextjs-frontend-garden-app-chart
+# #### source: nextjs-frontend
+apiVersion: v2
+name: diene-nextjs-frontend-garden-app
+description: Optional in-cluster Garden rail for the diene nextjs-frontend service (Q-ENV14) — one Deployment and one ClusterIP Service for the immutable Next.js standalone Node image. Ships no dependency CRs, Gateway, ListenerSet, HTTPRoute, Certificate, Boron, kgateway, cert-manager, or callback-tunnel resources.
+type: application
+version: 0.1.0
+appVersion: '0.1.0'
+kubeVersion: '>=1.27.0-0'

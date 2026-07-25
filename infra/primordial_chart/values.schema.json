@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Diene nextjs-frontend primordial chart values",
+  "description": "The dependency/identity CR set for the diene nextjs-frontend service plus its Grafana Operator rendering. Validated against the base values and every stacked landscape/cluster overlay. No Kargo promotion surface exists here — promotion is centralized on Primordial.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "labelPrefix",
+    "dependencyApiVersion",
+    "serviceTree",
+    "platformDependencies",
+    "logtoApp",
+    "observability"
+  ],
+  "properties": {
+    "labelPrefix": {
+      "description": "The one configurable service-tree label/annotation prefix (R16/B26).",
+      "type": "string",
+      "pattern": "^[a-z0-9.-]+$",
+      "minLength": 1
+    },
+    "dependencyApiVersion": {
+      "const": "fleet.atomi.cloud/v1alpha1"
+    },
+    "serviceTree": {
+      "description": "LPSM projection. Mirrors config/config.yaml -> app.servicetree; landscape and cluster arrive from the two overlay dimensions.",
+      "type": "object",
+      "required": ["platform", "service", "module"],
+      "properties": {
+        "platform": { "$ref": "#/$defs/dnsLabel" },
+        "service": { "$ref": "#/$defs/dnsLabel" },
+        "module": { "$ref": "#/$defs/dnsLabel" },
+        "landscape": { "$ref": "#/$defs/dnsLabel" },
+        "cluster": { "$ref": "#/$defs/dnsLabel" }
+      }
+    },
+    "platformDependencies": {
+      "description": "One entry is one union-set PlatformDependency CR keyed by this service and one landscape. A duplicate landscape is a loud render-time Conflict.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["landscape", "placement", "deletionPolicy"],
+        "anyOf": [
+          { "required": ["database"] },
+          { "required": ["kv"] },
+          { "required": ["cache"] },
+          { "required": ["store"] }
+        ],
+        "properties": {
+          "landscape": { "$ref": "#/$defs/dnsLabel" },
+          "placement": {
+            "type": "object",
+            "required": ["preferredHost"],
+            "properties": {
+              "preferredHost": { "type": "string", "minLength": 1 }
+            }
+          },
+          "deletionPolicy": {
+            "type": "object",
+            "required": ["retainSecret"],
+            "properties": {
+              "retainSecret": { "type": "string", "pattern": "^[0-9]+[smh]$" }
+            }
+          },
+          "database": { "$ref": "#/$defs/dependencyModule" },
+          "kv": { "$ref": "#/$defs/dependencyModule" },
+          "cache": { "$ref": "#/$defs/dependencyModule" },
+          "store": { "$ref": "#/$defs/dependencyModule" }
+        }
+      }
+    },
+    "logtoApp": {
+      "description": "Rendered only when this chart is the selected placement owner for the app. The frontend owns its own serve-set, so it is.",
+      "type": "object",
+      "required": ["enabled", "apiVersion", "identityRef", "type", "paths"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "apiVersion": { "const": "fleet.atomi.cloud/v1alpha1" },
+        "identityRef": { "$ref": "#/$defs/dnsLabel" },
+        "type": { "type": "string", "enum": ["Traditional", "SPA", "Native", "MachineToMachine"] },
+        "paths": {
+          "description": "Declared paths only: the operator derives full redirect/post-logout URIs from the live serve-set.",
+          "type": "object",
+          "required": ["redirectPath", "postLogoutPath"],
+          "properties": {
+            "redirectPath": { "$ref": "#/$defs/declaredPath" },
+            "postLogoutPath": { "$ref": "#/$defs/declaredPath" }
+          }
+        },
+        "resourceRefs": { "$ref": "#/$defs/uniqueStrings" },
+        "extraRedirectUris": { "$ref": "#/$defs/uniqueStrings" },
+        "extraPostLogoutRedirectUris": { "$ref": "#/$defs/uniqueStrings" },
+        "extraCorsOrigins": { "$ref": "#/$defs/uniqueStrings" }
+      }
+    },
+    "observability": {
+      "type": "object",
+      "required": [
+        "enabled",
+        "apiVersion",
+        "path",
+        "instanceSelector",
+        "alertInterval",
+        "relativeTimeRangeFrom",
+        "datasourceUids",
+        "repositoryUrl",
+        "genericDashboardUid"
+      ],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "apiVersion": { "const": "grafana.integreatly.org/v1beta1" },
+        "path": { "type": "string", "minLength": 1 },
+        "instanceSelector": { "type": "object" },
+        "resyncPeriod": { "type": "string", "minLength": 1 },
+        "alertInterval": { "type": "string", "minLength": 1 },
+        "relativeTimeRangeFrom": { "type": "integer", "minimum": 1 },
+        "datasourceUids": {
+          "type": "object",
+          "required": ["metrics", "logs"],
+          "additionalProperties": { "type": "string", "minLength": 1 }
+        },
+        "repositoryUrl": { "type": "string", "pattern": "^https://" },
+        "genericDashboardUid": { "type": "string", "minLength": 1 }
+      }
+    }
+  },
+  "$defs": {
+    "dnsLabel": {
+      "type": "string",
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+      "maxLength": 63
+    },
+    "declaredPath": {
+      "description": "An absolute path with no authority, query, or fragment. Empty means the app declares none. Go's regexp engine has no lookahead, so the leading-`//` authority form is excluded by spelling the first segment character out.",
+      "type": "string",
+      "pattern": "^$|^/$|^/[^/?#][^?#]*$"
+    },
+    "uniqueStrings": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "dependencyModule": {
+      "description": "Flat common core plus a `type` discriminator and `engine.<type>` overrides (CEL-enforced upstream: the engine key must equal the type).",
+      "type": "object",
+      "required": ["type", "delivery", "credentialMode"],
+      "properties": {
+        "type": { "type": "string", "minLength": 1 },
+        "delivery": { "type": "string", "enum": ["local", "replicated", "external"] },
+        "credentialMode": { "type": "string", "enum": ["standard", "none"] },
+        "rotation": { "type": "string", "enum": ["on", "off"] },
+        "providerAccountRef": { "type": "string", "minLength": 1 },
+        "cpu": { "type": ["integer", "string"] },
+        "ram": { "type": "string" },
+        "storage": { "type": "string" },
+        "version": { "type": "string" },
+        "backup": { "type": "object" },
+        "engine": { "type": "object", "maxProperties": 1 }
+      }
+    }
+  }
+}
