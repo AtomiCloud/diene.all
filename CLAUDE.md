@@ -81,3 +81,12 @@ Read [the Bun baseline](docs/developer/bun-baseline.md) before changing the Bun
 toolchain, task surface, test tiers, coverage ledgers, build, or illustrative
 sample. Follow the TypeScript variants linked from that baseline alongside the
 shared engineering standards.
+
+<!-- ### bun-e2e -->
+<!-- #### source: lib/bun/e2e -->
+
+## Bun e2e train
+
+Read [the e2e train standard](docs/standards/e2e/index.md) before changing the
+member ranges, root/subpath exports, helper passthroughs, Garden/Bruno glue, or
+the retired R-E22 registry-bridge boundary.

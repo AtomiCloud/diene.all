@@ -37,6 +37,36 @@ types:
       default:
         desc: Update a dependency
         release: false
+      api-engine:
+        desc: Update the api-engine train member
+        release: minor
+      auth-engine:
+        desc: Update the auth-engine train member
+        release: minor
+      config:
+        desc: Update the config train member
+        release: minor
+      core-utils:
+        desc: Update the core-utils train member
+        release: minor
+      frontend-utils:
+        desc: Update the frontend-utils train member
+        release: minor
+      interfaces:
+        desc: Update the interfaces train member
+        release: minor
+      otel:
+        desc: Update the otel train member
+        release: minor
+      problems:
+        desc: Update the problems train member
+        release: minor
+      result:
+        desc: Update the result train member
+        release: minor
+      standard-config:
+        desc: Update the standard-config train member
+        release: minor
       patch:
         desc: Patch dependency update
         release: patch

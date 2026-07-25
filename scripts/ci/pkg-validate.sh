@@ -19,24 +19,39 @@ echo "📦 Packing tarball..."
 bun pm pack --filename pkg.tgz
 
 if [[ ${mode} == "content" || ${mode} == "all" ]]; then
-  echo "🔎 Verifying tarball contents (pack-content)..."
+  echo "🔎 Verifying complete tarball inventory..."
   listing="$(tar -tzf pkg.tgz)"
-  expected=(
-    package/dist/index.js
-    package/dist/index.cjs
-    package/dist/index.d.ts
-    package/dist/index.d.cts
-    package/skills/diene-bun-lib-usage/SKILL.md
+  entries=(
+    index test-helper result result-test-helper interfaces interfaces-test-helper
+    core-utils config config-test-helper problems problems-test-helper otel
+    otel-test-helper auth auth-test-helper api api-test-helper standard-config
+    standard-config-test-helper frontend-utils frontend-utils-test-helper
   )
+  expected=(
+    package/skills/diene-e2e-usage/SKILL.md
+    package/docs/standards/e2e/index.md
+  )
+  for entry in "${entries[@]}"; do
+    expected+=(
+      "package/dist/${entry}.js"
+      "package/dist/${entry}.cjs"
+      "package/dist/${entry}.d.ts"
+      "package/dist/${entry}.d.cts"
+    )
+  done
   missing=0
   for path in "${expected[@]}"; do
-    if ! grep -qxF "${path}" <<<"${listing}"; then
+    if ! rg -qxF "${path}" <<<"${listing}"; then
       echo "❌ tarball is missing expected path: ${path}" >&2
       missing=1
     fi
   done
-  [ "${missing}" -ne 0 ] && exit 1
-  echo "✅ pack-content: all declared artifacts present"
+  if rg -q '^package/vendor/' <<<"${listing}"; then
+    echo "❌ vendor bridge must never be published" >&2
+    missing=1
+  fi
+  [[ ${missing} -eq 0 ]] || exit 1
+  echo "✅ pack-content: complete entry/docs/skill inventory present; vendor absent"
 fi
 
 if [[ ${mode} == "publint" || ${mode} == "all" ]]; then
@@ -45,8 +60,8 @@ if [[ ${mode} == "publint" || ${mode} == "all" ]]; then
 fi
 
 if [[ ${mode} == "attw" || ${mode} == "all" ]]; then
-  echo "🔎 Checking type resolvability (attw)..."
-  ./node_modules/.bin/attw pkg.tgz
+  echo "🔎 Checking all export conditions (attw)..."
+  ./node_modules/.bin/attw pkg.tgz --profile node16
 fi
 
 echo "✅ Package validation (${mode}) passed"
