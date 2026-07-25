@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# ### workspace
+# #### source: workspace
 vendor_dir=".claude/skills/vendor"
 staging="$(mktemp -d .claude/skills/.vendor.XXXXXX)"
 trap 'rm -rf "${staging}"' EXIT
@@ -96,6 +98,8 @@ if [ -f .dart_tool/package_config.json ]; then
   done < <(jq -r '.packages[] | select(.name | startswith("diene_")) | [.name, .rootUri] | @tsv' .dart_tool/package_config.json)
 fi
 
+# ### workspace-vendor-swap
+# #### source: workspace
 # A declaration with zero resolved packages is a cold checkout, not a request
 # to replace committed skills with an empty staging tree.
 if [ "${declared_dependency}" = true ] && [ "${resolved_dependency}" = false ] && [ -d "${vendor_dir}" ] &&
