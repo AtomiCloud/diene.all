@@ -68,8 +68,13 @@ func WithSchema(schema Schema) Option {
 	}
 }
 
-// WithErrorPortal sets the service-tree portal validation problems mint their
-// type URI from. The default is the client-local portal.
+// WithErrorPortal sets the service-tree portal load-path problems mint their
+// type URI from, overriding the schema's own portal. When it is not set, Load
+// uses the schema's [Schema.WithPortal] portal, falling back to the client-local
+// portal.
 func WithErrorPortal(portal problem.ErrorPortal) Option {
-	return func(loader *Loader) { loader.portal = portal }
+	return func(loader *Loader) {
+		loader.portal = portal
+		loader.hasPortal = true
+	}
 }

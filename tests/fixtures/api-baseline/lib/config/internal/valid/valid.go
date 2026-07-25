@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/AtomiCloud/diene.go-config/lib/config/internal/collision"
 	"github.com/AtomiCloud/diene.go-core-utils/lib/coreutils"
 	"github.com/AtomiCloud/diene.go-errors-problems/lib/problem"
 	tekuri "github.com/santhosh-tekuri/jsonschema/v6"
@@ -62,27 +63,31 @@ func Compile(root map[string]any) (*tekuri.Schema, error) {
 // accepting any string. rfc3339-utc enforces the strict UTC millisecond instant
 // (offsets and naive instants are rejected).
 func WireFormats() []*tekuri.Format {
-	stringFormat := func(name string, check func(string) error) *tekuri.Format {
-		return &tekuri.Format{Name: name, Validate: func(value any) error {
-			text, ok := value.(string)
-			if !ok {
-				return nil
-			}
-			return check(text)
-		}}
-	}
 	return []*tekuri.Format{
-		stringFormat("wire-date", func(text string) error { _, err := coreutils.ParseWireDate(text); return err }),
-		stringFormat("wire-time", func(text string) error { _, err := coreutils.ParseWireTime(text); return err }),
-		stringFormat("iso-duration", func(text string) error { _, err := coreutils.ParseIsoDuration(text); return err }),
-		stringFormat("rfc3339-utc", func(text string) error { _, err := coreutils.ParseRFC3339UTC(text); return err }),
-		stringFormat("iana-time-zone", func(text string) error {
+		StringFormat("wire-date", func(text string) error { _, err := coreutils.ParseWireDate(text); return err }),
+		StringFormat("wire-time", func(text string) error { _, err := coreutils.ParseWireTime(text); return err }),
+		StringFormat("iso-duration", func(text string) error { _, err := coreutils.ParseIsoDuration(text); return err }),
+		StringFormat("rfc3339-utc", func(text string) error { _, err := coreutils.ParseRFC3339UTC(text); return err }),
+		StringFormat("iana-time-zone", func(text string) error {
 			if !coreutils.IsIanaTimezone(text) {
 				return fmt.Errorf("expected an IANA timezone identifier: %q", text)
 			}
 			return nil
 		}),
 	}
+}
+
+// StringFormat builds a santhosh-tekuri format that applies check to string
+// values and skips non-strings, so a format assertion never rejects a value of
+// the wrong type (that is the type keyword's job).
+func StringFormat(name string, check func(string) error) *tekuri.Format {
+	return &tekuri.Format{Name: name, Validate: func(value any) error {
+		text, ok := value.(string)
+		if !ok {
+			return nil
+		}
+		return check(text)
+	}}
 }
 
 // Normalize re-encodes a merged configuration map into the JSON-typed value tree
@@ -217,14 +222,24 @@ func Evaluate(schemaRoot map[string]any, portal problem.ErrorPortal, instance ma
 	if err != nil {
 		return fmt.Errorf("config: compile root schema: %w", err)
 	}
-	normalized, err := Normalize(AlignToSchema(schemaRoot, instance))
+	normalized, err := Normalize(instance)
 	if err != nil {
 		return fmt.Errorf("config: normalize configuration: %w", err)
 	}
-	validationErr := compiled.Validate(normalized)
+	// Collision detection and key alignment run on the normalized JSON object so
+	// typed containers (map[string]string, typed slices) are already flattened to
+	// map[string]any / []any and their aliases cannot be missed.
+	//nolint:revive // a normalized configuration object is always a map.
+	object, _ := normalized.(map[string]any)
+	if location, detail, collided := collision.Detect(object); collided {
+		return Problem(portal, []Issue{{Path: location, Message: detail}})
+	}
+	validationErr := compiled.Validate(AlignToSchema(schemaRoot, object))
 	if validationErr == nil {
 		return nil
 	}
+	// santhosh-tekuri only ever returns *ValidationError from Validate, so
+	// errors.As always populates detailed; the bool is intentionally discarded.
 	var detailed *tekuri.ValidationError
 	_ = errors.As(validationErr, &detailed)
 	return Problem(portal, Collect(detailed))

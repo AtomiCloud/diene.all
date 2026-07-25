@@ -29,17 +29,23 @@ func Lookup(root map[string]any, key string) (any, bool) {
 	return current, true
 }
 
-// MatchKey resolves segment against node, preferring an exact hit and falling
-// back to canonical (separator- and case-insensitive) matching.
+// MatchKey resolves segment against node by canonical (separator- and
+// case-insensitive) matching. It counts every sibling whose canonical form
+// matches BEFORE resolving, so when more than one sibling collides the match is
+// ambiguous and reported as not found even if one of them spells segment
+// exactly. Resolution therefore never depends on Go map iteration order.
 func MatchKey(node map[string]any, segment string) (any, bool) {
-	if value, ok := node[segment]; ok {
-		return value, true
-	}
 	canonical := coreutils.CanonicalConfigKey(segment)
+	var matched any
+	matches := 0
 	for key, value := range node {
 		if coreutils.CanonicalConfigKey(key) == canonical {
-			return value, true
+			matched = value
+			matches++
 		}
+	}
+	if matches == 1 {
+		return matched, true
 	}
 	return nil, false
 }

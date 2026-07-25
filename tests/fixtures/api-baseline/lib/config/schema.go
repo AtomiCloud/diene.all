@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 
+	"github.com/AtomiCloud/diene.go-config/lib/config/internal/clone"
 	"github.com/AtomiCloud/diene.go-config/lib/config/internal/valid"
-	"github.com/AtomiCloud/diene.go-core-utils/lib/coreutils"
 	"github.com/AtomiCloud/diene.go-errors-problems/lib/problem"
 	"github.com/invopop/jsonschema"
 )
@@ -33,7 +33,7 @@ type Block struct {
 // composed schema. It is the constructor engines use to export their owned
 // section for composition.
 func NewBlock(key string, required bool, fragment map[string]any) Block {
-	return Block{Key: key, Required: required, Schema: coreutils.DeepMergeAll(fragment)}
+	return Block{Key: key, Required: required, Schema: clone.Map(fragment)}
 }
 
 // Schema is a composed, validatable root configuration schema.
@@ -55,7 +55,7 @@ func ComposeSchema(blocks ...Block) Schema {
 		if _, seen := properties[block.Key]; !seen {
 			order = append(order, block.Key)
 		}
-		properties[block.Key] = coreutils.DeepMergeAll(block.Schema)
+		properties[block.Key] = clone.Map(block.Schema)
 		requiredByKey[block.Key] = block.Required
 	}
 	required := make([]any, 0, len(order))
@@ -91,7 +91,7 @@ func SchemaFromJSON(raw []byte) (Schema, error) {
 // map, so callers cannot mutate the schema this [Schema] validates against. It
 // is the shape [Schema.Marshal] serializes for the committed artifact.
 func (s Schema) Root() map[string]any {
-	return coreutils.DeepMergeAll(s.root)
+	return clone.Map(s.root)
 }
 
 // Marshal renders the composed root schema as indented draft-2020-12 JSON — the

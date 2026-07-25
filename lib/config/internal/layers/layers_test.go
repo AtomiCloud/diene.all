@@ -42,15 +42,17 @@ func TestBaseViperMalformedDocument(t *testing.T) {
 	}
 }
 
-func TestMergeOverlayCollapsesCrossSpelling(t *testing.T) {
+func TestMergeCollapsesCrossSpelling(t *testing.T) {
 	t.Parallel()
 	base, err := layers.BaseViper([]byte("demo:\n  dataDir: base-value\n"))
 	if err != nil {
 		t.Fatalf("base: %v", err)
 	}
-	if err := layers.MergeOverlay(base, []byte("demo:\n  data-dir: overlay-value\n")); err != nil {
-		t.Fatalf("merge: %v", err)
+	overlay, err := layers.BaseViper([]byte("demo:\n  data-dir: overlay-value\n"))
+	if err != nil {
+		t.Fatalf("overlay: %v", err)
 	}
+	layers.Merge(base, overlay.AllSettings())
 	demo, ok := base.AllSettings()["demo"].(map[string]any)
 	if !ok {
 		t.Fatalf("demo missing: %v", base.AllSettings())
@@ -66,17 +68,6 @@ func TestMergeOverlayCollapsesCrossSpelling(t *testing.T) {
 	}
 	if matches != 1 {
 		t.Fatalf("cross-spelled keys must collapse to one, found %d in %v", matches, demo)
-	}
-}
-
-func TestMergeOverlayMalformed(t *testing.T) {
-	t.Parallel()
-	base, err := layers.BaseViper([]byte("demo:\n  region: local\n"))
-	if err != nil {
-		t.Fatalf("base: %v", err)
-	}
-	if err := layers.MergeOverlay(base, []byte("\t not: [valid")); err == nil {
-		t.Fatal("malformed overlay must error")
 	}
 }
 

@@ -26,17 +26,14 @@ type AppBlock struct {
 // than accepting one. GenerateSchema reflects the same [AppBlock] type and the
 // oracle test proves the two agree.
 func AppBlockSchema() Block {
-	nonEmptyString := func() map[string]any {
-		return map[string]any{"type": "string", "minLength": float64(1)}
-	}
 	return NewBlock(AppKey, true, map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"landscape": nonEmptyString(),
-			"platform":  nonEmptyString(),
-			"service":   nonEmptyString(),
-			"module":    nonEmptyString(),
-			"version":   nonEmptyString(),
+			"landscape": map[string]any{"type": "string", "minLength": float64(1)},
+			"platform":  map[string]any{"type": "string", "minLength": float64(1)},
+			"service":   map[string]any{"type": "string", "minLength": float64(1)},
+			"module":    map[string]any{"type": "string", "minLength": float64(1)},
+			"version":   map[string]any{"type": "string", "minLength": float64(1)},
 		},
 		"required":             []any{"landscape", "platform", "service", "module", "version"},
 		"additionalProperties": false,

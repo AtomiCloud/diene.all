@@ -3,6 +3,7 @@ package testhelper_test
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/AtomiCloud/diene.go-config/lib/config"
 	"github.com/AtomiCloud/diene.go-config/testhelper"
@@ -105,4 +106,80 @@ func ExampleInvalidSchemaBlock() {
 	_, isValidationProblem := config.ValidationIssues(err)
 	fmt.Println(err != nil, isValidationProblem)
 	// Output: true false
+}
+
+// ExampleTestingT shows the minimal testing interface the assertions depend on;
+// any type with Helper and Fatalf (including *testing.T) satisfies it.
+func ExampleTestingT() {
+	var recorder testhelper.TestingT = noopT{}
+	recorder.Helper()
+	fmt.Println("satisfied")
+	// Output: satisfied
+}
+
+// ExampleDemoBlockKey shows the neutral demo block's root key.
+func ExampleDemoBlockKey() {
+	fmt.Println(testhelper.DemoBlockKey)
+	// Output: demo
+}
+
+// ExampleSchemaPointer shows the first-line schema pointer fixtures declare.
+func ExampleSchemaPointer() {
+	fmt.Println(testhelper.SchemaPointer)
+	// Output: # yaml-language-server: $schema=./config.schema.json
+}
+
+// ExampleSchema shows the composed app-plus-demo fixture schema.
+func ExampleSchema() {
+	fmt.Println(testhelper.Schema().Root()["type"])
+	// Output: object
+}
+
+// ExampleDemoBlock shows the neutral demo block fixture.
+func ExampleDemoBlock() {
+	fmt.Println(testhelper.DemoBlock().Key, testhelper.DemoBlock().Required)
+	// Output: demo true
+}
+
+// ExampleOverlaySource shows an in-memory overlay layer fixture.
+func ExampleOverlaySource() {
+	source := testhelper.OverlaySource("lapras", testhelper.OverlayDocument("lapras"))
+	fmt.Println(source.Name())
+	// Output: testhelper:overlay:lapras
+}
+
+// ExampleEnvSource shows an in-memory env layer fixture.
+func ExampleEnvSource() {
+	source := testhelper.EnvSource(map[string]string{"K": "V"})
+	fmt.Println(source.Name())
+	// Output: testhelper:env
+}
+
+// ExampleBaseDocument shows the base document declares the schema on line one.
+func ExampleBaseDocument() {
+	firstLine, _, _ := strings.Cut(testhelper.BaseDocument(), "\n")
+	fmt.Println(firstLine == testhelper.SchemaPointer)
+	// Output: true
+}
+
+// ExampleOverlayDocument shows the sparse overlay fixture for a landscape.
+func ExampleOverlayDocument() {
+	firstLine, _, _ := strings.Cut(testhelper.OverlayDocument("lapras"), "\n")
+	fmt.Println(firstLine == testhelper.SchemaPointer)
+	// Output: true
+}
+
+// ExampleInvalidOverlayDocument shows the fail-fast overlay fixture.
+func ExampleInvalidOverlayDocument() {
+	firstLine, _, _ := strings.Cut(testhelper.InvalidOverlayDocument(), "\n")
+	fmt.Println(firstLine == testhelper.SchemaPointer)
+	// Output: true
+}
+
+// ExampleValidRaw shows the schema-valid stub map fixture.
+func ExampleValidRaw() {
+	cfg := config.NewConfig(testhelper.ValidRaw())
+	app, _ := cfg.App()
+	fmt.Println(app.Landscape)
+	// Output: lapras
 }

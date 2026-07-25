@@ -51,3 +51,17 @@ func TestMatchKeyExactAndCanonical(t *testing.T) {
 		t.Fatal("unrelated key must not match")
 	}
 }
+
+func TestMatchKeyAmbiguousIsNotFound(t *testing.T) {
+	t.Parallel()
+	// Two siblings share the canonical form; the match is ambiguous and must be
+	// reported as not found rather than resolved by map iteration order — even
+	// when the looked-up segment spells one sibling exactly.
+	node := map[string]any{"data-dir": 1, "dataDir": 2}
+	if _, ok := tree.MatchKey(node, "datadir"); ok {
+		t.Fatal("a non-exact ambiguous canonical match must be not found")
+	}
+	if _, ok := tree.MatchKey(node, "dataDir"); ok {
+		t.Fatal("an exact hit must still be rejected when a canonical alias sibling exists")
+	}
+}

@@ -34,10 +34,26 @@ go mod tidy
 go build -o consumer .
 [ "$(./consumer)" != "config overlay 9.9.9" ] && echo "❌ proxy consumer returned an unexpected result" >&2 && exit 1
 
-# Record durable version/checksum evidence facts for R-E22/R-E25 closure.
+# Assert durable version/checksum evidence facts for R-E22/R-E25 closure: the
+# module must resolve to exactly module@tag and its checksum line must be
+# present. These fail the evidence path rather than silently continuing.
+resolved="$(go list -m -f '{{.Path}}@{{.Version}}' "${module}")"
+[ "${resolved}" != "${module}@${tag}" ] && echo "❌ resolved ${resolved}, expected ${module}@${tag}" >&2 && exit 1
+# Fixed-string (-F) matching treats the module path's dots literally and fails
+# closed: a missing checksum line makes grep exit non-zero, which the explicit
+# guard turns into an evidence-path failure rather than an empty capture.
+if ! module_sum="$(grep -F "${module} ${tag} h1:" go.sum)"; then
+  echo "❌ module checksum line absent from go.sum for ${module}@${tag}" >&2
+  exit 1
+fi
+if ! gomod_sum="$(grep -F "${module} ${tag}/go.mod h1:" go.sum)"; then
+  echo "❌ go.mod checksum line absent from go.sum for ${module}@${tag}" >&2
+  exit 1
+fi
 echo "proxy roundtrip evidence:"
-echo "  module: ${module}@${tag}"
-go list -m -f '  resolved: {{.Path}}@{{.Version}}' "${module}"
-grep "^${module} " go.sum || true
+echo "  module:   ${module}@${tag}"
+echo "  resolved: ${resolved}"
+echo "  ${module_sum}"
+echo "  ${gomod_sum}"
 
 echo "✅ Go proxy resolved ${module}@${tag} into a clean three-layer consumer"

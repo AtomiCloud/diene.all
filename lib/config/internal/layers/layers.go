@@ -47,16 +47,15 @@ func BaseViper(content []byte) (*viper.Viper, error) {
 	return instance, nil
 }
 
-// MergeOverlay parses the overlay into a second Viper instance and folds it onto
-// base with MergeConfigMap. It first aligns the overlay's keys onto the base's
-// canonical spellings via [AlignKeys], so a cross-spelled overlay value
-// overrides the base key it matches instead of coexisting with a duplicate.
-func MergeOverlay(base *viper.Viper, content []byte) error {
-	overlay := NewViper()
-	if err := overlay.ReadConfig(bytes.NewReader(content)); err != nil {
-		return err
-	}
-	return base.MergeConfigMap(AlignKeys(base.AllSettings(), overlay.AllSettings()))
+// Merge folds already-parsed overlay settings onto base with MergeConfigMap. It
+// first aligns the overlay's keys onto the base's canonical spellings via
+// [AlignKeys], so a cross-spelled overlay value overrides the base key it matches
+// instead of coexisting with a duplicate. The caller parses the overlay with
+// [BaseViper] so it can be inspected (for example collision-checked) before the
+// merge.
+func Merge(base *viper.Viper, overlaySettings map[string]any) {
+	// MergeConfigMap only ever returns nil in viper; the aligned overlay is folded on.
+	_ = base.MergeConfigMap(AlignKeys(base.AllSettings(), overlaySettings))
 }
 
 // AlignKeys rewrites overlay's keys to base's spelling wherever they identify
