@@ -23,7 +23,7 @@ standard-config, and frontend-utils.
   stop every container in `finally`. Telemetry tests use the otel/interface
   in-memory seams, never a collector.
 
-The initial train uses manual tilde-bound dependency commits: result `~1.0.1`, all
+The train uses manual tilde-bound dependency commits: result `~1.0.2`, all
 other members `~1.0.0`. Depend directly on one member only when the package
 genuinely needs that member alone or publishes its types.
 

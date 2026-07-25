@@ -7,7 +7,7 @@ library family. It carries ten runtime members: `result`, `interfaces`,
 
 ## Train dependency model
 
-The initial train declares registry-bound tilde ranges. `result` uses `~1.0.1`; every
+The train declares registry-bound tilde ranges. `result` uses `~1.0.2`; every
 other member uses `~1.0.0`. A tilde admits compatible patches without admitting
 the next minor. Members still release independently; a train maintainer reviews
 and commits each member move manually as `dep(<member>): from vX to vY`. There

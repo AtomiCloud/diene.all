@@ -13,7 +13,7 @@
         "@atomicloud/diene.interfaces": "~1.0.0",
         "@atomicloud/diene.otel": "~1.0.0",
         "@atomicloud/diene.problems": "~1.0.0",
-        "@atomicloud/diene.result": "~1.0.1",
+        "@atomicloud/diene.result": "~1.0.2",
         "@atomicloud/diene.standard-config": "~1.0.0",
       },
       "devDependencies": {
