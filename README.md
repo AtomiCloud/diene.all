@@ -35,13 +35,40 @@ synchronization.
 ## Publishable Go module
 
 `github.com/AtomiCloud/diene.go-otel` is the Go family's OpenTelemetry engine.
-It will expose the canonical C0 telemetry configuration block, service-tree
-resource attributes, logging and metrics interface implementations, and a
-language-local tracing seam with consumer-facing in-memory test helpers.
+It exposes the canonical C0 telemetry configuration block and JSON Schema,
+service-tree resource attributes, real SDK-backed logs/metrics/traces, and
+consumer-facing in-memory test helpers. Exporters are off by default; landscape
+overlays enable OTLP HTTP/protobuf on port 4318.
 
 ```bash
 go get github.com/AtomiCloud/diene.go-otel@latest
 ```
+
+```go
+config := otel.DefaultConfig()
+identity := otel.AppIdentity{
+	Landscape: "lapras",
+	Platform:  "payments",
+	Service:   "api",
+	Module:    "server",
+	Version:   "1.0.0",
+}
+runtime, err := otelsdk.New(ctx, config, identity)
+if err != nil {
+	return err
+}
+defer runtime.Shutdown(ctx) // handle the returned error in production
+```
+
+Applications may opt into process-wide providers once at boot with
+`otelsdk.WithGlobalRegistration(true)`; the default is local registration only.
+`OTEL_SDK_DISABLED` and set `OTEL_*` variables take precedence over the block.
+
+For tests, inject the three doubles from
+`github.com/AtomiCloud/diene.go-otel/testhelper`. In particular, assert traces
+with `NewInMemoryTraceEmitter` and `AssertTraceRecords`; never start a collector
+or telemetry container in library tests. See the shipped
+`skills/diene-go-otel-usage` skill and package examples for complete patterns.
 
 <!-- ### go-base-commands -->
 <!-- #### source: go-base -->

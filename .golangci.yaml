@@ -71,6 +71,17 @@ linters:
           disabled: true
   exclusions:
     generated: lax
+    rules:
+      # The pinned C0 §4 conformance vectors must carry plain-http endpoints
+      # verbatim: the contract's own canonical example is
+      # `http://collector:4318`, and the invalid-endpoint vectors exist precisely
+      # to prove rejection of malformed http URLs. Rewriting them to https would
+      # stop testing the contract. Exclude only revive's URL-scheme preference
+      # for that one vector file; every other rule stays active everywhere.
+      - path: (^|/)lib/otel/c0\.go$
+        linters:
+          - revive
+        text: unsecure-url-scheme
 
 issues:
   max-issues-per-linter: 0

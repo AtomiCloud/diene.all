@@ -3,7 +3,7 @@ set -euo pipefail
 
 vendor_dir=".claude/skills/vendor"
 staging="$(mktemp -d .claude/skills/.vendor.XXXXXX)"
-trap 'rm -rf "${staging}"' EXIT
+trap 'chmod -R u+w "${staging}" 2>/dev/null || true; rm -rf "${staging}"' EXIT
 
 touch "${staging}/.gitkeep"
 
@@ -25,7 +25,7 @@ if [ -f Directory.Packages.props ]; then
   done < <(rg -o 'PackageVersion Include="AtomiCloud\.Diene\.[^"]+" Version="[^"]+"' Directory.Packages.props | sed -E 's/PackageVersion Include="([^"]+)" Version="([^"]+)"/\1\t\2/')
 fi
 
-if [ -f go.mod ]; then
+if [ -f go.mod ] && command -v go >/dev/null 2>&1; then
   while IFS=$'\t' read -r module module_dir; do
     [ -n "${module_dir}" ] || continue
     skills_dir="${module_dir}/skills"
@@ -33,7 +33,18 @@ if [ -f go.mod ]; then
     package="$(basename "${module}")"
     mkdir -p "${staging}/${package}"
     cp -R "${skills_dir}/." "${staging}/${package}/"
-  done < <(go list -m -json all | jq -r 'select(.Path | test("(^|/)diene[._-]")) | [.Path, .Dir] | @tsv')
+  done < <(go list -m -json all | jq -r 'select(.Main != true) | select(.Path | test("(^|/)diene[._-]")) | [.Path, .Dir] | @tsv')
+elif [ -f go.mod ] && [ -d "${vendor_dir}" ]; then
+  # The generated pre-commit validator runtime intentionally has a minimal PATH
+  # without Go. Preserve the already-synchronized Go skills there; CI setup and
+  # direct validation run this script with Go available and perform the real sync.
+  for package_dir in "${vendor_dir}"/diene.go-*; do
+    [ -d "${package_dir}" ] || continue
+    package="$(basename "${package_dir}")"
+    mkdir -p "${staging}/${package}"
+    cp -R "${package_dir}/." "${staging}/${package}/"
+  done
+  echo "⚠️ Go unavailable; preserved existing vendored Go skills" >&2
 fi
 
 if [ -f .dart_tool/package_config.json ]; then
@@ -46,6 +57,10 @@ if [ -f .dart_tool/package_config.json ]; then
   done < <(jq -r '.packages[] | select(.name | startswith("diene_")) | [.name, .rootUri] | @tsv' .dart_tool/package_config.json)
 fi
 
+chmod -R u+w "${staging}"
+if [ -d "${vendor_dir}" ]; then
+  chmod -R u+w "${vendor_dir}"
+fi
 rm -rf "${vendor_dir}"
 mkdir -p "$(dirname "${vendor_dir}")"
 mv "${staging}" "${vendor_dir}"

@@ -20,10 +20,39 @@ All tests use external `_test` packages, and `export_test.go` is forbidden;
 `scripts/validate/go-black-box-tests.sh` (pre-commit hook `a-go-black-box`)
 enforces both by rejecting any `export_test.go` or non-`_test` test package.
 
-The inherited `note` package and Redis adapter are replaced wholesale by the
-OpenTelemetry engine packages. The module has no `main` or `cmd` package.
-`go build ./...`, `go vet ./...`, golangci-lint, govulncheck, strict deadcode,
-examples, and `gorelease` protect the resulting library shape.
+The inherited `note` package and Redis adapter are replaced wholesale by three
+OpenTelemetry surfaces:
+
+- `lib/otel` owns the pure C0 block, JSON Schema, validation, environment
+  precedence, resource mapping, problem faults, and language-local trace seam.
+- `adapters/otelsdk` owns real OpenTelemetry SDK wiring and lifecycle. Stable
+  public signatures contain no pre-1.0 logs SDK types; those remain confined to
+  `adapters/otelsdk/internal/logbridge`.
+- `testhelper` owns the three validating in-memory emission doubles, exact
+  assertions, and canonical fixtures.
+
+The module has no `main` or `cmd` package. `go build ./...`, `go vet ./...`,
+golangci-lint, govulncheck, strict deadcode, examples, and `gorelease` protect
+the resulting library shape.
+
+## Telemetry contract
+
+Start from `otel.DefaultConfig()`: all three signals are enabled, both exporter
+types are off, export timeout is `PT10S`, metrics interval is `PT60S`, and the
+sampler is `parentbased_traceidratio` at `1.0`. Landscape overlays enable OTLP
+at an HTTP(S) endpoint with explicit port 4318 and fixed protocol
+`http/protobuf`. Compose `otel.JSONSchema()` under `otel.SchemaKey()`; the
+configuration library remains the sole merger and strict decoder.
+
+Build one `otelsdk.Runtime` from a validated `otel.AppIdentity`. The runtime
+derives four semantic-convention and five raw `atomi.*` resource attributes.
+`OTEL_SDK_DISABLED` always wins, while set `OTEL_*` values defer to the upstream
+SDK instead of being overwritten by explicit options. Global provider
+registration defaults to false and is an application boot-time opt-in.
+
+Logs, metrics, and traces validate even when provider-free. An injected seam
+owns its signal, so no exporter or provider is constructed for it. OTLP logs
+are real; the pre-1.0 logs dependency is hidden behind an opaque stable handle.
 
 ## Test pyramid and TestHelper
 
@@ -39,6 +68,14 @@ assertions, nondeterminism seams, or complex construction. Ship it as the
 `testhelper` subpackage and document its use in the module's single usage skill.
 For a NO verdict, keep the same skill but explain how to add a future helper
 without privileged test exports.
+
+This module's verdict is YES. Consumer tests inject
+`NewInMemoryLoggerSink`, `NewInMemoryMetricsCollector`, and
+`NewInMemoryTraceEmitter`; no test tier starts a collector, container, or
+network telemetry service. RB-19 requires Go trace tests to emit through the
+language-local trace double and assert with `AssertTraceRecords`. Meta tests
+prove mock-versus-real validation parity for all three signals and prove every
+`Assert*` helper against known-good and known-bad inputs.
 
 ## Compatibility and major versions
 

@@ -19,11 +19,14 @@ export default {
       description: 'A native ineffassign violation must turn the owning hook red.',
       kind: 'mutation',
       async run(repo: any) {
-        await repo.patch('lib/note/note.go', {
-          find: 'func Slug(value string) string {\n\treturn strings.Join(strings.Fields(strings.ToLower(value)), "-")\n}',
-          replace:
-            'func Slug(value string) string {\n\tnormalized := value\n\tnormalized = value\n\treturn strings.Join(strings.Fields(strings.ToLower(normalized)), "-")\n}',
-        });
+        const source = (await repo.glob('lib/**/*.go')).find((path: string) => !path.endsWith('_test.go'));
+        if (!source) throw new Error('no Go source file found under lib/');
+        const pkg = (await repo.read(source)).match(/^package\s+(\w+)$/m);
+        if (!pkg) throw new Error(`no package clause in ${source}`);
+        await repo.write(
+          `${source.slice(0, source.lastIndexOf('/'))}/probe_ineffassign.go`,
+          `package ${pkg[1]}\n\nfunc probeIneffassign(value string) string {\n\tnormalized := value\n\tnormalized = value\n\treturn normalized\n}\n`,
+        );
         await expectRed(repo, gate, 'hook-golangci-lint');
       },
     },
