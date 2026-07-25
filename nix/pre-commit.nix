@@ -9,7 +9,7 @@ let
     pname = "diene-go-base-dependencies";
     version = "0";
     src = ../.;
-    vendorHash = "sha256-NbeafHrobDMronPIB3abd5J/8dPfNtGNuQsI6vcj820=";
+    vendorHash = "sha256-y3nntzhyXQ9YwJeiaY7zaaox/LzYVz5CbSxNu9m6kxA=";
     proxyVendor = true;
   };
   go-lint-runtime = pkgs.buildEnv {
