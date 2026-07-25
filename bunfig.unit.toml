@@ -4,4 +4,4 @@ coverageReporter = ["text", "lcov"]
 coverageDir = "coverage/unit"
 coverageSkipTestFiles = true
 # Unit ledger = the domain tier only (src/lib, 100% goal); adapters/glue belong to other tiers, tests/** never counts.
-coveragePathIgnorePatterns = ["src/adapters/**", "src/index.ts", "src/test-helper/**", "tests/**"]
+coveragePathIgnorePatterns = ["src/adapters/**", "src/entries/**", "src/index.ts", "src/test-helper/**", "tests/**"]
