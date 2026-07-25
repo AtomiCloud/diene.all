@@ -3,9 +3,10 @@
   pkgs,
   pkgs-2605,
   pkgs-unstable,
+  releaser-pkg,
 }:
 let
-  cyanprintVersion = "4.8.0";
+  cyanprintVersion = "4.9.0";
   cyanprintSystem = pkgs.stdenv.hostPlatform.system;
   cyanprintPlatform =
     ({
@@ -16,10 +17,10 @@ let
     }).${cyanprintSystem};
   cyanprintHash =
     ({
-      x86_64-linux = "sha256-lxibv7rqcp0rQtvWb41ifxA+ORwt8yiSKM0NaRJmt1w=";
-      aarch64-linux = "sha256-XDx6CtFS4doSeswYWyTPT0GHPDcW8tb6YEzd5QJuv78=";
-      x86_64-darwin = "sha256-xGoTSpMkXAKdUm6NDDN75yfHu25nMgXP1hiIfGb9fvo=";
-      aarch64-darwin = "sha256-7xLzKKCK5UiU1saHf8l1z1UuInQm1CTjowIlwpGRM7Y=";
+      x86_64-linux = "sha256-z5whvbKPJTgyR5qWeYefN7NuTKY1pWaRkYDnyyaNG9k=";
+      aarch64-linux = "sha256-SrhazRJbeK3vJHGvv0TwKHdz/ulqZM04qMtKgX0AJgA=";
+      x86_64-darwin = "sha256-XIolxZN+KVf/Ui5/rQjg+k3OXLrbJuGGxh6iYkki+/k=";
+      aarch64-darwin = "sha256-xugPBTO6CTixUjpq9PPq2WOQySci735gfuOXZSn75Ew=";
     }).${cyanprintSystem};
   cyanprint = pkgs.stdenvNoCC.mkDerivation {
     pname = "cyanprint";
@@ -55,7 +56,6 @@ let
           infralint
           infrautils
           pls
-          sg
           ;
       }
     );
@@ -97,10 +97,16 @@ let
       }
     );
 
+    # ### bun-base-releaser
+    # #### source: bun-base
+    releaser-pkgs = {
+      releaser = releaser-pkg;
+    };
+
     root = {
       inherit cyanprint;
     };
   };
 in
 with all;
-atomipkgs // nix-2605 // nix-unstable // root
+atomipkgs // nix-2605 // nix-unstable // releaser-pkgs // root
