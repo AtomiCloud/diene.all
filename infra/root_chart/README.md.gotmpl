@@ -69,6 +69,12 @@ build. Every template guards the copy with `.Files.Glob`, so `helm lint`,
 `helm template`, and `helm install` all stay green with zero optional files
 present.
 
+When the copy has **not** run, the chart renders **no ConfigMap and no mount at
+all** — deliberately, not as a degraded fallback. The image bakes `config/` in at
+this same mount path, so mounting an empty ConfigMap would shadow those defaults
+with an empty directory. No files copied means the image's own config stays
+visible; files copied means the chart-supplied config wins.
+
 ## Values overlays
 
 Two **independent stacked** dimensions (R16/B26), never a cross-product:

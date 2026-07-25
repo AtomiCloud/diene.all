@@ -145,6 +145,16 @@ app.kubernetes.io/part-of: {{ $root.Values.serviceTree.platform | quote }}
 {{- end }}
 {{- end -}}
 
+{{/* Whether a config ConfigMap exists to render and mount at all. The image bakes
+     `config/` in at the same path, so mounting an EMPTY ConfigMap would shadow
+     those defaults with nothing. Mount only when the build-phase copy actually
+     produced files; otherwise the image's own config stays visible. */}}
+{{- define "bunconsumer.hasConfig" -}}
+{{- if .Values.config.enabled -}}
+{{- include "bunconsumer.configData" . | trim -}}
+{{- end -}}
+{{- end -}}
+
 {{/* Volumes shared by the worker and db-init pods. readOnlyRootFilesystem is on,
      so the runtime needs a writable scratch dir. `configMapName` selects which
      config copy this pod mounts — the release-scoped one for the Deployment, the
@@ -153,7 +163,7 @@ app.kubernetes.io/part-of: {{ $root.Values.serviceTree.platform | quote }}
 {{- $root := .root -}}
 - name: tmp
   emptyDir: {}
-{{- if $root.Values.config.enabled }}
+{{- if include "bunconsumer.hasConfig" $root }}
 - name: config
   configMap:
     name: {{ .configMapName }}
@@ -164,7 +174,7 @@ app.kubernetes.io/part-of: {{ $root.Values.serviceTree.platform | quote }}
 {{- $root := .root -}}
 - name: tmp
   mountPath: /tmp
-{{- if $root.Values.config.enabled }}
+{{- if include "bunconsumer.hasConfig" $root }}
 - name: config
   mountPath: {{ $root.Values.config.mountPath }}
   readOnly: true

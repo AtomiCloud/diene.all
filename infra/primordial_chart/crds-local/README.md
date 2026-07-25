@@ -20,10 +20,10 @@ application test tiers.
 kubectl apply -f infra/primordial_chart/crds-local
 ```
 
-| File                        | Stands in for                              | Real owner          |
-| --------------------------- | ------------------------------------------ | ------------------- |
-| `platformdependency.yaml`   | `fleet.atomi.cloud/PlatformDependency`     | dependency-operator |
-| `logtoapp.yaml`             | `fleet.atomi.cloud/LogtoApp`               | logto-operator      |
-| `problem.yaml`              | `atomi.cloud/Problem`                      | T3 / error portal   |
-| `externalsecret.yaml`       | `external-secrets.io/ExternalSecret`       | external-secrets    |
-| `grafana.yaml`              | the three `grafana.integreatly.org` kinds  | Grafana Operator    |
+| File                      | Stands in for                             | Real owner          |
+| ------------------------- | ----------------------------------------- | ------------------- |
+| `platformdependency.yaml` | `fleet.atomi.cloud/PlatformDependency`    | dependency-operator |
+| `logtoapp.yaml`           | `fleet.atomi.cloud/LogtoApp`              | logto-operator      |
+| `problem.yaml`            | `atomi.cloud/Problem`                     | T3 / error portal   |
+| `externalsecret.yaml`     | `external-secrets.io/ExternalSecret`      | external-secrets    |
+| `grafana.yaml`            | the three `grafana.integreatly.org` kinds | Grafana Operator    |

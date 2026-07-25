@@ -3,7 +3,7 @@
 {{- if .Values.dbInit.enabled -}}
 {{- include "bunconsumer.validateServiceTree" . -}}
 {{- $configMapName := include "bunconsumer.resourceName" (dict "root" . "token" "dbinitconfig") -}}
-{{- if .Values.config.enabled }}
+{{- if include "bunconsumer.hasConfig" . }}
 {{- /* Hook-scoped copy of the vendored config. Helm hooks and ArgoCD PreSync both
        run BEFORE the release's ordinary resources, so the pre-sync Job cannot mount
        the Deployment's release-scoped ConfigMap — it would block in
@@ -24,10 +24,8 @@ metadata:
     argocd.argoproj.io/hook: PreSync
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
     argocd.argoproj.io/sync-wave: {{ .Values.config.syncWave | quote }}
-{{- with (include "bunconsumer.configData" . | trim) }}
 data:
-  {{- . | nindent 2 }}
-{{- end }}
+  {{- include "bunconsumer.configData" . | trim | nindent 2 }}
 {{- /* One-shot db-init (B30.2/R20). Carries BOTH hook systems: helm
        pre-install/pre-upgrade for `helm install|upgrade`, and the ArgoCD PreSync
        hook for GitOps. `before-hook-creation` deletes the previous Job so a
