@@ -25,6 +25,9 @@ const nextConfig: NextConfig = {
   // The Garden rail boots `.next/standalone/server.js`; OpenNext consumes the
   // same build for the Workers rail.
   output: 'standalone',
+  // Browser source maps feed the faro upload plugin (Layer B/C); serving them
+  // is harmless (they never embed secrets — config secrets are runtime-only).
+  productionBrowserSourceMaps: true,
   // `next/image` rides the Cloudflare Images binding on Workers (caveat 5);
   // the default optimizer route does not exist there.
   images: { unoptimized: true },
