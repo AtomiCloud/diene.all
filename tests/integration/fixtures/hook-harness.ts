@@ -1,7 +1,13 @@
 import { mock } from 'bun:test';
-import * as RealReact from 'react';
-import * as RealJsxRuntime from 'react/jsx-runtime';
-import * as RealJsxDevRuntime from 'react/jsx-dev-runtime';
+import { reactProxy, setReactImpl } from './react-proxy';
+
+// Register the call-time-delegating proxy ONCE, at first harness import
+// (mock.module deadlocks inside the preload, so it lives here). Modules loaded
+// before this point bound the real react — correct; modules loaded after bind
+// the proxy, which forwards to the real react whenever no stub is active, so
+// bun's filesystem-dependent file order can no longer leak the stub into a
+// react-dom/server spec.
+mock.module('react', () => reactProxy);
 
 /**
  * Dependency-free hook harness for the int tier.
@@ -37,25 +43,17 @@ interface Cell {
  * descriptors instead. Effects still run; children are never rendered.
  */
 export const mockReact = (): void => {
-  mock.module('react', () => reactStub);
-  const jsx = (type: unknown, props: unknown) => ({ type, props });
-  const runtime = { jsx, jsxs: jsx, jsxDEV: jsx, Fragment: 'fragment' };
-  mock.module('react/jsx-runtime', () => runtime);
-  mock.module('react/jsx-dev-runtime', () => runtime);
+  setReactImpl(reactStub);
 };
 
 /**
- * Reinstall the REAL React modules. Every harness file MUST call this from
- * `afterAll`: `mock.restore()` does not undo `mock.module`, and bun's test file
- * order is filesystem-dependent (NOT alphabetical on every machine), so a file
- * that renders through `react-dom/server` can legitimately load after a harness
- * file. Re-registering the real exports makes the substitution reversible and
- * removes the order dependence entirely.
+ * Point the react proxy back at the real implementation. Every harness file
+ * MUST call this from `afterAll` — the proxy is process-wide and bun's test
+ * file order is filesystem-dependent, so a leaked stub breaks whichever
+ * react-dom/server spec happens to run later.
  */
 export const restoreReact = (): void => {
-  mock.module('react', () => ({ ...RealReact }));
-  mock.module('react/jsx-runtime', () => ({ ...RealJsxRuntime }));
-  mock.module('react/jsx-dev-runtime', () => ({ ...RealJsxDevRuntime }));
+  setReactImpl(undefined);
 };
 
 let cells: Cell[] = [];
