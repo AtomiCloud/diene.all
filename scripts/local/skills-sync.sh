@@ -48,8 +48,11 @@ fi
 
 # Idempotent swap: leave the tree untouched when nothing changed, so a
 # freshness re-run inside pre-commit never churns mtimes on a clean checkout
-# (CI treats any file modification by a hook as a failure).
-if [ -d "${vendor_dir}" ] && diff -rq "${staging}" "${vendor_dir}" >/dev/null 2>&1; then
+# (CI treats any file modification by a hook as a failure). The comparison
+# uses git rather than diffutils — the pre-commit validator runtime carries
+# git but no diff binary, and a missing binary must not degrade into the
+# replace branch.
+if [ -d "${vendor_dir}" ] && git diff --no-index --quiet "${staging}" "${vendor_dir}" 2>/dev/null; then
   rm -rf "${staging}"
 else
   rm -rf "${vendor_dir}"
