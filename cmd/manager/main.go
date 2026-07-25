@@ -1,4 +1,4 @@
-// Command manager is the single composition root for the operator template.
+// Command manager is the single composition root for the Boron edge-access operator.
 package main
 
 import (
@@ -9,7 +9,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	"github.com/AtomiCloud/diene.go-base/internal/operatorruntime"
+	"github.com/AtomiCloud/diene.boron/internal/operatorruntime"
 )
 
 func main() {

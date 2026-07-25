@@ -8,34 +8,49 @@ committed="infra/root_chart/templates/rbac/role.yaml"
 
 allowed="$(
   cat <<'EOF'
-|configmaps|create
-|configmaps|delete
-|configmaps|get
-|configmaps|list
-|configmaps|patch
-|configmaps|update
-|configmaps|watch
 |events|create
 |events|patch
+|secrets|get
+|secrets|list
+|secrets|watch
+|services|get
+|services|list
+|services|watch
+apps|deployments|create
+apps|deployments|delete
+apps|deployments|get
+apps|deployments|list
+apps|deployments|patch
+apps|deployments|update
+apps|deployments|watch
 authentication.k8s.io|tokenreviews|create
 authorization.k8s.io|subjectaccessreviews|create
 coordination.k8s.io|leases|create
 coordination.k8s.io|leases|get
 coordination.k8s.io|leases|update
-sample.diene.atomi.cloud|notes|get
-sample.diene.atomi.cloud|notes|list
-sample.diene.atomi.cloud|notes|update
-sample.diene.atomi.cloud|notes|watch
-sample.diene.atomi.cloud|journals|get
-sample.diene.atomi.cloud|journals|list
-sample.diene.atomi.cloud|journals|watch
-sample.diene.atomi.cloud|notes/status|get
-sample.diene.atomi.cloud|notes/status|patch
-sample.diene.atomi.cloud|notes/status|update
-sample.diene.atomi.cloud|journals/status|get
-sample.diene.atomi.cloud|journals/status|patch
-sample.diene.atomi.cloud|journals/status|update
-sample.diene.atomi.cloud|notes/finalizers|update
+boron.atomi.cloud|accounts|get
+boron.atomi.cloud|accounts|list
+boron.atomi.cloud|accounts|update
+boron.atomi.cloud|accounts|watch
+boron.atomi.cloud|accounts/status|get
+boron.atomi.cloud|accounts/status|patch
+boron.atomi.cloud|accounts/status|update
+boron.atomi.cloud|tunnels|get
+boron.atomi.cloud|tunnels|list
+boron.atomi.cloud|tunnels|update
+boron.atomi.cloud|tunnels|watch
+boron.atomi.cloud|tunnels/status|get
+boron.atomi.cloud|tunnels/status|patch
+boron.atomi.cloud|tunnels/status|update
+boron.atomi.cloud|tunnels/finalizers|update
+boron.atomi.cloud|exposures|get
+boron.atomi.cloud|exposures|list
+boron.atomi.cloud|exposures|update
+boron.atomi.cloud|exposures|watch
+boron.atomi.cloud|exposures/status|get
+boron.atomi.cloud|exposures/status|patch
+boron.atomi.cloud|exposures/status|update
+boron.atomi.cloud|exposures/finalizers|update
 EOF
 )"
 
@@ -56,7 +71,7 @@ echo "🧪 regenerating RBAC from the controller markers"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "${tmp}"' EXIT
-controller-gen rbac:roleName=operator-template-manager \
+controller-gen rbac:roleName=boron-manager \
   paths=./adapters/operator/controllers/... output:rbac:dir="${tmp}"
 
 regenerated="$(diff -u "${committed}" "${tmp}/role.yaml" || true)"

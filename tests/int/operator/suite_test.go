@@ -12,7 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
-	apiv1alpha1 "github.com/AtomiCloud/diene.go-base/api/v1alpha1"
+	apiv1alpha1 "github.com/AtomiCloud/diene.boron/api/v1alpha1"
 )
 
 // Shared envtest fixtures for the whole int suite. envtest runs a real
