@@ -12,7 +12,8 @@ jq -e '.schemaVersion == 1 and (.actions | type == "object") and ([.actions[] | 
 }
 
 tmp="$(mktemp)"
-trap 'rm -f "${tmp}"' EXIT
+seen="$(mktemp)"
+trap 'rm -f "${tmp}" "${seen}"' EXIT
 rg -n --no-heading '^[[:space:]]*(-[[:space:]]+)?uses:[[:space:]]+[^[:space:]]+' .github/workflows >"${tmp}" || true
 
 while IFS=: read -r file line body; do
@@ -26,6 +27,7 @@ while IFS=: read -r file line body; do
   reference="${reference%\'}"
   action="${reference%@*}"
   ref="${reference##*@}"
+  printf '%s\n' "${action}" >>"${seen}"
   classification="$(jq -r --arg action "${action}" '.actions[$action] // empty' "${map_file}")"
   [ -z "${classification}" ] && echo "❌ ${file}:${line}: action '${action}' has no authored trust classification" >&2 && exit 1
   [ "${classification}" != "${mode}" ] && continue
@@ -47,5 +49,13 @@ while IFS=: read -r file line body; do
     }
   fi
 done <"${tmp}"
+
+sort -u -o "${seen}" "${seen}"
+while IFS= read -r action; do
+  rg -qxF "${action}" "${seen}" || {
+    echo "❌ '${map_file}' classifies unused action '${action}'" >&2
+    exit 1
+  }
+done < <(jq -r '.actions | keys[]' "${map_file}")
 
 echo "✅ ${mode} action pins conform"

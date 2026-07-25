@@ -46,6 +46,9 @@ hand.
    commit-conventions document; and
 4. publish the GitHub release.
 
+Compiled CLI variants prepend an exec step that snapshots `Changelog.old.md`
+and omit the GitHub plugin because GoReleaser owns the release and assets.
+
 The unified D3 commit-type vocabulary is:
 
 ```text

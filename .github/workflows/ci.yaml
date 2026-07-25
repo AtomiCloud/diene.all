@@ -51,5 +51,46 @@ jobs:
     uses: ./.github/workflows/⚡reusable-docker.yaml
     secrets: inherit
     with:
-      image_name: diene-workspace
+      image_name: diene-bun-cli
       dockerfile: ./infra/Dockerfile
+
+  # ### bun-cli-ci
+  # #### source: bun-cli
+  compile:
+    name: Compile Binaries
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-compile.yaml
+    secrets: inherit
+
+  sit:
+    name: SIT
+    needs: compile
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-sit.yaml
+    secrets: inherit
+
+  smoke:
+    name: Smoke ${{ matrix.target }}
+    needs: compile
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-x64-baseline
+            binary: bun-cli-linux-x64-baseline
+            runs_on: '["ubuntu-22.04"]'
+          - target: linux-arm64
+            binary: bun-cli-linux-arm64
+            runs_on: '["ubuntu-24.04-arm"]'
+          - target: darwin-arm64
+            binary: bun-cli-darwin-arm64
+            runs_on: '["macos-14"]'
+    uses: ./.github/workflows/⚡reusable-smoke.yaml
+    secrets: inherit
+    with:
+      binary: ${{ matrix.binary }}
+      runs_on: ${{ matrix.runs_on }}

@@ -13,9 +13,11 @@ if [ "${mode}" = "schema" ] || [ "${mode}" = "all" ]; then
     .schemaVersion == 2 and
     .release.branches == ["main"] and
     .conventions.path == "docs/developer/CommitConventions.md" and
-    .release.github.enabled == true and
+    .release.github == false and
     (.release.tagFormat | contains("${version}")) and
     ([.release.commit.message] | all(contains("[skip ci]") | not)) and
+    (.release.commit.assets as $assets | ["Changelog.md", "Changelog.old.md", "package.json", "VERSION", "docs/developer/CommitConventions.md"] | all(. as $asset | $assets | index($asset) != null)) and
+    ([.release.hooks.prepare[].phase] == ["beforeWrite", "afterWrite"]) and
     (has("plugins") | not) and
     (has("gitlint") | not) and
     (has("conventionMarkdown") | not)

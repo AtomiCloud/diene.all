@@ -29,3 +29,8 @@ node_modules/
 dist/
 coverage/
 *.tsbuildinfo
+
+### bun-cli
+#### source: bun-cli
+prebuilt/
+IncrementalChangelog.md

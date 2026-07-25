@@ -6,12 +6,12 @@ export default {
   probes: [
     {
       name: 'baseline-bun-preview-green',
-      description: 'The preview task rebuilds and executes the bundled artifact.',
+      description: 'The preview task compiles and executes the host standalone binary.',
       kind: 'baseline',
       async run(repo: any) {
         await expectBunGreen(
           repo,
-          "nix develop .#ci -c bash -lc './scripts/local/setup.sh && pls preview -- smoke'",
+          "nix develop .#ci -c bash -lc './scripts/local/setup.sh && pls preview -- --help'",
           'bun-preview',
         );
       },

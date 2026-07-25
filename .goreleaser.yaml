@@ -1,0 +1,62 @@
+# A Go stub is built per target and the shim swaps the prebuilt Bun binary in (prebuilt builder
+# is Pro-only, mirrors sulfone.iridium); GoReleaser owns archives, deb/rpm, cask, and the release.
+version: 2
+
+project_name: bun-cli
+
+builds:
+  - id: bun
+    main: ./goreleaser.go
+    binary: bun-cli
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+    # Only darwin arm64 ships (no intel mac).
+    ignore:
+      - goos: darwin
+        goarch: amd64
+    hooks:
+      post:
+        - cmd: ./scripts/release/goreleaser-shim.sh "{{ .Path }}" "{{ .Os }}" "{{ .Arch }}"
+
+archives:
+  - id: archive
+    ids: [bun]
+    formats: [tar.gz]
+    name_template: '{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}'
+
+checksum:
+  name_template: 'checksums.txt'
+
+release:
+  # install.sh is served from the GitHub release (see INSTALLATION.md's one-line installer).
+  extra_files:
+    - glob: scripts/release/install.sh
+
+nfpms:
+  - id: packages
+    ids: [bun]
+    package_name: bun-cli
+    formats: [deb, rpm]
+    maintainer: AtomiCloud <ops@atomi.cloud>
+    description: Sample CLI baseline over the AtomiCloud Redis key-value library
+    license: MIT
+    bindir: /usr/bin
+
+# GoReleaser uses casks (not the deprecated `brews`) for pre-compiled binaries.
+homebrew_casks:
+  - name: bun-cli
+    ids: [archive]
+    binaries: [bun-cli]
+    repository:
+      owner: AtomiCloud
+      name: homebrew-tap
+      token: '{{ .Env.HOMEBREW_TAP_TOKEN }}'
+    homepage: https://github.com/AtomiCloud/diene.bun-cli
+    description: Sample CLI baseline over the AtomiCloud Redis key-value library
+    # The Bun binary ships unsigned; strip the macOS quarantine attribute on install.
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/bun-cli"]
+          end

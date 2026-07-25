@@ -135,16 +135,15 @@ release:
     message: "release: ${version}\n\n${notes}"
     assets:
       - Changelog.md
+      - Changelog.old.md
       - package.json
       - VERSION
       - docs/developer/CommitConventions.md
-  github:
-    enabled: true
-    successComment: 'Released in ${version}.'
-    releasedLabels:
-      - released
+  github: false
   hooks:
     prepare:
+      - phase: beforeWrite
+        command: ./scripts/release/backup-changelog.sh
       - phase: afterWrite
         command: './scripts/release/bump.sh ${version}'
     success: []

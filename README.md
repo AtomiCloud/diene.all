@@ -69,3 +69,16 @@ boundary. TypeScript variants accompany the shared standards for
 [testing](docs/standards/testing/languages/typescript.md),
 [utilities](docs/standards/utilities/languages/typescript.md), and
 [validation](docs/standards/validation/languages/typescript.md).
+
+<!-- ### bun-cli -->
+<!-- #### source: bun-cli -->
+
+## Compiled CLI
+
+This branch turns the Bun foundation into a DI-shaped standalone CLI. The
+single entry point is derived from `package.json`'s `bin` map; `pls compile`
+emits Linux x64-baseline, Linux arm64, and Darwin arm64 binaries. Use
+`pls run -- <args>` for source execution, `pls preview -- <args>` for the
+host binary, and `pls test:sit` for black-box journeys through a fresh binary.
+
+Release and installation channels are documented in [INSTALLATION.md](INSTALLATION.md).

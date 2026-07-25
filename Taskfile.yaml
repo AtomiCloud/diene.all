@@ -2,7 +2,19 @@
 # #### source: workspace
 version: '3'
 
+vars:
+  # ### bun-cli-identity
+  # #### source: bun-cli
+  ARTIFACT_PREFIX:
+    sh: jq -r '.bin | to_entries[0].key' package.json
+  ARTIFACT: '{{.ARTIFACT_PREFIX}}-{{OS}}-{{if eq ARCH "arm64"}}arm64{{else}}x64-baseline{{end}}'
+  ENTRY:
+    sh: jq -r '.bin | to_entries[0].value' package.json
+
 includes:
+  # ### bun-cli-compile-include
+  # #### source: bun-cli
+  compile: tasks/Taskfile.compile.yaml
   docker: tasks/Taskfile.docker.yaml
   secret: tasks/Taskfile.secret.yaml
   # ### bun-base-test-includes
@@ -42,7 +54,7 @@ tasks:
   clean:
     desc: Remove Bun build, dependency, and coverage artifacts
     cmds:
-      - rm -rf dist coverage
+      - rm -rf dist prebuilt coverage
       - '[ -d node_modules ] && find node_modules -mindepth 1 -maxdepth 1 -exec rm -rf {} + || true'
 
   build:
@@ -56,10 +68,11 @@ tasks:
       - ./scripts/local/deadcode.sh
 
   test:
-    desc: Run unit and integration suites without coverage
+    desc: Run unit, integration, and SIT suites without coverage
     cmds:
       - task: unit:default
       - task: int:default
+      - task: test:sit
 
   test:unit:
     desc: Run the unit suite without coverage
@@ -71,11 +84,18 @@ tasks:
     cmds:
       - task: int:default
 
+  test:sit:
+    desc: Run black-box journeys through the freshly compiled binary
+    deps: [compile]
+    cmds:
+      - SIT_DRIVER=binary CLI_BIN=dist/bin/{{.ARTIFACT}} bun test --config=bunfig.sit.toml
+
   test:coverage:
     desc: Run every coverage-capable suite with coverage
     cmds:
       - task: unit:coverage
       - task: int:coverage
+      - task: test:sit:coverage
 
   test:unit:coverage:
     desc: Run the unit suite with coverage
@@ -87,18 +107,35 @@ tasks:
     cmds:
       - task: int:coverage
 
+  test:sit:coverage:
+    desc: Run SIT journeys in-process and emit the full-system ledger
+    cmds:
+      - rm -rf coverage/sit
+      - SIT_DRIVER=inprocess bun test --config=bunfig.sit.toml --coverage
+      - test -f coverage/sit/lcov.info
+
   test:watch:
     desc: Watch the fast unit suite
     cmds:
       - task: unit:watch
 
   run:
-    desc: Run the Bun source entry point
+    desc: Run the CLI source entry point
     cmds:
-      - bun run ./src/index.ts -- {{.CLI_ARGS}}
+      - bun run {{.ENTRY}} -- {{.CLI_ARGS}}
 
   preview:
-    desc: Build and run the bundled Bun artifact
-    deps: [build]
+    desc: Run this host's compiled standalone binary
+    deps: [compile]
     cmds:
-      - bun run ./dist/index.js -- {{.CLI_ARGS}}
+      - ./dist/bin/{{.ARTIFACT}} {{.CLI_ARGS}}
+
+  up:
+    desc: Start the sample Redis dependency in the background
+    cmds:
+      - docker run -d --rm --name {{.ARTIFACT_PREFIX}}-redis -p 6379:6379 redis:7.4.5-alpine
+
+  down:
+    desc: Stop the sample Redis dependency
+    cmds:
+      - docker rm -f {{.ARTIFACT_PREFIX}}-redis

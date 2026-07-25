@@ -1,0 +1,90 @@
+import { defineGate, definePresence, defineSmoke } from './definition.ts';
+import { expectGreen, expectRed } from './helpers.ts';
+
+const sandbox = { snapshot: 'git' as const, preserve: ['.direnv'] };
+const scmSetup = {
+  post: [
+    'if ! git remote get-url origin >/dev/null 2>&1; then git remote add origin https://github.com/AtomiCloud/diene.all.git; fi',
+  ],
+};
+
+export interface Mutation {
+  readonly path: string;
+  readonly find: string;
+  readonly replace: string;
+}
+
+export function staticGate(name: string, contract: string, mutation: Mutation) {
+  const command = `nix develop .#ci -c ./scripts/validate/cli-contracts.sh ${contract}`;
+  return defineGate({
+    sandbox,
+    baseline: {
+      name: `baseline-${name}-green`,
+      description: `The ${name} contract passes its own validator.`,
+      async run(repo: any) {
+        await expectGreen(repo, command, name);
+      },
+    },
+    mutation: {
+      name: `mutation-${name}-caught`,
+      description: `A focused ${name} contract violation turns its validator red.`,
+      expectedImpact: [],
+      async run(repo: any) {
+        await repo.patch(mutation.path, { find: mutation.find, replace: mutation.replace });
+        await expectRed(repo, command, name);
+      },
+    },
+  });
+}
+
+export function commandGate(name: string, command: string, mutation: Mutation) {
+  return defineGate({
+    sandbox,
+    setup: scmSetup,
+    baseline: {
+      name: `baseline-${name}-green`,
+      description: `The ${name} mechanism passes through its real invocation path.`,
+      async run(repo: any) {
+        await expectGreen(repo, command, name);
+      },
+    },
+    mutation: {
+      name: `mutation-${name}-caught`,
+      description: `A focused ${name} fault makes the real invocation red.`,
+      expectedImpact: [],
+      async run(repo: any) {
+        await repo.patch(mutation.path, { find: mutation.find, replace: mutation.replace });
+        await expectRed(repo, command, name);
+      },
+    },
+  });
+}
+
+export function commandSmoke(name: string, command: string) {
+  return defineSmoke({
+    sandbox,
+    setup: scmSetup,
+    baseline: {
+      name: `baseline-${name}-green`,
+      description: `The ${name} operation completes successfully.`,
+      async run(repo: any) {
+        await expectGreen(repo, command, name);
+      },
+    },
+  });
+}
+
+export function artifactPresence(name: string, paths: string[]) {
+  return definePresence({
+    sandbox,
+    baseline: {
+      name: `baseline-${name}-present`,
+      description: `The ${name} artifacts exist.`,
+      async run(repo: any) {
+        for (const path of paths) {
+          if ((await repo.glob(path)).length === 0) throw new Error(`missing required artifact: ${path}`);
+        }
+      },
+    },
+  });
+}

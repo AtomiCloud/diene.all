@@ -6,7 +6,7 @@ if [ -f package.json ]; then
   export PATH="${PWD}/node_modules/.bin:${PATH}"
 fi
 
-binaries=(actionlint bash cyanprint docker git gomplate hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pls pre-commit releaser rg shellcheck skopeo task treefmt yq)
+binaries=(actionlint bash cyanprint docker dpkg gh git go gomplate goreleaser hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pls pre-commit releaser rg rpm shellcheck skopeo task treefmt yq)
 [ -f package.json ] && binaries+=(bun biome knip tsc)
 
 for binary in "${binaries[@]}"; do
@@ -70,14 +70,29 @@ fi
 docker --version >/dev/null
 docker info --format '{{.ServerVersion}}' >/dev/null
 
+dpkg --version >/dev/null
+dpkg --print-architecture >/dev/null
+
+gh --version >/dev/null
+gh help >/dev/null
+
 git --version >/dev/null
 git rev-parse --is-inside-work-tree >/dev/null
+
+go version >/dev/null
+go env GOOS >/dev/null
 
 gomplate --version >/dev/null
 [ "$(gomplate -i '{{ add 1 1 }}')" != "2" ] && echo "❌ gomplate failed a real template" >&2 && exit 1
 
 hadolint --version >/dev/null
 hadolint infra/Dockerfile
+
+goreleaser --version >/dev/null
+if ! git remote get-url origin >/dev/null 2>&1; then
+  git remote add origin https://github.com/AtomiCloud/diene.all.git
+fi
+goreleaser check >/dev/null
 
 helm-docs --version >/dev/null
 
@@ -118,6 +133,9 @@ pre-commit validate-config .pre-commit-config.yaml
 rg --version >/dev/null
 rg -q '^## Bun foundation$|^# Diene workspace baseline$' README.md
 
+rpm --version >/dev/null
+rpm --eval '%{_arch}' >/dev/null
+
 releaser --version | rg -qx '1.0.0'
 printf '%s\n' 'feat: add a smoke capability' >"${tmp}/good-commit.txt"
 releaser lint-commit -c atomi_release.yaml "${tmp}/good-commit.txt"
@@ -143,5 +161,7 @@ treefmt --completion bash >"${tmp}/treefmt-completion.bash"
 
 yq --version >/dev/null
 yq -en '.ok = true | .ok == true' >/dev/null
+
+releaser --help >/dev/null
 
 echo "✅ Binary smoke passed"
