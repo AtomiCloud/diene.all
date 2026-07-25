@@ -11,7 +11,27 @@ let minted = 0;
 
 const NONCE = 'a'.repeat(43);
 
-beforeAll(() => {
+// Substituted repo modules must be handed back: mock.module is process-wide and
+// permanent, and bun's file order is filesystem-dependent — on CI this file ran
+// before the specs that test the REAL server-config and broke six of them.
+const restores: (() => void)[] = [];
+
+/**
+ * Snapshot a repo module and return a restorer. `mock.module` is process-wide
+ * and permanent, and bun orders test files by filesystem rather than name, so a
+ * substituted module must be handed back or it breaks whichever spec runs next.
+ * The specifier is resolved by the CALLER (mock.module is caller-relative).
+ */
+const captureReal = async (specifier: string, load: () => Promise<unknown>): Promise<() => void> => {
+  const snapshot = { ...((await load()) as Record<string, unknown>) };
+  return () => mock.module(specifier, () => snapshot);
+};
+
+beforeAll(async () => {
+  restores.push(
+    await captureReal('../../src/adapters/server-config', () => import('../../src/adapters/server-config')),
+  );
+  restores.push(await captureReal('../../src/adapters/auth/server', () => import('../../src/adapters/auth/server')));
   host = Bun.serve({
     port: 0,
     fetch: request => {
@@ -30,6 +50,7 @@ beforeAll(() => {
 });
 
 afterAll(() => {
+  for (const restore of restores) restore();
   host.stop(true);
 });
 

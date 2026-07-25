@@ -1,4 +1,4 @@
-import { beforeAll, describe, it } from 'bun:test';
+import { afterAll, beforeAll, describe, it, mock } from 'bun:test';
 import should from 'should';
 import { fakeJar, mockCookies, type FakeJar } from './fixtures/cookie-jar';
 import { intConfig } from './fixtures/config';
@@ -13,7 +13,24 @@ const SESSION_COOKIE = 'diene.auth.session';
 let config: RootConfig;
 let jar: FakeJar;
 
+// Substituted repo modules are handed back in afterAll: mock.module is
+// process-wide and permanent, and bun orders files by filesystem, not name.
+const restores: (() => void)[] = [];
+
+/**
+ * Snapshot a repo module and return a restorer. `mock.module` is process-wide
+ * and permanent, and bun orders test files by filesystem rather than name, so a
+ * substituted module must be handed back or it breaks whichever spec runs next.
+ * The specifier is resolved by the CALLER (mock.module is caller-relative).
+ */
+const captureReal = async (specifier: string, load: () => Promise<unknown>): Promise<() => void> => {
+  const snapshot = { ...((await load()) as Record<string, unknown>) };
+  return () => mock.module(specifier, () => snapshot);
+};
+
 beforeAll(async () => {
+  restores.push(await captureReal('../../src/adapters/auth/server', () => import('../../src/adapters/auth/server')));
+  restores.push(await captureReal('next/navigation', () => import('next/navigation')));
   jar = fakeJar();
   mockCookies(jar);
   config = await intConfig('base');
@@ -249,4 +266,8 @@ describe('pkce', () => {
     // Assert
     should(challenge).equal('E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM');
   });
+});
+
+afterAll(() => {
+  for (const restore of restores) restore();
 });
