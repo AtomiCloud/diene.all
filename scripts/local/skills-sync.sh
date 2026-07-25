@@ -3,7 +3,7 @@ set -euo pipefail
 
 vendor_dir=".claude/skills/vendor"
 staging="$(mktemp -d .claude/skills/.vendor.XXXXXX)"
-trap 'rm -rf "${staging}"' EXIT
+trap 'chmod -R u+w "${staging}" 2>/dev/null || true; rm -rf "${staging}"' EXIT
 
 touch "${staging}/.gitkeep"
 
@@ -46,6 +46,11 @@ if [ -f .dart_tool/package_config.json ]; then
   done < <(jq -r '.packages[] | select(.name | startswith("diene_")) | [.name, .rootUri] | @tsv' .dart_tool/package_config.json)
 fi
 
+# Sources such as the Go module cache are read-only; cp -R preserves those
+# permissions, so make the staged tree writable or the next sync cannot remove it.
+chmod -R u+w "${staging}"
+
+chmod -R u+w "${vendor_dir}" 2>/dev/null || true
 rm -rf "${vendor_dir}"
 mkdir -p "$(dirname "${vendor_dir}")"
 mv "${staging}" "${vendor_dir}"

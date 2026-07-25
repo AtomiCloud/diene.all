@@ -1,10 +1,17 @@
 # Go library baseline
 
-This template publishes the module
-`github.com/AtomiCloud/diene.go-lib`. A materialized child changes the final
-`go-lib` token to its library name in `.config/go-lib.yaml`, `go.mod`, mirror
-URLs, badges, documentation, and its usage-skill namespace. The mirror remains
-a single-module repository unless a concrete library proves otherwise.
+This library publishes the module
+`github.com/AtomiCloud/diene.go-auth-engine`, materialized from the `go-lib`
+template. Retargeting a child changes the final identity token in
+`.config/go-lib.yaml`, `go.mod`, mirror URLs, badges, documentation, and its
+usage-skill namespace. The mirror remains a single-module repository unless a
+concrete library proves otherwise.
+
+This library consumes its published siblings through the Go proxy — never a
+local `replace` or path dependency — so its own test suites are the family's
+downstream real-consumption evidence for
+`github.com/AtomiCloud/diene.go-core-utils` and
+`github.com/AtomiCloud/diene.go-errors-problems`.
 
 ## Package and API shape
 
@@ -20,8 +27,11 @@ All tests use external `_test` packages, and `export_test.go` is forbidden;
 `scripts/validate/go-black-box-tests.sh` (pre-commit hook `a-go-black-box`)
 enforces both by rejecting any `export_test.go` or non-`_test` test package.
 
-The sample `note` package and Redis adapter are fenced by their directories for
-wholesale replacement in materialized children. The module has no `main` or
+The public packages are `lib/authengine`, `lib/logto`, `lib/deferred`, and
+`lib/onboard`, plus the consumer-facing `testhelper`. This library binds no
+infrastructure of its own, so it ships no `adapters/` tree and its integration
+tier is a documented no-op; every port it needs (token store, deferred store,
+onboarding backend) is a seam the consumer binds. The module has no `main` or
 `cmd` package. `go build ./...`, `go vet ./...`, golangci-lint, govulncheck,
 strict deadcode, examples, and `gorelease` protect the resulting library shape.
 

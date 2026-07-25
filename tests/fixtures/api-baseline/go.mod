@@ -1,3 +1,3 @@
-module example.invalid/go-lib-api-baseline
+module github.com/AtomiCloud/diene.go-auth-engine
 
 go 1.26.0

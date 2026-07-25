@@ -1,14 +1,14 @@
-# Diene Go library template
+# Diene Go auth-engine library
 
 <!-- ### go-base-badges -->
 <!-- #### source: go-base -->
 
-[![CI](https://github.com/AtomiCloud/diene.go-lib/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.go-lib/actions/workflows/ci.yaml)
-[![Unit coverage](https://codecov.io/gh/AtomiCloud/diene.go-lib/branch/main/graph/badge.svg?flag=unit)](https://codecov.io/gh/AtomiCloud/diene.go-lib)
-[![Integration coverage](https://codecov.io/gh/AtomiCloud/diene.go-lib/branch/main/graph/badge.svg?flag=int)](https://codecov.io/gh/AtomiCloud/diene.go-lib)
-[![Meta coverage](https://codecov.io/gh/AtomiCloud/diene.go-lib/branch/main/graph/badge.svg?flag=meta)](https://codecov.io/gh/AtomiCloud/diene.go-lib)
-[![Go Reference](https://pkg.go.dev/badge/github.com/AtomiCloud/diene.go-lib.svg)](https://pkg.go.dev/github.com/AtomiCloud/diene.go-lib)
-[![Commit activity](https://img.shields.io/github/commit-activity/m/AtomiCloud/diene.go-lib)](https://github.com/AtomiCloud/diene.go-lib/commits/main)
+[![CI](https://github.com/AtomiCloud/diene.go-auth-engine/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.go-auth-engine/actions/workflows/ci.yaml)
+[![Unit coverage](https://codecov.io/gh/AtomiCloud/diene.go-auth-engine/branch/main/graph/badge.svg?flag=unit)](https://codecov.io/gh/AtomiCloud/diene.go-auth-engine)
+[![Integration coverage](https://codecov.io/gh/AtomiCloud/diene.go-auth-engine/branch/main/graph/badge.svg?flag=int)](https://codecov.io/gh/AtomiCloud/diene.go-auth-engine)
+[![Meta coverage](https://codecov.io/gh/AtomiCloud/diene.go-auth-engine/branch/main/graph/badge.svg?flag=meta)](https://codecov.io/gh/AtomiCloud/diene.go-auth-engine)
+[![Go Reference](https://pkg.go.dev/badge/github.com/AtomiCloud/diene.go-auth-engine.svg)](https://pkg.go.dev/github.com/AtomiCloud/diene.go-auth-engine)
+[![Commit activity](https://img.shields.io/github/commit-activity/m/AtomiCloud/diene.go-auth-engine)](https://github.com/AtomiCloud/diene.go-auth-engine/commits/main)
 
 <!-- ### nix-root -->
 <!-- #### source: main -->
@@ -34,18 +34,49 @@ synchronization.
 
 ## Publishable Go module
 
-`github.com/AtomiCloud/diene.go-lib` is the reusable parent for the
-`github.com/AtomiCloud/diene.go-*` module family. It demonstrates small public
-packages, a consumer-facing `testhelper` package, strict black-box tests, and
-tag-based publication through the Go proxy.
+`github.com/AtomiCloud/diene.go-auth-engine` is the Go family's server-side auth
+engine: JWT/JWKS validation against a baked OIDC issuer, the Logto adapter,
+per-resource access tokens over the `resourceTree` model, machine-to-machine
+client-credential flows, deferred deep-link login mint/redeem, the `OnboardSync`
+per-backend onboarding phase machine, and the family nullable-userId ownership
+authorization pattern — all problem-typed through
+`github.com/AtomiCloud/diene.go-errors-problems` and shipped with a
+consumer-facing `testhelper` package.
 
 ```bash
-go get github.com/AtomiCloud/diene.go-lib@latest
+go get github.com/AtomiCloud/diene.go-auth-engine@latest
 ```
 
 ```go
-value := note.New("Living Documentation", "pkg.go.dev examples stay executable")
+principal, err := validator.Validate(ctx, bearer)
+if err != nil {
+	return err
+}
+if err := guard.SubOrAny(principal, query.UserID, authengine.ClaimRoles, "admin"); err != nil {
+	return err
+}
 ```
+
+Packages:
+
+- `lib/authengine` — validation, principal mapping, resource tree and token
+  cache, retrievers, refresh rotation, ownership guard, named claim policies,
+  and the engine-owned config block.
+- `lib/logto` — the Logto adapter behind the provider seam (OIDC discovery,
+  remote JWKS, token endpoint, one-time tokens, Management API claim
+  write-back).
+- `lib/deferred` — deferred deep-link login: nonce mint/exchange plus the
+  Android Install Referrer and iOS clipboard carrier builders.
+- `lib/onboard` — `OnboardSync`: claims-first per-backend onboarding phase
+  machine and the pre-onboarding home-landscape selector.
+- `testhelper` — fake IdP/JWKS, fake provider, in-memory stores, per-backend
+  onboarding fakes, and Problem-shaped auth assertions.
+
+Engine concepts (resourceTree, deferred deep-link login, the onboarding phase
+machine, and the ownership guard) are documented on the packages themselves and
+in the shipped usage skill `skills/diene-go-auth-engine-usage/SKILL.md`. The
+authorization doctrine this library implements is the shared standard
+[Authorization](docs/standards/authorization/index.md).
 
 <!-- ### go-base-commands -->
 <!-- #### source: go-base -->
@@ -56,7 +87,7 @@ value := note.New("Living Documentation", "pkg.go.dev examples stay executable")
 - `pls typecheck` — compile every source package without running tests.
 - `pls test` / `pls test:coverage` — run unit, integration, and active meta tiers.
 - `pls deadcode` — run strict whole-repository and production passes plus the LLM-lax report.
-- `pls up` / `pls down` — start or stop local Redis.
+- `pls up` / `pls down` — start or stop local infrastructure (this library binds none).
 - `./scripts/ci/pkg-validate.sh all` — run module-path, vet, API, docs, and example validators.
 
 See the [Go baseline](docs/developer/go-baseline.md) for the language contract and

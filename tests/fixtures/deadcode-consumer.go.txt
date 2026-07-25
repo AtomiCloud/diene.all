@@ -1,26 +1,38 @@
 package main
 
 import (
-	"context"
+	"fmt"
+	"time"
 
-	"github.com/AtomiCloud/diene.go-lib/adapters/kv"
-	"github.com/AtomiCloud/diene.go-lib/lib/note"
-	"github.com/AtomiCloud/diene.go-lib/testhelper"
+	"github.com/AtomiCloud/diene.go-auth-engine/lib/authengine"
 )
 
 func main() {
-	ctx := context.Background()
-	memory := testhelper.NewMemoryStore()
-	value := note.New("Deadcode Consumer", "public surface")
-	service := note.NewService(memory)
-	_ = note.Slug(value.Slug)
-	_ = note.NamespacedKey("notes", value.Slug)
-	_ = service.Save(ctx, value)
-	_, _ = service.Load(ctx, value.Slug)
-	_ = memory.Save(ctx, value.Slug, value.Body)
-	_, _ = memory.Load(ctx, value.Slug)
-	redis := kv.NewRedisStore("127.0.0.1:6379")
-	_ = redis.Save
-	_ = redis.Load
-	_ = redis.Close
+	claims := authengine.Claims{
+		authengine.ClaimSubject:       "user-1",
+		authengine.ClaimIssuer:        "https://api.lithium.alcohol.mew.cluster.atomi.cloud",
+		authengine.ClaimAudience:      "alcohol-zinc",
+		authengine.ClaimExpiry:        float64(time.Now().Add(authengine.AccessTokenLifetime).Unix()),
+		authengine.ClaimUsername:      "owner",
+		authengine.ClaimEmail:         "owner@example.invalid",
+		authengine.ClaimEmailVerified: true,
+		authengine.ClaimRoles:         []any{"admin"},
+		authengine.ClaimScope:         "read:booking",
+		"alcohol_zinc":                "true",
+	}
+	_, _ = claims.Text(authengine.ClaimSubject)
+	_, _ = claims.Flag(authengine.ClaimEmailVerified)
+	_, _ = claims.List(authengine.ClaimRoles)
+	_, _ = claims.Space(authengine.ClaimScope)
+	_, _ = claims.Instant(authengine.ClaimExpiry)
+	_ = claims.Clone()
+	fmt.Println(
+		authengine.AccessTokenLifetime,
+		authengine.RefreshTokenLifetime,
+		authengine.DeferredTokenLifetime,
+		authengine.OneTimeTokenLifetime,
+		authengine.DefaultRefreshSkew,
+		authengine.DefaultClockSkew,
+		authengine.ClaimHomeLandscape,
+	)
 }
