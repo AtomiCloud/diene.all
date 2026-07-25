@@ -1,7 +1,7 @@
 # Go library baseline
 
 This template publishes the module
-`github.com/AtomiCloud/diene.go-lib`. A materialized child changes the final
+`github.com/AtomiCloud/diene.go-config`. A materialized child changes the final
 `go-lib` token to its library name in `.config/go-lib.yaml`, `go.mod`, mirror
 URLs, badges, documentation, and its usage-skill namespace. The mirror remains
 a single-module repository unless a concrete library proves otherwise.
@@ -20,10 +20,13 @@ All tests use external `_test` packages, and `export_test.go` is forbidden;
 `scripts/validate/go-black-box-tests.sh` (pre-commit hook `a-go-black-box`)
 enforces both by rejecting any `export_test.go` or non-`_test` test package.
 
-The sample `note` package and Redis adapter are fenced by their directories for
-wholesale replacement in materialized children. The module has no `main` or
-`cmd` package. `go build ./...`, `go vet ./...`, golangci-lint, govulncheck,
-strict deadcode, examples, and `gorelease` protect the resulting library shape.
+The public surface lives in `lib/config`: it layers base YAML, a sparse
+landscape overlay, and indexed environment overrides; validates the final tree
+against a generated service-composed schema; and decodes typed slices. A
+consumer-facing `testhelper` package supplies fake sources and invalid-schema
+fixtures. The module has no `main` or `cmd` package. `go build ./...`, `go vet
+./...`, golangci-lint, govulncheck, strict deadcode, examples, and `gorelease`
+protect the resulting library shape.
 
 ## Test pyramid and TestHelper
 
