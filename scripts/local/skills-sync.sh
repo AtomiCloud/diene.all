@@ -2,6 +2,15 @@
 set -euo pipefail
 
 vendor_dir=".claude/skills/vendor"
+
+# The vendored copies come FROM installed packages; without node_modules the
+# sync would stage an empty tree and delete every committed skill. Fail loudly
+# instead — the caller forgot to install first.
+if [ ! -d node_modules/@atomicloud ]; then
+  echo "❌ node_modules/@atomicloud missing — run bun install before skills-sync" >&2
+  exit 1
+fi
+
 staging="$(mktemp -d .claude/skills/.vendor.XXXXXX)"
 trap 'rm -rf "${staging}"' EXIT
 
@@ -45,6 +54,13 @@ if [ -f .dart_tool/package_config.json ]; then
     cp -R "${skills_dir}/." "${staging}/${package}/"
   done < <(jq -r '.packages[] | select(.name | startswith("diene_")) | [.name, .rootUri] | @tsv' .dart_tool/package_config.json)
 fi
+
+# Vendored assets are plain files; the staging copy inherits whatever modes
+# the package manager gave node_modules (bun marks some files executable on
+# some machines), so modes are normalized before comparing — otherwise a
+# mode-only difference forces a replace and the freshness hook reads the mode
+# flip as a modification.
+find "${staging}" -type f -exec chmod 644 {} +
 
 # Idempotent swap: leave the tree untouched when nothing changed, so a
 # freshness re-run inside pre-commit never churns mtimes on a clean checkout
