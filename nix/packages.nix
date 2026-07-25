@@ -1,0 +1,157 @@
+{
+  atomi,
+  pkgs,
+  pkgs-2605,
+  pkgs-unstable,
+}:
+let
+  cyanprintVersion = "4.9.0";
+  cyanprintSystem = pkgs.stdenv.hostPlatform.system;
+  cyanprintPlatform =
+    ({
+      x86_64-linux = "linux_amd64";
+      aarch64-linux = "linux_arm64";
+      x86_64-darwin = "darwin_amd64";
+      aarch64-darwin = "darwin_arm64";
+    }).${cyanprintSystem};
+  cyanprintHash =
+    ({
+      x86_64-linux = "sha256-z5whvbKPJTgyR5qWeYefN7NuTKY1pWaRkYDnyyaNG9k=";
+      aarch64-linux = "sha256-SrhazRJbeK3vJHGvv0TwKHdz/ulqZM04qMtKgX0AJgA=";
+      x86_64-darwin = "sha256-XIolxZN+KVf/Ui5/rQjg+k3OXLrbJuGGxh6iYkki+/k=";
+      aarch64-darwin = "sha256-xugPBTO6CTixUjpq9PPq2WOQySci735gfuOXZSn75Ew=";
+    }).${cyanprintSystem};
+  cyanprint = pkgs.stdenvNoCC.mkDerivation {
+    pname = "cyanprint";
+    version = cyanprintVersion;
+    src = pkgs.fetchurl {
+      url = "https://github.com/AtomiCloud/sulfone.lite/releases/download/v${cyanprintVersion}/cyanprint_${cyanprintVersion}_${cyanprintPlatform}.tar.gz";
+      hash = cyanprintHash;
+    };
+    sourceRoot = ".";
+    strictDeps = true;
+    dontStrip = true;
+    nativeBuildInputs = pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.autoPatchelfHook ];
+    buildInputs = pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.glibc ];
+    installPhase = ''
+      runHook preInstall
+      install -Dm755 cyanprint "$out/bin/cyanprint"
+      runHook postInstall
+    '';
+    doInstallCheck = true;
+    installCheckPhase = ''
+      "$out/bin/cyanprint" --version | grep -Fx "cyanprint ${cyanprintVersion}"
+    '';
+    meta.mainProgram = "cyanprint";
+  };
+  all = rec {
+    # ### go-lib
+    # #### source: go-lib
+    go-lib = {
+      gorelease = pkgs-2605.buildGoModule {
+        pname = "gorelease";
+        version = "0-unstable-2026-07-18";
+        src = pkgs-2605.fetchFromGitHub {
+          owner = "golang";
+          repo = "exp";
+          rev = "764159d718ef";
+          hash = "sha256-fUuFVo6AZWzhOHd/JF0tCVwhrl8N0fX9QiS3XrTamQw=";
+        };
+        subPackages = [ "cmd/gorelease" ];
+        vendorHash = "sha256-ELLQTn79CJbJsLizncA+wL8B3Te0pfYHuV7DIRlD1K4=";
+        doCheck = false;
+      };
+      inherit (pkgs-2605) zip;
+    };
+
+    # ### go-base
+    # #### source: go-base
+    go-base = (
+      with pkgs-2605;
+      {
+        deadcode = gotools;
+        staticcheck = go-tools;
+        go = pkgs-2605.go.overrideAttrs (
+          finalAttrs: _previousAttrs: {
+            version = "1.26.5";
+            src = pkgs-2605.fetchurl {
+              url = "https://go.dev/dl/go${finalAttrs.version}.src.tar.gz";
+              hash = "sha256-SVvkvIcXasVnOS5bQRar2YRm0z17SdQedkzMaXay3EI=";
+            };
+          }
+        );
+        inherit
+          gofumpt
+          golangci-lint
+          gotestsum
+          govulncheck
+          ;
+      }
+    );
+
+    # ### nix-root
+    # #### source: main
+    atomipkgs = (
+      with atomi;
+      {
+        inherit
+          atomiutils
+          infralint
+          infrautils
+          pls
+          sg
+          ;
+      }
+    );
+
+    # ### workspace
+    # #### source: workspace
+    nix-2605 = (
+      with pkgs-2605;
+      {
+        inherit
+          actionlint
+          bash
+          docker-client
+          git
+          go-task
+          infisical
+          jq
+          kubeconform
+          kubernetes-helm
+          kyverno
+          nodejs
+          pre-commit
+          ripgrep
+          shellcheck
+          skopeo
+          treefmt
+          yq-go
+          ;
+      }
+    );
+
+    # ### workspace-releaser-bootstrap
+    # #### source: workspace
+    # C2: expose the pre-2p `releaser` command as a thin alias over sg.
+    releaser-bootstrap = {
+      releaser = pkgs.writeShellScriptBin "releaser" ''
+        exec ${atomi.sg}/bin/sg "$@"
+      '';
+    };
+
+    # ### nix-unstable
+    # #### source: main
+    nix-unstable = (
+      with pkgs-unstable;
+      {
+      }
+    );
+
+    root = {
+      inherit cyanprint;
+    };
+  };
+in
+with all;
+atomipkgs // nix-2605 // releaser-bootstrap // nix-unstable // root // go-base // go-lib

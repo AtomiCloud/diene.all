@@ -1,0 +1,113 @@
+# ### workspace-root
+# #### source: workspace
+version: '3'
+
+includes:
+  secret: tasks/Taskfile.secret.yaml
+
+  # ### go-base-test-includes
+  # #### source: go-base
+  gotest:
+    taskfile: tasks/Taskfile.test.yaml
+    internal: true
+
+tasks:
+  setup:
+    desc: Set up generated workspace assets
+    cmds:
+      - ./scripts/local/skills-sync.sh
+      # ### go-base-setup
+      # #### source: go-base
+      - go mod download
+
+  lint:
+    desc: Run all repository gates
+    cmds:
+      - pre-commit run --all-files
+
+  skills:sync:
+    desc: Synchronize installed diene package skills
+    cmds:
+      - ./scripts/local/skills-sync.sh
+
+  # ### go-base
+  # #### source: go-base
+  clean:
+    desc: Remove Go build, coverage, and report outputs
+    cmds:
+      - rm -rf dist coverage reports
+
+  build:
+    desc: Build every Go module package
+    cmds:
+      - ./scripts/local/build.sh
+
+  typecheck:
+    desc: Typecheck Go source packages
+    cmds:
+      - ./scripts/local/typecheck.sh
+
+  deadcode:
+    desc: Run strict Go deadcode passes and the LLM-lax report
+    cmds:
+      - ./scripts/local/deadcode.sh strict
+
+  test:
+    desc: Run unit, integration, and conditional TestHelper meta tiers
+    deps: [test:unit, test:int, test:meta]
+
+  test:unit:
+    desc: Run black-box unit tests
+    cmds:
+      - task: gotest:run
+        vars: { MODE: unit }
+
+  test:int:
+    desc: Run adapter integration tests
+    cmds:
+      - task: gotest:run
+        vars: { MODE: int }
+
+  test:meta:
+    desc: Run TestHelper meta tests when a testhelper package exists
+    cmds:
+      - task: gotest:run
+        vars: { MODE: meta }
+
+  test:coverage:
+    desc: Run every active coverage ledger
+    deps: [test:unit:coverage, test:int:coverage, test:meta:coverage]
+
+  test:unit:coverage:
+    desc: Enforce the unit coverage ledger
+    cmds:
+      - task: gotest:run
+        vars: { MODE: unit, COVERAGE: 'true' }
+
+  test:int:coverage:
+    desc: Enforce the integration coverage ledger
+    cmds:
+      - task: gotest:run
+        vars: { MODE: int, COVERAGE: 'true' }
+
+  test:meta:coverage:
+    desc: Enforce the TestHelper coverage ledger when active
+    cmds:
+      - task: gotest:run
+        vars: { MODE: meta, COVERAGE: 'true' }
+
+  test:watch:
+    desc: Re-run unit tests when Go files change
+    cmds:
+      - task: gotest:run
+        vars: { MODE: unit, WATCH: 'true' }
+
+  up:
+    desc: Start every local dependency
+    cmds:
+      - ./scripts/local/up.sh
+
+  down:
+    desc: Stop every local dependency
+    cmds:
+      - ./scripts/local/down.sh

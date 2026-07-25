@@ -1,0 +1,344 @@
+[
+  {
+    "template": "atomi/nix",
+    "name": "binary-smoke",
+    "class": "smoke"
+  },
+  {
+    "template": "atomi/nix",
+    "name": "dev-shell",
+    "class": "smoke"
+  },
+  {
+    "template": "atomi/nix",
+    "name": "direnv",
+    "class": "smoke"
+  },
+  {
+    "template": "atomi/nix",
+    "name": "precommit-treefmt-actionlint",
+    "class": "gate"
+  },
+  {
+    "template": "atomi/nix",
+    "name": "precommit-treefmt-nixfmt",
+    "class": "gate"
+  },
+  {
+    "template": "atomi/nix",
+    "name": "precommit-treefmt-prettier",
+    "class": "gate"
+  },
+  {
+    "template": "atomi/nix",
+    "name": "precommit-treefmt-shfmt",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "dev-shell",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "direnv",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "fmt-actionlint",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "fmt-nixfmt",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "fmt-prettier",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "fmt-shfmt",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "binary-smoke",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "hook-shellcheck",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "hook-infisical-full",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "hook-infisical-staged",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "hook-enforce-exec",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "workflow-wiring",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "workflow-actionlint",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "secret-guards",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "secret-scan-command",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "skills-vendor-directory",
+    "class": "presence"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "skills-sync",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "skills-freshness",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "release-config-schema",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "release-type-vocabulary",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "release-workflow-trigger",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "release-workflow-concurrency",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "workflow-names",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "nixpkgs-pin",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "trusted-action-pins",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "non-trusted-action-pins",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "cache-tag-shape",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "many-owner-schema",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "releaser-hook-registration",
+    "class": "presence",
+    "deferredUntil": "tools/releaser step 2p publish"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "probe-artifacts",
+    "class": "presence"
+  },
+  {
+    "template": "diene/shared",
+    "name": "claude-link-integrity",
+    "class": "gate"
+  },
+  {
+    "template": "diene/shared",
+    "name": "standards-inventory",
+    "class": "presence"
+  },
+  {
+    "template": "diene/shared",
+    "name": "thin-skills",
+    "class": "presence"
+  },
+  {
+    "template": "diene/shared",
+    "name": "docs-markdownlint",
+    "class": "gate"
+  },
+  {
+    "template": "diene/shared",
+    "name": "docs-prettier",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "unit-tests",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "hook-go-black-box",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "integration-tests",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "go-typecheck",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "hook-golangci-lint",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "govulncheck",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "unit-coverage-scope",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "integration-coverage-scope",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "deadcode-whole-repo",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "deadcode-production",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "go-workflow-wiring",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "fmt-gofumpt",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "precommit-treefmt-gofumpt",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "build-artifact",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "deadcode-llm-lax",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "codecov-config",
+    "class": "presence"
+  },
+  {
+    "template": "diene/go-lib",
+    "name": "go-lib-module-path",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-lib",
+    "name": "go-lib-vet",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-lib",
+    "name": "go-lib-api-compatibility",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-lib",
+    "name": "go-lib-publish-semver-guard",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-lib",
+    "name": "go-lib-export-docs",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-lib",
+    "name": "go-lib-examples",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-lib",
+    "name": "go-lib-publish-workflow-wiring",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-lib",
+    "name": "go-lib-meta-tests",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-lib",
+    "name": "go-lib-meta-coverage",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-lib",
+    "name": "go-lib-proxy-roundtrip",
+    "class": "smoke",
+    "deferredUntil": "P-TOKEN mirror tag publication"
+  }
+]
