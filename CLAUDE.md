@@ -91,9 +91,15 @@ Language variants:
 - [C# utilities](docs/standards/utilities/languages/csharp.md)
 - [C# validation](docs/standards/validation/languages/csharp.md)
 
-Keep `dotnet-base.slnx`, `.config/dotnet-base.test.yaml`, and
-`AtomiCloud.DotnetBase.*` root namespaces base-named. Observability is absent on
-this branch.
+Keep `dotnet-base.slnx`, `.config/dotnet-base.test.yaml`, and the project
+filenames base-named. Observability is absent on this branch.
+
+This branch materializes `AtomiCloud.Diene.Interfaces` — the S33 shared seams.
+Read [docs/domain/interfaces.md](docs/domain/interfaces.md) before touching the
+seam surface: every fallible method returns `Result<T, SeamError>` and never
+throws, no concrete host helper may enter `Lib/`, and `SeamContracts` is the one
+shared behavioural suite run against BOTH the mocks (meta tier) and the
+host-backed reference adapters in `App/` (int tier).
 
 <!-- ### dotnet-lib -->
 <!-- #### source: dotnet-lib -->

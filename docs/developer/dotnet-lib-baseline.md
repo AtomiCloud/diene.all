@@ -5,12 +5,14 @@ title: .NET Library Baseline
 
 # .NET library baseline
 
-This branch turns the `.NET 10` base into a publishable library template. It
-keeps the base `App` as a non-packable consumer and publishes two lockstep
-packages from one solution:
+This Interfaces materialization keeps `App` as a non-packable consumer holding the
+host-backed reference adapters, and publishes two lockstep packages from one
+solution:
 
-- `AtomiCloud.Diene.Note` contains the illustrative Note domain;
-- `AtomiCloud.Diene.Note.TestHelper` contains consumer assertions and references
+- `AtomiCloud.Diene.Interfaces` contains the shared System/VFS/Terminal/logging/
+  metrics seams, their value types, the `SeamError` catalog, and the C0 wire codecs;
+- `AtomiCloud.Diene.Interfaces.TestHelper` contains the in-memory seam mocks, the
+  shared contract suites, and FluentAssertions steps, and references
   the main package.
 
 Both package ids and assembly names are consumer-visible, real identities.
@@ -34,11 +36,11 @@ after 1.0 compare their public API with the `1.0.0` baseline.
 
 ## Testing tiers
 
-- `pls test:unit` measures the real `AtomiCloud.Diene.Note` assembly plus the
+- `pls test:unit` measures the real `AtomiCloud.Diene.Interfaces` assembly plus the
   inherited `[Lib*]*` scaling wildcard at 100%, and explicitly excludes
   `*.TestHelper` assemblies.
-- `pls test:int` retains the base Testcontainers-backed adapter boundary and
-  measures only `[App*]*`.
+- `pls test:int` runs the shipped contract suites against the host-backed reference
+  adapters in `App*`, without a container or network service.
 - `pls test:meta` independently measures `[*.TestHelper]*` at 100%. Its tests
   include known-good and known-bad assertion cases.
 
@@ -67,7 +69,7 @@ A materialized library changes only these owned surfaces:
 - shared author/company/repository URLs in `Directory.Build.props`;
 - README badges, install snippet, icon, and illustrative source/tests;
 - unit/meta thresholds when the shipped surface justifies a stricter value;
-- `skills/diene-dotnet-note-usage/` to the materialized library's namespaced
+- `skills/diene-dotnet-interfaces-usage/` to the materialized library's namespaced
   usage skill.
 
 Keep CPM, SDK SourceLink, symbols, committed versioning, package validation,

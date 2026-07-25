@@ -20,11 +20,14 @@ export default defineGate({
   },
   mutation: {
     name: 'mutation-dotnet-lib-api-compatibility-caught',
-    description: 'Removing one public 1.0 interface member turns PackageValidation red.',
+    description: 'Removing one public 1.0 wire member turns the packaging gate red.',
     expectedImpact: [],
     async run(repo: any) {
-      await repo.patch('Lib/INoteRepository.cs', {
-        find: '\n    Task<NotePrincipal?> Find(string id, CancellationToken cancellationToken = default);',
+      await repo.patch('Lib/SeamWire.cs', {
+        find:
+          '\n    /// <summary>Renders an instant as an RFC 3339 UTC timestamp.</summary>\n' +
+          '    public static string Instant(DateTimeOffset value) =>\n' +
+          '        value.ToUniversalTime().ToString(InstantFormat, CultureInfo.InvariantCulture);\n',
         replace: '',
       });
       await expectRed(

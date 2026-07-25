@@ -68,16 +68,6 @@ tasks:
     cmds:
       - dotnet App/bin/Release/net10.0/App.dll {{.CLI_ARGS}}
 
-  up:
-    desc: Start all local dependencies, detached
-    cmds:
-      - docker run -d --rm --name dotnet-base-redis -p 6379:6379 redis:8.2.1-alpine
-
-  down:
-    desc: Stop all local dependencies
-    cmds:
-      - docker stop dotnet-base-redis 2>/dev/null || true
-
   deadcode:
     desc: Emit the non-blocking LLM dead-code review
     cmds:
