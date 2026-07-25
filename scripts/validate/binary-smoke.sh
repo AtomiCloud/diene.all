@@ -6,7 +6,7 @@ if [ -f package.json ]; then
   export PATH="${PWD}/node_modules/.bin:${PATH}"
 fi
 
-binaries=(actionlint bash cyanprint docker git gomplate hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pls pre-commit rg sg shellcheck skopeo task treefmt yq)
+binaries=(actionlint bash cyanprint docker git gomplate hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pls pre-commit releaser rg shellcheck skopeo task treefmt yq)
 [ -f package.json ] && binaries+=(bun biome knip tsc)
 
 for binary in "${binaries[@]}"; do
@@ -26,7 +26,15 @@ actionlint "${tmp}/workflow.yaml"
 bash --version >/dev/null
 [ "$(bash -c 'printf smoke')" != "smoke" ] && echo "❌ bash failed a real invocation" >&2 && exit 1
 
-cyanprint --version | rg -qx 'cyanprint 4.8.0'
+mapfile -t cyanprint_versions < <(
+  awk -F'"' '/^[[:space:]]*cyanprintVersion = "[^"]+";$/ { print $2 }' nix/packages.nix
+)
+if [ "${#cyanprint_versions[@]}" -ne 1 ]; then
+  echo "expected exactly one cyanprintVersion pin in nix/packages.nix" >&2
+  exit 1
+fi
+cyanprint --version | grep -Fqx "cyanprint ${cyanprint_versions[0]}"
+
 mkdir -p "${tmp}/cyanprint-cache"
 cyanprint cache inspect --cache-dir "${tmp}/cyanprint-cache" --json | jq -e '.status == "done" and .action == "inspect"' >/dev/null
 
@@ -109,11 +117,14 @@ pre-commit validate-config .pre-commit-config.yaml
 rg --version >/dev/null
 rg -q '^## Bun foundation$|^# Diene workspace baseline$' README.md
 
-sg --version >/dev/null
-printf '%s\n' '[general]' 'contrib=CT1' 'ignore=B6' '' '[contrib-title-conventional-commits]' 'types = amend' >"${tmp}/.gitlint"
-yq '.gitlint = ".gitlint"' atomi_release.yaml >"${tmp}/sg-config.yaml"
-(cd "${tmp}" && sg gitlint -c sg-config.yaml >/dev/null 2>&1 || true)
-rg -q 'chore' "${tmp}/.gitlint"
+releaser --version | rg -qx '1.0.0'
+printf '%s\n' 'feat: add a smoke capability' >"${tmp}/good-commit.txt"
+releaser lint-commit -c atomi_release.yaml "${tmp}/good-commit.txt"
+printf '%s\n' 'wibble: not a real type' >"${tmp}/bad-commit.txt"
+releaser lint-commit -c atomi_release.yaml "${tmp}/bad-commit.txt" && {
+  echo "❌ releaser lint-commit accepted an invalid commit" >&2
+  exit 1
+}
 
 shellcheck --version >/dev/null
 shellcheck scripts/validate/binary-smoke.sh
@@ -131,11 +142,5 @@ treefmt --completion bash >"${tmp}/treefmt-completion.bash"
 
 yq --version >/dev/null
 yq -en '.ok = true | .ok == true' >/dev/null
-
-if command -v releaser >/dev/null; then
-  releaser --help >/dev/null
-else
-  echo "⏭️ releaser binary awaits the C2 step-2p tools/releaser publish"
-fi
 
 echo "✅ Binary smoke passed"
