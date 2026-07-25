@@ -94,6 +94,11 @@ let
     nix-unstable = (
       with pkgs-unstable;
       {
+        # ### nextjs-frontend-packages
+        # #### source: nextjs-frontend
+        # wrangler and the standalone server need Node >= 22; atomiutils ships
+        # v20, so the shell pins a modern runtime explicitly.
+        nodejs = nodejs_24;
       }
     );
 

@@ -31,6 +31,9 @@ with packages;
   # ### workspace-main
   # #### source: workspace
   main = [
+    # ### nextjs-frontend-main
+    # #### source: nextjs-frontend
+    nodejs
     # ### bun-base-main
     # #### source: bun-base
     bun
