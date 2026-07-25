@@ -30,7 +30,10 @@ import (
 
 func main() {
 	ctx := context.Background()
-	idp := testhelper.NewFakeIdP(testhelper.FakeIdPOptions{})
+	idp, err := testhelper.NewFakeIDP(testhelper.FakeIDPOptions{})
+	if err != nil {
+		panic(err)
+	}
 
 	validator, err := idp.Validator()
 	if err != nil {
