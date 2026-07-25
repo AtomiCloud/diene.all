@@ -48,9 +48,9 @@ if [ "${mode}" = "installed" ]; then
     '.profiles | to_entries[] | .key as $p | .value.included[] | .id as $m |
        (($installed[$p] // {})[$m] // null) as $live |
        if $live == null then (if $subset then empty else "\($p)\t\($m)\tNOT-INSTALLED\tprofile includes it" end)
-       else ( .images | map(select(.digest != null))[] | .digest as $d |
-              select((($live.images) // []) | index($d) | not) |
-              "\($p)\t\($m)\tDRIFT\texpected \($d)" )
+       else ( .images | map(select(.digest != null))[] | .digest as $d | (.accepted // [$d]) as $ok |
+              select([ (($live.images) // [])[] | select(. as $i | $ok | index($i)) ] | length == 0) |
+              "\($p)\t\($m)\tDRIFT\texpected one of \($ok | join(" or "))" )
        end' "${rendered}" >"${findings}"
   [ -s "${findings}" ] && echo "❌ installed digests disagree with the owning definitions:" >&2 && cat "${findings}" >&2 && exit 1
   echo "  every installed member matches the digest its owning definition names"

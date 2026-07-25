@@ -10,6 +10,8 @@ chartRef:
 imageRefs:
   - ref: ghcr.io/stakater/reloader:v1.4.19
     digest: sha256:0530cf462fa3ba530fab887372e3b79caf608d0093ffc2fded9fa33bac8b74cd
+    platformDigests:
+      - sha256:7ca350e90b5fefecb879c3a165e789296ba7b3b6f59414b4023ee368784786a1
 profiles:
   lapras: { state: include }
   ditto: { state: include }

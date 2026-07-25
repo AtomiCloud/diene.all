@@ -100,6 +100,14 @@
         },
         "pending": {
           "enum": ["upstream-appversion-unpinned", "owning-node-incomplete"]
+        },
+        "platformDigests": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "description": "Platform child digests of an image index. The index digest and any of its children name the same artifact, so the doctor accepts either."
         }
       }
     },

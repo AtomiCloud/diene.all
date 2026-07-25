@@ -113,3 +113,23 @@ By default the comparison also requires completeness: an included member that is
 running is reported as `NOT-INSTALLED`. Set `DIENE_INSTALLED_SUBSET=true` to check only the
 members present in the tuple, which is the right mode for a partial inventory and never
 the right mode for a readiness gate.
+
+## Image indexes and platform digests
+
+A pinned image is usually an OCI image index, and the digest a kubelet reports in
+`imageID` may be a platform child of that index rather than the index digest itself. Both
+name the same artifact, so a definition may record the children alongside the index digest:
+
+```yaml
+imageRefs:
+  - ref: ghcr.io/external-secrets/external-secrets:v2.7.0
+    digest: sha256:6615aaea... # the index digest
+    platformDigests:
+      - sha256:04b0d005... # linux/amd64 child of that index
+```
+
+The doctor accepts the index digest or any recorded child. Without this the doctor would
+report drift on a correct install the first time it ran against a real cluster, which is a
+false positive in the assertion it exists to provide. The `platform-digest-acceptance` gate
+proves both are accepted, proves the two inventories genuinely differ so the check is not
+vacuous, and proves an unrelated digest is still drift, so the widening does not blunt it.

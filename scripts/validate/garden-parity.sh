@@ -107,12 +107,32 @@ doctor-installed)
   DIENE_INSTALLED_FILE=sulfoxide/fixtures/installed/eevee-green.json ./scripts/local/garden-doctor.sh installed eevee >/dev/null
   echo "✅ Installed digests match the owning definitions"
   ;;
+platform-digest-acceptance)
+  # A pinned image is usually an OCI index, so the digest a kubelet reports may be a
+  # platform child rather than the index digest recorded in the definition. Both name the
+  # same artifact and must be accepted, while an unrelated digest must still be drift.
+  DIENE_PODS_JSON=sulfoxide/fixtures/cluster/pods-eevee.json ./scripts/local/garden-installed-tuple.sh eevee >"${tmp}/index.json"
+  DIENE_INSTALLED_FILE="${tmp}/index.json" DIENE_INSTALLED_SUBSET=true ./scripts/local/garden-doctor.sh installed eevee >/dev/null
+  DIENE_PODS_JSON=sulfoxide/fixtures/cluster/pods-eevee-platform-digests.json ./scripts/local/garden-installed-tuple.sh eevee >"${tmp}/child.json"
+  DIENE_INSTALLED_FILE="${tmp}/child.json" DIENE_INSTALLED_SUBSET=true ./scripts/local/garden-doctor.sh installed eevee >/dev/null
+  # The two inventories must genuinely differ, or this mode proves nothing.
+  cmp -s "${tmp}/index.json" "${tmp}/child.json" && {
+    echo "❌ the index and platform-child inventories are identical; this mode is vacuous" >&2
+    exit 1
+  }
+  jq '.eevee.cobalt.images = ["sha256:9999999999999999999999999999999999999999999999999999999999999999"]' "${tmp}/child.json" >"${tmp}/bogus.json"
+  ! DIENE_INSTALLED_FILE="${tmp}/bogus.json" DIENE_INSTALLED_SUBSET=true ./scripts/local/garden-doctor.sh installed eevee >/dev/null 2>&1 || {
+    echo "❌ accepting platform children blunted the gate: an unrelated digest passed" >&2
+    exit 1
+  }
+  echo "✅ An index digest and its platform children are accepted; an unrelated digest is still drift"
+  ;;
 cluster-inventory-shape)
   # The extractor's input shape is proven against the upstream Kubernetes schema rather
   # than against our own belief about it: kubeconform is an oracle we do not author, so a
   # fixture that drifts from what a real API server returns cannot pass (R-E29).
-  kubeconform -summary -strict sulfoxide/fixtures/cluster/pods-eevee.json >"${tmp}/kubeconform.log" 2>&1
-  rg -q 'Valid: 3, Invalid: 0, Errors: 0' "${tmp}/kubeconform.log" || {
+  kubeconform -summary -strict sulfoxide/fixtures/cluster/pods-eevee.json sulfoxide/fixtures/cluster/pods-eevee-platform-digests.json >"${tmp}/kubeconform.log" 2>&1
+  rg -q "Valid: 6, Invalid: 0, Errors: 0" "${tmp}/kubeconform.log" || {
     echo "❌ the pod inventory fixture is not a schema-valid Kubernetes Pod list:" >&2
     cat "${tmp}/kubeconform.log" >&2
     exit 1

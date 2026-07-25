@@ -67,7 +67,7 @@ jq -n \
              mode: (.profiles[$p].mode // null),
              chart: (if .chartRef.digest == null then (.chartRef.repository + ":" + .chartRef.version) else (.chartRef.repository + "@" + .chartRef.digest) end),
              chartPinned: (.chartRef.digest != null),
-             images: (.imageRefs | map(if .digest == null then {ref, digest: null, pending} else {ref, digest} end))
+             images: (.imageRefs | map(if .digest == null then {ref, digest: null, pending} else {ref, digest, accepted: ([.digest] + (.platformDigests // []))} end))
            }) | sort_by(.id)),
            omitted: ($members | map(select(.profiles[$p].state == "omit")) | map({id, home, reason: .profiles[$p].reason}) | sort_by(.id))
          }

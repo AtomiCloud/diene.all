@@ -10,6 +10,8 @@ chartRef:
 imageRefs:
   - ref: ghcr.io/external-secrets/external-secrets:v2.7.0
     digest: sha256:6615aaea8ff44924d9d7dbc99982a130c82913f7583e212fa3aeebc6dc21fbf9
+    platformDigests:
+      - sha256:04b0d005dc52fbfd92b1673011ae296772cde67fe57e8771b580a7e290e26b31
 profiles:
   lapras: { state: include }
   ditto: { state: include }
