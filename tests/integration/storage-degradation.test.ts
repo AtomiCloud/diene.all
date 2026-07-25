@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, it } from 'bun:test';
 import should from 'should';
 import { fakeStorage, installBrowser } from './fixtures/browser';
 import { intConfig } from './fixtures/config';
-import { mockReact, renderHook } from './fixtures/hook-harness';
+import { mockReact, renderHook, restoreReact } from './fixtures/hook-harness';
 import type { ClientSafeConfig } from '../../src/config';
 
 // Integration: the browser storage ports DEGRADE, never throw. Safari private
@@ -23,6 +23,7 @@ beforeAll(async () => {
 });
 
 afterAll(() => {
+  restoreReact();
   restore();
 });
 

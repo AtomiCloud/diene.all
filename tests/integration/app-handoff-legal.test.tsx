@@ -18,19 +18,14 @@ import { ClientConfigProvider } from '../../src/adapters/atomi/ClientConfigProvi
 // first paint is exactly what the requirement is about. Interactive progression
 // through the flow is the e2e tier's concern.
 //
-// LOAD ORDER MATTERS. `fixtures/hook-harness` substitutes the whole `react`
-// module through `mock.module`, which bun applies process-wide and which
-// `mock.restore()` does NOT undo. That substitute is a synchronous hook runtime,
-// not a renderer: it carries no `forwardRef` for the icon library and no
-// `version` for react-dom's compatibility check, so any file rendering through
-// `react-dom/server` must load BEFORE the first harness file. Bun runs files in
-// alphabetical order and this name sorts ahead of `hooks`, `provider-effects`,
-// and `storage-degradation`. A later rename would reintroduce the failure, so
-// the guard below states the requirement rather than letting it resurface as a
-// stack trace inside node_modules.
+// `fixtures/hook-harness` substitutes the whole `react` module through
+// `mock.module`; every harness file restores the real modules in `afterAll`
+// via `restoreReact` (CI proved file order is filesystem-dependent, so load
+// order cannot be relied on). This guard fails legibly if a harness file ever
+// skips its restore and leaves the hook stub installed.
 if (typeof React.forwardRef !== 'function') {
   throw new Error(
-    'the react module has been substituted by fixtures/hook-harness: this file renders through react-dom/server and must load before any harness file (bun orders files alphabetically)',
+    'the react module is still the fixtures/hook-harness stub: a harness file did not call restoreReact() in afterAll — this file renders through react-dom/server and needs the real React',
   );
 }
 

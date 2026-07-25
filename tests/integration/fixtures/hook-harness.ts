@@ -1,4 +1,7 @@
 import { mock } from 'bun:test';
+import * as RealReact from 'react';
+import * as RealJsxRuntime from 'react/jsx-runtime';
+import * as RealJsxDevRuntime from 'react/jsx-dev-runtime';
 
 /**
  * Dependency-free hook harness for the int tier.
@@ -39,6 +42,20 @@ export const mockReact = (): void => {
   const runtime = { jsx, jsxs: jsx, jsxDEV: jsx, Fragment: 'fragment' };
   mock.module('react/jsx-runtime', () => runtime);
   mock.module('react/jsx-dev-runtime', () => runtime);
+};
+
+/**
+ * Reinstall the REAL React modules. Every harness file MUST call this from
+ * `afterAll`: `mock.restore()` does not undo `mock.module`, and bun's test file
+ * order is filesystem-dependent (NOT alphabetical on every machine), so a file
+ * that renders through `react-dom/server` can legitimately load after a harness
+ * file. Re-registering the real exports makes the substitution reversible and
+ * removes the order dependence entirely.
+ */
+export const restoreReact = (): void => {
+  mock.module('react', () => ({ ...RealReact }));
+  mock.module('react/jsx-runtime', () => ({ ...RealJsxRuntime }));
+  mock.module('react/jsx-dev-runtime', () => ({ ...RealJsxDevRuntime }));
 };
 
 let cells: Cell[] = [];

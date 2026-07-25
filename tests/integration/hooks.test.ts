@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, it } from 'bun:test';
 import should from 'should';
 import { installBrowser, fakeStorage, type FakeStorage, type FakeWindow } from './fixtures/browser';
-import { mockReact, renderHook } from './fixtures/hook-harness';
+import { mockReact, renderHook, restoreReact } from './fixtures/hook-harness';
 
 // Integration: the client hooks' wiring over the frontend-utils cores —
 // re-entrancy refusal, draft persistence through the four clear triggers, and
@@ -21,6 +21,7 @@ beforeAll(() => {
 });
 
 afterAll(() => {
+  restoreReact();
   restore();
 });
 

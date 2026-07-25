@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, it } from 'bun:test';
 import should from 'should';
 import { installBrowser, fakeStorage } from './fixtures/browser';
-import { mockReact, renderHook } from './fixtures/hook-harness';
+import { mockReact, renderHook, restoreReact } from './fixtures/hook-harness';
 import { intConfig } from './fixtures/config';
 import type { ClientSafeConfig } from '../../src/config';
 
@@ -23,6 +23,7 @@ beforeAll(async () => {
 });
 
 afterAll(() => {
+  restoreReact();
   restore();
 });
 
