@@ -9,7 +9,6 @@ with packages;
     infisical
     jq
     pls
-    sg
     skopeo
   ];
 
@@ -44,6 +43,7 @@ with packages;
     kubernetes-helm
     kyverno
     pls
+    releaser
     ripgrep
     shellcheck
     skopeo
@@ -55,10 +55,9 @@ with packages;
   ];
 
   # ### workspace-releaser-bootstrap
-  # #### source: workspace
-  # C2: sg is retained only until tools/releaser is published at step 2p.
+  # #### source: bun-base
   releaser = [
-    sg
+    releaser
   ];
 
   # ### nix-root-system
