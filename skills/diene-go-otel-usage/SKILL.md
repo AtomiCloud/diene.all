@@ -1,13 +1,13 @@
 ---
-name: diene-go-lib-usage
-description: Use the diene Go library template, its note API, and TestHelper package.
+name: diene-go-otel-usage
+description: Use Diene's Go OpenTelemetry engine and its consumer-facing TestHelper package.
 ---
 
-# Diene Go library usage
+# Diene Go OpenTelemetry usage
 
-Use public packages through their documented APIs and preserve `(T, error)` Go
-idioms. Start with the compiling examples in `lib/note/example_test.go` and the
-package conventions in `docs/developer/go-lib-baseline.md`.
+Use `github.com/AtomiCloud/diene.go-otel` through its documented public APIs.
+Start with the compiling examples and the package conventions in
+`docs/developer/go-lib-baseline.md`.
 
 For tests, import `<module>/testhelper` when it removes repeated consumer setup;
 never add `export_test.go` or privileged white-box shims. New helper behavior
