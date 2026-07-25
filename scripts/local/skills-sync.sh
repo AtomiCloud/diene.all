@@ -46,9 +46,16 @@ if [ -f .dart_tool/package_config.json ]; then
   done < <(jq -r '.packages[] | select(.name | startswith("diene_")) | [.name, .rootUri] | @tsv' .dart_tool/package_config.json)
 fi
 
-rm -rf "${vendor_dir}"
-mkdir -p "$(dirname "${vendor_dir}")"
-mv "${staging}" "${vendor_dir}"
+# Idempotent swap: leave the tree untouched when nothing changed, so a
+# freshness re-run inside pre-commit never churns mtimes on a clean checkout
+# (CI treats any file modification by a hook as a failure).
+if [ -d "${vendor_dir}" ] && diff -rq "${staging}" "${vendor_dir}" >/dev/null 2>&1; then
+  rm -rf "${staging}"
+else
+  rm -rf "${vendor_dir}"
+  mkdir -p "$(dirname "${vendor_dir}")"
+  mv "${staging}" "${vendor_dir}"
+fi
 trap - EXIT
 
 echo "✅ Vendored skills synchronized"

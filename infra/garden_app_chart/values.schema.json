@@ -81,6 +81,7 @@
     },
     "image": {
       "type": "object",
+      "additionalProperties": false,
       "required": ["repository", "pullPolicy"],
       "properties": {
         "repository": { "type": "string", "minLength": 1 },
@@ -103,6 +104,7 @@
     },
     "workload": {
       "type": "object",
+      "additionalProperties": false,
       "required": ["replicas", "rollingUpdate", "terminationGracePeriodSeconds", "resources"],
       "properties": {
         "replicas": { "type": "integer", "minimum": 1 },
@@ -133,6 +135,7 @@
     "service": {
       "description": "The ordinary Service. ClusterIP only — hosted profiles sync THIS Service to ENTEI and the materializer owns everything beyond it, so no LoadBalancer/NodePort/ExternalName form is representable.",
       "type": "object",
+      "additionalProperties": false,
       "required": ["type", "port", "portName"],
       "properties": {
         "type": { "const": "ClusterIP" },
@@ -147,6 +150,7 @@
     },
     "serviceAccount": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "create": { "type": "boolean" },
         "name": { "type": "string" },
@@ -156,6 +160,7 @@
     "runtime": {
       "description": "Server-only runtime configuration for the Node standalone server. Non-secret values ride the ConfigMap; secrets arrive EXCLUSIVELY through `secretRefs`/`secretEnv` and never enter a client-visible surface.",
       "type": "object",
+      "additionalProperties": false,
       "required": ["port", "host", "env", "backends", "auth", "secretRefs", "secretEnv"],
       "properties": {
         "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
@@ -234,6 +239,7 @@
     },
     "health": {
       "type": "object",
+      "additionalProperties": false,
       "required": ["path", "liveness", "readiness"],
       "properties": {
         "path": { "type": "string", "pattern": "^/" },
@@ -244,6 +250,7 @@
     "podSecurityContext": {
       "description": "Nonroot is not negotiable.",
       "type": "object",
+      "additionalProperties": false,
       "required": ["runAsNonRoot"],
       "properties": {
         "runAsNonRoot": { "const": true },
@@ -255,6 +262,7 @@
     },
     "containerSecurityContext": {
       "type": "object",
+      "additionalProperties": false,
       "required": ["runAsNonRoot", "allowPrivilegeEscalation", "readOnlyRootFilesystem"],
       "properties": {
         "runAsNonRoot": { "const": true },
@@ -269,6 +277,7 @@
     },
     "scratch": {
       "type": "object",
+      "additionalProperties": false,
       "required": ["tmpSizeLimit", "cacheSizeLimit", "cachePath"],
       "properties": {
         "tmpSizeLimit": { "$ref": "#/$defs/quantity" },
@@ -359,6 +368,7 @@
     },
     "resourceQuantities": {
       "type": "object",
+      "additionalProperties": false,
       "required": ["cpu", "memory"],
       "properties": {
         "cpu": { "$ref": "#/$defs/quantity" },
@@ -367,6 +377,7 @@
     },
     "probeTiming": {
       "type": "object",
+      "additionalProperties": false,
       "required": ["initialDelaySeconds", "periodSeconds", "timeoutSeconds", "failureThreshold"],
       "properties": {
         "initialDelaySeconds": { "type": "integer", "minimum": 0 },

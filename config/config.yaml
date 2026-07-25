@@ -48,6 +48,8 @@ picker:
   docBUrl: https://edge.atomi.cloud/docs/doc-b.json
   allowedSuffixes:
     - .cluster.atomi.cloud
+    # The edge-doc host itself must pass the same use-time allowlist.
+    - .atomi.cloud
   pingTimeoutMs: 2000
 deeplink:
   appleAppId: TEAMID0000.cloud.atomi.diene.webapp

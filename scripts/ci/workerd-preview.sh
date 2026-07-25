@@ -23,13 +23,14 @@ preview_pid=$!
 trap 'kill "${preview_pid}" 2>/dev/null || true' EXIT
 
 for _ in $(seq 1 60); do
-  if curl -fsS "http://127.0.0.1:${port}/" >/dev/null 2>&1; then
+  if curl -fsSL "http://127.0.0.1:${port}/" >/dev/null 2>&1; then
     break
   fi
   sleep 1
 done
 
-body="$(curl -fsS "http://127.0.0.1:${port}/")"
+# -L follows the locale redirect (/ -> /en under always-prefixed routing).
+body="$(curl -fsSL "http://127.0.0.1:${port}/")"
 echo "${body}" | grep -q 'Welcome' || {
   echo "❌ workerd preview did not render the home page" >&2
   exit 1

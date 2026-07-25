@@ -42,6 +42,7 @@
     "@types/node": "^26.0.1",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
+    "@usebruno/cli": "^4.0.0",
     "knip": "^6.23.0",
     "should": "^13.2.3",
     "source-map": "^0.8.0",
@@ -50,5 +51,8 @@
     "typescript": "^6.0.3",
     "wrangler": "^4.33.1",
     "yaml-loader": "^0.8.1"
+  },
+  "scripts": {
+    "build": "next build"
   }
 }

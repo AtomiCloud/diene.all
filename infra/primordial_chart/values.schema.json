@@ -25,6 +25,7 @@
     "serviceTree": {
       "description": "LPSM projection. Mirrors config/config.yaml -> app.servicetree; landscape and cluster arrive from the two overlay dimensions.",
       "type": "object",
+      "additionalProperties": false,
       "required": ["platform", "service", "module"],
       "properties": {
         "platform": { "$ref": "#/$defs/dnsLabel" },
@@ -73,6 +74,7 @@
     "logtoApp": {
       "description": "Rendered only when this chart is the selected placement owner for the app. The frontend owns its own serve-set, so it is.",
       "type": "object",
+      "additionalProperties": false,
       "required": ["enabled", "apiVersion", "identityRef", "type", "paths"],
       "properties": {
         "enabled": { "type": "boolean" },
@@ -96,6 +98,7 @@
     },
     "observability": {
       "type": "object",
+      "additionalProperties": false,
       "required": [
         "enabled",
         "apiVersion",
@@ -144,6 +147,7 @@
     "dependencyModule": {
       "description": "Flat common core plus a `type` discriminator and `engine.<type>` overrides (CEL-enforced upstream: the engine key must equal the type).",
       "type": "object",
+      "additionalProperties": false,
       "required": ["type", "delivery", "credentialMode"],
       "properties": {
         "type": { "type": "string", "minLength": 1 },

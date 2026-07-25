@@ -2,6 +2,7 @@ import { YamlConfigSource, loadConfig, type Config } from '@atomicloud/diene.con
 import { landscape as landscapeAccessor } from '@atomicloud/diene.frontend-utils/landscape';
 import type { ClientSafeConfig } from '@/config';
 import { configRegistry } from '@/config';
+import { parseBuildTimeEnv } from '@/lib/build-env';
 
 type BlockShape = Record<string, import('zod').ZodType>;
 type RegistryShape<R> = R extends import('@atomicloud/diene.config').ConfigRegistry<infer S extends BlockShape>
@@ -35,24 +36,12 @@ export const serverConfig = (): Promise<RootConfig> => {
   cached ??= loadConfig(
     new YamlConfigSource({
       dir: `${process.cwd()}/config`,
-      buildTimeEnv: readBuildTimeEnv(),
+      buildTimeEnv: parseBuildTimeEnv(process.env['BUILD_TIME_VARIABLES']),
     }),
     configRegistry,
     { prefix: 'ATOMI_', landscape: serverLandscape() },
   );
   return cached;
-};
-
-/** Build-time injected env (DefinePlugin), absent outside the bundled artifact. */
-const readBuildTimeEnv = (): Record<string, string> => {
-  const injected = process.env['BUILD_TIME_VARIABLES'];
-  if (typeof injected !== 'string' || injected === '') return {};
-  try {
-    const parsed: unknown = JSON.parse(injected);
-    return typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, string>) : {};
-  } catch {
-    return {};
-  }
 };
 
 /**
