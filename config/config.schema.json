@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "app": {
+      "additionalProperties": false,
+      "properties": {
+        "landscape": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "module": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "platform": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "service": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "version": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": ["landscape", "platform", "service", "module", "version"],
+      "type": "object"
+    },
+    "service": {
+      "additionalProperties": false,
+      "properties": {
+        "cache": {
+          "additionalProperties": false,
+          "properties": {
+            "region": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "replicas": {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            "secret": {
+              "type": "string"
+            }
+          },
+          "required": ["region"],
+          "type": "object"
+        },
+        "http": {
+          "additionalProperties": false,
+          "properties": {
+            "host": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "port": {
+              "maximum": 65535,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": ["host", "port"],
+          "type": "object"
+        }
+      },
+      "required": ["http", "cache"],
+      "type": "object"
+    }
+  },
+  "required": ["app", "service"],
+  "type": "object"
+}

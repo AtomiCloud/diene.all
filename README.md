@@ -44,7 +44,12 @@ go get github.com/AtomiCloud/diene.go-config@latest
 ```
 
 ```go
-loader, _ := config.NewLoader(config.Options{EnvPrefix: "MYAPP"})
+loader := config.NewLoader(
+	config.WithEnvPrefix("MYAPP"),
+	config.WithBaseDir("config/app"),
+	config.WithSchema(config.ComposeSchema(config.AppBlockSchema())),
+)
+cfg, err := loader.Load(context.Background())
 ```
 
 <!-- ### go-base-commands -->
@@ -56,7 +61,7 @@ loader, _ := config.NewLoader(config.Options{EnvPrefix: "MYAPP"})
 - `pls typecheck` — compile every source package without running tests.
 - `pls test` / `pls test:coverage` — run unit, integration, and active meta tiers.
 - `pls deadcode` — run strict whole-repository and production passes plus the LLM-lax report.
-- `pls up` / `pls down` — start or stop local Redis.
+- `pls up` / `pls down` — start or stop local dependencies.
 - `./scripts/ci/pkg-validate.sh all` — run module-path, vet, API, docs, and example validators.
 
 See the [Go baseline](docs/developer/go-baseline.md) for the language contract and
