@@ -21,16 +21,23 @@ trap 'rm -rf "${scratch}"' EXIT
 
 echo "🧪 Restoring both packages into a scratch consumer..."
 dotnet new console --framework net10.0 --no-restore --output "${scratch}" >/dev/null
-dotnet add "${scratch}" package AtomiCloud.Diene.Note --version "${version}" --source "$(pwd)/${artifacts}" --no-restore >/dev/null
-dotnet add "${scratch}" package AtomiCloud.Diene.Note.TestHelper --version "${version}" --source "$(pwd)/${artifacts}" --no-restore >/dev/null
+dotnet add "${scratch}" package AtomiCloud.Diene.Interfaces --version "${version}" --source "$(pwd)/${artifacts}" --no-restore >/dev/null
+dotnet add "${scratch}" package AtomiCloud.Diene.Interfaces.TestHelper --version "${version}" --source "$(pwd)/${artifacts}" --no-restore >/dev/null
 printf '%s\n' \
-  'using AtomiCloud.Diene.Note;' \
-  'using AtomiCloud.Diene.Note.TestHelper.Note;' \
+  'using AtomiCloud.Diene.Interfaces;' \
+  'using AtomiCloud.Diene.Interfaces.TestHelper;' \
+  'using AtomiCloud.Diene.Results.TestHelper;' \
   '' \
-  'var subject = new NoteSummariser();' \
-  'var note = new NoteRecord { Title = "Hello", Body = "world" };' \
-  'subject.AssertSummary(note, 80, "Hello — world");' >"${scratch}/Program.cs"
-dotnet restore "${scratch}" --source "$(pwd)/${artifacts}" >/dev/null
+  'var vfs = new InMemoryVfs();' \
+  'var report = await SeamContracts.Vfs(vfs, "/scratch");' \
+  'report.Should().BeConformant();' \
+  '' \
+  'var sink = new InMemoryLoggerSink();' \
+  'sink.Emit(new LogRecord(DateTimeOffset.UnixEpoch, LogLevel.Info, "scratch")).Should().BeOk();' \
+  'sink.Should().HaveLogged(LogLevel.Info, "scratch");' \
+  '' \
+  '(await vfs.ReadText("/absent")).Should().BeSeamErr(SeamKind.Vfs, "not_found");' >"${scratch}/Program.cs"
+dotnet restore "${scratch}" --source "$(pwd)/${artifacts}" --source https://api.nuget.org/v3/index.json >/dev/null
 dotnet build "${scratch}" -c Release --no-restore >/dev/null
 
 echo "✅ Package validation and scratch consumption passed"

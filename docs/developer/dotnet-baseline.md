@@ -19,7 +19,6 @@ shared workspace, standards, secret, and release surfaces.
 | `pls dev`                        | Run the App through `dotnet watch`.                            |
 | `pls run -- <args>`              | Run the App in development mode.                               |
 | `pls preview -- <args>`          | Build and run the compiled Release artifact.                   |
-| `pls up` / `pls down`            | Start or stop the local Redis dependency.                      |
 | `pls test`                       | Run unit and integration tiers.                                |
 | `pls test:unit` / `pls test:int` | Run one tier.                                                  |
 | `pls test:coverage`              | Enforce both merged coverage ledgers.                          |
@@ -35,7 +34,7 @@ registered projects, merges Coverlet JSON, and enforces one final threshold per
 tier:
 
 - unit: every `[Lib*]*` assembly at 100%;
-- integration: every `[App*]*` assembly at 80%.
+- integration: every `[App*]*` assembly at 80% — here, the host-backed seam adapters.
 
 Adding `Lib2` and `UnitTest2` requires one solution line per project and one YAML
 list entry for `UnitTest2`. Assembly filters, merged thresholds, Codecov globs,
@@ -62,9 +61,9 @@ commit-type vocabulary.
 ## Template-maintenance boundary
 
 Downstream nodes may adapt package/artifact identity, coverage thresholds,
-badges, and the illustrative Note source/tests. Keep
-`dotnet-base.slnx`, `.config/dotnet-base.test.yaml`, and the
-`AtomiCloud.DotnetBase.*` root namespaces base-named for merge stability.
+badges, and product source/tests. Keep
+`dotnet-base.slnx`, `.config/dotnet-base.test.yaml`, and the project filenames
+base-named for merge stability.
 
 Observability is deliberately absent on this branch and arrives only through the
 separate observability add-back.

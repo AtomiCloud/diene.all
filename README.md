@@ -1,4 +1,4 @@
-# Diene .NET library template
+# AtomiCloud.Diene.Interfaces
 
 <!-- ### nix-root -->
 <!-- #### source: main -->
@@ -56,10 +56,10 @@ contracts standard.
 
 ## .NET 10 foundation
 
-[![CI](https://github.com/AtomiCloud/diene.dotnet-lib/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.dotnet-lib/actions/workflows/ci.yaml)
-[![Unit coverage](https://codecov.io/gh/AtomiCloud/diene.dotnet-lib/graph/badge.svg?flag=unit)](https://codecov.io/gh/AtomiCloud/diene.dotnet-lib)
-[![Integration coverage](https://codecov.io/gh/AtomiCloud/diene.dotnet-lib/graph/badge.svg?flag=int)](https://codecov.io/gh/AtomiCloud/diene.dotnet-lib)
-[![Commit activity](https://img.shields.io/github/commit-activity/m/AtomiCloud/diene.dotnet-lib)](https://github.com/AtomiCloud/diene.dotnet-lib/commits/main)
+[![CI](https://github.com/AtomiCloud/diene.dotnet-interfaces/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.dotnet-interfaces/actions/workflows/ci.yaml)
+[![Unit coverage](https://codecov.io/gh/AtomiCloud/diene.dotnet-interfaces/graph/badge.svg?flag=unit)](https://codecov.io/gh/AtomiCloud/diene.dotnet-interfaces)
+[![Integration coverage](https://codecov.io/gh/AtomiCloud/diene.dotnet-interfaces/graph/badge.svg?flag=int)](https://codecov.io/gh/AtomiCloud/diene.dotnet-interfaces)
+[![Commit activity](https://img.shields.io/github/commit-activity/m/AtomiCloud/diene.dotnet-interfaces)](https://github.com/AtomiCloud/diene.dotnet-interfaces/commits/main)
 
 This branch adds the .NET 10 toolchain, the `App`/`Lib`/`UnitTest`/`IntTest`
 sample, merged multi-project coverage, strict and LLM dead-code modes. See [the .NET baseline](docs/developer/dotnet-baseline.md).
@@ -70,7 +70,8 @@ Common commands:
 - `pls test`, `pls test:unit`, `pls test:int`, and the coverage variants
 - `pls deadcode` for the non-blocking review; CI owns strict dn-inspect
 
-The illustrative Note domain is documented in [docs/domain/note.md](docs/domain/note.md).
+The shared seams and their C0 wire contract are documented in
+[docs/domain/interfaces.md](docs/domain/interfaces.md).
 Production observability is intentionally absent until the observability add-back.
 
 <!-- ### dotnet-lib -->
@@ -78,27 +79,43 @@ Production observability is intentionally absent until the observability add-bac
 
 ## Publishable library packages
 
-[![NuGet version](https://img.shields.io/nuget/v/AtomiCloud.Diene.Note)](https://www.nuget.org/packages/AtomiCloud.Diene.Note)
-[![NuGet downloads](https://img.shields.io/nuget/dt/AtomiCloud.Diene.Note)](https://www.nuget.org/packages/AtomiCloud.Diene.Note)
-[![Meta coverage](https://codecov.io/gh/AtomiCloud/diene.dotnet-lib/graph/badge.svg?flag=meta)](https://codecov.io/gh/AtomiCloud/diene.dotnet-lib)
+[![NuGet version](https://img.shields.io/nuget/v/AtomiCloud.Diene.Interfaces)](https://www.nuget.org/packages/AtomiCloud.Diene.Interfaces)
+[![NuGet downloads](https://img.shields.io/nuget/dt/AtomiCloud.Diene.Interfaces)](https://www.nuget.org/packages/AtomiCloud.Diene.Interfaces)
+[![Meta coverage](https://codecov.io/gh/AtomiCloud/diene.dotnet-interfaces/graph/badge.svg?flag=meta)](https://codecov.io/gh/AtomiCloud/diene.dotnet-interfaces)
 
-This template publishes `AtomiCloud.Diene.Note` and the companion
-`AtomiCloud.Diene.Note.TestHelper` package at one committed version. The Note
-domain is illustrative; the package lifecycle is the reusable product.
+This repository publishes `AtomiCloud.Diene.Interfaces` and the companion
+`AtomiCloud.Diene.Interfaces.TestHelper` package at one committed version. It is
+the .NET member of the S33 cross-family common-interfaces library: it OWNS the
+shared seams for `ISystem`, `IVfs`, `ITerminal`, `ILoggerSink`, and
+`IMetricsCollector`, and every fallible method returns
+`Result<T, SeamError>` — it never throws and never captures. The `otel` package
+IMPLEMENTS the telemetry seams; it does not own them.
 
 ```bash
-dotnet add package AtomiCloud.Diene.Note
-dotnet add package AtomiCloud.Diene.Note.TestHelper
+dotnet add package AtomiCloud.Diene.Interfaces
+dotnet add package AtomiCloud.Diene.Interfaces.TestHelper
 ```
 
 ```csharp
-using AtomiCloud.Diene.Note;
-using AtomiCloud.Diene.Note.TestHelper.Note;
+using AtomiCloud.Diene.Interfaces;
+using AtomiCloud.Diene.Interfaces.TestHelper;
+using AtomiCloud.Diene.Results.TestHelper;
 
-var summariser = new NoteSummariser();
-var note = new NoteRecord { Title = "Hello", Body = "world" };
-summariser.AssertSummary(note, 80, "Hello — world");
+// Substitute the in-memory seam anywhere an IVfs is required.
+var vfs = new InMemoryVfs();
+(await vfs.WriteText("/etc/app.yaml", "key: value", new VfsWriteOptions(true))).Should().BeOk();
+(await vfs.ReadText("/etc/app.yaml")).Should().BeOk("key: value");
+(await vfs.ReadText("/absent")).Should().BeSeamErr(SeamKind.Vfs, "not_found");
+
+// Prove YOUR implementation satisfies the same behavioural contract.
+(await SeamContracts.Vfs(new MyVfs(), "/tmp/scratch")).Should().BeConformant();
 ```
+
+The shipped `SeamContracts` suites are the contract-parity vehicle: run one suite
+against your real adapter and against the in-memory mock, and a conformant pair is
+substitutable. Values that cross the wire obey the C0 contract (R14) — RFC 3339
+UTC instants, ISO 8601 durations, IANA timezone ids, and one stable lowercase wire
+name per enumeration, shared with the bun, dart, and go members of this family.
 
 Run `nix develop .#ci -c ./scripts/ci/pkg-validate.sh` to pack both packages,
 validate metadata and symbols, and restore them into a scratch consumer. See

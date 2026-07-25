@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "status": "local-regression-only",
+  "instant": "2026-07-25T22:30:00.0000000Z",
+  "duration": "PT1M30S",
+  "timeZone": "UTC",
+  "seams": ["system", "vfs", "terminal", "logging", "metrics"],
+  "logLevels": ["trace", "debug", "info", "warning", "error", "fatal"],
+  "metricKinds": ["counter", "gauge", "histogram"],
+  "vfsEntryTypes": ["file", "directory", "link"],
+  "attributeKinds": ["text", "integer", "real", "flag", "instant", "duration", "time_zone"],
+  "attributes": {
+    "text": "value",
+    "integer": "42",
+    "real": "1.5",
+    "flag": "true",
+    "instant": "2026-07-25T22:30:00.0000000Z",
+    "duration": "PT1M30S",
+    "time_zone": "UTC"
+  }
+}
