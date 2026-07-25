@@ -10,6 +10,11 @@ import { plugin } from 'bun';
  * `bunx next build` and by `scripts/validate/pure-renderer.ts`, not at test
  * time. Under bun there is no RSC graph, so the markers would simply make every
  * server adapter unimportable and leave the int ledger permanently incomplete.
+ *
+ * The `react` module is deliberately NOT substituted here: the hook harness
+ * swaps React's own hook dispatcher for the duration of a `renderHook` instead
+ * (see `fixtures/hook-harness.ts`), which keeps real React and real
+ * `react-dom/server` intact for every other spec in the process.
  */
 plugin({
   name: 'rsc-marker-shim',

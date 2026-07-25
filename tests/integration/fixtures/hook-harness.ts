@@ -1,13 +1,23 @@
-import { mock } from 'bun:test';
-import { reactProxy, setReactImpl } from './react-proxy';
+import * as RealReact from 'react';
 
-// Register the call-time-delegating proxy ONCE, at first harness import
-// (mock.module deadlocks inside the preload, so it lives here). Modules loaded
-// before this point bound the real react — correct; modules loaded after bind
-// the proxy, which forwards to the real react whenever no stub is active, so
-// bun's filesystem-dependent file order can no longer leak the stub into a
-// react-dom/server spec.
-mock.module('react', () => reactProxy);
+/**
+ * The react MODULE is never substituted. React 19 routes every hook call
+ * through the dispatcher at
+ * `__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE.H`, so the
+ * harness installs its synchronous primitives there for the duration of a
+ * `renderHook` and restores the previous dispatcher afterwards. Real React and
+ * real `react-dom/server` stay intact for every other spec in the process,
+ * which makes the harness independent of bun's filesystem-dependent test-file
+ * order — the two failure modes this replaced were a version-mismatch crash
+ * and a CI-only infinite render spin.
+ */
+const internals = (RealReact as unknown as Record<string, { H: unknown }>)[
+  '__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE'
+];
+
+if (internals === undefined) {
+  throw new Error('hook harness: React 19 client internals not found — the dispatcher seam moved');
+}
 
 /**
  * Dependency-free hook harness for the int tier.
@@ -37,24 +47,22 @@ interface Cell {
 }
 
 /**
- * Install the synchronous React substitute. Call once, before importing hooks.
- * The JSX runtimes go with it: React's dev runtime reads shared internals that
- * only exist in the real module, so a component's JSX must build inert
- * descriptors instead. Effects still run; children are never rendered.
+ * Retained for the harness files' existing call sites. The dispatcher swap now
+ * happens per `renderHook` call, so this is a no-op assertion that the seam is
+ * present rather than a module substitution.
  */
 export const mockReact = (): void => {
-  setReactImpl(reactStub);
+  if (internals === undefined) {
+    throw new Error('hook harness: React client internals unavailable');
+  }
 };
 
-/**
- * Point the react proxy back at the real implementation. Every harness file
- * MUST call this from `afterAll` — the proxy is process-wide and bun's test
- * file order is filesystem-dependent, so a leaked stub breaks whichever
- * react-dom/server spec happens to run later.
- */
+/** Symmetrical no-op: `renderHook` always restores the previous dispatcher. */
 export const restoreReact = (): void => {
-  setReactImpl(undefined);
+  internals.H = previousDispatcher ?? internals.H;
 };
+
+let previousDispatcher: unknown;
 
 let cells: Cell[] = [];
 let cursor = 0;
@@ -155,7 +163,13 @@ const primitives = {
   Fragment: 'fragment',
 };
 
-const reactStub = { ...primitives, default: primitives };
+// The stub OVERRIDES the hook primitives on top of the real module rather than
+// replacing it: `forwardRef`, `version`, `Children`, and React's internals stay
+// real, so a renderer that happens to run while the stub is active degrades to
+// wrong-but-terminating behaviour instead of spinning inside a half-built
+// dispatcher (a CI-only hang cost hours to find).
+const reactStub = { ...(RealReact as unknown as Record<string, unknown>), ...primitives };
+Object.assign(reactStub, { default: reactStub });
 
 /** Render `hook` under the harness, flushing effects and state-driven re-renders. */
 export const renderHook = <T>(hook: () => T): Harness<T> => {
@@ -189,6 +203,10 @@ export const renderHook = <T>(hook: () => T): Harness<T> => {
       return;
     }
     rendering = true;
+    // Install the harness dispatcher only for the duration of the pass, then
+    // hand React's own dispatcher back — nothing outside this window sees it.
+    previousDispatcher = internals.H;
+    internals.H = primitives;
     try {
       let guard = 0;
       do {
@@ -198,6 +216,7 @@ export const renderHook = <T>(hook: () => T): Harness<T> => {
         once();
       } while (queued);
     } finally {
+      internals.H = previousDispatcher;
       rendering = false;
     }
   };
