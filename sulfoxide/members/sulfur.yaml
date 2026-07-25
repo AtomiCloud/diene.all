@@ -1,0 +1,20 @@
+id: sulfur
+home: sulfoxide
+owner: charts/sulfur
+role: certificate engine (cert-manager)
+chartRef:
+  repository: oci://ghcr.io/atomicloud/diene.all/charts/diene-sulfur
+  version: 0.1.0
+  digest: null
+  promotion: { state: pending, owner: charts/sulfur, reason: chart-not-yet-promoted }
+imageRefs:
+  - ref: quay.io/jetstack/cert-manager-controller:v1.20.3
+    digest: sha256:6c13d61e0348a5bc3477f8ea9a928624300b30d19b1c72a7d2b90372fc713db4
+profiles:
+  lapras: { state: omit, reason: no-local-consumer-requires-it }
+  ditto: { state: omit, reason: no-local-consumer-requires-it }
+  rotom: { state: omit, reason: no-local-consumer-requires-it }
+  absol: { state: omit, reason: no-local-consumer-requires-it }
+  eevee: { state: omit, reason: entei-owns-shared-edge }
+  plusle: { state: omit, reason: entei-owns-shared-edge }
+  minun: { state: omit, reason: entei-owns-shared-edge }

@@ -1,0 +1,20 @@
+id: xenon
+home: sulfoxide
+owner: charts/xenon
+role: resource metrics API (metrics-server) for managed offerings that lack one
+chartRef:
+  repository: oci://ghcr.io/atomicloud/diene.all/charts/diene-xenon
+  version: 0.1.0
+  digest: null
+  promotion: { state: pending, owner: charts/xenon, reason: chart-not-yet-promoted }
+imageRefs:
+  - ref: registry.k8s.io/metrics-server/metrics-server:v0.8.0
+    digest: sha256:89258156d0e9af60403eafd44da9676fd66f600c7934d468ccc17e42b199aee2
+profiles:
+  lapras: { state: omit, reason: substrate-provides-metrics-server }
+  ditto: { state: omit, reason: substrate-provides-metrics-server }
+  rotom: { state: omit, reason: substrate-provides-metrics-server }
+  absol: { state: omit, reason: substrate-provides-metrics-server }
+  eevee: { state: omit, reason: host-substrate-provides-metrics }
+  plusle: { state: omit, reason: host-substrate-provides-metrics }
+  minun: { state: omit, reason: host-substrate-provides-metrics }
