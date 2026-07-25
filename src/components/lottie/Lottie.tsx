@@ -17,7 +17,7 @@ export function Lottie({
   readonly className?: string;
 }) {
   const reduced = prefersReducedMotion({
-    matches: () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+    matches: () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
     subscribe: () => () => undefined,
   });
   return (

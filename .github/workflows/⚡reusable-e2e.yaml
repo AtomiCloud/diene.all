@@ -1,0 +1,19 @@
+# ### nextjs-frontend-reusable-e2e
+# #### source: nextjs-frontend
+name: ⚡ Reusable E2E
+
+on:
+  workflow_call:
+
+jobs:
+  e2e:
+    name: Browser + API E2E
+    runs-on:
+      - nscloud-ubuntu-22.04-amd64-4x8-with-cache
+      - nscloud-cache-size-50gb
+      - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
+    steps:
+      - uses: AtomiCloud/actions.setup-nix@v3
+      - uses: AtomiCloud/actions.cache-bun@v2
+      - name: Run Playwright browser journeys and Bruno API collection
+        run: nix develop .#ci -c ./scripts/ci/e2e.sh

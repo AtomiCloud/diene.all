@@ -1,4 +1,4 @@
-import { buildLoginRedirect, resolveReturnTo, continueTo } from '@atomicloud/diene.auth-engine';
+import { resolveReturnTo, continueTo } from '@atomicloud/diene.auth-engine';
 import { cookies } from 'next/headers';
 import { serverConfig, serverLandscape } from '@/adapters/server-config';
 import { serverAuth } from '@/adapters/auth/server';
@@ -7,8 +7,6 @@ import { codeChallengeS256, randomToken } from '@/adapters/auth/pkce';
 const PKCE_COOKIE = 'diene.auth.pkce';
 const STATE_COOKIE = 'diene.auth.state';
 const RETURN_COOKIE = 'diene.auth.return';
-
-export { buildLoginRedirect };
 
 /**
  * OIDC front-channel routes (ported from argon's pages/api/logto/[action]):

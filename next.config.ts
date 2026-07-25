@@ -29,8 +29,45 @@ const nextConfig: NextConfig = {
   // the default optimizer route does not exist there.
   images: { unoptimized: true },
   serverExternalPackages: ['jose'],
-  webpack: (config, { webpack }) => {
+  webpack: (config, { webpack, isServer, dev }) => {
     config.module.rules.push({ test: /\.ya?ml$/, use: 'yaml-loader' });
+
+    if (!dev) {
+      // TEMPORARY (see src/shims/jsx-dev-runtime.ts): frontend-utils@1.0.0
+      // dist references react/jsx-dev-runtime, whose jsxDEV export is
+      // undefined in production React. Redirect those requests to the
+      // delegating shim (production builds only; dev keeps the real dev
+      // runtime) until the 1.0.1 rebuild lands upstream. A plugin is used
+      // because Next.js owns resolve.alias for react/* and wins over it.
+      const shim = new URL('./src/shims/jsx-dev-runtime.ts', import.meta.url).pathname;
+      config.plugins.push(
+        new webpack.NormalModuleReplacementPlugin(
+          /^react\/jsx-dev-runtime(\.js)?$/,
+          (resource: { request: string }) => {
+            resource.request = shim;
+          },
+        ),
+      );
+    }
+
+    if (!isServer) {
+      // The diene libs are universal: their Node-only file helpers sit behind
+      // guards, but the `node:` specifiers still reach the client graph.
+      // Rewrite the scheme and stub the modules so the client bundle stays
+      // browser-pure (tree-shaking drops the guarded code paths).
+      config.plugins.push(
+        new webpack.NormalModuleReplacementPlugin(/^node:/, (resource: { request: string }) => {
+          resource.request = resource.request.replace(/^node:/, '');
+        }),
+      );
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        path: false,
+        os: false,
+        crypto: false,
+      };
+    }
 
     config.plugins.push(
       new webpack.DefinePlugin({

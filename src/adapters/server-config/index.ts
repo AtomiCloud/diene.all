@@ -19,7 +19,9 @@ export type RootConfig = Config<RegistryShape<typeof configRegistry>>;
 export const serverLandscape = (): string =>
   landscapeAccessor({
     source: 'binding',
-    value: process.env['ATOMI_LANDSCAPE'] ?? process.env['LANDSCAPE'],
+    // Build-time prerender has no runtime binding yet — the artifact bakes
+    // `base` (defaults only) and the real binding takes over per request.
+    value: process.env['ATOMI_LANDSCAPE'] ?? process.env['LANDSCAPE'] ?? 'base',
   });
 
 let cached: Promise<RootConfig> | undefined;

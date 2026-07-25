@@ -23,7 +23,8 @@ export function useUrlState<T extends Record<string, string>>(defaults: T): [T, 
     () =>
       createUrlStateController({
         defaults: defaultsRef.current,
-        initial: readUrlState(window.location.search, defaultsRef.current),
+        // SSR renders defaults; the browser hydrates from the live URL.
+        initial: typeof window === 'undefined' ? {} : readUrlState(window.location.search, defaultsRef.current),
         history: {
           replaceState: search => {
             const url = `${window.location.pathname}${search}${window.location.hash}`;

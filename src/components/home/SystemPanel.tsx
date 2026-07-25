@@ -23,22 +23,30 @@ export function SystemPanel() {
   const t = useTranslations('content');
   const config = useClientConfig();
   const landscape = useLandscape();
-  const { createContentStore } = useModules();
+  const modules = useModules();
 
-  const store = useMemo(() => createContentStore<SystemInfo>(), [createContentStore]);
+  const store = useMemo(() => modules?.createContentStore<SystemInfo>(), [modules]);
 
   const load = useMemo(
     () => () =>
-      store.load(() => ({
+      store?.load(() => ({
         landscape,
         service: config.app.servicetree.service,
-      })),
+      })) ?? Promise.resolve(),
     [store, landscape, config.app.servicetree.service],
   );
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  if (store === undefined) {
+    return (
+      <section aria-label="system" className="rounded-lg border border-border bg-card p-4">
+        <Skeleton className="h-6 w-48" />
+      </section>
+    );
+  }
 
   return (
     <section aria-label="system" className="rounded-lg border border-border bg-card p-4">
