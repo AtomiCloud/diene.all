@@ -4,6 +4,7 @@ set -euo pipefail
 mode="${1:-definition}"
 profile="${2:-all}"
 installed_file="${DIENE_INSTALLED_FILE:-}"
+subset="${DIENE_INSTALLED_SUBSET:-false}"
 report_file="${DIENE_DOCTOR_REPORT:-}"
 
 [ "${mode}" != "definition" ] && [ "${mode}" != "installed" ] && echo "❌ doctor mode must be definition or installed" >&2 && exit 1
@@ -43,9 +44,10 @@ if [ "${mode}" = "installed" ]; then
   # digest the owning definition does not name is drift.
   jq -r \
     --argjson installed "$(cat "${installed_file}")" \
+    --argjson subset "${subset}" \
     '.profiles | to_entries[] | .key as $p | .value.included[] | .id as $m |
        (($installed[$p] // {})[$m] // null) as $live |
-       if $live == null then "\($p)\t\($m)\tNOT-INSTALLED\tprofile includes it"
+       if $live == null then (if $subset then empty else "\($p)\t\($m)\tNOT-INSTALLED\tprofile includes it" end)
        else ( .images | map(select(.digest != null))[] | .digest as $d |
               select((($live.images) // []) | index($d) | not) |
               "\($p)\t\($m)\tDRIFT\texpected \($d)" )

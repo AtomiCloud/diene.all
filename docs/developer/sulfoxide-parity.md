@@ -94,3 +94,22 @@ The sulfoxide wrapper charts are not promoted yet, so `chartRef.digest` is `null
 explicit `promotion.state: pending` naming the owning node. Upstream image digests are
 real and asserted today. When Kargo promotes a chart, its digest lands in the owning
 definition and the doctor's `installed` mode compares it without any other change.
+
+## Producing the installed tuple from a live cluster
+
+`garden-installed-tuple.sh <profile>` turns a real pod inventory into the tuple the doctor
+compares. It reads `status.containerStatuses[].imageID`, which is the digest the kubelet
+actually resolved, so a manifest tag can never stand in for what is really running. A
+member owns a pod through the `atomi.cloud/service` label the charts already stamp, so no
+second mapping table is introduced.
+
+```bash
+./scripts/local/garden-installed-tuple.sh eevee > tuple.json          # live cluster
+DIENE_PODS_JSON=pods.json ./scripts/local/garden-installed-tuple.sh eevee   # captured inventory
+DIENE_INSTALLED_FILE=tuple.json ./scripts/local/garden-doctor.sh installed eevee
+```
+
+By default the comparison also requires completeness: an included member that is not
+running is reported as `NOT-INSTALLED`. Set `DIENE_INSTALLED_SUBSET=true` to check only the
+members present in the tuple, which is the right mode for a partial inventory and never
+the right mode for a readiness gate.

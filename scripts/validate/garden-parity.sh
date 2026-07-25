@@ -107,6 +107,27 @@ doctor-installed)
   DIENE_INSTALLED_FILE=sulfoxide/fixtures/installed/eevee-green.json ./scripts/local/garden-doctor.sh installed eevee >/dev/null
   echo "✅ Installed digests match the owning definitions"
   ;;
+installed-extract)
+  # The live path end to end: real kubelet imageID output becomes the tuple the doctor
+  # compares, so the installed assertion does not depend on a hand-written tuple.
+  DIENE_PODS_JSON=sulfoxide/fixtures/cluster/pods-eevee.json ./scripts/local/garden-installed-tuple.sh eevee >"${tmp}/tuple.json"
+  jq -e '.eevee.cobalt.images[0] | test("^sha256:[0-9a-f]{64}$")' "${tmp}/tuple.json" >/dev/null
+  jq -e '[.eevee | keys[]] | sort == ["chlorine","cobalt","lithium"]' "${tmp}/tuple.json" >/dev/null
+  DIENE_INSTALLED_FILE="${tmp}/tuple.json" DIENE_INSTALLED_SUBSET=true ./scripts/local/garden-doctor.sh installed eevee >/dev/null
+  echo "✅ A real kubelet pod inventory extracts to a tuple the doctor accepts"
+  ;;
+installed-extract-negative)
+  # A pod running an image the owning definition does not name must be caught through the
+  # same extraction path.
+  jq '.items[0].status.containerStatuses[0].imageID = "ghcr.io/external-secrets/external-secrets@sha256:2222222222222222222222222222222222222222222222222222222222222222"' \
+    sulfoxide/fixtures/cluster/pods-eevee.json >"${tmp}/pods.json"
+  DIENE_PODS_JSON="${tmp}/pods.json" ./scripts/local/garden-installed-tuple.sh eevee >"${tmp}/tuple.json"
+  ! DIENE_INSTALLED_FILE="${tmp}/tuple.json" DIENE_INSTALLED_SUBSET=true ./scripts/local/garden-doctor.sh installed eevee >/dev/null 2>&1 || {
+    echo "❌ the doctor accepted a pod running an image the definition does not name" >&2
+    exit 1
+  }
+  echo "✅ A pod running an unnamed image is rejected through the extraction path"
+  ;;
 doctor-installed-negative)
   ! DIENE_INSTALLED_FILE=sulfoxide/fixtures/installed/eevee-drift.json ./scripts/local/garden-doctor.sh installed eevee >/dev/null 2>&1 || {
     echo "❌ the doctor accepted an installed digest the owning definition does not name" >&2
@@ -171,7 +192,7 @@ fixture-fence)
   echo "✅ Fixtures are fenced behind an explicit opt-in"
   ;;
 presence)
-  for required in sulfoxide/profiles.yaml sulfoxide/import.yaml schemas/sulfoxidemember.json nix/snapshots/entei-vcluster.json scripts/local/garden-render.sh scripts/local/garden-doctor.sh docs/developer/sulfoxide-parity.md; do
+  for required in sulfoxide/profiles.yaml sulfoxide/import.yaml schemas/sulfoxidemember.json nix/snapshots/entei-vcluster.json scripts/local/garden-render.sh scripts/local/garden-doctor.sh scripts/local/garden-installed-tuple.sh docs/developer/sulfoxide-parity.md; do
     [ ! -f "${required}" ] && echo "❌ required artifact '${required}' is missing" >&2 && exit 1
   done
   count="$(find sulfoxide/members -name '*.yaml' | wc -l | tr -d ' ')"
