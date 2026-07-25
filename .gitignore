@@ -2,8 +2,8 @@
 #### source: main
 .direnv/
 .pre-commit-config.yaml
-result
-result-*
+/result
+/result-*
 
 ### workspace
 #### source: workspace
@@ -32,3 +32,4 @@ build/
 coverage/
 doc/api/
 pubspec.lock
+pubspec_overrides.yaml

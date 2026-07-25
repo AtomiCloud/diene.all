@@ -1,8 +1,13 @@
 import { expectGreen, expectRed } from './lib/helpers.ts';
 
 // Gate: the C0 conformance harness (`dart test test/conformance`) recomputes
-// fixture digests and compares them against the checked-in manifest. Sabotage
-// corrupts the first fixture digest and proves the harness detects the drift.
+// the frozen Problem-envelope projection digest and compares it with SHA256SUMS.
+// Sabotage corrupts that digest and proves the harness detects the drift.
+const MEMBER = 'packages/diene_interfaces';
+const CONFORMANCE =
+  "nix develop .#ci --no-write-lock-file -c bash -lc 'cd packages/diene_interfaces && dart test test/conformance'";
+const CHECKSUM = `${MEMBER}/test/fixtures/c0/SHA256SUMS`;
+
 export default {
   contractVersion: 1,
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
@@ -14,14 +19,10 @@ export default {
   probes: [
     {
       name: 'baseline-c0-fixture-harness-green',
-      description: 'dart test test/conformance passes with the pristine fixture manifest',
+      description: 'dart test test/conformance passes with the frozen projection checksum',
       kind: 'baseline',
       async run(repo: any) {
-        await expectGreen(
-          repo,
-          "nix develop .#ci --no-write-lock-file -c bash -lc 'cd packages/diene_dart_lib && dart test test/conformance'",
-          'c0-fixture-harness',
-        );
+        await expectGreen(repo, CONFORMANCE, 'c0-fixture-harness');
       },
     },
     {
@@ -30,25 +31,14 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        const manifests = (await repo.glob('packages/*/test/fixtures/c0/manifest.json')).sort();
-        const target = manifests[0];
-        if (!target) {
-          throw new Error('c0-fixture-harness: no fixture manifest to sabotage');
+        const ledger = await repo.read(CHECKSUM);
+        const digest = ledger.match(/^[0-9a-f]{64}/)?.[0];
+        if (!digest) {
+          throw new Error('c0-fixture-harness: SHA256SUMS has no fixture digest');
         }
-        const manifest = JSON.parse(await repo.read(target));
-        const entries = manifest.fixtures ?? {};
-        const firstKey = Object.keys(entries)[0];
-        if (!firstKey) {
-          throw new Error('c0-fixture-harness: fixture manifest has no entries');
-        }
-        const digest = String(entries[firstKey]);
-        entries[firstKey] = (digest[0] === '0' ? '1' : '0') + digest.slice(1);
-        await repo.write(target, `${JSON.stringify(manifest, null, 2)}\n`);
-        await expectRed(
-          repo,
-          "nix develop .#ci --no-write-lock-file -c bash -lc 'cd packages/diene_dart_lib && dart test test/conformance'",
-          'c0-fixture-harness',
-        );
+        const corrupted = (digest[0] === '0' ? '1' : '0') + digest.slice(1);
+        await repo.write(CHECKSUM, ledger.replace(digest, corrupted));
+        await expectRed(repo, CONFORMANCE, 'c0-fixture-harness');
       },
     },
   ],

@@ -9,9 +9,9 @@ set -euo pipefail
 ./scripts/ci/setup.sh
 
 root_dir="$(git rev-parse --show-toplevel)"
-cd "${root_dir}/packages/diene_dart_lib"
+cd "${root_dir}/packages/diene_interfaces"
 
-echo "🚀 Publishing diene_dart_lib ${GITHUB_REF_NAME#v} to pub.dev via GitHub Actions OIDC..."
+echo "🚀 Publishing diene_interfaces ${GITHUB_REF_NAME#v} to pub.dev via GitHub Actions OIDC..."
 dart pub publish --force
 
-echo "✅ Published diene_dart_lib ${GITHUB_REF_NAME#v}"
+echo "✅ Published diene_interfaces ${GITHUB_REF_NAME#v}"

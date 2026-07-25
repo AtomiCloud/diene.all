@@ -1,0 +1,39 @@
+{
+  "$generated": {
+    "tool": "tool/gen_c0_projection.dart",
+    "sourceCase": "contracts/c0/cases/problem.json",
+    "domain": "problem",
+    "releaseId": "c0-fixtures-r2",
+    "releaseDigest": "0e64439c681a22fb4f02285c082ed8ffb7b465e732fde4e49757e9e3c9a5783e"
+  },
+  "rfc9457Members": [
+    "type",
+    "title",
+    "status",
+    "detail",
+    "instance"
+  ],
+  "extensions": [
+    "data",
+    "recoverable"
+  ],
+  "typeUriTemplate": "{scheme}://{host}/docs/{landscape}/{platform}/{service}/{module}/{version}/{id}",
+  "typeUri": {
+    "invalid": [],
+    "valid": [
+      {
+        "expectedTypeUri": "https://docs.raichu.cluster.atomi.cloud/docs/raichu/dotnet/user/api/v1/entity-not-found",
+        "segments": {
+          "host": "docs.raichu.cluster.atomi.cloud",
+          "id": "entity-not-found",
+          "landscape": "raichu",
+          "module": "api",
+          "platform": "dotnet",
+          "scheme": "https",
+          "service": "user",
+          "version": "v1"
+        }
+      }
+    ]
+  }
+}
