@@ -10,7 +10,7 @@ export default {
   probes: [
     {
       name: 'baseline-pub-workspace-metadata-validator-green',
-      description: 'the package metadata validator passes on the pristine template',
+      description: 'the package metadata validator passes on the pristine Result package',
       kind: 'baseline',
       async run(repo: any) {
         await expectGreen(
@@ -26,7 +26,7 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        await repo.patch('packages/diene_dart_lib/pubspec.yaml', {
+        await repo.patch('packages/diene_result/pubspec.yaml', {
           find: 'resolution: workspace',
           replace: 'resolution: none',
         });

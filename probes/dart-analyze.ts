@@ -15,7 +15,7 @@ export default {
   probes: [
     {
       name: 'baseline-dart-analyze-green',
-      description: 'dart analyze passes on the pristine template with infos/warnings fatal',
+      description: 'dart analyze passes on the pristine Result package with infos/warnings fatal',
       kind: 'baseline',
       async run(repo: any) {
         await expectGreen(repo, 'nix develop .#ci --no-write-lock-file -c ./scripts/ci/analyze.sh', 'dart-analyze');

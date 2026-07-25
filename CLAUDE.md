@@ -1,37 +1,73 @@
-# Diene Result agent guide
+# Diene workspace agent guide
 
-<!-- ### dart-result-agent -->
-<!-- #### source: lib/dart/result -->
+<!-- ### nix-root -->
+<!-- #### source: main -->
 
-Use the repository's Nix shell for every command. Read
-[the Nix standard](docs/standards/nix/index.md) before changing the flake or
-`nix/` modules. Keep many-owner files in keyed, source-attributed blocks and
-never hand-edit `.claude/skills/vendor/`.
+Use the repository's Nix shell for every command. Read [the Nix standard](docs/standards/nix/index.md) before changing the flake or `nix/` modules.
 
-## Result package
+<!-- ### workspace -->
+<!-- #### source: workspace -->
 
-Read [the Result standard](doc/result.md) before changing the
-public API, C0 wire representation, or TestHelper. The public entrypoints are
-`package:diene_result/diene_result.dart` and
-`package:diene_result/test_helper.dart`; `lib/src` is internal.
+Follow the linked standard before changing its surface. Keep many-owner files in keyed, source-attributed blocks and never hand-edit `.claude/skills/vendor/`.
 
-The package is frontend-compatible but contains no Flutter SDK dependency, no
-telemetry implementation, and no SSR surface. Consumer assertions stay
-dependency-light and must not import `package:test`, matcher libraries, or a
-mocking framework.
+## CI/CD workflows
 
-## Repository standards
+See [docs/standards/ci-cd/index.md](docs/standards/ci-cd/index.md).
 
-- [CI/CD workflows](docs/standards/ci-cd/index.md)
-- [conventional commits](docs/standards/conventional-commits/index.md)
-- [linting and pre-commit](docs/standards/linting/index.md)
-- [release automation](docs/standards/semantic-release/index.md)
-- [Taskfile conventions](docs/standards/taskfile/index.md)
-- [testing](docs/standards/testing/index.md)
-- [functional practices](docs/standards/functional-practices/index.md)
-- [domain-driven design](docs/standards/domain-driven-design/index.md)
-- [date and time](docs/standards/datetime/index.md)
-- [utility libraries](docs/standards/utilities/index.md)
-- [data validation](docs/standards/validation/index.md)
+## Conventional commits
 
-Domain-specific documentation belongs under [docs/domain/](docs/domain/README.md).
+See [docs/standards/conventional-commits/index.md](docs/standards/conventional-commits/index.md).
+
+## Infisical and secrets
+
+See [docs/standards/infisical/index.md](docs/standards/infisical/index.md).
+
+## Linting and pre-commit
+
+See [docs/standards/linting/index.md](docs/standards/linting/index.md).
+
+## Nix flakes and development shells
+
+See [docs/standards/nix/index.md](docs/standards/nix/index.md).
+
+## Release automation
+
+See [docs/standards/semantic-release/index.md](docs/standards/semantic-release/index.md).
+
+## Service-tree identity
+
+See [docs/standards/service-tree/index.md](docs/standards/service-tree/index.md).
+
+## Shell scripts
+
+See [docs/standards/shell-scripts/index.md](docs/standards/shell-scripts/index.md).
+
+## Taskfile conventions
+
+See [docs/standards/taskfile/index.md](docs/standards/taskfile/index.md).
+
+<!-- ### shared -->
+<!-- #### source: shared -->
+
+## Shared engineering standards
+
+- [Authorization](docs/standards/authorization/index.md)
+- [Contributor documentation](docs/standards/contributor-docs/index.md)
+  ([checklist](docs/standards/contributor-docs/checklist.md),
+  [classification](docs/standards/contributor-docs/classification.md),
+  [frontmatter](docs/standards/contributor-docs/frontmatter.md), and
+  [structure](docs/standards/contributor-docs/structure.md))
+- [Date and time](docs/standards/datetime/index.md)
+- [Domain-driven design](docs/standards/domain-driven-design/index.md)
+- [Functional practices](docs/standards/functional-practices/index.md)
+- [Software design philosophy](docs/standards/software-design-philosophy/index.md)
+- [SOLID principles](docs/standards/solid-principles/index.md)
+- [Stateless OOP and dependency injection](docs/standards/stateless-oop-di/index.md)
+- [Testing](docs/standards/testing/index.md)
+- [Three-layer architecture](docs/standards/three-layer-architecture/index.md)
+- [Utility libraries](docs/standards/utilities/index.md)
+- [Data validation](docs/standards/validation/index.md)
+
+Domain-specific architecture and behavior belongs under
+[docs/domain/](docs/domain/README.md). The `docs/standards/contracts/` slot is
+reserved for the separately owned C0 contracts standard.

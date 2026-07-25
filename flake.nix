@@ -61,17 +61,10 @@
         };
         devShells = import ./nix/shells.nix {
           inherit pkgs env packages;
-          shellHook = pre-commit.shellHook;
+          shellHook = checks.pre-commit-check.shellHook;
         };
         checks = {
-          # Pub-backed Dart hooks run in local pre-commit after workspace setup.
-          pre-commit-check = pre-commit.overrideAttrs {
-            SKIP = builtins.concatStringsSep "," [
-              "a-dart-analyze"
-              "a-dart-deadcode"
-              "a-dart-test"
-            ];
-          };
+          pre-commit-check = pre-commit;
           format = formatter;
         };
       };

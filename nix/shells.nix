@@ -1,8 +1,8 @@
 {
   pkgs,
+  packages,
   env,
   shellHook,
-  ...
 }:
 with env;
 {

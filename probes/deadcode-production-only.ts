@@ -5,10 +5,10 @@ import { expectGreen, expectRed } from './lib/helpers.ts';
 // are surfaced as dead code. This probe replicates that standalone pass inline
 // (mirroring scripts/local/deadcode.sh) and proves a public export unreferenced
 // by the production entrypoints is flagged.
-const MEMBER = 'packages/diene_dart_lib';
+const MEMBER = 'packages/diene_result';
 const PRODUCTION_PASS = [
   'nix develop .#ci --no-write-lock-file -c bash -lc ',
-  "'set -e; member=packages/diene_dart_lib; prod=$(mktemp -d); ",
+  "'set -e; member=packages/diene_result; prod=$(mktemp -d); ",
   'cp "$member/analysis_options.yaml" "$prod/analysis_options.yaml"; ',
   'yq "del(.resolution)" "$member/pubspec.yaml" > "$prod/pubspec.yaml"; ',
   'cp -R "$member/lib" "$prod/lib"; mkdir -p "$prod/bin"; ',
@@ -29,7 +29,7 @@ export default {
   probes: [
     {
       name: 'baseline-deadcode-production-only-green',
-      description: 'the production-only dead-code pass is clean on the pristine template',
+      description: 'the production-only dead-code pass is clean on the pristine package',
       kind: 'baseline',
       async run(repo: any) {
         await expectGreen(repo, PRODUCTION_PASS, 'deadcode-production-only');
@@ -48,7 +48,7 @@ export default {
         await repo.write(`${MEMBER}/lib/src/probe_production_only.dart`, 'int probeProductionOnly() => 1;\n');
         await repo.write(
           `${MEMBER}/test/unit/probe_production_only_test.dart`,
-          "import 'package:diene_dart_lib/src/probe_production_only.dart';\n" +
+          "import 'package:diene_result/src/probe_production_only.dart';\n" +
             "import 'package:test/test.dart';\n\n" +
             "void main() {\n  test('probe production only', () {\n    expect(probeProductionOnly(), 1);\n  });\n}\n",
         );

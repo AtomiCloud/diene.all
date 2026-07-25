@@ -4,9 +4,9 @@ import { expectGreen, expectRed } from './lib/helpers.ts';
 // check-unused-files over lib+test+example) forbids unreferenced declarations.
 // Sabotage appends an unused private production member and proves the pass flags
 // it as dead code.
-const MEMBER = 'packages/diene_dart_lib';
+const MEMBER = 'packages/diene_result';
 const WHOLE_PASS =
-  "nix develop .#ci --no-write-lock-file -c bash -lc 'cd packages/diene_dart_lib && dart run dart_code_linter:metrics check-unused-code lib test example && dart run dart_code_linter:metrics check-unused-files lib test example'";
+  "nix develop .#ci --no-write-lock-file -c bash -lc 'cd packages/diene_result && dart run dart_code_linter:metrics check-unused-code lib test example && dart run dart_code_linter:metrics check-unused-files lib test example'";
 
 export default {
   contractVersion: 1,
@@ -19,7 +19,7 @@ export default {
   probes: [
     {
       name: 'baseline-deadcode-whole-package-green',
-      description: 'the whole-package dead-code pass is clean on the pristine template',
+      description: 'the whole-package dead-code pass is clean on the pristine package',
       kind: 'baseline',
       async run(repo: any) {
         await expectGreen(repo, WHOLE_PASS, 'deadcode-whole-package');
