@@ -1,8 +1,9 @@
-# ### workspace-chart
-# #### source: workspace
+# ### bun-consumer-chart
+# #### source: bun-consumer
 apiVersion: v2
-name: diene-workspace
-description: Minimal workspace baseline chart
+name: diene-bunconsumer
+description: Runtime app chart for the diene bun-consumer worker — worker Deployment with dependency-blind exec probes, db-init pre-sync Job, ExternalSecret, and the vendored config ConfigMap
 type: application
 version: 0.1.0
 appVersion: '0.1.0'
+kubeVersion: '>=1.27.0-0'

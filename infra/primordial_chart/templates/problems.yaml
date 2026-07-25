@@ -1,0 +1,66 @@
+{{- /* ### bun-consumer-primordial-problems */ -}}
+{{- /* #### source: bun-consumer */ -}}
+{{- if .Values.problems.enabled -}}
+{{- include "bunconsumerPrimordial.validateServiceTree" . -}}
+{{- /* The Problem catalog row (error-portal.md §`Problem` CRD). `files/problems.json`
+       is the committed output of the service's `problems:export`, which runs the
+       PUBLISHED @atomicloud/diene.problems exporter. Each entry's `type` is the
+       fully-minted RFC 9457 URI at export time (C0 §2, single-source builder) —
+       this template never reconstructs one.
+
+       ONE CR per (platform, service, landscape, version) ROW: a release
+       re-materializes the entire row in one write, and a version bump is a NEW CR,
+       never an in-place spec.version mutation (D8).
+
+       Tolerate-absent: the export has not necessarily run in a fresh checkout, so
+       a missing or empty file renders nothing rather than failing. */ -}}
+{{- $root := . -}}
+{{- $path := required "problems.path is required" .Values.problems.path -}}
+{{- $version := required "problems.version is required" .Values.problems.version -}}
+{{- if not (regexMatch "^v[0-9]+$" $version) -}}
+{{- fail (printf "problems.version %q must match ^v[0-9]+$ (D8)" $version) -}}
+{{- end -}}
+{{- $raw := trim ($root.Files.Get $path) -}}
+{{- if $raw -}}
+{{- /* The exporter may emit either a bare array of entries or an envelope object
+       carrying them under `problems`. Accept both; anything else is a loud fail. */ -}}
+{{- $entries := list -}}
+{{- if hasPrefix "[" $raw -}}
+{{- $entries = fromJsonArray $raw -}}
+{{- else if hasPrefix "{" $raw -}}
+{{- $entries = (fromJson $raw).problems | default list -}}
+{{- else -}}
+{{- fail (printf "%s is not valid JSON: expected an array of problem entries or an object carrying `problems`" $path) -}}
+{{- end -}}
+{{- if $entries -}}
+{{- range $entry := $entries }}
+{{- $_ := required (printf "%s: every problem entry needs an `id`" $path) $entry.id -}}
+{{- $_ = required (printf "%s: problem %s needs a pre-minted `type` URI" $path $entry.id) $entry.type -}}
+{{- $_ = required (printf "%s: problem %s needs a `title`" $path $entry.id) $entry.title -}}
+{{- $_ = required (printf "%s: problem %s needs a `status`" $path $entry.id) $entry.status -}}
+{{- if not (regexMatch "^[a-z][a-z0-9_]*$" $entry.id) -}}
+{{- fail (printf "%s: problem id %q must be snake_case matching ^[a-z][a-z0-9_]*$" $path $entry.id) -}}
+{{- end -}}
+{{- end }}
+{{- range $landscape := .Values.problems.landscapes }}
+---
+apiVersion: {{ $root.Values.problems.apiVersion }}
+kind: Problem
+metadata:
+  name: {{ printf "%s-%s-%s" $root.Values.serviceTree.service $landscape $version }}
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "bunconsumerPrimordial.labels" $root | nindent 4 }}
+  annotations:
+    {{- include "bunconsumerPrimordial.annotations" $root | nindent 4 }}
+spec:
+  platform: {{ $root.Values.serviceTree.platform }}
+  service: {{ $root.Values.serviceTree.service }}
+  landscape: {{ $landscape }}
+  version: {{ $version }}
+  problems:
+    {{- toYaml $entries | nindent 4 }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

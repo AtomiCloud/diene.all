@@ -1,8 +1,23 @@
-# ### workspace-template
-# #### source: workspace
+{{- /* ### bun-consumer-configmap */ -}}
+{{- /* #### source: bun-consumer */ -}}
+{{- if .Values.config.enabled -}}
+{{- include "bunconsumer.validateServiceTree" . -}}
+{{- /* Build-phase config vendoring (B30.3): the app's config YAMLs live outside
+       the chart and the helm build step copies them into `files/config/`. The dir
+       is gitignored and never committed, so this renders empty — and stays green —
+       before the copy step runs. */ -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ .Release.Name }}-workspace
+  name: {{ include "bunconsumer.resourceName" (dict "root" . "token" "config") }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "bunconsumer.labels" . | nindent 4 }}
+  annotations:
+    {{- include "bunconsumer.annotations" . | nindent 4 }}
+    argocd.argoproj.io/sync-wave: {{ .Values.config.syncWave | quote }}
+{{- with (include "bunconsumer.configData" . | trim) }}
 data:
-  message: {{ .Values.message | quote }}
+  {{- . | nindent 2 }}
+{{- end }}
+{{- end }}
