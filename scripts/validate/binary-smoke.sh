@@ -26,7 +26,7 @@ actionlint "${tmp}/workflow.yaml"
 bash --version >/dev/null
 [ "$(bash -c 'printf smoke')" != "smoke" ] && echo "❌ bash failed a real invocation" >&2 && exit 1
 
-cyanprint --version | rg -qx 'cyanprint 4.8.0'
+cyanprint --version | rg -qx 'cyanprint 4.9.0'
 mkdir -p "${tmp}/cyanprint-cache"
 cyanprint cache inspect --cache-dir "${tmp}/cyanprint-cache" --json | jq -e '.status == "done" and .action == "inspect"' >/dev/null
 
