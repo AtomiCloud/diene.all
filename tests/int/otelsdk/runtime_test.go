@@ -8,12 +8,16 @@ import (
 	"reflect"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/AtomiCloud/diene.go-interfaces/lib/interfaces"
 	interfaceshelper "github.com/AtomiCloud/diene.go-interfaces/testhelper"
 	"github.com/AtomiCloud/diene.go-otel/adapters/otelsdk"
 	"github.com/AtomiCloud/diene.go-otel/lib/otel"
 	"github.com/AtomiCloud/diene.go-otel/testhelper"
+	otelapi "go.opentelemetry.io/otel"
+	otellog "go.opentelemetry.io/otel/log"
+	logglobal "go.opentelemetry.io/otel/log/global"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
@@ -234,28 +238,44 @@ func TestRuntimeExportsAllThreeSignalsThroughInProcessFactories(t *testing.T) {
 	if otelsdk.TracerProviderOf(runtime) == nil || otelsdk.MeterProviderOf(runtime) == nil {
 		t.Fatal("active providers missing")
 	}
-	runtime.Register()
 	if err := runtime.Shutdown(context.Background()); err != nil {
 		t.Fatalf("shutdown exporting runtime: %v", err)
 	}
 }
 
 func TestConsoleSelectionAndGlobalRegistration(t *testing.T) {
-	t.Parallel()
+	previousTracerProvider := otelapi.GetTracerProvider()
+	previousMeterProvider := otelapi.GetMeterProvider()
+	previousLoggerProvider := logglobal.GetLoggerProvider()
+	t.Cleanup(func() {
+		otelapi.SetTracerProvider(previousTracerProvider)
+		otelapi.SetMeterProvider(previousMeterProvider)
+		logglobal.SetLoggerProvider(previousLoggerProvider)
+	})
 
 	config := otel.DefaultConfig()
 	config.Logs.Exporter.Console.Enabled = true
+	config.Logs.Exporter.Otlp.Enabled = true
+	config.Logs.Exporter.Otlp.Endpoint = "https://collector.example:4318"
 	config.Metrics.Exporter.Console.Enabled = true
 	config.Traces.Exporter.Console.Enabled = true
 	spanExporter := tracetest.NewInMemoryExporter()
 	metricExporter := &recordingMetricExporter{}
+	logExporter, logCapture := otelsdk.NewRecordingLogExporter()
 	spanKinds := []otelsdk.ExporterKind{}
 	metricKinds := []otelsdk.ExporterKind{}
+	logKinds := []otelsdk.ExporterKind{}
 	runtime, err := otelsdk.New(
 		context.Background(), config, testhelper.SampleIdentity(),
 		otelsdk.WithSystem(systemWith(nil)),
 		otelsdk.WithLogWriter(&bytes.Buffer{}),
 		otelsdk.WithGlobalRegistration(true),
+		otelsdk.WithLogExporterFactory(func(_ context.Context, kind otelsdk.ExporterKind,
+			_ otel.OtlpSettings,
+		) (otelsdk.LogExporter, error) {
+			logKinds = append(logKinds, kind)
+			return logExporter, nil
+		}),
 		otelsdk.WithSpanExporterFactory(func(_ context.Context, kind otelsdk.ExporterKind,
 			_ otel.OtlpSettings,
 		) (sdktrace.SpanExporter, error) {
@@ -274,8 +294,10 @@ func TestConsoleSelectionAndGlobalRegistration(t *testing.T) {
 	}
 	if runtime.Active() != (otelsdk.ActiveSignals{Logs: true, Metrics: true, Traces: true}) ||
 		!reflect.DeepEqual(spanKinds, []otelsdk.ExporterKind{otelsdk.ExporterConsole}) ||
-		!reflect.DeepEqual(metricKinds, []otelsdk.ExporterKind{otelsdk.ExporterConsole}) {
-		t.Fatalf("console selection mismatch: %+v %#v %#v", runtime.Active(), spanKinds, metricKinds)
+		!reflect.DeepEqual(metricKinds, []otelsdk.ExporterKind{otelsdk.ExporterConsole}) ||
+		!reflect.DeepEqual(logKinds, []otelsdk.ExporterKind{otelsdk.ExporterOtlp}) {
+		t.Fatalf("console/global selection mismatch: %+v %#v %#v %#v",
+			runtime.Active(), spanKinds, metricKinds, logKinds)
 	}
 	if got := otelsdk.SelectedKinds(otel.Selection{}); len(got) != 0 {
 		t.Fatalf("empty selection returned kinds %#v", got)
@@ -283,8 +305,94 @@ func TestConsoleSelectionAndGlobalRegistration(t *testing.T) {
 	if got := otelsdk.SelectedKinds(otel.Selection{Console: true, Otlp: true}); !reflect.DeepEqual(got, []otelsdk.ExporterKind{otelsdk.ExporterConsole, otelsdk.ExporterOtlp}) {
 		t.Fatalf("selected-kind order changed: %#v", got)
 	}
+	record := otellog.Record{}
+	record.SetTimestamp(time.Date(2026, time.July, 25, 19, 0, 0, 0, time.UTC))
+	record.SetSeverity(otellog.SeverityInfo)
+	record.SetSeverityText("info")
+	record.SetBody(otellog.StringValue("global log provider"))
+	logglobal.Logger("global-registration-test").Emit(context.Background(), record)
+	if err := runtime.Flush(context.Background()); err != nil {
+		t.Fatalf("flush globally registered runtime: %v", err)
+	}
+	captured := logCapture.Records()
+	if len(captured) != 1 || captured[0].Body != "global log provider" {
+		t.Fatalf("global log was not exported: %#v", captured)
+	}
 	if err := runtime.Shutdown(context.Background()); err != nil {
 		t.Fatalf("shutdown console runtime: %v", err)
+	}
+}
+
+func TestConsoleFactoriesDoNotReadOrReceiveOtlpSettings(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name            string
+		signal          otel.Signal
+		allowedEnvReads int
+	}{
+		{name: "metrics", signal: otel.SignalMetrics, allowedEnvReads: 4},
+		{name: "traces", signal: otel.SignalTraces, allowedEnvReads: 5},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			system := interfaceshelper.NewInMemorySystem(interfaceshelper.InMemorySystemOptions{})
+			for range test.allowedEnvReads {
+				system.EnqueueEnvironmentResult(nil, nil)
+			}
+			unexpectedRead := errors.New("unrelated OTLP environment read")
+			system.EnqueueEnvironmentResult(nil, unexpectedRead)
+
+			config := otel.DefaultConfig()
+			config.Logs.Enabled = false
+			config.Metrics.Enabled = false
+			config.Traces.Enabled = false
+			var factoryKind otelsdk.ExporterKind
+			var factorySettings otel.OtlpSettings
+			options := []otelsdk.Option{otelsdk.WithSystem(system)}
+			switch test.signal {
+			case otel.SignalLogs:
+				t.Fatal("logs do not use metric or span exporter factories")
+			case otel.SignalMetrics:
+				config.Metrics.Enabled = true
+				config.Metrics.Exporter.Console.Enabled = true
+				exporter := &recordingMetricExporter{}
+				options = append(options, otelsdk.WithMetricExporterFactory(
+					func(_ context.Context, kind otelsdk.ExporterKind, settings otel.OtlpSettings) (sdkmetric.Exporter, error) {
+						factoryKind = kind
+						factorySettings = settings
+						return exporter, nil
+					},
+				))
+			case otel.SignalTraces:
+				config.Traces.Enabled = true
+				config.Traces.Exporter.Console.Enabled = true
+				exporter := &recordingSpanExporter{}
+				options = append(options, otelsdk.WithSpanExporterFactory(
+					func(_ context.Context, kind otelsdk.ExporterKind, settings otel.OtlpSettings) (sdktrace.SpanExporter, error) {
+						factoryKind = kind
+						factorySettings = settings
+						return exporter, nil
+					},
+				))
+			default:
+				t.Fatalf("unexpected signal %q", test.signal)
+			}
+
+			runtime, err := otelsdk.New(context.Background(), config, testhelper.SampleIdentity(), options...)
+			if err != nil {
+				if errors.Is(err, unexpectedRead) {
+					t.Fatalf("console-only %s pipeline read OTLP settings: %v", test.signal, err)
+				}
+				t.Fatalf("build console-only %s runtime: %v", test.signal, err)
+			}
+			if factoryKind != otelsdk.ExporterConsole || factorySettings.URL != nil ||
+				factorySettings.Headers != nil || factorySettings.Timeout != nil {
+				t.Fatalf("console factory received OTLP settings: %q %#v", factoryKind, factorySettings)
+			}
+			if err := runtime.Shutdown(context.Background()); err != nil {
+				t.Fatalf("shutdown console-only %s runtime: %v", test.signal, err)
+			}
+		})
 	}
 }
 
@@ -441,6 +549,131 @@ func TestDirectBuildValidationFailures(t *testing.T) {
 		settingsBroken, resource, "service", seamSignals)
 	if err == nil {
 		t.Fatal("trace settings environment failure was ignored")
+	}
+}
+
+func TestBuildMetricsCleansUpPartialExporters(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name          string
+		failureStage  string
+		factoryFailAt int
+		wantCalls     int
+		wantShutdowns int
+	}{
+		{name: "first factory", failureStage: "factory", factoryFailAt: 1, wantCalls: 1},
+		{name: "later factory", failureStage: "factory", factoryFailAt: 2, wantCalls: 2, wantShutdowns: 1},
+		{name: "later OTLP settings", failureStage: "settings", wantCalls: 1, wantShutdowns: 1},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			constructionCause := errors.New("metric construction failed")
+			cleanupCause := errors.New("metric cleanup failed")
+			exporter := &recordingMetricExporter{shutdownErr: cleanupCause}
+			options := otelsdk.DefaultOptions()
+			if test.failureStage == "settings" {
+				system := interfaceshelper.NewInMemorySystem(interfaceshelper.InMemorySystemOptions{})
+				system.EnqueueEnvironmentResult(nil, constructionCause)
+				options.System = system
+			} else {
+				options.System = systemWith(nil)
+			}
+			factoryCalls := 0
+			options.MetricExporters = func(_ context.Context, _ otelsdk.ExporterKind,
+				settings otel.OtlpSettings,
+			) (sdkmetric.Exporter, error) {
+				factoryCalls++
+				if factoryCalls == 1 && (settings.URL != nil || settings.Headers != nil || settings.Timeout != nil) {
+					t.Fatalf("console metric factory received OTLP settings: %#v", settings)
+				}
+				if test.failureStage == "factory" && factoryCalls == test.factoryFailAt {
+					return nil, constructionCause
+				}
+				return exporter, nil
+			}
+
+			runtime := &otelsdk.Runtime{}
+			err := runtime.BuildMetrics(
+				context.Background(), testhelper.SampleConfig(),
+				map[otel.Signal]otel.Selection{otel.SignalMetrics: {Console: true, Otlp: true}},
+				options, otelsdk.NewResource(nil), "cleanup", map[otel.Signal]struct{}{},
+			)
+			if !errors.Is(err, constructionCause) {
+				t.Fatalf("construction cause lost: %v", err)
+			}
+			if factoryCalls != test.wantCalls || exporter.shutdownCount() != test.wantShutdowns {
+				t.Fatalf("metric cleanup mismatch: calls=%d shutdowns=%d", factoryCalls, exporter.shutdownCount())
+			}
+			if test.wantShutdowns > 0 && !errors.Is(err, cleanupCause) {
+				t.Fatalf("cleanup cause was not joined: %v", err)
+			}
+			if test.wantShutdowns == 0 && errors.Is(err, cleanupCause) {
+				t.Fatalf("unowned exporter cleanup cause leaked into error: %v", err)
+			}
+		})
+	}
+}
+
+func TestBuildTracesCleansUpPartialExporters(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name          string
+		failureStage  string
+		factoryFailAt int
+		wantCalls     int
+		wantShutdowns int
+	}{
+		{name: "first factory", failureStage: "factory", factoryFailAt: 1, wantCalls: 1},
+		{name: "later factory", failureStage: "factory", factoryFailAt: 2, wantCalls: 2, wantShutdowns: 1},
+		{name: "later OTLP settings", failureStage: "settings", wantCalls: 1, wantShutdowns: 1},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			constructionCause := errors.New("trace construction failed")
+			cleanupCause := errors.New("trace cleanup failed")
+			exporter := &recordingSpanExporter{shutdownErr: cleanupCause}
+			options := otelsdk.DefaultOptions()
+			if test.failureStage == "settings" {
+				system := interfaceshelper.NewInMemorySystem(interfaceshelper.InMemorySystemOptions{})
+				system.EnqueueEnvironmentResult(nil, nil)
+				system.EnqueueEnvironmentResult(nil, constructionCause)
+				options.System = system
+			} else {
+				options.System = systemWith(nil)
+			}
+			factoryCalls := 0
+			options.SpanExporters = func(_ context.Context, _ otelsdk.ExporterKind,
+				settings otel.OtlpSettings,
+			) (sdktrace.SpanExporter, error) {
+				factoryCalls++
+				if factoryCalls == 1 && (settings.URL != nil || settings.Headers != nil || settings.Timeout != nil) {
+					t.Fatalf("console trace factory received OTLP settings: %#v", settings)
+				}
+				if test.failureStage == "factory" && factoryCalls == test.factoryFailAt {
+					return nil, constructionCause
+				}
+				return exporter, nil
+			}
+
+			runtime := &otelsdk.Runtime{}
+			err := runtime.BuildTraces(
+				context.Background(), testhelper.SampleConfig(),
+				map[otel.Signal]otel.Selection{otel.SignalTraces: {Console: true, Otlp: true}},
+				options, otelsdk.NewResource(nil), "cleanup", map[otel.Signal]struct{}{},
+			)
+			if !errors.Is(err, constructionCause) {
+				t.Fatalf("construction cause lost: %v", err)
+			}
+			if factoryCalls != test.wantCalls || exporter.shutdownCount() != test.wantShutdowns {
+				t.Fatalf("trace cleanup mismatch: calls=%d shutdowns=%d", factoryCalls, exporter.shutdownCount())
+			}
+			if test.wantShutdowns > 0 && !errors.Is(err, cleanupCause) {
+				t.Fatalf("cleanup cause was not joined: %v", err)
+			}
+			if test.wantShutdowns == 0 && errors.Is(err, cleanupCause) {
+				t.Fatalf("unowned exporter cleanup cause leaked into error: %v", err)
+			}
+		})
 	}
 }
 

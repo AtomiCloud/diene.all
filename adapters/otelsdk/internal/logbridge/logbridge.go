@@ -21,6 +21,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
 	"go.opentelemetry.io/otel/exporters/stdout/stdoutlog"
 	otellog "go.opentelemetry.io/otel/log"
+	logglobal "go.opentelemetry.io/otel/log/global"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 	"go.opentelemetry.io/otel/sdk/resource"
 )
@@ -191,6 +192,11 @@ func (p *Provider) ForceFlush(ctx context.Context) error { return p.provider.For
 // Shutdown stops the pipeline.
 func (p *Provider) Shutdown(ctx context.Context) error { return p.provider.Shutdown(ctx) }
 
+// RegisterGlobal installs this provider as the process-wide logs provider. The
+// operation lives in this containment package so the experimental logs API
+// never appears in the public otelsdk surface.
+func (p *Provider) RegisterGlobal() { logglobal.SetLoggerProvider(p.provider) }
+
 // KeyValues bridges v1-stable attributes onto the logs key-value type.
 func KeyValues(attributes []attribute.KeyValue) []otellog.KeyValue {
 	converted := make([]otellog.KeyValue, 0, len(attributes))
@@ -207,6 +213,7 @@ func KeyValues(attributes []attribute.KeyValue) []otellog.KeyValue {
 // preserved as log slice values rather than stringified, so an array attribute
 // survives the pipeline with its structure intact.
 func Value(value attribute.Value) (converted otellog.Value) {
+	converted = otellog.StringValue(value.String())
 	switch value.Type() {
 	case attribute.BOOL:
 		converted = otellog.BoolValue(value.AsBool())
@@ -229,6 +236,9 @@ func Value(value attribute.Value) (converted otellog.Value) {
 		// otel.ValidAttributeValue restricts to the four scalars and their
 		// homogeneous arrays; render defensively rather than dropping data.
 		converted = otellog.StringValue(value.String())
+	default:
+		// Future attribute kinds retain the same defensive string initialized
+		// above instead of being silently dropped.
 	}
 	return converted
 }

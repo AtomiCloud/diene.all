@@ -187,6 +187,10 @@ func TestSharedLogAndMetricRecordValidation(t *testing.T) {
 		func(record *interfaces.MetricRecord) { record.Name = " " },
 		func(record *interfaces.MetricRecord) { record.Kind = "unknown" },
 		func(record *interfaces.MetricRecord) { record.Value = math.NaN() },
+		func(record *interfaces.MetricRecord) {
+			record.Kind = interfaces.MetricKindCounter
+			record.Value = -1
+		},
 		func(record *interfaces.MetricRecord) { record.Attributes = map[string]any{"bad": nil} },
 	} {
 		candidate := metricRecord.Clone()

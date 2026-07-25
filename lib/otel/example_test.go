@@ -52,7 +52,10 @@ func ExampleResourceAttributes() {
 
 func ExampleJSONSchema() {
 	schema := otel.JSONSchema()
-	properties := schema["properties"].(map[string]any)
+	properties, ok := schema["properties"].(map[string]any)
+	if !ok {
+		panic("schema properties must be an object")
+	}
 	fmt.Println(otel.SchemaKey(), schema["additionalProperties"])
 	fmt.Println(len(properties))
 

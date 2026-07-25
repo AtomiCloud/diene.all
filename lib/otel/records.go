@@ -54,5 +54,9 @@ func ValidateMetricRecord(record interfaces.MetricRecord) error {
 		return NewFault(FaultRecordInvalid, "Invalid metric record",
 			"metric value must be finite", FaultStatusInvalidInput)
 	}
+	if record.Kind == interfaces.MetricKindCounter && record.Value < 0 {
+		return NewFault(FaultRecordInvalid, "Invalid metric record",
+			"counter value must not be negative", FaultStatusInvalidInput)
+	}
 	return ValidateAttributes(record.Attributes)
 }

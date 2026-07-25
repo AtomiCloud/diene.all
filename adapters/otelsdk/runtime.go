@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"maps"
+	"slices"
 	"sync"
 
 	"github.com/AtomiCloud/diene.go-interfaces/lib/interfaces"
@@ -328,17 +329,30 @@ func (r *Runtime) BuildMetrics(
 		return intervalErr
 	}
 	readers := []sdkmetric.Option{sdkmetric.WithResource(res)}
+	createdExporters := []sdkmetric.Exporter{}
+	cleanupExporters := func(constructionErr error) error {
+		failures := []error{constructionErr}
+		for _, exporter := range slices.Backward(createdExporters) {
+			failures = append(failures, exporter.Shutdown(ctx))
+		}
+		return errors.Join(failures...)
+	}
 	for _, kind := range SelectedKinds(selection) {
-		settings, settingsErr := otel.OtlpExporterSettings(
-			config.Metrics.Exporter.Otlp, otel.SignalMetrics, options.System,
-		)
-		if settingsErr != nil {
-			return settingsErr
+		settings := otel.OtlpSettings{}
+		if kind == ExporterOtlp {
+			resolved, settingsErr := otel.OtlpExporterSettings(
+				config.Metrics.Exporter.Otlp, otel.SignalMetrics, options.System,
+			)
+			if settingsErr != nil {
+				return cleanupExporters(settingsErr)
+			}
+			settings = resolved
 		}
 		exporter, exporterErr := options.MetricExporters(ctx, kind, settings)
 		if exporterErr != nil {
-			return otel.NormalizeFault(exporterErr)
+			return cleanupExporters(otel.NormalizeFault(exporterErr))
 		}
+		createdExporters = append(createdExporters, exporter)
 		readers = append(readers, sdkmetric.WithReader(
 			sdkmetric.NewPeriodicReader(exporter, sdkmetric.WithInterval(interval)),
 		))
@@ -388,17 +402,30 @@ func (r *Runtime) BuildTraces(
 	if sampler != nil {
 		providerOptions = append(providerOptions, sdktrace.WithSampler(sampler))
 	}
+	createdExporters := []sdktrace.SpanExporter{}
+	cleanupExporters := func(constructionErr error) error {
+		failures := []error{constructionErr}
+		for _, exporter := range slices.Backward(createdExporters) {
+			failures = append(failures, exporter.Shutdown(ctx))
+		}
+		return errors.Join(failures...)
+	}
 	for _, kind := range SelectedKinds(selection) {
-		settings, settingsErr := otel.OtlpExporterSettings(
-			config.Traces.Exporter.Otlp, otel.SignalTraces, options.System,
-		)
-		if settingsErr != nil {
-			return settingsErr
+		settings := otel.OtlpSettings{}
+		if kind == ExporterOtlp {
+			resolved, settingsErr := otel.OtlpExporterSettings(
+				config.Traces.Exporter.Otlp, otel.SignalTraces, options.System,
+			)
+			if settingsErr != nil {
+				return cleanupExporters(settingsErr)
+			}
+			settings = resolved
 		}
 		exporter, exporterErr := options.SpanExporters(ctx, kind, settings)
 		if exporterErr != nil {
-			return otel.NormalizeFault(exporterErr)
+			return cleanupExporters(otel.NormalizeFault(exporterErr))
 		}
+		createdExporters = append(createdExporters, exporter)
 		providerOptions = append(providerOptions, sdktrace.WithBatcher(exporter))
 	}
 	provider := sdktrace.NewTracerProvider(providerOptions...)
@@ -430,6 +457,9 @@ func SelectedKinds(selection otel.Selection) []ExporterKind {
 func (r *Runtime) Register() {
 	otelapi.SetTracerProvider(TracerProviderOf(r))
 	otelapi.SetMeterProvider(MeterProviderOf(r))
+	if r.ownedLogger != nil && r.ownedLogger.pipeline != nil {
+		r.ownedLogger.pipeline.RegisterGlobal()
+	}
 }
 
 // TracerProviderOf returns the runtime's tracer provider, or a no-op provider when

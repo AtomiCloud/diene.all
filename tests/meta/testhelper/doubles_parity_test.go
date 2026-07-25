@@ -3,7 +3,6 @@ package testhelper_test
 import (
 	"context"
 	"errors"
-	"math"
 	"testing"
 	"time"
 
@@ -163,7 +162,8 @@ func TestMockAndRealEmitSurfaceParity(t *testing.T) {
 	mockMetrics := testhelper.NewInMemoryMetricsCollector()
 	validMetric := testhelper.SampleMetricRecord()
 	invalidMetric := validMetric.Clone()
-	invalidMetric.Value = math.NaN()
+	invalidMetric.Kind = interfaces.MetricKindCounter
+	invalidMetric.Value = -1
 	assertEmitParity(t, realMetrics.Emit, mockMetrics.Emit, validMetric, invalidMetric)
 	if len(mockMetrics.Records()) != 1 {
 		t.Fatal("metric mock did not accept exactly one valid record")

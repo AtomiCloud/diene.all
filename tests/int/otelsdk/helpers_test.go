@@ -40,6 +40,7 @@ type recordingMetricExporter struct {
 	exportErr   error
 	flushErr    error
 	shutdownErr error
+	shutdowns   int
 }
 
 func (*recordingMetricExporter) Temporality(kind sdkmetric.InstrumentKind) metricdata.Temporality {
@@ -59,7 +60,18 @@ func (e *recordingMetricExporter) Export(_ context.Context, metrics *metricdata.
 
 func (e *recordingMetricExporter) ForceFlush(context.Context) error { return e.flushErr }
 
-func (e *recordingMetricExporter) Shutdown(context.Context) error { return e.shutdownErr }
+func (e *recordingMetricExporter) Shutdown(context.Context) error {
+	e.mutex.Lock()
+	defer e.mutex.Unlock()
+	e.shutdowns++
+	return e.shutdownErr
+}
+
+func (e *recordingMetricExporter) shutdownCount() int {
+	e.mutex.Lock()
+	defer e.mutex.Unlock()
+	return e.shutdowns
+}
 
 func (e *recordingMetricExporter) metricNames() []string {
 	e.mutex.Lock()
@@ -95,6 +107,7 @@ type recordingSpanExporter struct {
 	spans       []sdktrace.ReadOnlySpan
 	exportErr   error
 	shutdownErr error
+	shutdowns   int
 }
 
 func (e *recordingSpanExporter) ExportSpans(_ context.Context, spans []sdktrace.ReadOnlySpan) error {
@@ -104,4 +117,15 @@ func (e *recordingSpanExporter) ExportSpans(_ context.Context, spans []sdktrace.
 	return e.exportErr
 }
 
-func (e *recordingSpanExporter) Shutdown(context.Context) error { return e.shutdownErr }
+func (e *recordingSpanExporter) Shutdown(context.Context) error {
+	e.mutex.Lock()
+	defer e.mutex.Unlock()
+	e.shutdowns++
+	return e.shutdownErr
+}
+
+func (e *recordingSpanExporter) shutdownCount() int {
+	e.mutex.Lock()
+	defer e.mutex.Unlock()
+	return e.shutdowns
+}
