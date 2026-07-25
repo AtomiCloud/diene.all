@@ -16,6 +16,13 @@ includes:
     vars:
       MODE: int
       CONFIG: bunfig.int.toml
+  # ### bun-lib-test-includes
+  # #### source: bun-lib
+  meta:
+    taskfile: tasks/Taskfile.test.yaml
+    vars:
+      MODE: meta
+      CONFIG: bunfig.meta.toml
 
 tasks:
   setup:
@@ -45,7 +52,7 @@ tasks:
       - '[ -d node_modules ] && find node_modules -mindepth 1 -maxdepth 1 -exec rm -rf {} + || true'
 
   build:
-    desc: Build the Bun bundle to dist/
+    desc: Build the publishable library (ESM + CJS + types) to dist/
     cmds:
       - ./scripts/local/build.sh
 
@@ -55,10 +62,11 @@ tasks:
       - ./scripts/local/deadcode.sh
 
   test:
-    desc: Run unit and integration suites without coverage
+    desc: Run unit, integration, and conditional meta suites without coverage
     cmds:
       - task: unit:default
       - task: int:default
+      - task: meta:default
 
   test:unit:
     desc: Run the unit suite without coverage
@@ -70,11 +78,19 @@ tasks:
     cmds:
       - task: int:default
 
+  # ### bun-lib-meta-tasks
+  # #### source: bun-lib
+  test:meta:
+    desc: Run the TestHelper meta suite when a TestHelper exists
+    cmds:
+      - task: meta:default
+
   test:coverage:
-    desc: Run every coverage-capable suite with coverage
+    desc: Run unit, integration, and conditional meta suites with coverage
     cmds:
       - task: unit:coverage
       - task: int:coverage
+      - task: meta:coverage
 
   test:unit:coverage:
     desc: Run the unit suite with coverage
@@ -85,6 +101,11 @@ tasks:
     desc: Run the integration suite with coverage
     cmds:
       - task: int:coverage
+
+  test:meta:coverage:
+    desc: Run the TestHelper meta suite with coverage when a TestHelper exists
+    cmds:
+      - task: meta:coverage
 
   test:watch:
     desc: Watch the fast unit suite

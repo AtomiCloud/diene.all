@@ -40,7 +40,7 @@ let
     dontFixup = true;
     outputHashMode = "recursive";
     outputHashAlgo = "sha256";
-    outputHash = "sha256-dEFLB1Li7H8L6ppoLSQCGA5a63t0fFVeELAdWvRUuRE=";
+    outputHash = "sha256-V1hdZkEABk3JXUCIgrsbkZqFCKs80/g/lyzWND9hd9o=";
   };
   bun-tool = name: "${packages.bun}/bin/bun ${bun-tooling}/node_modules/.bin/${name}";
   biome-platform =
@@ -274,6 +274,44 @@ pre-commit-lib.run {
       name = "TypeScript typecheck";
       entry = "${bun-tool "tsc"} --noEmit";
       files = "(^package\\.json$|^tsconfig\\.json$|\\.(ts|tsx|mts|cts)$)";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    # ### bun-lib-hooks
+    # #### source: bun-lib
+    a-publish-tag-policy = {
+      enable = true;
+      name = "Publish tag policy";
+      entry = validator "scripts/validate/publish-policy.sh tag";
+      files = "^\\.github/workflows/cd\\.yaml$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-publish-credential-policy = {
+      enable = true;
+      name = "Publish credential policy";
+      entry = validator "scripts/validate/publish-policy.sh credential";
+      files = "^(\\.github/workflows/.*\\.ya?ml$|scripts/ci/publish\\.sh$)";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-publish-command-policy = {
+      enable = true;
+      name = "Publish command policy";
+      entry = validator "scripts/validate/publish-policy.sh command";
+      files = "^scripts/ci/publish\\.sh$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-package-metadata = {
+      enable = true;
+      name = "Package metadata agreement";
+      entry = validator "scripts/validate/package-metadata.sh";
+      files = "^(package\\.json$|LICENSE$)";
       pass_filenames = false;
       language = "system";
     };

@@ -35,9 +35,29 @@ jobs:
     with:
       mode: int
 
+  # ### bun-lib-meta-ci
+  # #### source: bun-lib
+  meta:
+    name: Meta Tests
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-test.yaml
+    secrets: inherit
+    with:
+      mode: meta
+
   build:
     name: Build Validation
     permissions:
       contents: read
     uses: ./.github/workflows/⚡reusable-build.yaml
+    secrets: inherit
+
+  # ### bun-lib-ci
+  # #### source: bun-lib
+  package-validate:
+    name: Package Validation
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-package-validate.yaml
     secrets: inherit

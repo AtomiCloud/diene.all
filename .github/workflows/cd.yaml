@@ -1,0 +1,16 @@
+# ### bun-lib-cd
+# #### source: bun-lib
+name: CD
+
+on:
+  push:
+    tags:
+      - v*.*.*
+
+jobs:
+  publish:
+    name: Publish to npm
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-publish.yaml
+    secrets: inherit

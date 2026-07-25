@@ -1,0 +1,7 @@
+[test]
+root = "tests/meta"
+coverageReporter = ["text", "lcov"]
+coverageDir = "coverage/meta"
+coverageSkipTestFiles = true
+# Meta ledger = TestHelper code only; all current non-helper source tiers and tests never count.
+coveragePathIgnorePatterns = ["src/adapters/**", "src/index.ts", "src/lib/**", "tests/**"]

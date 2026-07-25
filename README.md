@@ -67,3 +67,45 @@ boundary. TypeScript variants accompany the shared standards for
 [testing](docs/standards/testing/languages/typescript.md),
 [utilities](docs/standards/utilities/languages/typescript.md), and
 [validation](docs/standards/validation/languages/typescript.md).
+
+<!-- ### bun-lib -->
+<!-- #### source: bun-lib -->
+
+## Library package
+
+`@atomicloud/diene.bun-lib` is the publishable Bun library baseline: a small
+TypeScript package shipped as dual **ESM + CommonJS** with bundled type
+declarations, validated on every push and published on `v*.*.*` tags. Library
+children rescope the package name, description, keywords, and badge URLs from
+this scaffold.
+
+See the [npm release runbook](https://github.com/AtomiCloud/diene.bun-lib/blob/main/docs/developer/npm-release.md)
+for tag publishing, API-key rotation, retry behavior, and the deliberate
+no-provenance policy.
+
+[![npm version](https://img.shields.io/npm/v/@atomicloud/diene.bun-lib)](https://www.npmjs.com/package/@atomicloud/diene.bun-lib)
+[![npm downloads](https://img.shields.io/npm/dm/@atomicloud/diene.bun-lib)](https://www.npmjs.com/package/@atomicloud/diene.bun-lib)
+[![CI](https://github.com/AtomiCloud/diene.bun-lib/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.bun-lib/actions/workflows/ci.yaml)
+
+### Installation
+
+```bash
+bun add @atomicloud/diene.bun-lib
+# or
+npm install @atomicloud/diene.bun-lib
+```
+
+`ioredis` is a runtime dependency and is installed automatically.
+
+### Usage
+
+```ts
+// ESM
+import { buildSampleKey, createRedisStore, persistSample } from '@atomicloud/diene.bun-lib';
+import type { IKeyValueStore, RedisConnection } from '@atomicloud/diene.bun-lib';
+```
+
+```js
+// CommonJS
+const { buildSampleKey, createRedisStore, persistSample } = require('@atomicloud/diene.bun-lib');
+```
