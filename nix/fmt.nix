@@ -15,6 +15,7 @@ let
           "Changelog.md"
           "docs/developer/CommitConventions.md"
           "infra/root_chart/**"
+          "packages/diene_result/test/fixtures/c0/result-wire.json"
         ];
       };
       shfmt.enable = true;

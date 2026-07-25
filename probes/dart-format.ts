@@ -10,7 +10,7 @@ export default {
   probes: [
     {
       name: 'baseline-dart-format-green',
-      description: 'dart format reports the pristine template as already formatted',
+      description: 'dart format reports the pristine Result package as already formatted',
       kind: 'baseline',
       async run(repo: any) {
         await expectGreen(

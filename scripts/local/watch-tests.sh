@@ -7,6 +7,6 @@ command -v entr >/dev/null 2>&1 || {
 }
 
 root_dir="$(git rev-parse --show-toplevel)"
-cd "${root_dir}/packages/diene_dart_lib"
+cd "${root_dir}/packages/diene_result"
 
 rg --files lib test | entr -r dart test test/unit test/conformance

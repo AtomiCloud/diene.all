@@ -24,7 +24,7 @@ export default {
   probes: [
     {
       name: 'baseline-unit-coverage-ledger-green',
-      description: 'the unit coverage ledger holds at 100% on the pristine template',
+      description: 'the unit coverage ledger holds at 100% on the pristine Result package',
       kind: 'baseline',
       async run(repo: any) {
         await expectGreen(
