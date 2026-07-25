@@ -30,10 +30,11 @@ mapfile -t cyanprint_versions < <(
   awk -F'"' '/^[[:space:]]*cyanprintVersion = "[^"]+";$/ { print $2 }' nix/packages.nix
 )
 if [ "${#cyanprint_versions[@]}" -ne 1 ]; then
-  echo "❌ expected exactly one cyanprintVersion pin in nix/packages.nix" >&2
+  echo "expected exactly one cyanprintVersion pin in nix/packages.nix" >&2
   exit 1
 fi
-cyanprint --version | rg -Fqx "cyanprint ${cyanprint_versions[0]}"
+cyanprint --version | grep -Fqx "cyanprint ${cyanprint_versions[0]}"
+
 mkdir -p "${tmp}/cyanprint-cache"
 cyanprint cache inspect --cache-dir "${tmp}/cyanprint-cache" --json | jq -e '.status == "done" and .action == "inspect"' >/dev/null
 
