@@ -1,10 +1,21 @@
-// Serializes on the same host lock as the SIT rows: pls up/down binds the
-// dev.yaml host ports, so concurrent stacks would collide (PROBES §5 addendum).
+// Serializes on the same host mkdir spinlock as the SIT rows: pls up/down binds
+// the dev.yaml host ports, so concurrent stacks would collide (PROBES §5 addendum).
+const LOCK = '/tmp/diene-bunconsumer-sit.lock.d';
+
 const SCRIPT = `#!/usr/bin/env bash
 set -euo pipefail
-./scripts/local/setup.sh
-cleanup() { pls down || true; }
+while ! mkdir ${LOCK} 2>/dev/null; do
+  pid="$(cat ${LOCK}/pid 2>/dev/null || true)"
+  if [ -n "\${pid}" ] && ! kill -0 "\${pid}" 2>/dev/null; then rm -rf ${LOCK}; continue; fi
+  sleep 5
+done
+echo $$ >${LOCK}/pid
+cleanup() {
+  pls down >/dev/null 2>&1 || true
+  rm -rf ${LOCK}
+}
 trap cleanup EXIT
+./scripts/local/setup.sh
 pls up
 pls run -- --help
 pls preview -- --help
@@ -22,10 +33,9 @@ export default {
       kind: 'baseline',
       async run(repo: any) {
         await repo.write('.probe-task-surface.sh', SCRIPT);
-        const result = await repo.exec(
-          "nix develop .#ci -c bash -lc 'flock /tmp/diene-bunconsumer-sit.lock bash .probe-task-surface.sh'",
-          { timeoutMs: 1800000 },
-        );
+        const result = await repo.exec("nix develop .#ci -c bash -lc 'bash .probe-task-surface.sh'", {
+          timeoutMs: 1800000,
+        });
         if (result.exitCode !== 0) {
           throw new Error(`task-surface failed on the healthy repo: ${result.stderr || result.stdout}`);
         }
