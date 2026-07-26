@@ -7,4 +7,7 @@ set -euo pipefail
 # #### source: bun-base
 ./scripts/local/setup.sh
 
+# Dependency-bearing libraries can only vendor installed package skills after setup.
+./scripts/local/skills-sync.sh
+
 echo "✅ Repository setup complete"
