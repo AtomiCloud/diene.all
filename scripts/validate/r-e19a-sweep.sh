@@ -145,22 +145,70 @@ members="$(git -c core.quotePath=false ls-tree -d --name-only "${HEAD_REF}" -- p
 note "  workspace members: ${members}"
 [ "${members}" -eq 1 ] || bad "expected exactly one workspace member, found ${members}"
 
-# 7. No stale identity strings anywhere in the tree. --------------------------
-note '→ residual package-identity strings'
-stale="$(git grep -I -l -E 'diene_interfaces|diene-interfaces|diene_dart_lib|diene-dart-lib' "${HEAD_REF}" -- . 2>/dev/null | wc -l)"
-fresh="$(git grep -I -l -E 'diene_core_utils|diene-core-utils' "${HEAD_REF}" -- . 2>/dev/null | wc -l)"
-note "  files naming a FOREIGN package identity: ${stale}"
-note "  files naming THIS package identity:     ${fresh}"
-[ "${stale}" -eq 0 ] || {
-  bad 'foreign package identity survives:'
-  git grep -I -n -E 'diene_interfaces|diene-interfaces|diene_dart_lib|diene-dart-lib' "${HEAD_REF}" -- . | sed 's/^/     /' >&2
+# 7. Package identity, by STRUCTURED QUERY rather than by name pattern. -------
+#
+# An earlier revision of this check grepped the whole tree for `diene_interfaces`
+# and called every hit residue. That was wrong, and wrong in the exact way the
+# "the triage tool is itself a gate" ruling describes: `diene_interfaces` is a
+# DECLARED DEPENDENCY of this package — the R-E12 seam — so naming it is required,
+# not leftover. A name pattern cannot separate "this package is mis-identified as
+# diene_interfaces" from "this package imports diene_interfaces", so the identity
+# check asks the MANIFESTS what the package is called instead of asking grep.
+note '→ package identity (structured manifest queries)'
+identity_checks=0
+expect_yq() { # <file> <yq-expression> <expected>
+  local file="$1" expr="$2" want="$3" got
+  got="$(yq -r "${expr}" "${file}")"
+  identity_checks=$((identity_checks + 1))
+  note "  ${file} ${expr} = ${got}"
+  [ "${got}" = "${want}" ] || bad "expected '${want}', got '${got}' for ${expr} in ${file}"
 }
-# Positive control: if the grep itself were broken, this would also read 0.
-[ "${fresh}" -gt 0 ] || bad 'the identity grep found ZERO mentions of this package; the check is not working'
+expect_yq pubspec.yaml '.name' 'diene_core_utils_workspace'
+expect_yq pubspec.yaml '.workspace | join(",")' 'packages/diene_core_utils'
+expect_yq packages/diene_core_utils/pubspec.yaml '.name' 'diene_core_utils'
+expect_yq packages/diene_core_utils/pubspec.yaml '.repository' \
+  'https://github.com/AtomiCloud/diene.dart_core_utils'
+expect_yq atomi_release.yaml \
+  '[.plugins[].config.changelogFile | select(. != null)] | join(",")' \
+  'packages/diene_core_utils/CHANGELOG.md'
+expect_yq codecov.yml '.flags.unit.paths | join(",")' 'packages/diene_core_utils/lib/src'
+note "  identity assertions made: ${identity_checks}"
+[ "${identity_checks}" -eq 6 ] || bad "expected 6 identity assertions, made ${identity_checks}"
+
+# 8. The WRONG PARENT's package name must be gone as an identifier. ------------
+# Unlike diene_interfaces, `diene_dart_lib` is not a dependency of anything here,
+# so any surviving mention is genuine residue. This script must itself name the
+# string in order to search for it, so it is the one allowed occurrence and is
+# excluded by PATH, with the exclusion printed rather than silently applied.
+note '→ the wrong parent package name as an identifier'
+SELF='scripts/validate/r-e19a-sweep.sh'
+mapfile -t sample_hits < <(
+  git grep -I -l -E 'diene_dart_lib|diene-dart-lib' "${HEAD_REF}" -- . 2>/dev/null |
+    sed "s|^${HEAD_REF}:||" | grep -v -x "${SELF}" || true
+)
+note "  files naming diene_dart_lib (excluding ${SELF}): ${#sample_hits[@]}"
+if [ "${#sample_hits[@]}" -ne 0 ]; then
+  bad 'the parent sample package name survives as an identifier:'
+  printf '     %s\n' "${sample_hits[@]}" >&2
+fi
+# Positive control: the grep must be able to find the string it searches for, or a
+# zero above would mean "the check is broken", not "the tree is clean".
+self_hits="$(git grep -I -c -E 'diene_dart_lib' "${HEAD_REF}" -- "${SELF}" 2>/dev/null | sed 's/.*://' || echo 0)"
+note "  positive control — occurrences inside ${SELF}: ${self_hits}"
+[ "${self_hits}" -gt 0 ] || bad 'the diene_dart_lib grep found nothing even in this script; the check is not working'
+
+# 9. diene_interfaces mentions are legitimate BECAUSE it is a declared dep. ----
+note '→ diene_interfaces is a declared dependency, so its mentions are expected'
+iface_constraint="$(yq -r '.dependencies.diene_interfaces // "ABSENT"' packages/diene_core_utils/pubspec.yaml)"
+iface_mentions="$(git grep -I -l -E 'diene_interfaces' "${HEAD_REF}" -- . 2>/dev/null | wc -l)"
+note "  declared constraint: ${iface_constraint}"
+note "  files referencing it: ${iface_mentions}"
+[ "${iface_constraint}" != 'ABSENT' ] || bad 'diene_interfaces is referenced but not declared as a dependency'
+[ "${iface_mentions}" -gt 0 ] || bad 'diene_interfaces is declared but never used; the R-E12 seam is missing'
 
 note ''
 if [ "${fail}" -ne 0 ]; then
   note "❌ R-E19a sweep FAILED"
   exit 1
 fi
-note "✅ R-E19a sweep PASSED: ${#changed[@]} changed paths vs ${TRUE_PARENT:0:9}, ${residue_hits} flutter-base identity paths, ${present}/11 node anchors, ${members} workspace member, ${stale} foreign identity files, ${fresh} own-identity files"
+note "✅ R-E19a sweep PASSED: ${#changed[@]} changed paths vs ${TRUE_PARENT:0:9}, ${residue_hits} flutter-base identity paths, ${present}/11 node anchors, ${members} workspace member, ${identity_checks}/6 manifest identity assertions, ${#sample_hits[@]} wrong-parent-name files, diene_interfaces ${iface_constraint} across ${iface_mentions} files"
