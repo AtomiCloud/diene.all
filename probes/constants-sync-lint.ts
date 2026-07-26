@@ -22,9 +22,12 @@ export default {
       kind: 'mutation',
       async run(repo: any) {
         const source = await repo.read('config/settings.yaml');
-        const patched = source.replace(/^postgres:$/m, 'postgres:\n  SABOTAGE: {}');
+        const patched = source.replace(
+          'kv:\n  MAIN:',
+          "kv:\n  SABOTAGE:\n    host: redis\n    port: 6379\n    password: ''\n    db: 2\n    tls: false\n  MAIN:",
+        );
         if (patched === source) {
-          throw new Error('no structural postgres block found in config/settings.yaml');
+          throw new Error('no structural kv block found in config/settings.yaml');
         }
         await repo.write('config/settings.yaml', patched);
         await expectRed(

@@ -18,6 +18,7 @@ describe('db-init idempotency SIT', () => {
       // Assert
       should(first.code).equal(0);
       should(second.code).equal(0);
+      should(JSON.parse(second.out)).have.properties({ ok: true, seeded: 0 });
       should(after[0]?.count).equal(before[0]?.count);
     } finally {
       await closeSafely(database);

@@ -9,17 +9,28 @@ export default {
       description: 'Helm lint accepts the bun-consumer app chart through its direct invocation.',
       kind: 'baseline',
       async run(repo: any) {
-        await expectGreen(repo, 'nix develop .#ci -c helm lint infra/root_chart', 'app-chart-lint');
+        await expectGreen(
+          repo,
+          'nix develop .#ci -c helm lint infra/root_chart --values infra/root_chart/values.lapras.yaml',
+          'app-chart-lint',
+        );
       },
     },
     {
       name: 'mutation-app-chart-lint-caught',
-      description: 'Invalid chart metadata turns app-chart lint red.',
+      description: 'An invalid consumer landscape value turns app-chart lint red.',
       kind: 'mutation',
-      expectedImpact: ['app-chart-template'],
+      expectedImpact: [],
       async run(repo: any) {
-        await repo.patch('infra/root_chart/Chart.yaml', { find: 'apiVersion: v2', replace: 'apiVersion: invalid' });
-        await expectRed(repo, 'nix develop .#ci -c helm lint infra/root_chart', 'app-chart-lint');
+        await repo.patch('infra/root_chart/values.lapras.yaml', {
+          find: '  replicas: 1',
+          replace: '  replicas: invalid',
+        });
+        await expectRed(
+          repo,
+          'nix develop .#ci -c helm lint infra/root_chart --values infra/root_chart/values.lapras.yaml',
+          'app-chart-lint',
+        );
       },
     },
   ],
