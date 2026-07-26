@@ -81,3 +81,15 @@ Read [the Bun baseline](docs/developer/bun-baseline.md) before changing the Bun
 toolchain, task surface, test tiers, coverage ledgers, build, or illustrative
 sample. Follow the TypeScript variants linked from that baseline alongside the
 shared engineering standards.
+
+<!-- ### api-engine -->
+<!-- #### source: api-engine -->
+
+## API engine domain
+
+Keep backend registration immutable and keyed by the full
+landscape/platform/service/module coordinate. Derive backend addresses only from
+configuration and auth tokens only through the published `IAuthStateRetriever`
+and canonical `ResourceKey`. Public SDK calls return `Result<T, Problem>` and
+must not reject. Api-engine may report a rescue trip but never owns the rescue
+router.

@@ -18,27 +18,18 @@ export default {
     },
     {
       name: 'mutation-bun-unit-tests-caught',
-      description: 'A flipped should assertion turns the Bun unit tier red.',
+      description: 'A flipped Result assertion turns the Bun unit tier red.',
       kind: 'mutation',
       expectedImpact: ['bun-unit-coverage'],
       async run(repo: any) {
-        const paths = await repo.glob('tests/unit/**/*.test.ts');
-        for (const path of paths) {
-          const source = await repo.read(path);
-          if (source.includes('should(actual).equal(expected);')) {
-            await repo.write(
-              path,
-              source.replace('should(actual).equal(expected);', 'should(actual).not.equal(expected);'),
-            );
-            await expectBunRed(
-              repo,
-              "nix develop .#ci -c bash -lc './scripts/local/setup.sh && pls test:unit'",
-              'bun-unit-tests',
-            );
-            return;
-          }
-        }
-        throw new Error('no structural should assertion target found');
+        const path = 'tests/unit/api-engine.test.ts';
+        const source = await repo.read(path);
+        await repo.write(path, source.replace("toEqual(['ok', { id: 7 }])", "toEqual(['ok', { id: 8 }])"));
+        await expectBunRed(
+          repo,
+          "nix develop .#ci -c bash -lc './scripts/local/setup.sh && pls test:unit'",
+          'bun-unit-tests',
+        );
       },
     },
   ],

@@ -26,7 +26,12 @@ if [[ ${mode} == "content" || ${mode} == "all" ]]; then
     package/dist/index.cjs
     package/dist/index.d.ts
     package/dist/index.d.cts
-    package/skills/diene-bun-lib-usage/SKILL.md
+    package/dist/test-helper.js
+    package/dist/test-helper.cjs
+    package/dist/test-helper.d.ts
+    package/dist/test-helper.d.cts
+    package/skills/diene-api-engine-usage/SKILL.md
+    package/docs/domain/README.md
   )
   missing=0
   for path in "${expected[@]}"; do
@@ -46,7 +51,7 @@ fi
 
 if [[ ${mode} == "attw" || ${mode} == "all" ]]; then
   echo "🔎 Checking type resolvability (attw)..."
-  ./node_modules/.bin/attw pkg.tgz
+  ./node_modules/.bin/attw --profile node16 pkg.tgz
 fi
 
 echo "✅ Package validation (${mode}) passed"
