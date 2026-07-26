@@ -1,0 +1,16 @@
+{
+  "name": "@atomicloud/diene-auth-engine-scratch-consumer",
+  "private": true,
+  "type": "module",
+  "description": "Packed-tarball dogfood fixture for @atomicloud/diene.auth-engine.",
+  "dependencies": {
+    "@atomicloud/diene.auth-engine": "file:../../pkg.tgz"
+  },
+  "devDependencies": {
+    "@atomicloud/diene.problems": "1.0.0",
+    "@atomicloud/diene.result": "1.0.2",
+    "@js-temporal/polyfill": "^0.5.1",
+    "@types/node": "^26.0.1",
+    "typescript": "^6.0.3"
+  }
+}

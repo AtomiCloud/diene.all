@@ -16,11 +16,11 @@ coverage:
 flags:
   unit:
     paths:
-      - src/
+      - src/lib/
     carryforward: true
   int:
     paths:
-      - src/
+      - src/adapters/
     carryforward: true
   meta:
     paths:

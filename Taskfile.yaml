@@ -107,6 +107,20 @@ tasks:
     cmds:
       - task: meta:coverage
 
+  # ### auth-engine-scratch-consumer
+  # #### source: auth-engine
+  scratch-consumer:pack:
+    desc: Build and pack the auth-engine tarball for scratch-consumer dogfood
+    deps: [build]
+    cmds:
+      - bun pm pack --filename pkg.tgz
+
+  test:scratch-consumer:
+    desc: Run the packed auth-engine scratch consumer across ESM and CJS runtimes
+    deps: [scratch-consumer:pack]
+    cmds:
+      - ./fixtures/scratch-consumer/validate.sh
+
   test:watch:
     desc: Watch the fast unit suite
     cmds:
