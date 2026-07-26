@@ -19,11 +19,14 @@ tasks:
     desc: 'Run {{.MODE}} tests with coverage (lcov + text artifacts)'
     cmds:
       - |
+        test_status=0
         if [ "{{.MODE}}" = "meta" ]; then
-          ./scripts/local/test-meta.sh "{{.CONFIG}}" coverage
+          ./scripts/local/test-meta.sh "{{.CONFIG}}" coverage || test_status=$?
         else
-          bun test --config={{.CONFIG}} --coverage
+          bun test --config={{.CONFIG}} --coverage || test_status=$?
         fi
+        ./scripts/local/coverage-check.sh "{{.MODE}}"
+        [ "${test_status}" -eq 0 ] || exit "${test_status}"
   watch:
     internal: true
     desc: 'Run {{.MODE}} tests in watch mode'

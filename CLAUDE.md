@@ -81,3 +81,11 @@ Read [the Bun baseline](docs/developer/bun-baseline.md) before changing the Bun
 toolchain, task surface, test tiers, coverage ledgers, build, or illustrative
 sample. Follow the TypeScript variants linked from that baseline alongside the
 shared engineering standards.
+
+<!-- ### bun-result -->
+<!-- #### source: lib/bun/result -->
+
+## Result and Option
+
+Read [docs/standards/result/index.md](docs/standards/result/index.md) before
+changing the monad surface, wire format, TestHelper assertions, or meta tier.
