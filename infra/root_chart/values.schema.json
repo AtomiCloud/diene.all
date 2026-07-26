@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Diene go-consumer app chart values",
+  "description": "Runtime app chart for the diene go-consumer worker. Validated against the base values and every stacked landscape/cluster overlay.",
+  "type": "object",
+  "required": ["labelPrefix", "serviceTree", "image", "worker", "health", "dbInit", "secret", "config"],
+  "properties": {
+    "labelPrefix": {
+      "type": "string",
+      "pattern": "^[a-z0-9.-]+$",
+      "minLength": 1
+    },
+    "serviceTree": {
+      "type": "object",
+      "required": ["platform", "service", "module", "layer"],
+      "properties": {
+        "platform": { "type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" },
+        "service": { "type": "string", "pattern": "^[a-z0-9]+$" },
+        "module": { "type": "string", "pattern": "^[a-z0-9]+$" },
+        "layer": { "type": "string", "pattern": "^[0-9]+$" },
+        "landscape": { "type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" },
+        "cluster": { "type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" }
+      }
+    },
+    "image": {
+      "type": "object",
+      "required": ["repository", "pullPolicy"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "tag": { "type": "string", "not": { "const": "latest" } },
+        "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] },
+        "pullSecrets": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "worker": {
+      "type": "object",
+      "required": ["replicas", "args", "rollingUpdate", "terminationGracePeriodSeconds", "resources"],
+      "properties": {
+        "replicas": { "type": "integer", "minimum": 0 },
+        "args": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "rollingUpdate": {
+          "type": "object",
+          "required": ["maxUnavailable", "maxSurge"],
+          "properties": {
+            "maxUnavailable": { "type": ["integer", "string"] },
+            "maxSurge": { "type": ["integer", "string"] }
+          }
+        },
+        "terminationGracePeriodSeconds": { "type": "integer", "minimum": 0 },
+        "resources": { "type": "object" },
+        "env": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "health": {
+      "type": "object",
+      "description": "Dependency-blind exec probes on the binary's health subcommand (DQ16/R20).",
+      "required": ["command", "heartbeatFile", "liveness", "readiness"],
+      "properties": {
+        "command": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "heartbeatFile": { "type": "string", "pattern": "^/" },
+        "liveness": { "$ref": "#/$defs/probeTiming" },
+        "readiness": { "$ref": "#/$defs/probeTiming" }
+      }
+    },
+    "dbInit": {
+      "type": "object",
+      "required": ["enabled", "args", "syncWave", "backoffLimit"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "args": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "syncWave": { "type": "string", "pattern": "^-?[0-9]+$" },
+        "backoffLimit": { "type": "integer", "minimum": 0 },
+        "ttlSecondsAfterFinished": { "type": "integer", "minimum": 0 },
+        "activeDeadlineSeconds": { "type": "integer", "minimum": 1 },
+        "resources": { "type": "object" },
+        "env": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "secret": {
+      "type": "object",
+      "required": ["enabled", "refreshInterval", "syncWave", "store", "sharedFolder", "serviceFolder"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "refreshInterval": { "type": "string", "minLength": 1 },
+        "syncWave": { "type": "string", "pattern": "^-?[0-9]+$" },
+        "store": {
+          "type": "object",
+          "required": ["kind", "name"],
+          "properties": {
+            "kind": { "type": "string", "enum": ["SecretStore", "ClusterSecretStore"] },
+            "name": { "type": "string", "minLength": 1 }
+          }
+        },
+        "sharedFolder": { "type": "string", "pattern": "^/" },
+        "serviceFolder": { "type": "string", "pattern": "^/" }
+      }
+    },
+    "config": {
+      "type": "object",
+      "required": ["enabled", "path", "mountPath", "syncWave"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "path": { "type": "string", "minLength": 1 },
+        "mountPath": { "type": "string", "pattern": "^/" },
+        "syncWave": { "type": "string", "pattern": "^-?[0-9]+$" }
+      }
+    },
+    "podSecurityContext": { "type": "object" },
+    "containerSecurityContext": { "type": "object" }
+  },
+  "$defs": {
+    "probeTiming": {
+      "type": "object",
+      "required": ["initialDelaySeconds", "periodSeconds", "timeoutSeconds", "failureThreshold"],
+      "properties": {
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}

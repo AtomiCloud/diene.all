@@ -1,0 +1,154 @@
+{{ template "chart.header" . }}
+
+{{ template "chart.versionBadge" . }}{{ template "chart.typeBadge" . }}{{ template "chart.appVersionBadge" . }}
+
+{{ template "chart.description" . }}
+
+## What this chart owns (and does not)
+
+This is the **primordial chart** half of the R20 two-chart model. It deploys to
+the **Primordial** central cluster, where ArgoCD, Kargo, the dependency operator,
+and the Grafana Operator run. Locally (k3d/lapras) it installs into the same
+cluster as the app chart.
+
+| Rendered                                                | Source                                        |
+| ------------------------------------------------------- | --------------------------------------------- |
+| `PlatformDependency` (one per landscape)                | `platformDependencies` values                 |
+| `Problem` (one per landscape × version)                 | `files/problems.json`                         |
+| `LogtoApp` (one per app × vlandscape, values-gated)     | `logtoApp` values                             |
+| `GrafanaFolder`                                         | service identity                              |
+| `GrafanaDashboard` (one per JSON)                       | `observability/dashboards/{purpose}.json`     |
+| `GrafanaAlertRuleGroup` (one per tier file)             | `observability/alerts/{slug}/{severity}.yaml` |
+
+Adding a dependency or a dashboard means editing **this** chart, never
+hand-provisioning.
+
+### Deliberately not shipped
+
+| Kind                      | Why                                                                                                                 |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `CloudflareDeploy`        | this template ships **no edge assets** — there is nothing to deploy to the edge, so the surface would be dead weight |
+| `VirtualLandscapeService` | this row **serves no v-landscape** (the consumer has no HTTP surface); the CR is rare and belongs to rows that do    |
+| Kargo config              | centralized on Primordial per R20 — never per service chart                                                         |
+
+## PlatformDependency: one union CR, every landscape
+
+Dependencies are **always** requested through CRs, in **every** landscape (B30).
+lapras runs the dependency operator too and realizes the in-cluster classes
+(CNPG, Dragonfly, MinIO); cloud landscapes get the managed classes (Neon,
+Upstash, Tigris). There is no local-subchart-vs-cloud-CR toggle, and app charts
+never bundle dependency sub-charts.
+
+One **union-set** CRD spans the `database` / `kv` / `cache` / `store` modules —
+per-kind postgres/redis/S3 CRs are replaced. The **redis-streams transport rides
+the kv/cache module**: there is no transport CR. Each entry is one CR for one
+landscape with a single writer; a duplicate landscape is a loud render-time
+`Conflict`, and a row declaring zero modules is rejected.
+
+The `store` module serves **both** keyed storage adapters the service config
+declares (`storage.MAIN` and `storage.ARCHIVE`) — two logical buckets on one
+object-storage dependency, not two CRs. db-init creates the buckets MinIO will
+not.
+
+## Problem catalog
+
+`files/problems.json` is the committed output of the service's `problems:export`,
+which serializes the catalog through the **published**
+`diene.go-errors-problems` builder (`Catalog.ToCRDContent`). Each entry's `type`
+is the fully-minted RFC 9457 URI produced at export time by the single-source
+builder `problem.TypeURI` (C0 §2) — this chart never reconstructs one from
+segments.
+
+One CR per `(platform, service, landscape, version)` row. A release
+re-materializes the entire row in one write; a version bump is a **new** CR,
+never an in-place `spec.version` mutation (D8). Rendering tolerates the file
+being absent so a fresh checkout stays green before the first export.
+
+> `goals/error-portal.md` §"Generation pipeline" describes the exporter writing
+> plain manifests into `templates/problems/*.yaml`. This chart instead consumes
+> the exporter's JSON through `.Files.Get` and wraps it here, so the CR's identity
+> and LPSM projection come from the same chart values as every other resource.
+
+## LogtoApp: shipped, gated off
+
+Exactly **one** `LogtoApp` CR per (app × vlandscape) — the single home of all
+app-level truth (S6/Q-I36); the old per-row fragment CRs are abolished.
+
+**Placement-owner condition:** render this only when this chart is the selected
+placement owner for the app — the chart that declares the app's serve-set. A
+worker with no HTTP surface is normally **not** that chart, so `logtoApp.enabled`
+defaults to `false`. The surface still ships so an app-owning consumer built from
+this template only has to flip the flag; `values.example.yaml` shows the ON shape.
+
+Redirect, post-logout, and CORS values are **DERIVED**, never declared per row:
+the operator resolves the live serve-set and builds `origin(L) + declaredPath`.
+This chart declares **paths only**, validated as absolute RFC 3986 paths.
+Non-HTTPS/local/vendor exceptions go through the `extra*` lists — the only escape,
+with no environment-specific implicit branch. `resourceRefs` names
+`LogtoResource` CRs explicitly; a missing ref is a hard error, never inferred.
+
+## Observability rendering
+
+The repository root `observability/` is authoritative. Helm cannot read outside
+the chart directory, so the chart **build** copies it into the gitignored
+`files/observability/` before lint, template, package, or publish:
+
+```sh
+mkdir -p infra/primordial_chart/files && cp -r observability infra/primordial_chart/files/
+```
+
+The copy is never hand-edited and never committed. Mechanical mappings
+(`docs/standards/observability/primordial-chart.md`):
+
+- service identity → one `GrafanaFolder`, uid `<platform>-<service>-folder`,
+  parented to the platform folder `<platform>`;
+- `dashboards/{purpose}.json` → one `GrafanaDashboard`, uid
+  `<platform>-<service>-<purpose>`;
+- `alerts/{slug}/{severity}.yaml` → one `GrafanaAlertRuleGroup` named
+  `<platform>-<service>-<slug>-<severity>`, holding exactly **one** inline rule.
+
+Source definitions are pure Grafana-domain objects — no Kubernetes wrapper, no
+hand-authored LPSM. The renderer derives severity and the 🚨/⚠️/ℹ️ title prefix
+from the **filename** (a mismatch is unrepresentable), merges the service-tree
+labels, and builds `runbook_url`, `__dashboardUid__`, and `__panelId__`.
+
+`helm template` **refuses to render** when a severity filename is not
+`critical|warning|info.yaml`, an alert is missing `title`/`datasource`/`expr`/
+`summary`/`description`, a title exceeds 48 characters, an alert set has no
+`runbook.md`, a dashboard is not valid JSON or its uid drifts from the
+deterministic value, a `datasource:` names an unpinned UID, or required
+`serviceTree` values are absent.
+
+The six-gate method legitimately yields **zero** dashboards and **zero** alerts.
+Every template renders cleanly with none present, and no placeholder is ever
+added just to populate a directory.
+
+## Local install
+
+A bare k3d cluster has none of these CRDs. Apply the test-only fixtures in
+[`crds-local/`](./crds-local/README.md) first — they are excluded from the
+packaged chart and are not named `crds/`, so Helm never auto-installs them.
+
+## Values overlays
+
+Two **independent stacked** dimensions (R16/B26), never a cross-product:
+
+```sh
+helm upgrade --install goconsumer-primordial infra/primordial_chart --namespace diene \
+  -f infra/primordial_chart/values.yaml \
+  -f infra/primordial_chart/values.lapras.yaml \
+  -f infra/primordial_chart/values.<cluster>.yaml
+```
+
+## Version alignment (per-service promotion)
+
+This chart carries the **same** semver as the app chart and the image tag — chart
+`version` == image `Tag`, which is what Kargo aligns on. Both charts go through
+the identical one-semver CI path (`scripts/ci/helm.sh` sets `appVersion` to the
+image version and packages at that version), so a promotion is one number moving
+in one service row. No carbon bump, no umbrella/release-train, no downstream
+dispatch chain.
+
+{{ template "chart.requirementsSection" . }}
+
+{{ template "chart.valuesSection" . }}

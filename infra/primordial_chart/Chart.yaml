@@ -1,0 +1,9 @@
+# ### go-consumer-primordial-chart
+# #### source: go-consumer
+apiVersion: v2
+name: go-consumer-primordial
+description: Primordial chart for the diene go-consumer service — the T3 CR set (PlatformDependency, Problem catalog, optional LogtoApp) plus its Grafana Operator dashboards and alerts
+type: application
+version: 0.1.0
+appVersion: '0.1.0'
+kubeVersion: '>=1.27.0-0'

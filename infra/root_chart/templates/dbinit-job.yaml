@@ -1,0 +1,92 @@
+{{- /* ### go-consumer-dbinit */ -}}
+{{- /* #### source: go-consumer */ -}}
+{{- if .Values.dbInit.enabled -}}
+{{- include "goconsumer.validateServiceTree" . -}}
+{{- $configMapName := include "goconsumer.resourceName" (dict "root" . "token" "dbinitconfig") -}}
+{{- if include "goconsumer.hasConfig" . }}
+{{- /* Hook-scoped copy of the vendored config. Helm hooks and ArgoCD PreSync both
+       run BEFORE the release's ordinary resources, so the pre-sync Job cannot mount
+       the Deployment's release-scoped ConfigMap — it would block in
+       ContainerCreating on a first install. Same rendered content, same lifecycle
+       as the Job that consumes it. */}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $configMapName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "goconsumer.labelsFor" (dict "root" . "component" "dbinit") | nindent 4 }}
+  annotations:
+    {{- include "goconsumer.annotations" . | nindent 4 }}
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: '-2'
+    helm.sh/hook-delete-policy: before-hook-creation
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: {{ .Values.config.syncWave | quote }}
+data:
+  {{- include "goconsumer.configData" . | trim | nindent 2 }}
+{{- /* One-shot db-init (B30.2/R20). Carries BOTH hook systems: helm
+       pre-install/pre-upgrade for `helm install|upgrade`, and the ArgoCD PreSync
+       hook for GitOps. `before-hook-creation` deletes the previous Job so a
+       re-run is not an immutable-field conflict. The sync wave orders it after
+       the secret/config and before the Deployment's implicit wave 0. */}}
+{{ end }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "goconsumer.resourceName" (dict "root" . "token" "dbinit") }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "goconsumer.labels" . | nindent 4 }}
+  annotations:
+    {{- include "goconsumer.annotations" . | nindent 4 }}
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: '-1'
+    helm.sh/hook-delete-policy: before-hook-creation
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: {{ .Values.dbInit.syncWave | quote }}
+spec:
+  backoffLimit: {{ .Values.dbInit.backoffLimit }}
+  ttlSecondsAfterFinished: {{ .Values.dbInit.ttlSecondsAfterFinished }}
+  activeDeadlineSeconds: {{ .Values.dbInit.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "goconsumer.labelsFor" (dict "root" . "component" "dbinit") | nindent 8 }}
+      annotations:
+        {{- include "goconsumer.annotations" . | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: dbinit
+          image: {{ include "goconsumer.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            {{- toYaml .Values.dbInit.args | nindent 12 }}
+          env:
+            {{- include "goconsumer.commonEnv" . | trim | nindent 12 }}
+            {{- with .Values.dbInit.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with (include "goconsumer.envFrom" . | trim) }}
+          envFrom:
+            {{- . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.dbInit.resources | nindent 12 }}
+          volumeMounts:
+            {{- include "goconsumer.volumeMounts" (dict "root" .) | nindent 12 }}
+      volumes:
+        {{- include "goconsumer.volumes" (dict "root" . "configMapName" $configMapName) | nindent 8 }}
+{{- end }}

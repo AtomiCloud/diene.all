@@ -1,8 +1,26 @@
-# ### go-base-template
-# #### source: go-base
+{{- /* ### go-consumer-configmap */ -}}
+{{- /* #### source: go-consumer */ -}}
+{{- if include "goconsumer.hasConfig" . -}}
+{{- include "goconsumer.validateServiceTree" . -}}
+{{- /* Build-phase config vendoring (B30.3): the app's config YAMLs live outside
+       the chart and the helm build step copies them into `files/config/`. The dir
+       is gitignored and never committed, so this renders nothing — and stays
+       green — before the copy step runs.
+
+       Rendering nothing is the CORRECT fallback, not a degraded one: the image
+       bakes `config/` in at this same mount path, so an empty ConfigMap would
+       shadow those defaults with an empty directory. No files copied means no
+       ConfigMap and no mount, and the image's own config stays visible. */ -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ .Release.Name }}-go-base
+  name: {{ include "goconsumer.resourceName" (dict "root" . "token" "config") }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "goconsumer.labels" . | nindent 4 }}
+  annotations:
+    {{- include "goconsumer.annotations" . | nindent 4 }}
+    argocd.argoproj.io/sync-wave: {{ .Values.config.syncWave | quote }}
 data:
-  message: {{ .Values.message | quote }}
+  {{- include "goconsumer.configData" . | trim | nindent 2 }}
+{{- end }}

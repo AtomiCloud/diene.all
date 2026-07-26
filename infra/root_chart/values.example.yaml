@@ -1,0 +1,21 @@
+# ### go-consumer-values-example
+# #### source: go-consumer
+# Illustrative install-time values — NOT one of the two overlay dimensions. This
+# is the shape a caller supplies on top of `values.yaml` + the landscape overlay.
+image:
+  repository: ghcr.io/atomicloud/diene.go-consumer
+  tag: 0.1.0
+
+worker:
+  replicas: 2
+  env:
+    # Every behavior is config-driven; env is the override tier (R14/R21).
+    - name: ATOMI_TRANSPORT__STREAM
+      value: go-consumer.sample
+    - name: ATOMI_TRANSPORT__CONSUMERGROUP
+      value: go-consumer
+
+secret:
+  store:
+    kind: SecretStore
+    name: platform-store

@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Diene go-consumer primordial chart values",
+  "description": "The T3 CR set for the diene go-consumer service plus its Grafana Operator rendering. Validated against the base values and every stacked landscape/cluster overlay.",
+  "type": "object",
+  "required": [
+    "labelPrefix",
+    "dependencyApiVersion",
+    "serviceTree",
+    "platformDependencies",
+    "problems",
+    "logtoApp",
+    "observability"
+  ],
+  "properties": {
+    "labelPrefix": {
+      "type": "string",
+      "pattern": "^[a-z0-9.-]+$",
+      "minLength": 1
+    },
+    "dependencyApiVersion": {
+      "const": "fleet.atomi.cloud/v1alpha1"
+    },
+    "serviceTree": {
+      "type": "object",
+      "required": ["platform", "service", "module", "layer"],
+      "properties": {
+        "platform": { "type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" },
+        "service": { "type": "string", "pattern": "^[a-z0-9]+$" },
+        "module": { "type": "string", "pattern": "^[a-z0-9]+$" },
+        "layer": { "type": "string", "pattern": "^[0-9]+$" },
+        "landscape": { "type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" },
+        "cluster": { "type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" }
+      }
+    },
+    "platformDependencies": {
+      "description": "One entry is one union-set PlatformDependency CR keyed by this service and one landscape. A duplicate landscape is a loud render-time Conflict.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["landscape", "placement", "deletionPolicy"],
+        "anyOf": [
+          { "required": ["database"] },
+          { "required": ["kv"] },
+          { "required": ["cache"] },
+          { "required": ["store"] }
+        ],
+        "properties": {
+          "landscape": { "type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" },
+          "placement": {
+            "type": "object",
+            "required": ["preferredHost"],
+            "properties": {
+              "preferredHost": { "type": "string", "minLength": 1 }
+            }
+          },
+          "deletionPolicy": {
+            "type": "object",
+            "required": ["retainSecret"],
+            "properties": {
+              "retainSecret": { "type": "string", "pattern": "^[0-9]+[smh]$" }
+            }
+          },
+          "database": { "$ref": "#/$defs/dependencyModule" },
+          "kv": { "$ref": "#/$defs/dependencyModule" },
+          "cache": { "$ref": "#/$defs/dependencyModule" },
+          "store": { "$ref": "#/$defs/dependencyModule" }
+        }
+      }
+    },
+    "problems": {
+      "type": "object",
+      "required": ["enabled", "apiVersion", "path", "version", "landscapes"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "apiVersion": { "const": "atomi.cloud/v1alpha1" },
+        "path": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "pattern": "^v[0-9]+$" },
+        "landscapes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" }
+        }
+      }
+    },
+    "logtoApp": {
+      "description": "Rendered only when this chart is the selected placement owner for the app.",
+      "type": "object",
+      "required": ["enabled", "apiVersion", "identityRef", "type", "paths"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "apiVersion": { "const": "fleet.atomi.cloud/v1alpha1" },
+        "identityRef": { "type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" },
+        "type": { "type": "string", "enum": ["Traditional", "SPA", "Native", "MachineToMachine"] },
+        "paths": {
+          "type": "object",
+          "required": ["redirectPath", "postLogoutPath"],
+          "properties": {
+            "redirectPath": { "type": "string", "pattern": "^(/.*)?$" },
+            "postLogoutPath": { "type": "string", "pattern": "^(/.*)?$" }
+          }
+        },
+        "resourceRefs": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+        "extraRedirectUris": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+        "extraPostLogoutRedirectUris": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+        "extraCorsOrigins": { "type": "array", "uniqueItems": true, "items": { "type": "string" } }
+      }
+    },
+    "observability": {
+      "type": "object",
+      "required": [
+        "enabled",
+        "apiVersion",
+        "path",
+        "instanceSelector",
+        "alertInterval",
+        "relativeTimeRangeFrom",
+        "datasourceUids",
+        "repositoryUrl",
+        "genericDashboardUid"
+      ],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "apiVersion": { "const": "grafana.integreatly.org/v1beta1" },
+        "path": { "type": "string", "minLength": 1 },
+        "instanceSelector": { "type": "object" },
+        "resyncPeriod": { "type": "string", "minLength": 1 },
+        "alertInterval": { "type": "string", "minLength": 1 },
+        "relativeTimeRangeFrom": { "type": "integer", "minimum": 1 },
+        "datasourceUids": {
+          "type": "object",
+          "required": ["metrics", "logs"],
+          "additionalProperties": { "type": "string", "minLength": 1 }
+        },
+        "repositoryUrl": { "type": "string", "pattern": "^https://" },
+        "genericDashboardUid": { "type": "string", "minLength": 1 }
+      }
+    }
+  },
+  "$defs": {
+    "dependencyModule": {
+      "description": "Flat common core plus a `type` discriminator and `engine.<type>` overrides (CEL-enforced upstream: the engine key must equal the type).",
+      "type": "object",
+      "required": ["type", "delivery", "credentialMode"],
+      "properties": {
+        "type": { "type": "string", "minLength": 1 },
+        "delivery": { "type": "string", "enum": ["local", "replicated", "external"] },
+        "credentialMode": { "type": "string", "enum": ["standard", "none"] },
+        "rotation": { "type": "string", "enum": ["on", "off"] },
+        "providerAccountRef": { "type": "string", "minLength": 1 },
+        "cpu": { "type": ["integer", "string"] },
+        "ram": { "type": "string" },
+        "storage": { "type": "string" },
+        "version": { "type": "string" },
+        "backup": { "type": "object" },
+        "engine": { "type": "object", "maxProperties": 1 }
+      }
+    }
+  }
+}
