@@ -8,6 +8,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="AtomiCloud.Diene.Interfaces.TestHelper" />
+    <PackageReference Include="AtomiCloud.Diene.Result.TestHelper" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="coverlet.msbuild" />
     <PackageReference Include="FluentAssertions" />
     <PackageReference Include="GitHubActionsTestLogger" />
@@ -23,6 +28,10 @@
   <ItemGroup>
     <ProjectReference Include="../Lib/Lib.csproj" />
     <ProjectReference Include="../TestHelper/TestHelper.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="fixtures/**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

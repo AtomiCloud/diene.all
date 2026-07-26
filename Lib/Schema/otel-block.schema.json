@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/AtomiCloud/diene.dotnet-otel/schema/otel-block-v1.json",
+  "title": "AtomiCloud otel config block",
+  "description": "The canonical otel: block (C0 §4). This schema is owned by the otel engine and consumed by AtomiCloud.Diene.Config, which merges and validates the service-composed root.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "logs": { "$ref": "#/$defs/signal" },
+    "metrics": {
+      "allOf": [{ "$ref": "#/$defs/signal" }],
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "exporter": { "$ref": "#/$defs/exporter" },
+        "interval": { "$ref": "#/$defs/duration", "default": "PT60S" }
+      },
+      "additionalProperties": false
+    },
+    "traces": {
+      "allOf": [{ "$ref": "#/$defs/signal" }],
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "exporter": { "$ref": "#/$defs/exporter" },
+        "sampler": { "$ref": "#/$defs/sampler" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "duration": {
+      "type": "string",
+      "description": "An ISO 8601 duration (C0 §1).",
+      "pattern": "^-?P(?!$)(\\d+D)?(T(?!$)(\\d+H)?(\\d+M)?(\\d+(\\.\\d+)?S)?)?$"
+    },
+    "signal": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "exporter": { "$ref": "#/$defs/exporter" }
+      }
+    },
+    "exporter": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "console": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "enabled": { "type": "boolean", "default": false } }
+        },
+        "otlp": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean", "default": false },
+            "endpoint": { "type": "string", "default": "" },
+            "protocol": { "type": "string", "enum": ["http/protobuf"], "default": "http/protobuf" },
+            "headers": { "type": "object", "additionalProperties": { "type": "string" } },
+            "timeout": { "$ref": "#/$defs/duration", "default": "PT10S" }
+          }
+        }
+      }
+    },
+    "sampler": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["parentbased_traceidratio", "always_on", "always_off"],
+          "default": "parentbased_traceidratio"
+        },
+        "ratio": { "type": "number", "minimum": 0, "maximum": 1, "default": 1.0 }
+      }
+    }
+  }
+}
