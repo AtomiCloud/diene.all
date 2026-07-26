@@ -3,7 +3,7 @@ set -euo pipefail
 
 root_dir="$(git rev-parse --show-toplevel)"
 cd "${root_dir}"
-settings="${CONSTANTS_SETTINGS_FILE:-config/settings.yaml}"
+settings="config/settings.yaml"
 constants="src/config/constants.ts"
 
 echo "🔑 Checking keyed adapter constants..."
