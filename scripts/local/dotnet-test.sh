@@ -97,9 +97,13 @@ valid="$(xmlstarlet sel -t -v '/coverage/@lines-valid' "${report}")"
 packages="$(xmlstarlet sel -t -m '/coverage/packages/package' -v '@name' -o $'\t' -v '@line-rate' -n "${report}")"
 [ -z "${packages}" ] && echo "❌ ${kind} coverage contains no packages" >&2 && exit 1
 
+# The unit ledger is read from the library projects themselves: the inherited [Lib*]*
+# wildcard plus whatever assembly names those projects declare, never a literal package name.
+unit_ledger="$(find "${root}" -mindepth 2 -maxdepth 2 -type f -name '*.csproj' -path "${root}/Lib*/*" -exec xmlstarlet sel -t -m '/Project/PropertyGroup/AssemblyName' -v . -n {} +)"
+
 while IFS=$'\t' read -r assembly line_rate; do
   if [ "${kind}" = "unit" ]; then
-    [[ ${assembly} =~ ^Lib.*$ || ${assembly} == "AtomiCloud.Diene.Note" ]] || {
+    [[ ${assembly} =~ ^Lib.*$ ]] || echo "${unit_ledger}" | rg -Fxq "${assembly}" || {
       echo "❌ unit coverage escaped its [Lib*]* ledger: ${assembly}" >&2
       exit 1
     }
