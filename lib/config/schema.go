@@ -64,7 +64,13 @@ type Schema struct {
 // fragments. Each block becomes a property under its key; required blocks join
 // the root "required" list. Additional top-level keys are permitted so a
 // service can carry its own configuration alongside the composed engine blocks.
-// Later blocks with the same key win, mirroring layer-merge precedence.
+//
+// Blocks are composed on the JSON-VISIBLE spelling of [Block.Key] — the spelling
+// the key has once serialized, in which any byte that is not valid UTF-8 becomes
+// U+FFFD. Two keys that a JSON document cannot tell apart are therefore ONE
+// block, and the later block wins its fragment, its requiredness, and its
+// generated resource identity, mirroring layer-merge precedence. [Block.Key]
+// itself keeps whatever the caller supplied.
 //
 // Every block is mounted with a generated "$id", making it its own schema
 // resource: a fragment-local "#/$defs/..." pointer resolves against the block
@@ -77,8 +83,17 @@ func ComposeSchema(blocks ...Block) Schema {
 	requiredByKey := make(map[string]bool, len(blocks))
 	order := make([]string, 0, len(blocks))
 	for _, block := range blocks {
-		if _, seen := properties[block.Key]; !seen {
-			order = append(order, block.Key)
+		// Compose on the JSON-VISIBLE spelling of the key. Two distinct Go strings
+		// can serialize to one JSON member name (any byte that is not valid UTF-8
+		// becomes U+FFFD), so indexing by the raw string would emit two members
+		// that collapse on decode — and the survivor would be whichever raw key
+		// sorted last, not the block supplied last. Deciding here keeps
+		// later-wins precedence deterministic for the fragment, the requiredness,
+		// and the generated resource identity alike. Block.Key itself is the
+		// caller's value and is never rewritten.
+		visibleKey := resource.NormalizeJSONString(block.Key)
+		if _, seen := properties[visibleKey]; !seen {
+			order = append(order, visibleKey)
 		}
 		// Each block is mounted as its own schema RESOURCE, so a fragment-local
 		// "#/$defs/..." reference resolves against the block rather than the
@@ -91,10 +106,10 @@ func ComposeSchema(blocks ...Block) Schema {
 			fragment = map[string]any{}
 		}
 		if _, authored := fragment["$id"]; !authored {
-			fragment["$id"] = resource.BlockID(block.Key)
+			fragment["$id"] = resource.BlockID(visibleKey)
 		}
-		properties[block.Key] = fragment
-		requiredByKey[block.Key] = block.Required
+		properties[visibleKey] = fragment
+		requiredByKey[visibleKey] = block.Required
 	}
 	required := make([]any, 0, len(order))
 	for _, key := range order {

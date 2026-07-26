@@ -10,10 +10,41 @@ import (
 // so canonical duplicates are stable-deduped instead of reported as a collision.
 func NameArrayKeywords() []string { return []string{"required"} }
 
-// DataKeywords hold instance DATA rather than schemas. Object keys inside them
-// are canonicalized so an object-valued constraint compares equal to an instance
-// spelled differently, but nothing inside is ever treated as a schema.
+// DataKeywords hold instance DATA that is COMPARED against the instance, so
+// object keys inside them are canonicalized — that is what makes an
+// object-valued constraint match an instance spelling the same keys differently.
+// Nothing inside is ever treated as a schema. Every other non-schema value is
+// opaque and copied byte-for-byte instead; see [CloneOpaque].
 func DataKeywords() []string { return []string{"const", "enum"} }
+
+// CloneOpaque returns a deep copy of a value the supported subset treats as
+// OPAQUE, preserving every map key exactly as authored. Annotations such as
+// "title", "default", "examples", and any unknown vendor extension are ordinary
+// content: they are never compared against instance keys, so rewriting their
+// keys would corrupt what the author wrote and contradict the documented
+// contract. Malformed values at schema positions are carried through the same
+// way, so the compiler reports its ordinary error on exactly the authored bytes.
+//
+// Nothing inside an opaque value is audited, reference-resolved, or
+// collision-checked; a key that merely looks like a keyword is just content.
+func CloneOpaque(value any) any {
+	switch node := value.(type) {
+	case map[string]any:
+		cloned := make(map[string]any, len(node))
+		for name, child := range node {
+			cloned[name] = CloneOpaque(child)
+		}
+		return cloned
+	case []any:
+		cloned := make([]any, 0, len(node))
+		for _, item := range node {
+			cloned = append(cloned, CloneOpaque(item))
+		}
+		return cloned
+	default:
+		return node
+	}
+}
 
 // Canonicalize returns the schema the validator actually compiles: a deep copy of
 // root in which every NAME position carries its canonical form. Those positions
@@ -22,11 +53,13 @@ func DataKeywords() []string { return []string{"const", "enum"} }
 // and every object key inside "const" and "enum" data. References are rewritten
 // so a pointer through a renamed name map still resolves.
 //
-// Everything else is copied unchanged: "$defs" and "definitions" entry names,
-// formats, and every value-domain keyword. Malformed entries — a non-string in
-// "required", a non-array "dependentRequired" value — are preserved exactly so
-// the compiler reports its ordinary schema error instead of the canonicalizer
-// silently repairing the document.
+// Everything else is copied unchanged, key bytes included: "$defs" and
+// "definitions" entry names, formats, every value-domain keyword, and every
+// annotation such as "title", "default", "examples", or an unknown vendor
+// extension (see [CloneOpaque]). Malformed entries — a non-string in "required",
+// a non-array "dependentRequired" value — are preserved exactly so the compiler
+// reports its ordinary schema error instead of the canonicalizer silently
+// repairing the document.
 func Canonicalize(root map[string]any) map[string]any {
 	// Canonicalizing an object always yields an object; a failed assertion would
 	// be an invariant break, so force it rather than silently drop the schema.
@@ -40,8 +73,9 @@ func Canonicalize(root map[string]any) map[string]any {
 func CanonicalizeNode(value any) any {
 	node, isObject := value.(map[string]any)
 	if !isObject {
-		// A boolean schema, or a malformed schema position, is carried through.
-		return CanonicalizeData(value)
+		// A boolean schema, or a malformed schema position, is carried through
+		// exactly as authored.
+		return CloneOpaque(value)
 	}
 	rewritten := make(map[string]any, len(node))
 	for _, keyword := range SortedNames(node) {
@@ -71,8 +105,9 @@ func CanonicalizeKeyword(keyword string, value any) any {
 	case slices.Contains(ListSchemaKeywords(), keyword):
 		return CanonicalizeList(value)
 	default:
-		// An annotation or value-domain keyword carries no key names.
-		return CanonicalizeData(value)
+		// An annotation or value-domain keyword is opaque content: it carries no
+		// key names to canonicalize, so its own keys are preserved exactly.
+		return CloneOpaque(value)
 	}
 }
 
@@ -98,7 +133,7 @@ func CanonicalizeReference(value any) any {
 func CanonicalizeNameMap(value any, canonicalizeValue func(any) any) any {
 	declared, isObject := value.(map[string]any)
 	if !isObject {
-		return CanonicalizeData(value)
+		return CloneOpaque(value)
 	}
 	rewritten := make(map[string]any, len(declared))
 	for _, name := range SortedNames(declared) {
@@ -113,7 +148,7 @@ func CanonicalizeNameMap(value any, canonicalizeValue func(any) any) any {
 func CanonicalizeEntryMap(value any) any {
 	declared, isObject := value.(map[string]any)
 	if !isObject {
-		return CanonicalizeData(value)
+		return CloneOpaque(value)
 	}
 	rewritten := make(map[string]any, len(declared))
 	for name, entry := range declared {
@@ -126,7 +161,7 @@ func CanonicalizeEntryMap(value any) any {
 func CanonicalizeList(value any) any {
 	list, isList := value.([]any)
 	if !isList {
-		return CanonicalizeData(value)
+		return CloneOpaque(value)
 	}
 	rewritten := make([]any, 0, len(list))
 	for _, item := range list {
@@ -141,14 +176,14 @@ func CanonicalizeList(value any) any {
 func CanonicalizeNameArray(value any) any {
 	list, isList := value.([]any)
 	if !isList {
-		return CanonicalizeData(value)
+		return CloneOpaque(value)
 	}
 	rewritten := make([]any, 0, len(list))
 	seen := make(map[string]bool, len(list))
 	for _, entry := range list {
 		name, isString := entry.(string)
 		if !isString {
-			rewritten = append(rewritten, CanonicalizeData(entry))
+			rewritten = append(rewritten, CloneOpaque(entry))
 			continue
 		}
 		canonical := CanonicalKey(name)
@@ -165,6 +200,10 @@ func CanonicalizeNameArray(value any) any {
 // key at every depth replaced by its canonical form, descending arrays. It is
 // what makes an object-valued "const" or "enum" compare equal to an instance
 // that spells the same keys differently.
+//
+// It is reserved for exactly those three inputs — "const", "enum", and the
+// instance — because they are the only values COMPARED against instance keys.
+// Every other non-schema value is opaque; use [CloneOpaque] there.
 func CanonicalizeData(value any) any {
 	switch node := value.(type) {
 	case map[string]any:

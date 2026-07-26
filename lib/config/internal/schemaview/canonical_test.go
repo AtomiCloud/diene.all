@@ -173,6 +173,143 @@ func TestCanonicalizeCarriesUnsupportedShapesThrough(t *testing.T) {
 	}
 }
 
+// opaquePayload carries deeply nested authored keys, canonical twins, and
+// keyword lookalikes — none of which may be rewritten or acted on.
+func opaquePayload() map[string]any {
+	return map[string]any{
+		"Cache_Region": float64(1),
+		"cacheRegion":  float64(2),
+		"$ref":         "https://example.invalid/x.json",
+		"patternProperties": map[string]any{
+			"^Deep_Key": map[string]any{"Nested-Twin": 1, "nestedTwin": 2},
+		},
+		"list": []any{
+			map[string]any{"Inside_Array": map[string]any{"Deeper_Key": "v"}},
+			"scalar",
+		},
+	}
+}
+
+// requireOpaque asserts value preserved every authored key of [opaquePayload].
+func requireOpaque(t *testing.T, value any, what string) {
+	t.Helper()
+	payload := cast[map[string]any](t, value)
+	for _, name := range []string{"Cache_Region", "cacheRegion", "$ref", "patternProperties"} {
+		if _, present := payload[name]; !present {
+			t.Fatalf("%s lost the authored key %q: %v", what, name, payload)
+		}
+	}
+	if payload["Cache_Region"] != float64(1) || payload["cacheRegion"] != float64(2) {
+		t.Fatalf("%s collapsed canonical twins: %v", what, payload)
+	}
+	patterns := cast[map[string]any](t, payload["patternProperties"])
+	twins := cast[map[string]any](t, patterns["^Deep_Key"])
+	if twins["Nested-Twin"] != 1 || twins["nestedTwin"] != 2 {
+		t.Fatalf("%s rewrote nested opaque keys: %v", what, twins)
+	}
+	list := cast[[]any](t, payload["list"])
+	entry := cast[map[string]any](t, list[0])
+	deeper := cast[map[string]any](t, entry["Inside_Array"])
+	if deeper["Deeper_Key"] != "v" || list[1] != "scalar" {
+		t.Fatalf("%s rewrote keys inside an array: %v", what, list)
+	}
+}
+
+func TestCloneOpaquePreservesEveryAuthoredKey(t *testing.T) {
+	t.Parallel()
+	source := opaquePayload()
+	cloned := schemaview.CloneOpaque(source)
+	requireOpaque(t, cloned, "CloneOpaque")
+
+	// It is a real deep copy: mutating the clone cannot reach the source.
+	clonedMap := cast[map[string]any](t, cloned)
+	clonedMap["Cache_Region"] = "mutated"
+	cast[map[string]any](t, clonedMap["patternProperties"])["^Deep_Key"] = "mutated"
+	cast[[]any](t, clonedMap["list"])[1] = "mutated"
+	requireOpaque(t, source, "the source after mutating its clone")
+
+	if got := schemaview.CloneOpaque("scalar"); got != "scalar" {
+		t.Fatalf("a scalar clones to itself: %v", got)
+	}
+	if got := schemaview.CloneOpaque(nil); got != nil {
+		t.Fatalf("nil clones to nil: %v", got)
+	}
+}
+
+func TestCanonicalizePreservesOpaqueAnnotations(t *testing.T) {
+	t.Parallel()
+	// Every location the supported subset calls opaque must survive byte-for-byte.
+	canonical := schemaview.Canonicalize(map[string]any{
+		"default":  opaquePayload(),
+		"examples": []any{opaquePayload()},
+		"x-vendor": opaquePayload(),
+		"title":    "kept",
+	})
+	requireOpaque(t, canonical["default"], "default")
+	requireOpaque(t, cast[[]any](t, canonical["examples"])[0], "examples")
+	requireOpaque(t, canonical["x-vendor"], "an unknown annotation")
+	if canonical["title"] != "kept" {
+		t.Fatalf("a scalar annotation must survive: %v", canonical["title"])
+	}
+}
+
+func TestCanonicalizePreservesOpaqueMalformedShapes(t *testing.T) {
+	t.Parallel()
+	// A malformed value at a schema position reaches the compiler exactly as
+	// authored, so it reports the ordinary error on the author's own bytes.
+	canonical := schemaview.Canonicalize(map[string]any{
+		// A name map must be an OBJECT; a list here is malformed, so it is opaque.
+		"properties":        []any{opaquePayload()},
+		"$defs":             "not-an-object",
+		"allOf":             opaquePayload(),
+		"required":          opaquePayload(),
+		"dependentRequired": map[string]any{"trigger": opaquePayload()},
+		// A boolean schema at a single-schema position is carried through.
+		"not": true,
+	})
+	requireOpaque(t, cast[[]any](t, canonical["properties"])[0], "a malformed properties value")
+	if canonical["$defs"] != "not-an-object" {
+		t.Fatalf("a malformed $defs value must survive: %v", canonical["$defs"])
+	}
+	if canonical["not"] != any(true) {
+		t.Fatalf("a boolean schema must survive: %v", canonical["not"])
+	}
+	requireOpaque(t, canonical["allOf"], "a malformed allOf value")
+	requireOpaque(t, canonical["required"], "a malformed required value")
+	requireOpaque(t, cast[map[string]any](t, canonical["dependentRequired"])["trigger"], "a malformed dependent value")
+
+	// A non-string entry inside a well-formed name array is opaque too.
+	entries := cast[[]any](t, schemaview.Canonicalize(map[string]any{
+		"required": []any{"Cache_Region", opaquePayload()},
+	})["required"])
+	if entries[0] != "cacheregion" {
+		t.Fatalf("string entries still canonicalize: %v", entries)
+	}
+	requireOpaque(t, entries[1], "a non-string required entry")
+}
+
+func TestCanonicalizeStillRewritesComparedData(t *testing.T) {
+	t.Parallel()
+	// const and enum ARE compared against instance keys, so they still
+	// canonicalize even though every other non-schema value does not.
+	canonical := schemaview.Canonicalize(map[string]any{
+		"const": map[string]any{"Cache_Region": "v"},
+		"enum":  []any{map[string]any{"Data_Dir": "/var"}},
+	})
+	constant := cast[map[string]any](t, canonical["const"])
+	if _, present := constant["cacheregion"]; !present {
+		t.Fatalf("const keys must still canonicalize: %v", constant)
+	}
+	alternative := cast[map[string]any](t, cast[[]any](t, canonical["enum"])[0])
+	if _, present := alternative["datadir"]; !present {
+		t.Fatalf("enum keys must still canonicalize: %v", alternative)
+	}
+	instance := schemaview.CanonicalizeInstance(map[string]any{"Cache_Region": "v"})
+	if _, present := instance["cacheregion"]; !present {
+		t.Fatalf("instance keys must still canonicalize: %v", instance)
+	}
+}
+
 func TestCanonicalizeInstanceRewritesEveryKey(t *testing.T) {
 	t.Parallel()
 	canonical := schemaview.CanonicalizeInstance(map[string]any{

@@ -601,6 +601,106 @@ func TestUnencodableInstanceIsAnAuthoringFault(t *testing.T) {
 	requireAuthoringFault(t, err, "an instance that cannot be encoded")
 }
 
+func TestBlocksComposeOnTheJSONVisibleKey(t *testing.T) {
+	t.Parallel()
+	// "\xff" and "\xfe" are both invalid UTF-8 and both serialize to the SAME
+	// JSON member name as the literal U+FFFD spelling. Composing on the raw Go
+	// string would emit members that collapse on decode, and the survivor would
+	// be whichever raw key sorted last rather than the block supplied last.
+	visible := "�"
+	stringBlock := func(key string, required bool) config.Block {
+		return config.NewBlock(key, required, map[string]any{"type": "object", "properties": map[string]any{"v": map[string]any{"type": "string"}}})
+	}
+	numberBlock := func(key string, required bool) config.Block {
+		return config.NewBlock(key, required, map[string]any{"type": "object", "properties": map[string]any{"v": map[string]any{"type": "number"}}})
+	}
+
+	cases := []struct {
+		name    string
+		blocks  []config.Block
+		wantNum bool // the later block is the number one
+		wantReq bool
+	}{
+		{
+			name:    "raw invalid bytes then the visible spelling",
+			blocks:  []config.Block{stringBlock("\xff", true), numberBlock(visible, false)},
+			wantNum: true, wantReq: false,
+		},
+		{
+			name:    "visible spelling then raw invalid bytes",
+			blocks:  []config.Block{numberBlock(visible, false), stringBlock("\xff", true)},
+			wantNum: false, wantReq: true,
+		},
+		{
+			name:    "two different invalid raw spellings",
+			blocks:  []config.Block{stringBlock("\xff", false), numberBlock("\xfe", true)},
+			wantNum: true, wantReq: true,
+		},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			schema := config.ComposeSchema(testCase.blocks...)
+
+			// One visible property, and it is the later block's fragment.
+			properties := cast[map[string]any](t, schema.Root()["properties"])
+			if len(properties) != 1 {
+				t.Fatalf("keys that share a JSON member name must compose into one block: %v", properties)
+			}
+			mounted, present := properties[visible]
+			if !present {
+				t.Fatalf("the block must be mounted under its JSON-visible key: %v", properties)
+			}
+			valueType := cast[map[string]any](t, cast[map[string]any](t, cast[map[string]any](t, mounted)["properties"])["v"])["type"]
+			wantType := "string"
+			if testCase.wantNum {
+				wantType = "number"
+			}
+			if valueType != wantType {
+				t.Fatalf("the later block's fragment must win: got %v, want %v", valueType, wantType)
+			}
+
+			// Requiredness follows the later block too.
+			required, hasRequired := schema.Root()["required"]
+			if testCase.wantReq != hasRequired {
+				t.Fatalf("requiredness must follow the later block: required=%v want=%v", required, testCase.wantReq)
+			}
+
+			// Marshal emits exactly one member for that name, and it round-trips.
+			artifact, err := schema.Marshal()
+			if err != nil {
+				t.Fatalf("marshal: %v", err)
+			}
+			// Once as the property member, plus once more as a required entry.
+			wantOccurrences := 1
+			if testCase.wantReq {
+				wantOccurrences = 2
+			}
+			if got := strings.Count(string(artifact), `"`+visible+`"`); got != wantOccurrences {
+				t.Fatalf("the artifact must name the block once per position, got %d: %s", got, artifact)
+			}
+			reloaded, err := config.SchemaFromJSON(artifact)
+			if err != nil {
+				t.Fatalf("reload: %v", err)
+			}
+
+			// Validation applies ONLY the later effective block.
+			good := map[string]any{visible: map[string]any{"v": "text"}}
+			bad := map[string]any{visible: map[string]any{"v": float64(1)}}
+			if testCase.wantNum {
+				good, bad = bad, good
+			}
+			for label, schemaUnderTest := range map[string]config.Schema{"composed": schema, "reloaded": reloaded} {
+				if err = schemaUnderTest.Validate(good); err != nil {
+					t.Fatalf("%s: the later block must accept its own shape: %v", label, err)
+				}
+				requireValidationProblem(t, schemaUnderTest.Validate(bad), label+": the earlier block's shape")
+			}
+		})
+	}
+}
+
 func TestAuthoredBlockIdentityIsNotOverwritten(t *testing.T) {
 	t.Parallel()
 	authored := "https://example.invalid/mine.json"
