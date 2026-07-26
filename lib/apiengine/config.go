@@ -237,7 +237,6 @@ func ConfigBlockSchema() map[string]any {
 func durationSchema(description string) map[string]any {
 	return map[string]any{
 		"type":        "string",
-		"pattern":     "^-?P(?!$)(\\d+(\\.\\d+)?D)?(T(?!$)(\\d+(\\.\\d+)?H)?(\\d+(\\.\\d+)?M)?(\\d+(\\.\\d+)?S)?)?$",
 		"description": description,
 	}
 }
