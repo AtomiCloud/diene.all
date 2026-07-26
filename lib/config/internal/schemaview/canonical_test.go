@@ -288,6 +288,96 @@ func TestCanonicalizePreservesOpaqueMalformedShapes(t *testing.T) {
 	requireOpaque(t, entries[1], "a non-string required entry")
 }
 
+func TestCanonicalizeDeepCopiesMalformedReferences(t *testing.T) {
+	t.Parallel()
+	// A non-string "$ref" is not a pointer, so it is ordinary opaque content: it
+	// must be deep-copied with its authored keys intact rather than aliased, or
+	// mutating the canonical copy would reach back into the source document.
+	source := opaquePayload()
+	cloned := schemaview.CanonicalizeReference(source)
+	requireOpaque(t, cloned, "a malformed object reference")
+	clonedMap := cast[map[string]any](t, cloned)
+	clonedMap["cacheRegion"] = "mutated"
+	cast[map[string]any](t, clonedMap["patternProperties"])["^Deep_Key"] = "mutated"
+	cast[[]any](t, clonedMap["list"])[1] = "mutated"
+	requireOpaque(t, source, "the source after mutating its canonical reference copy")
+
+	// An array-valued reference is opaque through every element too.
+	list := cast[[]any](t, schemaview.CanonicalizeReference([]any{opaquePayload(), "scalar"}))
+	requireOpaque(t, list[0], "a malformed array reference")
+	if list[1] != "scalar" {
+		t.Fatalf("a scalar entry of a malformed reference must survive: %v", list)
+	}
+
+	// A scalar malformed reference and a malformed pointer string are unchanged.
+	if got := schemaview.CanonicalizeReference(float64(1)); got != float64(1) {
+		t.Fatalf("a scalar reference is carried through: %v", got)
+	}
+	if got := schemaview.CanonicalizeReference("#/$defs/bad~2escape"); got != "#/$defs/bad~2escape" {
+		t.Fatalf("a malformed pointer is carried through: %v", got)
+	}
+}
+
+// aliasProbe places an opaque payload at every position [schemaview.Canonicalize]
+// passes through rather than rewrites, at the root and below a schema edge, so a
+// surviving alias anywhere in that set is observable.
+func aliasProbe() map[string]any {
+	return map[string]any{
+		"$ref":              opaquePayload(),
+		"properties":        []any{opaquePayload()},
+		"dependentSchemas":  "not-an-object",
+		"dependentRequired": map[string]any{"trigger": opaquePayload()},
+		"required":          []any{"Cache_Region", opaquePayload()},
+		"const":             map[string]any{"Cache_Region": []any{map[string]any{"Deep-Key": "v"}}},
+		"enum":              []any{map[string]any{"Data_Dir": "/var"}},
+		"$defs":             map[string]any{"Body": map[string]any{"$ref": []any{opaquePayload()}}},
+		"definitions":       "not-an-object",
+		"not":               map[string]any{"$ref": opaquePayload(), "default": opaquePayload()},
+		"allOf":             []any{map[string]any{"$ref": opaquePayload()}, true},
+		"x-vendor":          opaquePayload(),
+		"title":             "kept",
+	}
+}
+
+// scramble overwrites every map value and slice element reachable from value, at
+// every depth, so any alias back into the source document becomes visible.
+func scramble(value any) {
+	switch node := value.(type) {
+	case map[string]any:
+		for name, child := range node {
+			scramble(child)
+			node[name] = "scrambled"
+		}
+	case []any:
+		for index, item := range node {
+			scramble(item)
+			node[index] = "scrambled"
+		}
+	default:
+		// A scalar holds nothing that could alias the source.
+	}
+}
+
+func TestCanonicalizeNeverAliasesTheSourceDocument(t *testing.T) {
+	t.Parallel()
+	// Canonicalize documents a DEEP COPY, so scrambling every position of the
+	// canonical document must leave the source byte-for-byte as authored.
+	source := aliasProbe()
+	scramble(schemaview.Canonicalize(source))
+	if !reflect.DeepEqual(source, aliasProbe()) {
+		t.Fatalf("canonicalizing must deep copy every pass-through position: %v", source)
+	}
+
+	// The instance side carries the same contract.
+	instance := map[string]any{"Nested": map[string]any{"Deep-Key": []any{map[string]any{"Inner_Key": "v"}}}}
+	scramble(schemaview.CanonicalizeInstance(instance))
+	if !reflect.DeepEqual(instance, map[string]any{
+		"Nested": map[string]any{"Deep-Key": []any{map[string]any{"Inner_Key": "v"}}},
+	}) {
+		t.Fatalf("canonicalizing an instance must deep copy it: %v", instance)
+	}
+}
+
 func TestCanonicalizeStillRewritesComparedData(t *testing.T) {
 	t.Parallel()
 	// const and enum ARE compared against instance keys, so they still

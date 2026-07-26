@@ -113,15 +113,19 @@ func CanonicalizeKeyword(keyword string, value any) any {
 
 // CanonicalizeReference rewrites a supported local pointer so its tokens through
 // canonicalized name maps still resolve. A malformed reference is carried
-// through unchanged; the audit has already rejected it.
+// through unchanged; the audit has already rejected it. A non-string reference
+// is not a pointer at all, so it is ordinary opaque content and is deep-copied
+// through [CloneOpaque] with its authored keys intact — never aliased, so the
+// deep-copy contract of [Canonicalize] holds at this position too.
 func CanonicalizeReference(value any) any {
 	reference, isString := value.(string)
 	if !isString {
-		return value
+		return CloneOpaque(value)
 	}
 	tokens, err := ParsePointer(reference)
 	if err != nil {
-		return value
+		// A string is immutable, so carrying it through aliases nothing.
+		return reference
 	}
 	return FormatPointer(CanonicalizePointerTokens(tokens))
 }
