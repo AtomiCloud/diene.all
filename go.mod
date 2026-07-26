@@ -2,6 +2,8 @@ module github.com/AtomiCloud/diene.go-e2e
 
 go 1.26.0
 
+require github.com/testcontainers/testcontainers-go v0.43.0
+
 require (
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/buger/jsonparser v1.1.2 // indirect
@@ -24,7 +26,6 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/spf13/viper v1.21.0 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
-	github.com/testcontainers/testcontainers-go v0.43.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp v0.20.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.44.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.44.0 // indirect
@@ -49,7 +50,7 @@ require (
 
 require (
 	dario.cat/mergo v1.0.2 // indirect
-	github.com/AtomiCloud/diene.go-api-engine v1.0.0
+	github.com/AtomiCloud/diene.go-api-engine v1.0.1
 	github.com/AtomiCloud/diene.go-auth-engine v1.0.1
 	github.com/AtomiCloud/diene.go-config v1.0.0
 	github.com/AtomiCloud/diene.go-core-utils v1.0.0

@@ -82,7 +82,6 @@ func main() {
 	_, _ = preview.Resolve(system, problems)
 	_ = preview.Schema()
 	_ = preview.EngineBlocks()
-	_ = preview.APIBlock()
 	target := preview.Target{Landscape: "garden"}
 	_ = target.Validate
 	_ = target.Identity

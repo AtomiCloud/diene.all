@@ -116,6 +116,7 @@ func ExampleEngineBlocks() {
 	// app true
 	// otel true
 	// auth true
+	// api true
 	// postgres false
 	// cache false
 	// kv false
@@ -129,12 +130,5 @@ func ExampleSchema() {
 		panic("the composed schema has no properties")
 	}
 	fmt.Println(len(properties))
-	// Output: 7
-}
-
-func ExampleAPIBlock() {
-	// Exported on its own because composing it is currently fatal at
-	// schema-compile time — see the package documentation.
-	fmt.Println(preview.APIBlock().Key)
-	// Output: api
+	// Output: 8
 }

@@ -287,41 +287,20 @@ func (t Target) APIConfig() apiengine.Config {
 // C0 §3 division: every engine owns its block, the service composes, and the
 // config lib is the sole merger and validator.
 //
-// # The api-engine block is deliberately absent
-//
-// `github.com/AtomiCloud/diene.go-api-engine@v1.0.0` puts a JSON Schema
-// `pattern` on its two ISO 8601 duration fields that uses a Perl negative
-// lookahead. Go's regexp does not support it, so the config lib's validator
-// cannot COMPILE a root schema containing that block — the failure is at schema
-// compile time and takes the whole document with it, valid or not. Composing it
-// would therefore break every consumer of this harness rather than validate
-// anything, so it is left out until an api-engine patch drops the pattern (the
-// otel sibling's DurationSchema, which ships no pattern for the same values, is
-// the family precedent). A consumer still gets fully typed api configuration
-// from [Target.APIConfig]; only schema validation of that one block is
-// unavailable. The regression test in tests/unit/preview turns red the moment
-// the block becomes compilable, which is the signal to add it back here.
+// The three engine blocks are REQUIRED and the four infra presets are optional:
+// a harnessed service always has telemetry, auth and a backend to call, but not
+// every service binds a database.
 func EngineBlocks() []config.Block {
 	return []config.Block{
 		config.AppBlockSchema(),
 		config.NewBlock(otel.BlockKey, true, otel.JSONSchema()),
 		config.NewBlock(authengine.ConfigBlockKey, true, authengine.ConfigBlockSchema()),
+		config.NewBlock(apiengine.ConfigBlockKey, true, apiengine.ConfigBlockSchema()),
 		config.NewBlock(standardconfig.PostgresBlockKey, false, standardconfig.PostgresSchema()),
 		config.NewBlock(standardconfig.CacheBlockKey, false, standardconfig.CacheSchema()),
 		config.NewBlock(standardconfig.KvBlockKey, false, standardconfig.KvSchema()),
 		config.NewBlock(standardconfig.StorageBlockKey, false, standardconfig.StorageSchema()),
 	}
-}
-
-// APIBlock returns the api-engine block on its own.
-//
-// It is separate from [EngineBlocks] for the reason documented there: composing
-// it into a root schema is currently fatal at schema-compile time. It is
-// exported so a consumer can compose it deliberately once api-engine ships the
-// fix, and so the harness's own regression test can assert exactly which block
-// is at fault rather than asserting that "something" is broken.
-func APIBlock() config.Block {
-	return config.NewBlock(apiengine.ConfigBlockKey, true, apiengine.ConfigBlockSchema())
 }
 
 // Schema returns the composed root schema a service targeted by this harness

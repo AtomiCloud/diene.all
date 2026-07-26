@@ -75,12 +75,19 @@ ON — `OtelConfig()` does exactly the D2 landscape-overlay flip to
 http/protobuf on the C0 port. Endpoint validation is the otel sibling's own
 validator, never a second copy.
 
-**`preview.Schema()` currently excludes the api-engine block.** That block's
-ISO 8601 duration `pattern` uses a Perl negative lookahead Go's regexp cannot
-compile, so composing it is fatal at schema-compile time. `preview.APIBlock()`
-exposes it for the day api-engine drops the pattern; a regression test in
-`tests/unit/preview` goes red then, which is the signal to fold it back into
-`preview.EngineBlocks()`.
+`preview.EngineBlocks()` returns all eight blocks — the app block, the three
+engine blocks as REQUIRED, and the four infra presets as optional — and
+`preview.Schema()` composes them. Compose `EngineBlocks()` plus your own keys when
+your service carries extra configuration.
+
+Do not hand-write a root schema that omits an engine block to work around a
+validation failure. `diene.go-api-engine.0.0` shipped a duration `pattern`
+using a Perl negative lookahead that Go's regexp cannot compile, which made the
+whole root schema uncompilable; the fix was a patch release (v1.0.1), not an
+exclusion. `TestEveryEngineBlockComposesIntoOneValidatableRootSchema` in
+`tests/unit/preview` is a PERMANENT gate against that class: it composes all eight
+blocks, validates a complete document, and requires the validator to REJECT a
+document missing each required block. Do not delete it.
 
 ## Fixtures
 

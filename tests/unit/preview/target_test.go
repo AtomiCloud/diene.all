@@ -2,7 +2,6 @@ package preview_test
 
 import (
 	"errors"
-	"strings"
 	"testing"
 
 	"github.com/AtomiCloud/diene.go-api-engine/lib/apiengine"
@@ -259,6 +258,7 @@ func TestSchemaComposesEveryEngineBlockAndPreset(t *testing.T) {
 		config.AppKey,
 		otel.BlockKey,
 		authengine.ConfigBlockKey,
+		apiengine.ConfigBlockKey,
 		standardconfig.PostgresBlockKey,
 		standardconfig.CacheBlockKey,
 		standardconfig.KvBlockKey,
@@ -273,8 +273,8 @@ func TestSchemaComposesEveryEngineBlockAndPreset(t *testing.T) {
 	if !valid {
 		t.Fatalf("schema document = %v, want a required list", raw)
 	}
-	if len(required) != 3 {
-		t.Fatalf("required = %v, want the app block plus the otel and auth blocks", required)
+	if len(required) != 4 {
+		t.Fatalf("required = %v, want the app block plus the three engine blocks", required)
 	}
 }
 
@@ -298,22 +298,69 @@ func TestEngineBlocksAllCompileIntoARootSchema(t *testing.T) {
 	}
 }
 
-func TestAPIBlockIsStillTheOneThatCannotCompile(t *testing.T) {
+// TestEveryEngineBlockComposesIntoOneValidatableRootSchema is a PERMANENT GATE,
+// not an ordinary assertion, and it must not be deleted.
+//
+// It exists because `diene.go-api-engine@v1.0.0` shipped a config block whose
+// ISO 8601 duration `pattern` used a Perl negative lookahead. Go's regexp cannot
+// compile it, so the family's SOLE merger/validator could not compile ANY root
+// schema containing that block — which meant no go service could do what C0 §3
+// requires of it. The defect was invisible to every other check: the block's Go
+// API was fine, its schema was well-formed JSON, and reading the schema told you
+// nothing. Only COMPOSING the blocks and asking the validator to run exposed it.
+//
+// So this gate composes ALL of them together and VALIDATES, and it proves the
+// validator is genuinely live by requiring it to REJECT a document that omits a
+// required block. A gate that only checked the happy path would pass just as
+// well against a validator that had silently stopped compiling.
+func TestEveryEngineBlockComposesIntoOneValidatableRootSchema(t *testing.T) {
 	t.Parallel()
 
-	// REGRESSION GUARD, not an accepted state. The api-engine block is excluded
-	// from EngineBlocks because its ISO 8601 duration pattern uses a Perl
-	// negative lookahead Go's regexp cannot compile. When api-engine ships the
-	// patch that drops it, this test goes red — and that is the signal to put the
-	// block back into EngineBlocks and delete this test.
-	err := config.ComposeSchema(preview.APIBlock()).Validate(map[string]any{})
-	if err == nil {
-		t.Fatal("the api-engine block now compiles: add it back to EngineBlocks and delete this test")
+	blocks := preview.EngineBlocks()
+	if len(blocks) != 8 {
+		t.Fatalf("EngineBlocks() has %d blocks, want all 8 engine and preset blocks", len(blocks))
 	}
-	if _, isValidation := config.ValidationIssues(err); isValidation {
-		t.Fatal("the api-engine block now compiles: add it back to EngineBlocks and delete this test")
+
+	schema := preview.Schema()
+
+	// A document carrying every required block must VALIDATE. If the root schema
+	// failed to compile, this surfaces as a non-validation error rather than a
+	// validation issue, which is exactly the failure mode the lookahead caused.
+	complete := map[string]any{
+		config.AppKey:                   appDocument(),
+		otel.BlockKey:                   otelDocument(),
+		authengine.ConfigBlockKey:       authDocument(),
+		apiengine.ConfigBlockKey:        apiDocument(),
+		standardconfig.PostgresBlockKey: postgresDocument(),
 	}
-	if !strings.Contains(err.Error(), "invalid or unsupported Perl syntax") {
-		t.Fatalf("api block failed for a different reason than the known lookahead defect: %v", err)
+	if err := schema.Validate(complete); err != nil {
+		if _, isValidation := config.ValidationIssues(err); !isValidation {
+			t.Fatalf("the composed root schema does not COMPILE: %v", err)
+		}
+		t.Fatalf("a complete document failed validation: %v", err)
+	}
+
+	// And the validator must still be enforcing. Drop a required block and it has
+	// to refuse, otherwise this gate would pass against a dead validator.
+	for _, block := range blocks {
+		if !block.Required {
+			continue
+		}
+		t.Run("rejects a document missing "+block.Key, func(t *testing.T) {
+			t.Parallel()
+			partial := map[string]any{}
+			for key, value := range complete {
+				if key != block.Key {
+					partial[key] = value
+				}
+			}
+			err := schema.Validate(partial)
+			if err == nil {
+				t.Fatalf("a document missing the required %q block validated; the validator is not enforcing", block.Key)
+			}
+			if _, isValidation := config.ValidationIssues(err); !isValidation {
+				t.Fatalf("omitting %q produced a compile failure rather than a validation issue: %v", block.Key, err)
+			}
+		})
 	}
 }
