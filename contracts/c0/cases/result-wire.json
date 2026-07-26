@@ -1,0 +1,128 @@
+{
+  "c0Sections": [
+    "§5 Result semantics per language"
+  ],
+  "cases": {
+    "combinators": [
+      "map",
+      "mapErr",
+      "andThen",
+      "match"
+    ],
+    "optionTags": [
+      "some",
+      "none"
+    ],
+    "options": {
+      "invalid": [
+        {
+          "name": "none-non-null",
+          "wire": [
+            "none",
+            1
+          ]
+        },
+        {
+          "name": "one-item",
+          "wire": [
+            "some"
+          ]
+        },
+        {
+          "name": "unknown-tag",
+          "wire": [
+            "maybe",
+            1
+          ]
+        }
+      ],
+      "valid": [
+        {
+          "name": "none",
+          "wire": [
+            "none",
+            null
+          ]
+        },
+        {
+          "name": "some-null",
+          "wire": [
+            "some",
+            null
+          ]
+        },
+        {
+          "name": "some-string",
+          "wire": [
+            "some",
+            "lapras"
+          ]
+        }
+      ]
+    },
+    "resultTags": [
+      "ok",
+      "err"
+    ],
+    "results": {
+      "invalid": [
+        {
+          "name": "empty",
+          "wire": []
+        },
+        {
+          "name": "non-string-tag",
+          "wire": [
+            1,
+            2
+          ]
+        },
+        {
+          "name": "three-items",
+          "wire": [
+            "ok",
+            1,
+            2
+          ]
+        },
+        {
+          "name": "unknown-tag",
+          "wire": [
+            "okay",
+            1
+          ]
+        }
+      ],
+      "valid": [
+        {
+          "name": "err-problem",
+          "wire": [
+            "err",
+            {
+              "data": {
+                "id": 42,
+                "resource": "user"
+              },
+              "detail": "User 42 does not exist",
+              "instance": "/user/42",
+              "recoverable": false,
+              "status": 404,
+              "title": "Entity not found",
+              "type": "https://docs.raichu.cluster.atomi.cloud/docs/raichu/dotnet/user/api/v1/entity-not-found"
+            }
+          ]
+        },
+        {
+          "name": "ok-object",
+          "wire": [
+            "ok",
+            {
+              "answer": 42
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "domain": "result-wire"
+}

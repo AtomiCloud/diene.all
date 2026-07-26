@@ -4,11 +4,11 @@ set -euo pipefail
 root_dir="$(git rev-parse --show-toplevel)"
 cd "${root_dir}"
 
-member_dir="packages/diene_dart_lib"
+member_dir="packages/diene_core_utils"
 member_pubspec="${member_dir}/pubspec.yaml"
 
 # Build a fixture that mirrors the repo-root layout the guard and bump.sh share:
-# a VERSION file plus the member manifest at packages/diene_dart_lib/pubspec.yaml.
+# a VERSION file plus the member manifest at packages/diene_core_utils/pubspec.yaml.
 fixture="$(mktemp -d)"
 trap 'rm -rf "${fixture}"' EXIT
 mkdir -p "${fixture}/${member_dir}"
@@ -34,12 +34,12 @@ PACKAGE_ROOT="${fixture}" bash "${root_dir}/scripts/release/bump.sh" v9.8.7
 [[ $(tr -d '[:space:]' <"${fixture}/VERSION") != "9.8.7" ]] && echo "❌ release bump did not stamp VERSION" >&2 && exit 1
 
 # semantic-release must carry the member changelog and manifest as commit assets.
-rg -q 'packages/diene_dart_lib/CHANGELOG.md' atomi_release.yaml || {
-  echo "❌ packages/diene_dart_lib/CHANGELOG.md is absent from semantic-release assets" >&2
+rg -q 'packages/diene_core_utils/CHANGELOG.md' atomi_release.yaml || {
+  echo "❌ packages/diene_core_utils/CHANGELOG.md is absent from semantic-release assets" >&2
   exit 1
 }
-rg -q 'packages/diene_dart_lib/pubspec.yaml' atomi_release.yaml || {
-  echo "❌ packages/diene_dart_lib/pubspec.yaml is absent from semantic-release assets" >&2
+rg -q 'packages/diene_core_utils/pubspec.yaml' atomi_release.yaml || {
+  echo "❌ packages/diene_core_utils/pubspec.yaml is absent from semantic-release assets" >&2
   exit 1
 }
 
