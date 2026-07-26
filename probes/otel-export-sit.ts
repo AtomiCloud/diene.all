@@ -21,7 +21,7 @@ export default {
         const source = await repo.read('tests/sit/driver.ts');
         const patched = source.replace(
           'ATOMI_OTEL__TRACES__EXPORTER__OTLP__ENDPOINT: devConfig.otel.endpoint,',
-          "ATOMI_OTEL__TRACES__EXPORTER__OTLP__ENDPOINT: 'http://localhost:14318',",
+          "ATOMI_OTEL__TRACES__EXPORTER__OTLP__ENDPOINT: 'https://localhost:4318',",
         );
         if (patched === source) {
           throw new Error('no structural trace exporter endpoint found in tests/sit/driver.ts');
