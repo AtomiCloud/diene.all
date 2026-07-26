@@ -6,6 +6,8 @@ if [ -f package.json ]; then
   export PATH="${PWD}/node_modules/.bin:${PATH}"
 fi
 
+# ### workspace
+# #### source: workspace
 binaries=(actionlint bash cyanprint docker git gomplate hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pls pre-commit releaser rg shellcheck skopeo task treefmt yq)
 [ -f package.json ] && binaries+=(bun biome knip tsc)
 
@@ -144,4 +146,6 @@ treefmt --completion bash >"${tmp}/treefmt-completion.bash"
 yq --version >/dev/null
 yq -en '.ok = true | .ok == true' >/dev/null
 
+# ### workspace-complete
+# #### source: workspace
 echo "✅ Binary smoke passed"
