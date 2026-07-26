@@ -1,5 +1,4 @@
 import { expectGreen, expectRed } from './lib/helpers.ts';
-import { flipAssertion } from './lib/mutations.ts';
 
 export default {
   contractVersion: 1,
@@ -19,7 +18,10 @@ export default {
       kind: 'mutation',
       expectedImpact: ['dotnet-unit-coverage', 'dotnet-multi-project-coverage'],
       async run(repo: any) {
-        await flipAssertion(repo, { globs: ['UnitTest*/**/*.cs'] });
+        await repo.patch('UnitTest/KeyNormalizerTests.cs', {
+          find: '        KeyNormalizer.Canonical(key).Should().Be(expected);',
+          replace: '        KeyNormalizer.Canonical(key).Should().NotBe(expected);',
+        });
         await expectRed(repo, 'nix develop .#ci -c pls test:unit', 'dotnet-unit-tests', 600000);
       },
     },

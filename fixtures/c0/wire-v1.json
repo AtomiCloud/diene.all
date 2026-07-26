@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "status": "local-regression-only",
+  "date": "2026-07-25",
+  "time": "17:30:00",
+  "instant": "2026-07-25T22:30:00Z",
+  "instantWithFraction": "2026-07-25T22:30:00.5Z",
+  "instantWithOffset": "2026-07-26T06:30:00+08:00",
+  "duration": "PT1M30S",
+  "durationWithDays": "P2DT3H4M5S",
+  "timeZone": "Asia/Singapore",
+  "decimal": "1249.50",
+  "int64": "9007199254740993",
+  "slugs": {
+    "Hello, World!": "hello-world",
+    "  Crème Brûlée  ": "creme-brulee",
+    "ÅNGSTRÖM__unit": "angstrom-unit",
+    "already-kebab": "already-kebab",
+    "MiXeD CaSe 42": "mixed-case-42"
+  },
+  "keys": {
+    "error_portal": "errorportal",
+    "error-portal": "errorportal",
+    "errorPortal": "errorportal",
+    "ErrorPortal": "errorportal"
+  }
+}
