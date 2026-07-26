@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Diene Frontend Utils'
+  short_description: 'Use portable frontend mechanisms correctly'
+  default_prompt: 'Use $diene-frontend-utils-usage to integrate the frontend utility subpaths and TestHelper safely.'

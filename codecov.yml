@@ -22,6 +22,10 @@ flags:
     paths:
       - src/
     carryforward: true
+  sit:
+    paths:
+      - src/
+    carryforward: true
 
 comment:
   layout: 'reach, diff, flags, files'

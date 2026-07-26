@@ -58,11 +58,13 @@ let
     name = "workspace-validator-runtime";
     paths = [
       packages.bash
+      packages.bun
       packages.git
       packages.jq
       packages.ripgrep
       packages.yq-go
       pkgs.coreutils
+      pkgs.diffutils
       pkgs.findutils
       pkgs.gnugrep
       pkgs.gnused
@@ -85,7 +87,9 @@ pre-commit-lib.run {
         "^\\.claude/skills/vendor/"
         "^Changelog\\.md$"
         "^docs/developer/CommitConventions\\.md$"
+        "^infra/primordial_chart/"
         "^infra/root_chart/"
+        "^schemas/"
       ];
     };
 
@@ -141,6 +145,26 @@ pre-commit-lib.run {
       name = "Helm lint";
       entry = "${packages.kubernetes-helm}/bin/helm lint infra/root_chart";
       files = "^infra/root_chart/.*";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    # ### bun-consumer-primordial-chart-hooks
+    # #### source: bun-consumer
+    a-helm-docs-primordial = {
+      enable = true;
+      name = "Primordial Helm docs";
+      entry = "${packages.infralint}/bin/helm-docs --chart-search-root infra/primordial_chart";
+      files = "^infra/primordial_chart/.*";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-helm-lint-primordial = {
+      enable = true;
+      name = "Primordial Helm lint";
+      entry = "${packages.kubernetes-helm}/bin/helm lint infra/primordial_chart";
+      files = "^infra/primordial_chart/.*";
       pass_filenames = false;
       language = "system";
     };
@@ -292,6 +316,35 @@ pre-commit-lib.run {
       name = "TypeScript typecheck";
       entry = "${bun-tool "tsc"} --noEmit";
       files = "(^package\\.json$|^tsconfig\\.json$|\\.(ts|tsx|mts|cts)$)";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    # ### bun-consumer-hooks
+    # #### source: bun-consumer
+    a-constants-sync = {
+      enable = true;
+      name = "Keyed adapter constants sync";
+      entry = validator "scripts/validate/constants-sync.sh";
+      files = "^(config/settings\\.yaml|src/config/constants\\.ts)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-rebrand-config = {
+      enable = true;
+      name = "Config-driven rebrand guard";
+      entry = validator "scripts/validate/rebrand.sh";
+      files = "^(config/settings\\.yaml|src/.*\\.ts)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-schema-drift = {
+      enable = true;
+      name = "Generated config schema drift";
+      entry = validator "scripts/validate/schema-drift.sh";
+      files = "^(config/.*\\.yaml|schemas/.*\\.json|src/config/.*\\.ts)$";
       pass_filenames = false;
       language = "system";
     };

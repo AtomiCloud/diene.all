@@ -46,6 +46,19 @@ if [ -f .dart_tool/package_config.json ]; then
   done < <(jq -r '.packages[] | select(.name | startswith("diene_")) | [.name, .rootUri] | @tsv' .dart_tool/package_config.json)
 fi
 
+# ### bun-consumer-skills-sync-guard
+# #### source: bun-consumer
+# A sync that resolved zero packages means the ecosystem is not installed yet
+# (cold checkout before `bun install`), not that every vendored skill was
+# uninstalled — swapping the empty staging tree in would delete committed
+# skills and fail the freshness gate. Upstream owns the real fix (run the sync
+# after dependency install); this guard keeps the destructive swap honest.
+if [ -d "${vendor_dir}" ] && [ -z "$(find "${staging}" -mindepth 1 -maxdepth 1 -type d -print -quit)" ] &&
+  [ -n "$(find "${vendor_dir}" -mindepth 1 -maxdepth 1 -type d -print -quit)" ]; then
+  echo "⏭️ No installed packages resolved; keeping the committed vendored skills"
+  exit 0
+fi
+
 rm -rf "${vendor_dir}"
 mkdir -p "$(dirname "${vendor_dir}")"
 mv "${staging}" "${vendor_dir}"

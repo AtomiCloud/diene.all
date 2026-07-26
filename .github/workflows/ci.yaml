@@ -64,3 +64,23 @@ jobs:
     secrets: inherit
     with:
       chart_path: ./infra/root_chart
+
+  # ### bun-consumer-ci
+  # #### source: bun-consumer
+  sit:
+    name: System Integration Tests
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-sit.yaml
+    secrets: inherit
+
+  helm-primordial:
+    name: Primordial Helm Chart
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    uses: ./.github/workflows/⚡reusable-helm.yaml
+    secrets: inherit
+    with:
+      chart_path: ./infra/primordial_chart

@@ -1,3 +1,176 @@
-# ### workspace-values
-# #### source: workspace
-message: diene workspace
+# ### bun-consumer-values
+# #### source: bun-consumer
+
+# -- Prefix used by every service-tree label and annotation helper. Single
+# configurable key (R16/B26) — never hard-coded inside a helper.
+labelPrefix: atomi.cloud
+
+# -- Stable service-tree projection (LPSM). Landscape and cluster slots are added
+# by the two independent overlay dimensions (`values.<landscape>.yaml` then
+# `values.<cluster>.yaml`); the base file never carries them.
+serviceTree:
+  # -- Platform name.
+  platform: diene
+  # -- Service name. Dash-less: every resource name is `<service>-<token>`.
+  service: bunconsumer
+  # -- Module name for this workload.
+  module: worker
+  # -- Architecture layer (application tier).
+  layer: '2'
+
+# -- Worker container image. The artifact's entrypoint is `bun dist/index.js`;
+# the subcommand is supplied per workload through `worker.args` / `dbInit.args`.
+image:
+  # -- Image repository. Never `:latest` — the tag is a pin (M25).
+  repository: ghcr.io/atomicloud/diene.bun-consumer
+  # -- Image tag. Empty falls back to the chart `appVersion`, which CD pins to the
+  # one shared semver (chart `version` == image tag).
+  tag: ''
+  # -- Image pull policy.
+  pullPolicy: IfNotPresent
+  # @schema item:object
+  # -- Optional image pull secrets.
+  pullSecrets: []
+
+# -- The long-running consumer/producer workload. There is NO HTTP surface, so
+# the chart ships no Service and no HTTPRoute.
+worker:
+  # -- Replica count.
+  replicas: 1
+  # @schema item:string
+  # -- Subcommand appended to the image entrypoint.
+  args:
+    - worker
+  # -- Rolling-update knobs. The db-init hook Job must never force recreation, so
+  # `RollingUpdate` is the only supported strategy (R20).
+  rollingUpdate:
+    # -- Maximum unavailable pods during a rollout.
+    maxUnavailable: 0
+    # -- Maximum surge pods during a rollout.
+    maxSurge: 1
+  # -- Grace period for the consumer to finish in-flight messages and ack.
+  terminationGracePeriodSeconds: 30
+  # -- Worker resource requests and limits.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+  # @schema item:object
+  # -- Extra environment variables (`ATOMI_X__Y` overrides, R14/R21).
+  env: []
+
+# -- Dependency-blind liveness and readiness (DQ16/R20). BOTH probes exec the
+# binary's `health` subcommand, which inspects worker heartbeat and internal
+# state only — never postgres/redis/S3 reachability.
+health:
+  # @schema item:string;minItems:1
+  # -- Exec command. Must invoke the health subcommand through the same artifact
+  # the Dockerfile entrypoint runs.
+  command:
+    - bun
+    - dist/index.js
+    - health
+  liveness:
+    # -- Seconds before the first liveness exec.
+    initialDelaySeconds: 15
+    # -- Liveness exec interval.
+    periodSeconds: 30
+    # -- Liveness exec timeout.
+    timeoutSeconds: 5
+    # -- Consecutive failures before the kubelet restarts the container.
+    failureThreshold: 3
+  readiness:
+    # -- Seconds before the first readiness exec.
+    initialDelaySeconds: 5
+    # -- Readiness exec interval.
+    periodSeconds: 10
+    # -- Readiness exec timeout.
+    timeoutSeconds: 5
+    # -- Consecutive failures before the pod is marked not-ready.
+    failureThreshold: 3
+
+# -- One-shot db-init entry point (B30.2). Runs as a helm `pre-install,pre-upgrade`
+# hook AND an ArgoCD `PreSync` hook, ordered ahead of the Deployment. Its checksum
+# is deliberately NOT coupled into the Deployment: migrations must never trigger a
+# full app recreation.
+dbInit:
+  # -- Render the db-init hook Job.
+  enabled: true
+  # @schema item:string
+  # -- Subcommand appended to the image entrypoint.
+  args:
+    - db-init
+  # -- Sync wave. Must be greater than `secret.syncWave` and less than the
+  # Deployment's implicit wave 0.
+  syncWave: '-1'
+  # -- Job retry budget before the pre-sync hook is declared failed.
+  backoffLimit: 3
+  # -- Seconds the completed Job is retained for inspection.
+  ttlSecondsAfterFinished: 300
+  # -- Hard wall-clock ceiling for one db-init run.
+  activeDeadlineSeconds: 600
+  # -- db-init resource requests and limits.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+  # @schema item:object
+  # -- Extra environment variables for the db-init pod only.
+  env: []
+
+# -- One service-scoped ExternalSecret materializing this service's secret from
+# the platform SecretStore that carbon creates (R16 — the bromine subchart is
+# dissolved). All submodules share the one service secret.
+secret:
+  # -- Render the ExternalSecret.
+  enabled: true
+  # -- ESO refresh cadence.
+  refreshInterval: 1h
+  # -- Sync wave. Secrets land before db-init and before the rollout.
+  syncWave: '-2'
+  store:
+    # @schema enum:[SecretStore, ClusterSecretStore]
+    # -- The platform SecretStore is namespace-scoped (created by carbon).
+    kind: SecretStore
+    # -- Platform SecretStore name.
+    name: platform-store
+  # -- Shared-folder path fanned in with a `SHARED_` prefix (B9d).
+  sharedFolder: /shared
+  # -- Service-folder path fanned in with a `BUNCONSUMER_` prefix.
+  serviceFolder: /bunconsumer
+
+# -- Application config YAMLs bundled as a ConfigMap. The files live OUTSIDE the
+# chart in local dev (`config/`); the helm BUILD step copies them into
+# `infra/root_chart/files/config/` (GITIGNORED vendoring, B30.3 — never
+# committed). Rendering tolerates the directory being absent so lint/template
+# stay green before the copy runs.
+config:
+  # -- Render the config ConfigMap and mount it into both workloads.
+  enabled: true
+  # -- Glob root, relative to the chart directory, for the vendored YAMLs.
+  path: files/config
+  # -- Mount path inside the container. Matches the image WORKDIR layout.
+  mountPath: /app/config
+  # -- Sync wave. Config lands with the secret, before db-init.
+  syncWave: '-2'
+
+# -- Pod-level security context. The image is unprivileged (M26).
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+# -- Container-level security context shared by the worker and db-init containers.
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL

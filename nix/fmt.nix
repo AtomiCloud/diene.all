@@ -15,6 +15,14 @@ let
           "Changelog.md"
           "docs/developer/CommitConventions.md"
           "infra/root_chart/**"
+
+          # ### bun-consumer-prettier-excludes
+          # #### source: bun-consumer
+          # Generated surfaces stay byte-owned by their generators (helm-docs
+          # READMEs, the problems export, schema-gen output); prettier must not
+          # fight them. Mirrors the pre-commit treefmt hook's exclude set.
+          "infra/primordial_chart/**"
+          "schemas/**"
         ];
       };
       shfmt.enable = true;

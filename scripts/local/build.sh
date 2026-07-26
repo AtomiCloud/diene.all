@@ -6,6 +6,9 @@ cd "${root_dir}"
 
 artifact="dist/index.js"
 
+./scripts/local/schema-gen.sh
+mkdir -p infra/primordial_chart/files
+./scripts/local/problems-export.sh --out infra/primordial_chart/files/problems.json
 echo "🔨 Building sample bundle..."
 bun build ./src/index.ts --outdir ./dist --target bun
 

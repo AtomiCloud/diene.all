@@ -30,3 +30,16 @@ node_modules/
 dist/
 coverage/
 *.tsbuildinfo
+
+### bun-consumer-charts
+#### source: bun-consumer
+# Build-phase chart vendoring (B30.3 / O1). Helm cannot read outside a chart
+# directory, so the build step COPIES these in before lint/template/package and
+# they are regenerated per build — never hand-edited, never committed.
+infra/root_chart/files/
+infra/primordial_chart/files/observability/
+infra/primordial_chart/uploads/
+
+# ### bun-consumer-artifacts
+# #### source: bun-consumer
+probe-report.json
