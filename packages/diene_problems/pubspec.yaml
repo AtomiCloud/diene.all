@@ -1,9 +1,10 @@
 name: diene_problems
+# Keep between 60 and 180 characters: pana scores a longer description as an
+# invalid pubspec, and the gate runs with --exit-code-threshold 0.
 description: >-
-  RFC 9457 problem-details machinery for the Dart family — envelope with the
-  `data` extension, a single-source type-URI builder, a typed registry, an
-  error→Problem transformer, LocalError wrapping, and per-endpoint catalog
-  export including the recoverable flag.
+  RFC 9457 problem-details for Dart: envelope with the `data` extension, one
+  type-URI builder, a typed registry, LocalError wrapping, and per-endpoint
+  catalog export.
 version: 0.1.1
 repository: https://github.com/AtomiCloud/diene.dart_problems
 issue_tracker: https://github.com/AtomiCloud/diene.dart_problems/issues
