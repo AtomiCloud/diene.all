@@ -1,17 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# pub.dev automated publishing uses GitHub Actions OIDC — there is NO long-lived
-# credential to write. Verify the tag/manifest match FIRST (never mutate), then
-# publish the member with the OIDC token that GitHub mints for the id-token
-# permission the reusable workflow grants.
-./scripts/validate/publish-version.sh
+# pub.dev publishing uses the long-lived AtomiCloud org credential
+# PUB_CREDENTIALS_JSON, materialized by the calling workflow at
+# ${HOME}/.config/dart/pub-credentials.json before this script runs — the shape
+# that published diene_problems 0.1.0. Trusted publishing (OIDC) is deliberately
+# not used. Verify the tag/manifest match FIRST (never mutate), then publish the
+# member.
+tag="${1:-${GITHUB_REF_NAME:-}}"
+
+./scripts/validate/publish-version.sh "${tag}"
 ./scripts/ci/setup.sh
 
 root_dir="$(git rev-parse --show-toplevel)"
 cd "${root_dir}/packages/diene_interfaces"
 
-echo "🚀 Publishing diene_interfaces ${GITHUB_REF_NAME#v} to pub.dev via GitHub Actions OIDC..."
+echo "🚀 Publishing diene_interfaces ${tag#v} to pub.dev..."
 dart pub publish --force
 
-echo "✅ Published diene_interfaces ${GITHUB_REF_NAME#v}"
+echo "✅ Published diene_interfaces ${tag#v}"
