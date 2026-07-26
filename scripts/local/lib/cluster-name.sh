@@ -3,8 +3,8 @@
 #
 # Derives shared-resource names for one harness invocation. Consumers may pin a
 # stable cluster or image by exporting a non-empty override; that value is used
-# verbatim. Defaults share one unique invocation ID so parallel probe sandboxes
-# never collide on k3d or Docker names (PROBES.md §5 uniqueness addendum).
+# verbatim. Defaults share one unique invocation ID so parallel harness
+# invocations never collide on k3d or Docker names.
 # shellcheck shell=bash
 
 # e2e_invocation_id SEED ENTROPY
