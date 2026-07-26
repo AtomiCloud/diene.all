@@ -9,7 +9,7 @@ let
     pname = "operator-template-dependencies";
     version = "0";
     src = ../.;
-    vendorHash = "sha256-nGbJT3usBF3cjTHoL6XM38uLKzn8C0b0ldrc6EhISFU=";
+    vendorHash = "sha256-bfH5U+TEujJOV8DazfYekJuHsK6bd3PUx950Ya0pUOQ=";
     proxyVendor = true;
   };
   go-lint-runtime = pkgs.buildEnv {
