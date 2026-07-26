@@ -2,6 +2,8 @@
 set -euo pipefail
 
 [ -z "${GITHUB_TOKEN:-}" ] && echo "❌ 'GITHUB_TOKEN' env var not set" >&2 && exit 1
+root_dir="$(git rev-parse --show-toplevel)"
+cd "${root_dir}"
 
 ./scripts/ci/setup.sh
 rm -f .git/hooks/*

@@ -3,6 +3,8 @@ set -euo pipefail
 
 push="${CI_DOCKER_PUSH:-false}"
 version="${RELEASE_VERSION:-}"
+root_dir="$(git rev-parse --show-toplevel)"
+cd "${root_dir}"
 
 [ -z "${CI_DOCKER_CONTEXT:-}" ] && echo "❌ 'CI_DOCKER_CONTEXT' env var not set" >&2 && exit 1
 [ -z "${CI_DOCKER_IMAGE:-}" ] && echo "❌ 'CI_DOCKER_IMAGE' env var not set" >&2 && exit 1
@@ -15,6 +17,8 @@ version="${RELEASE_VERSION:-}"
 [ "${push}" = "true" ] && [ -z "${GITHUB_REPO_REF:-}" ] && echo "❌ 'GITHUB_REPO_REF' env var not set" >&2 && exit 1
 [ "${push}" = "true" ] && [ -z "${GITHUB_SHA:-}" ] && echo "❌ 'GITHUB_SHA' env var not set" >&2 && exit 1
 [ "${push}" = "true" ] && [ -z "${LATEST_BRANCH:-}" ] && echo "❌ 'LATEST_BRANCH' env var not set" >&2 && exit 1
+
+./scripts/ci/setup.sh
 
 if [ "${push}" = "true" ]; then
   echo "${DOCKER_PASSWORD}" | docker login "${DOMAIN}" -u "${DOCKER_USER}" --password-stdin

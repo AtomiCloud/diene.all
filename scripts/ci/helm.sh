@@ -3,6 +3,8 @@ set -euo pipefail
 
 push="${CI_HELM_PUSH:-false}"
 version="${RELEASE_VERSION:-}"
+root_dir="$(git rev-parse --show-toplevel)"
+cd "${root_dir}"
 
 [ -z "${CHART_PATH:-}" ] && echo "❌ 'CHART_PATH' env var not set" >&2 && exit 1
 [ "${push}" = "true" ] && [ -z "${DOMAIN:-}" ] && echo "❌ 'DOMAIN' env var not set" >&2 && exit 1
@@ -11,6 +13,8 @@ version="${RELEASE_VERSION:-}"
 [ "${push}" = "true" ] && [ -z "${GITHUB_BRANCH:-}" ] && echo "❌ 'GITHUB_BRANCH' env var not set" >&2 && exit 1
 [ "${push}" = "true" ] && [ -z "${GITHUB_REPO_REF:-}" ] && echo "❌ 'GITHUB_REPO_REF' env var not set" >&2 && exit 1
 [ "${push}" = "true" ] && [ -z "${GITHUB_SHA:-}" ] && echo "❌ 'GITHUB_SHA' env var not set" >&2 && exit 1
+
+./scripts/ci/setup.sh
 
 helm lint "${CHART_PATH}"
 helm template diene-go-consumer "${CHART_PATH}" >/dev/null

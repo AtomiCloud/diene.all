@@ -6,6 +6,8 @@ coverage="${2:-false}"
 watch="${3:-false}"
 
 [ -z "${mode}" ] && echo "❌ test mode not set" >&2 && exit 1
+root_dir="$(git rev-parse --show-toplevel)"
+cd "${root_dir}"
 tests="$(yq -r ".tiers.${mode}.tests" .config/go-consumer.coverage.yaml)"
 packages="$(yq -r ".tiers.${mode}.packages" .config/go-consumer.coverage.yaml)"
 

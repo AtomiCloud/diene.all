@@ -1,10 +1,45 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-container="diene-go-base-redis"
-running="$(docker inspect --format '{{.State.Running}}' "${container}" 2>/dev/null || true)"
-[ "${running}" = "true" ] && echo "✅ Local dependencies already running" && exit 0
-docker rm -f "${container}" >/dev/null 2>&1 || true
-docker run -d --name "${container}" -p 16379:6379 redis:7.4.5-alpine >/dev/null
+root_dir="$(git rev-parse --show-toplevel)"
+cd "${root_dir}"
+dev_config="config/dev.yaml"
+[ ! -f "${dev_config}" ] && echo "❌ Local development config is missing: ${dev_config}" >&2 && exit 1
+project="${COMPOSE_PROJECT_NAME:-$(yq -r '.compose.project' "${dev_config}")}"
+[[ -z ${project} || ${project} == "null" ]] && echo "❌ config/dev.yaml compose.project is missing" >&2 && exit 1
+[[ ${project} != diene-go-consumer* ]] && echo "❌ Compose project must start with diene-go-consumer, got '${project}'" >&2 && exit 1
 
-echo "✅ Local dependencies started"
+POSTGRES_PORT="$(yq -r '.postgres.port' "${dev_config}")"
+POSTGRES_DATABASE="$(yq -r '.postgres.database' "${dev_config}")"
+POSTGRES_USERNAME="$(yq -r '.postgres.username' "${dev_config}")"
+POSTGRES_PASSWORD="$(yq -r '.postgres.password' "${dev_config}")"
+REDIS_PORT="$(yq -r '.redis.port' "${dev_config}")"
+STORAGE_PORT="$(yq -r '.storage.endpoint | sub("^.*:"; "")' "${dev_config}")"
+STORAGE_CONSOLE_PORT="$(yq -r '.storage.consolePort' "${dev_config}")"
+STORAGE_ACCESS_KEY_ID="$(yq -r '.storage.accessKeyId' "${dev_config}")"
+STORAGE_SECRET_ACCESS_KEY="$(yq -r '.storage.secretAccessKey' "${dev_config}")"
+OTEL_HTTP_PORT="$(yq -r '.otel.endpoint | sub("^.*:"; "")' "${dev_config}")"
+CLICKHOUSE_HTTP_PORT="$(yq -r '.clickhouse.endpoint | sub("^.*:"; "")' "${dev_config}")"
+VICTORIA_METRICS_PORT="$(yq -r '.victoriaMetrics.endpoint | sub("^.*:"; "")' "${dev_config}")"
+GRAFANA_PORT="$(yq -r '.grafana.port' "${dev_config}")"
+[[ -z ${POSTGRES_PORT} || ${POSTGRES_PORT} == "null" ]] && echo "❌ config/dev.yaml postgres.port is missing" >&2 && exit 1
+[[ -z ${POSTGRES_DATABASE} || ${POSTGRES_DATABASE} == "null" ]] && echo "❌ config/dev.yaml postgres.database is missing" >&2 && exit 1
+[[ -z ${POSTGRES_USERNAME} || ${POSTGRES_USERNAME} == "null" ]] && echo "❌ config/dev.yaml postgres.username is missing" >&2 && exit 1
+[[ -z ${POSTGRES_PASSWORD} || ${POSTGRES_PASSWORD} == "null" ]] && echo "❌ config/dev.yaml postgres.password is missing" >&2 && exit 1
+[[ -z ${REDIS_PORT} || ${REDIS_PORT} == "null" ]] && echo "❌ config/dev.yaml redis.port is missing" >&2 && exit 1
+[[ -z ${STORAGE_PORT} || ${STORAGE_PORT} == "null" ]] && echo "❌ config/dev.yaml storage.endpoint port is missing" >&2 && exit 1
+[[ -z ${STORAGE_CONSOLE_PORT} || ${STORAGE_CONSOLE_PORT} == "null" ]] && echo "❌ config/dev.yaml storage.consolePort is missing" >&2 && exit 1
+[[ -z ${STORAGE_ACCESS_KEY_ID} || ${STORAGE_ACCESS_KEY_ID} == "null" ]] && echo "❌ config/dev.yaml storage.accessKeyId is missing" >&2 && exit 1
+[[ -z ${STORAGE_SECRET_ACCESS_KEY} || ${STORAGE_SECRET_ACCESS_KEY} == "null" ]] && echo "❌ config/dev.yaml storage.secretAccessKey is missing" >&2 && exit 1
+[[ -z ${OTEL_HTTP_PORT} || ${OTEL_HTTP_PORT} == "null" ]] && echo "❌ config/dev.yaml otel.endpoint port is missing" >&2 && exit 1
+[[ -z ${CLICKHOUSE_HTTP_PORT} || ${CLICKHOUSE_HTTP_PORT} == "null" ]] && echo "❌ config/dev.yaml clickhouse.endpoint port is missing" >&2 && exit 1
+[[ -z ${VICTORIA_METRICS_PORT} || ${VICTORIA_METRICS_PORT} == "null" ]] && echo "❌ config/dev.yaml victoriaMetrics.endpoint port is missing" >&2 && exit 1
+[[ -z ${GRAFANA_PORT} || ${GRAFANA_PORT} == "null" ]] && echo "❌ config/dev.yaml grafana.port is missing" >&2 && exit 1
+export POSTGRES_PORT POSTGRES_DATABASE POSTGRES_USERNAME POSTGRES_PASSWORD REDIS_PORT
+export STORAGE_PORT STORAGE_CONSOLE_PORT STORAGE_ACCESS_KEY_ID STORAGE_SECRET_ACCESS_KEY
+export OTEL_HTTP_PORT CLICKHOUSE_HTTP_PORT VICTORIA_METRICS_PORT GRAFANA_PORT
+
+echo "🐳 Starting local dependencies for project ${project}..."
+docker compose --project-name "${project}" --file scripts/local/docker-compose.yaml up --detach --wait postgres redis minio clickhouse otel-collector victoria-metrics alloy grafana
+docker compose --project-name "${project}" --file scripts/local/docker-compose.yaml run --rm minio-create
+echo "✅ Local dependencies are ready for project ${project}"
