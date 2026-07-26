@@ -69,27 +69,23 @@ for index in "${!projects[@]}"; do
   merge_args=()
   [ -f "${accumulator}" ] && merge_args=(/p:MergeWith="${accumulator}")
 
-  test_build_args=()
-  if [ "${kind}" = "meta" ]; then
-    # Build project references before Coverlet instruments the settled test output.
-    # InstrumentModulesAfterBuild can otherwise observe a subsequently replaced
-    # TestHelper copy and report valid lines with zero execution hits.
-    echo "🏗️ Building ${kind} coverage input: ${project_rel}"
-    set +e
-    dotnet build "${root}/${project_rel}" -c Release
-    build_code=$?
-    set -e
-    if [ "${build_code}" -ne 0 ]; then
-      failed=1
-      continue
-    fi
-    test_build_args=(--no-build)
+  # Build project references before Coverlet instruments the settled test output.
+  # InstrumentModulesAfterBuild can otherwise observe a subsequently replaced
+  # ledger assembly and report zero execution hits or an empty module set.
+  echo "🏗️ Building ${kind} coverage input: ${project_rel}"
+  set +e
+  dotnet build "${root}/${project_rel}" -c Release
+  build_code=$?
+  set -e
+  if [ "${build_code}" -ne 0 ]; then
+    failed=1
+    continue
   fi
 
   echo "🧪 Running ${kind} coverage: ${project_rel}"
   set +e
   dotnet test "${root}/${project_rel}" -c Release \
-    "${test_build_args[@]}" \
+    --no-build \
     --logger "trx;LogFileName=${kind}-${project_name}.trx" \
     --results-directory "${results}" \
     /p:CollectCoverage=true \
