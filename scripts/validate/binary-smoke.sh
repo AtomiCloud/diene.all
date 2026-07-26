@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# ### workspace
+# #### source: workspace
 for binary in actionlint bash cyanprint docker git gomplate hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pls pre-commit rg sg shellcheck skopeo task treefmt yq; do
   command -v "${binary}" >/dev/null || {
     echo "❌ binary '${binary}' is missing" >&2
@@ -109,4 +111,6 @@ else
   echo "⏭️ releaser binary awaits the C2 step-2p tools/releaser publish"
 fi
 
+# ### workspace-complete
+# #### source: workspace
 echo "✅ Binary smoke passed"
