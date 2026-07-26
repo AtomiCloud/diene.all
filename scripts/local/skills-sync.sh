@@ -5,7 +5,7 @@ set -euo pipefail
 # #### source: workspace
 vendor_dir=".claude/skills/vendor"
 staging="$(mktemp -d .claude/skills/.vendor.XXXXXX)"
-trap 'rm -rf "${staging}"' EXIT
+trap 'chmod -R u+w "${staging}" 2>/dev/null || true; rm -rf "${staging}"' EXIT
 declared_dependency=false
 resolved_dependency=false
 
@@ -98,6 +98,8 @@ if [ -f .dart_tool/package_config.json ]; then
   done < <(jq -r '.packages[] | select(.name | startswith("diene_")) | [.name, .rootUri] | @tsv' .dart_tool/package_config.json)
 fi
 
+chmod -R u+w "${staging}"
+
 # ### workspace-vendor-swap
 # #### source: workspace
 # A declaration with zero resolved packages is a cold checkout, not a request
@@ -108,6 +110,7 @@ if [ "${declared_dependency}" = true ] && [ "${resolved_dependency}" = false ] &
   exit 0
 fi
 
+[ -d "${vendor_dir}" ] && chmod -R u+w "${vendor_dir}"
 rm -rf "${vendor_dir}"
 mkdir -p "$(dirname "${vendor_dir}")"
 mv "${staging}" "${vendor_dir}"
