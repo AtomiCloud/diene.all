@@ -1,0 +1,25 @@
+# ### bun-frontend-utils-dormant-rescue
+# #### source: lib/bun/frontend-utils
+
+name: Dormant Rescue Exercise
+
+on:
+  schedule:
+    - cron: '17 4 * * 2'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rescue:
+    name: Exercise dormant hard-failure path
+    runs-on:
+      - nscloud-ubuntu-22.04-amd64-4x8-with-cache
+      - nscloud-cache-size-50gb
+      - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
+    steps:
+      - uses: AtomiCloud/actions.setup-nix@v3
+      - uses: AtomiCloud/actions.cache-bun@v2
+      - name: Run dormant rescue SIT
+        run: nix develop .#ci -c ./scripts/ci/test.sh sit

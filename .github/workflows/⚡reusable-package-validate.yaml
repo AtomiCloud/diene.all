@@ -15,5 +15,5 @@ jobs:
     steps:
       - uses: AtomiCloud/actions.setup-nix@v3
       - uses: AtomiCloud/actions.cache-bun@v2
-      - name: Validate package (pack-content + publint + attw)
+      - name: Validate packed library
         run: nix develop .#ci -c ./scripts/ci/pkg-validate.sh

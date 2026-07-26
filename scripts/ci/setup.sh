@@ -7,4 +7,7 @@ set -euo pipefail
 # #### source: bun-base
 ./scripts/local/setup.sh
 
+# Dependency-provided skills only exist after the package install above.
+./scripts/local/skills-sync.sh
+
 echo "✅ Repository setup complete"

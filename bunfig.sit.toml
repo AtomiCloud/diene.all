@@ -1,0 +1,3 @@
+[test]
+root = "tests/sit"
+timeout = 120000

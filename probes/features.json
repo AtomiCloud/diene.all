@@ -281,77 +281,72 @@
   },
   {
     "template": "diene/bun-lib",
-    "name": "pack-content",
+    "name": "bun-lib-pack-content",
     "class": "gate"
   },
   {
     "template": "diene/bun-lib",
-    "name": "publint",
+    "name": "bun-lib-publint",
     "class": "gate"
   },
   {
     "template": "diene/bun-lib",
-    "name": "attw",
+    "name": "bun-lib-attw",
     "class": "gate"
   },
   {
     "template": "diene/bun-lib",
-    "name": "publish-version-guard",
+    "name": "bun-lib-publish-version-guard",
     "class": "gate"
   },
   {
     "template": "diene/bun-lib",
-    "name": "publish-tag-policy",
+    "name": "bun-lib-publish-tag-policy",
     "class": "gate"
   },
   {
     "template": "diene/bun-lib",
-    "name": "publish-credential-policy",
+    "name": "bun-lib-publish-credential-policy",
     "class": "gate"
   },
   {
     "template": "diene/bun-lib",
-    "name": "publish-command-policy",
+    "name": "bun-lib-publish-command-policy",
     "class": "gate"
   },
   {
     "template": "diene/bun-lib",
-    "name": "package-metadata",
+    "name": "bun-lib-package-metadata",
     "class": "gate"
   },
   {
     "template": "diene/bun-lib",
-    "name": "workflow-wiring-package-validate",
+    "name": "bun-lib-package-workflow-wiring",
     "class": "gate"
   },
   {
     "template": "diene/bun-lib",
-    "name": "workflow-wiring-publish",
+    "name": "bun-lib-publish-workflow-wiring",
     "class": "gate"
   },
   {
     "template": "diene/bun-lib",
-    "name": "dual-build",
+    "name": "bun-lib-dual-build",
     "class": "smoke"
   },
   {
     "template": "diene/bun-lib",
-    "name": "readme-tokenization",
+    "name": "bun-lib-readme-tokenization",
     "class": "smoke"
   },
   {
     "template": "diene/bun-lib",
-    "name": "package-pack",
+    "name": "bun-lib-package-pack",
     "class": "smoke"
   },
   {
     "template": "diene/bun-lib",
-    "name": "publish-path",
-    "class": "smoke"
-  },
-  {
-    "template": "diene/bun-lib",
-    "name": "usage-skill",
+    "name": "bun-lib-usage-skill",
     "class": "presence"
   }
 ]
