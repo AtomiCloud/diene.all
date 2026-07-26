@@ -4,6 +4,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/AtomiCloud/diene.go-config/lib/config/internal/resource"
+	"github.com/AtomiCloud/diene.go-config/lib/config/internal/schemaview"
 	"github.com/AtomiCloud/diene.go-config/lib/config/internal/valid"
 	"github.com/AtomiCloud/diene.go-core-utils/lib/coreutils"
 	"github.com/AtomiCloud/diene.go-errors-problems/lib/problem"
@@ -12,7 +14,8 @@ import (
 
 func objectSchema() map[string]any {
 	return map[string]any{
-		"type": "object",
+		"$schema": schemaview.Dialect,
+		"type":    "object",
 		"properties": map[string]any{
 			"a": map[string]any{"type": "string"},
 			"b": map[string]any{"type": "string"},
@@ -54,9 +57,14 @@ func TestEvaluateSchemaNormalizeFault(t *testing.T) {
 
 func TestEvaluateCompileFault(t *testing.T) {
 	t.Parallel()
-	// This schema normalizes cleanly but violates the draft-2020-12 metaschema,
-	// so the fault surfaces from compilation rather than normalization.
-	err := valid.Evaluate(map[string]any{"type": float64(5)}, problem.ErrorPortal{}, map[string]any{})
+	// This schema normalizes cleanly and passes the supported-subset audit, but
+	// violates the draft-2020-12 metaschema, so the fault surfaces from
+	// compilation rather than from normalization or the audit.
+	err := valid.Evaluate(
+		map[string]any{"$schema": schemaview.Dialect, "type": float64(5)},
+		problem.ErrorPortal{},
+		map[string]any{},
+	)
 	if err == nil {
 		t.Fatal("a schema that violates the metaschema must fault")
 	}
@@ -112,6 +120,7 @@ func TestEvaluateRejectsCyclicSchema(t *testing.T) {
 func TestEvaluateRejectsCollidingSchema(t *testing.T) {
 	t.Parallel()
 	schema := map[string]any{
+		"$schema":    schemaview.Dialect,
 		"type":       "object",
 		"properties": map[string]any{"cache_region": map[string]any{"type": "string"}, "cacheRegion": map[string]any{"type": "string"}},
 	}
@@ -151,7 +160,7 @@ func TestCollectSingleAndNestedIssues(t *testing.T) {
 	if !errors.As(compiled.Validate(map[string]any{"a": 1, "b": "y"}), &single) {
 		t.Fatal("expected a validation error")
 	}
-	if issues := valid.Collect(single); len(issues) != 1 || issues[0].Path != "a" {
+	if issues := valid.Collect(single); len(issues) != 1 || issues[0].Locate() != "a" {
 		t.Fatalf("single collect wrong: %v", issues)
 	}
 }
@@ -162,7 +171,8 @@ func TestEvaluateRejectsTypedPropertiesCollision(t *testing.T) {
 	// schema was normalized, the direct map[string]any assertion skipped this
 	// shape entirely and the collision went undetected.
 	schema := map[string]any{
-		"type": "object",
+		"$schema": schemaview.Dialect,
+		"type":    "object",
 		"properties": map[string]map[string]any{
 			"cache_region": {"type": "string"},
 			"cacheRegion":  {"type": "string"},
@@ -178,21 +188,31 @@ func TestEvaluateRejectsTypedPropertiesCollision(t *testing.T) {
 	}
 }
 
-func TestEvaluateAlignsThroughLocalRef(t *testing.T) {
+func TestEvaluateValidatesThroughBlockLocalRef(t *testing.T) {
 	t.Parallel()
-	// The instance spells the key in camel case; the schema declares it in snake
-	// case behind $defs + $ref with additionalProperties:false, so validation only
-	// succeeds if alignment followed the reference.
+	// The composed shape a block mount produces: the block is its own resource, so
+	// its fragment-local pointer resolves inside the block. The instance spells the
+	// key in camel case while the schema declares it in snake case behind
+	// $defs + $ref with additionalProperties:false, so it only validates because
+	// both sides are canonicalized.
 	schema := map[string]any{
-		"type":  "object",
-		"$defs": map[string]any{"app": map[string]any{"type": "object", "properties": map[string]any{"cache_region": map[string]any{"type": "string"}}, "additionalProperties": false}},
+		"$schema": schemaview.Dialect,
+		"type":    "object",
 		"properties": map[string]any{
-			"app": map[string]any{"$ref": "#/$defs/app"},
+			"app": map[string]any{
+				"$id": resource.BlockID("app"),
+				"$defs": map[string]any{"body": map[string]any{
+					"type":                 "object",
+					"properties":           map[string]any{"cache_region": map[string]any{"type": "string"}},
+					"additionalProperties": false,
+				}},
+				"$ref": "#/$defs/body",
+			},
 		},
 	}
 	instance := map[string]any{"app": map[string]any{"cacheRegion": "east"}}
 	if err := valid.Evaluate(schema, problem.ErrorPortal{}, instance); err != nil {
-		t.Fatalf("alignment must follow a local $ref: %v", err)
+		t.Fatalf("a block-local reference must validate: %v", err)
 	}
 }
 

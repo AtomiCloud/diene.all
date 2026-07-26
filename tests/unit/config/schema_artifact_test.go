@@ -38,10 +38,8 @@ func sampleServiceSchema(t *testing.T) config.Schema {
 	if err != nil {
 		t.Fatalf("fragment: %v", err)
 	}
-	// A mounted block is a subschema, not a resource root; drop the reflected
-	// meta-schema markers so it composes cleanly.
-	delete(fragment, "$schema")
-	delete(fragment, "$id")
+	// FragmentFromType already removes the reflector's root resource markers, so
+	// the fragment mounts as a subschema without any manual cleanup here.
 	return config.ComposeSchema(config.AppBlockSchema(), config.NewBlock("service", true, fragment))
 }
 

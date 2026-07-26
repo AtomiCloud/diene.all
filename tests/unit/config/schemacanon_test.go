@@ -8,9 +8,9 @@ import (
 	"github.com/AtomiCloud/diene.go-config/testhelper"
 )
 
-// refBlock is a draft-2020-12 block that routes its object shape through $defs
-// and a local $ref, with additionalProperties:false so a mis-spelled key is only
-// accepted when alignment actually followed the reference.
+// refBlock routes its object shape through $defs and an ORDINARY fragment-local
+// pointer. Each block is mounted as its own schema resource, so the pointer
+// resolves inside the block and the fragment stays portable.
 func refBlock() config.Block {
 	return config.NewBlock(testhelper.DemoBlockKey, true, map[string]any{
 		"$defs": map[string]any{
@@ -21,9 +21,7 @@ func refBlock() config.Block {
 				"additionalProperties": false,
 			},
 		},
-		// ComposeSchema mounts the block under properties/<key>, so a local pointer
-		// is written against the composed document root.
-		"$ref": "#/properties/" + testhelper.DemoBlockKey + "/$defs/body",
+		"$ref": "#/$defs/body",
 	})
 }
 
@@ -39,6 +37,42 @@ func composedBlock() config.Block {
 	})
 }
 
+// demoBase renders a base document whose demo block is body.
+func demoBase(body string) string {
+	return testhelper.SchemaPointer + `
+app:
+  landscape: base
+  platform: sulfoxide
+  service: config
+  module: lib
+  version: 1.0.0
+demo:
+` + body
+}
+
+// loadDemo runs a full three-layer load of block against a demo body.
+func loadDemo(t *testing.T, block config.Block, body string) (*config.Config, error) {
+	t.Helper()
+	return config.NewLoader(
+		config.WithEnvPrefix("ATOMI_"),
+		config.WithBaseSource(testhelper.BaseSource(demoBase(body))),
+		config.WithEnvSource(testhelper.EnvSource(nil)),
+		config.WithSchema(config.ComposeSchema(config.AppBlockSchema(), block)),
+	).Load(context.Background())
+}
+
+// requireAuthoringFault asserts err is a plain authoring fault, never a
+// problem-typed validation failure.
+func requireAuthoringFault(t *testing.T, err error, what string) {
+	t.Helper()
+	if err == nil {
+		t.Fatalf("%s must be rejected", what)
+	}
+	if _, isValidation := config.ValidationIssues(err); isValidation {
+		t.Fatalf("%s is an authoring fault, not a validation problem: %v", what, err)
+	}
+}
+
 func TestSchemaValidateRejectsTypedPropertiesCollision(t *testing.T) {
 	t.Parallel()
 	// A NewBlock fragment authored with typed Go containers is legal; its
@@ -51,12 +85,7 @@ func TestSchemaValidateRejectsTypedPropertiesCollision(t *testing.T) {
 		},
 	})
 	err := config.ComposeSchema(config.AppBlockSchema(), block).Validate(testhelper.ValidRaw())
-	if err == nil {
-		t.Fatal("a typed-container canonical collision must be rejected")
-	}
-	if _, isValidation := config.ValidationIssues(err); isValidation {
-		t.Fatalf("a schema authoring fault is not a validation problem: %v", err)
-	}
+	requireAuthoringFault(t, err, "a typed-container canonical collision")
 }
 
 func TestSchemaValidateRejectsCollisionInsideDefs(t *testing.T) {
@@ -71,80 +100,60 @@ func TestSchemaValidateRejectsCollisionInsideDefs(t *testing.T) {
 		},
 	})
 	err := config.ComposeSchema(config.AppBlockSchema(), block).Validate(testhelper.ValidRaw())
-	if err == nil {
-		t.Fatal("a canonical collision inside $defs must be rejected")
-	}
-	if _, isValidation := config.ValidationIssues(err); isValidation {
-		t.Fatalf("a schema authoring fault is not a validation problem: %v", err)
-	}
+	requireAuthoringFault(t, err, "a canonical collision inside $defs")
 }
 
-func TestSchemaValidateRejectsCrossCompositionCollision(t *testing.T) {
+func TestSchemaValidateAcceptsCrossBranchCanonicalTwins(t *testing.T) {
 	t.Parallel()
+	// Two branches spelling one logical key differently are NOT ambiguous: under
+	// the canonical relation they name the same key, and the compiler applies each
+	// branch's constraints natively. Both allOf constraints must therefore bind.
 	block := config.NewBlock(testhelper.DemoBlockKey, true, map[string]any{
 		"type": "object",
 		"allOf": []any{
 			map[string]any{"properties": map[string]any{"cache_region": map[string]any{"type": "string"}}},
-			map[string]any{"properties": map[string]any{"cacheRegion": map[string]any{"type": "string"}}},
+			map[string]any{"properties": map[string]any{"cacheRegion": map[string]any{"minLength": float64(3)}}},
 		},
 	})
-	err := config.ComposeSchema(config.AppBlockSchema(), block).Validate(testhelper.ValidRaw())
-	if err == nil {
-		t.Fatal("a canonical collision across composed branches must be rejected")
+	schema := config.ComposeSchema(config.AppBlockSchema(), block)
+
+	valid := testhelper.ValidRaw()
+	valid[testhelper.DemoBlockKey] = map[string]any{"cache-region": "east"}
+	if err := schema.Validate(valid); err != nil {
+		t.Fatalf("cross-branch canonical twins must compose, not reject: %v", err)
 	}
-	if _, isValidation := config.ValidationIssues(err); isValidation {
-		t.Fatalf("a schema authoring fault is not a validation problem: %v", err)
+
+	// The SECOND branch's constraint still binds through a third spelling.
+	short := testhelper.ValidRaw()
+	short[testhelper.DemoBlockKey] = map[string]any{"CacheRegion": "ab"}
+	if _, isValidation := config.ValidationIssues(schema.Validate(short)); !isValidation {
+		t.Fatal("both composed branches must constrain the one canonical key")
+	}
+
+	// The FIRST branch's type constraint binds too.
+	wrongType := testhelper.ValidRaw()
+	wrongType[testhelper.DemoBlockKey] = map[string]any{"cacheRegion": float64(1)}
+	if _, isValidation := config.ValidationIssues(schema.Validate(wrongType)); !isValidation {
+		t.Fatal("the first composed branch must constrain the one canonical key")
 	}
 }
 
-func TestLoadAlignsThroughLocalRef(t *testing.T) {
+func TestLoadValidatesThroughBlockLocalRef(t *testing.T) {
 	t.Parallel()
-	// The base document spells the key in camel case while the schema declares it
-	// in snake case behind $defs + $ref; the load only succeeds if the loader
-	// aligned through the reference.
-	base := testhelper.SchemaPointer + `
-app:
-  landscape: base
-  platform: sulfoxide
-  service: config
-  module: lib
-  version: 1.0.0
-demo:
-  cacheRegion: east
-`
-	cfg, err := config.NewLoader(
-		config.WithEnvPrefix("ATOMI_"),
-		config.WithBaseSource(testhelper.BaseSource(base)),
-		config.WithEnvSource(testhelper.EnvSource(nil)),
-		config.WithSchema(config.ComposeSchema(config.AppBlockSchema(), refBlock())),
-	).Load(context.Background())
+	// The base spells the key in camel case while the schema declares it in snake
+	// case behind an ordinary fragment-local pointer.
+	cfg, err := loadDemo(t, refBlock(), "  cacheRegion: east\n")
 	loaded := testhelper.RequireConfig(t, cfg, err)
 
 	var region string
 	if decodeErr := loaded.Decode("demo.cacheRegion", &region); decodeErr != nil || region != "east" {
-		t.Fatalf("value behind a local $ref must decode: %q %v", region, decodeErr)
+		t.Fatalf("value behind a block-local $ref must decode: %q %v", region, decodeErr)
 	}
 }
 
-func TestLoadAlignsThroughComposition(t *testing.T) {
+func TestLoadValidatesThroughComposition(t *testing.T) {
 	t.Parallel()
-	base := testhelper.SchemaPointer + `
-app:
-  landscape: base
-  platform: sulfoxide
-  service: config
-  module: lib
-  version: 1.0.0
-demo:
-  cacheRegion: east
-  data-dir: /var/lib
-`
-	cfg, err := config.NewLoader(
-		config.WithEnvPrefix("ATOMI_"),
-		config.WithBaseSource(testhelper.BaseSource(base)),
-		config.WithEnvSource(testhelper.EnvSource(nil)),
-		config.WithSchema(config.ComposeSchema(config.AppBlockSchema(), composedBlock())),
-	).Load(context.Background())
+	cfg, err := loadDemo(t, composedBlock(), "  cacheRegion: east\n  data-dir: /var/lib\n")
 	loaded := testhelper.RequireConfig(t, cfg, err)
 
 	var dataDir string
@@ -163,9 +172,7 @@ func TestLoadRejectsSchemaCollisionThroughLoader(t *testing.T) {
 				"aB":  map[string]any{"type": "string"},
 			}},
 		},
-		// ComposeSchema mounts the block under properties/<key>, so a local pointer
-		// is written against the composed document root.
-		"$ref": "#/properties/" + testhelper.DemoBlockKey + "/$defs/body",
+		"$ref": "#/$defs/body",
 	})
 	cfg, err := config.NewLoader(
 		config.WithEnvPrefix("ATOMI_"),
@@ -174,7 +181,5 @@ func TestLoadRejectsSchemaCollisionThroughLoader(t *testing.T) {
 		config.WithSchema(config.ComposeSchema(config.AppBlockSchema(), block)),
 	).Load(context.Background())
 	loadErr := testhelper.RequireLoadError(t, cfg, err)
-	if _, isValidation := config.ValidationIssues(loadErr); isValidation {
-		t.Fatalf("a schema authoring fault is not a validation problem: %v", loadErr)
-	}
+	requireAuthoringFault(t, loadErr, "a schema collision reached through the loader")
 }

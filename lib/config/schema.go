@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/AtomiCloud/diene.go-config/lib/config/internal/clone"
+	"github.com/AtomiCloud/diene.go-config/lib/config/internal/resource"
 	"github.com/AtomiCloud/diene.go-config/lib/config/internal/valid"
 	"github.com/AtomiCloud/diene.go-errors-problems/lib/problem"
 	"github.com/invopop/jsonschema"
@@ -25,6 +26,22 @@ type Block struct {
 	// Required marks the block as mandatory in the composed root schema.
 	Required bool
 	// Schema is the draft-2020-12 JSON Schema fragment describing the block.
+	//
+	// The fragment is mounted as its own schema RESOURCE, so an ordinary
+	// fragment-local pointer such as {"$ref": "#/$defs/body"} resolves inside the
+	// block and stays portable; it cannot reach into another block. Do not author
+	// "$id" or "$schema" here — [ComposeSchema] owns the composed root's dialect
+	// and generates each block's resource identity.
+	//
+	// A supported SUBSET of the dialect is accepted, because validation matches
+	// keys canonically (see [Schema.Validate]). Rejected as authoring faults:
+	// patternProperties and propertyNames, which constrain the authored spelling
+	// of a key; $anchor, $dynamicAnchor, $dynamicRef, $recursiveAnchor,
+	// $recursiveRef, and any non-local, percent-encoded, or anchor-form $ref;
+	// $vocabulary; dependencies and additionalItems, which the 2020-12 dialect
+	// ignores; and contentSchema, contentEncoding, and contentMediaType, which
+	// this validator does not assert. Those words appearing as DATA under const,
+	// enum, default, examples, or an unknown annotation are ordinary content.
 	Schema map[string]any
 }
 
@@ -48,6 +65,13 @@ type Schema struct {
 // the root "required" list. Additional top-level keys are permitted so a
 // service can carry its own configuration alongside the composed engine blocks.
 // Later blocks with the same key win, mirroring layer-merge precedence.
+//
+// Every block is mounted with a generated "$id", making it its own schema
+// resource: a fragment-local "#/$defs/..." pointer resolves against the block
+// rather than the composed root, which is what lets independently authored
+// fragments use ordinary local pointers. A fragment that authors its own "$id"
+// is left intact and rejected by [Schema.Validate], so the mistake is reported
+// rather than silently overwritten.
 func ComposeSchema(blocks ...Block) Schema {
 	properties := make(map[string]any, len(blocks))
 	requiredByKey := make(map[string]bool, len(blocks))
@@ -56,7 +80,20 @@ func ComposeSchema(blocks ...Block) Schema {
 		if _, seen := properties[block.Key]; !seen {
 			order = append(order, block.Key)
 		}
-		properties[block.Key] = clone.Map(block.Schema)
+		// Each block is mounted as its own schema RESOURCE, so a fragment-local
+		// "#/$defs/..." reference resolves against the block rather than the
+		// composed root. That is what makes an independently authored fragment
+		// portable, and it also means no reference can reach across blocks. An
+		// authored "$id" is left untouched so the audit can reject it instead of
+		// this silently overwriting the evidence.
+		fragment := clone.Map(block.Schema)
+		if fragment == nil {
+			fragment = map[string]any{}
+		}
+		if _, authored := fragment["$id"]; !authored {
+			fragment["$id"] = resource.BlockID(block.Key)
+		}
+		properties[block.Key] = fragment
 		requiredByKey[block.Key] = block.Required
 	}
 	required := make([]any, 0, len(order))
@@ -109,11 +146,28 @@ func (s Schema) WithPortal(portal problem.ErrorPortal) Schema {
 	return s
 }
 
-// Validate checks instance against the composed root schema exactly once. A
-// schema-validation failure is returned as a problem-typed *[problem.Error]
+// Validate checks instance against the composed root schema exactly once.
+//
+// Keys match CANONICALLY: separators and case are ignored, exactly as
+// [Config.Decode] resolves a dotted key. Both sides are put in canonical form
+// before the compiler runs, so every key comparison it makes — properties,
+// required, dependentRequired, additionalProperties fall-through, unevaluated
+// accounting, the inner checks of not and contains, and object const and enum
+// equality — is spelling-insensitive. A spelling Decode can resolve is therefore
+// always a spelling this constrains. Two branches may spell one logical key
+// differently; they name one key and each branch's constraints apply natively.
+// Sibling keys that share a canonical form are rejected, since canonicalizing
+// them would collapse two declarations into one.
+//
+// Reported paths carry the AUTHORED spellings of the instance; message text may
+// name the canonical form of a property, so the path is the authoritative
+// locator.
+//
+// A schema-validation failure is returned as a problem-typed *[problem.Error]
 // (validation-error, HTTP 400, recoverable) carrying the offending field paths
-// and messages under data.fields. A malformed schema or an instance that cannot
-// be normalized is returned as a plain wrapped error, since those are authoring
+// and messages under data.fields. An unsupported schema construct (see [Block]),
+// a canonical collision, a malformed schema, or an instance that cannot be
+// normalized is returned as a plain wrapped error, since those are authoring
 // faults rather than configuration-validation failures.
 func (s Schema) Validate(instance map[string]any) error {
 	return valid.Evaluate(s.root, s.portal, instance)
@@ -136,8 +190,17 @@ func GenerateSchema(model any) ([]byte, error) {
 // FragmentFromType reflects a Go type into a JSON Schema fragment map suitable
 // for [NewBlock]. It threads the reflection and decode through a single error
 // path so a caller composes typed blocks without hand-authoring JSON.
+//
+// The reflector emits root resource markers ("$schema" and "$id") that describe
+// a standalone document; a mountable fragment must not carry them, because
+// [ComposeSchema] owns the composed root's dialect and generates each block's
+// resource identity. Only those two reflector-generated root keys are removed —
+// a hand-authored "$schema" or "$id" in a fragment remains an authoring fault.
 func FragmentFromType(model any) (map[string]any, error) {
 	raw, marshalErr := GenerateSchema(model)
 	fragment := map[string]any{}
-	return fragment, errors.Join(marshalErr, json.Unmarshal(raw, &fragment))
+	err := errors.Join(marshalErr, json.Unmarshal(raw, &fragment))
+	delete(fragment, "$schema")
+	delete(fragment, "$id")
+	return fragment, err
 }

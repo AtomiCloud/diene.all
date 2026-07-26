@@ -32,11 +32,32 @@ const schemaResourceURL = "https://diene.atomi.cloud/config/root.schema.json"
 var issuePrinter = message.NewPrinter(language.English)
 
 // Issue is a single, human-readable schema-validation failure.
+//
+// A validator failure carries its instance location as the STRUCTURED segment
+// list the compiler produced, because a segment may itself contain a dot and
+// flattening it early would destroy the identity needed to restore the authored
+// spellings. The dotted [Issue.Path] is rendered only at the problem envelope.
+// An issue raised outside the validator — an environment coercion fault, a
+// source read failure — carries its path directly instead.
 type Issue struct {
 	// Path is the dotted instance location, e.g. "app.landscape", or "(root)".
+	// It is set directly for non-validator issues and rendered from Location
+	// otherwise.
 	Path string
+	// Location is the validator's structured instance location, already mapped
+	// back to authored spellings. It is nil for a non-validator issue.
+	Location []string
 	// Message explains why the value at Path is invalid.
 	Message string
+}
+
+// Locate returns the dotted path of an issue, rendering the structured location
+// when the issue came from the validator.
+func (i Issue) Locate() string {
+	if i.Location == nil {
+		return i.Path
+	}
+	return Path(i.Location)
 }
 
 // Compile marshals a composed root schema map and compiles it with
@@ -107,8 +128,10 @@ func Normalize(instance map[string]any) (any, error) {
 func Collect(node *tekuri.ValidationError) []Issue {
 	if len(node.Causes) == 0 {
 		return []Issue{{
-			Path:    Path(node.InstanceLocation),
-			Message: node.ErrorKind.LocalizedString(issuePrinter),
+			// Cloned and always non-nil, so a root-level failure still renders as
+			// a structured (empty) location rather than falling back to Path.
+			Location: append([]string{}, node.InstanceLocation...),
+			Message:  node.ErrorKind.LocalizedString(issuePrinter),
 		}}
 	}
 	issues := make([]Issue, 0, len(node.Causes))
@@ -146,7 +169,10 @@ func Problem(portal problem.ErrorPortal, issues []Issue) *problem.Error {
 	}
 	fields := make([]any, 0, len(issues))
 	for _, issue := range issues {
-		fields = append(fields, map[string]any{"path": issue.Path, "message": issue.Message})
+		// The dotted path is rendered HERE, at the envelope boundary, so a
+		// validator location keeps its segment identity until authored spellings
+		// have been restored.
+		fields = append(fields, map[string]any{"path": issue.Locate(), "message": issue.Message})
 	}
 	problemType := problem.ValidationError()
 	typeURI, err := problem.TypeURI(portal, problemType.Version, problemType.ID)
@@ -180,27 +206,40 @@ func Evaluate(schemaRoot map[string]any, portal problem.ErrorPortal, instance ma
 	if err != nil {
 		return fmt.Errorf("config: normalize root schema: %w", err)
 	}
-	document := schemaview.NewDocument(normalizedSchema)
-	compiled, err := Compile(normalizedSchema)
+	// The supported subset is enforced BEFORE anything is rewritten or compiled,
+	// so an unsupported construct is reported as itself rather than as a
+	// downstream compile error.
+	if err = schemaview.Audit(normalizedSchema); err != nil {
+		return err
+	}
+	// Canonicalizing merges two spellings into one key, so a schema that would
+	// lose a declaration that way is an authoring fault.
+	if location, detail, collided := schemaview.Collision(normalizedSchema); collided {
+		return fmt.Errorf("config: schema property collision at %s: %s", location, detail)
+	}
+	// The COMPILED schema is the canonical one: every name position it compares
+	// against is in canonical form.
+	compiled, err := Compile(schemaview.Canonicalize(normalizedSchema))
 	if err != nil {
 		return fmt.Errorf("config: compile root schema: %w", err)
-	}
-	if location, detail, collided := document.Collision(); collided {
-		return fmt.Errorf("config: schema property collision at %s: %s", location, detail)
 	}
 	normalized, err := Normalize(instance)
 	if err != nil {
 		return fmt.Errorf("config: normalize configuration: %w", err)
 	}
-	// Collision detection and key alignment run on the normalized JSON object so
-	// typed containers (map[string]string, typed slices) are already flattened to
-	// map[string]any / []any and their aliases cannot be missed.
+	// The instance collision check runs on the normalized JSON object, so typed
+	// containers are already flattened and their aliases cannot be missed. It is
+	// also what guarantees canonicalizing the instance never merges two keys.
 	//nolint:revive // a normalized configuration object is always a map.
 	object, _ := normalized.(map[string]any)
 	if location, detail, collided := collision.Detect(object); collided {
 		return Problem(portal, []Issue{{Path: location, Message: detail}})
 	}
-	validationErr := compiled.Validate(document.Align(schemaview.Position{document.Root()}, object))
+	// Both sides are now expressed in the same canonical key relation, so every
+	// comparison the compiler makes — properties, required, dependentRequired,
+	// additionalProperties fall-through, unevaluated accounting, not, contains,
+	// object const and enum equality — is spelling-insensitive by construction.
+	validationErr := compiled.Validate(schemaview.CanonicalizeInstance(object))
 	if validationErr == nil {
 		return nil
 	}
@@ -208,5 +247,19 @@ func Evaluate(schemaRoot map[string]any, portal problem.ErrorPortal, instance ma
 	// errors.As always populates detailed; the bool is intentionally discarded.
 	var detailed *tekuri.ValidationError
 	_ = errors.As(validationErr, &detailed)
-	return Problem(portal, Collect(detailed))
+	return Problem(portal, Authored(object, Collect(detailed)))
+}
+
+// Authored restores the authored spellings of every validator issue location, so
+// a reported path names the keys the user actually wrote rather than their
+// canonical forms.
+func Authored(object map[string]any, issues []Issue) []Issue {
+	restored := make([]Issue, 0, len(issues))
+	for _, issue := range issues {
+		if issue.Location != nil {
+			issue.Location = schemaview.AuthoredLocation(object, issue.Location)
+		}
+		restored = append(restored, issue)
+	}
+	return restored
 }

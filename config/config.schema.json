@@ -3,6 +3,7 @@
   "additionalProperties": true,
   "properties": {
     "app": {
+      "$id": "https://diene.atomi.cloud/config/blocks/YXBw.schema.json",
       "additionalProperties": false,
       "properties": {
         "landscape": {
@@ -30,6 +31,7 @@
       "type": "object"
     },
     "service": {
+      "$id": "https://diene.atomi.cloud/config/blocks/c2VydmljZQ.schema.json",
       "properties": {
         "cache": {
           "properties": {

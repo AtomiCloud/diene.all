@@ -39,10 +39,49 @@ problem-typed `(T, error)` values. Read the compiling examples in
 - Give every committed config YAML a schema pointer on its **first line**
   (`# yaml-language-server: $schema=...`) and keep secret examples blank.
 
+## Supported schema subset and canonical matching
+
+Configuration keys are equal when their canonical forms match — separators and
+case are ignored, which is exactly how `cfg.Decode` resolves a dotted key. To
+make validation agree with that rule for **every** keyword, the library
+canonicalizes both the schema's name positions and the instance's keys before
+handing them to the JSON Schema compiler. A spelling `Decode` can resolve is
+therefore always a spelling validation constrains, including under `not`,
+`contains`, `unevaluated*`, `required`-only names, and `dependentRequired`.
+
+- Each block is mounted as its own schema **resource**, so write ordinary
+  fragment-local pointers such as `{"$ref": "#/$defs/body"}`. They stay portable
+  and cannot reach into another block.
+- Canonicalized name positions are the keys of `properties`, `dependentSchemas`,
+  and `dependentRequired`, the entries of `required` and of each
+  `dependentRequired` value, and object keys inside `const` and `enum`. So
+  `const: {"cache_region": "x"}` matches an instance spelling it `cacheRegion`.
+  Scalar `enum`/`const` values are data and stay exact.
+- Two branches may spell one logical key differently — under the canonical rule
+  they are one key, and each branch's constraints apply natively.
+- Sibling keys that share a canonical form are rejected: they would collapse into
+  one entry. That applies to one `properties`, `dependentSchemas`, or
+  `dependentRequired` map, and to any object inside `const`/`enum` data.
+  Redundant `required` entries are deduped instead.
+- Unsupported constructs are rejected as **authoring faults** (plain errors, not
+  validation problems): `patternProperties` and `propertyNames` (they match the
+  authored spelling, which configuration keys do not preserve); `$anchor`,
+  `$dynamicAnchor`, `$dynamicRef`, `$recursiveAnchor`, `$recursiveRef`, and any
+  non-local, percent-encoded, or anchor-form `$ref`; `$vocabulary`, a fragment
+  `$schema`, and any `$id` other than the generated block mount; `dependencies`
+  and `additionalItems` (the 2020-12 dialect ignores them); and `contentSchema`,
+  `contentEncoding`, `contentMediaType` (content assertions are not enabled).
+- Only real schema positions are inspected. The same words appearing as data
+  under `const`, `enum`, `default`, `examples`, or an unknown annotation are
+  ordinary content and are never denied.
+
 ## Don't
 
 - Don't define otel, auth-engine, api-engine, or standard-config block schemas
   here — config merges and validates them, it never owns them.
+- Don't hand-author `$id` or `$schema` inside a block fragment;
+  `ComposeSchema` owns the composed root's dialect and generates each block's
+  resource identity. `config.FragmentFromType` already strips the reflector's.
 - Don't rely on Viper `AutomaticEnv`; the env layer is produced by
   `coreutils.EnvironmentToNestedMap` so lists and casing behave per the contract.
 - Don't validate a single layer — validation runs once, on the final merged tree,
