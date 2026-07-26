@@ -1,10 +1,28 @@
 # Go library baseline
 
-This template publishes the module
-`github.com/AtomiCloud/diene.go-lib`. A materialized child changes the final
-`go-lib` token to its library name in `.config/go-lib.yaml`, `go.mod`, mirror
-URLs, badges, documentation, and its usage-skill namespace. The mirror remains
-a single-module repository unless a concrete library proves otherwise.
+This library publishes the module
+`github.com/AtomiCloud/diene.go-e2e`, materialized from the `go-lib` template.
+Retargeting a child changes the final identity token in `.config/go-lib.yaml`,
+`go.mod`, mirror URLs, badges, documentation, and its usage-skill namespace.
+The mirror remains a single-module repository unless a concrete library proves
+otherwise.
+
+This library consumes all eight of its published family siblings through the
+public Go proxy — never a local `replace` or path dependency — so its own test
+suites are the family's downstream real-consumption evidence for
+`github.com/AtomiCloud/diene.go-errors-problems`,
+`github.com/AtomiCloud/diene.go-interfaces`,
+`github.com/AtomiCloud/diene.go-core-utils`,
+`github.com/AtomiCloud/diene.go-config`,
+`github.com/AtomiCloud/diene.go-otel`,
+`github.com/AtomiCloud/diene.go-auth-engine`,
+`github.com/AtomiCloud/diene.go-standard-config`, and
+`github.com/AtomiCloud/diene.go-api-engine`.
+
+Before tagging, run `./scripts/validate/go-proxy-roundtrip-dryrun.sh`. It
+extracts the published-consumer payload of `go-proxy-roundtrip.sh` and compiles
+and runs it against the working tree, because the real round trip only ever
+executes against a tag that can no longer be unpublished.
 
 ## Package and API shape
 
@@ -20,9 +38,10 @@ All tests use external `_test` packages, and `export_test.go` is forbidden;
 `scripts/validate/go-black-box-tests.sh` (pre-commit hook `a-go-black-box`)
 enforces both by rejecting any `export_test.go` or non-`_test` test package.
 
-The sample `note` package and Redis adapter are fenced by their directories for
-wholesale replacement in materialized children. The module has no `main` or
-`cmd` package. `go build ./...`, `go vet ./...`, golangci-lint, govulncheck,
+The public packages are `lib/e2e`, `lib/preview`, and `lib/fixture`, plus the
+`adapters/process` terminal binding and the consumer-facing `testhelper`. The
+harness owns no HTTP surface and no Bruno orchestration; Bruno stays sample-side
+with the service templates. The module has no `main` or `cmd` package. `go build ./...`, `go vet ./...`, golangci-lint, govulncheck,
 strict deadcode, examples, and `gorelease` protect the resulting library shape.
 
 ## Test pyramid and TestHelper

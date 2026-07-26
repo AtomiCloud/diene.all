@@ -1,14 +1,14 @@
-# Diene Go library template
+# Diene Go e2e test-harness library
 
 <!-- ### go-base-badges -->
 <!-- #### source: go-base -->
 
-[![CI](https://github.com/AtomiCloud/diene.go-lib/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.go-lib/actions/workflows/ci.yaml)
-[![Unit coverage](https://codecov.io/gh/AtomiCloud/diene.go-lib/branch/main/graph/badge.svg?flag=unit)](https://codecov.io/gh/AtomiCloud/diene.go-lib)
-[![Integration coverage](https://codecov.io/gh/AtomiCloud/diene.go-lib/branch/main/graph/badge.svg?flag=int)](https://codecov.io/gh/AtomiCloud/diene.go-lib)
-[![Meta coverage](https://codecov.io/gh/AtomiCloud/diene.go-lib/branch/main/graph/badge.svg?flag=meta)](https://codecov.io/gh/AtomiCloud/diene.go-lib)
-[![Go Reference](https://pkg.go.dev/badge/github.com/AtomiCloud/diene.go-lib.svg)](https://pkg.go.dev/github.com/AtomiCloud/diene.go-lib)
-[![Commit activity](https://img.shields.io/github/commit-activity/m/AtomiCloud/diene.go-lib)](https://github.com/AtomiCloud/diene.go-lib/commits/main)
+[![CI](https://github.com/AtomiCloud/diene.go-e2e/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.go-e2e/actions/workflows/ci.yaml)
+[![Unit coverage](https://codecov.io/gh/AtomiCloud/diene.go-e2e/branch/main/graph/badge.svg?flag=unit)](https://codecov.io/gh/AtomiCloud/diene.go-e2e)
+[![Integration coverage](https://codecov.io/gh/AtomiCloud/diene.go-e2e/branch/main/graph/badge.svg?flag=int)](https://codecov.io/gh/AtomiCloud/diene.go-e2e)
+[![Meta coverage](https://codecov.io/gh/AtomiCloud/diene.go-e2e/branch/main/graph/badge.svg?flag=meta)](https://codecov.io/gh/AtomiCloud/diene.go-e2e)
+[![Go Reference](https://pkg.go.dev/badge/github.com/AtomiCloud/diene.go-e2e.svg)](https://pkg.go.dev/github.com/AtomiCloud/diene.go-e2e)
+[![Commit activity](https://img.shields.io/github/commit-activity/m/AtomiCloud/diene.go-e2e)](https://github.com/AtomiCloud/diene.go-e2e/commits/main)
 
 <!-- ### nix-root -->
 <!-- #### source: main -->
@@ -34,18 +34,44 @@ synchronization.
 
 ## Publishable Go module
 
-`github.com/AtomiCloud/diene.go-lib` is the reusable parent for the
-`github.com/AtomiCloud/diene.go-*` module family. It demonstrates small public
-packages, a consumer-facing `testhelper` package, strict black-box tests, and
-tag-based publication through the Go proxy.
+`github.com/AtomiCloud/diene.go-e2e` is the Go family's SIT/e2e test harness:
+compiled-artifact and in-process SIT drivers that run one journey two ways
+against the Garden preview environment, Garden preview-target resolution,
+config/env fixtures, and a `testhelper` package that bundles every sibling
+TestHelper in the family plus Testcontainers stack glue for DB-adapter
+integration tests.
+
+It is **Bruno-free**. Bruno orchestration is a sample-side concern owned by the
+service templates, never by this harness.
+
+It consumes all eight published `github.com/AtomiCloud/diene.go-*` siblings
+through the public Go proxy — no `replace` directives, no path dependencies —
+so its own suites are the family's downstream real-consumption evidence.
 
 ```bash
-go get github.com/AtomiCloud/diene.go-lib@latest
+go get github.com/AtomiCloud/diene.go-e2e@latest
 ```
 
 ```go
-value := note.New("Living Documentation", "pkg.go.dev examples stay executable")
+report, err := e2e.RunJourney(ctx, driver, journey, problems)
 ```
+
+Packages:
+
+- `lib/e2e` — the `Driver` seam, the compiled-artifact and in-process SIT
+  drivers, the journey runner, driver parity comparison, and the harness
+  problem catalog.
+- `lib/preview` — Garden preview-environment target resolution and the otel,
+  auth, api, and infra-preset configuration it implies.
+- `lib/fixture` — layered config/env fixtures: base plus landscape overlay plus
+  C0-shaped environment, materialized through the `Vfs` seam.
+- `adapters/process` — the real `interfaces.Terminal` binding the
+  compiled-artifact driver runs on.
+- `testhelper` — the family TestHelper bundle, the Testcontainers stack glue,
+  scripted drivers, and harness assertions.
+
+Usage patterns live in the shipped usage skill
+`skills/diene-go-e2e-usage/SKILL.md`.
 
 <!-- ### go-base-commands -->
 <!-- #### source: go-base -->
@@ -56,7 +82,7 @@ value := note.New("Living Documentation", "pkg.go.dev examples stay executable")
 - `pls typecheck` — compile every source package without running tests.
 - `pls test` / `pls test:coverage` — run unit, integration, and active meta tiers.
 - `pls deadcode` — run strict whole-repository and production passes plus the LLM-lax report.
-- `pls up` / `pls down` — start or stop local Redis.
+- `pls up` / `pls down` — start or stop local Redis (the meta tier boots its own Testcontainers).
 - `./scripts/ci/pkg-validate.sh all` — run module-path, vet, API, docs, and example validators.
 
 See the [Go baseline](docs/developer/go-baseline.md) for the language contract and
