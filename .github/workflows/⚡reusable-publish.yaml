@@ -39,8 +39,8 @@ jobs:
             exit 1
           }
           git fetch --tags --force origin
-          git checkout "refs/tags/${TAG}" -- packages/diene_dart_lib
-          git --no-pager diff --stat "refs/tags/${TAG}" -- packages/diene_dart_lib
+          git checkout "refs/tags/${TAG}" -- packages/diene_core_utils
+          git --no-pager diff --stat "refs/tags/${TAG}" -- packages/diene_core_utils
       - name: Configure pub.dev credentials
         env:
           PUB_CREDENTIALS_JSON: ${{ secrets.PUB_CREDENTIALS_JSON }}

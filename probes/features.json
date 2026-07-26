@@ -237,16 +237,6 @@
   },
   {
     "template": "diene/dart-lib",
-    "name": "testhelper-meta-contract",
-    "class": "gate"
-  },
-  {
-    "template": "diene/dart-lib",
-    "name": "testhelper-meta-coverage-ledger",
-    "class": "gate"
-  },
-  {
-    "template": "diene/dart-lib",
     "name": "conditional-meta-activation",
     "class": "gate"
   },
