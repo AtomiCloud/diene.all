@@ -1,13 +1,18 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <RootNamespace>AtomiCloud.Diene.Note.TestHelper</RootNamespace>
-    <AssemblyName>AtomiCloud.Diene.Note.TestHelper</AssemblyName>
-    <PackageId>AtomiCloud.Diene.Note.TestHelper</PackageId>
-    <Description>Consumer test assertions for AtomiCloud.Diene.Note.</Description>
+    <RootNamespace>AtomiCloud.Diene.Otel.TestHelper</RootNamespace>
+    <AssemblyName>AtomiCloud.Diene.Otel.TestHelper</AssemblyName>
+    <PackageId>AtomiCloud.Diene.Otel.TestHelper</PackageId>
+    <Description>The trace-seam test double and assertions for AtomiCloud.Diene.Otel. Logging and metrics mocks live in AtomiCloud.Diene.Interfaces.TestHelper.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IsPackable>true</IsPackable>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AtomiCloud.Diene.Result.TestHelper" />
+    <PackageReference Include="FluentAssertions" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../Lib/Lib.csproj" />

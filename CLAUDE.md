@@ -92,8 +92,9 @@ Language variants:
 - [C# validation](docs/standards/validation/languages/csharp.md)
 
 Keep `dotnet-base.slnx`, `.config/dotnet-base.test.yaml`, and
-`AtomiCloud.DotnetBase.*` root namespaces base-named. Observability is absent on
-this branch.
+`AtomiCloud.DotnetBase.*` root namespaces base-named. This branch OWNS the .NET
+otel library: `AtomiCloud.Diene.Otel` is the observability engine for the family.
+See [the otel domain doc](docs/domain/otel.md).
 
 <!-- ### dotnet-lib -->
 <!-- #### source: dotnet-lib -->

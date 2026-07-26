@@ -62,9 +62,9 @@ commit-type vocabulary.
 ## Template-maintenance boundary
 
 Downstream nodes may adapt package/artifact identity, coverage thresholds,
-badges, and the illustrative Note source/tests. Keep
+badges, and the shipped source/tests. Keep
 `dotnet-base.slnx`, `.config/dotnet-base.test.yaml`, and the
 `AtomiCloud.DotnetBase.*` root namespaces base-named for merge stability.
 
-Observability is deliberately absent on this branch and arrives only through the
-separate observability add-back.
+This node ships the observability engine itself: `AtomiCloud.Diene.Otel` owns the
+canonical `otel:` block, resource mapping, host wiring, and the emit seams.

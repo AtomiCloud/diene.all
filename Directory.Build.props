@@ -32,8 +32,8 @@
   <PropertyGroup>
     <Authors>AtomiCloud</Authors>
     <Company>AtomiCloud</Company>
-    <RepositoryUrl>https://github.com/AtomiCloud/diene.dotnet-lib</RepositoryUrl>
-    <PackageProjectUrl>https://github.com/AtomiCloud/diene.dotnet-lib</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/AtomiCloud/diene.dotnet-otel</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/AtomiCloud/diene.dotnet-otel</PackageProjectUrl>
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageIcon>logo.png</PackageIcon>
@@ -42,7 +42,13 @@
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <EnablePackageValidation>true</EnablePackageValidation>
-    <PackageValidationBaselineVersion>1.0.0</PackageValidationBaselineVersion>
+    <!--
+      The baseline only exists once 1.0.0 is published. Applying it
+      unconditionally makes the first release's restore fail with NU1101 on a
+      package that does not exist yet (precedent: lib/dotnet/interfaces and
+      lib/dotnet/core-utils).
+    -->
+    <PackageValidationBaselineVersion Condition="'$(Version)' != '1.0.0'">1.0.0</PackageValidationBaselineVersion>
   </PropertyGroup>
 
 </Project>
