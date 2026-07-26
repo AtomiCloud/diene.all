@@ -5,7 +5,7 @@ coverage:
       - UnitTest/UnitTest.csproj
     include:
       - '[Lib*]*'
-      - '[AtomiCloud.Diene.Note]*'
+      - '[AtomiCloud.Diene.StandardConfig]*'
     exclude:
       - '[App*]*'
       - '[*.TestHelper]*'
@@ -23,7 +23,7 @@ coverage:
   meta:
     minimum: 100
     projects:
-      - UnitTest/UnitTest.csproj
+      - MetaTest/MetaTest.csproj
     include:
       - '[*.TestHelper]*'
     exclude:

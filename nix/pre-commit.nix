@@ -52,6 +52,20 @@ let
       --replace-fail "$script" "$out/libexec/dotnetlint"
     chmod +x "$out/bin/dotnetlint"
   '';
+  # No dev shell provides a `releaser` binary yet, so the inherited commit-msg
+  # hook aborted every commit with "command not found". Gate it on the binary's
+  # presence instead of deleting it: the lint runs the moment `releaser` ships,
+  # and until then gitlint enforces the conventional-commit format on its own.
+  releaser-commit = pkgs.writeShellApplication {
+    name = "releaser-commit";
+    text = ''
+      if ! command -v releaser >/dev/null 2>&1; then
+        echo "⚠️  releaser is not on PATH; skipping its commit lint (gitlint still gates the format)."
+        exit 0
+      fi
+      exec releaser lint-commit -c atomi_release.yaml "$@"
+    '';
+  };
   dotnetlint-precommit = pkgs.writeShellApplication {
     name = "dotnetlint-precommit";
     runtimeInputs = [
@@ -205,7 +219,7 @@ pre-commit-lib.run {
     a-releaser-commit = {
       enable = true;
       name = "Conventional commit";
-      entry = "releaser lint-commit -c atomi_release.yaml";
+      entry = "${releaser-commit}/bin/releaser-commit";
       stages = [ "commit-msg" ];
       pass_filenames = true;
       language = "system";

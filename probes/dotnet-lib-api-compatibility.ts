@@ -23,8 +23,10 @@ export default defineGate({
     description: 'Removing one public 1.0 interface member turns PackageValidation red.',
     expectedImpact: [],
     async run(repo: any) {
-      await repo.patch('Lib/INoteRepository.cs', {
-        find: '\n    Task<NotePrincipal?> Find(string id, CancellationToken cancellationToken = default);',
+      await repo.patch('Lib/Storage/IBlockStorage.cs', {
+        find:
+          '\n    /// <summary>The public, unsigned link for an object key. Pure — no IO.</summary>\n' +
+          '    string GetLink(string key);\n',
         replace: '',
       });
       await expectRed(

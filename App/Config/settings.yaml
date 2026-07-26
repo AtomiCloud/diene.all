@@ -1,0 +1,56 @@
+# yaml-language-server: $schema=../schema/settings.schema.json
+$schema: ../schema/settings.schema.json
+
+# The base layer carries FULL defaults. Every key the service reads exists here, even the
+# ones whose value only ever arrives from the environment.
+app:
+  landscape: lapras
+  platform: diene
+  service: standard-config
+  module: demo
+  version: 1.0.0
+
+# Infra presets are KEYED maps of named connections. Adding a second Postgres pool is a
+# YAML edit — a new UPPERCASE key under this block — and nothing else.
+postgres:
+  MAIN:
+    host: localhost
+    port: 5432
+    database: app
+    username: app
+    # Secrets are ordinary config keys: blank here, injected per landscape through the SAME
+    # environment override path (R14/M33).
+    password:
+    ssl: false
+    pool:
+      min: 0
+      max: 10
+
+# Cache is Dragonfly: RAM-backed and EPHEMERAL. Never store anything you need back.
+cache:
+  MAIN:
+    host: localhost
+    port: 6379
+    password:
+    db: 0
+    tls: false
+
+# kv is PERSISTENT. Same Redis protocol, different durability contract — which is exactly
+# why it is a separate block rather than a second cache connection.
+kv:
+  MAIN:
+    host: localhost
+    port: 6380
+    password:
+    db: 0
+    tls: false
+
+storage:
+  MAIN:
+    endpoint: http://localhost:9000
+    region: us-east-1
+    bucket: app
+    access_key_id:
+    secret_access_key:
+    # true for MinIO and other path-style endpoints, false for virtual-hosted providers.
+    force_path_style: true

@@ -1,16 +1,27 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <RootNamespace>AtomiCloud.Diene.Note.TestHelper</RootNamespace>
-    <AssemblyName>AtomiCloud.Diene.Note.TestHelper</AssemblyName>
-    <PackageId>AtomiCloud.Diene.Note.TestHelper</PackageId>
-    <Description>Consumer test assertions for AtomiCloud.Diene.Note.</Description>
+    <RootNamespace>AtomiCloud.Diene.StandardConfig.TestHelper</RootNamespace>
+    <AssemblyName>AtomiCloud.Diene.StandardConfig.TestHelper</AssemblyName>
+    <PackageId>AtomiCloud.Diene.StandardConfig.TestHelper</PackageId>
+    <Description>Testcontainers preset glue, an in-memory block-storage fake, and preset assertions for testing consumers of AtomiCloud.Diene.StandardConfig.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IsPackable>true</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="../Lib/Lib.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AWSSDK.S3" />
+    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="Testcontainers" />
+    <PackageReference Include="Testcontainers.Minio" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="Testcontainers.Redis" />
+    <PackageReference Include="YamlDotNet" />
   </ItemGroup>
 
   <ItemGroup>
