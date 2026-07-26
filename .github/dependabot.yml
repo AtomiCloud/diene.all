@@ -9,6 +9,6 @@ updates:
   # ### dart-lib-dependabot
   # #### source: dart-lib
   - package-ecosystem: pub
-    directory: /packages/diene_dart_lib
+    directory: /packages/diene_problems
     schedule:
       interval: daily

@@ -1,0 +1,33 @@
+{
+  "$generated": {
+    "generator": "tool/gen_c0_projection.dart",
+    "releaseDigest": "0e64439c681a22fb4f02285c082ed8ffb7b465e732fde4e49757e9e3c9a5783e",
+    "releaseId": "c0-fixtures-r2"
+  },
+  "extensions": [
+    "data",
+    "recoverable"
+  ],
+  "invalid": [],
+  "rfc9457Members": [
+    "type",
+    "title",
+    "status",
+    "detail",
+    "instance"
+  ],
+  "valid": [
+    {
+      "data": {
+        "id": 42,
+        "resource": "user"
+      },
+      "detail": "User 42 does not exist",
+      "instance": "/user/42",
+      "recoverable": false,
+      "status": 404,
+      "title": "Entity not found",
+      "type": "https://docs.raichu.cluster.atomi.cloud/docs/raichu/dotnet/user/api/v1/entity-not-found"
+    }
+  ]
+}

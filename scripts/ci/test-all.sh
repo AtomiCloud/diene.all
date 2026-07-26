@@ -6,5 +6,5 @@ root_dir="$(git rev-parse --show-toplevel)"
 cd "${root_dir}"
 
 dart pub get >/dev/null
-cd "${root_dir}/packages/diene_dart_lib"
+cd "${root_dir}/packages/diene_problems"
 dart test
