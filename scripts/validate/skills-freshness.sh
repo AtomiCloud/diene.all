@@ -42,23 +42,42 @@ if [ -z "${NIX_BUILD_TOP:-}" ]; then
   exit 1
 fi
 
-# Offline Nix builder: preserve and verify the committed tree. First reject any
-# tracked or scoped-untracked drift with the same worktree/index checks the
-# Go-enabled path uses (git diff compares the work tree to the index, so it holds
-# even when the git-hooks checkout only staged the source with no commit). Without
-# a git work tree there is nothing to verify against, so fail closed rather than
-# silently claim the tree was preserved.
+# Offline Nix builder: preserve and verify the committed tree. Without a git work
+# tree there is nothing to verify against, so fail closed rather than silently
+# claim the tree was preserved.
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   echo "❌ skills-freshness: no git work tree to verify the committed vendor tree against (Go unavailable)" >&2
   exit 1
 fi
-tracked_drift="$(git diff --name-only -- "${vendor_dir}")"
+
+# Reject work-tree drift against the index for the vendor tree AND go.mod. go.mod
+# is an INPUT to the verification below (it names the expected dependency set), so
+# it has to be as trustworthy as the tree it is used to check.
+tracked_drift="$(git diff --name-only -- "${vendor_dir}" go.mod)"
 untracked="$(git ls-files --others --exclude-standard -- "${vendor_dir}")"
 if [ -n "${tracked_drift}${untracked}" ]; then
   echo "❌ skills-freshness: the committed vendor tree has uncommitted drift (Go unavailable, cannot regenerate):" >&2
   [ -n "${tracked_drift}" ] && echo "  modified: ${tracked_drift}" >&2
   [ -n "${untracked}" ] && echo "  untracked: ${untracked}" >&2
   exit 1
+fi
+
+# A work-tree comparison alone only proves the tree matches the INDEX. Content
+# that was altered and staged matches its index entry, so without this check an
+# edited SKILL.md or a rewritten go.mod dependency set would pass as "committed"
+# whenever the caller can set NIX_BUILD_TOP. Whenever the checkout has a HEAD,
+# require the index to match it too. A HEAD-less checkout is the intentional
+# git-hooks/Nix staged case, which has no committed state to compare against and
+# is verified by the dependency-set check below.
+if git rev-parse --verify --quiet HEAD >/dev/null 2>&1; then
+  staged_drift="$(git diff --cached --name-only HEAD -- "${vendor_dir}" go.mod)"
+  if [ -n "${staged_drift}" ]; then
+    echo "❌ skills-freshness: staged content differs from HEAD (Go unavailable, cannot regenerate):" >&2
+    while IFS= read -r path; do
+      echo "  staged: ${path}" >&2
+    done <<<"${staged_drift}"
+    exit 1
+  fi
 fi
 
 # Then verify the committed tree against go.mod. The expected dependency set is

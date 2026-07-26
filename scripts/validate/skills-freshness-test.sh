@@ -201,6 +201,37 @@ commit_all "${dir}"
 printf 'stray\n' >"$(vendor "${dir}")/diene.go-core-utils/core-usage/EXTRA.md"
 expect_fail "$(run "${dir}" scripts/validate/skills-freshness.sh "NIX_BUILD_TOP=/build")" "Nix-builder preserve rejects untracked drift"
 
+# 12. Nix-builder preserve rejects ALTERED-AND-STAGED skill content on a normal
+# committed checkout. The work tree matches the index here, so only an index
+# against HEAD comparison catches it; without that, anyone able to set
+# NIX_BUILD_TOP could pass off edited skills as committed.
+dir="$(new_repo preserve-staged-skill)"
+seed "${dir}" diene.go-core-utils/core-usage SKILL.md core
+seed "${dir}" diene.go-errors-problems/errors-usage SKILL.md errors
+commit_all "${dir}"
+printf 'tampered\n' >"$(vendor "${dir}")/diene.go-core-utils/core-usage/SKILL.md"
+stage_all "${dir}"
+expect_fail "$(run "${dir}" scripts/validate/skills-freshness.sh "NIX_BUILD_TOP=/build")" "Nix-builder preserve rejects altered-and-staged skill content"
+
+# 13. Nix-builder preserve rejects a staged go.mod dependency-set rewrite: go.mod
+# is the input naming the expected packages, so tampering with it must not pass.
+dir="$(new_repo preserve-staged-gomod)"
+seed "${dir}" diene.go-core-utils/core-usage SKILL.md core
+seed "${dir}" diene.go-errors-problems/errors-usage SKILL.md errors
+commit_all "${dir}"
+sed 's#github.com/AtomiCloud/diene.go-errors-problems v1.0.0##' "${dir}/go.mod" >"${dir}/go.mod.next"
+mv "${dir}/go.mod.next" "${dir}/go.mod"
+stage_all "${dir}"
+expect_fail "$(run "${dir}" scripts/validate/skills-freshness.sh "NIX_BUILD_TOP=/build")" "Nix-builder preserve rejects a staged go.mod dependency-set rewrite"
+
+# 14. Nix-builder preserve rejects unstaged go.mod tampering too.
+dir="$(new_repo preserve-dirty-gomod)"
+seed "${dir}" diene.go-core-utils/core-usage SKILL.md core
+seed "${dir}" diene.go-errors-problems/errors-usage SKILL.md errors
+commit_all "${dir}"
+printf '\n// tampered\n' >>"${dir}/go.mod"
+expect_fail "$(run "${dir}" scripts/validate/skills-freshness.sh "NIX_BUILD_TOP=/build")" "Nix-builder preserve rejects unstaged go.mod tampering"
+
 if [ "${failures}" -ne 0 ]; then
   echo "❌ ${failures} skills machinery test(s) failed" >&2
   exit 1

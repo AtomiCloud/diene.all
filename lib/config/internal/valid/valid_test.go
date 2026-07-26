@@ -40,11 +40,25 @@ func TestEvaluateRejectsWithProblem(t *testing.T) {
 	}
 }
 
-func TestEvaluateCompileFault(t *testing.T) {
+func TestEvaluateSchemaNormalizeFault(t *testing.T) {
 	t.Parallel()
 	err := valid.Evaluate(map[string]any{"x": make(chan int)}, problem.ErrorPortal{}, map[string]any{})
 	if err == nil {
 		t.Fatal("an unmarshalable schema must fault")
+	}
+	var problemErr *problem.Error
+	if errors.As(err, &problemErr) {
+		t.Fatal("a schema normalize fault is not a validation problem")
+	}
+}
+
+func TestEvaluateCompileFault(t *testing.T) {
+	t.Parallel()
+	// This schema normalizes cleanly but violates the draft-2020-12 metaschema,
+	// so the fault surfaces from compilation rather than normalization.
+	err := valid.Evaluate(map[string]any{"type": float64(5)}, problem.ErrorPortal{}, map[string]any{})
+	if err == nil {
+		t.Fatal("a schema that violates the metaschema must fault")
 	}
 	var problemErr *problem.Error
 	if errors.As(err, &problemErr) {
@@ -64,40 +78,6 @@ func TestCompileRejectsUnmarshalableFragment(t *testing.T) {
 	t.Parallel()
 	if _, err := valid.Compile(map[string]any{"x": make(chan int)}); err == nil {
 		t.Fatal("unmarshalable fragment must fail to compile")
-	}
-}
-
-func TestSchemaPropertyCollisionShapes(t *testing.T) {
-	t.Parallel()
-	top := map[string]any{"properties": map[string]any{"cache_region": map[string]any{}, "cacheRegion": map[string]any{}}}
-	if location, _, collided := valid.SchemaPropertyCollision(top, ""); !collided || location != "(root)" {
-		t.Fatalf("top-level schema collision wrong: %q %v", location, collided)
-	}
-	nested := map[string]any{"properties": map[string]any{
-		"app": map[string]any{"properties": map[string]any{"data-dir": map[string]any{}, "dataDir": map[string]any{}}},
-	}}
-	if location, _, collided := valid.SchemaPropertyCollision(nested, ""); !collided || location != "app" {
-		t.Fatalf("nested schema collision wrong: %q %v", location, collided)
-	}
-	arrayItems := map[string]any{"properties": map[string]any{
-		"list": map[string]any{"items": map[string]any{"properties": map[string]any{"a_b": map[string]any{}, "aB": map[string]any{}}}},
-	}}
-	if location, _, collided := valid.SchemaPropertyCollision(arrayItems, ""); !collided || location != "list[]" {
-		t.Fatalf("array-items schema collision wrong: %q %v", location, collided)
-	}
-}
-
-func TestSchemaPropertyCollisionAcceptsDistinct(t *testing.T) {
-	t.Parallel()
-	// Exercises the non-object property value and the items recursion without a
-	// collision, so every recursion path returns cleanly.
-	clean := map[string]any{"properties": map[string]any{
-		"flag": true,
-		"list": map[string]any{"items": map[string]any{"properties": map[string]any{"ok": map[string]any{}}}},
-		"app":  map[string]any{"properties": map[string]any{"landscape": map[string]any{}}},
-	}}
-	if _, _, collided := valid.SchemaPropertyCollision(clean, ""); collided {
-		t.Fatal("distinct schema properties must not collide")
 	}
 }
 
@@ -176,67 +156,43 @@ func TestCollectSingleAndNestedIssues(t *testing.T) {
 	}
 }
 
-func TestAlignToSchemaRewritesKeysToSchemaSpelling(t *testing.T) {
+func TestEvaluateRejectsTypedPropertiesCollision(t *testing.T) {
 	t.Parallel()
+	// A legal NewBlock fragment may use typed authoring containers. Before the
+	// schema was normalized, the direct map[string]any assertion skipped this
+	// shape entirely and the collision went undetected.
 	schema := map[string]any{
-		"properties": map[string]any{
-			"cache_region": map[string]any{"type": "string"},
-			"nested": map[string]any{
-				"type":       "object",
-				"properties": map[string]any{"inner_key": map[string]any{"type": "string"}},
-			},
-			"list": map[string]any{
-				"type": "array",
-				"items": map[string]any{
-					"type":       "object",
-					"properties": map[string]any{"item_key": map[string]any{"type": "string"}},
-				},
-			},
-			"scalars": map[string]any{"type": "array", "items": map[string]any{"type": "integer"}},
-			"opaque":  map[string]any{"type": "object"},
+		"type": "object",
+		"properties": map[string]map[string]any{
+			"cache_region": {"type": "string"},
+			"cacheRegion":  {"type": "string"},
 		},
 	}
-	instance := map[string]any{
-		"cacheRegion": "r",
-		"nested":      map[string]any{"innerKey": "v"},
-		"list":        []any{map[string]any{"itemKey": "x"}, "not-a-map"},
-		"scalars":     []any{1, 2},
-		"opaque":      map[string]any{"free-form": "kept"},
-		"extra":       "kept",
-		"orphanMap":   map[string]any{"a": 1},
+	err := valid.Evaluate(schema, problem.ErrorPortal{}, map[string]any{})
+	if err == nil {
+		t.Fatal("a typed-container canonical collision must be rejected")
 	}
-	aligned := valid.AlignToSchema(schema, instance)
+	var problemErr *problem.Error
+	if errors.As(err, &problemErr) {
+		t.Fatal("a schema authoring fault is a plain error, not a validation problem")
+	}
+}
 
-	if aligned["cache_region"] != "r" {
-		t.Fatalf("top-level key not aligned: %v", aligned)
+func TestEvaluateAlignsThroughLocalRef(t *testing.T) {
+	t.Parallel()
+	// The instance spells the key in camel case; the schema declares it in snake
+	// case behind $defs + $ref with additionalProperties:false, so validation only
+	// succeeds if alignment followed the reference.
+	schema := map[string]any{
+		"type":  "object",
+		"$defs": map[string]any{"app": map[string]any{"type": "object", "properties": map[string]any{"cache_region": map[string]any{"type": "string"}}, "additionalProperties": false}},
+		"properties": map[string]any{
+			"app": map[string]any{"$ref": "#/$defs/app"},
+		},
 	}
-	nested, ok := aligned["nested"].(map[string]any)
-	if !ok || nested["inner_key"] != "v" {
-		t.Fatalf("nested key not aligned: %v", aligned["nested"])
-	}
-	list, ok := aligned["list"].([]any)
-	if !ok || len(list) != 2 {
-		t.Fatalf("list not preserved: %v", aligned["list"])
-	}
-	first, ok := list[0].(map[string]any)
-	if !ok || first["item_key"] != "x" {
-		t.Fatalf("array-of-object item key not aligned: %v", list[0])
-	}
-	if list[1] != "not-a-map" {
-		t.Fatalf("non-object array element must be kept: %v", list[1])
-	}
-	if scalars, ok := aligned["scalars"].([]any); !ok || len(scalars) != 2 {
-		t.Fatalf("scalar array with non-object items must be kept: %v", aligned["scalars"])
-	}
-	if aligned["extra"] != "kept" {
-		t.Fatalf("unmatched scalar key must be kept: %v", aligned["extra"])
-	}
-	if orphan, ok := aligned["orphanMap"].(map[string]any); !ok || orphan["a"] != 1 {
-		t.Fatalf("unmatched map key must be kept verbatim: %v", aligned["orphanMap"])
-	}
-	// A property whose schema has no nested properties recurses but aligns nothing.
-	if opaque, ok := aligned["opaque"].(map[string]any); !ok || opaque["free-form"] != "kept" {
-		t.Fatalf("properties-less object schema must keep its keys: %v", aligned["opaque"])
+	instance := map[string]any{"app": map[string]any{"cacheRegion": "east"}}
+	if err := valid.Evaluate(schema, problem.ErrorPortal{}, instance); err != nil {
+		t.Fatalf("alignment must follow a local $ref: %v", err)
 	}
 }
 
