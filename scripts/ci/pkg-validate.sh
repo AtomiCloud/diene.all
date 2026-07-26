@@ -21,16 +21,26 @@ trap 'rm -rf "${scratch}"' EXIT
 
 echo "🧪 Restoring both packages into a scratch consumer..."
 dotnet new console --framework net10.0 --no-restore --output "${scratch}" >/dev/null
-dotnet add "${scratch}" package AtomiCloud.Diene.Note --version "${version}" --source "$(pwd)/${artifacts}" --no-restore >/dev/null
-dotnet add "${scratch}" package AtomiCloud.Diene.Note.TestHelper --version "${version}" --source "$(pwd)/${artifacts}" --no-restore >/dev/null
+dotnet add "${scratch}" package AtomiCloud.Diene.Config --version "${version}" --source "$(pwd)/${artifacts}" --no-restore >/dev/null
+dotnet add "${scratch}" package AtomiCloud.Diene.Config.TestHelper --version "${version}" --source "$(pwd)/${artifacts}" --no-restore >/dev/null
 printf '%s\n' \
-  'using AtomiCloud.Diene.Note;' \
-  'using AtomiCloud.Diene.Note.TestHelper.Note;' \
+  'using AtomiCloud.Diene.Config;' \
+  'using AtomiCloud.Diene.Config.TestHelper;' \
   '' \
-  'var subject = new NoteSummariser();' \
-  'var note = new NoteRecord { Title = "Hello", Body = "world" };' \
-  'subject.AssertSummary(note, 80, "Hello — world");' >"${scratch}/Program.cs"
-dotnet restore "${scratch}" --source "$(pwd)/${artifacts}" >/dev/null
+  '// The shipped surface: canonical keys and the service-tree block.' \
+  'if (ConfigKey.Path("Error_Portal:Host") != "errorportal:host") return 1;' \
+  'if (AppOption.Key != "App") return 1;' \
+  '' \
+  '// The TestHelper surface: three fake layers in real precedence order.' \
+  'var config = new AtomiConfigFixture()' \
+  '    .WithBase("error_portal:host", "base")' \
+  '    .WithLandscape("error_portal:host", "landscape")' \
+  '    .WithEnvironment("ERROR_PORTAL__HOST", "environment")' \
+  '    .Build();' \
+  'if (config["errorportal:host"] != "environment") return 1;' \
+  'config.Should().HaveValue("error_portal:host", "environment");' \
+  'return 0;' >"${scratch}/Program.cs"
+dotnet restore "${scratch}" --source "$(pwd)/${artifacts}" --source https://api.nuget.org/v3/index.json >/dev/null
 dotnet build "${scratch}" -c Release --no-restore >/dev/null
 
 echo "✅ Package validation and scratch consumption passed"
