@@ -20,11 +20,13 @@ export default defineGate({
   },
   mutation: {
     name: 'mutation-dotnet-lib-api-compatibility-caught',
-    description: 'Removing one public 1.0 interface member turns PackageValidation red.',
+    description: 'Removing one public 1.0 schema-registry member turns PackageValidation red.',
     expectedImpact: [],
     async run(repo: any) {
-      await repo.patch('Lib/INoteRepository.cs', {
-        find: '\n    Task<NotePrincipal?> Find(string id, CancellationToken cancellationToken = default);',
+      await repo.patch('Lib/ConfigSchemaRegistry.cs', {
+        find:
+          '\n    /// <summary>The registered blocks, keyed by their config key.</summary>\n' +
+          '    public IReadOnlyDictionary<string, Type> Blocks => _blocks;\n',
         replace: '',
       });
       await expectRed(

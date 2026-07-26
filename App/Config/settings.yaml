@@ -1,0 +1,23 @@
+# yaml-language-server: $schema=../schema/settings.schema.json
+$schema: ../schema/settings.schema.json
+
+# The base layer carries FULL defaults. Every key a service reads exists here, even the ones
+# whose value only ever arrives from the environment.
+app:
+  landscape: lapras
+  platform: diene
+  service: config
+  module: demo
+  version: 1.0.0
+
+# Keys are authored in snake_case here and bind to Pascal-cased option properties, because
+# every layer is reduced to one canonical spelling before the binder sees it.
+error_portal:
+  scheme: https
+  host: docs.atomi.cloud
+  # Secrets are ordinary config keys, declared blank here and injected per landscape through
+  # the SAME environment override path. Nothing about them is special-cased.
+  signing_key:
+  retry_hosts:
+    - docs-1.atomi.cloud
+    - docs-2.atomi.cloud

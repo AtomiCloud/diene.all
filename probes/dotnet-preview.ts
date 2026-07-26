@@ -1,4 +1,4 @@
-import { runWithRedis } from './lib/dotnet.ts';
+import { expectGreen } from './lib/helpers.ts';
 
 export default {
   contractVersion: 1,
@@ -9,7 +9,11 @@ export default {
       description: 'The preview task executes the compiled Release artifact.',
       kind: 'baseline',
       async run(repo: any) {
-        await runWithRedis(repo, 'dotnet-base-probe-preview', 'nix develop .#default -c pls preview');
+        await expectGreen(
+          repo,
+          'nix develop .#default -c pls preview | rg -F "Success: config layered, validated, and schema round-tripped"',
+          'dotnet-base-probe-preview',
+        );
       },
     },
   ],

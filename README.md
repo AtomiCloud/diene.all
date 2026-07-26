@@ -70,7 +70,7 @@ Common commands:
 - `pls test`, `pls test:unit`, `pls test:int`, and the coverage variants
 - `pls deadcode` for the non-blocking review; CI owns strict dn-inspect
 
-The illustrative Note domain is documented in [docs/domain/note.md](docs/domain/note.md).
+The config domain language is documented in [docs/domain/config.md](docs/domain/config.md).
 Production observability is intentionally absent until the observability add-back.
 
 <!-- ### dotnet-lib -->
@@ -78,27 +78,38 @@ Production observability is intentionally absent until the observability add-bac
 
 ## Publishable library packages
 
-[![NuGet version](https://img.shields.io/nuget/v/AtomiCloud.Diene.Note)](https://www.nuget.org/packages/AtomiCloud.Diene.Note)
-[![NuGet downloads](https://img.shields.io/nuget/dt/AtomiCloud.Diene.Note)](https://www.nuget.org/packages/AtomiCloud.Diene.Note)
-[![Meta coverage](https://codecov.io/gh/AtomiCloud/diene.dotnet-lib/graph/badge.svg?flag=meta)](https://codecov.io/gh/AtomiCloud/diene.dotnet-lib)
+[![NuGet version](https://img.shields.io/nuget/v/AtomiCloud.Diene.Config)](https://www.nuget.org/packages/AtomiCloud.Diene.Config)
+[![NuGet downloads](https://img.shields.io/nuget/dt/AtomiCloud.Diene.Config)](https://www.nuget.org/packages/AtomiCloud.Diene.Config)
+[![Meta coverage](https://codecov.io/gh/AtomiCloud/diene.dotnet-config/graph/badge.svg?flag=meta)](https://codecov.io/gh/AtomiCloud/diene.dotnet-config)
 
-This template publishes `AtomiCloud.Diene.Note` and the companion
-`AtomiCloud.Diene.Note.TestHelper` package at one committed version. The Note
-domain is illustrative; the package lifecycle is the reusable product.
+This repository publishes `AtomiCloud.Diene.Config` and the companion
+`AtomiCloud.Diene.Config.TestHelper` package at one committed version. It is
+the sole config merger and validator for the Diene .NET family: it loads YAML
+layers, applies the prefixed environment layer last, and validates the
+service-composed root on the final merged layer only.
 
 ```bash
-dotnet add package AtomiCloud.Diene.Note
-dotnet add package AtomiCloud.Diene.Note.TestHelper
+dotnet add package AtomiCloud.Diene.Config
+dotnet add package AtomiCloud.Diene.Config.TestHelper
 ```
 
 ```csharp
-using AtomiCloud.Diene.Note;
-using AtomiCloud.Diene.Note.TestHelper.Note;
+using AtomiCloud.Diene.Config;
 
-var summariser = new NoteSummariser();
-var note = new NoteRecord { Title = "Hello", Body = "world" };
-summariser.AssertSummary(note, 80, "Hello — world");
+builder.Configuration.AddAtomiConfig(new AtomiConfigSource
+{
+    Landscape = landscape,   // blank reads the LANDSCAPE variable
+    EnvPrefix = "ATOMI_",    // required: the library bakes no default
+});
+
+builder.Services.AddAtomiServiceTree();
+builder.Services.RegisterOption<ErrorPortalOption, ErrorPortalOptionValidator>("ErrorPortal");
 ```
+
+Keys match across every C0 spelling, so a snake_cased YAML key, a
+`SCREAMING_SNAKE` environment variable, and a Pascal option property are one
+key. Lists use indexed environment keys (`FOO__0`, `FOO__1`) — never
+JSON-in-env and never comma encoding.
 
 Run `nix develop .#ci -c ./scripts/ci/pkg-validate.sh` to pack both packages,
 validate metadata and symbols, and restore them into a scratch consumer. See
