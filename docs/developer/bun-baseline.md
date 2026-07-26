@@ -24,7 +24,6 @@ rules remain in `docs/standards/`.
 - `pls run -- <args>` executes the source entry point.
 - `pls preview -- <args>` rebuilds and executes the bundled artifact.
 - `pls docker:build` and `pls docker:run` build and run the Bun image.
-- `pls helm:lint` and `pls helm:template` retain the inherited Helm axis.
 
 There is no `pls dev`, `pls up`, or `pls down` surface in this base. Hot reload
 belongs to runnable descendants, and the integration tier owns its Redis

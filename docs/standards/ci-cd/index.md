@@ -13,9 +13,9 @@ Nix shell.
 
 | Workflow  | Trigger                            | Responsibility                         |
 | --------- | ---------------------------------- | -------------------------------------- |
-| `CI`      | pushes, pull requests, manual runs | pre-commit, Docker, and Helm lanes     |
+| `CI`      | pushes, pull requests, manual runs | pre-commit and Docker lanes            |
 | `Release` | successful `CI` run on `main`      | semantic versioning and GitHub release |
-| `CD`      | one `v*.*.*` tag pattern           | versioned Docker image and Helm chart  |
+| `CD`      | one `v*.*.*` tag pattern           | versioned Docker image                 |
 
 Callers grant permissions, pass only repository-specific values, and use
 `secrets: inherit`. Reusable workflows own setup and invoke exactly one existing
@@ -25,7 +25,6 @@ CI script.
 
 - `⚡reusable-precommit.yaml` runs `scripts/ci/pre-commit.sh` in `.#ci`.
 - `⚡reusable-docker.yaml` runs `scripts/ci/docker.sh` in `.#cd`.
-- `⚡reusable-helm.yaml` runs `scripts/ci/helm.sh` in `.#cd`.
 - `⚡reusable-release.yaml` runs `scripts/ci/release.sh` in `.#releaser`.
 
 `AtomiCloud/actions.setup-nix@v3` checks out the repository, so do not add an
@@ -54,18 +53,17 @@ Use the same entry points as CI:
 ```bash
 nix develop .#ci -c ./scripts/ci/pre-commit.sh
 nix develop .#cd -c ./scripts/ci/docker.sh
-nix develop .#cd -c ./scripts/ci/helm.sh
 ```
 
-The Docker and Helm scripts build locally by default. Their reusable workflows
-set the documented environment contract to enable publishing.
+The Docker script builds locally by default. Its reusable workflow sets the
+documented environment contract to enable publishing.
 
 ## Artifact publishing
 
-Docker and Helm callers pass per-repository image or chart values through
-workflow `with:` inputs. Empty release versions produce commit builds; CD passes
-the tag as the version. Add another image or chart as another caller job rather
-than putting repository-specific branching into the reusable workflow.
+Docker callers pass per-repository image values through workflow `with:` inputs.
+Empty release versions produce commit builds; CD passes the tag as the version.
+Add another image as another caller job rather than putting repository-specific
+branching into the reusable workflow.
 
 Release execution runs on `main` through the published `releaser` binary,
 provisioned from the pinned `AtomiCloud/releaser` `v1.0.0` Nix package.
