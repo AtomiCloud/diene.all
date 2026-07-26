@@ -1,4 +1,4 @@
-# Diene .NET library template
+# Diene .NET Problems
 
 <!-- ### nix-root -->
 <!-- #### source: main -->
@@ -56,10 +56,10 @@ contracts standard.
 
 ## .NET 10 foundation
 
-[![CI](https://github.com/AtomiCloud/diene.dotnet-lib/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.dotnet-lib/actions/workflows/ci.yaml)
-[![Unit coverage](https://codecov.io/gh/AtomiCloud/diene.dotnet-lib/graph/badge.svg?flag=unit)](https://codecov.io/gh/AtomiCloud/diene.dotnet-lib)
-[![Integration coverage](https://codecov.io/gh/AtomiCloud/diene.dotnet-lib/graph/badge.svg?flag=int)](https://codecov.io/gh/AtomiCloud/diene.dotnet-lib)
-[![Commit activity](https://img.shields.io/github/commit-activity/m/AtomiCloud/diene.dotnet-lib)](https://github.com/AtomiCloud/diene.dotnet-lib/commits/main)
+[![CI](https://github.com/AtomiCloud/diene.dotnet-problems/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.dotnet-problems/actions/workflows/ci.yaml)
+[![Unit coverage](https://codecov.io/gh/AtomiCloud/diene.dotnet-problems/graph/badge.svg?flag=unit)](https://codecov.io/gh/AtomiCloud/diene.dotnet-problems)
+[![Integration coverage](https://codecov.io/gh/AtomiCloud/diene.dotnet-problems/graph/badge.svg?flag=int)](https://codecov.io/gh/AtomiCloud/diene.dotnet-problems)
+[![Commit activity](https://img.shields.io/github/commit-activity/m/AtomiCloud/diene.dotnet-problems)](https://github.com/AtomiCloud/diene.dotnet-problems/commits/main)
 
 This branch adds the .NET 10 toolchain, the `App`/`Lib`/`UnitTest`/`IntTest`
 sample, merged multi-project coverage, strict and LLM dead-code modes. See [the .NET baseline](docs/developer/dotnet-baseline.md).
@@ -70,34 +70,88 @@ Common commands:
 - `pls test`, `pls test:unit`, `pls test:int`, and the coverage variants
 - `pls deadcode` for the non-blocking review; CI owns strict dn-inspect
 
-The illustrative Note domain is documented in [docs/domain/note.md](docs/domain/note.md).
+The typed-problem contract is documented in [docs/domain/problems.md](docs/domain/problems.md).
 Production observability is intentionally absent until the observability add-back.
 
 <!-- ### dotnet-lib -->
 <!-- #### source: dotnet-lib -->
 
-## Publishable library packages
+## Typed problem packages
 
-[![NuGet version](https://img.shields.io/nuget/v/AtomiCloud.Diene.Note)](https://www.nuget.org/packages/AtomiCloud.Diene.Note)
-[![NuGet downloads](https://img.shields.io/nuget/dt/AtomiCloud.Diene.Note)](https://www.nuget.org/packages/AtomiCloud.Diene.Note)
-[![Meta coverage](https://codecov.io/gh/AtomiCloud/diene.dotnet-lib/graph/badge.svg?flag=meta)](https://codecov.io/gh/AtomiCloud/diene.dotnet-lib)
+[![NuGet version](https://img.shields.io/nuget/v/AtomiCloud.Diene.Problems)](https://www.nuget.org/packages/AtomiCloud.Diene.Problems)
+[![NuGet downloads](https://img.shields.io/nuget/dt/AtomiCloud.Diene.Problems)](https://www.nuget.org/packages/AtomiCloud.Diene.Problems)
+[![Meta coverage](https://codecov.io/gh/AtomiCloud/diene.dotnet-problems/graph/badge.svg?flag=meta)](https://codecov.io/gh/AtomiCloud/diene.dotnet-problems)
 
-This template publishes `AtomiCloud.Diene.Note` and the companion
-`AtomiCloud.Diene.Note.TestHelper` package at one committed version. The Note
-domain is illustrative; the package lifecycle is the reusable product.
+`AtomiCloud.Diene.Problems` provides typed domain problems, a consumer-owned
+catalog, the canonical type-URI builder, RFC 9457 rendering, schema export, and
+Problem custom-resource emission. `AtomiCloud.Diene.Problems.TestHelper`
+provides FluentAssertions for domain, result, envelope, and HTTP boundaries.
 
 ```bash
-dotnet add package AtomiCloud.Diene.Note
-dotnet add package AtomiCloud.Diene.Note.TestHelper
+dotnet add package AtomiCloud.Diene.Problems
+dotnet add package AtomiCloud.Diene.Problems.TestHelper
 ```
 
-```csharp
-using AtomiCloud.Diene.Note;
-using AtomiCloud.Diene.Note.TestHelper.Note;
+### Register and render problems
 
-var summariser = new NoteSummariser();
-var note = new NoteRecord { Title = "Hello", Body = "world" };
-summariser.AssertSummary(note, 80, "Hello — world");
+Problem types do not enter the runtime implicitly. Register every baseline and
+consumer-owned problem at composition time, then enable ASP.NET Core's exception
+handler middleware:
+
+```csharp
+using AtomiCloud.Diene.Problems;
+using AtomiCloud.Diene.Problems.Catalog;
+
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddAtomiProblems(
+    new ProblemIdentity("raichu", "dotnet", "notes", "api"),
+    new ErrorPortalOption
+    {
+        Scheme = "https",
+        Host = "docs.raichu.cluster.atomi.cloud",
+    },
+    catalog => catalog.AddBaseline());
+
+var app = builder.Build();
+app.UseExceptionHandler();
+```
+
+Throw a registered problem only at a framework boundary. Within domain code,
+prefer the Result-returning guards and adapters:
+
+```csharp
+var guarded = ProblemGuard.NotFound(note, noteId);
+var failed = new ValidationError("The note is invalid.", errors).ToErr<Note>();
+throw new EntityNotFound(
+    $"Note '{noteId}' was not found.",
+    typeof(Note),
+    noteId).ToException();
+```
+
+### Type URIs and catalog export
+
+Resolve `IProblemTypeUriBuilder` whenever a type URI is needed. Never recreate
+the URI template in a controller or consumer. Resolve `ProblemResourceEmitter`
+from the same service provider to emit the registered single-version catalog as
+canonical JSON, which is also valid YAML 1.2:
+
+```csharp
+var emitter = app.Services.GetRequiredService<ProblemResourceEmitter>();
+var resource = emitter.Emit(new ProblemResourceIdentity("dotnet", "notes", "raichu", "v1"));
+var manifest = emitter.Serialize(resource);
+```
+
+### Assert the wire contract
+
+```csharp
+using AtomiCloud.Diene.Problems.TestHelper;
+using FluentAssertions;
+
+var envelope = (await response.Should().BeRfc9457()).Which;
+envelope.Should().HaveStatus(404);
+envelope.Should().HaveType(expectedTypeUri);
+envelope.Should().HaveData(expectedProblem);
+envelope.Should().BeRecoverable(false);
 ```
 
 Run `nix develop .#ci -c ./scripts/ci/pkg-validate.sh` to pack both packages,

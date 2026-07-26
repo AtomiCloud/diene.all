@@ -21,7 +21,7 @@ export default {
         const lines = Array.from({ length: 40 }, (_, index) => `        total += ${index + 1};`).join('\n');
         await repo.write(
           'App/CoverageGap.cs',
-          `namespace AtomiCloud.DotnetBase.App;\n\npublic class CoverageGap\n{\n    public int Uncovered()\n    {\n        var total = 0;\n${lines}\n        return total;\n    }\n}\n`,
+          `namespace AtomiCloud.Diene.Problems.App;\n\npublic class CoverageGap\n{\n    public int Uncovered()\n    {\n        var total = 0;\n${lines}\n        return total;\n    }\n}\n`,
         );
         await expectRed(repo, 'nix develop .#ci -c pls test:int:coverage', 'dotnet-integration-coverage', 600000);
       },

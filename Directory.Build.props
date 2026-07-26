@@ -32,8 +32,8 @@
   <PropertyGroup>
     <Authors>AtomiCloud</Authors>
     <Company>AtomiCloud</Company>
-    <RepositoryUrl>https://github.com/AtomiCloud/diene.dotnet-lib</RepositoryUrl>
-    <PackageProjectUrl>https://github.com/AtomiCloud/diene.dotnet-lib</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/AtomiCloud/diene.dotnet-problems</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/AtomiCloud/diene.dotnet-problems</PackageProjectUrl>
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageIcon>logo.png</PackageIcon>

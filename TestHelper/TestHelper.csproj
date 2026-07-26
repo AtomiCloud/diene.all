@@ -1,15 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <RootNamespace>AtomiCloud.Diene.Note.TestHelper</RootNamespace>
-    <AssemblyName>AtomiCloud.Diene.Note.TestHelper</AssemblyName>
-    <PackageId>AtomiCloud.Diene.Note.TestHelper</PackageId>
-    <Description>Consumer test assertions for AtomiCloud.Diene.Note.</Description>
+    <RootNamespace>AtomiCloud.Diene.Problems.TestHelper</RootNamespace>
+    <AssemblyName>AtomiCloud.Diene.Problems.TestHelper</AssemblyName>
+    <PackageId>AtomiCloud.Diene.Problems.TestHelper</PackageId>
+    <Description>Consumer assertions for typed Diene problems and RFC 9457 responses.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IsPackable>true</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="FluentAssertions" />
     <ProjectReference Include="../Lib/Lib.csproj" />
   </ItemGroup>
 
