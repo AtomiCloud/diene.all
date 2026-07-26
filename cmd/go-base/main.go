@@ -6,8 +6,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/AtomiCloud/diene.go-base/adapters/kv"
-	"github.com/AtomiCloud/diene.go-base/lib/note"
+	"github.com/AtomiCloud/diene.go-consumer/adapters/kv"
+	"github.com/AtomiCloud/diene.go-consumer/lib/note"
 )
 
 const Usage = "usage: go-base <slug TEXT|key NAMESPACE KEY|note REDIS_ADDR TITLE BODY>"

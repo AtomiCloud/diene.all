@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/AtomiCloud/diene.go-base/lib/note"
+	"github.com/AtomiCloud/diene.go-consumer/lib/note"
 )
 
 type FakeStore struct {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/AtomiCloud/diene.go-base/adapters/kv"
+	"github.com/AtomiCloud/diene.go-consumer/adapters/kv"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
