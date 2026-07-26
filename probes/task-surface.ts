@@ -1,7 +1,9 @@
 // Serializes on the same host mkdir spinlock as the SIT rows: pls up/down binds
 // the dev.yaml host ports, so concurrent stacks would collide (PROBES §5 addendum).
-// The script rides base64 on the command line so no probe-authored file lands in
-// the sandbox tree to redden co-selected formatting controls.
+// The script rides base64 on the command line and is decoded under $TMPDIR so no
+// probe-authored file lands in the sandbox tree to redden formatting controls.
+// Running the file with stdin detached prevents docker compose from draining the
+// trailing task assertions.
 const LOCK = '/tmp/diene-bunconsumer-sit.lock.d';
 
 const SCRIPT = `set -euo pipefail
@@ -34,9 +36,10 @@ export default {
       kind: 'baseline',
       async run(repo: any) {
         const encoded = Buffer.from(SCRIPT, 'utf8').toString('base64');
-        const result = await repo.exec(`nix develop .#ci -c bash -lc 'echo ${encoded} | base64 -d | bash'`, {
-          timeoutMs: 1800000,
-        });
+        const result = await repo.exec(
+          `nix develop .#ci -c bash -lc 'f="$(mktemp)"; echo ${encoded} | base64 -d >"$f"; bash "$f" </dev/null; r=$?; rm -f "$f"; exit $r'`,
+          { timeoutMs: 1800000 },
+        );
         if (result.exitCode !== 0) {
           throw new Error(`task-surface failed on the healthy repo: ${result.stderr || result.stdout}`);
         }
