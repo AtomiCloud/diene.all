@@ -55,8 +55,8 @@ tasks:
       - ./scripts/local/deadcode.sh strict
 
   test:
-    desc: Run unit and integration tiers
-    deps: [test:unit, test:int]
+    desc: Run unit, integration, and system integration tiers
+    deps: [test:unit, test:int, test:sit]
 
   test:unit:
     desc: Run black-box unit tests
@@ -92,16 +92,22 @@ tasks:
       - task: gotest:run
         vars: { MODE: unit, WATCH: 'true' }
 
-  run:
-    desc: Run the Go composition root in development mode
+  # ### go-consumer-tasks
+  # #### source: go-consumer
+  dev:
+    desc: Run the worker against the local dependency stack
     cmds:
-      - go run ./cmd/go-base {{.CLI_ARGS}}
+      - ./scripts/local/dev.sh {{.CLI_ARGS}}
+
+  run:
+    desc: Run the Go consumer source entry point
+    cmds:
+      - ./scripts/local/run.sh {{.CLI_ARGS}}
 
   preview:
-    desc: Run the compiled Go artifact
-    deps: [build]
+    desc: Build and run the compiled Go consumer artifact
     cmds:
-      - ./dist/go-base {{.CLI_ARGS}}
+      - ./scripts/local/preview.sh {{.CLI_ARGS}}
 
   up:
     desc: Start every local dependency
@@ -112,3 +118,23 @@ tasks:
     desc: Stop every local dependency
     cmds:
       - ./scripts/local/down.sh
+
+  test:sit:
+    desc: Run black-box journeys through the compiled binary
+    cmds:
+      - ./scripts/local/test-sit.sh binary
+
+  test:sit:parity:
+    desc: Run compiled and in-process SIT drivers and require parity
+    cmds:
+      - ./scripts/local/test-sit.sh parity
+
+  schema:gen:
+    desc: Regenerate the Go consumer configuration schema
+    cmds:
+      - ./scripts/local/schema-gen.sh
+
+  problems:export:
+    desc: Export the Go consumer problem catalog for the primordial chart
+    cmds:
+      - ./scripts/local/problems-export.sh
