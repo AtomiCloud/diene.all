@@ -141,7 +141,7 @@ func TestRunSurfacesAProcessThatNeverStarted(t *testing.T) {
 	terminal := process.NewTerminal(process.TerminalOptions{})
 	output, err := terminal.Run(context.Background(), command(filepath.Join(t.TempDir(), "absent-binary")))
 	if err == nil {
-		t.Fatalf("Run() error = nil, want the start failure surfaced")
+		t.Fatal("Run() error = nil, want the start failure surfaced")
 	}
 	var execErr *exec.Error
 	if !errors.As(err, &execErr) && !errors.Is(err, os.ErrNotExist) {
@@ -159,7 +159,7 @@ func TestRunHonoursACancelledContext(t *testing.T) {
 	cancel()
 	terminal := process.NewTerminal(process.TerminalOptions{})
 	if _, err := terminal.Run(ctx, command("printf", "never")); err == nil {
-		t.Fatalf("Run() error = nil, want the cancelled context to stop the run")
+		t.Fatal("Run() error = nil, want the cancelled context to stop the run")
 	}
 }
 
