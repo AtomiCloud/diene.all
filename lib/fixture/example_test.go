@@ -3,7 +3,7 @@ package fixture_test
 import (
 	"context"
 	"fmt"
-	"sort"
+	"slices"
 	"time"
 
 	"github.com/AtomiCloud/diene.go-config/lib/config"
@@ -72,7 +72,7 @@ func ExampleBundle_Environ() {
 	for key := range environ {
 		keys = append(keys, key)
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 	for _, key := range keys {
 		fmt.Println(key + "=" + environ[key])
 	}
