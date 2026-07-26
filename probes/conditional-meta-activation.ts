@@ -3,7 +3,7 @@
 // without producing coverage, and the CI workflow guards its meta jobs with a
 // `hashFiles(...)` conditional. Sabotage removes the workflow guard (forcing the
 // meta jobs to always run) and proves the guard token is gone.
-const GUARD = "hashFiles('packages/diene_dart_lib/lib/test_helper.dart') != ''";
+const GUARD = "hashFiles('packages/diene_problems/lib/test_helper.dart') != ''";
 const REUSABLE_TEST = '.github/workflows/⚡reusable-test.yaml';
 
 export default {
@@ -16,7 +16,7 @@ export default {
       kind: 'baseline',
       async run(repo: any) {
         const result = await repo.exec(
-          "nix develop .#ci --no-write-lock-file -c bash -lc 'rm -rf packages/diene_dart_lib/coverage/meta && TEST_HELPER_PATH=lib/__probe_absent_helper__.dart ./scripts/ci/test.sh meta coverage'",
+          "nix develop .#ci --no-write-lock-file -c bash -lc 'rm -rf packages/diene_problems/coverage/meta && TEST_HELPER_PATH=lib/__probe_absent_helper__.dart ./scripts/ci/test.sh meta coverage'",
           { timeoutMs: 240000 },
         );
         if (result.exitCode !== 0) {

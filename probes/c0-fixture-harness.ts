@@ -19,7 +19,7 @@ export default {
       async run(repo: any) {
         await expectGreen(
           repo,
-          "nix develop .#ci --no-write-lock-file -c bash -lc 'cd packages/diene_dart_lib && dart test test/conformance'",
+          "nix develop .#ci --no-write-lock-file -c bash -lc 'cd packages/diene_problems && dart test test/conformance'",
           'c0-fixture-harness',
         );
       },
@@ -46,7 +46,7 @@ export default {
         await repo.write(target, `${JSON.stringify(manifest, null, 2)}\n`);
         await expectRed(
           repo,
-          "nix develop .#ci --no-write-lock-file -c bash -lc 'cd packages/diene_dart_lib && dart test test/conformance'",
+          "nix develop .#ci --no-write-lock-file -c bash -lc 'cd packages/diene_problems && dart test test/conformance'",
           'c0-fixture-harness',
         );
       },

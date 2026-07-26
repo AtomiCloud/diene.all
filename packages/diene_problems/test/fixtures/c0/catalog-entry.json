@@ -1,0 +1,39 @@
+{
+  "$generated": {
+    "generator": "tool/gen_c0_projection.dart",
+    "releaseDigest": "0e64439c681a22fb4f02285c082ed8ffb7b465e732fde4e49757e9e3c9a5783e",
+    "releaseId": "c0-fixtures-r2"
+  },
+  "requiredFields": [
+    "id",
+    "type",
+    "title",
+    "status",
+    "recoverable",
+    "data",
+    "endpoints"
+  ],
+  "samples": [
+    {
+      "data": {
+        "properties": {
+          "fields": {
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "endpoints": [
+        {
+          "method": "POST",
+          "path": "/user"
+        }
+      ],
+      "id": "validation-error",
+      "recoverable": true,
+      "status": 400,
+      "title": "Validation error",
+      "type": "https://docs.raichu.cluster.atomi.cloud/docs/raichu/dotnet/user/api/v1/validation-error"
+    }
+  ]
+}

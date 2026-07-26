@@ -198,7 +198,7 @@ pre-commit-lib.run {
       enable = true;
       name = "Dart format";
       entry = "${packages.dart}/bin/dart format --output=none --set-exit-if-changed";
-      files = "^packages/diene_dart_lib/(lib|test|example)/.*[.]dart$";
+      files = "^packages/diene_problems/(lib|test|example)/.*[.]dart$";
       pass_filenames = true;
       language = "system";
     };
@@ -207,7 +207,7 @@ pre-commit-lib.run {
       enable = true;
       name = "Dart analyze";
       entry = validator "scripts/ci/analyze.sh";
-      files = "^packages/diene_dart_lib/(lib|test|example|tool)/.*[.]dart$|^(packages/diene_dart_lib/(pubspec|analysis_options)|pubspec)[.]yaml$";
+      files = "^packages/diene_problems/(lib|test|example|tool)/.*[.]dart$|^(packages/diene_problems/(pubspec|analysis_options)|pubspec)[.]yaml$";
       pass_filenames = false;
       language = "system";
     };
@@ -216,7 +216,7 @@ pre-commit-lib.run {
       enable = true;
       name = "Dart unit, C0, and meta tests";
       entry = validator "scripts/ci/test-all.sh";
-      files = "^packages/diene_dart_lib/(lib|test)/.*[.]dart$|^(packages/diene_dart_lib/pubspec|pubspec)[.]yaml$";
+      files = "^packages/diene_problems/(lib|test)/.*[.]dart$|^(packages/diene_problems/pubspec|pubspec)[.]yaml$";
       pass_filenames = false;
       language = "system";
     };
@@ -225,7 +225,7 @@ pre-commit-lib.run {
       enable = true;
       name = "Dart package and TestHelper boundary";
       entry = validator "scripts/validate/dart-package.sh";
-      files = "^(packages/diene_dart_lib/(lib/.*[.]dart|pubspec[.]yaml|README[.]md|CHANGELOG[.]md|LICENSE|skills/.*|doc/diene_dart_lib[.]md)|pubspec[.]yaml|VERSION)$";
+      files = "^(packages/diene_problems/(lib/.*[.]dart|pubspec[.]yaml|README[.]md|CHANGELOG[.]md|LICENSE|skills/.*|doc/diene_problems[.]md)|pubspec[.]yaml|VERSION)$";
       pass_filenames = false;
       language = "system";
     };
