@@ -1,6 +1,6 @@
 import { describe, it } from 'bun:test';
 import should from 'should';
-import { NamespacedKeyValidationError, namespacedKey, slugify } from '../../src/lib/slug';
+import { NamespacedKeyValidationError, namespacedKey, slugify } from '../../src/slug';
 
 describe('slugify', () => {
   it.each([
@@ -11,20 +11,9 @@ describe('slugify', () => {
     { input: 'already-slugged', expected: 'already-slugged' },
     { input: 'mañana', expected: 'manana' },
     { input: 'résumé café', expected: 'resume-cafe' },
+    { input: '!!! ???', expected: '' },
   ])('should slugify "$input" to "$expected"', ({ input, expected }) => {
     // Arrange
-
-    // Act
-    const actual = slugify(input);
-
-    // Assert
-    should(actual).equal(expected);
-  });
-
-  it('should collapse a fully non-alphanumeric string to empty', () => {
-    // Arrange
-    const input = '!!! ???';
-    const expected = '';
 
     // Act
     const actual = slugify(input);
@@ -35,40 +24,46 @@ describe('slugify', () => {
 });
 
 describe('namespacedKey', () => {
-  it('should join a slugified namespace and key with a colon', () => {
+  it('should dogfood the published Result package for a valid key', async () => {
     // Arrange
-    const namespace = 'Bun Base';
-    const key = 'Sample Key';
-    const expected = 'bun-base:sample-key';
+    const namespace = 'Bun Core Utils';
+    const key = 'Published Result';
 
     // Act
     const actual = namespacedKey(namespace, key);
 
     // Assert
-    should(actual).equal(expected);
+    should(await actual.isOk()).equal(true);
+    should(await actual.unwrap()).equal('bun-core-utils:published-result');
+    should(await actual.serial()).deepEqual(['ok', 'bun-core-utils:published-result']);
   });
 
-  it('should throw NamespacedKeyValidationError when the namespace slugifies to empty', () => {
+  it.each([
+    {
+      namespace: '!!!',
+      key: 'key',
+      field: 'namespace' as const,
+      message: 'namespace must not be empty',
+    },
+    {
+      namespace: 'namespace',
+      key: '!!!',
+      field: 'key' as const,
+      message: 'key must not be empty',
+    },
+  ])('should return a published Result Err when $field is empty', async fixture => {
     // Arrange
-    const namespace = '!!!';
-    const key = 'key';
 
     // Act
-    const actual = () => namespacedKey(namespace, key);
+    const actual = namespacedKey(fixture.namespace, fixture.key);
+    const error = await actual.unwrapErr();
 
     // Assert
-    should(actual).throw(NamespacedKeyValidationError, { message: 'namespace must not be empty' });
-  });
-
-  it('should throw NamespacedKeyValidationError when the key slugifies to empty', () => {
-    // Arrange
-    const namespace = 'ns';
-    const key = '!!!';
-
-    // Act
-    const actual = () => namespacedKey(namespace, key);
-
-    // Assert
-    should(actual).throw(NamespacedKeyValidationError, { message: 'key must not be empty' });
+    should(await actual.isErr()).equal(true);
+    should(error).be.instanceof(NamespacedKeyValidationError);
+    should(error.field).equal(fixture.field);
+    should(error.reason).equal('must not be empty');
+    should(error.message).equal(fixture.message);
+    should(error.name).equal('NamespacedKeyValidationError');
   });
 });
