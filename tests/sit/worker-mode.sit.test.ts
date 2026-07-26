@@ -7,7 +7,7 @@ describe('worker mode SIT', () => {
     // Arrange
     const driver = consumerDriver();
     const initialized = await initialize(driver);
-    should(initialized.code).equal(0);
+    should(initialized.code).equal(0, initialized.err || initialized.out);
     const heartbeat = `dist/run/worker-${crypto.randomUUID()}.json`;
 
     // Act
