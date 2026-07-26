@@ -6,23 +6,22 @@ title: Semantic Release
 # Semantic Release
 
 `atomi_release.yaml` is the single source of truth for commit types, release
-levels, generated commit-convention documentation, and the semantic-release
-plugin chain. Do not add a standalone `.gitlint` file.
+levels, generated commit-convention documentation, and `releaser` release
+behavior. It uses `schemaVersion: 2`; the legacy semantic-release plugin chain
+is forbidden. Do not add a standalone `.gitlint` file.
 
-## Build-order boundary
+## Provisioning
 
-The workspace baseline registers the future commands now, but the `releaser`
-binary is published by `tools/releaser` at C2 step 2p. Until that fold lands:
+The `releaser` binary is the published `AtomiCloud/releaser` `v1.0.0` release,
+consumed as a pinned Nix flake input
+(`github:AtomiCloud/releaser/v1.0.0#releaser`) and exposed through the `releaser`
+package and the `.#releaser` dev shell:
 
-- the repository-owned validators check the configuration schema, plugin chain,
-  and exact D3 type vocabulary;
-- the commit-msg hook remains registered as
-  `releaser lint-commit -c atomi_release.yaml`;
-- release execution is not considered locally available; and
-- `sg` remains only as a temporary Nix-shell bootstrap dependency.
-
-After step 2p, `releaser` replaces that bootstrap dependency and the registered
-commit and release commands become executable.
+- the repository-owned validators check the configuration schema and the exact
+  D3 type vocabulary;
+- the commit-msg hook runs `releaser lint-commit -c atomi_release.yaml`; and
+- `releaser release -c atomi_release.yaml` executes the release inside
+  `nix develop .#releaser`.
 
 ## Commands
 
@@ -38,16 +37,14 @@ hand.
 
 ## Configuration
 
-The base plugin order is fixed:
+`atomi_release.yaml` uses `schemaVersion: 2`. The release pipeline is fixed:
 
-1. `@semantic-release/changelog`
-2. `@semantic-release/exec`
-3. `@semantic-release/git`
-4. `@semantic-release/github`
-
-Plugin versions are pinned in `atomi_release.yaml`. The exec plugin updates
-`VERSION`; the git plugin commits `Changelog.md`, `VERSION`, and the generated
-commit-conventions document.
+1. write the changelog to `Changelog.md`;
+2. run the `afterWrite` hook `scripts/release/bump.sh ${version}`, which stamps
+   `package.json` and `VERSION`;
+3. commit `Changelog.md`, `package.json`, `VERSION`, and the generated
+   commit-conventions document; and
+4. publish the GitHub release.
 
 The unified D3 commit-type vocabulary is:
 
@@ -67,5 +64,3 @@ so the vocabularies cannot drift independently.
 4. `releaser release -c atomi_release.yaml` calculates the version, updates the
    changelog and generated files, creates the tag, and publishes the GitHub
    release.
-
-Actual release execution remains gated on the C2 step-2p `tools/releaser` fold.
