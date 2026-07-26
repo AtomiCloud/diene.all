@@ -19,7 +19,9 @@ jobs:
     steps:
       - uses: AtomiCloud/actions.setup-nix@v3
       - uses: AtomiCloud/actions.cache-go@v2
-      - if: inputs.mode == 'int'
+      # This library's TestHelper IS Testcontainers glue, so its meta tier boots
+      # real containers to prove the emitted blocks address a live dependency.
+      - if: inputs.mode == 'int' || inputs.mode == 'meta'
         uses: AtomiCloud/actions.setup-docker@v2
       - name: Run Go tests
         env:
