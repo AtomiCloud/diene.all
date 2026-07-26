@@ -7,4 +7,10 @@ mode="${1:-}"
 ./scripts/ci/setup.sh
 ./scripts/local/test.sh "${mode}" true false
 
+# The skills-sync/freshness machinery is shell, not Go; exercise its isolated
+# behavioral tests once, alongside the unit tier.
+if [ "${mode}" = "unit" ]; then
+  ./scripts/validate/skills-freshness-test.sh
+fi
+
 echo "✅ CI Go ${mode} tests passed"

@@ -1,14 +1,14 @@
-# Diene Go library template
+# Diene Go config library
 
 <!-- ### go-base-badges -->
 <!-- #### source: go-base -->
 
-[![CI](https://github.com/AtomiCloud/diene.go-lib/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.go-lib/actions/workflows/ci.yaml)
-[![Unit coverage](https://codecov.io/gh/AtomiCloud/diene.go-lib/branch/main/graph/badge.svg?flag=unit)](https://codecov.io/gh/AtomiCloud/diene.go-lib)
-[![Integration coverage](https://codecov.io/gh/AtomiCloud/diene.go-lib/branch/main/graph/badge.svg?flag=int)](https://codecov.io/gh/AtomiCloud/diene.go-lib)
-[![Meta coverage](https://codecov.io/gh/AtomiCloud/diene.go-lib/branch/main/graph/badge.svg?flag=meta)](https://codecov.io/gh/AtomiCloud/diene.go-lib)
-[![Go Reference](https://pkg.go.dev/badge/github.com/AtomiCloud/diene.go-lib.svg)](https://pkg.go.dev/github.com/AtomiCloud/diene.go-lib)
-[![Commit activity](https://img.shields.io/github/commit-activity/m/AtomiCloud/diene.go-lib)](https://github.com/AtomiCloud/diene.go-lib/commits/main)
+[![CI](https://github.com/AtomiCloud/diene.go-config/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.go-config/actions/workflows/ci.yaml)
+[![Unit coverage](https://codecov.io/gh/AtomiCloud/diene.go-config/branch/main/graph/badge.svg?flag=unit)](https://codecov.io/gh/AtomiCloud/diene.go-config)
+[![Integration coverage](https://codecov.io/gh/AtomiCloud/diene.go-config/branch/main/graph/badge.svg?flag=int)](https://codecov.io/gh/AtomiCloud/diene.go-config)
+[![Meta coverage](https://codecov.io/gh/AtomiCloud/diene.go-config/branch/main/graph/badge.svg?flag=meta)](https://codecov.io/gh/AtomiCloud/diene.go-config)
+[![Go Reference](https://pkg.go.dev/badge/github.com/AtomiCloud/diene.go-config.svg)](https://pkg.go.dev/github.com/AtomiCloud/diene.go-config)
+[![Commit activity](https://img.shields.io/github/commit-activity/m/AtomiCloud/diene.go-config)](https://github.com/AtomiCloud/diene.go-config/commits/main)
 
 <!-- ### nix-root -->
 <!-- #### source: main -->
@@ -34,17 +34,22 @@ synchronization.
 
 ## Publishable Go module
 
-`github.com/AtomiCloud/diene.go-lib` is the reusable parent for the
-`github.com/AtomiCloud/diene.go-*` module family. It demonstrates small public
-packages, a consumer-facing `testhelper` package, strict black-box tests, and
-tag-based publication through the Go proxy.
+`github.com/AtomiCloud/diene.go-config` is the Go family's configuration
+merger and validator. It layers full base YAML, sparse landscape overrides,
+and indexed environment overrides, validates the final tree against a
+service-composed generated schema, and serves typed configuration slices.
 
 ```bash
-go get github.com/AtomiCloud/diene.go-lib@latest
+go get github.com/AtomiCloud/diene.go-config@latest
 ```
 
 ```go
-value := note.New("Living Documentation", "pkg.go.dev examples stay executable")
+loader := config.NewLoader(
+	config.WithEnvPrefix("MYAPP"),
+	config.WithBaseDir("config/app"),
+	config.WithSchema(config.ComposeSchema(config.AppBlockSchema())),
+)
+cfg, err := loader.Load(context.Background())
 ```
 
 <!-- ### go-base-commands -->
@@ -56,7 +61,7 @@ value := note.New("Living Documentation", "pkg.go.dev examples stay executable")
 - `pls typecheck` — compile every source package without running tests.
 - `pls test` / `pls test:coverage` — run unit, integration, and active meta tiers.
 - `pls deadcode` — run strict whole-repository and production passes plus the LLM-lax report.
-- `pls up` / `pls down` — start or stop local Redis.
+- `pls up` / `pls down` — start or stop local dependencies.
 - `./scripts/ci/pkg-validate.sh all` — run module-path, vet, API, docs, and example validators.
 
 See the [Go baseline](docs/developer/go-baseline.md) for the language contract and
