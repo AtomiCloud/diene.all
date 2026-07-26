@@ -56,9 +56,15 @@ that could disagree.
 - **Off by default.** Every exporter ships disabled; a landscape overlay turns one
   on. A service that forgets to configure an overlay emits nothing.
 - **`http/protobuf` on 4318, fleet-wide.** The protocol is pinned in the options
-  and validated; gRPC and 4317 are rejected.
+  and validated; gRPC and 4317 are rejected. An enabled OTLP exporter must name a
+  non-blank absolute http(s) endpoint with port 4318 EXPLICIT — an implicit 80/443
+  is refused — unless `OTEL_EXPORTER_OTLP_ENDPOINT` supplies it instead.
 - **Durations are ISO 8601 strings.** `interval` and `timeout` are parsed through
-  core-utils `Wire.ParseDuration`; raw millisecond integers are rejected.
+  core-utils `Wire.ParseDuration`; raw millisecond integers are rejected, as are
+  zero, negative, and durations beyond the millisecond range the SDK accepts.
+- **Plan before register.** The whole block is validated before the host is
+  mutated, so a failure in any signal leaves no pipeline and no seam behind
+  rather than a half-wired host whose startup then fails.
 - **Environment wins over block.** `OTEL_SDK_DISABLED` beats everything; the
   per-signal exporter variables are set-membership, so `none` silences a signal
   and an unrecognized name turns both exporters off.

@@ -2,28 +2,35 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/AtomiCloud/diene.dotnet-otel/schema/otel-block-v1.json",
   "title": "AtomiCloud otel config block",
-  "description": "The canonical otel: block (C0 §4). This schema is owned by the otel engine and consumed by AtomiCloud.Diene.Config, which merges and validates the service-composed root.",
+  "description": "The canonical otel: block (C0 §4). This schema is owned by the otel engine and consumed by AtomiCloud.Diene.Config, which merges and validates the service-composed root. Each signal is declared standalone rather than composed with allOf: allOf does NOT merge property sets, so a shared base carrying additionalProperties:false would reject every signal-specific key.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "logs": { "$ref": "#/$defs/signal" },
+    "logs": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "exporter": { "$ref": "#/$defs/exporter" }
+      }
+    },
     "metrics": {
-      "allOf": [{ "$ref": "#/$defs/signal" }],
+      "type": "object",
+      "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean", "default": true },
         "exporter": { "$ref": "#/$defs/exporter" },
         "interval": { "$ref": "#/$defs/duration", "default": "PT60S" }
-      },
-      "additionalProperties": false
+      }
     },
     "traces": {
-      "allOf": [{ "$ref": "#/$defs/signal" }],
+      "type": "object",
+      "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean", "default": true },
         "exporter": { "$ref": "#/$defs/exporter" },
         "sampler": { "$ref": "#/$defs/sampler" }
-      },
-      "additionalProperties": false
+      }
     }
   },
   "$defs": {
@@ -31,14 +38,6 @@
       "type": "string",
       "description": "An ISO 8601 duration (C0 §1).",
       "pattern": "^-?P(?!$)(\\d+D)?(T(?!$)(\\d+H)?(\\d+M)?(\\d+(\\.\\d+)?S)?)?$"
-    },
-    "signal": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "enabled": { "type": "boolean", "default": true },
-        "exporter": { "$ref": "#/$defs/exporter" }
-      }
     },
     "exporter": {
       "type": "object",

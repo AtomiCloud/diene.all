@@ -169,6 +169,8 @@ public static class OtelDemo
         output.WriteLine($"otlp protocol pinned to {OtelHostExtensions.OtlpProtocol}:"
             + $" block says {option.Traces.Exporter.Otlp.Protocol}");
 
+        output.WriteLine($"otlp fleet port pinned to {OtelHostExtensions.OtlpPort}");
+
         var target = new OpenTelemetry.Exporter.OtlpExporterOptions();
         var configured = new OtlpExporterOption
         {
@@ -178,17 +180,30 @@ public static class OtelDemo
             Timeout = "PT10S",
         };
         OtelHostExtensions
-            .Otlp(target, configured, environment)
+            .Preflight(configured, environment)
             .Match(
-                _ => output.WriteLine($"otlp configured: {target.Endpoint} {target.Protocol}"
-                    + $" timeout={target.TimeoutMilliseconds}ms headers={target.Headers}"),
+                settings =>
+                {
+                    OtelHostExtensions.Apply(target, settings);
+                    output.WriteLine($"otlp configured: {target.Endpoint} {target.Protocol}"
+                        + $" timeout={target.TimeoutMilliseconds}ms headers={target.Headers}");
+                },
                 error => output.WriteLine($"otlp rejected: {error}"));
 
-        OtelHostExtensions
-            .Otlp(target, new OtlpExporterOption { Endpoint = "collector:4318" }, environment)
-            .Match(
-                _ => output.WriteLine("otlp accepted a relative endpoint"),
-                error => output.WriteLine($"relative endpoint rejected: {error.Code}"));
+        foreach (var (label, bad) in new[]
+        {
+            ("relative endpoint", "collector:4318"),
+            ("wrong port", "http://collector:4317"),
+            ("implicit port", "http://collector"),
+            ("blank endpoint", "   "),
+        })
+        {
+            OtelHostExtensions
+                .Preflight(new OtlpExporterOption { Enabled = true, Endpoint = bad }, environment)
+                .Match(
+                    _ => output.WriteLine($"otlp accepted a {label}"),
+                    error => output.WriteLine($"{label} rejected: {error.Code}"));
+        }
 
         OtelHostExtensions
             .Duration(option.Metrics.Interval, "metrics interval")
@@ -413,11 +428,19 @@ public static class OtelDemo
             OtelEnvironment.Process());
 
         using var built = wired.Build();
+
+        // Wiring can legitimately fail here — an OTEL_*_EXPORTER=otlp override selects an
+        // exporter the sample block never gave an endpoint. Nothing is registered when
+        // planning fails, so the seam is only resolvable on the success path.
+        var emitter = result.Match(
+            _ => built.Services.GetRequiredService<ITraceEmitter>().GetType().Name,
+            error => $"not wired ({error.Code})");
+
         output.WriteLine($"host wired: {result.IsSuccess()}"
             + $" bound={boundResult.IsSuccess()}"
             + $" sdk-disabled={disabledResult.IsSuccess()}"
             + $" bad-interval-rejected={!rejectedResult.IsSuccess()}"
-            + $" emitter={built.Services.GetRequiredService<ITraceEmitter>().GetType().Name}");
+            + $" emitter={emitter}");
 
         return rejectedResult.Match(_ => 1, _ => 0);
     }

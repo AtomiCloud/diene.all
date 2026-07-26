@@ -81,11 +81,27 @@ public class OtelDemoHostTests
         var output = Run(Env(
             (OtelEnvironment.LogsExporterVariable, "console"),
             (OtelEnvironment.MetricsExporterVariable, "otlp"),
-            (OtelEnvironment.TracesExporterVariable, "none")));
+            (OtelEnvironment.TracesExporterVariable, "none"),
+            // The sample block ships no endpoint, so selecting OTLP without one would
+            // legitimately fail wiring. Supplying the ops override is what a real
+            // deployment does when it flips a signal to OTLP.
+            (OtelEnvironment.OtlpEndpointVariable, "http://collector:4318")));
 
         output.Should().Contain("logs exporters: console=True otlp=False");
         output.Should().Contain("metrics exporters: console=False otlp=True");
         output.Should().Contain("traces exporters: console=False otlp=False");
+        output.Should().Contain("host wired: True");
+    }
+
+    [Fact]
+    public void Run_ReportsWiringAsFailedWhenAnOverrideSelectsOtlpWithNoEndpoint()
+    {
+        // Plan-then-register in action: the override selects an exporter the block never
+        // configured, so nothing is wired rather than a half-built pipeline being left behind.
+        var output = Run(Env((OtelEnvironment.MetricsExporterVariable, "otlp")));
+
+        output.Should().Contain("host wired: False");
+        output.Should().Contain("emitter=not wired (InvalidInput)");
     }
 
     [Fact]

@@ -40,9 +40,29 @@
     "hash": "sha256-bY8RXB3fIsgYIrlLeEuq8dsOfIn8zcbZ0dj2Ra1sFZg="
   },
   {
+    "pname": "Humanizer.Core",
+    "version": "3.0.10",
+    "hash": "sha256-mflSENjDof1Av9M9RLGEQcl4V4keVfH3qIxy/uxJ6FE="
+  },
+  {
     "pname": "JetBrains.ReSharper.GlobalTools",
     "version": "2026.1.3",
     "hash": "sha256-rpS2+NAwul94ubUv0nAFpK9ogFnbqSF19DaLRli1R8c="
+  },
+  {
+    "pname": "Json.More.Net",
+    "version": "3.0.1",
+    "hash": "sha256-U4Ers0TkbNsrC8TBJsuQcm9IHirf2BRCOf+9uaOhQSs="
+  },
+  {
+    "pname": "JsonPointer.Net",
+    "version": "7.0.1",
+    "hash": "sha256-KCU4NBKrNAJysKlew0IHN5TD+Euo83wfG9Pi1koAWEk="
+  },
+  {
+    "pname": "JsonSchema.Net",
+    "version": "9.3.0",
+    "hash": "sha256-O2Zj9L9J4mvotWkXh5HZG3eMYZ36xGIseGZ9LgX9s7c="
   },
   {
     "pname": "Microsoft.ApplicationInsights",
