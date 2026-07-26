@@ -1,9 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# ### INTERIM — OWNED BY workspace, SUPERSEDED BY THE PARENT MERGE
+# #### source: workspace · interim applied on go-consumer · owner session: tim
+#     (ms2f8932-ce4cf7e3, node-worker:workspace-releaser)
+#
+# Package caches are READ-ONLY: the Go module cache stores files 0444 and
+# directories 0555, and the NuGet and pub caches do the same. `cp -R` preserves
+# those modes, so the staging tree and the previous vendor tree cannot be
+# removed and this script exits non-zero — which fails scripts/ci/setup.sh and
+# therefore every CI job. Only bun's node_modules is writable, which is why the
+# bun line never hit this.
+#
+# The durable fix belongs at workspace and arrives by cascade. This is an
+# R-E8a LATENCY-CLAUSE interim, NOT an independent per-branch port: when the
+# parent merge reaches this branch, resolve IN FAVOUR OF THE PARENT and DELETE
+# this block rather than merging around it. Recorded as a parent obligation in
+# exec/nodes/go-consumer/node.json.
 vendor_dir=".claude/skills/vendor"
 staging="$(mktemp -d .claude/skills/.vendor.XXXXXX)"
-trap 'rm -rf "${staging}"' EXIT
+trap 'chmod -R u+w "${staging}" 2>/dev/null || true; rm -rf "${staging}"' EXIT
 
 touch "${staging}/.gitkeep"
 
@@ -46,6 +62,10 @@ if [ -f .dart_tool/package_config.json ]; then
   done < <(jq -r '.packages[] | select(.name | startswith("diene_")) | [.name, .rootUri] | @tsv' .dart_tool/package_config.json)
 fi
 
+# INTERIM (see the header block): make the copies writable before any removal,
+# because they inherit read-only modes from the source package cache.
+chmod -R u+w "${staging}"
+[ -d "${vendor_dir}" ] && chmod -R u+w "${vendor_dir}"
 rm -rf "${vendor_dir}"
 mkdir -p "$(dirname "${vendor_dir}")"
 mv "${staging}" "${vendor_dir}"
