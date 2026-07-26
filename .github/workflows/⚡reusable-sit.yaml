@@ -1,0 +1,29 @@
+# ### go-consumer-reusable-sit
+# #### source: go-consumer
+name: ⚡ Reusable Go SIT
+
+on:
+  workflow_call:
+
+jobs:
+  sit:
+    name: Go SIT
+    runs-on:
+      - nscloud-ubuntu-22.04-amd64-4x8-with-cache
+      - nscloud-cache-size-50gb
+      - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
+    steps:
+      - uses: AtomiCloud/actions.setup-nix@v3
+      - uses: AtomiCloud/actions.cache-go@v2
+      - uses: AtomiCloud/actions.setup-docker@v2
+      - name: Compile Go consumer
+        run: nix develop .#ci -c ./scripts/ci/build.sh
+      - name: Start SIT dependencies
+        run: nix develop .#ci -c ./scripts/ci/sit-stack.sh up
+      - name: Run SIT
+        env:
+          CLI_BIN: dist/go-consumer
+        run: nix develop .#ci -c ./scripts/ci/test.sh sit
+      - name: Stop SIT dependencies
+        if: always()
+        run: nix develop .#ci -c ./scripts/ci/sit-stack.sh down
