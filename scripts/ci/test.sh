@@ -2,7 +2,7 @@
 set -euo pipefail
 
 mode="${1:-}"
-[[ ${mode} != "unit" && ${mode} != "int" && ${mode} != "meta" && ${mode} != "sit" ]] && echo "❌ usage: $0 <unit|int|meta|sit>" >&2 && exit 2
+[[ ${mode} != "unit" && ${mode} != "meta" && ${mode} != "sit" ]] && echo "❌ usage: $0 <unit|meta|sit>" >&2 && exit 2
 
 root_dir="$(git rev-parse --show-toplevel)"
 cd "${root_dir}"
@@ -22,7 +22,6 @@ config="bunfig.${mode}.toml"
 coverage_dir="coverage/${mode}"
 coverage_file="${coverage_dir}/lcov.info"
 scope="src/lib/"
-[[ ${mode} == "int" ]] && scope="src/adapters/"
 [[ ${mode} == "meta" ]] && scope="src/test-helper/"
 source_list="$(mktemp)"
 coverage_list="$(mktemp)"

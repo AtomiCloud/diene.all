@@ -32,6 +32,9 @@ tasks:
       # ### bun-base-setup
       # #### source: bun-base
       - ./scripts/local/setup.sh
+      # ### bun-interfaces-setup
+      # #### source: lib/bun/interfaces
+      - ./scripts/local/skills-sync.sh
 
   lint:
     desc: Run all repository gates
@@ -62,10 +65,9 @@ tasks:
       - ./scripts/local/deadcode.sh
 
   test:
-    desc: Run unit, integration, and conditional meta suites without coverage
+    desc: Run unit and conditional meta suites without coverage
     cmds:
       - task: unit:default
-      - task: int:default
       - task: meta:default
 
   test:unit:
@@ -74,9 +76,9 @@ tasks:
       - task: unit:default
 
   test:int:
-    desc: Run the integration suite without coverage
+    desc: Confirm that this adapter-free library has no integration tier
     cmds:
-      - task: int:default
+      - echo "⏭️ No integration tier (this package ships ports and test helpers only, with no adapters)"
 
   # ### bun-lib-meta-tasks
   # #### source: bun-lib
@@ -86,10 +88,9 @@ tasks:
       - task: meta:default
 
   test:coverage:
-    desc: Run unit, integration, and conditional meta suites with coverage
+    desc: Run unit and conditional meta suites with coverage
     cmds:
       - task: unit:coverage
-      - task: int:coverage
       - task: meta:coverage
 
   test:unit:coverage:
@@ -98,9 +99,9 @@ tasks:
       - task: unit:coverage
 
   test:int:coverage:
-    desc: Run the integration suite with coverage
+    desc: Confirm that this adapter-free library has no integration coverage ledger
     cmds:
-      - task: int:coverage
+      - echo "⏭️ No integration coverage ledger (this package ships ports and test helpers only, with no adapters)"
 
   test:meta:coverage:
     desc: Run the TestHelper meta suite with coverage when a TestHelper exists

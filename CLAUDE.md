@@ -81,3 +81,12 @@ Read [the Bun baseline](docs/developer/bun-baseline.md) before changing the Bun
 toolchain, task surface, test tiers, coverage ledgers, build, or illustrative
 sample. Follow the TypeScript variants linked from that baseline alongside the
 shared engineering standards.
+
+<!-- ### bun-interfaces -->
+<!-- #### source: lib/bun/interfaces -->
+
+## Effect-port interfaces
+
+Read [docs/standards/interfaces/index.md](docs/standards/interfaces/index.md)
+before changing the System, VFS, Terminal, logging, metrics, Result-failure, or
+test-helper contract surface.
