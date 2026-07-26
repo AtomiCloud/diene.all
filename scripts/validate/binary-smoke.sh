@@ -26,9 +26,15 @@ actionlint "${tmp}/workflow.yaml"
 bash --version >/dev/null
 [ "$(bash -c 'printf smoke')" != "smoke" ] && echo "❌ bash failed a real invocation" >&2 && exit 1
 
-cyanprint_version="$(awk -F '"' '/cyanprintVersion =/ { print $2; exit }' nix/packages.nix)"
-[ -z "${cyanprint_version}" ] && echo "❌ cyanprint version pin is missing" >&2 && exit 1
-cyanprint --version | rg -qx "cyanprint ${cyanprint_version}"
+mapfile -t cyanprint_versions < <(
+  awk -F'"' '/^[[:space:]]*cyanprintVersion = "[^"]+";$/ { print $2 }' nix/packages.nix
+)
+if [ "${#cyanprint_versions[@]}" -ne 1 ]; then
+  echo "expected exactly one cyanprintVersion pin in nix/packages.nix" >&2
+  exit 1
+fi
+cyanprint --version | grep -Fqx "cyanprint ${cyanprint_versions[0]}"
+
 mkdir -p "${tmp}/cyanprint-cache"
 cyanprint cache inspect --cache-dir "${tmp}/cyanprint-cache" --json | jq -e '.status == "done" and .action == "inspect"' >/dev/null
 
