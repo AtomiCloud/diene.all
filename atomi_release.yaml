@@ -1,44 +1,6 @@
-conventionMarkdown:
-  path: docs/developer/CommitConventions.md
-  template: |
-    # Commit conventions
-
-    CONVENTION_DOCS_PLACEHOLDER
-
-keywords:
-  - BREAKING CHANGE
-  - BREAKING CHANGES
-  - BREAKING
-
-branches:
-  - main
-
-specialScopes:
-  no-release:
-    desc: Prevent release from happening
-    release: false
-
-plugins:
-  - module: '@semantic-release/changelog'
-    version: 6.0.3
-    config:
-      changelogFile: Changelog.md
-  - module: '@semantic-release/exec'
-    version: 6.0.3
-    config:
-      prepareCmd: './scripts/release/bump.sh ${nextRelease.version}'
-  - module: '@semantic-release/git'
-    version: 10.0.1
-    config:
-      message: "release: ${nextRelease.version}\n\n${nextRelease.notes}"
-      assets:
-        - Changelog.md
-        - package.json
-        - VERSION
-        - docs/developer/CommitConventions.md
-  - module: '@semantic-release/github'
-    version: 10.3.5
-
+# ### workspace-release
+# #### source: workspace
+schemaVersion: 2
 types:
   - type: amend
     desc: Small amendments and typo fixes
@@ -136,3 +98,55 @@ types:
       default:
         desc: Add or correct tests
         release: minor
+specialScopes:
+  no-release:
+    desc: Prevent release from happening
+    release: false
+keywords:
+  - BREAKING CHANGE
+  - BREAKING CHANGES
+  - BREAKING
+lint:
+  header:
+    maxLength: 72
+    minLength: 5
+    forbiddenWords:
+      - WIP
+    forbidTrailingPunctuation: true
+  body:
+    maxLineLength: 80
+    minLengthWhenPresent: 20
+    requireBlankSecondLine: true
+  ignore:
+    - merge
+    - revert
+    - fixup
+    - fixup-amend
+    - squash
+conventions:
+  path: docs/developer/CommitConventions.md
+  template: "# Commit conventions\n\nCONVENTION_DOCS_PLACEHOLDER\n"
+release:
+  branches:
+    - main
+  tagFormat: 'v${version}'
+  changelog:
+    path: Changelog.md
+    title: '# Changelog'
+  commit:
+    message: "release: ${version}\n\n${notes}"
+    assets:
+      - Changelog.md
+      - package.json
+      - VERSION
+      - docs/developer/CommitConventions.md
+  github:
+    enabled: true
+    successComment: 'Released in ${version}.'
+    releasedLabels:
+      - released
+  hooks:
+    prepare:
+      - phase: afterWrite
+        command: './scripts/release/bump.sh ${version}'
+    success: []
