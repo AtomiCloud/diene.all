@@ -99,7 +99,7 @@ packages="$(xmlstarlet sel -t -m '/coverage/packages/package' -v '@name' -o $'\t
 
 while IFS=$'\t' read -r assembly line_rate; do
   if [ "${kind}" = "unit" ]; then
-    [[ ${assembly} =~ ^Lib.*$ || ${assembly} == "AtomiCloud.Diene.Note" ]] || {
+    [[ ${assembly} =~ ^Lib.*$ || ${assembly} == "AtomiCloud.Diene.CoreUtils" ]] || {
       echo "❌ unit coverage escaped its [Lib*]* ledger: ${assembly}" >&2
       exit 1
     }

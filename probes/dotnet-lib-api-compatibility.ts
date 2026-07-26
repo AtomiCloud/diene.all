@@ -20,11 +20,14 @@ export default defineGate({
   },
   mutation: {
     name: 'mutation-dotnet-lib-api-compatibility-caught',
-    description: 'Removing one public 1.0 interface member turns PackageValidation red.',
+    description: 'Removing one public 1.0 key-normalization member turns PackageValidation red.',
     expectedImpact: [],
     async run(repo: any) {
-      await repo.patch('Lib/INoteRepository.cs', {
-        find: '\n    Task<NotePrincipal?> Find(string id, CancellationToken cancellationToken = default);',
+      await repo.patch('Lib/KeyNormalizer.cs', {
+        find:
+          '\n    /// <summary>Determines whether two keys name the same thing under the canonical rule.</summary>\n' +
+          '    public static bool KeysMatch(string a, string b) =>\n' +
+          '        string.Equals(Canonical(a), Canonical(b), StringComparison.Ordinal);\n',
         replace: '',
       });
       await expectRed(

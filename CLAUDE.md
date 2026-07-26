@@ -91,9 +91,16 @@ Language variants:
 - [C# utilities](docs/standards/utilities/languages/csharp.md)
 - [C# validation](docs/standards/validation/languages/csharp.md)
 
-Keep `dotnet-base.slnx`, `.config/dotnet-base.test.yaml`, and
-`AtomiCloud.DotnetBase.*` root namespaces base-named. Observability is absent on
-this branch.
+Keep `dotnet-base.slnx`, `.config/dotnet-base.test.yaml`, and the project
+filenames base-named. Observability is absent on this branch.
+
+This branch materializes `AtomiCloud.Diene.CoreUtils`. Read
+[docs/domain/core-utils.md](docs/domain/core-utils.md) before touching the
+surface: parsing is total and returns `Result`, the C0 wire forms are pinned in
+`fixtures/c0/wire-v1.json` and are a cross-language contract, `Slug.Slugify` is
+byte-parity with the bun sibling, and deep-merge and env-var coercion are
+deliberately absent because `IConfiguration` already owns both. Do not wrap what
+the BCL already does.
 
 <!-- ### dotnet-lib -->
 <!-- #### source: dotnet-lib -->

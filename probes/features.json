@@ -317,8 +317,8 @@
   },
   {
     "template": "diene/dotnet-lib",
-    "name": "dotnet-lib-testhelper-meta-ledger",
-    "class": "gate"
+    "name": "dotnet-lib-meta-tier-inactive",
+    "class": "smoke"
   },
   {
     "template": "diene/dotnet-lib",
