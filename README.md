@@ -1,12 +1,12 @@
-# Diene Go language base
+# Diene Go consumer
 
 <!-- ### go-base-badges -->
 <!-- #### source: go-base -->
 
-[![CI](https://github.com/AtomiCloud/diene.go-base/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.go-base/actions/workflows/ci.yaml)
-[![Unit coverage](https://codecov.io/gh/AtomiCloud/diene.go-base/branch/main/graph/badge.svg?flag=unit)](https://codecov.io/gh/AtomiCloud/diene.go-base)
-[![Integration coverage](https://codecov.io/gh/AtomiCloud/diene.go-base/branch/main/graph/badge.svg?flag=int)](https://codecov.io/gh/AtomiCloud/diene.go-base)
-[![Commit activity](https://img.shields.io/github/commit-activity/m/AtomiCloud/diene.go-base)](https://github.com/AtomiCloud/diene.go-base/commits/main)
+[![CI](https://github.com/AtomiCloud/diene.go-consumer/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.go-consumer/actions/workflows/ci.yaml)
+[![Unit coverage](https://codecov.io/gh/AtomiCloud/diene.go-consumer/branch/main/graph/badge.svg?flag=unit)](https://codecov.io/gh/AtomiCloud/diene.go-consumer)
+[![Integration coverage](https://codecov.io/gh/AtomiCloud/diene.go-consumer/branch/main/graph/badge.svg?flag=int)](https://codecov.io/gh/AtomiCloud/diene.go-consumer)
+[![Commit activity](https://img.shields.io/github/commit-activity/m/AtomiCloud/diene.go-consumer)](https://github.com/AtomiCloud/diene.go-consumer/commits/main)
 
 <!-- ### nix-root -->
 <!-- #### source: main -->
@@ -34,16 +34,30 @@ synchronization.
 
 ## Go commands
 
-- `pls build` — create `dist/go-base`.
+- `pls build` — create `dist/go-consumer`.
 - `pls typecheck` — compile every source package without running tests.
 - `pls test` / `pls test:coverage` — run both tiers normally or with scoped ledgers.
 - `pls deadcode` — run strict whole-repository and production passes plus the LLM-lax report.
-- `pls run -- slug "Hello World"` — execute from source.
-- `pls preview -- slug "Hello World"` — execute the compiled artifact.
-- `pls up` / `pls down` — start or stop local Redis.
 
 See the [Go baseline](docs/developer/go-baseline.md) for the language contract and
 template-maintenance boundary.
+
+<!-- ### go-consumer-commands -->
+<!-- #### source: go-consumer -->
+
+## Go consumer commands
+
+- `pls dev` — run the worker against the local dependency stack.
+- `pls run -- worker` / `pls run -- db-init` / `pls run -- health` — execute from source.
+- `pls preview -- worker` — execute the compiled artifact.
+- `pls up` / `pls down` — start or stop Postgres, Redis, MinIO, and the telemetry backends.
+- `pls test:sit` — run the journeys through the compiled binary.
+- `pls test:sit:parity` — run the same journeys through both drivers and compare them.
+- `pls schema:gen` — regenerate `schemas/go-consumer.schema.json`.
+- `pls problems:export` — export the Problem catalog for the primordial chart.
+
+See the [Go consumer delta](docs/developer/go-consumer.md) for the worker/db-init/health
+composition, the configuration contract, and the two-chart model.
 
 ## Standards
 

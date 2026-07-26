@@ -101,3 +101,11 @@ introduce `export_test.go`.
 - [OpenTelemetry alignment](docs/standards/observability/otel.md)
 - [Faro frontend variant](docs/standards/observability/faro.md)
 - [Primordial-chart rendering](docs/standards/observability/primordial-chart.md)
+
+<!-- ### go-consumer -->
+<!-- #### source: go-consumer -->
+
+## Go consumer
+
+Read [the Go consumer delta](docs/developer/go-consumer.md) before changing its
+worker/db-init/health composition, configuration, charts, or SIT machinery.
