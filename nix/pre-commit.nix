@@ -6,7 +6,7 @@
 }:
 let
   go-deps = pkgs.buildGoModule {
-    pname = "operator-template-dependencies";
+    pname = "fleet-operator-dependencies";
     version = "0";
     src = ../.;
     vendorHash = "sha256-bfH5U+TEujJOV8DazfYekJuHsK6bd3PUx950Ya0pUOQ=";

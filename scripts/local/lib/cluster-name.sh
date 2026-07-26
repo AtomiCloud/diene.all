@@ -28,5 +28,5 @@ e2e_cluster_name() {
 e2e_image_name() {
   local override="${1:-}"
   [ -n "${override}" ] && printf '%s' "${override}" && return 0
-  printf 'operator-template:e2e-%s' "${2:-}"
+  printf 'fleet-operator:e2e-%s' "${2:-}"
 }

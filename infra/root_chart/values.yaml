@@ -3,7 +3,7 @@
 
 # -- Manager container image repository.
 image:
-  repository: ghcr.io/atomicloud/operator-template
+  repository: ghcr.io/atomicloud/diene.fleet-operator
   # -- Image tag; defaults to the chart appVersion when empty.
   tag: ''
   # -- Image pull policy.
@@ -27,7 +27,7 @@ ledger:
   # -- S3/MinIO endpoint host:port.
   endpoint: ''
   # -- Ledger bucket name.
-  bucket: operator-template-ledger
+  bucket: fleet-operator-ledger
   # -- Use TLS for the ledger endpoint.
   secure: true
 
@@ -82,7 +82,7 @@ alerts:
   # -- Ship the GrafanaAlertRuleGroup.
   enabled: true
   # -- Grafana folder UID the rule group is filed under.
-  folderUID: operator-template
+  folderUID: fleet-operator
 
 # -- Grafana dashboard shipped as a sidecar-labelled ConfigMap.
 dashboard:

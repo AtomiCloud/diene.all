@@ -65,7 +65,7 @@ helm-docs --version >/dev/null
 helm-docs --dry-run --chart-search-root infra/root_chart >/dev/null 2>&1
 
 helm version --short >/dev/null
-helm template operator-template infra/root_chart | kubeconform -strict -ignore-missing-schemas -summary >/dev/null
+helm template fleet-operator infra/root_chart | kubeconform -strict -ignore-missing-schemas -summary >/dev/null
 
 infisical --version >/dev/null
 git -C "${tmp}" init -q
@@ -100,11 +100,30 @@ pre-commit --version >/dev/null
 pre-commit validate-config .pre-commit-config.yaml
 
 rg --version >/dev/null
-rg -q 'operator-template' README.md
+rg -q 'fleet-operator' README.md
 ! rg -q 'diene[.-]go-base' README.md || {
   echo "❌ README retains the retired diene-go-base public product identity" >&2
   exit 1
 }
+! rg -q 'operator-template' README.md || {
+  echo "❌ README retains the retired operator-template public product identity" >&2
+  exit 1
+}
+
+# Published identity is one ruled tuple. Assert the consumer-visible chart defaults and the
+# CD publish target agree on it, so a half-applied rename fails closed instead of shipping
+# a chart that points at an image path CD never pushes.
+ruled_image='ghcr.io/atomicloud/diene.fleet-operator'
+ruled_chart='fleet-operator'
+chart_name="$(yq -r '.name' infra/root_chart/Chart.yaml)"
+[ "${chart_name}" != "${ruled_chart}" ] && echo "❌ chart name is '${chart_name}', expected the ruled product name '${ruled_chart}'" >&2 && exit 1
+chart_image="$(yq -r '.image.repository' infra/root_chart/values.yaml)"
+[ "${chart_image}" != "${ruled_image}" ] && echo "❌ chart image.repository is '${chart_image}', expected the ruled published repository '${ruled_image}'" >&2 && exit 1
+ci_image="$(yq -r '.jobs.docker.with.image_repository' .github/workflows/ci.yaml)"
+[ "${ci_image}" != "${ruled_image}" ] && echo "❌ ci.yaml docker job publishes '${ci_image}', expected '${ruled_image}'" >&2 && exit 1
+cd_image="$(yq -r '.jobs.docker.with.image_repository' .github/workflows/cd.yaml)"
+[ "${cd_image}" != "${ruled_image}" ] && echo "❌ cd.yaml docker job publishes '${cd_image}', expected '${ruled_image}'" >&2 && exit 1
+echo "🏷️ published identity: image ${chart_image} · chart ${chart_name}"
 
 sg --version >/dev/null
 printf '%s\n' '[general]' 'contrib=CT1' 'ignore=B6' '' '[contrib-title-conventional-commits]' 'types = amend' >"${tmp}/.gitlint"

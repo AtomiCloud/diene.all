@@ -3,7 +3,7 @@
 version: '3'
 
 vars:
-  IMAGE: operator-template:local
+  IMAGE: fleet-operator:local
 
 tasks:
   build:

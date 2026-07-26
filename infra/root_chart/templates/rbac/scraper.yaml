@@ -5,17 +5,17 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: {{ include "operator-template.scraperName" . }}
+  name: {{ include "fleet-operator.scraperName" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "operator-template.labels" . | nindent 4 }}
+    {{- include "fleet-operator.labels" . | nindent 4 }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ include "operator-template.scraperName" . }}
+  name: {{ include "fleet-operator.scraperName" . }}
   labels:
-    {{- include "operator-template.labels" . | nindent 4 }}
+    {{- include "fleet-operator.labels" . | nindent 4 }}
 rules:
   - nonResourceURLs:
       - /metrics
@@ -25,26 +25,26 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: {{ include "operator-template.scraperName" . }}
+  name: {{ include "fleet-operator.scraperName" . }}
   labels:
-    {{- include "operator-template.labels" . | nindent 4 }}
+    {{- include "fleet-operator.labels" . | nindent 4 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: {{ include "operator-template.scraperName" . }}
+  name: {{ include "fleet-operator.scraperName" . }}
 subjects:
   - kind: ServiceAccount
-    name: {{ include "operator-template.scraperName" . }}
+    name: {{ include "fleet-operator.scraperName" . }}
     namespace: {{ .Release.Namespace }}
 ---
 apiVersion: v1
 kind: Secret
 metadata:
-  name: {{ include "operator-template.scraperName" . }}-token
+  name: {{ include "fleet-operator.scraperName" . }}-token
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "operator-template.labels" . | nindent 4 }}
+    {{- include "fleet-operator.labels" . | nindent 4 }}
   annotations:
-    kubernetes.io/service-account.name: {{ include "operator-template.scraperName" . }}
+    kubernetes.io/service-account.name: {{ include "fleet-operator.scraperName" . }}
 type: kubernetes.io/service-account-token
 {{- end }}

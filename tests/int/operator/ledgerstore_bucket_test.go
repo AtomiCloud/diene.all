@@ -7,7 +7,7 @@ import (
 	"github.com/minio/minio-go/v7"
 	"github.com/stretchr/testify/require"
 
-	"github.com/AtomiCloud/diene.go-base/adapters/operator/ledgerstore"
+	"github.com/AtomiCloud/diene.fleet-operator/adapters/operator/ledgerstore"
 )
 
 // TestIsBucketExistsRace pins the MakeBucket race tolerance: the two already-exists

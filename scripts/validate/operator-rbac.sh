@@ -56,7 +56,7 @@ echo "🧪 regenerating RBAC from the controller markers"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "${tmp}"' EXIT
-controller-gen rbac:roleName=operator-template-manager \
+controller-gen rbac:roleName=fleet-operator-manager \
   paths=./adapters/operator/controllers/... output:rbac:dir="${tmp}"
 
 regenerated="$(diff -u "${committed}" "${tmp}/role.yaml" || true)"

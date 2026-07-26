@@ -9,7 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/AtomiCloud/diene.go-base/lib/operator/reconcile"
+	"github.com/AtomiCloud/diene.fleet-operator/lib/operator/reconcile"
 )
 
 // applyCondition maps a pure, k8s-free reconcile.Condition onto a metav1.Condition

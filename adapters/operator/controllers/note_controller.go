@@ -9,16 +9,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	"github.com/AtomiCloud/diene.go-base/adapters/operator/kube"
-	"github.com/AtomiCloud/diene.go-base/adapters/operator/metrics"
-	apiv1alpha1 "github.com/AtomiCloud/diene.go-base/api/v1alpha1"
-	"github.com/AtomiCloud/diene.go-base/lib/operator/ledger"
-	"github.com/AtomiCloud/diene.go-base/lib/operator/reconcile"
+	"github.com/AtomiCloud/diene.fleet-operator/adapters/operator/kube"
+	"github.com/AtomiCloud/diene.fleet-operator/adapters/operator/metrics"
+	apiv1alpha1 "github.com/AtomiCloud/diene.fleet-operator/api/v1alpha1"
+	"github.com/AtomiCloud/diene.fleet-operator/lib/operator/ledger"
+	"github.com/AtomiCloud/diene.fleet-operator/lib/operator/reconcile"
 )
 
 // NoteOwnerLabel decorates the owned ConfigMap set for observability. Ownership
 // decisions use the controller OwnerReference UID, never this label.
-const NoteOwnerLabel = "operator-template.diene.atomi.cloud/note"
+const NoteOwnerLabel = "fleet-operator.diene.atomi.cloud/note"
 
 const noteController = "note"
 

@@ -18,7 +18,13 @@ version="${RELEASE_VERSION:-}"
 
 if [ "${push}" = "true" ]; then
   echo "${DOCKER_PASSWORD}" | docker login "${DOMAIN}" -u "${DOCKER_USER}" --password-stdin
-  image_id="$(echo "${DOMAIN}/${GITHUB_REPO_REF}/${CI_DOCKER_IMAGE}" | tr '[:upper:]' '[:lower:]')"
+  # CI_DOCKER_REPOSITORY pins the FULL published repository (registry + path) verbatim, for
+  # products whose ruled image path is not ${DOMAIN}/${GITHUB_REPO_REF}/${CI_DOCKER_IMAGE}.
+  # Left unset it keeps the generic repo-scoped derivation every other consumer relies on.
+  image_id="$(echo "${CI_DOCKER_REPOSITORY:-${DOMAIN}/${GITHUB_REPO_REF}/${CI_DOCKER_IMAGE}}" | tr '[:upper:]' '[:lower:]')"
+  [ -z "${image_id}" ] && echo "❌ resolved docker repository is empty" >&2 && exit 1
+  [ "${image_id}" = "${image_id#*/}" ] && echo "❌ resolved docker repository '${image_id}' carries no registry path segment" >&2 && exit 1
+  [ -n "$(printf '%s' "${image_id}" | tr -d 'a-z0-9./_-')" ] && echo "❌ resolved docker repository '${image_id}' carries characters invalid in an OCI repository path" >&2 && exit 1
   sha="$(echo "${GITHUB_SHA}" | head -c 6)"
   branch="${GITHUB_BRANCH//[._]/-}"
   branch="${branch//\//-}"

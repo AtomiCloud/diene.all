@@ -19,9 +19,9 @@ tasks:
   template:
     desc: Render the root chart
     cmds:
-      - helm template operator-template {{.CHART}} {{.CLI_ARGS}}
+      - helm template fleet-operator {{.CHART}} {{.CLI_ARGS}}
 
   debug:
     desc: Render the root chart with debug output
     cmds:
-      - helm template operator-template {{.CHART}} --debug {{.CLI_ARGS}}
+      - helm template fleet-operator {{.CHART}} --debug {{.CLI_ARGS}}

@@ -13,7 +13,7 @@ import (
 
 	"github.com/minio/minio-go/v7"
 
-	"github.com/AtomiCloud/diene.go-base/lib/operator/ledger"
+	"github.com/AtomiCloud/diene.fleet-operator/lib/operator/ledger"
 )
 
 // MinioStore is an S3/MinIO-backed ledger.Store.

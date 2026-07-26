@@ -18,15 +18,15 @@ import (
 	metricsfilters "sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	"github.com/AtomiCloud/diene.go-base/adapters/operator/controllers"
-	"github.com/AtomiCloud/diene.go-base/adapters/operator/kube"
-	"github.com/AtomiCloud/diene.go-base/adapters/operator/ledgerstore"
-	operatormetrics "github.com/AtomiCloud/diene.go-base/adapters/operator/metrics"
-	apiv1alpha1 "github.com/AtomiCloud/diene.go-base/api/v1alpha1"
-	"github.com/AtomiCloud/diene.go-base/lib/operator/ledger"
+	"github.com/AtomiCloud/diene.fleet-operator/adapters/operator/controllers"
+	"github.com/AtomiCloud/diene.fleet-operator/adapters/operator/kube"
+	"github.com/AtomiCloud/diene.fleet-operator/adapters/operator/ledgerstore"
+	operatormetrics "github.com/AtomiCloud/diene.fleet-operator/adapters/operator/metrics"
+	apiv1alpha1 "github.com/AtomiCloud/diene.fleet-operator/api/v1alpha1"
+	"github.com/AtomiCloud/diene.fleet-operator/lib/operator/ledger"
 )
 
-const leaderElectionID = "operator-template.diene.atomi.cloud"
+const leaderElectionID = "fleet-operator.diene.atomi.cloud"
 
 // ErrLedgerEndpointRequired reports an enabled Note controller without a ledger endpoint.
 var ErrLedgerEndpointRequired = errors.New("note controller enabled but --ledger-endpoint/LEDGER_ENDPOINT is empty; set an endpoint or disable the Note controller (--enable-note=false)")
@@ -57,7 +57,7 @@ type Config struct {
 func DefaultConfig(getenv func(string) string) Config {
 	ledgerBucket := getenv("LEDGER_BUCKET")
 	if ledgerBucket == "" {
-		ledgerBucket = "operator-template-ledger"
+		ledgerBucket = "fleet-operator-ledger"
 	}
 	return Config{
 		EnableNote:       true,

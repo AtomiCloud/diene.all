@@ -2,14 +2,14 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: {{ include "operator-template.fullname" . }}
+  name: {{ include "fleet-operator.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "operator-template.labels" . | nindent 4 }}
+    {{- include "fleet-operator.labels" . | nindent 4 }}
 spec:
   selector:
     matchLabels:
-      {{- include "operator-template.selectorLabels" . | nindent 6 }}
+      {{- include "fleet-operator.selectorLabels" . | nindent 6 }}
   endpoints:
     - port: metrics
       scheme: https
@@ -21,7 +21,7 @@ spec:
       authorization:
         type: Bearer
         credentials:
-          name: {{ include "operator-template.scraperName" . }}-token
+          name: {{ include "fleet-operator.scraperName" . }}-token
           key: token
       {{- else if and .Values.serviceMonitor.scraper.externalSecret.name .Values.serviceMonitor.scraper.externalSecret.key }}
       authorization:

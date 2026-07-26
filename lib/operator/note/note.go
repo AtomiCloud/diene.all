@@ -10,7 +10,7 @@ package note
 import (
 	"fmt"
 
-	"github.com/AtomiCloud/diene.go-base/lib/operator/plan"
+	"github.com/AtomiCloud/diene.fleet-operator/lib/operator/plan"
 )
 
 // ─── DOMAIN WIRING (sample) ──────────────────────────────────────────────────

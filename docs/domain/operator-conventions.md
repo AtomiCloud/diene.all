@@ -116,9 +116,9 @@ The manager registers generic metrics on the controller-runtime registry and the
 chart ships a `ServiceMonitor`, a `GrafanaAlertRuleGroup` (the observability
 standard — never a `PrometheusRule`), and a Grafana dashboard.
 
-The toy actually emits: `operator_template_condition` (condition-state gauge by
-controller and type), `operator_template_ledger_failures_total`,
-`operator_template_reconcile_ticks_total` (poll-loop liveness), and the built-in
+The toy actually emits: `fleet_operator_condition` (condition-state gauge by
+controller and type), `fleet_operator_ledger_failures_total`,
+`fleet_operator_reconcile_ticks_total` (poll-loop liveness), and the built-in
 `controller_runtime_reconcile_*` reconcile/latency metrics. The dashboard and the
 alert group query exactly these.
 

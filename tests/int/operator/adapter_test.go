@@ -10,8 +10,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/AtomiCloud/diene.go-base/adapters/operator/controllers"
-	"github.com/AtomiCloud/diene.go-base/adapters/operator/kube"
+	"github.com/AtomiCloud/diene.fleet-operator/adapters/operator/controllers"
+	"github.com/AtomiCloud/diene.fleet-operator/adapters/operator/kube"
 )
 
 func newAdapter() kube.ConfigMapAdapter {

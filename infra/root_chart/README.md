@@ -1,27 +1,27 @@
-# operator-template
+# fleet-operator
 
 ![Version: 0.1.0](https://img.shields.io/badge/Version-0.1.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.1.0](https://img.shields.io/badge/AppVersion-0.1.0-informational?style=flat-square)
 
-Manager chart for the operator skeleton template (CRDs, RBAC, deployment, observability)
+Manager chart for the AtomiCloud fleet operator (CRDs, RBAC, deployment, observability)
 
 ## Values
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| alerts | object | `{"enabled":true,"folderUID":"operator-template"}` | Grafana alert pack (GrafanaAlertRuleGroup, never PrometheusRule). |
+| alerts | object | `{"enabled":true,"folderUID":"fleet-operator"}` | Grafana alert pack (GrafanaAlertRuleGroup, never PrometheusRule). |
 | alerts.enabled | bool | `true` | Ship the GrafanaAlertRuleGroup. |
-| alerts.folderUID | string | `"operator-template"` | Grafana folder UID the rule group is filed under. |
+| alerts.folderUID | string | `"fleet-operator"` | Grafana folder UID the rule group is filed under. |
 | blastBrakeCap | int | `20` | Destructive-write percentage-per-tick blast-brake cap. |
 | controllers | object | `{"journal":true,"note":false}` | Per-controller enablement flags. |
 | controllers.journal | bool | `true` | Enable the Journal controller (no external dependency). |
 | controllers.note | bool | `false` | Enable the ledger-backed Note controller. Off by default so a zero-config install never crashes on an empty ledger endpoint; landscape/e2e overlays enable it together with a real ledger.endpoint. |
 | dashboard | object | `{"enabled":true}` | Grafana dashboard shipped as a sidecar-labelled ConfigMap. |
 | dashboard.enabled | bool | `true` | Ship the dashboard ConfigMap. |
-| image | object | `{"pullPolicy":"IfNotPresent","repository":"ghcr.io/atomicloud/operator-template","tag":""}` | Manager container image repository. |
+| image | object | `{"pullPolicy":"IfNotPresent","repository":"ghcr.io/atomicloud/diene.fleet-operator","tag":""}` | Manager container image repository. |
 | image.pullPolicy | string | `"IfNotPresent"` | Image pull policy. |
 | image.tag | string | `""` | Image tag; defaults to the chart appVersion when empty. |
-| ledger | object | `{"bucket":"operator-template-ledger","endpoint":"","landscape":"lapras","platform":"diene","secure":true}` | Ledger coordinate scope and S3/MinIO backend. |
-| ledger.bucket | string | `"operator-template-ledger"` | Ledger bucket name. |
+| ledger | object | `{"bucket":"fleet-operator-ledger","endpoint":"","landscape":"lapras","platform":"diene","secure":true}` | Ledger coordinate scope and S3/MinIO backend. |
+| ledger.bucket | string | `"fleet-operator-ledger"` | Ledger bucket name. |
 | ledger.endpoint | string | `""` | S3/MinIO endpoint host:port. |
 | ledger.landscape | string | `"lapras"` | Landscape coordinate (overridden per landscape values file). |
 | ledger.platform | string | `"diene"` | Platform coordinate. |

@@ -96,7 +96,7 @@ check(
   );
   check(!!latency && sourceOf(latency) === 'toy', 'missing toy reconcile-latency alert');
 
-  const liveness = findRule(r => /operator_template_reconcile_ticks_total/.test(exprOf(r)));
+  const liveness = findRule(r => /fleet_operator_reconcile_ticks_total/.test(exprOf(r)));
   check(!!liveness, 'missing poll-loop liveness/staleness alert');
   check(liveness?.noDataState === 'Alerting', 'liveness alert must page on no-data (stale = page)');
   check(
@@ -104,24 +104,24 @@ check(
     'liveness alert must fire when the tick rate drops below threshold',
   );
 
-  const condition = findRule(r => /operator_template_condition\{/.test(exprOf(r)));
+  const condition = findRule(r => /fleet_operator_condition\{/.test(exprOf(r)));
   check(!!condition, 'missing persistent condition-state alert');
   check(
     /Conflict/.test(exprOf(condition)) && /Unresolved/.test(exprOf(condition)) && /Drifted/.test(exprOf(condition)),
     'condition-state alert must watch Conflict/Unresolved/Drifted',
   );
 
-  const ledger = findRule(r => /operator_template_ledger_failures_total/.test(exprOf(r)));
+  const ledger = findRule(r => /fleet_operator_ledger_failures_total/.test(exprOf(r)));
   check(!!ledger && sourceOf(ledger) === 'toy', 'missing durable-ledger-failure alert');
 
-  const vendor = findRule(r => /operator_template_vendor_api_failures_total/.test(exprOf(r)));
+  const vendor = findRule(r => /fleet_operator_vendor_api_failures_total/.test(exprOf(r)));
   check(
     !!vendor && sourceOf(vendor) === 'consumer-extension',
     'missing DNS/vendor API-failure alert (must be consumer-extension)',
   );
 
   const provisioning = findRule(r =>
-    /histogram_quantile\(.*operator_template_provisioning_duration_seconds_bucket/.test(exprOf(r)),
+    /histogram_quantile\(.*fleet_operator_provisioning_duration_seconds_bucket/.test(exprOf(r)),
   );
   check(
     !!provisioning && sourceOf(provisioning) === 'consumer-extension',
@@ -135,7 +135,7 @@ check(
     if (wr) {
       check(sourceOf(wr) === 'consumer-extension', `webhook ${state} alert must be consumer-extension`);
       check(
-        new RegExp(`operator_template_webhook_events_total\\{[^}]*state="${state}"`).test(exprOf(wr)),
+        new RegExp(`fleet_operator_webhook_events_total\\{[^}]*state="${state}"`).test(exprOf(wr)),
         `webhook ${state} alert must query state="${state}"`,
       );
       // Lag is a classified event rate, never a seconds budget.
@@ -154,7 +154,7 @@ check(
   );
 
   const consumerMetrics =
-    /(operator_template_vendor_api_failures_total|operator_template_provisioning_duration_seconds|operator_template_webhook_events_total)/;
+    /(fleet_operator_vendor_api_failures_total|fleet_operator_provisioning_duration_seconds|fleet_operator_webhook_events_total)/;
   for (const r of rules) {
     if (consumerMetrics.test(exprOf(r))) {
       check(
@@ -169,8 +169,8 @@ check(
   const dashCm = docs.find(d => d?.kind === 'ConfigMap' && d?.metadata?.labels?.grafana_dashboard === '1');
   check(!!dashCm, 'missing grafana_dashboard ConfigMap');
   if (dashCm) {
-    const raw = dashCm.data?.['operator-template.json'];
-    check(!!raw, 'dashboard ConfigMap must carry operator-template.json');
+    const raw = dashCm.data?.['fleet-operator.json'];
+    check(!!raw, 'dashboard ConfigMap must carry fleet-operator.json');
     let dash: any;
     try {
       dash = JSON.parse(raw);
@@ -179,7 +179,7 @@ check(
     }
     if (dash) {
       check(typeof dash.schemaVersion === 'number', 'dashboard must declare a numeric schemaVersion');
-      check(dash.uid === 'operator-template', 'dashboard uid must be operator-template');
+      check(dash.uid === 'fleet-operator', 'dashboard uid must be fleet-operator');
       check(Array.isArray(dash.panels) && dash.panels.length > 0, 'dashboard must declare panels');
       const exprs: string[] = dash.panels.flatMap((p: any) => (p?.targets ?? []).map((t: any) => t?.expr ?? ''));
       const joined = exprs.join('\n');
@@ -187,16 +187,16 @@ check(
         ['reconcile rate', /controller_runtime_reconcile_total/],
         ['reconcile errors', /controller_runtime_reconcile_errors_total/],
         ['reconcile latency', /controller_runtime_reconcile_time_seconds_bucket/],
-        ['condition state', /operator_template_condition/],
-        ['ledger failures', /operator_template_ledger_failures_total/],
-        ['liveness ticks', /operator_template_reconcile_ticks_total/],
-        ['vendor/DNS failures', /operator_template_vendor_api_failures_total/],
-        ['provisioning duration', /operator_template_provisioning_duration_seconds_bucket/],
-        ['webhook events', /operator_template_webhook_events_total/],
+        ['condition state', /fleet_operator_condition/],
+        ['ledger failures', /fleet_operator_ledger_failures_total/],
+        ['liveness ticks', /fleet_operator_reconcile_ticks_total/],
+        ['vendor/DNS failures', /fleet_operator_vendor_api_failures_total/],
+        ['provisioning duration', /fleet_operator_provisioning_duration_seconds_bucket/],
+        ['webhook events', /fleet_operator_webhook_events_total/],
       ] as [string, RegExp][]) {
         check(re.test(joined), `dashboard missing a panel for ${label}`);
       }
-      const webhookExpr = exprs.find(e => /operator_template_webhook_events_total/.test(e)) ?? '';
+      const webhookExpr = exprs.find(e => /fleet_operator_webhook_events_total/.test(e)) ?? '';
       for (const state of ['owned', 'double-own', 'no-owner', 'misroute', 'dead-letter', 'lag']) {
         check(webhookExpr.includes(state), `webhook dashboard panel missing state ${state}`);
       }
@@ -219,9 +219,9 @@ check(
     if (tax) {
       const toy: string[] = tax.emittedByToy ?? [];
       for (const m of [
-        'operator_template_condition',
-        'operator_template_ledger_failures_total',
-        'operator_template_reconcile_ticks_total',
+        'fleet_operator_condition',
+        'fleet_operator_ledger_failures_total',
+        'fleet_operator_reconcile_ticks_total',
       ]) {
         check(toy.includes(m), `taxonomy emittedByToy missing ${m}`);
       }

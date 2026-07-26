@@ -13,7 +13,7 @@ mkdir -p "${crd_dir}" "${rbac_dir}"
 
 controller-gen object paths=./api/...
 controller-gen crd paths=./api/... output:crd:dir="${crd_dir}"
-controller-gen rbac:roleName=operator-template-manager \
+controller-gen rbac:roleName=fleet-operator-manager \
   paths=./adapters/operator/controllers/... output:rbac:dir="${rbac_dir}"
 
 echo "✅ operator manifests generated"

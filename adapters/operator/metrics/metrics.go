@@ -13,9 +13,9 @@ import (
 
 // Metric names (also referenced by the chart dashboard and alert group).
 const (
-	ConditionMetric     = "operator_template_condition"
-	LedgerFailureMetric = "operator_template_ledger_failures_total"
-	ReconcileTickMetric = "operator_template_reconcile_ticks_total"
+	ConditionMetric     = "fleet_operator_condition"
+	LedgerFailureMetric = "fleet_operator_ledger_failures_total"
+	ReconcileTickMetric = "fleet_operator_reconcile_ticks_total"
 )
 
 // Recorder is the metrics port controllers use.

@@ -12,10 +12,10 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/AtomiCloud/diene.go-base/adapters/operator/controllers"
-	"github.com/AtomiCloud/diene.go-base/adapters/operator/kube"
-	"github.com/AtomiCloud/diene.go-base/adapters/operator/metrics"
-	"github.com/AtomiCloud/diene.go-base/lib/operator/ledger"
+	"github.com/AtomiCloud/diene.fleet-operator/adapters/operator/controllers"
+	"github.com/AtomiCloud/diene.fleet-operator/adapters/operator/kube"
+	"github.com/AtomiCloud/diene.fleet-operator/adapters/operator/metrics"
+	"github.com/AtomiCloud/diene.fleet-operator/lib/operator/ledger"
 )
 
 // These tests inject failing ports to exercise controller error-handling branches

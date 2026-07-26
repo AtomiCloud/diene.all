@@ -11,8 +11,8 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/AtomiCloud/diene.go-base/adapters/operator/ledgerstore"
-	"github.com/AtomiCloud/diene.go-base/lib/operator/ledger"
+	"github.com/AtomiCloud/diene.fleet-operator/adapters/operator/ledgerstore"
+	"github.com/AtomiCloud/diene.fleet-operator/lib/operator/ledger"
 )
 
 // startMinio brings up a throwaway MinIO (Docker via testcontainers); these tests
@@ -49,7 +49,7 @@ func coordinate(module string) ledger.Coordinate {
 
 func TestMinioLedgerLifecycle(t *testing.T) {
 	ctx := context.Background()
-	store := ledgerstore.NewMinioStore(startMinio(t), "operator-template-ledger", "notes/")
+	store := ledgerstore.NewMinioStore(startMinio(t), "fleet-operator-ledger", "notes/")
 	require.NoError(t, store.EnsureBucket(ctx))
 	require.NoError(t, store.EnsureBucket(ctx)) // idempotent
 

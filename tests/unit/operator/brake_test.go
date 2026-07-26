@@ -3,7 +3,7 @@ package operator_test
 import (
 	"testing"
 
-	"github.com/AtomiCloud/diene.go-base/lib/operator/brake"
+	"github.com/AtomiCloud/diene.fleet-operator/lib/operator/brake"
 	"github.com/stretchr/testify/require"
 )
 

@@ -13,10 +13,10 @@ package reconcile
 import (
 	"fmt"
 
-	"github.com/AtomiCloud/diene.go-base/lib/operator/brake"
-	"github.com/AtomiCloud/diene.go-base/lib/operator/ledger"
-	"github.com/AtomiCloud/diene.go-base/lib/operator/note"
-	"github.com/AtomiCloud/diene.go-base/lib/operator/plan"
+	"github.com/AtomiCloud/diene.fleet-operator/lib/operator/brake"
+	"github.com/AtomiCloud/diene.fleet-operator/lib/operator/ledger"
+	"github.com/AtomiCloud/diene.fleet-operator/lib/operator/note"
+	"github.com/AtomiCloud/diene.fleet-operator/lib/operator/plan"
 )
 
 // Condition re-exports the pure, k8s-free condition type so controllers depend

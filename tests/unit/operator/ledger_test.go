@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/AtomiCloud/diene.go-base/lib/operator/ledger"
+	"github.com/AtomiCloud/diene.fleet-operator/lib/operator/ledger"
 	"github.com/stretchr/testify/require"
 )
 

@@ -65,7 +65,7 @@ for name in "${a}" "${b}"; do
 done
 echo "✅ defaults are k3d-safe"
 
-[[ ${image_a} =~ ^operator-template:e2e-[a-f0-9]{16}$ ]] || {
+[[ ${image_a} =~ ^fleet-operator:e2e-[a-f0-9]{16}$ ]] || {
   echo "❌ default image name is unsafe: ${image_a}" >&2
   exit 1
 }

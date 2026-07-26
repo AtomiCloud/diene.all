@@ -13,12 +13,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/AtomiCloud/diene.go-base/adapters/operator/controllers"
-	"github.com/AtomiCloud/diene.go-base/adapters/operator/metrics"
-	apiv1alpha1 "github.com/AtomiCloud/diene.go-base/api/v1alpha1"
-	"github.com/AtomiCloud/diene.go-base/internal/operatorruntime"
-	"github.com/AtomiCloud/diene.go-base/lib/operator/ledger"
-	"github.com/AtomiCloud/diene.go-base/lib/operator/plan"
+	"github.com/AtomiCloud/diene.fleet-operator/adapters/operator/controllers"
+	"github.com/AtomiCloud/diene.fleet-operator/adapters/operator/metrics"
+	apiv1alpha1 "github.com/AtomiCloud/diene.fleet-operator/api/v1alpha1"
+	"github.com/AtomiCloud/diene.fleet-operator/internal/operatorruntime"
+	"github.com/AtomiCloud/diene.fleet-operator/lib/operator/ledger"
+	"github.com/AtomiCloud/diene.fleet-operator/lib/operator/plan"
 )
 
 func TestMultiControllerWiring(t *testing.T) {

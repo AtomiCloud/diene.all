@@ -3,9 +3,9 @@ package operator_test
 import (
 	"testing"
 
-	"github.com/AtomiCloud/diene.go-base/lib/operator/ledger"
-	"github.com/AtomiCloud/diene.go-base/lib/operator/plan"
-	"github.com/AtomiCloud/diene.go-base/lib/operator/reconcile"
+	"github.com/AtomiCloud/diene.fleet-operator/lib/operator/ledger"
+	"github.com/AtomiCloud/diene.fleet-operator/lib/operator/plan"
+	"github.com/AtomiCloud/diene.fleet-operator/lib/operator/reconcile"
 	"github.com/stretchr/testify/require"
 )
 

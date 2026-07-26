@@ -7,18 +7,18 @@ Docker conventions for containerized builds and deployments. Images are built fr
 
 Local work uses Taskfile one-liners (these never call the CI scripts):
 
-| Command            | What it does                                         |
-| ------------------ | ---------------------------------------------------- |
-| `pls docker:build` | Build the image locally as `operator-template:local` |
-| `pls docker:run`   | Run the built image                                  |
-| `pls docker:clean` | Remove the local image                               |
+| Command            | What it does                                      |
+| ------------------ | ------------------------------------------------- |
+| `pls docker:build` | Build the image locally as `fleet-operator:local` |
+| `pls docker:run`   | Run the built image                               |
+| `pls docker:clean` | Remove the local image                            |
 
 Pass an optional tag **suffix** after `--`; it is appended to the `:local` tag:
 
 ```bash
-pls docker:build            # -> operator-template:local
-pls docker:build -- 1       # -> operator-template:local-1
-pls docker:build -- hello   # -> operator-template:local-hello
+pls docker:build            # -> fleet-operator:local
+pls docker:build -- 1       # -> fleet-operator:local-1
+pls docker:build -- hello   # -> fleet-operator:local-hello
 ```
 
 `run` and `clean` take the same suffix so they act on the image you built.

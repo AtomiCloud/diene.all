@@ -1,7 +1,9 @@
-# operator-template
+# fleet-operator
 
-The reusable kubebuilder/controller-runtime operator skeleton in family
-conventions — a manager image plus manager chart, proven on a toy CRD pair.
+The AtomiCloud fleet operator — one kubebuilder/controller-runtime manager image
+plus manager chart, published as `ghcr.io/atomicloud/diene.fleet-operator` and the
+`fleet-operator` chart. The fleet controllers and CRDs land in later lanes; the
+inherited machinery is currently proven on a toy CRD pair.
 
 <!-- ### go-base-badges -->
 <!-- #### source: go-base -->

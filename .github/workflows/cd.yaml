@@ -17,7 +17,8 @@ jobs:
     uses: ./.github/workflows/⚡reusable-docker.yaml
     secrets: inherit
     with:
-      image_name: operator-template
+      image_name: fleet-operator
+      image_repository: ghcr.io/atomicloud/diene.fleet-operator
       dockerfile: ./infra/Dockerfile
       version: ${{ github.ref_name }}
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-container="${OPERATOR_LEDGER_CONTAINER:-operator-template-ledger}"
+container="${OPERATOR_LEDGER_CONTAINER:-fleet-operator-ledger}"
 image="${MINIO_IMAGE:-minio/minio:RELEASE.2024-01-16T16-07-38Z}"
 port="${LEDGER_PORT:-19000}"
 access_key="${LEDGER_ACCESS_KEY:-minioadmin}"

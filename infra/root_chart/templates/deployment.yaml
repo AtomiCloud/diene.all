@@ -1,21 +1,21 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "operator-template.fullname" . }}
+  name: {{ include "fleet-operator.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "operator-template.labels" . | nindent 4 }}
+    {{- include "fleet-operator.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicas }}
   selector:
     matchLabels:
-      {{- include "operator-template.selectorLabels" . | nindent 6 }}
+      {{- include "fleet-operator.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "operator-template.selectorLabels" . | nindent 8 }}
+        {{- include "fleet-operator.selectorLabels" . | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "operator-template.serviceAccountName" . }}
+      serviceAccountName: {{ include "fleet-operator.serviceAccountName" . }}
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532
@@ -24,7 +24,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: manager
-          image: {{ include "operator-template.image" . | quote }}
+          image: {{ include "fleet-operator.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
             - --leader-elect=true
@@ -43,13 +43,13 @@ spec:
             - name: LEDGER_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "operator-template.fullname" . }}-ledger
+                  name: {{ include "fleet-operator.fullname" . }}-ledger
                   key: accessKey
                   optional: true
             - name: LEDGER_SECRET_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "operator-template.fullname" . }}-ledger
+                  name: {{ include "fleet-operator.fullname" . }}-ledger
                   key: secretKey
                   optional: true
           ports:

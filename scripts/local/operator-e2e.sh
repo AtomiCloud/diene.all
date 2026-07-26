@@ -16,8 +16,8 @@ values="${VALUES:-infra/root_chart/values.lapras.yaml}"
 note_fixture="${NOTE_FIXTURE:-${FIXTURE:-tests/fixtures/operator/valid-note.yaml}}"
 image="$(e2e_image_name "${IMAGE:-}" "${invocation_id}")"
 timeout="${TIMEOUT:-180s}"
-namespace="${NAMESPACE:-operator-template}"
-release="${RELEASE:-operator-template}"
+namespace="${NAMESPACE:-fleet-operator}"
+release="${RELEASE:-fleet-operator}"
 remove_default_image=false
 [ -z "${IMAGE:-}" ] && remove_default_image=true
 
@@ -138,7 +138,7 @@ JOURNAL
 kubectl wait -n "${namespace}" --for=condition=Ready --timeout "${timeout}" "note/${note_name}"
 kubectl wait -n "${namespace}" --for=condition=Ready --timeout "${timeout}" journal/harness-journal
 
-copies="$(kubectl get configmaps -n "${namespace}" -l "operator-template.diene.atomi.cloud/note=${note_name}" -o name | wc -l | tr -d ' ')"
+copies="$(kubectl get configmaps -n "${namespace}" -l "fleet-operator.diene.atomi.cloud/note=${note_name}" -o name | wc -l | tr -d ' ')"
 [ "${copies}" -ne "${expected_copies}" ] && echo "❌ expected ${expected_copies} owned ConfigMaps, found ${copies}" >&2 && exit 1
 
 echo "✅ Operator k3d e2e passed: manager healthy, Note and Journal Ready, ${copies} owned ConfigMaps"

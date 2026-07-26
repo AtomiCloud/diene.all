@@ -1,8 +1,8 @@
 # ### go-base-chart
 # #### source: go-base
 apiVersion: v2
-name: operator-template
-description: Manager chart for the operator skeleton template (CRDs, RBAC, deployment, observability)
+name: fleet-operator
+description: Manager chart for the AtomiCloud fleet operator (CRDs, RBAC, deployment, observability)
 type: application
 version: 0.1.0
 appVersion: '0.1.0'

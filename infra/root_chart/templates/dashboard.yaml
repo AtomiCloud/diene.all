@@ -2,16 +2,16 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "operator-template.fullname" . }}-dashboard
+  name: {{ include "fleet-operator.fullname" . }}-dashboard
   namespace: {{ .Release.Namespace }}
   labels:
     grafana_dashboard: "1"
-    {{- include "operator-template.labels" . | nindent 4 }}
+    {{- include "fleet-operator.labels" . | nindent 4 }}
 data:
-  operator-template.json: |
+  fleet-operator.json: |
     {
       "title": "Operator Template — Reconcile",
-      "uid": "operator-template",
+      "uid": "fleet-operator",
       "schemaVersion": 39,
       "editable": true,
       "panels": [
@@ -57,7 +57,7 @@ data:
           "type": "timeseries",
           "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
           "targets": [
-            { "refId": "A", "expr": "operator_template_condition" }
+            { "refId": "A", "expr": "fleet_operator_condition" }
           ]
         },
         {
@@ -66,7 +66,7 @@ data:
           "type": "timeseries",
           "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
           "targets": [
-            { "refId": "A", "expr": "sum by (controller) (rate(operator_template_ledger_failures_total[5m]))" }
+            { "refId": "A", "expr": "sum by (controller) (rate(fleet_operator_ledger_failures_total[5m]))" }
           ]
         },
         {
@@ -75,7 +75,7 @@ data:
           "type": "timeseries",
           "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
           "targets": [
-            { "refId": "A", "expr": "sum by (controller) (rate(operator_template_reconcile_ticks_total[5m]))" }
+            { "refId": "A", "expr": "sum by (controller) (rate(fleet_operator_reconcile_ticks_total[5m]))" }
           ]
         },
         {
@@ -84,7 +84,7 @@ data:
           "type": "timeseries",
           "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
           "targets": [
-            { "refId": "A", "expr": "sum by (controller) (rate(operator_template_vendor_api_failures_total[5m]))" }
+            { "refId": "A", "expr": "sum by (controller) (rate(fleet_operator_vendor_api_failures_total[5m]))" }
           ]
         },
         {
@@ -93,7 +93,7 @@ data:
           "type": "timeseries",
           "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
           "targets": [
-            { "refId": "A", "expr": "histogram_quantile(0.99, sum by (le, controller) (rate(operator_template_provisioning_duration_seconds_bucket[30m])))" }
+            { "refId": "A", "expr": "histogram_quantile(0.99, sum by (le, controller) (rate(fleet_operator_provisioning_duration_seconds_bucket[30m])))" }
           ]
         },
         {
@@ -103,7 +103,7 @@ data:
           "description": "owned/double-own/no-owner/misroute/dead-letter/lag",
           "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
           "targets": [
-            { "refId": "A", "expr": "sum by (state) (rate(operator_template_webhook_events_total{state=~\"owned|double-own|no-owner|misroute|dead-letter|lag\"}[5m]))" }
+            { "refId": "A", "expr": "sum by (state) (rate(fleet_operator_webhook_events_total{state=~\"owned|double-own|no-owner|misroute|dead-letter|lag\"}[5m]))" }
           ]
         }
       ]

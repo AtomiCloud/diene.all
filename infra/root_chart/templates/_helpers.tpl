@@ -1,26 +1,26 @@
-{{- define "operator-template.fullname" -}}
+{{- define "fleet-operator.fullname" -}}
 {{- .Release.Name -}}
 {{- end -}}
 
-{{- define "operator-template.serviceAccountName" -}}
-{{- default (include "operator-template.fullname" .) .Values.serviceAccount.name -}}
+{{- define "fleet-operator.serviceAccountName" -}}
+{{- default (include "fleet-operator.fullname" .) .Values.serviceAccount.name -}}
 {{- end -}}
 
-{{- define "operator-template.scraperName" -}}
-{{- default (printf "%s-metrics-reader" (include "operator-template.fullname" .)) .Values.serviceMonitor.scraper.serviceAccountName -}}
+{{- define "fleet-operator.scraperName" -}}
+{{- default (printf "%s-metrics-reader" (include "fleet-operator.fullname" .)) .Values.serviceMonitor.scraper.serviceAccountName -}}
 {{- end -}}
 
-{{- define "operator-template.image" -}}
+{{- define "fleet-operator.image" -}}
 {{- printf "%s:%s" .Values.image.repository (.Values.image.tag | default .Chart.AppVersion) -}}
 {{- end -}}
 
-{{- define "operator-template.selectorLabels" -}}
-app.kubernetes.io/name: operator-template
+{{- define "fleet-operator.selectorLabels" -}}
+app.kubernetes.io/name: fleet-operator
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
-{{- define "operator-template.labels" -}}
-app.kubernetes.io/name: operator-template
+{{- define "fleet-operator.labels" -}}
+app.kubernetes.io/name: fleet-operator
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version }}

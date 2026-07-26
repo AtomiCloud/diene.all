@@ -8,6 +8,11 @@ on:
       image_name:
         required: true
         type: string
+      image_repository:
+        description: Full published repository (registry + path), verbatim. Empty keeps the repo-scoped derivation.
+        required: false
+        type: string
+        default: ''
       dockerfile:
         required: false
         type: string
@@ -39,6 +44,7 @@ jobs:
         env:
           CI_DOCKER_CONTEXT: ${{ inputs.context }}
           CI_DOCKER_IMAGE: ${{ inputs.image_name }}
+          CI_DOCKER_REPOSITORY: ${{ inputs.image_repository }}
           CI_DOCKER_PLATFORM: ${{ inputs.platform }}
           CI_DOCKER_PUSH: 'true'
           CI_DOCKERFILE: ${{ inputs.dockerfile }}

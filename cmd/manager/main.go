@@ -9,7 +9,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	"github.com/AtomiCloud/diene.go-base/internal/operatorruntime"
+	"github.com/AtomiCloud/diene.fleet-operator/internal/operatorruntime"
 )
 
 func main() {
