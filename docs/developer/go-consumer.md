@@ -1,8 +1,3 @@
----
-id: go-consumer
-title: Go Consumer
----
-
 # Go consumer
 
 This template builds one background-worker artifact with three subcommands:
