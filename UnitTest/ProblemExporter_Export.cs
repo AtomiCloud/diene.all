@@ -53,6 +53,33 @@ public class ProblemExporter_Export
     }
 
     [Fact]
+    public void It_should_emit_each_requested_version_from_a_versioned_catalog()
+    {
+        // Arrange
+        var typeUris = new ProblemTypeUriBuilder(Portal);
+        var catalog = new ProblemCatalogBuilder()
+            .Add<SampleProblem>(400, false)
+            .Add<VersionTwoProblem>(409, true)
+            .Build();
+        var exporter = new ProblemExporter(catalog, typeUris);
+        var emitter = new ProblemResourceEmitter(catalog, exporter, typeUris, Portal);
+
+        // Act
+        var versionOne = emitter.Emit(new ProblemResourceIdentity("dotnet", "notes", "lapras", "v1"));
+        var versionTwo = emitter.Emit(new ProblemResourceIdentity("dotnet", "notes", "lapras", "v2"));
+        var missingVersion = () => emitter.Emit(new ProblemResourceIdentity("dotnet", "notes", "lapras", "v3"));
+
+        // Assert
+        versionOne.Spec.Version.Should().Be("v1");
+        versionOne.Spec.Problems.Should().ContainSingle().Which.Should().Match<ProblemResourceEntry>(entry =>
+            entry.Id == "sample_problem" && entry.Type.EndsWith("/v1/sample_problem", StringComparison.Ordinal));
+        versionTwo.Spec.Version.Should().Be("v2");
+        versionTwo.Spec.Problems.Should().ContainSingle().Which.Should().Match<ProblemResourceEntry>(entry =>
+            entry.Id == "version_two" && entry.Type.EndsWith("/v2/version_two", StringComparison.Ordinal));
+        missingVersion.Should().Throw<ArgumentException>().WithMessage("*v3*");
+    }
+
+    [Fact]
     public void It_should_reject_foreign_descriptors_and_inconsistent_resource_rows()
     {
         // Arrange
@@ -62,12 +89,6 @@ public class ProblemExporter_Export
         var emitter = new ProblemResourceEmitter(catalog, exporter, typeUris, Portal);
         var foreign = new ProblemDescriptor(typeof(OtherProblem), "other_problem", "Other", "v1", 400, false, []);
         var valueEqualCopy = catalog.All.Single() with { };
-        var mixedCatalog = new ProblemCatalogBuilder()
-            .Add<SampleProblem>(400, false)
-            .Add<VersionTwoProblem>(400, false)
-            .Build();
-        var mixedExporter = new ProblemExporter(mixedCatalog, typeUris);
-        var mixedEmitter = new ProblemResourceEmitter(mixedCatalog, mixedExporter, typeUris, Portal);
         var emptyCatalog = new ProblemCatalogBuilder().Build();
         var emptyExporter = new ProblemExporter(emptyCatalog, typeUris);
         var emptyEmitter = new ProblemResourceEmitter(emptyCatalog, emptyExporter, typeUris, Portal);
@@ -76,14 +97,12 @@ public class ProblemExporter_Export
         var foreignAct = () => exporter.Export(foreign);
         var valueEqualCopyAct = () => exporter.Export(valueEqualCopy);
         var identityAct = () => emitter.Emit(new ProblemResourceIdentity("other", "notes", "lapras", "v1"));
-        var versionAct = () => mixedEmitter.Emit(new ProblemResourceIdentity("dotnet", "notes", "lapras", "v1"));
         var emptyAct = () => emptyEmitter.Emit(new ProblemResourceIdentity("dotnet", "notes", "lapras", "v1"));
 
         // Assert
         foreignAct.Should().Throw<ArgumentException>();
         valueEqualCopyAct.Should().Throw<ArgumentException>();
         identityAct.Should().Throw<ArgumentException>();
-        versionAct.Should().Throw<ArgumentException>();
         emptyAct.Should().Throw<ArgumentException>();
     }
 

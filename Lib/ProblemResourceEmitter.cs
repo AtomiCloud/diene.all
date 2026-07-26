@@ -22,11 +22,13 @@ public sealed class ProblemResourceEmitter(
         ArgumentNullException.ThrowIfNull(identity);
         ValidateIdentity(identity);
 
-        var versions = _catalog.All.Select(descriptor => descriptor.Version).Distinct(StringComparer.Ordinal).ToArray();
-        if (versions.Length != 1 || versions[0] != identity.Version)
-            throw new ArgumentException("A Problem resource must contain exactly one catalog version matching its identity.", nameof(identity));
+        var descriptors = _catalog.All
+            .Where(descriptor => string.Equals(descriptor.Version, identity.Version, StringComparison.Ordinal))
+            .ToArray();
+        if (descriptors.Length == 0)
+            throw new ArgumentException($"Problem catalog does not contain requested version '{identity.Version}'.", nameof(identity));
 
-        var entries = _catalog.All
+        var entries = descriptors
             .OrderBy(descriptor => descriptor.Id, StringComparer.Ordinal)
             .Select(descriptor => ToResourceEntry(descriptor, _exporter.Export(descriptor)))
             .ToArray();
