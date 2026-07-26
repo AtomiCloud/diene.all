@@ -32,7 +32,7 @@ final InMemoryVfs vfs = InMemoryVfs(
 ```
 
 `InMemoryTerminal.run` is the one member with no default: an unscripted `run` is
-an `unexpected-call` failure, because "a process silently succeeded" is never a
+an `unexpected_call` failure, because "a process silently succeeded" is never a
 safe default in a test.
 
 Every fake records what it saw — `InMemorySystem.requestedDelays`,

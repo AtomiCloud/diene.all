@@ -66,7 +66,7 @@ void main() {
           isA<SeamAssertionFailure>().having(
             (SeamAssertionFailure failure) => failure.message,
             'message',
-            contains('Expected a system/not-found problem'),
+            contains('Expected a system/not_found problem'),
           ),
         ),
       );

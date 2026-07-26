@@ -89,14 +89,35 @@ void main() {
       );
 
       // Act.
+      //
+      // R-E14 WIRE-ID CONTRACT VARIANCE. The frozen release `c0-fixtures-r2`
+      // still SAMPLES kebab ids (`entity-not-found`) while R-E14 amended C0 so
+      // the WIRE id is snake_case — the spelling the published
+      // `problemTypeUri` builder enforces with `^[a-z][a-z0-9_]*$`. Feeding the
+      // frozen sample in unmodified therefore throws
+      // `InvalidProblemTypeSegmentError`. Normalize with the release owner's own
+      // published helper `r14WireId`; this leaf NEVER rewrites the frozen
+      // release bytes. A corrected fixture round (r3) is owed at the release
+      // owner under R-E8a — fixed once there, inherited by merge. When it lands,
+      // the variance group below fails and this normalization is deleted.
+      // Follows the lead's ratified 2026-07-26 disposition already applied by
+      // the published sibling `lib/dart/problems`.
+      final String frozenId = segments['id']! as String;
       final String built = problemTypeUri(
         portal: portal,
         version: segments['version']! as String,
-        id: segments['id']! as String,
+        id: r14WireId(frozenId),
       );
 
-      // Assert.
-      expect(built, example['expectedTypeUri']);
+      // Assert. Only the id SEGMENT is normalized, never the whole URI, so a
+      // hyphen anywhere else in the template would still be a real failure.
+      expect(
+        built,
+        (example['expectedTypeUri']! as String).replaceAll(
+          '/$frozenId',
+          '/${r14WireId(frozenId)}',
+        ),
+      );
     });
 
     test('every seam failure type URI satisfies the frozen template', () {
@@ -140,7 +161,7 @@ void main() {
         // Assert.
         expect(
           problem.type,
-          endsWith('/$interfacesProblemVersion/vfs-not-found'),
+          endsWith('/$interfacesProblemVersion/vfs_not_found'),
         );
       },
     );

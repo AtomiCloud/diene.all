@@ -6,7 +6,7 @@ import 'package:test/test.dart';
 
 void main() {
   group('PortErrorCode', () {
-    test('every code carries a kebab-case wire id and an HTTP status', () {
+    test('every code carries a snake_case wire id and an HTTP status', () {
       // Arrange & Act.
       final Iterable<String> ids = PortErrorCode.values.map(
         (PortErrorCode code) => code.wireId,
@@ -15,7 +15,11 @@ void main() {
       // Assert.
       expect(ids.toSet(), hasLength(PortErrorCode.values.length));
       for (final PortErrorCode code in PortErrorCode.values) {
-        expect(code.wireId, matches(r'^[a-z][a-z-]*[a-z]$'));
+        expect(
+          problemWireIdPattern.hasMatch(code.wireId),
+          isTrue,
+          reason: code.wireId,
+        );
         expect(code.status, inInclusiveRange(400, 599));
       }
     });
@@ -52,7 +56,7 @@ void main() {
       expect(problem.recoverable, isFalse);
       expect(problem.data, <String, Object?>{
         'port': 'vfs',
-        'code': 'not-found',
+        'code': 'not_found',
         'operation': 'readText',
         'path': '/missing',
       });
@@ -82,7 +86,7 @@ void main() {
       expect(
         problem.type,
         'https://docs.raichu.cluster.atomi.cloud/docs/raichu/dart/wallet/app'
-        '/v1/system-io',
+        '/v1/system_io',
       );
     });
 
@@ -128,7 +132,7 @@ void main() {
       // Assert.
       expect(failure.problem.status, 400);
       expect(failure.problem.data['field'], 'message');
-      expect(failure.problem.data['code'], 'invalid-input');
+      expect(failure.problem.data['code'], 'invalid_input');
     });
   });
 }

@@ -37,31 +37,31 @@ enum PortName {
 /// so a cross-language reader recognises the same failure taxonomy.
 enum PortErrorCode {
   /// The target already exists.
-  alreadyExists('already-exists', 409),
+  alreadyExists('already_exists', 409),
 
   /// The boundary was already closed.
   closed('closed', 409),
 
   /// A non-recursive delete hit a non-empty directory.
-  directoryNotEmpty('directory-not-empty', 409),
+  directoryNotEmpty('directory_not_empty', 409),
 
   /// The caller supplied input the contract forbids.
-  invalidInput('invalid-input', 400),
+  invalidInput('invalid_input', 400),
 
   /// A host I/O failure with no more specific code.
   io('io', 500),
 
   /// A directory operation was aimed at a non-directory.
-  notADirectory('not-a-directory', 400),
+  notADirectory('not_a_directory', 400),
 
   /// A file operation was aimed at a non-file.
-  notAFile('not-a-file', 400),
+  notAFile('not_a_file', 400),
 
   /// The target does not exist.
-  notFound('not-found', 404),
+  notFound('not_found', 404),
 
   /// The host refused the operation.
-  permissionDenied('permission-denied', 403),
+  permissionDenied('permission_denied', 403),
 
   /// The operation exceeded its budget.
   timeout('timeout', 504, recoverable: true),
@@ -70,14 +70,18 @@ enum PortErrorCode {
   unavailable('unavailable', 503, recoverable: true),
 
   /// A fake or adapter was called without a scripted response.
-  unexpectedCall('unexpected-call', 500),
+  unexpectedCall('unexpected_call', 500),
 
   /// The boundary does not implement the operation.
   unsupported('unsupported', 501);
 
   const PortErrorCode(this.wireId, this.status, {this.recoverable = false});
 
-  /// Stable kebab-case identifier used in the problem type URI and `data`.
+  /// Stable snake_case identifier used in the problem type URI and `data`.
+  ///
+  /// R-E14 wire-id law: must match `^[a-z][a-z0-9_]*$`, the same pattern the
+  /// single-source `problemTypeUri` builder in `package:diene_problems`
+  /// enforces, so a wire id minted by one language family is accepted by all.
   final String wireId;
 
   /// HTTP status the RFC 9457 envelope carries for this code.
@@ -111,7 +115,7 @@ Problem portProblem({
   type: problemTypeUri(
     portal: portal,
     version: interfacesProblemVersion,
-    id: '${port.name}-${code.wireId}',
+    id: '${port.name}_${code.wireId}',
   ),
   title: message,
   status: code.status,
