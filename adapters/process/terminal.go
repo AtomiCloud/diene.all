@@ -5,7 +5,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/AtomiCloud/diene.go-interfaces/lib/interfaces"
@@ -51,7 +51,10 @@ func (t Terminal) Run(ctx context.Context, command interfaces.TerminalCommand) (
 	if err != nil {
 		return interfaces.TerminalOutput{}, err
 	}
-	process := exec.CommandContext(ctx, executable, args...)
+	// Running a caller-named executable IS this adapter's entire purpose: it is
+	// the harness binding for the family terminal seam, and every path into it is
+	// a test author naming the artifact they built. There is nothing to sanitise.
+	process := exec.CommandContext(ctx, executable, args...) //nolint:gosec // the seam exists to run a named executable
 	if command.WorkingDirectory != nil {
 		process.Dir = *command.WorkingDirectory
 	}
@@ -134,7 +137,7 @@ func Environ(overrides map[string]string, inherited []string) []string {
 	for key := range overrides {
 		keys = append(keys, key)
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 	for _, key := range keys {
 		environ = append(environ, key+"="+overrides[key])
 	}

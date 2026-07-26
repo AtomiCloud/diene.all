@@ -23,7 +23,7 @@ type StackOptions struct {
 	Cache bool
 	// Kv boots the kv preset.
 	Kv bool
-	// Storage boots the storage preset, and creates its bucket.
+	// Storage boots the storage preset; the preset helper creates its bucket.
 	Storage bool
 	// Runtime overrides the container runtime. Nil uses the real Docker
 	// runtime.
@@ -99,10 +99,9 @@ func StartStack(ctx context.Context, options StackOptions) (*Stack, error) {
 		if err != nil {
 			return nil, stack.unwind(ctx, err)
 		}
+		// No bucket creation here: StartStorage already creates the bucket its
+		// block addresses, and creating it twice would surface as a conflict.
 		stack.Storage = started
-		if err := presetth.CreateBucket(ctx, started.Entry); err != nil {
-			return nil, stack.unwind(ctx, err)
-		}
 	}
 	return stack, nil
 }

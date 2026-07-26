@@ -2,8 +2,9 @@ package fixture
 
 import (
 	"context"
+	"fmt"
 	"path"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -45,7 +46,7 @@ func (b Bundle) Landscapes() []string {
 	for name := range b.Overlays {
 		names = append(names, name)
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	return names
 }
 
@@ -71,13 +72,41 @@ func (b Bundle) Merged(landscape string) map[string]any {
 // optional layer the same way.
 func (b Bundle) Document(landscape string) ([]byte, error) {
 	if landscape == config.BaseLandscape {
-		return yaml.Marshal(b.Base)
+		return renderYAML(b.Base)
 	}
 	overlay, found := b.Overlays[landscape]
 	if !found {
-		return yaml.Marshal(map[string]any{})
+		return renderYAML(map[string]any{})
 	}
-	return yaml.Marshal(overlay)
+	return renderYAML(overlay)
+}
+
+// UnrenderableError reports a fixture value YAML cannot represent.
+//
+// It exists because the YAML encoder PANICS on a value it does not understand —
+// a func, a channel — rather than returning an error. In a test harness that is
+// the worst possible behaviour: one bad fixture value would take down the whole
+// test binary and report as an unrelated crash, so the panic is converted into
+// an ordinary error the fixture layer can describe as a problem.
+type UnrenderableError struct {
+	// Reason is what the encoder objected to.
+	Reason string
+}
+
+// Error renders the refusal.
+func (e *UnrenderableError) Error() string {
+	return "fixture: the layer cannot be rendered as YAML: " + e.Reason
+}
+
+// renderYAML marshals one layer, converting the encoder's panic into an error.
+func renderYAML(layer map[string]any) (document []byte, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			document = nil
+			err = &UnrenderableError{Reason: fmt.Sprint(recovered)}
+		}
+	}()
+	return yaml.Marshal(layer)
 }
 
 // Environ renders the environment layer with prefix, in the exact C0 shape.

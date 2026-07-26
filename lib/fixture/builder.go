@@ -2,6 +2,7 @@ package fixture
 
 import (
 	"errors"
+	"maps"
 	"strings"
 
 	"github.com/AtomiCloud/diene.go-config/lib/config"
@@ -136,12 +137,8 @@ func (b *Builder) Build() (Bundle, error) {
 	if b.failure != nil {
 		return Bundle{}, b.failure
 	}
-	base, valid := coreutils.DeepClone(b.base).(map[string]any)
-	if !valid {
-		base = map[string]any{}
-	}
 	return Bundle{
-		Base:     base,
+		Base:     cloneDocument(b.base),
 		Overlays: cloneOverlays(b.overlays),
 		Env:      cloneStrings(b.env),
 		Lists:    cloneLists(b.lists),
@@ -160,12 +157,23 @@ func (b *Builder) reject(value string, label string) bool {
 	return false
 }
 
-// fail records the first invalid-fixture problem.
+// fail records the invalid-fixture problem.
+//
+// Every call site is behind [Builder.reject], which already stops once a failure
+// is recorded, so this never overwrites an earlier one and never runs with a nil
+// problem factory.
 func (b *Builder) fail(detail string, data map[string]any) {
-	if b.failure != nil {
-		return
-	}
 	b.failure = b.problems.Raise(e2e.ProblemFixtureInvalid, detail, data)
+}
+
+// cloneDocument deep-copies one configuration layer.
+//
+// It goes through the core-utils merge of a single layer rather than a bare
+// DeepClone plus a type assertion: the merge is already typed as a document, so
+// there is no assertion to get wrong and no unreachable fallback to pretend to
+// test.
+func cloneDocument(source map[string]any) map[string]any {
+	return coreutils.DeepMergeAll(source)
 }
 
 // cloneOverlays deep-copies the overlay layers so a built bundle cannot be
@@ -173,11 +181,7 @@ func (b *Builder) fail(detail string, data map[string]any) {
 func cloneOverlays(source map[string]map[string]any) map[string]map[string]any {
 	cloned := make(map[string]map[string]any, len(source))
 	for landscape, overlay := range source {
-		copied, valid := coreutils.DeepClone(overlay).(map[string]any)
-		if !valid {
-			copied = map[string]any{}
-		}
-		cloned[landscape] = copied
+		cloned[landscape] = cloneDocument(overlay)
 	}
 	return cloned
 }
@@ -185,9 +189,7 @@ func cloneOverlays(source map[string]map[string]any) map[string]map[string]any {
 // cloneStrings copies a scalar map.
 func cloneStrings(source map[string]string) map[string]string {
 	cloned := make(map[string]string, len(source))
-	for key, value := range source {
-		cloned[key] = value
-	}
+	maps.Copy(cloned, source)
 	return cloned
 }
 

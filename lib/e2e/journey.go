@@ -73,7 +73,7 @@ type Report struct {
 // An empty journey is a [ProblemJourneyEmpty], never a vacuous green.
 func RunJourney(ctx context.Context, driver Driver, journey Journey, problems *Problems) (Report, error) {
 	if problems == nil {
-		return Report{}, errUnconfigured("problems")
+		return Report{}, ErrNoProblems
 	}
 	if driver == nil {
 		return Report{}, problems.Raise(
@@ -173,7 +173,7 @@ func (e *StepMismatchError) Error() string {
 // must never differ is which steps ran and how each one ended.
 func CompareReports(left Report, right Report, problems *Problems) error {
 	if problems == nil {
-		return errUnconfigured("problems")
+		return ErrNoProblems
 	}
 	if left.Journey != right.Journey {
 		return problems.Raise(
@@ -223,14 +223,20 @@ func CompareReports(left Report, right Report, problems *Problems) error {
 //
 // This is the shape a SIT suite actually wants: one call, one journey, two
 // execution models, and a typed failure the moment they diverge.
-func RunParity(ctx context.Context, compiled Driver, inProcess Driver, journey Journey, problems *Problems) (Report, Report, error) {
-	first, err := RunJourney(ctx, compiled, journey, problems)
+func RunParity(
+	ctx context.Context,
+	compiled Driver,
+	inProcess Driver,
+	journey Journey,
+	problems *Problems,
+) (compiledReport Report, inProcessReport Report, err error) {
+	compiledReport, err = RunJourney(ctx, compiled, journey, problems)
 	if err != nil {
-		return first, Report{}, err
+		return compiledReport, Report{}, err
 	}
-	second, err := RunJourney(ctx, inProcess, journey, problems)
+	inProcessReport, err = RunJourney(ctx, inProcess, journey, problems)
 	if err != nil {
-		return first, second, err
+		return compiledReport, inProcessReport, err
 	}
-	return first, second, CompareReports(first, second, problems)
+	return compiledReport, inProcessReport, CompareReports(compiledReport, inProcessReport, problems)
 }

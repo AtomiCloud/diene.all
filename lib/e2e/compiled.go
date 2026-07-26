@@ -57,7 +57,7 @@ type CompiledDriver struct {
 // later.
 func NewCompiledDriver(options CompiledOptions) (*CompiledDriver, error) {
 	if options.Problems == nil {
-		return nil, errUnconfigured("problems")
+		return nil, ErrNoProblems
 	}
 	if options.Artifact == "" {
 		return nil, options.Problems.Raise(
@@ -99,8 +99,8 @@ func (d *CompiledDriver) Artifact() string {
 	return d.artifact
 }
 
-// Run executes the artifact with invocation's arguments, environment, working
-// directory, and standard input.
+// Run executes the artifact with invocation's arguments, environment, and
+// working directory.
 //
 // A non-zero exit code is a [Result], not an error — that is the journey's
 // business. An error means the artifact could not be run at all.

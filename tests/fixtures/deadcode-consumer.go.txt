@@ -1,26 +1,155 @@
+// This is the reachability witness for the production deadcode pass. It is
+// materialized as a throwaway main next to the module and never compiled as part
+// of it, so the library keeps having no main package.
+//
+// Every exported function of every production package has to be REACHED from
+// here, otherwise the strict production pass reports it as dead.
+//
+// Two different idioms are needed, and the difference is not cosmetic. A METHOD
+// value (`_ = value.Method`) marks the method as address-taken and counts as
+// reachable. A plain FUNCTION value assigned to the blank identifier does NOT:
+// the reference is discarded before the reachability analysis sees a call, so
+// every package-level function has to actually be CALLED here. Calls are chosen
+// to be side-effect free — refusals, empty inputs, nil seams — because this
+// witness is compiled, not run.
 package main
 
 import (
 	"context"
 
-	"github.com/AtomiCloud/diene.go-lib/adapters/kv"
-	"github.com/AtomiCloud/diene.go-lib/lib/note"
-	"github.com/AtomiCloud/diene.go-lib/testhelper"
+	"github.com/AtomiCloud/diene.go-e2e/adapters/filesystem"
+	"github.com/AtomiCloud/diene.go-e2e/adapters/process"
+	"github.com/AtomiCloud/diene.go-e2e/lib/e2e"
+	"github.com/AtomiCloud/diene.go-e2e/lib/fixture"
+	"github.com/AtomiCloud/diene.go-e2e/lib/preview"
+	"github.com/AtomiCloud/diene.go-e2e/testhelper"
+	"github.com/AtomiCloud/diene.go-errors-problems/lib/problem"
 )
 
 func main() {
 	ctx := context.Background()
-	memory := testhelper.NewMemoryStore()
-	value := note.New("Deadcode Consumer", "public surface")
-	service := note.NewService(memory)
-	_ = note.Slug(value.Slug)
-	_ = note.NamespacedKey("notes", value.Slug)
-	_ = service.Save(ctx, value)
-	_, _ = service.Load(ctx, value.Slug)
-	_ = memory.Save(ctx, value.Slug, value.Body)
-	_, _ = memory.Load(ctx, value.Slug)
-	redis := kv.NewRedisStore("127.0.0.1:6379")
-	_ = redis.Save
-	_ = redis.Load
-	_ = redis.Close
+
+	// --- lib/e2e -----------------------------------------------------------
+	problems, _ := e2e.NewProblems(problem.LocalErrorPortal())
+	_ = e2e.ProblemTypes()
+	_ = problems.Registry
+	_, _ = problems.Catalog()
+	_ = problems.Raise
+	_ = problems.RaiseFrom
+	result := e2e.Result{ExitCode: 0}
+	_ = result.Succeeded()
+	step := e2e.Step{Name: "step", Invocation: e2e.Invocation{}, Expect: e2e.Expectation{}}
+	_ = e2e.CheckStep(step, result)
+	mismatch := &e2e.StepMismatchError{Step: "step", Reason: "reason"}
+	_ = mismatch.Error()
+	journey := e2e.Journey{Name: "journey", Steps: []e2e.Step{step}}
+	report := e2e.Report{Driver: "driver", Journey: "journey", Steps: []e2e.StepReport{{Name: "step", Result: result}}}
+	_ = e2e.CompareReports(report, report, problems)
+
+	terminal := process.NewTerminal(process.TerminalOptions{})
+	_ = process.Environ(nil, nil)
+	_ = terminal.Run
+
+	compiled, _ := e2e.NewCompiledDriver(e2e.CompiledOptions{
+		Artifact: "/bin/true", Terminal: terminal, Problems: problems,
+	})
+	_ = compiled.Name
+	_ = compiled.Artifact
+	_ = compiled.Run
+
+	entrypoint := e2e.Entrypoint(testhelper.EchoEntrypoint)
+	inProcess, _ := e2e.NewInProcessDriver(e2e.InProcessOptions{Entrypoint: entrypoint, Problems: problems})
+	_ = inProcess.Name
+	_ = inProcess.Run
+	_, _ = e2e.RunJourney(ctx, inProcess, journey, problems)
+	_, _, _ = e2e.RunParity(ctx, inProcess, inProcess, journey, problems)
+
+	// --- adapters/filesystem ----------------------------------------------
+	vfs := filesystem.NewVfs()
+	_ = vfs.Exists
+	_ = vfs.ReadBytes
+	_ = vfs.ReadText
+	_ = vfs.WriteBytes
+	_ = vfs.WriteText
+	_ = vfs.List
+	_ = vfs.CreateDirectory
+	_ = vfs.Delete
+
+	// --- lib/preview -------------------------------------------------------
+	// A real (empty) environment seam, so the environment reader and its default
+	// handling are reached rather than short-circuited by a nil-seam refusal.
+	system := testhelper.NewInMemorySystem(testhelper.InMemorySystemOptions{})
+	_, _ = preview.Resolve(system, problems)
+	_ = preview.Schema()
+	_ = preview.EngineBlocks()
+	_ = preview.APIBlock()
+	target := preview.Target{Landscape: "garden"}
+	_ = target.Validate
+	_ = target.Identity
+	_ = target.AppBlock
+	_ = target.OtelConfig
+	_ = target.AuthConfig
+	_ = target.APIConfig
+	unconfigured := &preview.UnconfiguredError{Component: "problems"}
+	_ = unconfigured.Error()
+
+	// --- lib/fixture -------------------------------------------------------
+	builder := fixture.NewBuilder(problems)
+	_ = builder.WithApp
+	_ = builder.WithBlock
+	_ = builder.WithOverlay
+	_ = builder.WithEnv
+	_ = builder.WithList
+	_ = builder.WithSecret
+	bundle, _ := builder.Build()
+	_ = bundle.Landscapes()
+	_ = bundle.Merged("garden")
+	_, _ = bundle.Document("garden")
+	_ = bundle.Environ("")
+	_ = fixture.EnvKey("ATOMI_", "app.version")
+	_ = bundle.Materialize
+	_ = bundle.Loader
+	_, _ = fixture.Instant(system)
+	_, _ = fixture.Duration("PT1S")
+	_, _ = fixture.Zone("UTC")
+	_ = fixture.Directory("/tmp", "case")
+	unrenderable := &fixture.UnrenderableError{Reason: "reason"}
+	_ = unrenderable.Error()
+
+	// --- testhelper --------------------------------------------------------
+	observer := quiet{}
+	_, _ = testhelper.SampleProblems()
+	_ = testhelper.CheckResult(result, e2e.Expectation{})
+	testhelper.AssertResult(observer, result, e2e.Expectation{})
+	_ = testhelper.CheckStep(step, result)
+	testhelper.AssertStep(observer, step, result)
+	_ = testhelper.CheckReport(report, journey)
+	testhelper.AssertReport(observer, report, journey)
+	_, _ = testhelper.CheckHarnessProblem(nil, "id")
+	_ = testhelper.AssertHarnessProblem(observer, nil, "id")
+	testhelper.AssertNoHarnessProblem(observer, nil)
+	_ = testhelper.RequireReport(observer, report, nil)
+	scripted := testhelper.NewScriptedDriver("scripted")
+	_ = scripted.Name
+	_ = scripted.Run
+	_ = scripted.Calls
+	_ = scripted.Remaining
+	_ = testhelper.EchoEntrypoint
+	_, _ = testhelper.NewEchoDriver(problems)
+	stack, _ := testhelper.StartStack(ctx, testhelper.StackOptions{})
+	_ = testhelper.RequireStack(observer, stack, nil)
+	_ = testhelper.PresetRequireEntry(observer, map[string]int{}, "key")
+	_ = testhelper.PresetRequireStarted(observer, (*int)(nil), nil)
+	_ = stack.Blocks
+	_ = stack.Terminate
 }
+
+// quiet satisfies the TestHelper's assertion interface without ending anything.
+// The witness is compiled, never run, so a reported failure has nowhere to go.
+type quiet struct{}
+
+// Helper is a no-op.
+func (quiet) Helper() {}
+
+// Fatalf is a no-op.
+func (quiet) Fatalf(string, ...any) {}

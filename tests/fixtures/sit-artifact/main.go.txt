@@ -1,0 +1,48 @@
+// This is the stand-in SYSTEM UNDER TEST for the harness's own integration
+// tier. It is materialized and compiled at test time rather than shipped as a
+// package, because the module deliberately has no main.
+//
+// It does the two things a harnessed service must do, and nothing else: read its
+// configuration off disk from the path it is given, and read its secret from the
+// environment. The in-process entrypoint in the same test implements the same
+// contract, so RunParity proves a real subprocess and a real in-process run agree.
+package main
+
+import (
+	"fmt"
+	"os"
+	"strconv"
+	"strings"
+)
+
+func main() {
+	if len(os.Args) < 2 {
+		fmt.Fprintln(os.Stderr, "usage: artifact <config-path>")
+		os.Exit(2)
+	}
+	content, err := os.ReadFile(os.Args[1])
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "config unreadable: "+err.Error())
+		os.Exit(2)
+	}
+	service := ""
+	for _, line := range strings.Split(string(content), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "service:") {
+			service = strings.TrimSpace(strings.TrimPrefix(trimmed, "service:"))
+		}
+	}
+	fmt.Println("service=" + service)
+	fmt.Println("secret=" + os.Getenv("ATOMI_POSTGRES__MAIN__PASSWORD"))
+	if raw := os.Getenv("E2E_ARTIFACT_EXIT"); raw != "" {
+		code, convErr := strconv.Atoi(raw)
+		if convErr != nil {
+			fmt.Fprintln(os.Stderr, "bad exit code: "+raw)
+			os.Exit(2)
+		}
+		if code != 0 {
+			fmt.Fprintln(os.Stderr, "requested failure")
+			os.Exit(code)
+		}
+	}
+}

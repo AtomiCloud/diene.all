@@ -4,7 +4,8 @@ import (
 	"context"
 	"errors"
 	"io"
-	"sort"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -59,7 +60,7 @@ func (d *ScriptedDriver) Name() string {
 func (d *ScriptedDriver) Run(_ context.Context, invocation e2e.Invocation) (e2e.Result, error) {
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
-	d.calls = append(d.calls, invocation)
+	d.calls = append(d.calls, copyInvocation(invocation))
 	if len(d.steps) == 0 {
 		return e2e.Result{}, ErrScriptExhausted
 	}
@@ -72,10 +73,33 @@ func (d *ScriptedDriver) Run(_ context.Context, invocation e2e.Invocation) (e2e.
 }
 
 // Calls returns the invocations the driver was asked to run, in order.
+//
+// Each one is an independent copy, so reading recorded history cannot rewrite
+// it — a caller that inspects an argument slice and then reuses it would
+// otherwise corrupt the record it just read.
 func (d *ScriptedDriver) Calls() []e2e.Invocation {
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
-	return append([]e2e.Invocation(nil), d.calls...)
+	copied := make([]e2e.Invocation, 0, len(d.calls))
+	for _, call := range d.calls {
+		copied = append(copied, copyInvocation(call))
+	}
+	return copied
+}
+
+// copyInvocation records an independent copy of what the driver was asked.
+//
+// Recorded history that shares its slices and maps with the caller is not
+// history: a journey that reuses one environment map across steps would make
+// every recorded call look like the last one.
+func copyInvocation(invocation e2e.Invocation) e2e.Invocation {
+	environment := make(map[string]string, len(invocation.Env))
+	maps.Copy(environment, invocation.Env)
+	return e2e.Invocation{
+		Args:             append([]string(nil), invocation.Args...),
+		Env:              environment,
+		WorkingDirectory: invocation.WorkingDirectory,
+	}
 }
 
 // Remaining reports how many scripted answers are unused, so a test can prove
@@ -103,7 +127,7 @@ func EchoEntrypoint(_ context.Context, invocation e2e.Invocation, stdout io.Writ
 	for key := range invocation.Env {
 		keys = append(keys, key)
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 	for _, key := range keys {
 		if _, err := io.WriteString(stdout, "env: "+key+"="+invocation.Env[key]+"\n"); err != nil {
 			return 0, err

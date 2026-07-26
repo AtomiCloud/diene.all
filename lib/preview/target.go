@@ -177,18 +177,16 @@ func (t Target) Validate(problems *e2e.Problems) error {
 			)
 		}
 	}
+	// The endpoint is validated by the otel sibling's OWN validator and by
+	// nothing else here. It already enforces the C0-frozen http/protobuf port
+	// ([otel.OtlpHTTPPort]), and a second check in the harness would eventually
+	// disagree with it — rejecting an endpoint the runtime accepts is exactly the
+	// drift D2 exists to prevent.
 	if err := otel.ValidateOtlpEndpoint(t.OtlpEndpoint); err != nil {
 		return problems.RaiseFrom(
 			e2e.ProblemTargetIncomplete,
 			err,
 			"the preview OTLP endpoint is not a valid collector endpoint",
-			map[string]any{"variable": EnvOtlpEndpoint, "endpoint": t.OtlpEndpoint},
-		)
-	}
-	if !strings.HasSuffix(t.OtlpEndpoint, ":"+otel.OtlpHTTPPort) {
-		return problems.Raise(
-			e2e.ProblemTargetIncomplete,
-			"the preview OTLP endpoint must address the C0 http/protobuf port",
 			map[string]any{"variable": EnvOtlpEndpoint, "endpoint": t.OtlpEndpoint, "port": otel.OtlpHTTPPort},
 		)
 	}
@@ -281,24 +279,59 @@ func (t Target) APIConfig() apiengine.Config {
 	return base
 }
 
-// Schema returns the composed root schema a service targeted by this harness
-// validates against: the app block, the three engine blocks, and the four
-// frozen infra presets.
+// EngineBlocks returns the engine and infra-preset blocks a service targeted by
+// this harness composes into its root schema, in stable order.
 //
-// Composition happens HERE and validation happens in the config lib, which is
-// the only merger and validator in the family. This function adds no keys of its
-// own; a service with extra keys composes them on top itself.
-func Schema() config.Schema {
-	return config.ComposeSchema(
+// It is exported separately from [Schema] so a service can compose its OWN keys
+// alongside them without this package having to know about them, which is the
+// C0 §3 division: every engine owns its block, the service composes, and the
+// config lib is the sole merger and validator.
+//
+// # The api-engine block is deliberately absent
+//
+// `github.com/AtomiCloud/diene.go-api-engine@v1.0.0` puts a JSON Schema
+// `pattern` on its two ISO 8601 duration fields that uses a Perl negative
+// lookahead. Go's regexp does not support it, so the config lib's validator
+// cannot COMPILE a root schema containing that block — the failure is at schema
+// compile time and takes the whole document with it, valid or not. Composing it
+// would therefore break every consumer of this harness rather than validate
+// anything, so it is left out until an api-engine patch drops the pattern (the
+// otel sibling's DurationSchema, which ships no pattern for the same values, is
+// the family precedent). A consumer still gets fully typed api configuration
+// from [Target.APIConfig]; only schema validation of that one block is
+// unavailable. The regression test in tests/unit/preview turns red the moment
+// the block becomes compilable, which is the signal to add it back here.
+func EngineBlocks() []config.Block {
+	return []config.Block{
 		config.AppBlockSchema(),
 		config.NewBlock(otel.BlockKey, true, otel.JSONSchema()),
 		config.NewBlock(authengine.ConfigBlockKey, true, authengine.ConfigBlockSchema()),
-		config.NewBlock(apiengine.ConfigBlockKey, true, apiengine.ConfigBlockSchema()),
 		config.NewBlock(standardconfig.PostgresBlockKey, false, standardconfig.PostgresSchema()),
 		config.NewBlock(standardconfig.CacheBlockKey, false, standardconfig.CacheSchema()),
 		config.NewBlock(standardconfig.KvBlockKey, false, standardconfig.KvSchema()),
 		config.NewBlock(standardconfig.StorageBlockKey, false, standardconfig.StorageSchema()),
-	)
+	}
+}
+
+// APIBlock returns the api-engine block on its own.
+//
+// It is separate from [EngineBlocks] for the reason documented there: composing
+// it into a root schema is currently fatal at schema-compile time. It is
+// exported so a consumer can compose it deliberately once api-engine ships the
+// fix, and so the harness's own regression test can assert exactly which block
+// is at fault rather than asserting that "something" is broken.
+func APIBlock() config.Block {
+	return config.NewBlock(apiengine.ConfigBlockKey, true, apiengine.ConfigBlockSchema())
+}
+
+// Schema returns the composed root schema a service targeted by this harness
+// validates against.
+//
+// Composition happens HERE and validation happens in the config lib, which is
+// the only merger and validator in the family. This function adds no keys of its
+// own; a service with extra keys composes [EngineBlocks] plus its own instead.
+func Schema() config.Schema {
+	return config.ComposeSchema(EngineBlocks()...)
 }
 
 // environmentReader reads one variable at a time through the system seam,

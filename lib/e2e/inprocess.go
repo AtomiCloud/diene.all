@@ -56,7 +56,7 @@ type InProcessDriver struct {
 // rather than a nil-func panic on the first step.
 func NewInProcessDriver(options InProcessOptions) (*InProcessDriver, error) {
 	if options.Problems == nil {
-		return nil, errUnconfigured("problems")
+		return nil, ErrNoProblems
 	}
 	if options.Entrypoint == nil {
 		return nil, options.Problems.Raise(

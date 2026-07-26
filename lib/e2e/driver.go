@@ -4,15 +4,16 @@ import (
 	"context"
 	"errors"
 	"maps"
-	"sort"
 )
 
 // Invocation is one call into the system under test: the arguments, the
-// environment, the working directory, and the standard input it receives.
+// environment, and the working directory it runs with.
 //
 // It is deliberately transport-free. The same value drives a compiled artifact
 // and an in-process entrypoint, which is the whole point: a journey written
-// against Invocation cannot accidentally depend on being a subprocess.
+// against Invocation cannot accidentally depend on being a subprocess. It
+// carries no standard input, because the family's [interfaces.Terminal] seam
+// does not, and a field only one driver could honour would make parity a lie.
 type Invocation struct {
 	// Args are the arguments passed after the program name.
 	Args []string
@@ -54,12 +55,11 @@ type Driver interface {
 	Run(ctx context.Context, invocation Invocation) (Result, error)
 }
 
-// errUnconfigured reports a seam the harness cannot substitute for and cannot
-// describe as a problem either, because the problem factory is the seam that is
-// missing. It is the only non-problem error this library raises.
-func errUnconfigured(component string) error {
-	return errors.New("e2e: " + component + " is required")
-}
+// ErrNoProblems reports a call made without the problem factory.
+//
+// It is the one failure this library cannot describe in RFC 9457 terms, because
+// the thing that mints those envelopes is exactly what is missing.
+var ErrNoProblems = errors.New("e2e: problems is required")
 
 // mergedEnvironment overlays an invocation's environment onto a driver's base
 // environment, so a journey can override one variable without restating the
@@ -69,15 +69,4 @@ func mergedEnvironment(base map[string]string, overlay map[string]string) map[st
 	maps.Copy(merged, base)
 	maps.Copy(merged, overlay)
 	return merged
-}
-
-// sortedKeys returns a map's keys in a stable order, so problem data and
-// rendered environments never depend on Go's map iteration order.
-func sortedKeys[Value any](entries map[string]Value) []string {
-	keys := make([]string, 0, len(entries))
-	for key := range entries {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
 }
