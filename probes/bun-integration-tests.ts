@@ -31,7 +31,7 @@ export default {
           if (index === -1) continue;
           const lineEnd = source.indexOf(';', index);
           const original = source.slice(index, lineEnd + 1);
-          await repo.write(path, source.replace(original, 'return Ok(false);'));
+          await repo.write(path, source.replace(original, "return Ok(response !== 'OK');"));
           await expectBunRed(
             repo,
             "nix develop .#ci -c bash -lc './scripts/local/setup.sh && pls test:int'",

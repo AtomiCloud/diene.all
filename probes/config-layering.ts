@@ -37,13 +37,26 @@ export default {
       description: 'A landscape overlay violating the zod schema turns boot fail-fast red.',
       kind: 'mutation',
       async run(repo: any) {
-        const source = await repo.read('config/lapras.settings.yaml');
+        const prepared = await repo.exec(
+          'mkdir -p dist/probe-config && cp config/settings.yaml config/lapras.settings.yaml dist/probe-config/',
+        );
+        if (prepared.exitCode !== 0) {
+          throw new Error(`could not prepare isolated config fixture: ${prepared.stderr || prepared.stdout}`);
+        }
+        const path = 'dist/probe-config/lapras.settings.yaml';
+        const source = await repo.read(path);
         const patched = source.replace('createBucket: true', "createBucket: 'not-a-boolean'");
         if (patched === source) {
-          throw new Error('no structural overlay value found in config/lapras.settings.yaml');
+          throw new Error(`no structural overlay value found in ${path}`);
         }
-        await repo.write('config/lapras.settings.yaml', patched);
-        await repo.write('.probe-config-layering.sh', SCRIPT);
+        await repo.write(path, patched);
+        await repo.write(
+          '.probe-config-layering.sh',
+          SCRIPT.replace(
+            '# Secrets are blank-in-yaml',
+            'export BUN_CONSUMER_CONFIG_DIR=dist/probe-config\n# Secrets are blank-in-yaml',
+          ),
+        );
         await expectRed(repo, BOOT, 'config-layering');
       },
     },

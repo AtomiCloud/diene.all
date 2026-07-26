@@ -18,9 +18,12 @@ export default {
       kind: 'mutation',
       async run(repo: any) {
         const source = await repo.read('src/index.ts');
-        const patched = source.replace("command('worker')", "command('worker-disabled')");
+        const patched = source.replace(
+          '    .action(async commandOptions => {\n      const globalOptions =',
+          "    .action(async commandOptions => {\n      if (commandOptions.once !== true) {\n        throw new Error('worker mode dispatch disabled');\n      }\n      const globalOptions =",
+        );
         if (patched === source) {
-          throw new Error('no structural worker command registration found in src/index.ts');
+          throw new Error('no structural worker action found in src/index.ts');
         }
         await repo.write('src/index.ts', patched);
         await runSitJourney(repo, 'tests/sit/worker-mode.sit.test.ts', 'worker-mode-sit', true);
