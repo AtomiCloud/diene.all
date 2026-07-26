@@ -58,6 +58,11 @@ with packages;
     go
     gotestsum
     govulncheck
+
+    # ### go-consumer-main
+    # #### source: go-consumer
+    minio-client
+    postgresql
   ];
 
   # ### workspace-releaser-bootstrap

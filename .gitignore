@@ -29,3 +29,15 @@ infra/root_chart/uploads/
 coverage/
 dist/
 reports/
+
+### go-consumer-charts
+#### source: go-consumer
+# Build-phase chart vendoring. Helm cannot read outside a chart directory, so these
+# artifacts are copied in before lint/template/package and regenerated per build.
+infra/root_chart/files/
+infra/primordial_chart/files/observability/
+infra/primordial_chart/uploads/
+
+### go-consumer-artifacts
+#### source: go-consumer
+probe-report.json

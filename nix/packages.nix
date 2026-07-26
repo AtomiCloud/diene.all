@@ -119,10 +119,22 @@ let
       }
     );
 
+    # ### go-consumer-packages
+    # #### source: go-consumer
+    go-consumer-packages = (
+      with pkgs-2605;
+      {
+        inherit
+          minio-client
+          postgresql
+          ;
+      }
+    );
+
     root = {
       inherit cyanprint;
     };
   };
 in
 with all;
-atomipkgs // nix-2605 // nix-unstable // root // go-base
+atomipkgs // nix-2605 // nix-unstable // root // go-base // go-consumer-packages

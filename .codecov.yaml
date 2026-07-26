@@ -1,8 +1,25 @@
+# Coverage statuses annotate changes but never block CI.
 coverage:
-  status: off
-comment: false
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+        informational: true
+    patch:
+      default:
+        target: auto
+        threshold: 1%
+        informational: true
 flags:
   unit:
+    paths:
+      - lib/
     carryforward: true
   int:
+    paths:
+      - adapters/
     carryforward: true
+comment:
+  layout: 'reach, diff, flags, files'
+  require_changes: false
