@@ -10,6 +10,7 @@ import (
 	"github.com/AtomiCloud/diene.go-api-engine/lib/wire"
 	"github.com/AtomiCloud/diene.go-api-engine/testhelper"
 	"github.com/AtomiCloud/diene.go-auth-engine/lib/authengine"
+	dieneconfig "github.com/AtomiCloud/diene.go-config/lib/config"
 )
 
 func TestConfigBlockKeyAndDefaults(t *testing.T) {
@@ -243,6 +244,30 @@ func TestConfigBlockSchema(t *testing.T) {
 		if _, found := entryProperties[key]; !found {
 			t.Errorf("the per-backend schema omits %q", key)
 		}
+	}
+}
+
+func TestConfigBlockSchemaComposesThroughDieneConfig(t *testing.T) {
+	t.Parallel()
+
+	block := dieneconfig.NewBlock(apiengine.ConfigBlockKey, true, apiengine.ConfigBlockSchema())
+	schema := dieneconfig.ComposeSchema(block)
+	instance := map[string]any{
+		"api": map[string]any{
+			"backends": map[string]any{
+				"billing": map[string]any{
+					"baseUrl": "https://billing.example.com",
+					"timeout": "PT10S",
+				},
+			},
+			"retry": map[string]any{
+				"network": true,
+				"delay":   "PT0.2S",
+			},
+		},
+	}
+	if err := schema.Validate(instance); err != nil {
+		t.Fatalf("composed api-engine schema must compile and validate: %v", err)
 	}
 }
 
