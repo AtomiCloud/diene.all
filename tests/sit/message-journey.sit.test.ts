@@ -30,8 +30,8 @@ describe('message journey SIT', () => {
 
       // Act
       const result = await driver.run(['worker', '--once'], environment);
-      const rows = await database.unsafe<{ object_key: string }[]>(
-        'SELECT object_key FROM processed_messages WHERE id = $1',
+      const rows = await database.unsafe<{ object_key: string; payload: string }[]>(
+        'SELECT object_key, payload FROM processed_messages WHERE id = $1',
         [id],
       );
       const object = rows[0]?.object_key ? await storage.file(rows[0].object_key).exists() : false;
@@ -40,6 +40,7 @@ describe('message journey SIT', () => {
       // Assert
       should(result.code).equal(0);
       should(rows).have.length(1);
+      should(rows[0]?.payload).equal('journey');
       should(object).equal(true);
       should(pending[0]).equal(0);
     } finally {

@@ -18,9 +18,12 @@ export default {
       kind: 'mutation',
       async run(repo: any) {
         const source = await repo.read('src/index.ts');
-        const patched = source.replace("command('db-init')", "command('db-init-disabled')");
+        const patched = source.replace(
+          '    .action(async () => {\n      const globalOptions = program.opts<{ landscape?: string }>();\n      const config = await loadConfigForCommand(root, environment, globalOptions.landscape);\n      const runtime = await createRuntime(config);',
+          "    .action(async () => {\n      const globalOptions = program.opts<{ landscape?: string }>();\n      const config = await loadConfigForCommand(root, environment, globalOptions.landscape);\n      if (config.dbInit.createBucket) {\n        throw new Error('db-init mode dispatch disabled');\n      }\n      const runtime = await createRuntime(config);",
+        );
         if (patched === source) {
-          throw new Error('no structural db-init command registration found in src/index.ts');
+          throw new Error('no structural db-init action found in src/index.ts');
         }
         await repo.write('src/index.ts', patched);
         await runSitJourney(repo, 'tests/sit/db-init-mode.sit.test.ts', 'db-init-mode-sit', true);

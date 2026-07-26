@@ -18,15 +18,15 @@ export default {
         'Broken exporter configuration turns the otel-export journey red while the app itself stays healthy.',
       kind: 'mutation',
       async run(repo: any) {
-        const source = await repo.read('config/dev.yaml');
+        const source = await repo.read('tests/sit/driver.ts');
         const patched = source.replace(
-          'otel:\n  endpoint: http://localhost:4318',
-          'otel:\n  endpoint: http://localhost:14318',
+          'ATOMI_OTEL__TRACES__EXPORTER__OTLP__ENDPOINT: devConfig.otel.endpoint,',
+          "ATOMI_OTEL__TRACES__EXPORTER__OTLP__ENDPOINT: 'http://localhost:14318',",
         );
         if (patched === source) {
-          throw new Error('no structural exporter endpoint found in config/dev.yaml');
+          throw new Error('no structural trace exporter endpoint found in tests/sit/driver.ts');
         }
-        await repo.write('config/dev.yaml', patched);
+        await repo.write('tests/sit/driver.ts', patched);
         await runSitJourney(repo, 'tests/sit/otel-export.sit.test.ts', 'otel-export-sit', true);
       },
     },

@@ -18,8 +18,13 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        await repo.write('.claude/skills/vendor/stale/SKILL.md', 'stale\n');
-        await repo.exec('git add .claude/skills/vendor/stale/SKILL.md');
+        const paths = await repo.glob('.claude/skills/vendor/**/SKILL.md');
+        if (paths.length === 0) {
+          throw new Error('no committed vendored skill found');
+        }
+        const path = paths.sort()[0];
+        const source = await repo.read(path);
+        await repo.write(path, `${source.trimEnd()}\n\nstale vendored content\n`);
         await expectRed(repo, 'nix develop .#ci -c ./scripts/validate/skills-freshness.sh', 'skills-freshness');
       },
     },

@@ -18,7 +18,10 @@ export default {
       kind: 'mutation',
       async run(repo: any) {
         const source = await repo.read('src/init/seeds.ts');
-        const patched = source.replace('selectMissingSeedRecords(records, existing)', 'records');
+        const patched = source.replace(
+          'selectMissingSeedRecords(records, existing)',
+          'selectMissingSeedRecords(records, new Set([...existing].filter(id => !existing.has(id))))',
+        );
         if (patched === source) {
           throw new Error('no structural seed-if-not-exists selection found in src/init/seeds.ts');
         }

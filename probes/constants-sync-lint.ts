@@ -26,10 +26,14 @@ export default {
         if (patched === source) {
           throw new Error('no structural postgres block found in config/settings.yaml');
         }
-        await repo.write('config/settings.yaml', patched);
+        const prepared = await repo.exec('mkdir -p dist');
+        if (prepared.exitCode !== 0) {
+          throw new Error(`could not prepare isolated constants fixture: ${prepared.stderr || prepared.stdout}`);
+        }
+        await repo.write('dist/probe-constants-settings.yaml', patched);
         await expectRed(
           repo,
-          "nix develop .#ci -c bash -lc './scripts/local/setup.sh && ./scripts/validate/constants-sync.sh'",
+          "nix develop .#ci -c bash -lc './scripts/local/setup.sh && CONSTANTS_SETTINGS_FILE=dist/probe-constants-settings.yaml ./scripts/validate/constants-sync.sh'",
           'constants-sync-lint',
         );
       },
