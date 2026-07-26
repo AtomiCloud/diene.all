@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="AtomiCloud.Diene.Interfaces.TestHelper" />
+    <PackageReference Include="AtomiCloud.Diene.Result.TestHelper" />
   </ItemGroup>
 
   <ItemGroup>

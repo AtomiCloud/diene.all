@@ -10,6 +10,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="AtomiCloud.Diene.Result.TestHelper" />
+    <PackageReference Include="FluentAssertions" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../Lib/Lib.csproj" />
   </ItemGroup>
 

@@ -70,34 +70,35 @@ Common commands:
 - `pls test`, `pls test:unit`, `pls test:int`, and the coverage variants
 - `pls deadcode` for the non-blocking review; CI owns strict dn-inspect
 
-The illustrative Note domain is documented in [docs/domain/note.md](docs/domain/note.md).
-Production observability is intentionally absent until the observability add-back.
+The otel engine domain is documented in [docs/domain/otel.md](docs/domain/otel.md).
+This branch OWNS production observability for the .NET family.
 
 <!-- ### dotnet-lib -->
 <!-- #### source: dotnet-lib -->
 
 ## Publishable library packages
 
-[![NuGet version](https://img.shields.io/nuget/v/AtomiCloud.Diene.Note)](https://www.nuget.org/packages/AtomiCloud.Diene.Note)
-[![NuGet downloads](https://img.shields.io/nuget/dt/AtomiCloud.Diene.Note)](https://www.nuget.org/packages/AtomiCloud.Diene.Note)
-[![Meta coverage](https://codecov.io/gh/AtomiCloud/diene.dotnet-lib/graph/badge.svg?flag=meta)](https://codecov.io/gh/AtomiCloud/diene.dotnet-lib)
+[![NuGet version](https://img.shields.io/nuget/v/AtomiCloud.Diene.Otel)](https://www.nuget.org/packages/AtomiCloud.Diene.Otel)
+[![NuGet downloads](https://img.shields.io/nuget/dt/AtomiCloud.Diene.Otel)](https://www.nuget.org/packages/AtomiCloud.Diene.Otel)
+[![Meta coverage](https://codecov.io/gh/AtomiCloud/diene.dotnet-otel/graph/badge.svg?flag=meta)](https://codecov.io/gh/AtomiCloud/diene.dotnet-otel)
 
-This template publishes `AtomiCloud.Diene.Note` and the companion
-`AtomiCloud.Diene.Note.TestHelper` package at one committed version. The Note
-domain is illustrative; the package lifecycle is the reusable product.
+This repository publishes `AtomiCloud.Diene.Otel` and the companion
+`AtomiCloud.Diene.Otel.TestHelper` package at one committed version. The engine
+owns the canonical `otel:` block, semconv resource mapping, host wiring, and the
+concrete logging/metrics/trace seam implementations. The TestHelper ships the
+TRACE double only — logging and metrics mocks come from
+`AtomiCloud.Diene.Interfaces.TestHelper`.
 
 ```bash
-dotnet add package AtomiCloud.Diene.Note
-dotnet add package AtomiCloud.Diene.Note.TestHelper
+dotnet add package AtomiCloud.Diene.Otel
+dotnet add package AtomiCloud.Diene.Otel.TestHelper
 ```
 
 ```csharp
-using AtomiCloud.Diene.Note;
-using AtomiCloud.Diene.Note.TestHelper.Note;
+using AtomiCloud.Diene.Otel;
 
-var summariser = new NoteSummariser();
-var note = new NoteRecord { Title = "Hello", Body = "world" };
-summariser.AssertSummary(note, 80, "Hello — world");
+var identity = AppIdentity.Create("lapras", "atomi", "billing", "api", "1.0.0").Get();
+builder.AddAtomiOtel(identity, builder.Configuration);
 ```
 
 Run `nix develop .#ci -c ./scripts/ci/pkg-validate.sh` to pack both packages,
