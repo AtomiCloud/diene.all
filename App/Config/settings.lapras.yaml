@@ -1,0 +1,8 @@
+# yaml-language-server: $schema=../schema/settings.schema.json
+$schema: ../schema/settings.schema.json
+
+# A landscape overlay is SPARSE: it names only what differs from the base layer. Here the
+# local landscape runs kv as a second Redis-protocol instance on its own port.
+kv:
+  MAIN:
+    port: 6381

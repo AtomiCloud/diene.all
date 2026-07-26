@@ -1,13 +1,24 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <RootNamespace>AtomiCloud.Diene.Note</RootNamespace>
-    <AssemblyName>AtomiCloud.Diene.Note</AssemblyName>
-    <PackageId>AtomiCloud.Diene.Note</PackageId>
-    <Description>An illustrative note-domain library and the Diene .NET library template.</Description>
+    <RootNamespace>AtomiCloud.Diene.StandardConfig</RootNamespace>
+    <AssemblyName>AtomiCloud.Diene.StandardConfig</AssemblyName>
+    <PackageId>AtomiCloud.Diene.StandardConfig</PackageId>
+    <Description>The four frozen Diene infra config presets — postgres, cache, kv, and storage — as typed, validated, schema-generating option blocks, plus the small S3-compatible block-storage surface.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IsPackable>true</IsPackable>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AtomiCloud.Diene.Config" />
+    <PackageReference Include="AtomiCloud.Diene.CoreUtils" />
+    <PackageReference Include="AtomiCloud.Diene.Result" />
+    <PackageReference Include="AWSSDK.S3" />
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+  </ItemGroup>
 
   <ItemGroup>
     <None Include="../LICENSE" Pack="true" PackagePath="/" />

@@ -8,7 +8,7 @@ version="${3:-$(xmlstarlet sel -t -v '/Project/PropertyGroup/Version' Version.pr
 [ "${mode}" != "inventory" ] && [ "${mode}" != "metadata" ] && [ "${mode}" != "symbols" ] && echo "❌ Usage: dotnet-package.sh <inventory|metadata|symbols> [artifacts] [version]" >&2 && exit 1
 [ ! -d "${artifacts}" ] && echo "❌ Package artifact directory '${artifacts}' not found" >&2 && exit 1
 
-package_ids=(AtomiCloud.Diene.Note AtomiCloud.Diene.Note.TestHelper)
+package_ids=(AtomiCloud.Diene.StandardConfig AtomiCloud.Diene.StandardConfig.TestHelper)
 
 if [ "${mode}" = "inventory" ]; then
   for package_id in "${package_ids[@]}"; do
@@ -34,10 +34,10 @@ if [ "${mode}" = "metadata" ]; then
     [ "$(xmlstarlet sel -N n="${namespace}" -t -v '/n:package/n:metadata/n:readme' "${nuspec}")" != "README.md" ] && echo "❌ ${package_id} package README metadata missing" >&2 && exit 1
     [ "$(xmlstarlet sel -N n="${namespace}" -t -v '/n:package/n:metadata/n:icon' "${nuspec}")" != "logo.png" ] && echo "❌ ${package_id} package icon metadata missing" >&2 && exit 1
     [ -z "$(xmlstarlet sel -N n="${namespace}" -t -v '/n:package/n:metadata/n:description' "${nuspec}")" ] && echo "❌ ${package_id} description metadata missing" >&2 && exit 1
-    [ "$(xmlstarlet sel -N n="${namespace}" -t -v '/n:package/n:metadata/n:projectUrl' "${nuspec}")" != "https://github.com/AtomiCloud/diene.dotnet-lib" ] && echo "❌ ${package_id} project URL metadata missing" >&2 && exit 1
-    [ "$(xmlstarlet sel -N n="${namespace}" -t -v '/n:package/n:metadata/n:repository/@url' "${nuspec}")" != "https://github.com/AtomiCloud/diene.dotnet-lib" ] && echo "❌ ${package_id} repository metadata missing" >&2 && exit 1
+    [ "$(xmlstarlet sel -N n="${namespace}" -t -v '/n:package/n:metadata/n:projectUrl' "${nuspec}")" != "https://github.com/AtomiCloud/diene.dotnet-standard-config" ] && echo "❌ ${package_id} project URL metadata missing" >&2 && exit 1
+    [ "$(xmlstarlet sel -N n="${namespace}" -t -v '/n:package/n:metadata/n:repository/@url' "${nuspec}")" != "https://github.com/AtomiCloud/diene.dotnet-standard-config" ] && echo "❌ ${package_id} repository metadata missing" >&2 && exit 1
     contents="$(unzip -Z1 "${package}")"
-    for required in README.md logo.png LICENSE skills/diene-dotnet-note-usage/SKILL.md; do
+    for required in README.md logo.png LICENSE skills/diene-dotnet-standard-config-usage/SKILL.md; do
       ! echo "${contents}" | rg -Fxq "${required}" && echo "❌ ${package_id} package is missing ${required}" >&2 && exit 1
     done
     rm -f "${nuspec}"

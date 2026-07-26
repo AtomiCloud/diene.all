@@ -1,32 +1,77 @@
-using AtomiCloud.DotnetBase.App.Adapters.Redis;
-using AtomiCloud.Diene.Note;
-using StackExchange.Redis;
+using AtomiCloud.Diene.Config;
 
 namespace AtomiCloud.DotnetBase.App;
 
-/// <summary>Composition root: explicit wiring of domain interfaces to concrete adapters.</summary>
+/// <summary>
+/// Demo consumer of AtomiCloud.Diene.StandardConfig. Not packable — it exists to exercise the
+/// shipped surface the way a real service does, and to own the schema generation task.
+/// </summary>
 public static class Program
 {
-    public static async Task Main()
+    /// <summary>Runs the preset demo, or the schema task when asked.</summary>
+    public static async Task<int> Main(string[] args)
     {
-        var connectionString = Environment.GetEnvironmentVariable("REDIS_CONNECTION");
-        if (string.IsNullOrWhiteSpace(connectionString)) connectionString = "localhost:6379";
+        ArgumentNullException.ThrowIfNull(args);
 
-        // ── Domain wiring (illustrative sample) — replace this block with your domain ──
-        INoteSummariser summariser = new NoteSummariser();
-        await using var redis = await ConnectionMultiplexer.ConnectAsync(connectionString);
-        INoteRepository notes = new RedisNoteRepository(redis);
-
-        var saved = await notes.Save(new NoteRecord
+        return args switch
         {
-            Title = "Welcome",
-            Body = "The first note stored through the Redis adapter.",
-        });
-        var found = await notes.Find(saved.Id);
+            ["schema", "write", var path] => Schema(ConfigSchemaGen.WriteSchema(ConfigComposition.Registry(), path)),
+            ["schema", "verify", var path] => Schema(ConfigSchemaGen.VerifySchema(ConfigComposition.Registry(), path)),
+            ["schema", ..] => Usage(),
+            [] => Compose(),
+            ["connect"] => await ConnectAsync().ConfigureAwait(false),
+            _ => Usage(),
+        };
+    }
 
-        Console.WriteLine(found is null
-            ? $"Note {saved.Id} could not be read back."
-            : summariser.Summarise(found.Record, 80));
-        // ── End domain wiring ──
+    /// <summary>
+    /// The default run: compose and validate the presets WITHOUT touching a network, so the
+    /// demo is runnable anywhere.
+    /// </summary>
+    private static int Compose()
+    {
+        foreach (var line in PresetDemo.Run()) Console.WriteLine(line);
+        Console.WriteLine("Success: infra presets composed, validated, and schema round-tripped");
+        return 0;
+    }
+
+    /// <summary>The dogfood run: the same blocks, with real dependencies behind them.</summary>
+    private static async Task<int> ConnectAsync()
+    {
+        var landscape = Environment.GetEnvironmentVariable("LANDSCAPE") ?? "lapras";
+        using var provider = ConfigComposition.Provider(ConfigComposition.Build(landscape));
+
+        var result = await InfraDemo.RunAsync(provider).ConfigureAwait(false);
+
+        return result.Match(
+            lines =>
+            {
+                foreach (var line in lines) Console.WriteLine(line);
+                Console.WriteLine("Success: every infra preset reached its dependency");
+                return 0;
+            },
+            error =>
+            {
+                Console.Error.WriteLine($"❌ {error}");
+                return 1;
+            });
+    }
+
+    private static int Schema(Result<Unit, SchemaGenError> result) => result.Match(
+        _ =>
+        {
+            Console.WriteLine("✅ Config schema is current");
+            return 0;
+        },
+        error =>
+        {
+            Console.Error.WriteLine($"❌ {error.Fault} at {error.Path}: {error.Detail}");
+            return 1;
+        });
+
+    private static int Usage()
+    {
+        Console.Error.WriteLine("usage: App [connect | schema write <path> | schema verify <path>]");
+        return 2;
     }
 }

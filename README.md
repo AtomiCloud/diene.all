@@ -56,21 +56,21 @@ contracts standard.
 
 ## .NET 10 foundation
 
-[![CI](https://github.com/AtomiCloud/diene.dotnet-lib/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.dotnet-lib/actions/workflows/ci.yaml)
-[![Unit coverage](https://codecov.io/gh/AtomiCloud/diene.dotnet-lib/graph/badge.svg?flag=unit)](https://codecov.io/gh/AtomiCloud/diene.dotnet-lib)
-[![Integration coverage](https://codecov.io/gh/AtomiCloud/diene.dotnet-lib/graph/badge.svg?flag=int)](https://codecov.io/gh/AtomiCloud/diene.dotnet-lib)
-[![Commit activity](https://img.shields.io/github/commit-activity/m/AtomiCloud/diene.dotnet-lib)](https://github.com/AtomiCloud/diene.dotnet-lib/commits/main)
+[![CI](https://github.com/AtomiCloud/diene.dotnet-standard-config/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.dotnet-standard-config/actions/workflows/ci.yaml)
+[![Unit coverage](https://codecov.io/gh/AtomiCloud/diene.dotnet-standard-config/graph/badge.svg?flag=unit)](https://codecov.io/gh/AtomiCloud/diene.dotnet-standard-config)
+[![Integration coverage](https://codecov.io/gh/AtomiCloud/diene.dotnet-standard-config/graph/badge.svg?flag=int)](https://codecov.io/gh/AtomiCloud/diene.dotnet-standard-config)
+[![Commit activity](https://img.shields.io/github/commit-activity/m/AtomiCloud/diene.dotnet-standard-config)](https://github.com/AtomiCloud/diene.dotnet-standard-config/commits/main)
 
-This branch adds the .NET 10 toolchain, the `App`/`Lib`/`UnitTest`/`IntTest`
+This branch adds the .NET 10 toolchain, the `App`/`Lib`/`UnitTest`/`IntTest`/`MetaTest`
 sample, merged multi-project coverage, strict and LLM dead-code modes. See [the .NET baseline](docs/developer/dotnet-baseline.md).
 
 Common commands:
 
 - `pls build`, `pls dev`, `pls run`, and `pls preview`
-- `pls test`, `pls test:unit`, `pls test:int`, and the coverage variants
+- `pls test`, `pls test:unit`, `pls test:int`, `pls test:meta`, and the coverage variants
 - `pls deadcode` for the non-blocking review; CI owns strict dn-inspect
 
-The illustrative Note domain is documented in [docs/domain/note.md](docs/domain/note.md).
+The infra-preset domain is documented in [docs/domain/standard-config.md](docs/domain/standard-config.md).
 Production observability is intentionally absent until the observability add-back.
 
 <!-- ### dotnet-lib -->
@@ -78,27 +78,44 @@ Production observability is intentionally absent until the observability add-bac
 
 ## Publishable library packages
 
-[![NuGet version](https://img.shields.io/nuget/v/AtomiCloud.Diene.Note)](https://www.nuget.org/packages/AtomiCloud.Diene.Note)
-[![NuGet downloads](https://img.shields.io/nuget/dt/AtomiCloud.Diene.Note)](https://www.nuget.org/packages/AtomiCloud.Diene.Note)
-[![Meta coverage](https://codecov.io/gh/AtomiCloud/diene.dotnet-lib/graph/badge.svg?flag=meta)](https://codecov.io/gh/AtomiCloud/diene.dotnet-lib)
+[![NuGet version](https://img.shields.io/nuget/v/AtomiCloud.Diene.StandardConfig)](https://www.nuget.org/packages/AtomiCloud.Diene.StandardConfig)
+[![NuGet downloads](https://img.shields.io/nuget/dt/AtomiCloud.Diene.StandardConfig)](https://www.nuget.org/packages/AtomiCloud.Diene.StandardConfig)
+[![Meta coverage](https://codecov.io/gh/AtomiCloud/diene.dotnet-standard-config/graph/badge.svg?flag=meta)](https://codecov.io/gh/AtomiCloud/diene.dotnet-standard-config)
 
-This template publishes `AtomiCloud.Diene.Note` and the companion
-`AtomiCloud.Diene.Note.TestHelper` package at one committed version. The Note
-domain is illustrative; the package lifecycle is the reusable product.
+This repository publishes `AtomiCloud.Diene.StandardConfig` and the companion
+`AtomiCloud.Diene.StandardConfig.TestHelper` package at one committed version.
+It carries the four C0-frozen infra config presets — postgres, cache, kv, and
+storage — as typed, validated, schema-generating blocks, plus the small
+S3-compatible block-storage surface and Testcontainers glue for testing against
+the real dependencies. It ships schemas only: `AtomiCloud.Diene.Config` remains
+the sole merger and validator, and engine blocks belong to their engine libs.
 
 ```bash
-dotnet add package AtomiCloud.Diene.Note
-dotnet add package AtomiCloud.Diene.Note.TestHelper
+dotnet add package AtomiCloud.Diene.StandardConfig
+dotnet add package AtomiCloud.Diene.StandardConfig.TestHelper
 ```
 
 ```csharp
-using AtomiCloud.Diene.Note;
-using AtomiCloud.Diene.Note.TestHelper.Note;
+using AtomiCloud.Diene.StandardConfig.Presets;
 
-var summariser = new NoteSummariser();
-var note = new NoteRecord { Title = "Hello", Body = "world" };
-summariser.AssertSummary(note, 80, "Hello — world");
+builder.Services.AddStandardConfigs(
+    StandardConfigPreset.Postgres | StandardConfigPreset.Cache | StandardConfigPreset.Storage);
+
+// later, wherever the connection is needed
+var main = postgres.Value.Named("MAIN");   // IOptions<PostgresBlock>
 ```
+
+```csharp
+using AtomiCloud.Diene.StandardConfig.TestHelper.Containers;
+
+await using var db = await StandardConfigContainers.StartPostgresAsync();
+var configuration = new ConfigurationBuilder()
+    .AddInMemoryCollection(db.ConfigurationValues(PostgresOption.Key))
+    .Build();
+```
+
+Adding a second named connection is a YAML edit — every preset is a keyed map of
+UPPERCASE-named connections (R14), so `REPLICA` alongside `MAIN` needs no code.
 
 Run `nix develop .#ci -c ./scripts/ci/pkg-validate.sh` to pack both packages,
 validate metadata and symbols, and restore them into a scratch consumer. See

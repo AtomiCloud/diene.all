@@ -9,9 +9,11 @@ This branch turns the `.NET 10` base into a publishable library template. It
 keeps the base `App` as a non-packable consumer and publishes two lockstep
 packages from one solution:
 
-- `AtomiCloud.Diene.Note` contains the illustrative Note domain;
-- `AtomiCloud.Diene.Note.TestHelper` contains consumer assertions and references
-  the main package.
+- `AtomiCloud.Diene.StandardConfig` contains the four infra preset schemas and the
+  block-storage surface;
+- `AtomiCloud.Diene.StandardConfig.TestHelper` contains the Testcontainers glue,
+  the in-memory storage fake, and the preset assertions consumers test with, and
+  references the main package.
 
 Both package ids and assembly names are consumer-visible, real identities.
 `dotnet-base.slnx`, `.config/dotnet-base.test.yaml`, workflows, and non-shipped
@@ -34,13 +36,14 @@ after 1.0 compare their public API with the `1.0.0` baseline.
 
 ## Testing tiers
 
-- `pls test:unit` measures the real `AtomiCloud.Diene.Note` assembly plus the
+- `pls test:unit` measures the real `AtomiCloud.Diene.StandardConfig` assembly plus the
   inherited `[Lib*]*` scaling wildcard at 100%, and explicitly excludes
   `*.TestHelper` assemblies.
-- `pls test:int` retains the base Testcontainers-backed adapter boundary and
-  measures only `[App*]*`.
-- `pls test:meta` independently measures `[*.TestHelper]*` at 100%. Its tests
-  include known-good and known-bad assertion cases.
+- `pls test:int` drives the demo consumer against real Postgres, Redis, and MinIO
+  containers started through the shipped TestHelper, and measures only `[App*]*`.
+- `pls test:meta` independently measures `[*.TestHelper]*` at 100% from its OWN
+  `MetaTest` project, so contract parity can use containers without slowing the
+  unit tier. Its tests include known-good and known-bad assertion cases.
 
 Codecov uploads the `unit`, `int`, and `meta` ledgers as informational flags;
 the local merged thresholds remain authoritative.
@@ -67,8 +70,8 @@ A materialized library changes only these owned surfaces:
 - shared author/company/repository URLs in `Directory.Build.props`;
 - README badges, install snippet, icon, and illustrative source/tests;
 - unit/meta thresholds when the shipped surface justifies a stricter value;
-- `skills/diene-dotnet-note-usage/` to the materialized library's namespaced
-  usage skill.
+- `skills/diene-dotnet-standard-config-usage/` to the materialized library's
+  namespaced usage skill.
 
 Keep CPM, SDK SourceLink, symbols, committed versioning, package validation,
 API-key publishing, scratch consumption, and the three coverage ledgers intact.
