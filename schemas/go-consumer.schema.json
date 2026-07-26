@@ -1,0 +1,887 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "api": {
+      "$id": "https://diene.atomi.cloud/config/blocks/YXBp.schema.json",
+      "additionalProperties": false,
+      "properties": {
+        "backends": {
+          "additionalProperties": {
+            "additionalProperties": false,
+            "properties": {
+              "baseUrl": {
+                "description": "The backend's single origin. One backend is one hostname.",
+                "pattern": "^https?://",
+                "type": "string"
+              },
+              "indicator": {
+                "description": "OIDC resource indicator. Blank means the backend needs no credentials.",
+                "type": "string"
+              },
+              "resource": {
+                "description": "Auth-engine resource name; defaults to the backend name.",
+                "type": "string"
+              },
+              "scopes": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "timeout": {
+                "description": "Per-request timeout as an ISO 8601 duration (C0 §1), e.g. PT30S.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "baseUrl"
+            ],
+            "type": "object"
+          },
+          "description": "Registered backends keyed by logical backend name.",
+          "type": "object"
+        },
+        "retry": {
+          "additionalProperties": false,
+          "description": "Client resilience profile: retry once on a network error only.",
+          "properties": {
+            "delay": {
+              "description": "Delay before the one retry as an ISO 8601 duration (C0 §1), e.g. PT0.2S.",
+              "type": "string"
+            },
+            "network": {
+              "description": "Enable the single transport retry.",
+              "type": "boolean"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "backends"
+      ],
+      "type": "object"
+    },
+    "app": {
+      "$id": "https://diene.atomi.cloud/config/blocks/YXBw.schema.json",
+      "additionalProperties": false,
+      "properties": {
+        "landscape": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "module": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "platform": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "service": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "version": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "landscape",
+        "platform",
+        "service",
+        "module",
+        "version"
+      ],
+      "type": "object"
+    },
+    "auth": {
+      "$id": "https://diene.atomi.cloud/config/blocks/YXV0aA.schema.json",
+      "additionalProperties": false,
+      "properties": {
+        "idp": {
+          "additionalProperties": false,
+          "properties": {
+            "algorithms": {
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "audience": {
+              "type": "string"
+            },
+            "clockSkewSeconds": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "issuer": {
+              "format": "uri",
+              "minLength": 1,
+              "type": "string"
+            },
+            "jwksUri": {
+              "format": "uri",
+              "minLength": 1,
+              "type": "string"
+            },
+            "management": {
+              "additionalProperties": false,
+              "properties": {
+                "clientId": {
+                  "type": "string"
+                },
+                "clientSecret": {
+                  "type": "string"
+                },
+                "endpoint": {
+                  "type": "string"
+                },
+                "resource": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            }
+          },
+          "required": [
+            "issuer",
+            "jwksUri"
+          ],
+          "type": "object"
+        },
+        "minting": {
+          "additionalProperties": false,
+          "properties": {
+            "cacheNamespace": {
+              "type": "string"
+            },
+            "clientId": {
+              "type": "string"
+            },
+            "clientSecret": {
+              "type": "string"
+            },
+            "concurrency": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "handoffPath": {
+              "type": "string"
+            },
+            "refreshSkewSeconds": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "tokenEndpoint": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "policies": {
+          "additionalProperties": {
+            "additionalProperties": false,
+            "properties": {
+              "field": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "target": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "type": {
+                "enum": [
+                  "any",
+                  "all"
+                ]
+              }
+            },
+            "required": [
+              "type",
+              "field",
+              "target"
+            ],
+            "type": "object"
+          },
+          "type": "object"
+        },
+        "resources": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "indicator": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "name": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "scopes": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "name",
+              "indicator"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "idp"
+      ],
+      "type": "object"
+    },
+    "cache": {
+      "$id": "https://diene.atomi.cloud/config/blocks/Y2FjaGU.schema.json",
+      "additionalProperties": {
+        "additionalProperties": false,
+        "description": "One named cache connection. RAM-backed and EPHEMERAL — never durable state.",
+        "properties": {
+          "db": {
+            "description": "Logical database index selected on connect.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "host": {
+            "description": "Hostname of the Redis-protocol endpoint.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "password": {
+            "description": "Endpoint password. Secret: blank in YAML, injected per landscape (R14/M33).",
+            "type": "string"
+          },
+          "port": {
+            "description": "TCP port of the Redis-protocol endpoint.",
+            "maximum": 65535,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "tls": {
+            "description": "Require TLS on the connection.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "db",
+          "host",
+          "password",
+          "port",
+          "tls"
+        ],
+        "type": "object"
+      },
+      "description": "Named ephemeral cache endpoints, keyed by UPPERCASE pool name (R14).",
+      "type": "object"
+    },
+    "dbInit": {
+      "$id": "https://diene.atomi.cloud/config/blocks/ZGJJbml0.schema.json",
+      "properties": {
+        "createBucket": {
+          "type": "boolean"
+        },
+        "migrationsDir": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "redisMigrationKey": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "seedDir": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "createBucket",
+        "migrationsDir",
+        "redisMigrationKey",
+        "seedDir"
+      ],
+      "type": "object"
+    },
+    "domain": {
+      "$id": "https://diene.atomi.cloud/config/blocks/ZG9tYWlu.schema.json",
+      "properties": {
+        "blobPrefix": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxMessageBytes": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "blobPrefix",
+        "maxMessageBytes"
+      ],
+      "type": "object"
+    },
+    "encryption": {
+      "$id": "https://diene.atomi.cloud/config/blocks/ZW5jcnlwdGlvbg.schema.json",
+      "properties": {
+        "key": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "type": "object"
+    },
+    "errorPortal": {
+      "$id": "https://diene.atomi.cloud/config/blocks/ZXJyb3JQb3J0YWw.schema.json",
+      "properties": {
+        "host": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "landscape": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "module": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "platform": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "scheme": {
+          "enum": [
+            "http",
+            "https"
+          ],
+          "type": "string"
+        },
+        "service": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "version": {
+          "pattern": "^v[0-9]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "scheme",
+        "host",
+        "landscape",
+        "platform",
+        "service",
+        "module",
+        "version"
+      ],
+      "type": "object"
+    },
+    "health": {
+      "$id": "https://diene.atomi.cloud/config/blocks/aGVhbHRo.schema.json",
+      "properties": {
+        "heartbeatFile": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxAgeMs": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "heartbeatFile",
+        "maxAgeMs"
+      ],
+      "type": "object"
+    },
+    "kv": {
+      "$id": "https://diene.atomi.cloud/config/blocks/a3Y.schema.json",
+      "additionalProperties": {
+        "additionalProperties": false,
+        "description": "One named kv connection. PERSISTENT — a separate instance from any cache.",
+        "properties": {
+          "db": {
+            "description": "Logical database index selected on connect.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "host": {
+            "description": "Hostname of the Redis-protocol endpoint.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "password": {
+            "description": "Endpoint password. Secret: blank in YAML, injected per landscape (R14/M33).",
+            "type": "string"
+          },
+          "port": {
+            "description": "TCP port of the Redis-protocol endpoint.",
+            "maximum": 65535,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "tls": {
+            "description": "Require TLS on the connection.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "db",
+          "host",
+          "password",
+          "port",
+          "tls"
+        ],
+        "type": "object"
+      },
+      "description": "Named persistent key-value endpoints, keyed by UPPERCASE pool name (R14).",
+      "type": "object"
+    },
+    "otel": {
+      "$id": "https://diene.atomi.cloud/config/blocks/b3RlbA.schema.json",
+      "additionalProperties": false,
+      "properties": {
+        "logs": {
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "exporter": {
+              "additionalProperties": false,
+              "properties": {
+                "console": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "enabled"
+                  ],
+                  "type": "object"
+                },
+                "otlp": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "endpoint": {
+                      "description": "OTLP collector base URL on port 4318; empty when the exporter is off",
+                      "type": "string"
+                    },
+                    "headers": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "protocol": {
+                      "enum": [
+                        "http/protobuf"
+                      ],
+                      "type": "string"
+                    },
+                    "timeout": {
+                      "description": "ISO 8601 duration: per-export timeout",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "enabled",
+                    "endpoint",
+                    "protocol",
+                    "headers",
+                    "timeout"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "console",
+                "otlp"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "enabled",
+            "exporter"
+          ],
+          "type": "object"
+        },
+        "metrics": {
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "exporter": {
+              "additionalProperties": false,
+              "properties": {
+                "console": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "enabled"
+                  ],
+                  "type": "object"
+                },
+                "otlp": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "endpoint": {
+                      "description": "OTLP collector base URL on port 4318; empty when the exporter is off",
+                      "type": "string"
+                    },
+                    "headers": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "protocol": {
+                      "enum": [
+                        "http/protobuf"
+                      ],
+                      "type": "string"
+                    },
+                    "timeout": {
+                      "description": "ISO 8601 duration: per-export timeout",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "enabled",
+                    "endpoint",
+                    "protocol",
+                    "headers",
+                    "timeout"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "console",
+                "otlp"
+              ],
+              "type": "object"
+            },
+            "interval": {
+              "description": "ISO 8601 duration: metric export interval",
+              "type": "string"
+            }
+          },
+          "required": [
+            "enabled",
+            "exporter",
+            "interval"
+          ],
+          "type": "object"
+        },
+        "traces": {
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "exporter": {
+              "additionalProperties": false,
+              "properties": {
+                "console": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "enabled"
+                  ],
+                  "type": "object"
+                },
+                "otlp": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "endpoint": {
+                      "description": "OTLP collector base URL on port 4318; empty when the exporter is off",
+                      "type": "string"
+                    },
+                    "headers": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "protocol": {
+                      "enum": [
+                        "http/protobuf"
+                      ],
+                      "type": "string"
+                    },
+                    "timeout": {
+                      "description": "ISO 8601 duration: per-export timeout",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "enabled",
+                    "endpoint",
+                    "protocol",
+                    "headers",
+                    "timeout"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "console",
+                "otlp"
+              ],
+              "type": "object"
+            },
+            "sampler": {
+              "additionalProperties": false,
+              "properties": {
+                "ratio": {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "type": {
+                  "enum": [
+                    "parentbased_traceidratio",
+                    "always_on",
+                    "always_off"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "ratio"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "enabled",
+            "sampler",
+            "exporter"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "logs",
+        "metrics",
+        "traces"
+      ],
+      "type": "object"
+    },
+    "postgres": {
+      "$id": "https://diene.atomi.cloud/config/blocks/cG9zdGdyZXM.schema.json",
+      "additionalProperties": {
+        "additionalProperties": false,
+        "description": "One named Postgres connection.",
+        "properties": {
+          "database": {
+            "description": "Database name.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "host": {
+            "description": "Hostname of the Postgres endpoint.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "password": {
+            "description": "Role password. Secret: blank in YAML, injected per landscape (R14/M33).",
+            "type": "string"
+          },
+          "pool": {
+            "additionalProperties": false,
+            "description": "Connection-pool sizing.",
+            "properties": {
+              "max": {
+                "description": "Pool ceiling.",
+                "minimum": 1,
+                "type": "integer"
+              },
+              "min": {
+                "description": "Connections kept open when idle.",
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "max",
+              "min"
+            ],
+            "type": "object"
+          },
+          "port": {
+            "description": "TCP port of the Postgres endpoint.",
+            "maximum": 65535,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "ssl": {
+            "description": "Require TLS on the connection.",
+            "type": "boolean"
+          },
+          "username": {
+            "description": "Role name.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "database",
+          "host",
+          "password",
+          "pool",
+          "port",
+          "ssl",
+          "username"
+        ],
+        "type": "object"
+      },
+      "description": "Named Postgres connections, keyed by UPPERCASE pool name (R14).",
+      "type": "object"
+    },
+    "storage": {
+      "$id": "https://diene.atomi.cloud/config/blocks/c3RvcmFnZQ.schema.json",
+      "additionalProperties": {
+        "additionalProperties": false,
+        "description": "One named S3-compatible storage connection.",
+        "properties": {
+          "accessKeyId": {
+            "description": "Access key id. Secret: blank in YAML, injected per landscape (R14/M33).",
+            "type": "string"
+          },
+          "bucket": {
+            "description": "Bucket name.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "endpoint": {
+            "description": "S3-compatible endpoint URL.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "forcePathStyle": {
+            "description": "Use path-style addressing (true for MinIO).",
+            "type": "boolean"
+          },
+          "region": {
+            "description": "Region label the endpoint expects.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "secretAccessKey": {
+            "description": "Secret access key. Secret: blank in YAML, injected per landscape (R14/M33).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "accessKeyId",
+          "bucket",
+          "endpoint",
+          "forcePathStyle",
+          "region",
+          "secretAccessKey"
+        ],
+        "type": "object"
+      },
+      "description": "Named S3-compatible object-storage endpoints, keyed by UPPERCASE pool name (R14).",
+      "type": "object"
+    },
+    "transport": {
+      "$id": "https://diene.atomi.cloud/config/blocks/dHJhbnNwb3J0.schema.json",
+      "properties": {
+        "batchSize": {
+          "maximum": 100,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "blockMs": {
+          "maximum": 60000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "consumerGroup": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "consumerName": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "idleMs": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "stream": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "stream",
+        "consumerGroup",
+        "consumerName",
+        "blockMs",
+        "idleMs",
+        "batchSize"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "app",
+    "otel",
+    "auth",
+    "api",
+    "postgres",
+    "cache",
+    "kv",
+    "storage",
+    "encryption",
+    "transport",
+    "errorPortal",
+    "domain",
+    "dbInit",
+    "health"
+  ],
+  "type": "object"
+}

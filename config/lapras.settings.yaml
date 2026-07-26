@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=../schemas/go-consumer.schema.json
+dbInit:
+  createBucket: true
+otel:
+  logs:
+    exporter:
+      otlp:
+        enabled: true
+        endpoint: http://alloy:4318
+  metrics:
+    exporter:
+      otlp:
+        enabled: true
+        endpoint: http://alloy:4318
+  traces:
+    exporter:
+      otlp:
+        enabled: true
+        endpoint: http://alloy:4318

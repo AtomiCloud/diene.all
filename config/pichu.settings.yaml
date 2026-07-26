@@ -1,0 +1,52 @@
+# yaml-language-server: $schema=../schemas/go-consumer.schema.json
+app:
+  landscape: pichu
+postgres:
+  MAIN:
+    host: postgres.pichu.internal
+    ssl: true
+cache:
+  MAIN:
+    host: cache.pichu.internal
+    tls: true
+kv:
+  MAIN:
+    host: kv.pichu.internal
+    tls: true
+storage:
+  MAIN:
+    endpoint: https://fly.storage.tigris.dev
+    forcePathStyle: false
+  ARCHIVE:
+    endpoint: https://fly.storage.tigris.dev
+    forcePathStyle: false
+otel:
+  logs:
+    exporter:
+      otlp:
+        enabled: true
+        endpoint: http://alloy.monitoring.svc.cluster.local:4318
+  metrics:
+    exporter:
+      otlp:
+        enabled: true
+        endpoint: http://alloy.monitoring.svc.cluster.local:4318
+  traces:
+    exporter:
+      otlp:
+        enabled: true
+        endpoint: http://alloy.monitoring.svc.cluster.local:4318
+auth:
+  idp:
+    issuer: https://identity.pichu.atomi.cloud/oidc
+    jwksUri: https://identity.pichu.atomi.cloud/oidc/jwks
+    management:
+      endpoint: https://identity.pichu.atomi.cloud/api
+  minting:
+    tokenEndpoint: https://identity.pichu.atomi.cloud/oidc/token
+api:
+  backends:
+    control-plane:
+      baseUrl: https://control-plane.pichu.atomi.cloud
+errorPortal:
+  landscape: pichu

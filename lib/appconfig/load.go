@@ -2,7 +2,6 @@ package appconfig
 
 import (
 	"context"
-	"path/filepath"
 
 	"github.com/AtomiCloud/diene.go-config/lib/config"
 )
@@ -26,35 +25,6 @@ type LoadSources struct {
 // Load reads base, sparse landscape overlay, and environment in that order.
 func Load(ctx context.Context, options LoadOptions) (ApplicationConfig, error) {
 	return LoadFromSources(ctx, options.Landscape, options.Sources)
-}
-
-// FileSources constructs the production file and environment layers without
-// reading them. The caller remains responsible for resolving directory against
-// the repository root.
-func FileSources(configDirectory, landscape string, environ map[string]string) LoadSources {
-	overlayNames := map[string]struct{}{"lapras": {}, "pichu": {}}
-	if landscape != "" {
-		overlayNames[landscape] = struct{}{}
-	}
-	overlays := make(map[string]config.YAMLSource, len(overlayNames))
-	for name := range overlayNames {
-		overlays[name] = config.NewOptionalFileYAMLSource(
-			"overlay:"+name,
-			filepath.Join(configDirectory, name+".settings.yaml"),
-		)
-	}
-	environmentSource := config.EnvSource(config.NewOSEnvSource())
-	if environ != nil {
-		environmentSource = config.NewMapEnvSource("environment", environ)
-	}
-	return LoadSources{
-		Base: config.NewFileYAMLSource(
-			"base",
-			filepath.Join(configDirectory, "settings.yaml"),
-		),
-		Overlays:    overlays,
-		Environment: environmentSource,
-	}
 }
 
 // LoadFromSources loads injected layers and validates the final merged tree once.

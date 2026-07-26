@@ -1,0 +1,30 @@
+# yaml-language-server: $schema=../schemas/go-consumer.schema.json
+compose:
+  project: diene-go-consumer
+postgres:
+  host: localhost
+  port: 5432
+  database: go_consumer
+  username: go_consumer
+  password: go_consumer
+redis:
+  host: localhost
+  port: 6379
+  cacheDb: 0
+  kvDb: 1
+  password: ''
+storage:
+  endpoint: http://localhost:9000
+  consolePort: 9001
+  accessKeyId: minioadmin
+  secretAccessKey: minioadmin
+otel:
+  endpoint: http://localhost:4318
+clickhouse:
+  endpoint: http://localhost:8123
+victoriaMetrics:
+  endpoint: http://localhost:8428
+grafana:
+  port: 3000
+encryption:
+  key: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
