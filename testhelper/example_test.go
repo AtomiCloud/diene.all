@@ -117,6 +117,23 @@ func ExampleTestingT() {
 	// Output: satisfied
 }
 
+// ExampleTestingT_Helper shows marking the calling function as a test helper
+// through the minimal testing interface.
+func ExampleTestingT_Helper() {
+	var recorder testhelper.TestingT = noopT{}
+	recorder.Helper()
+	fmt.Println("marked as helper")
+	// Output: marked as helper
+}
+
+// ExampleTestingT_Fatalf shows reporting a fatal assertion through the interface.
+func ExampleTestingT_Fatalf() {
+	var recorder testhelper.TestingT = noopT{}
+	recorder.Fatalf("value %d was invalid", 42)
+	fmt.Println("reported")
+	// Output: reported
+}
+
 // ExampleDemoBlockKey shows the neutral demo block's root key.
 func ExampleDemoBlockKey() {
 	fmt.Println(testhelper.DemoBlockKey)

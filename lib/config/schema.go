@@ -28,8 +28,9 @@ type Block struct {
 	Schema map[string]any
 }
 
-// NewBlock builds a [Block] mounting fragment under key. It clones fragment so
-// the block owns an independent copy and later caller mutation cannot alter the
+// NewBlock builds a [Block] mounting fragment under key. It clones fragment over
+// the JSON-like schema domain (string-keyed maps, slices, and scalars) so the
+// block owns an independent copy and later caller mutation cannot alter the
 // composed schema. It is the constructor engines use to export their owned
 // section for composition.
 func NewBlock(key string, required bool, fragment map[string]any) Block {

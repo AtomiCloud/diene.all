@@ -18,6 +18,10 @@ type nilYAML struct{}
 func (*nilYAML) Name() string                         { return "nil-yaml" }
 func (*nilYAML) Read(context.Context) ([]byte, error) { return nil, nil }
 
+// mergeCollisionBody is a demo block whose merged anchor key and explicit
+// case-only variant are effective siblings that must be rejected before Viper.
+const mergeCollisionBody = "defaults: &d\n  cacheRegion: x\ndemo:\n  <<: *d\n  CacheRegion: y\n"
+
 func loadHardening(t *testing.T, options ...config.Option) (*config.Config, error) {
 	t.Helper()
 	base := make([]config.Option, 0, 4+len(options))
@@ -158,6 +162,86 @@ func TestDecodeRejectsAmbiguousKey(t *testing.T) {
 	}
 	if err := cfg.Decode("demo.dataDir", new(int)); err == nil {
 		t.Fatal("an exact-hit key must not resolve when an alias sibling exists")
+	}
+}
+
+func TestLoadRejectsBaseMergeAliasCollision(t *testing.T) {
+	t.Parallel()
+	base := testhelper.SchemaPointer + `
+app:
+  landscape: base
+  platform: sulfoxide
+  service: config
+  module: lib
+  version: 1.0.0
+` + mergeCollisionBody
+	cfg, err := loadHardening(t, config.WithBaseSource(testhelper.BaseSource(base)))
+	loadErr := testhelper.RequireLoadError(t, cfg, err)
+	if _, ok := config.ValidationIssues(loadErr); !ok {
+		t.Fatalf("a base merge-alias collision must be a validation problem: %v", loadErr)
+	}
+}
+
+func TestLoadRejectsOverlayMergeAliasCollision(t *testing.T) {
+	t.Parallel()
+	overlay := testhelper.SchemaPointer + `
+app:
+  landscape: lapras
+` + mergeCollisionBody
+	cfg, err := loadHardening(
+		t,
+		config.WithLandscape("lapras"),
+		config.WithOverlaySource("lapras", testhelper.OverlaySource("lapras", overlay)),
+	)
+	loadErr := testhelper.RequireLoadError(t, cfg, err)
+	if _, ok := config.ValidationIssues(loadErr); !ok {
+		t.Fatalf("an overlay merge-alias collision must be a validation problem: %v", loadErr)
+	}
+}
+
+func TestLoadEnvReadFailureUsesSchemaPortalAndOverride(t *testing.T) {
+	t.Parallel()
+	schema := testhelper.Schema().WithPortal(problemtest.SampleErrorPortal())
+	base := config.WithBaseSource(testhelper.BaseSource(testhelper.BaseDocument()))
+
+	cfg, err := config.NewLoader(
+		config.WithEnvPrefix("ATOMI_"),
+		base,
+		config.WithSchema(schema),
+		config.WithEnvSource(failingEnv{}),
+	).Load(context.Background())
+	loadErr := testhelper.RequireLoadError(t, cfg, err)
+	var problemErr *problem.Error
+	if !errors.As(loadErr, &problemErr) || !strings.Contains(problemErr.Problem.Type, "raichu") {
+		t.Fatalf("env read failure must default to the schema portal: %v", loadErr)
+	}
+	// The issue is keyed by the offending source name.
+	testhelper.RequireIssue(t, loadErr, "failing-env")
+
+	cfg, err = config.NewLoader(
+		config.WithEnvPrefix("ATOMI_"),
+		base,
+		config.WithSchema(schema),
+		config.WithErrorPortal(problem.LocalErrorPortal()),
+		config.WithEnvSource(failingEnv{}),
+	).Load(context.Background())
+	loadErr = testhelper.RequireLoadError(t, cfg, err)
+	if !errors.As(loadErr, &problemErr) || !strings.Contains(problemErr.Problem.Type, "local.atomi.cloud") {
+		t.Fatalf("WithErrorPortal must override the env read-failure portal: %v", loadErr)
+	}
+}
+
+func TestDecodeDescendsTypedStringMap(t *testing.T) {
+	t.Parallel()
+	// NewConfig deep-clones the typed container and Decode descends it, so the
+	// typed-container ownership claim and dotted lookup agree end to end.
+	raw := map[string]any{"svc": map[string]string{"cache-region": "east"}}
+	cfg := config.NewConfig(raw)
+	raw["svc"].(map[string]string)["cache-region"] = "mutated"
+
+	var region string
+	if err := cfg.Decode("svc.cacheRegion", &region); err != nil || region != "east" {
+		t.Fatalf("typed string-map Decode = %q, err=%v", region, err)
 	}
 }
 

@@ -14,16 +14,21 @@ type Config struct {
 	raw map[string]any
 }
 
-// NewConfig wraps an already-merged configuration tree. It deep-clones raw —
-// including typed containers, pointers, and structs — so the config owns an
-// independent copy and later caller mutation cannot alter it or race a
-// concurrent [Config.Decode]. [Loader.Load] uses it after validation.
+// NewConfig wraps an already-merged configuration tree. It deep-clones raw over
+// the supported configuration domain — string-keyed maps, slices, arrays,
+// pointers, and value-semantic structs (such as time.Time) — so the config owns
+// an independent copy and later caller mutation cannot alter it or race a
+// concurrent [Config.Decode]. A mutable value reachable only through a struct's
+// unexported field is the one documented exception: reflection cannot copy it,
+// so it stays shared (the JSON-like configuration domain has no such value).
+// [Loader.Load] uses it after validation.
 func NewConfig(raw map[string]any) *Config {
 	return &Config{raw: clone.Map(raw)}
 }
 
-// Raw returns an independent deep clone of the merged configuration tree, so
-// callers cannot mutate the config through the returned map.
+// Raw returns an independent deep clone of the merged configuration tree over the
+// supported configuration domain (see [NewConfig]), so callers cannot mutate the
+// config through the returned map.
 func (c *Config) Raw() map[string]any {
 	return clone.Map(c.raw)
 }

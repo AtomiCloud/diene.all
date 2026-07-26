@@ -67,6 +67,84 @@ func TestCompileRejectsUnmarshalableFragment(t *testing.T) {
 	}
 }
 
+func TestSchemaPropertyCollisionShapes(t *testing.T) {
+	t.Parallel()
+	top := map[string]any{"properties": map[string]any{"cache_region": map[string]any{}, "cacheRegion": map[string]any{}}}
+	if location, _, collided := valid.SchemaPropertyCollision(top, ""); !collided || location != "(root)" {
+		t.Fatalf("top-level schema collision wrong: %q %v", location, collided)
+	}
+	nested := map[string]any{"properties": map[string]any{
+		"app": map[string]any{"properties": map[string]any{"data-dir": map[string]any{}, "dataDir": map[string]any{}}},
+	}}
+	if location, _, collided := valid.SchemaPropertyCollision(nested, ""); !collided || location != "app" {
+		t.Fatalf("nested schema collision wrong: %q %v", location, collided)
+	}
+	arrayItems := map[string]any{"properties": map[string]any{
+		"list": map[string]any{"items": map[string]any{"properties": map[string]any{"a_b": map[string]any{}, "aB": map[string]any{}}}},
+	}}
+	if location, _, collided := valid.SchemaPropertyCollision(arrayItems, ""); !collided || location != "list[]" {
+		t.Fatalf("array-items schema collision wrong: %q %v", location, collided)
+	}
+}
+
+func TestSchemaPropertyCollisionAcceptsDistinct(t *testing.T) {
+	t.Parallel()
+	// Exercises the non-object property value and the items recursion without a
+	// collision, so every recursion path returns cleanly.
+	clean := map[string]any{"properties": map[string]any{
+		"flag": true,
+		"list": map[string]any{"items": map[string]any{"properties": map[string]any{"ok": map[string]any{}}}},
+		"app":  map[string]any{"properties": map[string]any{"landscape": map[string]any{}}},
+	}}
+	if _, _, collided := valid.SchemaPropertyCollision(clean, ""); collided {
+		t.Fatal("distinct schema properties must not collide")
+	}
+}
+
+func TestEvaluateRejectsNormalizedInstanceCollision(t *testing.T) {
+	t.Parallel()
+	// A typed container flattened during normalization still carries case-only
+	// aliases; the collision check runs on the normalized object and fails closed.
+	instance := map[string]any{"a": "x", "b": "y", "svc": map[string]string{"cache-region": "1", "cacheRegion": "2"}}
+	err := valid.Evaluate(objectSchema(), problem.ErrorPortal{}, instance)
+	var problemErr *problem.Error
+	if !errors.As(err, &problemErr) {
+		t.Fatalf("a normalized-instance collision must be a validation problem: %v", err)
+	}
+}
+
+func TestEvaluateRejectsCyclicSchema(t *testing.T) {
+	t.Parallel()
+	// The clone package now preserves caller cycles, so a cyclic schema fragment
+	// must fault at the marshal gate rather than hang the property/alignment walks.
+	cyclic := map[string]any{"type": "object"}
+	cyclic["self"] = cyclic
+	err := valid.Evaluate(cyclic, problem.ErrorPortal{}, map[string]any{})
+	if err == nil {
+		t.Fatal("a cyclic schema must fault, not hang")
+	}
+	var problemErr *problem.Error
+	if errors.As(err, &problemErr) {
+		t.Fatal("a cyclic authoring fault is a plain error, not a validation problem")
+	}
+}
+
+func TestEvaluateRejectsCollidingSchema(t *testing.T) {
+	t.Parallel()
+	schema := map[string]any{
+		"type":       "object",
+		"properties": map[string]any{"cache_region": map[string]any{"type": "string"}, "cacheRegion": map[string]any{"type": "string"}},
+	}
+	err := valid.Evaluate(schema, problem.ErrorPortal{}, map[string]any{})
+	if err == nil {
+		t.Fatal("a schema with canonical-duplicate properties must be rejected")
+	}
+	var problemErr *problem.Error
+	if errors.As(err, &problemErr) {
+		t.Fatal("a schema authoring fault is a plain error, not a validation problem")
+	}
+}
+
 func TestNormalizeRejectsUnencodable(t *testing.T) {
 	t.Parallel()
 	if _, err := valid.Normalize(map[string]any{"a": make(chan int)}); err == nil {

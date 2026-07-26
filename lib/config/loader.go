@@ -137,7 +137,7 @@ func (l *Loader) Load(ctx context.Context) (*Config, error) {
 
 	environment, err := l.env.Environ(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("config: read env layer %q: %w", l.env.Name(), err)
+		return nil, valid.Problem(portal, []valid.Issue{{Path: l.env.Name(), Message: err.Error()}})
 	}
 	envSettings, err := coreutils.EnvironmentToNestedMap(environment, l.envPrefix)
 	if err != nil {

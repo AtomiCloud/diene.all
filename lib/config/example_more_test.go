@@ -350,3 +350,94 @@ func ExampleMapEnvSource_Environ() {
 	fmt.Println(environment["K"])
 	// Output: V
 }
+
+// ExampleYAMLSource_Name shows reading a layer's diagnostic name through the
+// interface seam.
+func ExampleYAMLSource_Name() {
+	var source config.YAMLSource = config.NewBytesYAMLSource("base", []byte("app: {}"))
+	fmt.Println(source.Name())
+	// Output: base
+}
+
+// ExampleYAMLSource_Read shows reading a layer's bytes through the interface seam.
+func ExampleYAMLSource_Read() {
+	var source config.YAMLSource = config.NewBytesYAMLSource("base", []byte("app: {}"))
+	content, _ := source.Read(context.Background())
+	fmt.Println(len(content) > 0)
+	// Output: true
+}
+
+// ExampleEnvSource_Name shows reading the env layer's name through the interface.
+func ExampleEnvSource_Name() {
+	var source config.EnvSource = config.NewMapEnvSource("env", map[string]string{"A": "1"})
+	fmt.Println(source.Name())
+	// Output: env
+}
+
+// ExampleEnvSource_Environ shows reading the env layer's map through the interface.
+func ExampleEnvSource_Environ() {
+	var source config.EnvSource = config.NewMapEnvSource("env", map[string]string{"ATOMI_X": "1"})
+	environment, _ := source.Environ(context.Background())
+	fmt.Println(environment["ATOMI_X"])
+	// Output: 1
+}
+
+// ExampleAppBlock_landscape shows the service-tree landscape field.
+func ExampleAppBlock_landscape() {
+	fmt.Println(config.AppBlock{Landscape: "lapras"}.Landscape)
+	// Output: lapras
+}
+
+// ExampleAppBlock_platform shows the service-tree platform field.
+func ExampleAppBlock_platform() {
+	fmt.Println(config.AppBlock{Platform: "sulfoxide"}.Platform)
+	// Output: sulfoxide
+}
+
+// ExampleAppBlock_service shows the service-tree service field.
+func ExampleAppBlock_service() {
+	fmt.Println(config.AppBlock{Service: "config"}.Service)
+	// Output: config
+}
+
+// ExampleAppBlock_module shows the service-tree module field.
+func ExampleAppBlock_module() {
+	fmt.Println(config.AppBlock{Module: "lib"}.Module)
+	// Output: lib
+}
+
+// ExampleAppBlock_version shows the service-tree version field.
+func ExampleAppBlock_version() {
+	fmt.Println(config.AppBlock{Version: "1.0.0"}.Version)
+	// Output: 1.0.0
+}
+
+// ExampleBlock_key shows the root property a block mounts under.
+func ExampleBlock_key() {
+	fmt.Println(config.NewBlock("otel", true, map[string]any{"type": "object"}).Key)
+	// Output: otel
+}
+
+// ExampleBlock_required shows whether a block is mandatory in the composed root.
+func ExampleBlock_required() {
+	fmt.Println(config.NewBlock("otel", true, map[string]any{"type": "object"}).Required)
+	// Output: true
+}
+
+// ExampleBlock_schema shows the fragment a block carries.
+func ExampleBlock_schema() {
+	fmt.Println(config.NewBlock("otel", true, map[string]any{"type": "object"}).Schema["type"])
+	// Output: object
+}
+
+// ExampleIssue_path shows the dotted location of a validation issue.
+func ExampleIssue_path() {
+	fmt.Println(config.Issue{Path: "app.landscape", Message: "required"}.Path)
+	// Output: app.landscape
+}
+
+// ExampleIssue_message shows the reason a value was rejected.
+func ExampleIssue_message() {
+	fmt.Println(config.Issue{Path: "app.landscape", Message: "required"}.Message)
+	// Output: required
+}

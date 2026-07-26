@@ -1,6 +1,7 @@
 package tree_test
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/AtomiCloud/diene.go-config/lib/config/internal/tree"
@@ -24,6 +25,17 @@ func TestLookupMatchesAcrossCasings(t *testing.T) {
 	}
 }
 
+func TestLookupDescendsTypedStringMap(t *testing.T) {
+	t.Parallel()
+	// A nested typed container must resolve exactly like a nested map[string]any,
+	// so the clone's typed-container support and dotted lookup agree.
+	root := map[string]any{"svc": map[string]string{"cache-region": "east"}}
+	value, ok := tree.Lookup(root, "svc.cacheRegion")
+	if !ok || value != "east" {
+		t.Fatalf("typed string-map lookup = %v %v", value, ok)
+	}
+}
+
 func TestLookupMissingKey(t *testing.T) {
 	t.Parallel()
 	if _, ok := tree.Lookup(map[string]any{}, "nope"); ok {
@@ -38,9 +50,23 @@ func TestLookupThroughScalarMidPath(t *testing.T) {
 	}
 }
 
+func TestLookupThroughNilMidPath(t *testing.T) {
+	t.Parallel()
+	if _, ok := tree.Lookup(map[string]any{"app": nil}, "app.landscape"); ok {
+		t.Fatal("descending through a nil value must not resolve")
+	}
+}
+
+func TestLookupThroughNonStringKeyedMap(t *testing.T) {
+	t.Parallel()
+	if _, ok := tree.Lookup(map[string]any{"m": map[int]string{1: "x"}}, "m.1"); ok {
+		t.Fatal("descending through a non-string-keyed map must not resolve")
+	}
+}
+
 func TestMatchKeyExactAndCanonical(t *testing.T) {
 	t.Parallel()
-	node := map[string]any{"my-key": 1}
+	node := reflect.ValueOf(map[string]any{"my-key": 1})
 	if value, ok := tree.MatchKey(node, "my-key"); !ok || value != 1 {
 		t.Fatalf("exact match = %v %v", value, ok)
 	}
@@ -57,7 +83,7 @@ func TestMatchKeyAmbiguousIsNotFound(t *testing.T) {
 	// Two siblings share the canonical form; the match is ambiguous and must be
 	// reported as not found rather than resolved by map iteration order — even
 	// when the looked-up segment spells one sibling exactly.
-	node := map[string]any{"data-dir": 1, "dataDir": 2}
+	node := reflect.ValueOf(map[string]any{"data-dir": 1, "dataDir": 2})
 	if _, ok := tree.MatchKey(node, "datadir"); ok {
 		t.Fatal("a non-exact ambiguous canonical match must be not found")
 	}

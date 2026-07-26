@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/AtomiCloud/diene.go-config/lib/config/internal/collision"
@@ -164,6 +165,56 @@ func Problem(portal problem.ErrorPortal, issues []Issue) *problem.Error {
 	return problem.NewError(envelope)
 }
 
+// SchemaPropertyCollision reports the first schema object that declares two
+// property names sharing a canonical (separator- and case-insensitive) form,
+// recursing through nested object "properties" and array "items". Property names
+// are visited in sorted order so the report is deterministic. Such a schema
+// cannot be aligned deterministically — the canonical index in [AlignToSchema]
+// would keep an arbitrary winner by map iteration — so [Evaluate] rejects it as
+// an authoring fault before validation.
+func SchemaPropertyCollision(schema map[string]any, prefix string) (location, detail string, collided bool) {
+	//nolint:revive // a JSON Schema "properties" value is a trusted object or absent.
+	properties, _ := schema["properties"].(map[string]any)
+	names := make([]string, 0, len(properties))
+	for name := range properties {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+
+	seen := make(map[string]string, len(names))
+	for _, name := range names {
+		canonical := coreutils.CanonicalConfigKey(name)
+		if other, ok := seen[canonical]; ok {
+			at := prefix
+			if at == "" {
+				at = rootPath
+			}
+			return at, fmt.Sprintf("schema properties %q and %q at %s share the canonical form %q", other, name, at, canonical), true
+		}
+		seen[canonical] = name
+	}
+
+	for _, name := range names {
+		childPath := name
+		if prefix != "" {
+			childPath = prefix + "." + name
+		}
+		//nolint:revive // a JSON Schema property value is a trusted object.
+		if child, ok := properties[name].(map[string]any); ok {
+			if childLocation, childMessage, found := SchemaPropertyCollision(child, childPath); found {
+				return childLocation, childMessage, true
+			}
+		}
+	}
+	//nolint:revive // a JSON Schema "items" value is a trusted object or absent.
+	if items, ok := schema["items"].(map[string]any); ok {
+		if childLocation, childMessage, found := SchemaPropertyCollision(items, prefix+"[]"); found {
+			return childLocation, childMessage, true
+		}
+	}
+	return "", "", false
+}
+
 // AlignToSchema rewrites an instance's keys to the schema's property spellings
 // wherever they identify the same logical key under the core-utils canonical
 // rule, recursing into nested object properties and array-of-object items.
@@ -218,9 +269,14 @@ func AlignToSchema(schema map[string]any, instance map[string]any) map[string]an
 // exactly once. A schema-validation failure is returned as a problem-typed
 // error; a malformed schema or an unencodable instance is a plain wrapped error.
 func Evaluate(schemaRoot map[string]any, portal problem.ErrorPortal, instance map[string]any) error {
+	// Compile marshals the schema first, so a cyclic authoring fault surfaces here
+	// (json.Marshal rejects cycles) before the unguarded property/alignment walks.
 	compiled, err := Compile(schemaRoot)
 	if err != nil {
 		return fmt.Errorf("config: compile root schema: %w", err)
+	}
+	if location, detail, collided := SchemaPropertyCollision(schemaRoot, ""); collided {
+		return fmt.Errorf("config: schema property collision at %s: %s", location, detail)
 	}
 	normalized, err := Normalize(instance)
 	if err != nil {
