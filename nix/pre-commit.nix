@@ -6,14 +6,14 @@
 }:
 let
   go-deps = pkgs.buildGoModule {
-    pname = "diene-go-base-dependencies";
+    pname = "diene-go-consumer-dependencies";
     version = "0";
     src = ../.;
-    vendorHash = "sha256-NbeafHrobDMronPIB3abd5J/8dPfNtGNuQsI6vcj820=";
+    vendorHash = "sha256-sC4fXO4G3Pfl8rzj1CpIeFouMTApYF1ek9aZ09Rxzm4=";
     proxyVendor = true;
   };
   go-lint-runtime = pkgs.buildEnv {
-    name = "go-base-lint-runtime";
+    name = "go-consumer-lint-runtime";
     paths = [
       packages.bash
       packages.git
@@ -22,7 +22,7 @@ let
       pkgs.coreutils
     ];
   };
-  go-lint = "${packages.bash}/bin/bash -c 'export PATH=${go-lint-runtime}/bin; export CGO_ENABLED=0; export GOPROXY=file://${go-deps.goModules}; export GOSUMDB=off; export GOMODCACHE=\"\${TMPDIR:-/tmp}/go-base-mod-cache\"; exec ${packages.golangci-lint}/bin/golangci-lint run --timeout 5m ./...'";
+  go-lint = "${packages.bash}/bin/bash -c 'export PATH=${go-lint-runtime}/bin; export CGO_ENABLED=0; export GOPROXY=file://${go-deps.goModules}; export GOSUMDB=off; export GOMODCACHE=\"\${TMPDIR:-/tmp}/go-consumer-mod-cache\"; exec ${packages.golangci-lint}/bin/golangci-lint run --timeout 5m ./...'";
   validator-runtime = pkgs.buildEnv {
     name = "workspace-validator-runtime";
     paths = [
@@ -55,6 +55,11 @@ pre-commit-lib.run {
         "^Changelog\\.md$"
         "^docs/developer/CommitConventions\\.md$"
         "^infra/root_chart/"
+
+        # ### go-consumer-treefmt-excludes
+        # #### source: go-consumer
+        "^infra/primordial_chart/"
+        "^schemas/"
       ];
     };
 
@@ -110,6 +115,26 @@ pre-commit-lib.run {
       name = "Helm lint";
       entry = "${packages.kubernetes-helm}/bin/helm lint infra/root_chart";
       files = "^infra/root_chart/.*";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    # ### go-consumer-primordial-chart-hooks
+    # #### source: go-consumer
+    a-helm-docs-primordial = {
+      enable = true;
+      name = "Primordial Helm docs";
+      entry = "${packages.infralint}/bin/helm-docs --chart-search-root infra/primordial_chart";
+      files = "^infra/primordial_chart/.*";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-helm-lint-primordial = {
+      enable = true;
+      name = "Primordial Helm lint";
+      entry = "${packages.kubernetes-helm}/bin/helm lint infra/primordial_chart";
+      files = "^infra/primordial_chart/.*";
       pass_filenames = false;
       language = "system";
     };
@@ -247,13 +272,42 @@ pre-commit-lib.run {
       language = "system";
     };
 
+    # ### go-consumer-hooks
+    # #### source: go-consumer
+    a-constants-sync = {
+      enable = true;
+      name = "Keyed adapter constants sync";
+      entry = validator "scripts/validate/constants-sync.sh";
+      files = "^(config/settings\\.yaml|lib/appconfig/constants\\.go)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-rebrand-config = {
+      enable = true;
+      name = "Config-driven rebrand guard";
+      entry = validator "scripts/validate/rebrand.sh";
+      files = "^(config/settings\\.yaml|cmd/.*\\.go|lib/.*\\.go|adapters/.*\\.go)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-schema-drift = {
+      enable = true;
+      name = "Generated config schema drift";
+      entry = validator "scripts/validate/schema-drift.sh";
+      files = "^(config/.*\\.yaml|schemas/.*\\.json|lib/appconfig/.*\\.go)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
     # ### shared-hooks
     # #### source: shared
     a-claude-links = {
       enable = true;
       name = "CLAUDE link integrity";
       entry = "${pkgs.coreutils}/bin/env SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt ${pkgs.lychee}/bin/lychee --offline --no-progress CLAUDE.md";
-      files = "^(CLAUDE\\.md|docs/standards/.*\\.md)$";
+      files = "^(CLAUDE\\.md|docs/developer/(go-baseline|go-consumer)\\.md|docs/standards/.*\\.md)$";
       pass_filenames = false;
       language = "system";
     };
@@ -262,7 +316,7 @@ pre-commit-lib.run {
       enable = true;
       name = "Markdown lint";
       entry = "${pkgs.markdownlint-cli2}/bin/markdownlint-cli2";
-      files = "^(CLAUDE\\.md|README\\.md|docs/developer/go-baseline\\.md|docs/standards/(authorization|contracts|contributor-docs|datetime|domain-driven-design|functional-practices|grafana-dashboards|observability|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/.*\\.md|observability/.*\\.md|probes/observability-.*\\.md|\\.claude/skills/(authorization|contributor-docs|datetime|domain-driven-design|functional-practices|go-baseline|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/SKILL\\.md|\\.claude/skills/(grafana-alert|grafana-alert-set|grafana-dashboards|grafana-runbook|observability-check)/.*\\.md)$";
+      files = "^(CLAUDE\\.md|README\\.md|docs/developer/(go-baseline|go-consumer)\\.md|docs/standards/(authorization|contracts|contributor-docs|datetime|domain-driven-design|functional-practices|grafana-dashboards|observability|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/.*\\.md|infra/primordial_chart/.*\\.md|observability/.*\\.md|probes/observability-.*\\.md|\\.claude/skills/(authorization|contributor-docs|datetime|domain-driven-design|functional-practices|go-baseline|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/SKILL\\.md|\\.claude/skills/(grafana-alert|grafana-alert-set|grafana-dashboards|grafana-runbook|observability-check)/.*\\.md)$";
       pass_filenames = true;
       language = "system";
     };
