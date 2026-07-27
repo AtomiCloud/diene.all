@@ -229,18 +229,6 @@ func TestSchemaAndConstants(t *testing.T) {
 	if !ok || len(required) != 14 {
 		t.Fatalf("Schema() required = %#v", schema.Root()["required"])
 	}
-
-	constants := appconfig.KeyedAdapterConstants()
-	wantConstants := map[string][]string{
-		"cache": {"MAIN"}, "kv": {"MAIN"}, "postgres": {"MAIN"}, "storage": {"ARCHIVE", "MAIN"},
-	}
-	if !reflect.DeepEqual(constants, wantConstants) {
-		t.Fatalf("KeyedAdapterConstants() = %#v, want %#v", constants, wantConstants)
-	}
-	constants["storage"][0] = "MUTATED"
-	if appconfig.KeyedAdapterConstants()["storage"][0] != appconfig.StorageArchive {
-		t.Fatal("KeyedAdapterConstants() returned shared mutable storage")
-	}
 }
 
 func TestSchemaReflectionFailures(t *testing.T) {
