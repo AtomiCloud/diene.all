@@ -234,4 +234,52 @@ void main() {
       expect(transport.sent.single.url.path, '/sdk');
     });
   });
+
+  group('adapter body fallbacks when there is NO request stream', () {
+    // MEASURED: dio ALWAYS supplies a requestStream, so `fetch`'s two `else if`
+    // branches are unreachable through a Dio client — line 262 is hit while 267
+    // and 269 are not. They are defensive fallbacks for a caller that invokes
+    // the adapter directly, which is legitimate (the adapter is a public export),
+    // so they are covered by calling `fetch` directly rather than declared dead.
+    Future<ResponseBody> fetchWith(Object? data, FakeHttpTransport t) {
+      final BackendClientAdapter adapter = BackendClientAdapter(
+        _engine(t).backend(_coord('a'))!,
+      );
+      return adapter.fetch(
+        RequestOptions(path: '/thing', method: 'POST', data: data),
+        null, // no request stream — the branch under test
+        null,
+      );
+    }
+
+    test('a STRING data payload is passed through unchanged', () async {
+      final FakeHttpTransport t = FakeHttpTransport(
+        (HttpRequest _) => okJson(<String, Object?>{'ok': true}),
+      );
+
+      await fetchWith('{"raw":true}', t);
+
+      expect(t.sent.single.body, '{"raw":true}');
+    });
+
+    test('a NON-string data payload is JSON-encoded', () async {
+      final FakeHttpTransport t = FakeHttpTransport(
+        (HttpRequest _) => okJson(<String, Object?>{'ok': true}),
+      );
+
+      await fetchWith(<String, Object?>{'a': 1}, t);
+
+      expect(jsonDecode(t.sent.single.body!), <String, Object?>{'a': 1});
+    });
+
+    test('a null data payload sends no body at all', () async {
+      final FakeHttpTransport t = FakeHttpTransport(
+        (HttpRequest _) => okJson(<String, Object?>{'ok': true}),
+      );
+
+      await fetchWith(null, t);
+
+      expect(t.sent.single.body, isNull);
+    });
+  });
 }
