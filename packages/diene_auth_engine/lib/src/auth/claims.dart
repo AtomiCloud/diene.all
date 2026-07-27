@@ -21,15 +21,26 @@ abstract final class Claims {
       final Object? decoded = jsonDecode(
         utf8.decode(base64Url.decode(normalized)),
       );
-      if (decoded is Map<String, Object?>) {
-        return decoded;
+      if (decoded is! Map) {
+        return const <String, Object?>{};
       }
-      if (decoded is Map) {
-        return decoded.map(
-          (Object? key, Object? value) => MapEntry(key.toString(), value),
-        );
-      }
-      return const <String, Object?>{};
+      // Normalise keys on the SINGLE path rather than fast-pathing
+      // `Map<String, Object?>` first. `jsonDecode` here is called with NO
+      // reviver, and measured across every JSON top-level form it always returns
+      // `_Map<String, dynamic>` — which already satisfies `Map<String, Object?>`.
+      // So the old fast path always won and its key-normalising fallback was
+      // dead code no input could reach, which the coverage ledger correctly
+      // refused to call covered.
+      //
+      // Collapsing to one branch removes the dead code WITHOUT removing the
+      // safety net: if a reviver is ever introduced here and yields non-String
+      // keys, they are still coerced rather than the whole claim set being
+      // silently dropped. Both arms below are reachable — a non-Map payload
+      // (array, string, number, bool, null) takes the first, every JSON object
+      // takes the second.
+      return decoded.map<String, Object?>(
+        (Object? key, Object? value) => MapEntry(key.toString(), value),
+      );
     } on Object {
       return const <String, Object?>{};
     }

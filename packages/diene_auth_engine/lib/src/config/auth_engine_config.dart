@@ -36,13 +36,18 @@ final class AuthEngineConfig {
   /// Parses and validates the `authEngine` config block (fail-fast on the final
   /// merged layer).
   factory AuthEngineConfig.fromBlock(Map<String, Object?> block) {
-    Uri uri(String key, {bool required = true}) {
+    // No `required` parameter. It defaulted to true and NONE of the three call
+    // sites (issuer, endpoint, redirectUri) ever passed false, so the
+    // `required == false` arm was dead — the author had already named its body
+    // `throw StateError('unreachable')`. Dropping the parameter deletes the dead
+    // branch instead of leaving a self-declared-unreachable line the coverage
+    // ledger can never close. `uri` is a private closure inside this factory, so
+    // this is not an API change; if an optional URI key is ever wanted, add the
+    // parameter back together with a call site that actually uses it.
+    Uri uri(String key) {
       final Object? value = block[key];
       if (value == null) {
-        if (required) {
-          throw FormatException('authEngine.$key is required');
-        }
-        throw StateError('unreachable');
+        throw FormatException('authEngine.$key is required');
       }
       if (value is! String || value.isEmpty) {
         throw FormatException('authEngine.$key must be a non-empty URI string');
