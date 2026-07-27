@@ -7,6 +7,14 @@ cd "${root_dir}"
 ./scripts/ci/setup.sh
 ./scripts/validate/dart-package.sh
 ./scripts/validate/release-policy.sh
+# ### lib-dart-api-engine-package-validate
+# #### source: lib/dart/api-engine
+# Archive completeness. The dry-run below cannot catch an over-broad .pubignore
+# pattern, because the dry-run validates the WORKING TREE while the omission
+# exists only in the ARCHIVE — that is exactly how both published
+# diene_auth_engine releases shipped unusable.
+./scripts/validate/publish-archive.sh
+./scripts/validate/c0-release.sh
 
 # pub.dev dry-run and pana score run against the publishable member.
 cd "${root_dir}/packages/diene_api_engine"
