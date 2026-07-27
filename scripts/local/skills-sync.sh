@@ -125,9 +125,10 @@ if [ -f go.mod ]; then
     go_declared=true
     go_declares_external=true
   fi
-  if jq_match '(.Module.Path // "") | test("(^|/)diene[._-]")' "${go_manifest}"; then
-    go_declared=true
-  fi
+
+  # A matching main-module name is not a dependency obligation. The repository
+  # may contribute its own skills when present, but having none is a legitimate
+  # empty result; only external Require entries must resolve to vendored skills.
 
   if ! go list -m -json all >"${go_modules}"; then
     echo "❌ Failed to list Go modules (go list -m -json all)" >&2

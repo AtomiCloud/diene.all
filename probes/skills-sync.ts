@@ -1,6 +1,24 @@
 import { expectGreen } from './lib/helpers.ts';
 
 const goModFixture = 'module example.com/app\n\ngo 1.22\n\nrequire diene.example.com/go-core v0.1.0\n';
+const goSelfModuleFixture = 'module diene.example.com/go-base\n\ngo 1.22\n';
+
+const selfModuleGoShim = [
+  '#!/usr/bin/env bash',
+  'case "$*" in',
+  '  "mod edit -json")',
+  '    printf \'{"Module":{"Path":"diene.example.com/go-base"},"Go":"1.22"}\\n\'',
+  '    ;;',
+  '  "list -m -json all")',
+  '    printf \'{"Path":"diene.example.com/go-base","Main":true,"Dir":"%s"}\\n\' "$PWD"',
+  '    ;;',
+  '  *)',
+  '    echo "unexpected fake-go invocation: $*" >&2',
+  '    exit 97',
+  '    ;;',
+  'esac',
+  '',
+].join('\n');
 
 const brokenGoShim = [
   '#!/usr/bin/env bash',
@@ -132,6 +150,23 @@ export default {
       },
     },
     {
+      name: 'baseline-skills-sync-go-self-empty-green',
+      description:
+        'A Diene-named Go main module with no external Diene requirements and no local skills is legitimately empty.',
+      kind: 'baseline',
+      async run(repo: any) {
+        await withCleanProbeState(repo, async () => {
+          await repo.write('go.mod', goSelfModuleFixture);
+          await repo.write('go-shim/go', selfModuleGoShim);
+          await expectGreen(
+            repo,
+            `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ./scripts/local/skills-sync.sh; jq -e ". == []" .claude/skills/vendor/manifest.json >/dev/null'`,
+            'skills-sync',
+          );
+        });
+      },
+    },
+    {
       name: 'mutation-skills-sync-broken-go-caught',
       description:
         'A focused sabotage must turn the skills-sync mechanism red: a failing go module listing must fail the sync outright, even with committed vendored skills that could have been preserved.',
@@ -152,6 +187,38 @@ export default {
           const output = `${result.stdout}\n${result.stderr}`;
           if (!output.includes('Failed to list Go modules (go list -m -json all)')) {
             throw new Error(`skills-sync failed for the wrong reason after the broken Go resolver:\n${output}`);
+          }
+        });
+      },
+    },
+    {
+      name: 'mutation-skills-sync-go-self-false-positive-caught',
+      description:
+        'A focused sabotage must turn the self-module baseline red: treating the main module as an external obligation rejects a legitimate empty result.',
+      kind: 'mutation',
+      expectedImpact: [],
+      async run(repo: any) {
+        await withCleanProbeState(repo, async () => {
+          await repo.patch('scripts/local/skills-sync.sh', {
+            find: '  go_declares_external=false\n',
+            replace:
+              '  go_declares_external=false\n' +
+              '  if jq_match \'(.Module.Path // "") | test("(^|/)diene[._-]")\' "${go_manifest}"; then\n' +
+              '    go_declared=true\n' +
+              '  fi\n',
+          });
+          await repo.write('go.mod', goSelfModuleFixture);
+          await repo.write('go-shim/go', selfModuleGoShim);
+          const result = await repo.exec(
+            `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ./scripts/local/skills-sync.sh'`,
+            { timeoutMs: 240000 },
+          );
+          if (result.exitCode === 0) {
+            throw new Error('skills-sync stayed green after the main module became an external obligation');
+          }
+          const output = `${result.stdout}\n${result.stderr}`;
+          if (!output.includes('Declared diene packages produced no vendored skills: go')) {
+            throw new Error(`skills-sync failed for the wrong reason after the self-module sabotage:\n${output}`);
           }
         });
       },
