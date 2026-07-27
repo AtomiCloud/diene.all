@@ -15,9 +15,6 @@ tasks live under `tasks/` and are included by namespace.
 | `pls setup`         | synchronize generated vendored skills    |
 | `pls lint`          | run all pre-commit gates                 |
 | `pls skills:sync`   | rebuild `.claude/skills/vendor/`         |
-| `pls docker:build`  | build the local workspace image          |
-| `pls docker:run`    | run the local image                      |
-| `pls docker:clean`  | remove the local image                   |
 | `pls helm:deps`     | build chart dependencies                 |
 | `pls helm:lint`     | lint the root chart                      |
 | `pls helm:template` | render the root chart                    |
@@ -31,10 +28,10 @@ tasks live under `tasks/` and are included by namespace.
 2. Move conditional or multi-step local logic to `scripts/local/`.
 3. Never call `scripts/ci/*` from a Taskfile; workflows own those entry points.
 4. Use lowercase names and colon-separated namespaces.
-5. Put repository-specific image and chart values in Taskfile `vars:` blocks.
+5. Put repository-specific chart values in Taskfile `vars:` blocks.
 6. Do not add progress-only `echo` commands; the runner already displays each
    command.
 
-The root file includes `docker`, `helm`, and `secret` task files. Each include
+The root file includes `helm` and `secret` task files. Each include
 and many-owner block remains self-contained so downstream strips can remove only
 their own axis.

@@ -8,13 +8,12 @@ Diene's reproducible development environment is managed by Nix. Run `direnv allo
 <!-- ### workspace -->
 <!-- #### source: workspace -->
 
-This branch is the all-features workspace baseline inherited by every downstream sample: split CI/CD, Docker, Helm, secrets, release configuration, validators, standards, and vendored agent-skill synchronization.
+This branch is the workspace baseline inherited by every downstream sample: split CI/CD, Helm, secrets, release configuration, validators, standards, and vendored agent-skill synchronization.
 
 ## Commands
 
 - `pls setup` — synchronize installed diene package skills.
 - `pls lint` — run every pre-commit gate.
-- `pls docker:build` — build the local stub image.
 - `pls helm:lint` / `pls helm:template` — validate or render the root chart.
 - `pls secret:scan` — scan tracked content for secrets.
 - `pls skills:sync` — rebuild `.claude/skills/vendor/` from installed packages.
@@ -23,7 +22,6 @@ This branch is the all-features workspace baseline inherited by every downstream
 
 - [CI/CD workflows](docs/standards/ci-cd/index.md)
 - [conventional commits](docs/standards/conventional-commits/index.md)
-- [Docker build and publishing](docs/standards/docker/index.md)
 - [Helm charts and publishing](docs/standards/helm/index.md)
 - [Infisical and secrets](docs/standards/infisical/index.md)
 - [linting and pre-commit](docs/standards/linting/index.md)

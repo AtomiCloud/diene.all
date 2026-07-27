@@ -15,18 +15,6 @@ jobs:
     uses: ./.github/workflows/⚡reusable-precommit.yaml
     secrets: inherit
 
-  docker:
-    name: Docker Image
-    permissions:
-      contents: read
-      id-token: write
-      packages: write
-    uses: ./.github/workflows/⚡reusable-docker.yaml
-    secrets: inherit
-    with:
-      image_name: diene-workspace
-      dockerfile: ./infra/Dockerfile
-
   helm:
     name: Helm Chart
     permissions:

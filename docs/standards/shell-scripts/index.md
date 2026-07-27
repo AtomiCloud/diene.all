@@ -79,7 +79,6 @@ scripts/
 ├── ci/
 │   ├── setup.sh          # CI setup stub
 │   ├── pre-commit.sh     # Pre-commit hooks
-│   ├── docker.sh         # Image build and publish
 │   ├── helm.sh           # Chart validation and publish
 │   └── release.sh        # Release process
 ├── local/                # Developer-facing helpers
