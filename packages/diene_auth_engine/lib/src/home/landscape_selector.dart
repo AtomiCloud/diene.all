@@ -31,7 +31,38 @@ final class LandscapeSelectorDoc {
   /// Parses Doc B, RECURSIVELY rejecting any entry that leaks an
   /// address/issuer/URL — as a key name anywhere (including nested `metadata`)
   /// or as a URL-shaped string value. A doc containing one leak is untrusted.
+  ///
+  /// Enforces the C0 §10 `topLevelRule` in full: "exactly the keys landscapes,
+  /// platform, tier; platform and tier are non-empty strings; landscapes is an
+  /// array; any other top-level key is rejected; a doc violating any rule is
+  /// untrusted as a whole."
+  ///
+  /// This used to COERCE instead of reject — `json['platform']?.toString() ?? ''`
+  /// silently accepted a missing platform/tier as `''` and accepted a non-string
+  /// (e.g. `platform: 7`, `tier: true`) by stringifying it. Doc B is
+  /// attacker-influenceable edge content, so a malformed doc must be untrusted
+  /// as a whole rather than normalised into something usable. The C0
+  /// conformance suite asserts every invalid vector.
   factory LandscapeSelectorDoc.fromJson(Map<String, Object?> json) {
+    final Set<String> unknown = json.keys.toSet().difference(
+      _allowedTopLevelKeys,
+    );
+    if (unknown.isNotEmpty) {
+      throw FormatException(
+        'Doc B must carry exactly landscapes/platform/tier',
+        unknown.join(','),
+      );
+    }
+
+    final Object? rawPlatform = json['platform'];
+    if (rawPlatform is! String || rawPlatform.isEmpty) {
+      throw const FormatException('Doc B platform must be a non-empty string');
+    }
+    final Object? rawTier = json['tier'];
+    if (rawTier is! String || rawTier.isEmpty) {
+      throw const FormatException('Doc B tier must be a non-empty string');
+    }
+
     final Object? rawList = json['landscapes'];
     if (rawList is! List) {
       throw const FormatException('Doc B must carry a landscapes list');
@@ -67,11 +98,18 @@ final class LandscapeSelectorDoc {
       );
     }
     return LandscapeSelectorDoc(
-      platform: json['platform']?.toString() ?? '',
-      tier: json['tier']?.toString() ?? '',
+      platform: rawPlatform,
+      tier: rawTier,
       landscapes: entries,
     );
   }
+
+  /// The exact top-level key set Doc B may carry (C0 §10 `topLevelRule`).
+  static const Set<String> _allowedTopLevelKeys = <String>{
+    'landscapes',
+    'platform',
+    'tier',
+  };
 
   /// Prohibited identity/address/issuer key names (case-insensitive). Doc B
   /// carries landscape NAMES + metadata ONLY (C0 §10).

@@ -30,20 +30,30 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        const manifests = (await repo.glob('packages/*/test/fixtures/c0/manifest.json')).sort();
-        const target = manifests[0];
+        // The inherited sample sabotaged a `manifest.json` carrying a
+        // `fixtures` digest MAP. This package uses a `SHA256SUMS` ledger
+        // instead — the accepted diene_interfaces shape, and the one
+        // `tool/gen_c0_projection.dart` writes. Sabotaging the file the harness
+        // does not read would have made this mutation VACUOUSLY green: the
+        // conformance suite would have stayed green and the row would still have
+        // been recorded as "caught".
+        const ledgers = (await repo.glob('packages/*/test/fixtures/c0/SHA256SUMS')).sort();
+        const target = ledgers[0];
         if (!target) {
-          throw new Error('c0-fixture-harness: no fixture manifest to sabotage');
+          throw new Error('c0-fixture-harness: no SHA256SUMS ledger to sabotage');
         }
-        const manifest = JSON.parse(await repo.read(target));
-        const entries = manifest.fixtures ?? {};
-        const firstKey = Object.keys(entries)[0];
-        if (!firstKey) {
-          throw new Error('c0-fixture-harness: fixture manifest has no entries');
+        const ledger = await repo.read(target);
+        const digest = ledger.match(/^[0-9a-f]{64}/m)?.[0];
+        if (!digest) {
+          throw new Error(
+            `c0-fixture-harness: no sha256 digest found in ${target} — refusing ` +
+              'to report a caught mutation without having changed anything',
+          );
         }
-        const digest = String(entries[firstKey]);
-        entries[firstKey] = (digest[0] === '0' ? '1' : '0') + digest.slice(1);
-        await repo.write(target, `${JSON.stringify(manifest, null, 2)}\n`);
+        // Flip the first nibble so the recorded digest can no longer match the
+        // fixture bytes.
+        const corrupted = (digest[0] === '0' ? '1' : '0') + digest.slice(1);
+        await repo.write(target, ledger.replace(digest, corrupted));
         await expectRed(
           repo,
           "nix develop .#ci --no-write-lock-file -c bash -lc 'cd packages/diene_auth_engine && flutter test test/conformance'",

@@ -98,4 +98,21 @@ if rg -n "package:(test|matcher|mockito|mocktail)/" "${member_dir}/lib/test_help
   exit 1
 fi
 
-echo "✅ Dart package identity, workspace wiring, artifacts, and TestHelper boundary conform"
+# C0 projection freshness ---------------------------------------------------
+# The conformance tier binds `test/fixtures/c0/identity.json`, a projection of
+# the FROZEN release `contracts/c0/cases/identity.json`. If the release moves and
+# the projection is not regenerated, the suite would keep asserting stale vectors
+# while still passing — green, and no longer bound to the contract. `--check`
+# recomputes the projection and its digest and exits non-zero on drift.
+for file in \
+  "${member_dir}/tool/gen_c0_projection.dart" \
+  "${member_dir}/test/fixtures/c0/identity.json" \
+  "${member_dir}/test/fixtures/c0/SHA256SUMS"; do
+  [[ -f ${file} ]] || {
+    echo "❌ required C0 projection artifact is missing: ${file}" >&2
+    exit 1
+  }
+done
+(cd "${member_dir}" && dart run tool/gen_c0_projection.dart --check)
+
+echo "✅ Dart package identity, workspace wiring, artifacts, TestHelper boundary, and C0 projection conform"

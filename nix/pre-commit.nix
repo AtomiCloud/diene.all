@@ -55,6 +55,15 @@ pre-commit-lib.run {
         "^Changelog\\.md$"
         "^docs/developer/CommitConventions\\.md$"
         "^infra/root_chart/"
+        # ### lib-dart-auth-engine-formatter
+        # #### source: lib/dart/auth-engine
+        # Digest-bound C0 projection — see the matching keyed block in
+        # nix/fmt.nix. Excluded at BOTH levels deliberately: fmt.nix governs a
+        # direct `treefmt` run, this list governs the pre-commit hook, and only
+        # the hook was observed rewriting the fixture (10976 -> 10910 bytes)
+        # while a direct prettier run left it byte-identical. Excluding one level
+        # only would have left that asymmetry live.
+        "^packages/diene_auth_engine/test/fixtures/c0/"
       ];
     };
 
@@ -242,7 +251,10 @@ pre-commit-lib.run {
       enable = true;
       name = "Dart package and TestHelper boundary";
       entry = validator "scripts/validate/dart-package.sh";
-      files = "^(packages/diene_auth_engine/(lib/.*[.]dart|pubspec[.]yaml|README[.]md|CHANGELOG[.]md|LICENSE|skills/.*|doc/diene_auth_engine[.]md)|pubspec[.]yaml|VERSION)$";
+      # Also triggers on the C0 projection inputs and outputs, so a moved frozen
+      # release or a hand-edited fixture is caught at commit time rather than
+      # leaving the conformance tier green but no longer bound to the contract.
+      files = "^(packages/diene_auth_engine/(lib/.*[.]dart|tool/gen_c0_projection[.]dart|test/fixtures/c0/.*|pubspec[.]yaml|README[.]md|CHANGELOG[.]md|LICENSE|skills/.*|doc/diene_auth_engine[.]md)|contracts/c0/.*|pubspec[.]yaml|VERSION)$";
       pass_filenames = false;
       language = "system";
     };
