@@ -4,6 +4,8 @@ set -euo pipefail
 PINNED_RELEASE_ID='c0-fixtures-r2'
 PINNED_RELEASE_DIGEST='0e64439c681a22fb4f02285c082ed8ffb7b465e732fde4e49757e9e3c9a5783e'
 PINNED_RELEASE_COMMIT='27c1807801397e2b1d05ab8b822a9f915fe03316'
+PINNED_POLICY_BLOB='76ce2cc3b3511f78e5041b01b4e83e7cfc53ec85'
+PINNED_C0_TREE='b10b2ddcafc31965682a4dc809d5fdb5561e86ef'
 
 c0='contracts/c0'
 manifest="${c0}/RELEASE.json"
@@ -186,28 +188,37 @@ for case_file in "${c0}"/cases/*.json; do
 done
 
 echo '→ validating frozen source-object bytes without changing ancestry'
-# The pinned object is REQUIRED. The inherited form printed a NOTICE and returned
-# success when the commit was missing, so any shallow clone could claim source
-# authenticity without ever having examined the source — the check advertised a
-# comparison it had not performed. Try to fetch it, then fail closed.
-if ! git cat-file -e "${PINNED_RELEASE_COMMIT}^{commit}" 2>/dev/null; then
-  echo "→ pinned release commit absent locally; fetching ${PINNED_RELEASE_COMMIT}"
-  git fetch --quiet --no-tags origin "${PINNED_RELEASE_COMMIT}" 2>/dev/null ||
-    git fetch --quiet --no-tags --depth=1 origin "${PINNED_RELEASE_COMMIT}" 2>/dev/null || true
-fi
-if ! git cat-file -e "${PINNED_RELEASE_COMMIT}^{commit}" 2>/dev/null; then
-  echo "❌ pinned release commit ${PINNED_RELEASE_COMMIT} is unreachable; refusing to certify C0 authenticity without comparing the source object" >&2
+# The original release commit is retained as printed provenance even though it
+# was never advertised by an authoritative ref. The immutable policy blob and
+# complete C0 tree are embedded directly in this commit, so authenticate those
+# objects through HEAD without a network fetch. This works identically in the
+# monorepo, a hermetic Nix derivation, and the future orphan public mirror.
+head_policy_blob="$(git rev-parse 'HEAD:.prettierignore')"
+head_c0_tree="$(git rev-parse 'HEAD:contracts/c0')"
+echo "  pinned release provenance commit: ${PINNED_RELEASE_COMMIT}"
+echo "  pinned formatter policy blob: ${PINNED_POLICY_BLOB}"
+echo "  pinned complete C0 tree: ${PINNED_C0_TREE}"
+echo "  HEAD formatter policy blob: ${head_policy_blob}"
+echo "  HEAD complete C0 tree: ${head_c0_tree}"
+[ "${head_policy_blob}" = "${PINNED_POLICY_BLOB}" ] || {
+  echo "❌ HEAD formatter-policy blob ${head_policy_blob} != pinned release blob ${PINNED_POLICY_BLOB}" >&2
   exit 1
-fi
+}
+[ "${head_c0_tree}" = "${PINNED_C0_TREE}" ] || {
+  echo "❌ HEAD C0 tree ${head_c0_tree} != pinned release tree ${PINNED_C0_TREE}" >&2
+  exit 1
+}
 
-git show "${PINNED_RELEASE_COMMIT}:.prettierignore" | cmp - .prettierignore
+git cat-file blob "${PINNED_POLICY_BLOB}" | cmp - .prettierignore
 
 # Compare the COMPLETE contracts/c0 inventory in BOTH directions. Walking only
 # the pinned tree's paths authenticates nothing about an EXTRA file, a nested
 # path, or an unexpected extension sitting in our tree: unauthenticated C0
 # residue could coexist with a green release check. Both path sets and their
 # total are printed and asserted.
-git ls-tree -r --name-only "${PINNED_RELEASE_COMMIT}" -- contracts/c0 | LC_ALL=C sort >"${tmp}/pinned-c0-paths"
+git ls-tree -r --name-only "${PINNED_C0_TREE}" |
+  sed 's#^#contracts/c0/#' |
+  LC_ALL=C sort >"${tmp}/pinned-c0-paths"
 git ls-files -- contracts/c0 | LC_ALL=C sort >"${tmp}/local-c0-tracked"
 find contracts/c0 -type f | LC_ALL=C sort >"${tmp}/local-c0-disk"
 
@@ -240,7 +251,8 @@ fi
 
 compared=0
 while IFS= read -r release_path; do
-  git show "${PINNED_RELEASE_COMMIT}:${release_path}" | cmp - "${release_path}"
+  relative_path="${release_path#contracts/c0/}"
+  git show "${PINNED_C0_TREE}:${relative_path}" | cmp - "${release_path}"
   compared=$((compared + 1))
 done <"${tmp}/pinned-c0-paths"
 echo "  byte-identical to the pinned release: ${compared}/${pinned_total}"
