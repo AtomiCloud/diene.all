@@ -79,20 +79,36 @@ type Tick struct {
 	Healthy  bool
 }
 
-// Evaluate decides whether a tick's removals trip the brake. Removing nothing, or
-// removing out of an empty set, never trips. Emptying the whole set while healthy
-// always trips (the A-set-empty refusal), independent of the percentage. Otherwise
-// the brake trips when removals/existing exceeds CapPercent, compared with exact
-// integer arithmetic (removals*100 > CapPercent*existing) so a boundary ratio does
-// not round up into a trip.
+// Evaluate decides whether a tick's removals trip the brake. It validates both
+// policy and proposal at the decision boundary: negative sizes, removals above the
+// existing set, and invalid caps all freeze and page. Emptying the whole set while
+// healthy always trips (the A-set-empty refusal), independent of the percentage.
+// Otherwise it compares removals/existing to CapPercent without multiplication
+// overflow, while preserving the exact at-cap boundary.
 func (p TrafficPolicy) Evaluate(tick Tick) Decision {
-	if tick.Removals <= 0 || tick.Existing <= 0 {
+	if err := p.Validate(); err != nil {
+		return tripped(fmt.Sprintf("invalid traffic brake policy: %v", err))
+	}
+	if tick.Existing < 0 || tick.Removals < 0 {
+		return tripped(fmt.Sprintf("invalid traffic removal proposal: existing=%d removals=%d must be non-negative", tick.Existing, tick.Removals))
+	}
+	if tick.Removals > tick.Existing {
+		return tripped(fmt.Sprintf("invalid traffic removal proposal: removals %d exceed existing %d", tick.Removals, tick.Existing))
+	}
+	if tick.Removals == 0 {
 		return Decision{}
 	}
-	if tick.Healthy && tick.Removals >= tick.Existing {
+	if tick.Healthy && tick.Removals == tick.Existing {
 		return tripped(fmt.Sprintf("refusing to empty a healthy set of %d records", tick.Existing))
 	}
-	if tick.Removals*100 > p.CapPercent*tick.Existing {
+	// floor(cap*existing/100) is calculated without forming cap*existing:
+	// cap*(existing/100) cannot exceed existing, and cap*(existing%100) is
+	// bounded by 9,900. For integer removals, removals > floor(product/100)
+	// is exactly equivalent to removals*100 > cap*existing.
+	wholeHundreds := tick.Existing / 100
+	remainder := tick.Existing % 100
+	allowed := p.CapPercent*wholeHundreds + p.CapPercent*remainder/100
+	if tick.Removals > allowed {
 		return tripped(fmt.Sprintf("refusing to delete %d of %d owned resources (cap %d%% per tick)", tick.Removals, tick.Existing, p.CapPercent))
 	}
 	return Decision{}
@@ -113,9 +129,16 @@ func (p DependencyPolicy) Validate() error {
 }
 
 // Evaluate trips when the number of destructive module operations this tick
-// exceeds CapModules. A non-positive count never trips.
+// exceeds CapModules. It validates both the policy and count at the decision
+// boundary; an invalid cap or negative count freezes and pages.
 func (p DependencyPolicy) Evaluate(destructive int) Decision {
-	if destructive <= 0 {
+	if err := p.Validate(); err != nil {
+		return tripped(fmt.Sprintf("invalid dependency brake policy: %v", err))
+	}
+	if destructive < 0 {
+		return tripped(fmt.Sprintf("invalid destructive module count %d: must be non-negative", destructive))
+	}
+	if destructive == 0 {
 		return Decision{}
 	}
 	if destructive > p.CapModules {
@@ -126,7 +149,8 @@ func (p DependencyPolicy) Evaluate(destructive int) Decision {
 
 // Evaluate is the inherited percentage-cap entry point, preserved as a
 // compatibility facade over TrafficPolicy. It carries no A-set health input, so it
-// never applies the empty-set refusal — behaviour identical to the original.
+// never applies the healthy-set-empty refusal. Its signature and valid-input
+// behavior remain compatible while invalid proposals now fail closed.
 func Evaluate(existing, deletes, capPercent int) Decision {
 	return TrafficPolicy{CapPercent: capPercent}.Evaluate(Tick{Existing: existing, Removals: deletes})
 }

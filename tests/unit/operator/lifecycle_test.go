@@ -34,6 +34,24 @@ func (f *fakeExecutor) Execute(_ context.Context, action plan.Action) error {
 	return nil
 }
 
+type valueExecutor struct{}
+
+func (valueExecutor) Execute(_ context.Context, _ plan.Action) error {
+	return nil
+}
+
+type metadataMutatingExecutor struct {
+	replacement plan.Reference
+	seen        []plan.Reference
+}
+
+func (f *metadataMutatingExecutor) Execute(_ context.Context, action plan.Action) error {
+	f.seen = append(f.seen, action.Metadata["credential"])
+	action.Metadata["credential"] = f.replacement
+	action.Metadata["injected"] = f.replacement
+	return nil
+}
+
 // ─── Mode ────────────────────────────────────────────────────────────────────
 
 func TestModeValid(t *testing.T) {
@@ -147,6 +165,45 @@ func TestRunObserveExecutesNothing(t *testing.T) {
 	require.Empty(t, exec.executed)
 }
 
+func TestRunObserveAcceptsNilExecutor(t *testing.T) {
+	// Arrange
+	p := lifecycle.Converge([]lifecycle.Item{item("a", "h")}, nil)
+
+	// Act
+	res, err := lifecycle.Run(context.Background(), lifecycle.ModeObserve, p, nil)
+
+	// Assert: observe is always zero-write and needs no executor configuration.
+	require.NoError(t, err)
+	require.Equal(t, p, res.Plan)
+	require.Empty(t, res.Executed)
+}
+
+func TestRunActiveNilExecutorFailsClosed(t *testing.T) {
+	// Arrange: a non-empty plan proves no action is silently skipped as success.
+	p := lifecycle.Converge([]lifecycle.Item{item("a", "h")}, nil)
+
+	// Act
+	res, err := lifecycle.Run(context.Background(), lifecycle.ModeActive, p, nil)
+
+	// Assert
+	require.ErrorContains(t, err, "non-nil executor")
+	require.Equal(t, p, res.Plan)
+	require.Empty(t, res.Executed)
+}
+
+func TestRunActiveTypedNilExecutorFailsClosed(t *testing.T) {
+	// Arrange: the interface itself is non-nil but contains a nil pointer.
+	var exec *fakeExecutor
+	p := lifecycle.Converge([]lifecycle.Item{item("a", "h")}, nil)
+
+	// Act
+	res, err := lifecycle.Run(context.Background(), lifecycle.ModeActive, p, exec)
+
+	// Assert: Execute was never dereferenced or called.
+	require.ErrorContains(t, err, "non-nil executor")
+	require.Empty(t, res.Executed)
+}
+
 func TestRunActiveExecutesEveryAction(t *testing.T) {
 	exec := &fakeExecutor{}
 	p := lifecycle.Converge([]lifecycle.Item{item("a", "h"), item("b", "h")}, nil)
@@ -156,6 +213,44 @@ func TestRunActiveExecutesEveryAction(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, res.Executed, 2)
 	require.Len(t, exec.executed, 2)
+}
+
+func TestRunActiveAcceptsNonPointerExecutor(t *testing.T) {
+	// Arrange + Act
+	res, err := lifecycle.Run(context.Background(), lifecycle.ModeActive,
+		lifecycle.Converge([]lifecycle.Item{item("a", "h")}, nil), valueExecutor{})
+
+	// Assert
+	require.NoError(t, err)
+	require.Len(t, res.Executed, 1)
+}
+
+func TestRunIsolatesExecutorFacingMetadata(t *testing.T) {
+	// Arrange: both actions intentionally share caller-owned metadata.
+	original := reference(t, plan.ReferenceSecretPath, "/namespaces/app/secrets/database")
+	replacement := reference(t, plan.ReferenceSecretPath, "/namespaces/app/secrets/other")
+	shared := plan.Metadata{"credential": original}
+	p := plan.Build([]plan.Action{
+		{Op: plan.OpCreate, Target: plan.Target{Kind: plan.TargetSecret, ID: "a"}, Metadata: shared},
+		{Op: plan.OpCreate, Target: plan.Target{Kind: plan.TargetSecret, ID: "b"}, Metadata: shared},
+	})
+	exec := &metadataMutatingExecutor{replacement: replacement}
+
+	// Act
+	res, err := lifecycle.Run(context.Background(), lifecycle.ModeActive, p, exec)
+
+	// Assert: each executor call saw the pristine value, while executor mutation
+	// affected neither the source plan nor either result projection.
+	require.NoError(t, err)
+	require.Equal(t, []plan.Reference{original, original}, exec.seen)
+	for _, action := range p.Actions {
+		require.Equal(t, original, action.Metadata["credential"])
+		require.NotContains(t, action.Metadata, "injected")
+	}
+	for _, action := range append(res.Plan.Actions, res.Executed...) {
+		require.Equal(t, original, action.Metadata["credential"])
+		require.NotContains(t, action.Metadata, "injected")
+	}
 }
 
 func TestRunActiveStopsAtFirstError(t *testing.T) {

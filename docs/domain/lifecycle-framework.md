@@ -24,7 +24,7 @@ reconcile loop.
   lifecycle hands off with an empty plan. It never plans a destructive action.
 - **Per-version-intent** (`PerVersionIntent(revision, desired, state)`) — each spec
   revision is a distinct intent with its own terminal state. A revision that
-  already reached its terminal state plans nothing, so a terminal *failure* never
+  already reached its terminal state plans nothing, so a terminal _failure_ never
   retry-storms; a newer revision than the recorded state always starts fresh, so a
   later revision progresses independently of an earlier one — including recovery
   after an earlier failure.
@@ -37,15 +37,22 @@ reconcile loop.
 (`create`/`update`/`delete`/`adopt`), its `Target` (a stable, pointer-only
 identity — never a secret value), whether it is destructive, a stable
 `DetailsHash` fingerprint of its would-apply content, and safe pointer-only
-`Metadata`. Content lives behind the hash so a plan can be logged and compared
-without ever carrying a secret.
+`Metadata`. Metadata is `map[string]Reference`, not `map[string]string`:
+`Reference` has private fields and can only be created with `NewReference` from a
+typed pointer class plus a canonical absolute logical path. A raw token, password,
+or unrestricted string therefore cannot silently become metadata. Content lives
+behind the hash so a plan can be logged and compared without ever carrying a
+secret.
 
-`plan.Build` places actions into a single canonical order that never depends on
-caller insertion order, so two plans over the same actions are equal. A `Plan`
-exposes exact counts (`Len`, `Count`), its destructive subset (`Destructive`,
-`DestructiveCount`), emptiness (`Empty`), equality and diff (`Equal`, `Diff`), and
-human/condition summaries (`HumanSummary`, `ConditionSummary`) — all pure, with no
-side effects.
+`plan.Build` deep-copies caller-owned metadata and places actions into a single
+canonical order that never depends on caller insertion order. Target, operation,
+ID, details hash, destructive intent, and every metadata key/reference all
+participate in ordering, equality, and multiset diff identity; identical duplicate
+actions retain their execution multiplicity. `Action.Clone` provides the same
+metadata ownership boundary for execution. A `Plan` exposes exact counts (`Len`,
+`Count`), its destructive subset (`Destructive`, `DestructiveCount`), emptiness
+(`Empty`), equality and diff (`Equal`, `Diff`), and human/condition summaries
+(`HumanSummary`, `ConditionSummary`) — all pure, with no side effects.
 
 ## Two modes, fail-closed
 
@@ -53,10 +60,14 @@ There are exactly two reconcile modes. `Run(ctx, mode, plan, executor)` realizes
 plan:
 
 - **Observe** returns the exact would-apply plan and executes nothing — the plan is
-  reported through conditions, metrics, and logs, never a side channel.
+  reported through conditions, metrics, and logs, never a side channel. Since it
+  performs no writes, observe mode may run without an executor.
 - **Active** executes each action in the plan's deterministic order through an
   injected narrow `Executor`, stopping at the first error (no retry-storm) and
-  reporting the actions applied so far.
+  reporting the actions applied so far. A nil interface or typed-nil executor is a
+  controlled configuration error detected before the first action. Each executor
+  call receives its own metadata copy, so mutation cannot change the considered
+  plan, a later action, or the returned result.
 
 Any other mode fails closed: `Run` executes nothing and returns an error.
 
@@ -68,13 +79,16 @@ returns a freeze-and-page `Decision` (`Writable`/`Freeze`/`Page`, and a
 
 - **TrafficPolicy** caps record removal from a traffic set at `CapPercent` per tick
   (pinned default 20%) and refuses to empty a set whose health still passes.
-  Boundary ratios are compared with exact integer arithmetic so an at-the-cap ratio
-  never rounds up into a trip.
+  Boundary ratios are compared with an overflow-free quotient/remainder calculation
+  so an at-the-cap ratio never rounds up into a trip, including at platform
+  `int` maximum.
 - **DependencyPolicy** caps destructive module operations at `CapModules` per tick
   (pinned default 3).
 
-Both `Validate` their configurable thresholds. The inherited `brake.Evaluate`
-percentage entry point is preserved as a compatibility facade over `TrafficPolicy`.
+Both call `Validate` inside `Evaluate`; invalid caps, negative sizes/counts,
+removals above the existing set, and other pathological proposals trip/freeze/page
+and are never writable. The inherited `brake.Evaluate` percentage entry point is
+preserved as a compatibility facade over the strict `TrafficPolicy` decision.
 
 ## Condition vocabulary
 
@@ -105,4 +119,9 @@ inherited `plan` and `brake` entry points are preserved additively so the existi
 sample controllers and tests keep compiling: `plan.Plan.Empty`, the legacy
 condition/status/type symbols (aliased to the shared `conditions` vocabulary), and
 `brake.Evaluate`. The compatibility wrappers delegate to the new APIs rather than
-duplicate the decisions.
+duplicate the decisions. The inherited `reconcile.Decision.OwnedCount int32` facade
+also remains intact, but its `int` conversion is executable policy: values outside
+`[0, math.MaxInt32]` return an explicit `OwnedCountOutOfRange`, non-writing failure
+instead of truncating or saturating. `DecideWithLimits` injects a stricter count
+boundary solely through the same public decision path, making that fail-closed
+branch practical to prove with a black-box unit test.

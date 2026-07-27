@@ -148,6 +148,46 @@ func TestDecideConflict(t *testing.T) {
 	require.Equal(t, int32(0), d.OwnedCount)
 }
 
+func TestDecideOwnedCountOverflowFailsClosed(t *testing.T) {
+	// Arrange: inject a stricter representation boundary so the same production
+	// math.MaxInt32 overflow branch is reachable without a multi-billion object
+	// allocation.
+	input := reconcile.Input{Owner: "n", Spec: spec(2), BrakeCap: 20}
+	limits := reconcile.Limits{OwnedCountMax: 1}
+
+	// Act
+	d := reconcile.DecideWithLimits(input, limits)
+
+	// Assert: the count is never truncated or saturated and no write can escape.
+	require.False(t, d.Write)
+	require.Equal(t, reconcile.LedgerPreNone, d.LedgerPre)
+	require.False(t, d.ConfirmAfter)
+	require.Empty(t, d.Upserts)
+	require.Empty(t, d.Deletes)
+	require.Zero(t, d.OwnedCount)
+	require.NotNil(t, d.Failure)
+	require.Equal(t, reconcile.ReasonOwnedCountOutOfRange, d.Failure.Reason)
+	require.Contains(t, d.Failure.Message, "safe int32 decision range")
+	ready := condition(d.Conditions, plan.TypeReady)
+	require.NotNil(t, ready)
+	require.Equal(t, plan.StatusFalse, ready.Status)
+	require.Equal(t, reconcile.ReasonOwnedCountOutOfRange, ready.Reason)
+	require.Equal(t, reconcile.EventWarning, d.Events[0].Type)
+}
+
+func TestDecideInvalidOwnedCountLimitFailsClosed(t *testing.T) {
+	// Arrange + Act: an invalid injected boundary is itself unsafe input.
+	d := reconcile.DecideWithLimits(
+		reconcile.Input{Owner: "n", Spec: spec(0), BrakeCap: 20},
+		reconcile.Limits{OwnedCountMax: -1},
+	)
+
+	// Assert
+	require.False(t, d.Write)
+	require.NotNil(t, d.Failure)
+	require.Equal(t, reconcile.ReasonOwnedCountOutOfRange, d.Failure.Reason)
+}
+
 func TestDesiredNames(t *testing.T) {
 	require.Equal(t, []string{"n-copy-0", "n-copy-1"}, reconcile.DesiredNames("n", spec(2)))
 }

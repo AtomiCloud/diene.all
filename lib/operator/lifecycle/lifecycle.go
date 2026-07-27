@@ -19,7 +19,9 @@ package lifecycle
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"reflect"
 
 	"github.com/AtomiCloud/diene.fleet-operator/lib/operator/plan"
 )
@@ -46,22 +48,29 @@ type Item struct {
 	DetailsHash string
 	Target      plan.Target
 	Destructive bool
+	Metadata    plan.Metadata
 }
 
 func (it Item) create() plan.Action {
-	return plan.Action{Op: plan.OpCreate, Target: it.Target, DetailsHash: it.DetailsHash}
+	return plan.Action{Op: plan.OpCreate, Target: it.Target, DetailsHash: it.DetailsHash, Metadata: it.Metadata}
 }
 
 func (it Item) update() plan.Action {
-	return plan.Action{Op: plan.OpUpdate, Target: it.Target, DetailsHash: it.DetailsHash}
+	return plan.Action{Op: plan.OpUpdate, Target: it.Target, DetailsHash: it.DetailsHash, Metadata: it.Metadata}
 }
 
 func (it Item) adopt() plan.Action {
-	return plan.Action{Op: plan.OpAdopt, Target: it.Target, DetailsHash: it.DetailsHash}
+	return plan.Action{Op: plan.OpAdopt, Target: it.Target, DetailsHash: it.DetailsHash, Metadata: it.Metadata}
 }
 
 func (it Item) del() plan.Action {
-	return plan.Action{Op: plan.OpDelete, Target: it.Target, DetailsHash: it.DetailsHash, Destructive: it.Destructive}
+	return plan.Action{
+		Op:          plan.OpDelete,
+		Target:      it.Target,
+		DetailsHash: it.DetailsHash,
+		Destructive: it.Destructive,
+		Metadata:    it.Metadata,
+	}
 }
 
 // Converge computes the full would-apply diff between the desired items and the
@@ -155,24 +164,44 @@ type Result struct {
 
 // Run realizes a plan under a mode. An invalid mode fails closed: it executes
 // nothing and returns an error. Observe mode returns the exact would-apply plan
-// and executes nothing. Active mode executes each action in the plan's
-// deterministic order through the executor, stopping at the first error (no
-// retry-storm) and reporting the actions applied so far.
+// and executes nothing, and therefore accepts a nil executor. Active mode rejects
+// both a nil interface and a typed-nil executor before the first action. Otherwise
+// it executes each action in deterministic order, stopping at the first error (no
+// retry-storm) and reporting the actions applied so far. Plan and executor
+// boundaries own separate metadata copies, so executor mutation cannot alter the
+// considered plan or result.
 func Run(ctx context.Context, mode Mode, pl plan.Plan, exec Executor) (Result, error) {
 	if !mode.Valid() {
 		return Result{}, fmt.Errorf("lifecycle: invalid mode %q", mode)
 	}
-	res := Result{Mode: mode, Plan: pl}
+	canonical := plan.Build(pl.Actions)
+	res := Result{Mode: mode, Plan: canonical}
 	if mode == ModeObserve {
 		return res, nil
 	}
-	for _, action := range pl.Actions {
-		if err := exec.Execute(ctx, action); err != nil {
+	if nilExecutor(exec) {
+		return res, errors.New("lifecycle: active mode requires a non-nil executor")
+	}
+	for _, action := range canonical.Actions {
+		if err := exec.Execute(ctx, action.Clone()); err != nil {
 			return res, fmt.Errorf("lifecycle: execute %s %s/%s: %w", action.Op, action.Target.Kind, action.Target.ID, err)
 		}
-		res.Executed = append(res.Executed, action)
+		res.Executed = append(res.Executed, action.Clone())
 	}
 	return res, nil
+}
+
+func nilExecutor(exec Executor) bool {
+	if exec == nil {
+		return true
+	}
+	value := reflect.ValueOf(exec)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return value.IsNil()
+	default:
+		return false
+	}
 }
 
 func index(items []Item) map[string]Item {

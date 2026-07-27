@@ -1,6 +1,7 @@
 package operator_test
 
 import (
+	"math"
 	"testing"
 
 	"github.com/AtomiCloud/diene.fleet-operator/lib/operator/brake"
@@ -14,8 +15,16 @@ func TestBrakeNoDeletesNeverTrips(t *testing.T) {
 	require.False(t, brake.Evaluate(10, 0, 20).Tripped)
 }
 
-func TestBrakeEmptySetNeverTrips(t *testing.T) {
-	require.False(t, brake.Evaluate(0, 5, 20).Tripped)
+func TestBrakeEmptySetNoRemovalNeverTrips(t *testing.T) {
+	require.False(t, brake.Evaluate(0, 0, 20).Tripped)
+}
+
+func TestBrakeRemovalAboveEmptySetFailsClosed(t *testing.T) {
+	d := brake.Evaluate(0, 5, 20)
+	require.True(t, d.Tripped)
+	require.False(t, d.Writable())
+	require.True(t, d.Freeze())
+	require.True(t, d.Page())
 }
 
 func TestBrakeUnderCapAllowed(t *testing.T) {
@@ -71,12 +80,37 @@ func TestTrafficPolicyValidate(t *testing.T) {
 	require.Error(t, brake.TrafficPolicy{CapPercent: 101}.Validate())
 }
 
+func TestTrafficPolicyEvaluateInvalidCapsFailClosed(t *testing.T) {
+	// Arrange + Act + Assert: Evaluate itself validates configuration; callers
+	// cannot accidentally bypass Validate and obtain a writable decision.
+	for _, capPercent := range []int{-1, 101} {
+		d := (brake.TrafficPolicy{CapPercent: capPercent}).Evaluate(brake.Tick{Existing: 10, Removals: 0})
+		require.True(t, d.Tripped)
+		require.False(t, d.Writable())
+		require.True(t, d.Page())
+		require.Contains(t, d.Message, "invalid traffic brake policy")
+	}
+}
+
 func TestTrafficPolicyBoundaryDoesNotRoundIntoTrip(t *testing.T) {
 	p := brake.TrafficPolicy{CapPercent: 20}
 	// 2 of 10 == exactly 20% == the cap: it must not trip.
 	require.False(t, p.Evaluate(brake.Tick{Existing: 10, Removals: 2}).Tripped)
 	// 3 of 10 == 30% > 20%: it trips.
 	require.True(t, p.Evaluate(brake.Tick{Existing: 10, Removals: 3}).Tripped)
+}
+
+func TestTrafficPolicyPlatformIntMaximumBoundary(t *testing.T) {
+	// Arrange: floor(MaxInt/5) is at or just below 20%; adding one is above.
+	p := brake.TrafficPolicy{CapPercent: 20}
+	atBoundary := math.MaxInt / 5
+
+	// Act + Assert: neither comparison forms an overflowing product.
+	require.False(t, p.Evaluate(brake.Tick{Existing: math.MaxInt, Removals: atBoundary}).Tripped)
+	require.True(t, p.Evaluate(brake.Tick{Existing: math.MaxInt, Removals: atBoundary + 1}).Tripped)
+	require.False(t, (brake.TrafficPolicy{CapPercent: 100}).Evaluate(
+		brake.Tick{Existing: math.MaxInt, Removals: math.MaxInt},
+	).Tripped)
 }
 
 func TestTrafficPolicyRefusesToEmptyHealthySet(t *testing.T) {
@@ -94,7 +128,27 @@ func TestTrafficPolicyEmptyingUnhealthySetAllowedUnderCap(t *testing.T) {
 func TestTrafficPolicyNoOpInputs(t *testing.T) {
 	p := brake.TrafficPolicy{CapPercent: 20}
 	require.False(t, p.Evaluate(brake.Tick{Existing: 10, Removals: 0, Healthy: true}).Tripped)
-	require.False(t, p.Evaluate(brake.Tick{Existing: 0, Removals: 3, Healthy: true}).Tripped)
+	require.False(t, p.Evaluate(brake.Tick{Existing: 0, Removals: 0, Healthy: true}).Tripped)
+}
+
+func TestTrafficPolicyInvalidTickInputsFailClosed(t *testing.T) {
+	// Arrange
+	p := brake.TrafficPolicy{CapPercent: 20}
+	inputs := []brake.Tick{
+		{Existing: -1, Removals: 0},
+		{Existing: 1, Removals: -1},
+		{Existing: 1, Removals: 2},
+		{Existing: 1, Removals: math.MaxInt},
+	}
+
+	// Act + Assert
+	for _, input := range inputs {
+		d := p.Evaluate(input)
+		require.True(t, d.Tripped)
+		require.False(t, d.Writable())
+		require.True(t, d.Freeze())
+		require.True(t, d.Page())
+	}
 }
 
 // ─── Dependency policy ───────────────────────────────────────────────────────
@@ -115,4 +169,20 @@ func TestDependencyPolicyEvaluate(t *testing.T) {
 	d := p.Evaluate(4)                      // over the cap
 	require.True(t, d.Tripped)
 	require.Contains(t, d.Message, "refusing 4 destructive module operations (cap 3 per tick)")
+}
+
+func TestDependencyPolicyInvalidInputsFailClosed(t *testing.T) {
+	// Arrange + Act
+	invalidCap := (brake.DependencyPolicy{CapModules: -1}).Evaluate(0)
+	negativeCount := (brake.DependencyPolicy{CapModules: 3}).Evaluate(-1)
+
+	// Assert
+	for _, d := range []brake.Decision{invalidCap, negativeCount} {
+		require.True(t, d.Tripped)
+		require.False(t, d.Writable())
+		require.True(t, d.Freeze())
+		require.True(t, d.Page())
+	}
+	require.Contains(t, invalidCap.Message, "invalid dependency brake policy")
+	require.Contains(t, negativeCount.Message, "invalid destructive module count")
 }

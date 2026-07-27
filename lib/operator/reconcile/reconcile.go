@@ -11,6 +11,9 @@
 package reconcile
 
 import (
+	"fmt"
+	"math"
+
 	"github.com/AtomiCloud/diene.fleet-operator/lib/operator/brake"
 	"github.com/AtomiCloud/diene.fleet-operator/lib/operator/ledger"
 	"github.com/AtomiCloud/diene.fleet-operator/lib/operator/note"
@@ -48,6 +51,11 @@ const (
 	EventNormal  = "Normal"
 	EventWarning = "Warning"
 )
+
+// ReasonOwnedCountOutOfRange is the stable reason for a fail-closed status-count
+// conversion. The inherited status facade remains int32, so a count outside that
+// representation can never be allowed to accompany writes.
+const ReasonOwnedCountOutOfRange = "OwnedCountOutOfRange"
 
 // Event is a reconcile outcome the controller publishes as a Kubernetes event.
 type Event struct {
@@ -95,6 +103,19 @@ type Input struct {
 	BrakeCap int
 }
 
+// Limits makes hard representation bounds injectable for a black-box proof while
+// production Decide always uses math.MaxInt32. A stricter limit exercises the same
+// non-writing path without allocating billions of objects.
+type Limits struct {
+	OwnedCountMax int
+}
+
+// Failure is an explicit, non-writing decision failure.
+type Failure struct {
+	Reason  string
+	Message string
+}
+
 // Decision is the pure reconcile plan the controller executes in order.
 type Decision struct {
 	Write        bool
@@ -105,11 +126,27 @@ type Decision struct {
 	Conditions   []Condition
 	Events       []Event
 	OwnedCount   int32
+	Failure      *Failure
 }
 
 // Decide computes the reconcile plan for a Note.
 func Decide(in Input) Decision {
+	return computeDecision(in, Limits{OwnedCountMax: math.MaxInt32})
+}
+
+// DecideWithLimits computes the same decision with an explicitly injected owned
+// count bound. It exists so the fail-closed narrowing branch is reachable through
+// the public black-box API; production callers use Decide's int32 maximum.
+func DecideWithLimits(in Input, limits Limits) Decision {
+	return computeDecision(in, limits)
+}
+
+func computeDecision(in Input, limits Limits) Decision {
 	d := Decision{LedgerPre: LedgerPreNone}
+	existingCount, err := checkedOwnedCount(len(in.Existing), limits.OwnedCountMax)
+	if err != nil {
+		return ownedCountFailure(err)
+	}
 
 	desiredNames := note.DesiredCopies(in.Owner, in.Spec)
 	payload := note.Payload(in.Spec)
@@ -143,7 +180,7 @@ func Decide(in Input) Decision {
 	if decision := brake.Evaluate(len(in.Existing), len(deletes), in.BrakeCap); decision.Tripped {
 		d.Conditions = []Condition{note.BrakeCondition(decision.Message)}
 		d.Events = []Event{{EventWarning, "BlastBrakeTripped", decision.Message}}
-		d.OwnedCount = count(len(in.Existing))
+		d.OwnedCount = existingCount
 		return d // freeze, no writes
 	}
 
@@ -152,8 +189,14 @@ func Decide(in Input) Decision {
 		// plan framework rather than duplicate the decision here.
 		pl := observePlan(upserts, deletes)
 		d.Conditions = []Condition{pl.ConditionSummary()}
-		d.OwnedCount = count(len(in.Existing))
+		d.OwnedCount = existingCount
 		return d
+	}
+
+	converged := len(desiredNames) - countMembers(desiredNames, foreign)
+	convergedCount, err := checkedOwnedCount(converged, limits.OwnedCountMax)
+	if err != nil {
+		return ownedCountFailure(err)
 	}
 
 	d.Write = true
@@ -169,8 +212,7 @@ func Decide(in Input) Decision {
 		d.LedgerPre = LedgerPreNone
 	}
 
-	converged := len(desiredNames) - countMembers(desiredNames, foreign)
-	d.OwnedCount = count(converged)
+	d.OwnedCount = convergedCount
 	if conflict {
 		d.Conditions = []Condition{conflictCondition(), note.ReadyCondition(len(desiredNames), converged)}
 		d.Events = []Event{{EventWarning, "OwnedNameCollision", "a desired ConfigMap name is held by a foreign object"}}
@@ -179,6 +221,29 @@ func Decide(in Input) Decision {
 	d.Conditions = []Condition{note.ReadyCondition(len(desiredNames), converged)}
 	d.Events = []Event{{EventNormal, "Converged", "note converged to Ready and ledger confirmed"}}
 	return d
+}
+
+func checkedOwnedCount(n, limit int) (int32, error) {
+	if limit < 0 || limit > math.MaxInt32 || n < 0 || n > math.MaxInt32 || n > limit {
+		return 0, fmt.Errorf("owned count %d is outside the safe int32 decision range [0,%d]", n, limit)
+	}
+	return int32(n), nil
+}
+
+func ownedCountFailure(err error) Decision {
+	message := fmt.Sprintf("reconcile failed closed: %v", err)
+	failure := &Failure{Reason: ReasonOwnedCountOutOfRange, Message: message}
+	return Decision{
+		LedgerPre: LedgerPreNone,
+		Failure:   failure,
+		Conditions: []Condition{{
+			Type:    TypeReady,
+			Status:  StatusFalse,
+			Reason:  failure.Reason,
+			Message: failure.Message,
+		}},
+		Events: []Event{{EventWarning, failure.Reason, failure.Message}},
+	}
 }
 
 // WaitingForEndpoint is the condition the controller sets when a durable-ledger
@@ -229,10 +294,4 @@ func countMembers(names []string, set map[string]bool) int {
 		}
 	}
 	return n
-}
-
-// count converts an owned-copy count to int32. Counts are bounded by the CRD's
-// replicas maximum, so the conversion cannot overflow.
-func count(n int) int32 {
-	return int32(n) //nolint:gosec // bounded by the Note CRD replicas maximum
 }
