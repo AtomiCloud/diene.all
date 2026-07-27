@@ -1,10 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-release_types="$(yq -r '.types[].type' atomi_release.yaml | sort)"
-gitlint_types="$(sed -n -E 's/^types[[:space:]]*=[[:space:]]*//p' .gitlint | tr ',' '\n' | sed -E 's/^[[:space:]]+|[[:space:]]+$//g' | sort)"
+expected="amend
+build
+chore
+ci
+config
+dep
+docs
+feat
+fix
+perf
+refactor
+style
+test"
+actual="$(yq -r '.types[].type' atomi_release.yaml | sort)"
 
-[ -z "${gitlint_types}" ] && echo "❌ .gitlint conventional-commit types are missing" >&2 && exit 1
-[ "${release_types}" != "${gitlint_types}" ] && echo "❌ .gitlint types do not match atomi_release.yaml" >&2 && exit 1
+[ "${actual}" != "${expected}" ] && echo "❌ releaser types do not match the .NET vocabulary" >&2 && exit 1
+yq -e '.release.commit.assets[] | select(. == "Version.props")' atomi_release.yaml >/dev/null || {
+  echo "❌ release commit must stamp Version.props" >&2
+  exit 1
+}
 
-echo "✅ .NET release and commit vocabularies match"
+echo "✅ .NET releaser vocabulary and version asset are valid"
