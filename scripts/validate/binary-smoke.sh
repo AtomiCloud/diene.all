@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# ### workspace
+# #### source: workspace
 root_dir="$(git rev-parse --show-toplevel)"
 cd "${root_dir}"
 
@@ -154,4 +156,6 @@ else
   echo "⏭️ releaser binary awaits the workspace-level package publish"
 fi
 
+# ### workspace-complete
+# #### source: workspace
 echo "✅ Binary smoke passed"
