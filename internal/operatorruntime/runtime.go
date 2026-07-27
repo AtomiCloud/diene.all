@@ -38,6 +38,13 @@ var ErrNoteLedgerRequired = errors.New("note controller enabled without a ledger
 type Config struct {
 	EnableNote       bool
 	EnableJournal    bool
+	EnableCluster    bool
+	EnablePlatform   bool
+	EnableDependency bool
+	EnableTraffic    bool
+	EnableWebhook    bool
+	EnableCfDeploy   bool
+	EnableProblem    bool
 	Observe          bool
 	MetricsAddress   string
 	HealthAddress    string
