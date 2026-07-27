@@ -1,0 +1,18 @@
+apiVersion: fleet.atomi.cloud/v1alpha1
+kind: Platform
+metadata:
+  name: nitroso
+  namespace: nitroso
+spec:
+  infisical:
+    projectSlug: nitroso
+    serviceFolders: true
+  sos:
+    register: true
+  pipeline:
+    stages:
+      - pichu
+      - landscape: pikachu
+        gate: manual
+        soak: 30m
+      - [raichu, amphoros]

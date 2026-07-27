@@ -1,0 +1,7 @@
+apiVersion: fleet.atomi.cloud/v1alpha1
+kind: Landscape
+metadata:
+  name: raichu
+spec:
+  region: ap-southeast-1
+  tier: prod

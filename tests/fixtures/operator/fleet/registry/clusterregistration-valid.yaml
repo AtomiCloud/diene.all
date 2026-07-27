@@ -1,0 +1,10 @@
+apiVersion: fleet.atomi.cloud/v1alpha1
+kind: ClusterRegistration
+metadata:
+  name: raichu-opal
+spec:
+  landscape: raichu
+  mark: opal
+  provider: doks
+  originMode: loadbalancer
+  traffic: true

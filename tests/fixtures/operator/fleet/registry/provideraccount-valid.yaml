@@ -1,0 +1,15 @@
+apiVersion: fleet.atomi.cloud/v1alpha1
+kind: ProviderAccount
+metadata:
+  name: prod-neon
+  namespace: nitroso
+spec:
+  vendor: neon
+  name: prod
+  plan: scale
+  credential:
+    source: infisical
+    path: /nitroso/raichu/database/neon-account-prod
+  quotas:
+    - resource: projects
+      limit: 100

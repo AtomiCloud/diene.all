@@ -1,0 +1,9 @@
+# region must be a lowercase DNS-style label: an upper-cased region is rejected
+# by the schema rather than silently placing resources in an unknown region.
+apiVersion: fleet.atomi.cloud/v1alpha1
+kind: Landscape
+metadata:
+  name: invalid-landscape
+spec:
+  region: AP_SOUTHEAST_1
+  tier: prod

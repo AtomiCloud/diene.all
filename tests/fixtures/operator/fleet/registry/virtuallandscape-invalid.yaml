@@ -1,0 +1,8 @@
+# an envelope with no hosts can never be served, so an empty host set is
+# rejected instead of registering an unservable envelope.
+apiVersion: fleet.atomi.cloud/v1alpha1
+kind: VirtualLandscape
+metadata:
+  name: invalid-virtuallandscape
+spec:
+  hosts: []

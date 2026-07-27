@@ -1,0 +1,12 @@
+# provider is a closed set of the three direct provider APIs: a deprecated
+# provisioning route is rejected at the schema rather than at reconcile.
+apiVersion: fleet.atomi.cloud/v1alpha1
+kind: ClusterRegistration
+metadata:
+  name: invalid-clusterregistration
+spec:
+  landscape: raichu
+  mark: opal
+  provider: crossplane
+  originMode: loadbalancer
+  traffic: true

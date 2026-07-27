@@ -1,0 +1,8 @@
+apiVersion: fleet.atomi.cloud/v1alpha1
+kind: VirtualLandscape
+metadata:
+  name: mew
+spec:
+  hosts:
+    - raichu
+    - amphoros

@@ -1,0 +1,14 @@
+# the credential is a POINTER into the secret store: a relative path is not a
+# resolvable logical address, so it is rejected instead of being resolved
+# against an implicit root.
+apiVersion: fleet.atomi.cloud/v1alpha1
+kind: ProviderAccount
+metadata:
+  name: invalid-provideraccount
+  namespace: nitroso
+spec:
+  vendor: neon
+  name: nonprod
+  credential:
+    source: infisical
+    path: nitroso/raichu/database/neon-account-nonprod
