@@ -32,3 +32,14 @@ build/
 coverage/
 doc/api/
 pubspec.lock
+
+### lib-dart-api-engine
+#### source: lib/dart/api-engine
+# Flutter-only generated plugin manifests. This member depends on the Flutter
+# SDK (transitively via diene_auth_engine), so `flutter pub get` writes files the
+# pure-Dart siblings never produce. Tracking one of them made EVERY hook that
+# runs `flutter pub get` fail pre-commit with "files were modified by this hook"
+# — which is how it reddened Pre-Commit and Nix Flake Check in CI while local
+# `flutter analyze` was rc=0. Entries match the accepted auth-engine set.
+.flutter-plugins
+.flutter-plugins-dependencies
