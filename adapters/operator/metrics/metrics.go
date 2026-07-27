@@ -7,6 +7,14 @@
 // tenant-sync failures, per-landscape materialization/ack lag, and the
 // observe-mode would-apply plan-action surface. The chart alert pack, dashboard,
 // and metric-taxonomy ConfigMap reference only the names registered here.
+//
+// Every public label value is BOUNDED at this recorder boundary: controller,
+// vendor, and condition type are folded to a closed documented vocabulary plus
+// the fixed LabelOther sentinel, so a caller cannot create a new time series
+// from an arbitrary, object-derived, or secret-bearing string. The vocabularies
+// are mirrored by the chart (infra/root_chart/values.yaml metricLabels and the
+// metric-taxonomy ConfigMap) and cross-checked by
+// scripts/validate/operator-observability-artifacts.ts.
 package metrics
 
 import (
@@ -16,6 +24,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	crmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
+
+	"github.com/AtomiCloud/diene.fleet-operator/lib/operator/conditions"
 )
 
 // Metric names (also referenced by the chart dashboard, alert group, and the
@@ -35,11 +45,172 @@ const (
 	PlanActionsMetric           = "fleet_operator_plan_actions"
 )
 
+// LabelOther is the single fixed overflow sentinel every bounded label folds
+// unknown values into. It is deliberately one value for every vocabulary: an
+// unbounded caller string can therefore add at most one child series per family,
+// never one per distinct input, and is never exposed verbatim. The exact rejected
+// value stays recoverable from the structured logs and the CR status, which are
+// the per-object surfaces; metrics are the bounded alertable aggregate.
+const LabelOther = "other"
+
+// controllerVocabulary is the closed controller label vocabulary: the two fenced
+// sample controllers (kept only for source compatibility until the R1 deletion)
+// plus every real enable seam the runtime declares, including the reserved
+// "problem" seam — a known future controller must land on its own label rather
+// than collapse into LabelOther the day its writer arrives. It is mirrored by
+// infra/root_chart/values.yaml metricLabels.controllers, which the alert pack
+// validates its own controller= selectors against — a selector naming a value
+// outside this set could never match a series.
+//
+// BEGIN taxonomy:controllers — the validator parses the literals between these markers.
+var controllerVocabulary = []string{
+	"note",
+	"journal",
+	"cluster",
+	"platform",
+	"dependency",
+	"traffic",
+	"webhook",
+	"cf-deploy",
+	// Reserved: the runtime declares an --enable-problem seam that is not folded
+	// yet (ErrProblemNotFolded), so nothing emits under this label today.
+	"problem",
+}
+
+// END taxonomy:controllers.
+
+// vendorVocabulary is the closed vendor label vocabulary for the vendor/DNS API
+// failure counter. The ProviderAccount CRD's vendor grammar is deliberately open
+// (docs/domain/provider-accounts.md), so this observability vocabulary is NOT
+// that grammar: an unlisted vendor is recorded as LabelOther and identified from
+// the vendor-call-failure log line instead of by minting a new series.
+//
+// BEGIN taxonomy:vendors — the validator parses the literals between these markers.
+var vendorVocabulary = []string{
+	"cloudflare",
+	"neon",
+	"aws",
+	"infisical",
+	"mercury",
+}
+
+// END taxonomy:vendors.
+
+// conditionTypeVocabulary consumes the pure condition constants from
+// lib/operator/conditions rather than duplicating their spelling, so the metric
+// label vocabulary and the condition vocabulary controllers actually flip cannot
+// drift apart. An unlisted type folds into LabelOther: the exact per-type state
+// is always readable from the CR status, and every paging type below is bounded.
+var conditionTypeVocabulary = []string{
+	conditions.TypeReady,
+	conditions.TypeDrifted,
+	conditions.TypeConflict,
+	conditions.TypeWaitingForEndpoint,
+	conditions.TypeBlastBrakeTripped,
+
+	conditions.TypeProvisioned,
+	conditions.TypeSecretWritten,
+	conditions.TypeUnresolved,
+	conditions.TypeNotInEnvelope,
+	conditions.TypeSecretRetained,
+	conditions.TypeDeclarerChanged,
+	conditions.TypeForkUnsupported,
+	conditions.TypeQuotaExhausted,
+
+	conditions.TypeInfisicalProvisioned,
+	conditions.TypeSoSRegistered,
+	conditions.TypePipelineRendered,
+	conditions.TypeOrphanedSource,
+
+	conditions.TypeConfigCompiled,
+	conditions.TypeSecretsFanned,
+	conditions.TypeHomeChangeBlocked,
+	conditions.TypeTargetNotServed,
+	conditions.TypeAccepted,
+	conditions.TypeUnknownProvider,
+	conditions.TypeOrphanedProvider,
+	conditions.TypeTenantProvisioned,
+
+	conditions.TypeRefsClear,
+	conditions.TypeSnapshotted,
+	conditions.TypeExternalsDeleted,
+	conditions.TypeLedgerPurged,
+	conditions.TypeTargetDeleted,
+
+	conditions.TypeRecordPublished,
+	conditions.TypeNoActiveServers,
+
+	conditions.TypeVersionFound,
+	conditions.TypeRolloutProgressing,
+	conditions.TypeRolloutComplete,
+	conditions.TypeDriftDetected,
+	conditions.TypeFailed,
+
+	conditions.TypePublished,
+	conditions.TypeSchemaInvalid,
+	conditions.TypeStale,
+}
+
+var (
+	controllerAllowed    = index(controllerVocabulary)
+	vendorAllowed        = index(vendorVocabulary)
+	conditionTypeAllowed = index(conditionTypeVocabulary)
+)
+
+// index builds the membership set for a vocabulary.
+func index(values []string) map[string]struct{} {
+	set := make(map[string]struct{}, len(values))
+	for _, v := range values {
+		set[v] = struct{}{}
+	}
+	return set
+}
+
+// copyOf returns a defensive copy so an exported vocabulary cannot be mutated by
+// a caller (or a test) into a wider label surface than the recorder enforces.
+func copyOf(values []string) []string {
+	return append([]string(nil), values...)
+}
+
+// Controllers returns the bounded controller label vocabulary (LabelOther aside).
+func Controllers() []string { return copyOf(controllerVocabulary) }
+
+// Vendors returns the bounded vendor label vocabulary (LabelOther aside).
+func Vendors() []string { return copyOf(vendorVocabulary) }
+
+// ConditionTypes returns the bounded condition-type label vocabulary
+// (LabelOther aside), derived from the pure lib/operator/conditions constants.
+func ConditionTypes() []string { return copyOf(conditionTypeVocabulary) }
+
+// bound folds a caller-supplied label value to its vocabulary, or to LabelOther.
+func bound(allowed map[string]struct{}, value string) string {
+	if _, ok := allowed[value]; ok {
+		return value
+	}
+	return LabelOther
+}
+
+// BoundController folds a controller name to the bounded controller label value
+// the recorder would use. It exists so a caller (or a test) can predict the
+// recorded series without re-deriving the vocabulary.
+func BoundController(controller string) string { return bound(controllerAllowed, controller) }
+
+// BoundVendor folds a vendor name to the bounded vendor label value.
+func BoundVendor(vendor string) string { return bound(vendorAllowed, vendor) }
+
+// BoundConditionType folds a condition type to the bounded type label value.
+func BoundConditionType(conditionType string) string {
+	return bound(conditionTypeAllowed, conditionType)
+}
+
 // Recorder is the metrics port controllers use. The generic methods stay
-// byte-compatible; the fleet taxonomy is additive.
+// byte-compatible; the fleet taxonomy is additive. Every string argument is a
+// caller-convenient name, NOT a raw label: the implementation folds it to the
+// bounded vocabulary above, so passing an object-derived or secret-bearing value
+// can only ever land on LabelOther.
 type Recorder interface {
 	// Observe sets the condition-state gauge (1 for True, else 0) for each condition.
-	Observe(controller string, conditions []metav1.Condition)
+	Observe(controller string, states []metav1.Condition)
 	// LedgerFailure increments the durable-ledger failure counter.
 	LedgerFailure(controller string)
 	// Tick increments the reconcile liveness counter.
@@ -51,7 +222,9 @@ type Recorder interface {
 	ObserveProvisioning(controller string, seconds float64)
 	// MarkTick stamps the controller's last successful reconcile/poll tick as a Unix
 	// TIMESTAMP (seconds). Liveness is staleness — time() - value — never a tick rate,
-	// so a frozen poll loop is loudly known instead of averaging away.
+	// so a frozen poll loop is loudly known instead of averaging away. Only a
+	// controller configured in the chart's alerts.tickProducerControllers gets a
+	// staleness alert, so a controller with no writer never pages on an empty series.
 	MarkTick(controller string, at time.Time)
 	// WebhookCompileFailure increments the webhook config-compile failure counter.
 	WebhookCompileFailure(controller string)
@@ -67,7 +240,7 @@ type Recorder interface {
 var (
 	conditionGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: ConditionMetric,
-		Help: "Operator condition state (1 True, 0 otherwise) by controller and type.",
+		Help: "Operator condition state (1 True, 0 otherwise) by controller and type; both labels are bounded vocabularies with an 'other' overflow.",
 	}, []string{"controller", "type"})
 
 	ledgerFailures = prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -82,7 +255,7 @@ var (
 
 	vendorAPIFailures = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: VendorAPIFailureMetric,
-		Help: "Vendor/DNS API call failures by controller and vendor.",
+		Help: "Vendor/DNS API call failures by controller and vendor; both labels are bounded vocabularies with an 'other' overflow.",
 	}, []string{"controller", "vendor"})
 
 	provisioningDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
@@ -143,59 +316,61 @@ var _ Recorder = Prometheus{}
 // NewPrometheus constructs the Prometheus Recorder.
 func NewPrometheus() Prometheus { return Prometheus{} }
 
-// Observe sets the condition-state gauge for each condition.
-func (Prometheus) Observe(controller string, conditions []metav1.Condition) {
-	for i := range conditions {
+// Observe sets the condition-state gauge for each condition. An unlisted
+// condition type aggregates onto the 'other' child rather than minting a series.
+func (Prometheus) Observe(controller string, states []metav1.Condition) {
+	ctrl := bound(controllerAllowed, controller)
+	for i := range states {
 		value := 0.0
-		if conditions[i].Status == metav1.ConditionTrue {
+		if states[i].Status == metav1.ConditionTrue {
 			value = 1.0
 		}
-		conditionGauge.WithLabelValues(controller, conditions[i].Type).Set(value)
+		conditionGauge.WithLabelValues(ctrl, bound(conditionTypeAllowed, states[i].Type)).Set(value)
 	}
 }
 
 // LedgerFailure increments the durable-ledger failure counter.
 func (Prometheus) LedgerFailure(controller string) {
-	ledgerFailures.WithLabelValues(controller).Inc()
+	ledgerFailures.WithLabelValues(bound(controllerAllowed, controller)).Inc()
 }
 
 // Tick increments the reconcile liveness counter.
 func (Prometheus) Tick(controller string) {
-	reconcileTicks.WithLabelValues(controller).Inc()
+	reconcileTicks.WithLabelValues(bound(controllerAllowed, controller)).Inc()
 }
 
 // VendorAPIFailure increments the vendor/DNS API failure counter.
 func (Prometheus) VendorAPIFailure(controller, vendor string) {
-	vendorAPIFailures.WithLabelValues(controller, vendor).Inc()
+	vendorAPIFailures.WithLabelValues(bound(controllerAllowed, controller), bound(vendorAllowed, vendor)).Inc()
 }
 
 // ObserveProvisioning records a provisioning duration sample in seconds.
 func (Prometheus) ObserveProvisioning(controller string, seconds float64) {
-	provisioningDuration.WithLabelValues(controller).Observe(seconds)
+	provisioningDuration.WithLabelValues(bound(controllerAllowed, controller)).Observe(seconds)
 }
 
 // MarkTick stamps the controller's last successful tick as a Unix timestamp (seconds).
 func (Prometheus) MarkTick(controller string, at time.Time) {
-	lastSuccessfulTick.WithLabelValues(controller).Set(float64(at.Unix()))
+	lastSuccessfulTick.WithLabelValues(bound(controllerAllowed, controller)).Set(float64(at.Unix()))
 }
 
 // WebhookCompileFailure increments the webhook config-compile failure counter.
 func (Prometheus) WebhookCompileFailure(controller string) {
-	webhookCompileFailures.WithLabelValues(controller).Inc()
+	webhookCompileFailures.WithLabelValues(bound(controllerAllowed, controller)).Inc()
 }
 
 // ObserveMaterializationAckLag sets the current materialization/ack lag in seconds.
 func (Prometheus) ObserveMaterializationAckLag(controller string, seconds float64) {
-	materializationAckLag.WithLabelValues(controller).Set(seconds)
+	materializationAckLag.WithLabelValues(bound(controllerAllowed, controller)).Set(seconds)
 }
 
 // TenantSyncFailure increments the webhook tenant-sync failure counter.
 func (Prometheus) TenantSyncFailure(controller string) {
-	tenantSyncFailures.WithLabelValues(controller).Inc()
+	tenantSyncFailures.WithLabelValues(bound(controllerAllowed, controller)).Inc()
 }
 
 // SetPlanActions sets the observe-mode would-apply plan-action count for a controller,
 // split by whether the pending actions are destructive.
 func (Prometheus) SetPlanActions(controller string, destructive bool, count float64) {
-	planActions.WithLabelValues(controller, strconv.FormatBool(destructive)).Set(count)
+	planActions.WithLabelValues(bound(controllerAllowed, controller), strconv.FormatBool(destructive)).Set(count)
 }

@@ -24,6 +24,15 @@ proven by `scripts/validate/operator-observability-artifacts.ts`. This directory
 holds the signal DECISIONS (`SIGNALS.md`, `overview.md`) and is the home for any
 future curated per-controller dashboards and alert sets.
 
+That validator is the enforcing oracle for the decisions recorded here, not a
+snapshot: it renders the chart twice (the safe default and one declared
+timestamp-tick producer), parses the result, and fails closed if the staleness rule
+pages on an unwritten series or silently disappears, if the bounded label
+vocabularies in the chart drift from the ones
+`adapters/operator/metrics/metrics.go` enforces at the recorder boundary, if the
+chart selects a controller outside that vocabulary, or if the retired webhook
+delivery-state surface reappears in the chart or in these documents.
+
 The empty `dashboards/` and `alerts/` scaffold is intentional — that curation is
 a Phase 4 concern. Do not add a placeholder dashboard or alert just to populate a
 directory:

@@ -41,4 +41,75 @@ data:
         - Unresolved
         - Drifted
         - BlastBrakeTripped
+    # Bounded label vocabularies enforced at the recorder boundary
+    # (adapters/operator/metrics/metrics.go). A label value outside its vocabulary
+    # is recorded as the single fixed `other` sentinel, so an arbitrary,
+    # object-derived, or secret-bearing string can neither appear verbatim nor mint
+    # a new time series; the exact value stays in the structured logs and the CR
+    # status. Every controller= selector in the alert pack is checked against the
+    # controller vocabulary at render time and the render fails closed on drift.
+    labels:
+      other: other
+      # The two fenced samples plus every real enable seam the runtime declares.
+      # `problem` is a reserved seam that is not folded yet and emits nothing
+      # today; it is listed so its first writer lands on its own label instead of
+      # collapsing into `other`.
+      controllers:
+        {{- range $ctrl := .Values.metricLabels.controllers }}
+        - {{ $ctrl }}
+        {{- end }}
+      vendors:
+        {{- range $vendor := .Values.metricLabels.vendors }}
+        - {{ $vendor }}
+        {{- end }}
+      # The condition-type vocabulary is the pure lib/operator/conditions constant
+      # set the recorder consumes, never a second spelling of it.
+      conditionTypes:
+        - Ready
+        - Drifted
+        - Conflict
+        - WaitingForEndpoint
+        - BlastBrakeTripped
+        - Provisioned
+        - SecretWritten
+        - Unresolved
+        - NotInEnvelope
+        - SecretRetained
+        - DeclarerChanged
+        - ForkUnsupported
+        - QuotaExhausted
+        - InfisicalProvisioned
+        - SoSRegistered
+        - PipelineRendered
+        - OrphanedSource
+        - ConfigCompiled
+        - SecretsFanned
+        - HomeChangeBlocked
+        - TargetNotServed
+        - Accepted
+        - UnknownProvider
+        - OrphanedProvider
+        - TenantProvisioned
+        - RefsClear
+        - Snapshotted
+        - ExternalsDeleted
+        - LedgerPurged
+        - TargetDeleted
+        - RecordPublished
+        - NoActiveServers
+        - VersionFound
+        - RolloutProgressing
+        - RolloutComplete
+        - DriftDetected
+        - Failed
+        - Published
+        - SchemaInvalid
+        - Stale
+    # Webhook delivery-path signals belong to mercury (Q-WH8): they are its own
+    # in-app exports, so this operator registers no webhook delivery-event family
+    # and no delivery-state label vocabulary. Only the config-plane signals above
+    # (compile failures, materialization/ack lag, tenant sync) are emitted here.
+    ownership:
+      webhookDeliveryPath: mercury
+      webhookConfigPlane: fleet-operator
 {{- end }}

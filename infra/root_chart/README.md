@@ -8,9 +8,10 @@ Manager chart for the AtomiCloud fleet operator (CRDs, RBAC, deployment, observa
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| alerts | object | `{"enabled":true,"folderUID":"fleet-operator"}` | Grafana alert pack (GrafanaAlertRuleGroup, never PrometheusRule). |
+| alerts | object | `{"enabled":true,"folderUID":"fleet-operator","tickProducerControllers":[]}` | Grafana alert pack (GrafanaAlertRuleGroup, never PrometheusRule). |
 | alerts.enabled | bool | `true` | Ship the GrafanaAlertRuleGroup. |
 | alerts.folderUID | string | `"fleet-operator"` | Grafana folder UID the rule group is filed under. |
+| alerts.tickProducerControllers | list | `[]` | Controllers explicitly configured as producers of the last-successful-tick TIMESTAMP gauge (`Recorder.MarkTick`). The timestamp-staleness rule pages on no-data by design, so it is rendered ONLY for the controllers listed here — a controller with no writer (an enabled sample, or a real controller whose poll loop has not landed yet) would otherwise page forever on a deliberately empty series. Empty is the safe default: no staleness rule is shipped at all. Every entry must be a bounded `metricLabels.controllers` value or the render fails. |
 | blastBrakeCap | int | `20` | Destructive-write percentage-per-tick blast-brake cap. |
 | controllers | object | `{"journal":true,"note":false}` | Per-controller enablement flags. |
 | controllers.journal | bool | `true` | Enable the Journal controller (no external dependency). |
@@ -26,6 +27,9 @@ Manager chart for the AtomiCloud fleet operator (CRDs, RBAC, deployment, observa
 | ledger.landscape | string | `"lapras"` | Landscape coordinate (overridden per landscape values file). |
 | ledger.platform | string | `"diene"` | Platform coordinate. |
 | ledger.secure | bool | `true` | Use TLS for the ledger endpoint. |
+| metricLabels | object | `{"controllers":["note","journal","cluster","platform","dependency","traffic","webhook","cf-deploy","problem"],"vendors":["cloudflare","neon","aws","infisical","mercury"]}` | Bounded metric label vocabularies. These MIRROR the closed vocabularies `adapters/operator/metrics/metrics.go` enforces at the recorder boundary: a label value outside its vocabulary is recorded as the fixed `other` sentinel, so a chart selector naming an unlisted value could never match a series. They are rendered into the metric-taxonomy ConfigMap and cross-checked against the Go recorder by `scripts/validate/operator-observability-artifacts.ts`. |
+| metricLabels.controllers | list | `["note","journal","cluster","platform","dependency","traffic","webhook","cf-deploy","problem"]` | Closed controller label vocabulary (plus the fixed `other` overflow): the two fenced sample controllers (source compatibility only, until the R1 deletion) and every real enable seam the runtime declares. `problem` is reserved — its seam is not folded yet, so nothing emits under that label today, but a known future controller must have its own label instead of collapsing into `other` the day its writer lands. |
+| metricLabels.vendors | list | `["cloudflare","neon","aws","infisical","mercury"]` | Closed vendor label vocabulary (plus the fixed `other` overflow). The ProviderAccount CRD vendor grammar is deliberately open; this observability vocabulary is not that grammar, and an unlisted vendor is identified from the vendor-call-failure log line instead of by minting a new series. |
 | metrics | object | `{"port":8443}` | Secured metrics endpoint configuration. |
 | metrics.port | int | `8443` | Metrics bind port (HTTPS, authn/authz filtered). |
 | mode | string | `"active"` | Reconcile mode: observe (read-only, report the would-apply plan) or active. |

@@ -146,18 +146,42 @@ The manager registers generic metrics on the controller-runtime registry and the
 chart ships a `ServiceMonitor`, a `GrafanaAlertRuleGroup` (the observability
 standard — never a `PrometheusRule`), and a Grafana dashboard.
 
-The toy actually emits: `fleet_operator_condition` (condition-state gauge by
-controller and type), `fleet_operator_ledger_failures_total`,
-`fleet_operator_reconcile_ticks_total` (poll-loop liveness), and the built-in
+The sample controllers actually emit: `fleet_operator_condition` (condition-state
+gauge by controller and type), `fleet_operator_ledger_failures_total`,
+`fleet_operator_reconcile_ticks_total`, and the built-in
 `controller_runtime_reconcile_*` reconcile/latency metrics. The dashboard and the
 alert group query exactly these.
 
-The consumer taxonomy — provisioning durations, vendor API failures, and the
-webhook six-state taxonomy (owned, double-own, no-owner, misroute, dead-letter,
-lag) — is shipped as a parameterized metric-name **source** (the
-`metric-taxonomy` ConfigMap), which real controllers implement. The toy does not
-claim to emit it. A durable-ledger endpoint failure surfaces as the
-`WaitingForEndpoint` condition and increments the ledger-failure metric.
+The consumer taxonomy — provisioning durations, vendor/DNS API failures, the
+last-successful-tick timestamp gauge, the webhook **config-plane** signals
+(config-compile failures, per-landscape materialization/ack lag, internal-tenant
+sync failures), and the observe-mode plan surface — is shipped as a parameterized
+metric-name **source** (the `metric-taxonomy` ConfigMap), which real controllers
+implement. The samples do not claim to emit it. A durable-ledger endpoint failure
+surfaces as the `WaitingForEndpoint` condition and increments the ledger-failure
+metric.
+
+Webhook **delivery-path** signals are not in this taxonomy at all: mercury owns
+the delivery path and exports those signals from its own app (Q-WH8), so this
+operator registers no webhook delivery-event metric family and no delivery-state
+label vocabulary. `scripts/validate/operator-observability-artifacts.ts` fails
+closed if that retired surface reappears in the chart or in these documents.
+
+Poll-loop liveness is a **timestamp**, never a rate: `MarkTick` writes
+`fleet_operator_last_successful_tick_timestamp_seconds` and staleness is
+`time() - value`. Its alert pages on no-data, so the chart renders it **only** for
+controllers listed in `alerts.tickProducerControllers` — a controller with no
+writer must never page forever on a deliberately empty series, and the sample
+controllers are not producers.
+
+Every public metric label is **bounded at the recorder boundary**: controller,
+vendor, and condition type are folded to a closed documented vocabulary plus the
+single fixed `other` sentinel, so an object-derived or secret-bearing string can
+neither appear verbatim nor mint a time series. The condition vocabulary is the
+pure `lib/operator/conditions` constant set the recorder consumes; the controller
+and vendor vocabularies live in the chart's `metricLabels` values and are
+cross-checked against the Go recorder by the observability validator. The exact
+rejected value stays recoverable from the structured logs and the CR status.
 
 The secured metrics endpoint uses controller-runtime's authn/authz filter: the
 manager ServiceAccount is granted `create` on TokenReviews and

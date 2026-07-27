@@ -23,9 +23,10 @@ the chart alert pack and dashboard reference only these names.
 **Justification:** the fleet-operator is one binary writing DNS every 5s and
 provisioning external resources; on-call pages on reconcile failure, poll-loop
 staleness, a tripped blast brake, ledger/vendor failures, and webhook
-config-plane lag. Delivery-path webhook metrics are NOT here — those are
-mercury's own in-app exports (Q-WH8), so no `fleet_operator_webhook_events_total`
-family exists.
+config-plane lag. Webhook delivery-path metrics are NOT here — mercury owns the
+delivery path and exports those signals from its own app (Q-WH8), so this
+operator registers no webhook delivery-event family and no delivery-state label
+vocabulary.
 
 | Metric                                                  | Type      | Labels                  | Estimated ATS                 | Why                                                           |
 | ------------------------------------------------------- | --------- | ----------------------- | ----------------------------- | ------------------------------------------------------------- |
@@ -43,6 +44,42 @@ family exists.
 Framework metrics (`controller_runtime_reconcile_total`,
 `controller_runtime_reconcile_errors_total`,
 `controller_runtime_reconcile_time_seconds`) come for free from controller-runtime.
+
+#### Bounded labels (how the ATS estimates above are actually enforced)
+
+The estimates are not a hope about caller discipline: every public label value is
+folded to a closed vocabulary **at the recorder boundary** in
+`adapters/operator/metrics/metrics.go`, with one fixed overflow sentinel, `other`,
+shared by all of them. An unknown, object-derived, or secret-bearing string
+therefore adds at most one child series per family, is never exposed verbatim, and
+never becomes a new label value.
+
+| Label         | Vocabulary                                                                      | Worst case |
+| ------------- | ------------------------------------------------------------------------------- | ---------- |
+| `controller`  | 9 documented controllers (2 fenced samples + the 7 real enable seams) + `other` | 10         |
+| `vendor`      | 5 documented vendors + `other`                                                  | 6          |
+| `type`        | the pure `lib/operator/conditions` constant set (40 types) + `other`            | 41         |
+| `destructive` | `true` / `false`                                                                | 2          |
+
+The controller list covers every `--enable-*` seam the runtime declares, including
+the reserved `problem` seam, which is not folded yet and emits nothing today. A
+known future controller is listed deliberately: otherwise its first writer would
+land on `other` and its series would be invisible until someone noticed. `note` and
+`journal` stay listed only for source compatibility until the R1 sample deletion.
+
+The controller and vendor vocabularies are declared once in the chart
+(`infra/root_chart/values.yaml` → `metricLabels`), rendered into the
+`metric-taxonomy` ConfigMap, and compared set-for-set against the Go recorder by
+`scripts/validate/operator-observability-artifacts.ts`; the condition vocabulary is
+compared by constant reference, so the recorder cannot respell or miss a pure
+condition type. The validator also proves every `controller=` selector the chart
+ships is a bounded value — a selector outside the vocabulary would match nothing,
+because the recorder would have folded that controller to `other`.
+
+Cardinality is bounded, not free: an unlisted condition type aggregates onto
+`other`, so per-type state for an unlisted type is read from the CR status rather
+than from Prometheus, and an unlisted vendor is identified from the
+vendor-call-failure log line in Gate 2.
 
 ### Gate 2 — Logs
 
@@ -91,20 +128,28 @@ transient faults; the alerts below fire only on persistence (`for` windows) or o
 conditions that never self-heal (blast-brake freeze, poll-loop staleness).
 
 **Noise budget:** steady state is zero pages; a healthy fleet in observe mode
-holds an empty plan and no paging condition True.
+holds an empty plan and no paging condition True. The staleness rule is the one
+alert that pages on an EMPTY series, so it is rendered only for controllers
+explicitly declared as producers of the timestamp gauge in the chart's
+`alerts.tickProducerControllers` (default: empty, so no staleness rule ships at
+all). A controller with no `MarkTick` writer — a fenced sample, or a real
+controller whose poll loop has not landed — would otherwise page forever on a
+deliberately empty series, which is a permanent false page, not liveness. For a
+declared producer the strong `noDataState: Alerting` behavior is exactly right and
+is preserved.
 
-| Alert base name           | Type      | Tiers    | Thresholds                                             |
-| ------------------------- | --------- | -------- | ------------------------------------------------------ |
-| reconcile errors          | threshold | warning  | rate > 0 for 5m                                        |
-| reconcile latency p99     | threshold | warning  | > 10s for 10m                                          |
-| reconcile/poll staleness  | absence   | critical | time() − last-tick > 300s, no-data = page              |
-| persistent condition      | threshold | critical | Conflict/Unresolved/Drifted/BlastBrakeTripped True 15m |
-| ledger failures           | threshold | warning  | rate > 0 for 5m                                        |
-| vendor/DNS API failures   | threshold | warning  | rate > 0 for 5m                                        |
-| provisioning duration p99 | threshold | warning  | > 300s for 15m                                         |
-| webhook compile failures  | threshold | warning  | rate > 0 for 5m                                        |
-| materialization/ack lag   | threshold | critical | > 300s for 10m                                         |
-| tenant-sync failures      | threshold | warning  | rate > 0 for 5m                                        |
+| Alert base name           | Type      | Tiers    | Thresholds                                                              |
+| ------------------------- | --------- | -------- | ----------------------------------------------------------------------- |
+| reconcile errors          | threshold | warning  | rate > 0 for 5m                                                         |
+| reconcile latency p99     | threshold | warning  | > 10s for 10m                                                           |
+| reconcile/poll staleness  | absence   | critical | declared tick producers only: time() − last-tick > 300s, no-data = page |
+| persistent condition      | threshold | critical | Conflict/Unresolved/Drifted/BlastBrakeTripped True 15m                  |
+| ledger failures           | threshold | warning  | rate > 0 for 5m                                                         |
+| vendor/DNS API failures   | threshold | warning  | rate > 0 for 5m                                                         |
+| provisioning duration p99 | threshold | warning  | > 300s for 15m                                                          |
+| webhook compile failures  | threshold | warning  | rate > 0 for 5m                                                         |
+| materialization/ack lag   | threshold | critical | > 300s for 10m                                                          |
+| tenant-sync failures      | threshold | warning  | rate > 0 for 5m                                                         |
 
 ### Gate 6 — Alert-set folders required
 

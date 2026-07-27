@@ -12,7 +12,7 @@
         source: {{ .source }}
       annotations:
         summary: {{ .summary | quote }}
-        {{- if eq .source "consumer-extension" }}
+        {{- if or (eq .source "consumer-extension") .description }}
         description: {{ .description | default (printf "Consumer-extension signal for the %s controller. The metric is registered by adapters/operator/metrics; real fleet controllers drive it as they land." .controller) | quote }}
         {{- end }}
       data:
@@ -54,6 +54,22 @@
 {{- $provisioningBudget := .Values.alerts.provisioningBudgetSeconds | default 300 }}
 {{- $ackLagBudget := .Values.alerts.materializationAckLagSeconds | default 300 }}
 {{- $pagingConditions := .Values.alerts.pagingConditionTypes | default "Conflict|Unresolved|Drifted|BlastBrakeTripped" }}
+{{- /* Controllers explicitly configured as MarkTick producers. The timestamp-staleness
+       rule pages on no-data, so it is rendered ONLY for these — never for a controller
+       with no writer, which would page forever on a deliberately empty series. */ -}}
+{{- $tickProducers := .Values.alerts.tickProducerControllers | default (list) }}
+{{- /* Every controller= selector must be a bounded recorder label value: the recorder
+       (adapters/operator/metrics/metrics.go) folds anything else to "other", so a
+       selector naming an unlisted controller could never match a series. Fail closed. */ -}}
+{{- $controllerVocabulary := .Values.metricLabels.controllers | default (list) }}
+{{- if not $controllerVocabulary }}
+{{- fail "metricLabels.controllers must list the bounded controller label vocabulary the recorder enforces" }}
+{{- end }}
+{{- range $ctrl := concat $toy $consumers (list $webhook) $tickProducers }}
+{{- if not (has $ctrl $controllerVocabulary) }}
+{{- fail (printf "alert controller %q is outside the bounded metricLabels.controllers vocabulary %v; the recorder would record it as \"other\", so this selector could never match a series" $ctrl $controllerVocabulary) }}
+{{- end }}
+{{- end }}
 apiVersion: grafana.integreatly.org/v1beta1
 kind: GrafanaAlertRuleGroup
 metadata:
@@ -85,14 +101,6 @@ spec:
       "controller" $ctrl "source" "toy" "severity" "warning" "for" "10m"
       "expr" (printf "histogram_quantile(0.99, sum by (le) (rate(controller_runtime_reconcile_time_seconds_bucket{controller=\"%s\"}[5m])))" $ctrl)
       "evaluator" "gt" "threshold" $latency) }}
-{{- /* poll-loop liveness — TIMESTAMP staleness (time() - last-successful-tick), pages even on no-data */ -}}
-{{- include "fleet-operator.alertrule" (dict
-      "uid" (printf "fleet-operator-%s-reconcile-staleness" $ctrl)
-      "title" (printf "fleet-operator %s reconcile loop stale" $ctrl)
-      "summary" (printf "The %s reconcile/poll loop has not reported a successful tick recently (stale = page)" $ctrl)
-      "controller" $ctrl "source" "toy" "severity" "critical" "for" "10m" "noData" "Alerting"
-      "expr" (printf "time() - max by (controller) (fleet_operator_last_successful_tick_timestamp_seconds{controller=\"%s\"})" $ctrl)
-      "evaluator" "gt" "threshold" $stale) }}
 {{- /* persistent condition state — Conflict/Unresolved/Drifted/BlastBrakeTripped held True pages */ -}}
 {{- include "fleet-operator.alertrule" (dict
       "uid" (printf "fleet-operator-%s-condition-state" $ctrl)
@@ -109,6 +117,22 @@ spec:
       "controller" $ctrl "source" "toy" "severity" "warning" "for" "5m"
       "expr" (printf "sum(rate(fleet_operator_ledger_failures_total{controller=\"%s\"}[5m]))" $ctrl)
       "evaluator" "gt" "threshold" 0) }}
+{{- end }}
+{{- /* Poll-loop liveness — TIMESTAMP staleness (time() - last-successful-tick), noDataState
+       Alerting so a frozen or silent poll loop is loudly known instead of averaging away.
+       Rendered ONLY for controllers explicitly declared in alerts.tickProducerControllers,
+       because that no-data page is correct for a real MarkTick producer and a permanent
+       false page for anything else. Empty (the default) ships no staleness rule. */ -}}
+{{- range $ctrl := $tickProducers }}
+{{- include "fleet-operator.alertrule" (dict
+      "uid" (printf "fleet-operator-%s-reconcile-staleness" $ctrl)
+      "title" (printf "fleet-operator %s reconcile loop stale" $ctrl)
+      "summary" (printf "The %s reconcile/poll loop has not reported a successful tick recently (stale = page)" $ctrl)
+      "description" (printf "The %s controller is a configured producer of fleet_operator_last_successful_tick_timestamp_seconds, so an absent or frozen timestamp means its poll loop is not reporting successful ticks — no-data pages by design." $ctrl)
+      "controller" $ctrl "severity" "critical" "for" "10m" "noData" "Alerting"
+      "source" (ternary "toy" "consumer-extension" (has $ctrl $toy))
+      "expr" (printf "time() - max by (controller) (fleet_operator_last_successful_tick_timestamp_seconds{controller=\"%s\"})" $ctrl)
+      "evaluator" "gt" "threshold" $stale) }}
 {{- end }}
 {{- range $ctrl := $consumers }}
 {{- /* DNS/vendor API failure rate */ -}}
@@ -137,8 +161,8 @@ spec:
       "evaluator" "gt" "threshold" 0) }}
 {{- end }}
 {{- /* Webhook config-plane signals (Q-WH13): compile failures, per-landscape ack lag, tenant-sync.
-       Delivery-path metrics (error/dead-letter/misroute/lag) are mercury's own in-app exports (Q-WH8),
-       never emitted here — so no fleet_operator_webhook_events_total taxonomy exists. */ -}}
+       Webhook delivery-path signals belong to mercury (Q-WH8): they are its own in-app exports, so
+       this operator registers no webhook delivery-event family and no delivery-state vocabulary. */ -}}
 {{- include "fleet-operator.alertrule" (dict
       "uid" (printf "fleet-operator-%s-webhook-compile-failures" $webhook)
       "title" (printf "fleet-operator %s webhook config-compile failures" $webhook)

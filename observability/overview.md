@@ -20,20 +20,30 @@ when a change exceeds a pinned cap.
 
 ## Dependencies
 
-| Direction | System                 | Purpose                                 | When it fails, this service…                         |
-| --------- | ---------------------- | --------------------------------------- | ---------------------------------------------------- |
-| calls     | vendor/provider APIs   | provision external resources            | records `vendor_api_failures`, holds a bad condition |
-| calls     | R2 durable ledger      | source of record for externals          | records `ledger_failures`, refuses unsafe writes     |
-| calls     | mercury management API | internal-tenant/route sync              | records `tenant_sync_failures`, mirrors last state   |
-| called by | Prometheus scraper     | scrape the authn/authz metrics endpoint | metrics stop flowing; staleness alert fires          |
+| Direction | System                 | Purpose                                 | When it fails, this service…                                      |
+| --------- | ---------------------- | --------------------------------------- | ----------------------------------------------------------------- |
+| calls     | vendor/provider APIs   | provision external resources            | records `vendor_api_failures`, holds a bad condition              |
+| calls     | R2 durable ledger      | source of record for externals          | records `ledger_failures`, refuses unsafe writes                  |
+| calls     | mercury management API | internal-tenant/route sync              | records `tenant_sync_failures`, mirrors last state                |
+| called by | Prometheus scraper     | scrape the authn/authz metrics endpoint | metrics stop flowing; a declared producer's staleness alert fires |
 
 ## Failure modes
 
 - Poll/reconcile loop frozen — surfaced as timestamp staleness (`time()` minus
   `fleet_operator_last_successful_tick_timestamp_seconds`), never averaged away.
+  Because that alert pages on an absent series, it is shipped only for the
+  controllers declared in the chart's `alerts.tickProducerControllers` — the
+  controllers that actually stamp a successful tick. A controller with no writer
+  gets no staleness page (it would be a permanent false page, not liveness).
 - Blast brake tripped — a `BlastBrakeTripped` condition held True pages; the
   controller freezes rather than applying a pathological change.
 - Vendor/ledger API failures, or a webhook landscape stuck behind `cfg:gen`.
+  Webhook delivery-path failures are mercury's own signals, not this operator's.
+
+All metric labels are bounded closed vocabularies with a single `other` overflow
+(see [Signal decisions](SIGNALS.md)): a controller, vendor, or condition type you
+do not recognise on a dashboard is `other`, and the exact value is in the logs and
+the CR status.
 
 ## Common commands
 
