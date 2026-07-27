@@ -33,6 +33,8 @@ let
       packages.yq-go
       pkgs.coreutils
       pkgs.findutils
+      pkgs.gawk
+      pkgs.diffutils
       pkgs.gnugrep
       pkgs.gnused
     ];
@@ -40,6 +42,43 @@ let
   validator =
     command:
     "${packages.bash}/bin/bash -c 'export PATH=${validator-runtime}/bin; exec ${packages.bash}/bin/bash ${command}'";
+
+  # ### go-consumer-go-validator
+  # #### source: go-consumer
+  # A validator runtime that also carries the Go toolchain and the vendored module
+  # proxy, for gates that must RUN Go rather than only read files. The plain
+  # validator PATH deliberately excludes go, so a gate reaching for it dies at exit
+  # 127 with "go: command not found" — a missing-tool failure indistinguishable in a
+  # CI log from a real gate failure.
+  go-validator-runtime = pkgs.buildEnv {
+    name = "go-consumer-validator-runtime";
+    paths = [
+      packages.bash
+      packages.git
+      packages.go
+      packages.jq
+      packages.ripgrep
+      packages.yq-go
+      pkgs.coreutils
+      pkgs.findutils
+      pkgs.gawk
+      pkgs.diffutils
+      pkgs.gnugrep
+      pkgs.gnused
+    ];
+  };
+  go-validator =
+    command:
+    "${packages.bash}/bin/bash -c 'export PATH=${go-validator-runtime}/bin; export CGO_ENABLED=0; export GOPROXY=file://${go-deps.goModules}; export GOSUMDB=off; export GOMODCACHE=\"\${TMPDIR:-/tmp}/go-consumer-mod-cache\"; exec ${packages.bash}/bin/bash ${command}'";
+
+  # A validator that carries the Go toolchain but does NOT redirect the module
+  # cache. skills-sync reads the vendored usage skills out of the AMBIENT
+  # GOMODCACHE, so pointing it at the isolated proxy cache leaves it reading an
+  # empty tree — and because its ecosystem loop swallows the failure, it then
+  # reports success having vendored nothing.
+  go-ambient-validator =
+    command:
+    "${packages.bash}/bin/bash -c 'export PATH=${go-validator-runtime}/bin; exec ${packages.bash}/bin/bash ${command}'";
 in
 pre-commit-lib.run {
   src = ../.;
@@ -238,7 +277,7 @@ pre-commit-lib.run {
     a-skills-freshness = {
       enable = true;
       name = "Vendored skills freshness";
-      entry = validator "scripts/validate/skills-freshness.sh";
+      entry = go-ambient-validator "scripts/validate/skills-freshness.sh";
       pass_filenames = false;
       language = "system";
     };
@@ -295,7 +334,7 @@ pre-commit-lib.run {
     a-schema-drift = {
       enable = true;
       name = "Generated config schema drift";
-      entry = validator "scripts/validate/schema-drift.sh";
+      entry = go-validator "scripts/validate/schema-drift.sh";
       files = "^(config/.*\\.yaml|schemas/.*\\.json|lib/appconfig/.*\\.go)$";
       pass_filenames = false;
       language = "system";
