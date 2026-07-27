@@ -323,5 +323,10 @@
     "template": "diene/dotnet-base",
     "name": "hook-releaser-commit",
     "class": "gate"
+  },
+  {
+    "template": "diene/observability",
+    "name": "observability-standards-present",
+    "class": "presence"
   }
 ]
