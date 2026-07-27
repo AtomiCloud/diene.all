@@ -322,17 +322,137 @@
   },
   {
     "template": "diene/go-base",
-    "name": "sample-domain-journey",
-    "class": "smoke"
-  },
-  {
-    "template": "diene/go-base",
     "name": "codecov-config",
     "class": "presence"
   },
   {
     "template": "diene/observability",
     "name": "observability-standards-present",
+    "class": "presence"
+  },
+  {
+    "template": "diene/go-consumer",
+    "name": "worker-mode-sit",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-consumer",
+    "name": "db-init-mode-sit",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-consumer",
+    "name": "db-init-idempotency-sit",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-consumer",
+    "name": "message-journey-sit",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-consumer",
+    "name": "otel-export-sit",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-consumer",
+    "name": "app-chart-lint",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-consumer",
+    "name": "primordial-chart-lint",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-consumer",
+    "name": "config-layering",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-consumer",
+    "name": "config-schema-gen-check",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-consumer",
+    "name": "constants-sync-lint",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-consumer",
+    "name": "rebrand-static-guard",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-consumer",
+    "name": "cmd-entry",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/go-consumer",
+    "name": "env-override-convention",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/go-consumer",
+    "name": "health-metric",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/go-consumer",
+    "name": "http-auth-encryptor",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/go-consumer",
+    "name": "health-subcommand",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/go-consumer",
+    "name": "task-surface",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/go-consumer",
+    "name": "secret-behavior",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/go-consumer",
+    "name": "app-chart-template",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/go-consumer",
+    "name": "primordial-chart-template",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/go-consumer",
+    "name": "app-chart-install",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/go-consumer",
+    "name": "primordial-chart-install",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/go-consumer",
+    "name": "config-dev-yaml",
+    "class": "presence"
+  },
+  {
+    "template": "diene/go-consumer",
+    "name": "service-tree-app-block",
+    "class": "presence"
+  },
+  {
+    "template": "diene/go-consumer",
+    "name": "lib-dogfood-artifacts",
     "class": "presence"
   }
 ]

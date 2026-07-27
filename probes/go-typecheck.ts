@@ -25,7 +25,16 @@ export default {
         'deadcode-whole-repo',
         'deadcode-production',
         'build-artifact',
-        'sample-domain-journey',
+        // ### go-consumer-typecheck-impact
+        // #### source: go-consumer
+        // The go-base `sample-domain-journey` row was REMOVED by the sanctioned
+        // fenced swap (the swap deletes its invocation path
+        // `scripts/validate/sample-journey.sh` with the sample), so it is no longer
+        // a co-selected control. The consumer rows a Go type error legitimately
+        // reddens take its place: everything that compiles the tree.
+        'cmd-entry',
+        'config-layering',
+        'http-auth-encryptor',
       ],
       async run(repo: any) {
         await plantGoFile(repo, 'lib/**/*.go', 'probe_type_error.go', 'var ProbeTypeError int = "wrong"');
