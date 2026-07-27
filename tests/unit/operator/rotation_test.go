@@ -389,7 +389,7 @@ func TestNewRejectsPhaseIncoherentConfirmationState(t *testing.T) {
 			t.Parallel()
 			_, err := rotation.New(tc.state, newClock(anchor).now)
 			require.ErrorIs(t, err, tc.cause)
-			if tc.cause != rotation.ErrUnknownCluster {
+			if !errors.Is(tc.cause, rotation.ErrUnknownCluster) {
 				require.ErrorIs(t, err, rotation.ErrInvalidState)
 			}
 		})
@@ -886,6 +886,8 @@ func validState(phase rotation.Phase) rotation.State {
 		state.Confirmed = []string{"b", "a"}
 		state.LastConfirmationAt = anchor.UTC()
 		state.OverlapDeadline = anchor.UTC().Add(rotation.OverlapWindow)
+	default:
+		// Earlier phases need only the base generation fields above.
 	}
 
 	return state
