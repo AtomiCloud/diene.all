@@ -22,7 +22,7 @@ plugins:
   - module: '@semantic-release/changelog'
     version: 6.0.3
     config:
-      changelogFile: packages/diene_dart_lib/CHANGELOG.md
+      changelogFile: packages/diene_config/CHANGELOG.md
   - module: '@semantic-release/exec'
     version: 6.0.3
     config:
@@ -32,8 +32,8 @@ plugins:
     config:
       message: "release: ${nextRelease.version}\n\n${nextRelease.notes}"
       assets:
-        - packages/diene_dart_lib/CHANGELOG.md
-        - packages/diene_dart_lib/pubspec.yaml
+        - packages/diene_config/CHANGELOG.md
+        - packages/diene_config/pubspec.yaml
         - VERSION
         - docs/developer/CommitConventions.md
   - module: '@semantic-release/github'
