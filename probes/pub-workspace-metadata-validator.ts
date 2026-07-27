@@ -26,7 +26,7 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        await repo.patch('packages/diene_dart_lib/pubspec.yaml', {
+        await repo.patch('packages/diene_e2e/pubspec.yaml', {
           find: 'resolution: workspace',
           replace: 'resolution: none',
         });
