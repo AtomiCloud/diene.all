@@ -4,16 +4,13 @@ version: 1.0.0
 repository: https://github.com/AtomiCloud/diene.dart_auth_engine
 issue_tracker: https://github.com/AtomiCloud/diene.dart_auth_engine/issues
 homepage: https://github.com/AtomiCloud/diene.dart_auth_engine
-
 topics:
   - auth
   - logto
   - oidc
   - onboarding
   - flutter
-
 resolution: workspace
-
 # UNLIKE the four pure-Dart siblings (result, interfaces, core-utils, problems)
 # this package depends on the FLUTTER SDK. That is forced, not stylistic:
 # logto_dart_sdk 3.0.0 declares `environment.flutter: '>=1.17.0'` and pulls
@@ -26,7 +23,6 @@ resolution: workspace
 environment:
   sdk: '>=3.12.0 <4.0.0'
   flutter: '>=3.24.0'
-
 dependencies:
   diene_problems: ^0.1.1
   diene_result: ^1.0.0
@@ -35,7 +31,6 @@ dependencies:
   http: ^1.6.0
   logto_dart_sdk: ^3.0.0
   meta: ^1.16.0
-
 dev_dependencies:
   coverage: ^1.15.1
   crypto: ^3.0.6
