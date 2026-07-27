@@ -3,6 +3,13 @@
 All notable changes to this package are documented here. Releases are managed
 from conventional commits by the repository release workflow.
 
+## [1.0.2](https://github.com/AtomiCloud/diene.dart_auth_engine/compare/v1.0.1...v1.0.2) (2026-07-27)
+
+### 🐛 Bug Fixes 🐛
+
+- **auth-engine:** anchor .pubignore config/ so lib/src/config ships ([3bff69d](https://github.com/AtomiCloud/diene.dart_auth_engine/commit/3bff69d1e52bf06f7a5e5b4fa8d5d0b2b36bb454))
+- **dart-lib:** preserve nested C0 result files ([#126](https://github.com/AtomiCloud/diene.dart_auth_engine/issues/126)) ([602610f](https://github.com/AtomiCloud/diene.dart_auth_engine/commit/602610fd452430fd7e8a3cdd396cfd0b0f8235ee))
+
 ## [1.0.1](https://github.com/AtomiCloud/diene.dart_auth_engine/compare/v1.0.0...v1.0.1) (2026-07-27)
 
 ### 🐛 Bug Fixes 🐛
