@@ -15,7 +15,19 @@ whole)
   ;;
 production)
   staticcheck -tests=false ./...
+  # Materialise the synthetic consumer as a real main package inside the module,
+  # exactly as every diene Go library does (source: diene.go-otel). It gives the
+  # goal-mandated SIT and integration SEAMS a real caller WITHOUT excluding,
+  # filtering or nolint-ing anything: the pass still analyses every production
+  # package and still reddens on a genuine test-only export. See the header of
+  # tests/fixtures/deadcode-consumer.go.txt for why that is a classification
+  # rather than a suppression, and for the rule on adding entries.
+  runner="$(mktemp -d ./deadcode-runner.XXXXXX)"
+  trap 'rm -rf "${runner}"' EXIT
+  cp tests/fixtures/deadcode-consumer.go.txt "${runner}/main.go"
   report="$(deadcode -json ./...)"
+  rm -rf "${runner}"
+  trap - EXIT
   jq -e '(. // []) | length == 0' <<<"${report}" >/dev/null || {
     jq . <<<"${report}" >&2
     exit 1

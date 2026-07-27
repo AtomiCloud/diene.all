@@ -41,3 +41,8 @@ infra/primordial_chart/uploads/
 ### go-consumer-artifacts
 #### source: go-consumer
 probe-report.json
+
+# ### go-consumer-deadcode-runner
+# #### source: go-consumer
+# Temporary main package the production deadcode pass materialises and trap-removes.
+deadcode-runner.*/
