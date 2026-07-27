@@ -114,13 +114,13 @@ func TestNoteConvergesToReadyAndConfirmed(t *testing.T) {
 
 	got := getNote(t, "converge")
 	require.Equal(t, int32(2), got.Status.OwnedConfigMaps)
-	require.Equal(t, "diene/lapras/note/converge", got.Status.LedgerRef)
+	require.Equal(t, "diene/lapras/note/converge/sample-vendor/sample-account", got.Status.LedgerRef)
 	ready := apimeta.FindStatusCondition(got.Status.Conditions, plan.TypeReady)
 	require.NotNil(t, ready)
 	require.Equal(t, metav1.ConditionTrue, ready.Status)
 	require.Len(t, ownedConfigMaps(t, "converge"), 2)
 
-	entry, ok, _ := store.Get(context.Background(), "diene/lapras/note/converge")
+	entry, ok, _ := store.Get(context.Background(), "diene/lapras/note/converge/sample-vendor/sample-account")
 	require.True(t, ok)
 	require.Equal(t, ledger.PhaseConfirmed, entry.Phase) // Ready only after confirm
 }
@@ -151,7 +151,7 @@ func TestNoteFinalizerLifecycle(t *testing.T) {
 	reconcileNote(t, r, "finalized", 1)
 
 	require.Nil(t, getNoteOrNil("finalized"))
-	entry, ok, _ := store.Get(context.Background(), "diene/lapras/note/finalized")
+	entry, ok, _ := store.Get(context.Background(), "diene/lapras/note/finalized/sample-vendor/sample-account")
 	require.True(t, ok)
 	require.Equal(t, ledger.PhaseOrphaned, entry.Phase)
 }
@@ -163,14 +163,14 @@ func TestNoteOrphanReapplyConfirmed(t *testing.T) {
 	reconcileNote(t, r, "readopt", 2)
 	require.NoError(t, k8sClient.Delete(context.Background(), getNote(t, "readopt")))
 	reconcileNote(t, r, "readopt", 1)
-	orphaned, _, _ := store.Get(context.Background(), "diene/lapras/note/readopt")
+	orphaned, _, _ := store.Get(context.Background(), "diene/lapras/note/readopt/sample-vendor/sample-account")
 	require.Equal(t, ledger.PhaseOrphaned, orphaned.Phase)
 
 	// Re-create the same coordinate: the orphaned entry must be adopted back and
 	// end confirmed, preserving the external ID, never remaining orphaned.
 	makeNote(t, "readopt", "work", 1)
 	reconcileNote(t, r, "readopt", 2)
-	readopted, ok, _ := store.Get(context.Background(), "diene/lapras/note/readopt")
+	readopted, ok, _ := store.Get(context.Background(), "diene/lapras/note/readopt/sample-vendor/sample-account")
 	require.True(t, ok)
 	require.Equal(t, ledger.PhaseConfirmed, readopted.Phase)
 	require.Equal(t, orphaned.ExternalID, readopted.ExternalID)

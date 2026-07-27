@@ -9,12 +9,18 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 
 	"github.com/minio/minio-go/v7"
 
 	"github.com/AtomiCloud/diene.fleet-operator/lib/operator/ledger"
 )
+
+// ErrBucketMissing means the bootstrap-owned durable-ledger bucket is absent.
+// The operator never creates or manages this bucket itself.
+var ErrBucketMissing = errors.New("ledgerstore: bootstrap-provisioned bucket is missing")
 
 // MinioStore is an S3/MinIO-backed ledger.Store.
 type MinioStore struct {
@@ -30,38 +36,23 @@ func NewMinioStore(client *minio.Client, bucket, prefix string) *MinioStore {
 	return &MinioStore{client: client, bucket: bucket, prefix: prefix}
 }
 
-// EnsureBucket creates the ledger bucket when it is absent. The check-then-create
-// pair races when multiple managers start before leader election, so a concurrent
-// creator winning the MakeBucket is tolerated as success (see IsBucketExistsRace).
-func (s *MinioStore) EnsureBucket(ctx context.Context) error {
+// VerifyBucket verifies that bootstrap provisioned the ledger bucket. An absent
+// bucket is a loud startup failure; this adapter never creates or manages it.
+func (s *MinioStore) VerifyBucket(ctx context.Context) error {
 	exists, err := s.client.BucketExists(ctx, s.bucket)
 	if err != nil {
 		return err
 	}
-	if exists {
-		return nil
-	}
-	if err := s.client.MakeBucket(ctx, s.bucket, minio.MakeBucketOptions{}); err != nil {
-		if IsBucketExistsRace(err) {
-			return nil
-		}
-		return err
+	if !exists {
+		return fmt.Errorf("%w: %q; provision it during L0 bootstrap", ErrBucketMissing, s.bucket)
 	}
 	return nil
 }
 
-// IsBucketExistsRace reports whether a MakeBucket error is the benign
-// already-exists outcome of two managers racing bucket creation before leader
-// election. minio-go surfaces the loser's attempt as BucketAlreadyOwnedByYou or
-// BucketAlreadyExists; EnsureBucket treats both as success so a replica does not
-// crash at startup. All other errors propagate unchanged.
-func IsBucketExistsRace(err error) bool {
-	switch minio.ToErrorResponse(err).Code {
-	case "BucketAlreadyOwnedByYou", "BucketAlreadyExists":
-		return true
-	default:
-		return false
-	}
+// EnsureBucket is retained temporarily for deprecated composition-root
+// compatibility. It delegates to VerifyBucket and never creates.
+func (s *MinioStore) EnsureBucket(ctx context.Context) error {
+	return s.VerifyBucket(ctx)
 }
 
 func (s *MinioStore) objectName(key string) string {
@@ -103,4 +94,11 @@ func (s *MinioStore) Put(ctx context.Context, entry ledger.Entry) error {
 		minio.PutObjectOptions{ContentType: "application/json"},
 	)
 	return err
+}
+
+// Purge physically removes one ledger object. It is intentionally outside the
+// ordinary ledger.Store interface and is wired only into a permit-checking
+// Decommission service.
+func (s *MinioStore) Purge(ctx context.Context, key string) error {
+	return s.client.RemoveObject(ctx, s.bucket, s.objectName(key), minio.RemoveObjectOptions{})
 }

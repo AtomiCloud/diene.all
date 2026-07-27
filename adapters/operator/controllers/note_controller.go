@@ -18,7 +18,11 @@ import (
 
 // NoteOwnerLabel decorates the owned ConfigMap set for observability. Ownership
 // decisions use the controller OwnerReference UID, never this label.
-const NoteOwnerLabel = "fleet-operator.diene.atomi.cloud/note"
+const (
+	NoteOwnerLabel          = "fleet-operator.diene.atomi.cloud/note"
+	noteSampleLedgerVendor  = "sample-vendor"
+	noteSampleLedgerAccount = "sample-account"
+)
 
 const noteController = "note"
 
@@ -198,7 +202,10 @@ func (r *NoteReconciler) finalize(ctx context.Context, note *apiv1alpha1.Note) (
 }
 
 func (r *NoteReconciler) coordinate(name string) ledger.Coordinate {
-	return ledger.Coordinate{Platform: r.Platform, Landscape: r.Landscape, Class: noteController, Module: name}
+	return ledger.Coordinate{
+		Platform: r.Platform, Landscape: r.Landscape, Class: noteController, Module: name,
+		Vendor: noteSampleLedgerVendor, Account: noteSampleLedgerAccount,
+	}
 }
 
 func toOwned(cms []kube.OwnedConfigMap) []reconcile.Owned {
