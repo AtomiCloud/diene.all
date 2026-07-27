@@ -43,9 +43,35 @@ rg -q 'packages/diene_auth_engine/pubspec.yaml' atomi_release.yaml || {
   exit 1
 }
 
+# R-E33: the generated changelog must land BELOW the file's own heading, and the
+# release must hand the git plugin formatter-clean bytes. Both are configuration,
+# so they are asserted here on printed VALUES instead of on a release run.
+changelog_file="$(yq -r '.plugins[] | select(.module == "@semantic-release/changelog") | .config.changelogFile // ""' atomi_release.yaml)"
+changelog_title="$(yq -r '.plugins[] | select(.module == "@semantic-release/changelog") | .config.changelogTitle // ""' atomi_release.yaml)"
+[[ -z ${changelog_file} ]] && echo "❌ the changelog plugin declares no changelogFile" >&2 && exit 1
+[[ ! -f ${changelog_file} ]] && echo "❌ changelog '${changelog_file}' does not exist" >&2 && exit 1
+[[ -z ${changelog_title} ]] && echo "❌ the changelog plugin declares no changelogTitle, so every generated entry would be prepended ABOVE the changelog heading" >&2 && exit 1
+
+# @semantic-release/changelog reuses the title only when the file literally starts
+# with it, and silently duplicates it otherwise, so compare the exact leading bytes.
+printf '%s' "${changelog_title}" >"${fixture}/changelog-title"
+title_bytes="$(wc -c <"${fixture}/changelog-title")"
+head -c "${title_bytes}" "${changelog_file}" >"${fixture}/changelog-head"
+cmp -s "${fixture}/changelog-title" "${fixture}/changelog-head" || {
+  echo "❌ the first ${title_bytes} bytes of ${changelog_file} are not the configured changelogTitle" >&2
+  exit 1
+}
+
+# The exec prepare step must format the generated entry before the git plugin
+# commits it; the plugin chain runs exec after changelog and before git.
+prepare_cmd="$(yq -r '.plugins[] | select(.module == "@semantic-release/exec") | .config.prepareCmd // ""' atomi_release.yaml)"
+[[ ${prepare_cmd} != *"./scripts/release/format-changelog.sh"* ]] && echo "❌ the exec prepareCmd does not run ./scripts/release/format-changelog.sh" >&2 && exit 1
+[[ ! -x scripts/release/format-changelog.sh ]] && echo "❌ scripts/release/format-changelog.sh is missing or not executable" >&2 && exit 1
+
 # The .gitlint conventional-commit vocabulary must match the release types.
 release_types="$(yq -r '[.types[].type] | join(",")' atomi_release.yaml)"
 gitlint_types="$(sed -n 's/^types = //p' .gitlint)"
 [[ ${release_types} != "${gitlint_types}" ]] && echo "❌ .gitlint types do not match atomi_release.yaml" >&2 && exit 1
 
+echo "✅ changelog title agrees with ${changelog_file} over its first ${title_bytes} bytes; prepareCmd formats it before the git plugin commits"
 echo "✅ release stamping, manifest/tag positive + negative paths, assets, and gitlint vocabulary conform"

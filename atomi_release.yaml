@@ -23,10 +23,26 @@ plugins:
     version: 6.0.3
     config:
       changelogFile: packages/diene_auth_engine/CHANGELOG.md
+      # R-E33. Without changelogTitle the plugin PREPENDS each generated entry
+      # above the file's own heading, so a released changelog reads `## 1.0.0`
+      # before `# Changelog`. Declaring the title makes the plugin strip it from
+      # the current file and re-emit it on top, so every entry lands BELOW it.
+      # The value must stay byte-identical to the changelog's opening block:
+      # the plugin only strips a title the file actually starts with, and a
+      # drifted value would be duplicated instead of reused. release-policy.sh
+      # asserts that agreement.
+      changelogTitle: |-
+        # Changelog
+
+        All notable changes to this package are documented here. Releases are managed
+        from conventional commits by the repository release workflow.
   - module: '@semantic-release/exec'
     version: 6.0.3
     config:
-      prepareCmd: './scripts/release/bump.sh ${nextRelease.version}'
+      # R-E33. exec's prepare runs AFTER the changelog plugin writes the entry and
+      # BEFORE the git plugin commits the assets, so this is where the generated
+      # bytes are made formatter-clean — see scripts/release/format-changelog.sh.
+      prepareCmd: './scripts/release/bump.sh ${nextRelease.version} && ./scripts/release/format-changelog.sh'
   - module: '@semantic-release/git'
     version: 10.0.1
     config:
