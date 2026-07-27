@@ -21,8 +21,8 @@ import (
 )
 
 const (
-	tokenEndpoint = "https://identity.example.test/oidc/token"
-	backendOrigin = "https://control.example.test"
+	identityEndpoint = "https://identity.example.test/oidc/token"
+	backendOrigin    = "https://control.example.test"
 )
 
 type recordingDoer struct {
@@ -40,7 +40,7 @@ type recordingDoer struct {
 
 func (fake *recordingDoer) Do(request *http.Request) (*http.Response, error) {
 	switch request.URL.String() {
-	case tokenEndpoint:
+	case identityEndpoint:
 		if err := request.ParseForm(); err != nil {
 			return nil, fmt.Errorf("parse token form: %w", err)
 		}
@@ -110,7 +110,7 @@ func TestNewClientTreeMintsCachesAndAttachesClientCredentials(t *testing.T) {
 		doer.backendAuth[1] != "Bearer minted-token" {
 		t.Fatalf("backend authorization = %#v", doer.backendAuth)
 	}
-	if keys := store.Keys(); len(keys) != 1 || keys[0] != "go-consumer/control" {
+	if keys := store.Keys(); len(keys) != 1 || keys[0] != "go-consumer:control" {
 		t.Fatalf("token-store keys = %#v", keys)
 	}
 }
@@ -226,16 +226,16 @@ func validAPIConfig() apiengine.Config {
 }
 
 func validAuthConfig() authengine.Config {
-	config := authengine.DefaultConfig()
-	config.Minting = authengine.MintingConfig{
-		TokenEndpoint:      tokenEndpoint,
-		ClientID:           "worker-client",
-		ClientSecret:       "worker-secret",
-		CacheNamespace:     "go-consumer",
-		RefreshSkewSeconds: 30,
-		Concurrency:        2,
+	return authengine.Config{
+		Minting: authengine.MintingConfig{
+			TokenEndpoint:      identityEndpoint,
+			ClientID:           "worker-client",
+			ClientSecret:       "worker-secret",
+			CacheNamespace:     "go-consumer",
+			RefreshSkewSeconds: 30,
+			Concurrency:        2,
+		},
 	}
-	return config
 }
 
 func jsonResponse(status int, body string) *http.Response {
