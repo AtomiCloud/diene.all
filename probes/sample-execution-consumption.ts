@@ -7,7 +7,7 @@ export default {
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
   setup: {
     post: [
-      'nix develop .#ci --no-write-lock-file -c dart pub get --offline || nix develop .#ci --no-write-lock-file -c dart pub get',
+      'nix develop .#ci --no-write-lock-file -c flutter pub get --offline || nix develop .#ci --no-write-lock-file -c flutter pub get',
     ],
   },
   probes: [

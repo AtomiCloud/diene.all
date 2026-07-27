@@ -1,0 +1,55 @@
+# Published archive keeps only lib/, example/, doc/, skills/, README.md,
+# CHANGELOG.md, LICENSE, and pubspec.yaml. Everything below is dev/CI/test
+# tooling that must not ship to pub.dev.
+#
+# EVERY DIRECTORY PATTERN IS ROOT-ANCHORED WITH A LEADING SLASH, deliberately.
+# .pubignore uses gitignore semantics, where a bare `config/` matches a directory
+# named `config` at ANY DEPTH — including `lib/src/config/`. That is not a
+# hypothetical: the inherited unanchored list is why BOTH earlier published
+# diene_auth_engine releases (1.0.0 and 1.0.1) are structurally unusable. Their
+# `lib/src/config/auth_engine_config.dart` was silently dropped from the archive
+# while `lib/diene_auth_engine.dart` still `export`ed it, so any consumer that
+# touched the barrel failed to compile.
+#
+# THIS PACKAGE'S STATUS, MEASURED RATHER THAN ASSUMED: no directory under `lib/`
+# currently matches any pattern in this list, so the defect was LATENT here, not
+# live — this file was inherited unanchored from the dart-lib scaffolding and is
+# anchored here before any publish. Latent is untriggered, not safe: this package
+# ships `lib/src/stub/` and `lib/src/journey/`, and a future `lib/src/test/` or
+# `lib/src/tool/` would vanish from the archive silently. Anchoring makes these
+# exclusions mean what they were written to mean.
+#
+# The durable control is NOT this file being read correctly — it is
+# scripts/validate/publish-archive.sh, which asserts every tracked `lib/` Dart
+# source actually reaches the `pub publish --dry-run` file list and every
+# relative barrel export resolves and ships.
+/.claude/
+/.dart_tool/
+/.direnv/
+/.github/
+/.kagent/
+/.kloop/
+/config/
+/contracts/
+/coverage/
+/docs/
+/nix/
+/probes/
+/scripts/
+/tasks/
+/test/
+/tool/
+/.coderabbit.yaml
+/.envrc
+/.markdownlint-cli2.jsonc
+/.markdownlint.json
+/.prettierignore
+/.prettierrc.yaml
+/atomi_release.yaml
+/codecov.yml
+/flake.lock
+/flake.nix
+/lpsm.yaml
+/Taskfile.yaml
+/CLAUDE.md
+/VERSION

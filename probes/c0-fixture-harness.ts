@@ -1,6 +1,6 @@
 import { expectGreen, expectRed } from './lib/helpers.ts';
 
-// Gate: the C0 conformance harness (`dart test test/conformance`) recomputes
+// Gate: the C0 conformance harness (`flutter test test/conformance`) recomputes
 // fixture digests and compares them against the checked-in manifest. Sabotage
 // corrupts the first fixture digest and proves the harness detects the drift.
 export default {
@@ -8,18 +8,18 @@ export default {
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
   setup: {
     post: [
-      'nix develop .#ci --no-write-lock-file -c dart pub get --offline || nix develop .#ci --no-write-lock-file -c dart pub get',
+      'nix develop .#ci --no-write-lock-file -c flutter pub get --offline || nix develop .#ci --no-write-lock-file -c flutter pub get',
     ],
   },
   probes: [
     {
       name: 'baseline-c0-fixture-harness-green',
-      description: 'dart test test/conformance passes with the pristine fixture manifest',
+      description: 'flutter test test/conformance passes with the pristine fixture manifest',
       kind: 'baseline',
       async run(repo: any) {
         await expectGreen(
           repo,
-          "nix develop .#ci --no-write-lock-file -c bash -lc 'cd packages/diene_dart_lib && dart test test/conformance'",
+          "nix develop .#ci --no-write-lock-file -c bash -lc 'cd packages/diene_e2e && flutter test test/conformance'",
           'c0-fixture-harness',
         );
       },
@@ -46,7 +46,7 @@ export default {
         await repo.write(target, `${JSON.stringify(manifest, null, 2)}\n`);
         await expectRed(
           repo,
-          "nix develop .#ci --no-write-lock-file -c bash -lc 'cd packages/diene_dart_lib && dart test test/conformance'",
+          "nix develop .#ci --no-write-lock-file -c bash -lc 'cd packages/diene_e2e && flutter test test/conformance'",
           'c0-fixture-harness',
         );
       },
