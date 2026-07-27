@@ -11,8 +11,6 @@
 package reconcile
 
 import (
-	"fmt"
-
 	"github.com/AtomiCloud/diene.fleet-operator/lib/operator/brake"
 	"github.com/AtomiCloud/diene.fleet-operator/lib/operator/ledger"
 	"github.com/AtomiCloud/diene.fleet-operator/lib/operator/note"
@@ -150,8 +148,10 @@ func Decide(in Input) Decision {
 	}
 
 	if in.Observe {
-		pl := plan.Plan{Creates: upsertNames(upserts), Deletes: deletes}
-		d.Conditions = []Condition{observe(pl)}
+		// Delegate the observe-mode plan and its condition summary to the generic
+		// plan framework rather than duplicate the decision here.
+		pl := observePlan(upserts, deletes)
+		d.Conditions = []Condition{pl.ConditionSummary()}
 		d.OwnedCount = count(len(in.Existing))
 		return d
 	}
@@ -192,16 +192,25 @@ func conflictCondition() Condition {
 	return Condition{Type: plan.TypeConflict, Status: plan.StatusTrue, Reason: "OwnedNameCollision", Message: "a desired ConfigMap name is held by a foreign object"}
 }
 
-func observe(pl plan.Plan) Condition {
-	if pl.Empty() {
-		return Condition{Type: plan.TypeDrifted, Status: plan.StatusFalse, Reason: "InSync", Message: "observe mode: healthy fleet, empty plan"}
+// observePlan projects the sample reconcile's upserts and deletes onto the generic
+// action plan so observe mode reports its would-apply diff through the shared
+// framework.
+func observePlan(upserts []Upsert, deletes []string) plan.Plan {
+	actions := make([]plan.Action, 0, len(upserts)+len(deletes))
+	for _, u := range upserts {
+		actions = append(actions, plan.Action{
+			Op:     plan.OpCreate,
+			Target: plan.Target{Kind: plan.TargetKubernetes, ID: u.Name},
+		})
 	}
-	return Condition{
-		Type:    plan.TypeDrifted,
-		Status:  plan.StatusTrue,
-		Reason:  "WouldApply",
-		Message: fmt.Sprintf("observe mode: would upsert %d, delete %d (no writes)", len(pl.Creates), len(pl.Deletes)),
+	for _, name := range deletes {
+		actions = append(actions, plan.Action{
+			Op:          plan.OpDelete,
+			Target:      plan.Target{Kind: plan.TargetKubernetes, ID: name},
+			Destructive: true,
+		})
 	}
+	return plan.Build(actions)
 }
 
 func toSet(values []string) map[string]bool {
@@ -210,14 +219,6 @@ func toSet(values []string) map[string]bool {
 		set[v] = true
 	}
 	return set
-}
-
-func upsertNames(upserts []Upsert) []string {
-	names := make([]string, 0, len(upserts))
-	for _, u := range upserts {
-		names = append(names, u.Name)
-	}
-	return names
 }
 
 func countMembers(names []string, set map[string]bool) int {

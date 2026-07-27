@@ -106,6 +106,23 @@ func TestDecideObserveInSync(t *testing.T) {
 	require.Equal(t, plan.StatusFalse, drift.Status)
 }
 
+func TestDecideObserveWithDeletes(t *testing.T) {
+	// Observe mode must project a would-delete onto the plan (no writes) when an
+	// owned resource is no longer desired.
+	d := reconcile.Decide(reconcile.Input{
+		Owner:    "n",
+		Spec:     spec(1),
+		Existing: []reconcile.Owned{{Name: "n-copy-0", Payload: payload()}, {Name: "n-copy-1", Payload: payload()}},
+		Observe:  true,
+		BrakeCap: 100,
+	})
+	require.False(t, d.Write)
+	drift := condition(d.Conditions, plan.TypeDrifted)
+	require.NotNil(t, drift)
+	require.Equal(t, plan.StatusTrue, drift.Status)
+	require.Contains(t, drift.Message, "destructive")
+}
+
 func TestDecideAdoptOrphaned(t *testing.T) {
 	d := reconcile.Decide(reconcile.Input{
 		Owner:    "n",
