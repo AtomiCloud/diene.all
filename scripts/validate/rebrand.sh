@@ -50,7 +50,9 @@ source_count="$(wc -l <"${sources}" | tr -d ' ')"
 }
 while IFS= read -r value; do
   pattern="([\"'\`])\\Q${value}\\E\\1"
-  rg -n --pcre2 "${pattern}" "${roots[@]}" --glob '*.go' --glob '!**/*_test.go' >>"${offenses}" || true
+  rg -n --pcre2 "${pattern}" "${roots[@]}" --glob '*.go' --glob '!**/*_test.go' |
+    sed -E '\#^cmd/.+:[0-9]+:[[:space:]]*Use:[[:space:]]*"[^"]*",[[:space:]]*$#d' \
+      >>"${offenses}" || true
 done <"${values}"
 sort -u -o "${offenses}" "${offenses}"
 if [ -s "${offenses}" ]; then
