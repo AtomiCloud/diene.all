@@ -15,23 +15,23 @@ func TestTracerRecordsSuccessAndFailure(t *testing.T) {
 	t.Parallel()
 	system := interfaceshelper.NewInMemorySystem(interfaceshelper.InMemorySystemOptions{})
 	emitter := otelhelper.NewInMemoryTraceEmitter()
-	tracer, err := tracing.New(system, emitter)
-	if err != nil {
-		t.Fatalf("construct tracer: %v", err)
+	tracer, constructErr := tracing.New(system, emitter)
+	if constructErr != nil {
+		t.Fatalf("construct tracer: %v", constructErr)
 	}
 
-	span, err := tracer.Start("adapter.success", map[string]any{"component": "test"})
-	if err != nil {
-		t.Fatalf("start success span: %v", err)
+	span, startErr := tracer.Start("adapter.success", map[string]any{"component": "test"})
+	if startErr != nil {
+		t.Fatalf("start success span: %v", startErr)
 	}
 	if err := span.End(nil); err != nil {
 		t.Fatalf("end success span: %v", err)
 	}
 
 	operationErr := errors.New("operation failed")
-	span, err = tracer.Start("adapter.failure", nil)
-	if err != nil {
-		t.Fatalf("start failure span: %v", err)
+	span, startErr = tracer.Start("adapter.failure", nil)
+	if startErr != nil {
+		t.Fatalf("start failure span: %v", startErr)
 	}
 	if err := span.End(operationErr); !errors.Is(err, operationErr) {
 		t.Fatalf("expected operation error, got %v", err)
@@ -53,16 +53,16 @@ func TestTracerPreservesOperationAndTelemetryFailures(t *testing.T) {
 	t.Parallel()
 	system := interfaceshelper.NewInMemorySystem(interfaceshelper.InMemorySystemOptions{})
 	emitter := otelhelper.NewInMemoryTraceEmitter()
-	tracer, err := tracing.New(system, emitter)
-	if err != nil {
-		t.Fatalf("construct tracer: %v", err)
+	tracer, constructErr := tracing.New(system, emitter)
+	if constructErr != nil {
+		t.Fatalf("construct tracer: %v", constructErr)
 	}
 
 	emitErr := errors.New("emit failed")
 	emitter.EnqueueResult(emitErr)
-	span, err := tracer.Start("adapter.emit_failure", nil)
-	if err != nil {
-		t.Fatalf("start span: %v", err)
+	span, startErr := tracer.Start("adapter.emit_failure", nil)
+	if startErr != nil {
+		t.Fatalf("start span: %v", startErr)
 	}
 	if err := span.End(nil); !errors.Is(err, emitErr) {
 		t.Fatalf("expected telemetry error, got %v", err)
@@ -70,9 +70,9 @@ func TestTracerPreservesOperationAndTelemetryFailures(t *testing.T) {
 
 	operationErr := errors.New("operation failed")
 	emitter.EnqueueResult(emitErr)
-	span, err = tracer.Start("adapter.joined_failure", nil)
-	if err != nil {
-		t.Fatalf("start joined span: %v", err)
+	span, startErr = tracer.Start("adapter.joined_failure", nil)
+	if startErr != nil {
+		t.Fatalf("start joined span: %v", startErr)
 	}
 	joined := span.End(operationErr)
 	if !errors.Is(joined, operationErr) || !errors.Is(joined, emitErr) {

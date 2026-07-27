@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -22,15 +24,15 @@ import (
 
 func TestClientAgainstMinIO(t *testing.T) {
 	ctx := context.Background()
-	started, err := standardhelper.StartStorage(ctx, standardhelper.StorageOptions{})
-	if err != nil {
-		t.Fatalf("start MinIO: %v", err)
+	started, startErr := standardhelper.StartStorage(ctx, standardhelper.StorageOptions{})
+	if startErr != nil {
+		t.Fatalf("start MinIO: %v", startErr)
 	}
 	t.Cleanup(func() { _ = started.Terminate(ctx) })
 	tracer, emitter, _ := newTracer(t)
-	client, err := storageadapter.Open(ctx, started.Entry, tracer)
-	if err != nil {
-		t.Fatalf("open adapter: %v", err)
+	client, openErr := storageadapter.Open(ctx, started.Entry, tracer)
+	if openErr != nil {
+		t.Fatalf("open adapter: %v", openErr)
 	}
 	if err := client.Ping(ctx); err != nil {
 		t.Fatalf("ping: %v", err)
@@ -51,18 +53,19 @@ func TestClientAgainstMinIO(t *testing.T) {
 	if err := client.Put(ctx, "messages/one", content, "application/octet-stream"); err != nil {
 		t.Fatalf("put: %v", err)
 	}
-	stored, err := client.Save(ctx, domain.SaveInput{
+	stored, saveErr := client.Save(ctx, domain.SaveInput{
 		Body: "saved payload", ContentType: "text/plain", Key: "messages/saved",
 	})
-	if err != nil || stored.Key != "messages/saved" || stored.Link != "s3://go-consumer/messages/saved" {
-		t.Fatalf("save: stored=%#v err=%v", stored, err)
+	expectedLink := "s3://" + started.Entry.Bucket + "/messages/saved"
+	if saveErr != nil || stored.Key != "messages/saved" || stored.Link != expectedLink {
+		t.Fatalf("save: stored=%#v err=%v", stored, saveErr)
 	}
 	if exists, err := client.Exists(ctx, "messages/one"); err != nil || !exists {
 		t.Fatalf("expected object: exists=%t err=%v", exists, err)
 	}
-	loaded, found, err := client.Get(ctx, "messages/one")
-	if err != nil || !found || string(loaded) != string(content) {
-		t.Fatalf("unexpected object: content=%q found=%t err=%v", loaded, found, err)
+	loaded, found, loadErr := client.Get(ctx, "messages/one")
+	if loadErr != nil || !found || string(loaded) != string(content) {
+		t.Fatalf("unexpected object: content=%q found=%t err=%v", loaded, found, loadErr)
 	}
 	if err := client.Delete(ctx, "messages/one"); err != nil {
 		t.Fatalf("delete: %v", err)
@@ -73,13 +76,13 @@ func TestClientAgainstMinIO(t *testing.T) {
 
 	newEntry := started.Entry
 	newEntry.Bucket = "go-consumer-created"
-	newClient, err := storageadapter.Open(ctx, newEntry, tracer)
-	if err != nil {
-		t.Fatalf("open new-bucket adapter: %v", err)
+	newClient, newOpenErr := storageadapter.Open(ctx, newEntry, tracer)
+	if newOpenErr != nil {
+		t.Fatalf("open new-bucket adapter: %v", newOpenErr)
 	}
-	created, err := newClient.EnsureBucketCreated(ctx)
-	if err != nil || !created {
-		t.Fatalf("create bucket: created=%t err=%v", created, err)
+	created, createErr := newClient.EnsureBucketCreated(ctx)
+	if createErr != nil || !created {
+		t.Fatalf("create bucket: created=%t err=%v", created, createErr)
 	}
 	if err := newClient.Ping(ctx); err != nil {
 		t.Fatalf("ping created bucket: %v", err)
@@ -155,9 +158,9 @@ func TestBucketAndOperationFailures(t *testing.T) {
 	tracer, emitter, system := newTracer(t)
 	driverErr := errors.New("driver failed")
 	api := &fakeAPI{headBucketErr: driverErr}
-	client, err := storageadapter.New(api, "bucket", "eu-west-1", tracer)
-	if err != nil {
-		t.Fatalf("construct adapter: %v", err)
+	client, clientErr := storageadapter.New(api, "bucket", "eu-west-1", tracer)
+	if clientErr != nil {
+		t.Fatalf("construct adapter: %v", clientErr)
 	}
 	if err := client.Ping(ctx); !errors.Is(err, driverErr) {
 		t.Fatalf("expected ping error, got %v", err)
@@ -172,17 +175,17 @@ func TestBucketAndOperationFailures(t *testing.T) {
 		t.Fatalf("expected create bucket error, got %v", err)
 	}
 	api.createBucketErr = nil
-	created, err := client.EnsureBucketCreated(ctx)
-	if err != nil || !created {
-		t.Fatalf("expected created bucket: created=%t err=%v", created, err)
+	created, createErr := client.EnsureBucketCreated(ctx)
+	if createErr != nil || !created {
+		t.Fatalf("expected created bucket: created=%t err=%v", created, createErr)
 	}
 	if api.createBucketInput == nil || api.createBucketInput.CreateBucketConfiguration == nil {
 		t.Fatal("expected non-default region create configuration")
 	}
 
-	defaultRegionClient, err := storageadapter.New(api, "bucket", "us-east-1", tracer)
-	if err != nil {
-		t.Fatalf("construct default-region adapter: %v", err)
+	defaultRegionClient, defaultRegionErr := storageadapter.New(api, "bucket", "us-east-1", tracer)
+	if defaultRegionErr != nil {
+		t.Fatalf("construct default-region adapter: %v", defaultRegionErr)
 	}
 	if _, err := defaultRegionClient.EnsureBucketCreated(ctx); err != nil {
 		t.Fatalf("create default-region bucket: %v", err)
@@ -303,6 +306,60 @@ func TestGetAndExistsFailurePaths(t *testing.T) {
 	}
 }
 
+func TestOperationStartAndNotFoundEndFailures(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	tracer, emitter, system := newTracer(t)
+	api := &fakeAPI{}
+	client, constructErr := storageadapter.New(api, "bucket", "region", tracer)
+	if constructErr != nil {
+		t.Fatalf("construct adapter: %v", constructErr)
+	}
+
+	clockErr := errors.New("clock failed")
+	tests := []struct {
+		name string
+		run  func() error
+	}{
+		{"ensure bucket", func() error { _, callErr := client.EnsureBucketCreated(ctx); return callErr }},
+		{"put", func() error { return client.Put(ctx, "key", nil, "") }},
+		{"get", func() error { _, _, callErr := client.Get(ctx, "key"); return callErr }},
+		{"exists", func() error { _, callErr := client.Exists(ctx, "key"); return callErr }},
+		{"delete", func() error { return client.Delete(ctx, "key") }},
+	}
+	for _, test := range tests {
+		system.EnqueueClockResult(readClock(t, system), clockErr)
+		if callErr := test.run(); !errors.Is(callErr, clockErr) {
+			t.Fatalf("%s: expected clock failure, got %v", test.name, callErr)
+		}
+	}
+
+	emitErr := errors.New("emit failed")
+	api.getErr = notFound("NoSuchKey")
+	emitter.EnqueueResult(emitErr)
+	if _, _, getErr := client.Get(ctx, "missing"); !errors.Is(getErr, emitErr) {
+		t.Fatalf("expected not-found get emit failure, got %v", getErr)
+	}
+	api.headObjectErr = notFound("NotFound")
+	emitter.EnqueueResult(emitErr)
+	if _, existsErr := client.Exists(ctx, "missing"); !errors.Is(existsErr, emitErr) {
+		t.Fatalf("expected not-found exists emit failure, got %v", existsErr)
+	}
+}
+
+func TestOpenReportsAWSConfigFailure(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config")
+	if writeErr := os.WriteFile(configPath, []byte("[invalid"), 0o600); writeErr != nil {
+		t.Fatalf("write invalid AWS config: %v", writeErr)
+	}
+	t.Setenv("AWS_CONFIG_FILE", configPath)
+	t.Setenv("AWS_PROFILE", "missing-profile")
+	tracer, _, _ := newTracer(t)
+	if _, openErr := storageadapter.Open(context.Background(), validEntry(), tracer); openErr == nil {
+		t.Fatal("expected invalid AWS config failure")
+	}
+}
+
 func validEntry() standardconfig.StorageEntry {
 	return standardconfig.StorageEntry{
 		Endpoint: "https://storage.invalid:9000", Region: "us-east-1", Bucket: "bucket",
@@ -336,7 +393,7 @@ func readClock(t *testing.T, system *interfaceshelper.InMemorySystem) time.Time 
 
 type statusError struct{ status int }
 
-func (s statusError) Error() string       { return "HTTP status error" }
+func (statusError) Error() string         { return "HTTP status error" }
 func (s statusError) HTTPStatusCode() int { return s.status }
 
 type failingBody struct {

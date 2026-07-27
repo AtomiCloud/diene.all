@@ -17,20 +17,20 @@ import (
 
 func TestTransportAgainstRedis(t *testing.T) {
 	ctx := context.Background()
-	started, err := standardhelper.StartKv(ctx, standardhelper.RedisOptions{})
-	if err != nil {
-		t.Fatalf("start Redis: %v", err)
+	started, startErr := standardhelper.StartKv(ctx, standardhelper.RedisOptions{})
+	if startErr != nil {
+		t.Fatalf("start Redis: %v", startErr)
 	}
 	t.Cleanup(func() { _ = started.Terminate(ctx) })
 	tracer, emitter, _ := newTracer(t)
-	redisClient, err := redisadapter.Open(started.Entry, tracer)
-	if err != nil {
-		t.Fatalf("open Redis: %v", err)
+	redisClient, openErr := redisadapter.Open(started.Entry, tracer)
+	if openErr != nil {
+		t.Fatalf("open Redis: %v", openErr)
 	}
 	t.Cleanup(func() { _ = redisClient.Close() })
-	transport, err := redisstreams.New(redisClient.Native(), validConfig(), tracer)
-	if err != nil {
-		t.Fatalf("construct transport: %v", err)
+	transport, transportErr := redisstreams.New(redisClient.Native(), validConfig(), tracer)
+	if transportErr != nil {
+		t.Fatalf("construct transport: %v", transportErr)
 	}
 
 	if err := transport.EnsureGroup(ctx); err != nil {
@@ -39,22 +39,22 @@ func TestTransportAgainstRedis(t *testing.T) {
 	if err := transport.EnsureGroup(ctx); err != nil {
 		t.Fatalf("reuse consumer group: %v", err)
 	}
-	firstID, err := transport.Publish(ctx, `{"id":"one"}`)
-	if err != nil || firstID == "" {
-		t.Fatalf("publish: id=%q err=%v", firstID, err)
+	firstID, publishErr := transport.Publish(ctx, `{"id":"one"}`)
+	if publishErr != nil || firstID == "" {
+		t.Fatalf("publish: id=%q err=%v", firstID, publishErr)
 	}
-	secondID, err := transport.Add(ctx, `{"id":"two"}`)
-	if err != nil || secondID == "" {
-		t.Fatalf("add: id=%q err=%v", secondID, err)
+	secondID, addErr := transport.Add(ctx, `{"id":"two"}`)
+	if addErr != nil || secondID == "" {
+		t.Fatalf("add: id=%q err=%v", secondID, addErr)
 	}
 
-	envelopes, err := transport.Consume(ctx)
-	if err != nil || len(envelopes) != 2 {
-		t.Fatalf("consume: envelopes=%v err=%v", envelopes, err)
+	envelopes, consumeErr := transport.Consume(ctx)
+	if consumeErr != nil || len(envelopes) != 2 {
+		t.Fatalf("consume: envelopes=%v err=%v", envelopes, consumeErr)
 	}
-	pending, err := transport.ReclaimPending(ctx)
-	if err != nil || len(pending) != 2 {
-		t.Fatalf("reclaim: envelopes=%v err=%v", pending, err)
+	pending, reclaimErr := transport.ReclaimPending(ctx)
+	if reclaimErr != nil || len(pending) != 2 {
+		t.Fatalf("reclaim: envelopes=%v err=%v", pending, reclaimErr)
 	}
 	for _, envelope := range pending {
 		acknowledged, acknowledgeErr := transport.Acknowledge(ctx, envelope.ID)
@@ -188,10 +188,45 @@ func TestTransportFailureAndDecodePaths(t *testing.T) {
 	}
 }
 
+func TestTransportStartAndConsumeDecodeFailures(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	tracer, _, system := newTracer(t)
+	client := &fakeStreams{}
+	transport, constructErr := redisstreams.New(client, validConfig(), tracer)
+	if constructErr != nil {
+		t.Fatalf("construct transport: %v", constructErr)
+	}
+
+	clockErr := errors.New("clock failed")
+	tests := []struct {
+		name string
+		run  func() error
+	}{
+		{"publish", func() error { _, callErr := transport.Publish(ctx, "payload"); return callErr }},
+		{"reclaim", func() error { _, callErr := transport.ReclaimPending(ctx); return callErr }},
+		{"consume", func() error { _, callErr := transport.Consume(ctx); return callErr }},
+		{"acknowledge", func() error { _, callErr := transport.Acknowledge(ctx, "1-0"); return callErr }},
+	}
+	for _, test := range tests {
+		system.EnqueueClockResult(readClock(t, system), clockErr)
+		if callErr := test.run(); !errors.Is(callErr, clockErr) {
+			t.Fatalf("%s: expected clock failure, got %v", test.name, callErr)
+		}
+	}
+
+	client.streams = []goredis.XStream{{Stream: "events", Messages: []goredis.XMessage{{
+		ID: "2-0", Values: map[string]any{},
+	}}}}
+	if _, consumeErr := transport.Consume(ctx); consumeErr == nil {
+		t.Fatal("expected consume decode failure")
+	}
+}
+
 func validConfig() redisstreams.Config {
 	return redisstreams.Config{
 		Stream: "events", Group: "workers", Consumer: "worker-one",
-		Block: 5 * time.Millisecond, Idle: time.Nanosecond, BatchSize: 10,
+		Block: 5 * time.Millisecond, Idle: 0, BatchSize: 10,
 	}
 }
 
@@ -228,7 +263,7 @@ type fakeStreams struct {
 	ackErr      error
 }
 
-func (f *fakeStreams) XGroupCreateMkStream(ctx context.Context, _, _, _ string) *goredis.StatusCmd {
+func (f *fakeStreams) XGroupCreateMkStream(_ context.Context, _, _, _ string) *goredis.StatusCmd {
 	return goredis.NewStatusResult("OK", f.groupErr)
 }
 

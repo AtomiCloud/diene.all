@@ -133,7 +133,9 @@ func SchemaWith(fragment Fragmenter) (config.Schema, error) {
 	if err != nil {
 		return config.Schema{}, err
 	}
-	blocks := []config.Block{
+	blocks := make([]config.Block, 0, 8+len(own))
+	blocks = append(
+		blocks,
 		config.AppBlockSchema(),
 		config.NewBlock(otel.SchemaKey(), true, otel.JSONSchema()),
 		config.NewBlock(authengine.ConfigBlockKey, true, authengine.ConfigBlockSchema()),
@@ -142,7 +144,7 @@ func SchemaWith(fragment Fragmenter) (config.Schema, error) {
 		config.NewBlock(standardconfig.CacheBlockKey, true, standardconfig.CacheSchema()),
 		config.NewBlock(standardconfig.KvBlockKey, true, standardconfig.KvSchema()),
 		config.NewBlock(standardconfig.StorageBlockKey, true, standardconfig.StorageSchema()),
-	}
+	)
 	blocks = append(blocks, own...)
 	return config.ComposeSchema(blocks...), nil
 }

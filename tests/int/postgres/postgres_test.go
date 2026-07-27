@@ -21,9 +21,9 @@ import (
 
 func TestPoolAgainstPostgres(t *testing.T) {
 	ctx := context.Background()
-	started, err := standardhelper.StartPostgres(ctx, standardhelper.PostgresOptions{})
-	if err != nil {
-		t.Fatalf("start Postgres: %v", err)
+	started, startErr := standardhelper.StartPostgres(ctx, standardhelper.PostgresOptions{})
+	if startErr != nil {
+		t.Fatalf("start Postgres: %v", startErr)
 	}
 	t.Cleanup(func() {
 		if terminateErr := started.Terminate(ctx); terminateErr != nil {
@@ -32,9 +32,9 @@ func TestPoolAgainstPostgres(t *testing.T) {
 	})
 
 	tracer, emitter, _ := newTracer(t)
-	pool, err := postgresadapter.Open(ctx, started.Entry, tracer)
-	if err != nil {
-		t.Fatalf("open adapter: %v", err)
+	pool, openErr := postgresadapter.Open(ctx, started.Entry, tracer)
+	if openErr != nil {
+		t.Fatalf("open adapter: %v", openErr)
 	}
 	t.Cleanup(func() {
 		if closeErr := pool.Close(); closeErr != nil {
@@ -48,9 +48,9 @@ func TestPoolAgainstPostgres(t *testing.T) {
 	if err := pool.PrepareMigrations(ctx); err != nil {
 		t.Fatalf("prepare migrations: %v", err)
 	}
-	applied, err := pool.AppliedMigrations(ctx)
-	if err != nil {
-		t.Fatalf("list empty migrations: %v", err)
+	applied, listErr := pool.AppliedMigrations(ctx)
+	if listErr != nil {
+		t.Fatalf("list empty migrations: %v", listErr)
 	}
 	if len(applied) != 0 {
 		t.Fatalf("expected no migrations, got %v", applied)
@@ -58,20 +58,20 @@ func TestPoolAgainstPostgres(t *testing.T) {
 	if err := pool.ApplyMigration(ctx, "001_create_items", "CREATE TABLE items (id TEXT PRIMARY KEY)"); err != nil {
 		t.Fatalf("apply migration: %v", err)
 	}
-	applied, err = pool.AppliedMigrations(ctx)
-	if err != nil {
-		t.Fatalf("list migrations: %v", err)
+	applied, listErr = pool.AppliedMigrations(ctx)
+	if listErr != nil {
+		t.Fatalf("list migrations: %v", listErr)
 	}
 	if len(applied) != 1 || applied[0] != "001_create_items" {
 		t.Fatalf("unexpected migrations: %v", applied)
 	}
-	affected, err := pool.Exec(ctx, "INSERT INTO items (id) VALUES ($1)", "one")
-	if err != nil || affected != 1 {
-		t.Fatalf("insert item: affected=%d err=%v", affected, err)
+	affected, execErr := pool.Exec(ctx, "INSERT INTO items (id) VALUES ($1)", "one")
+	if execErr != nil || affected != 1 {
+		t.Fatalf("insert item: affected=%d err=%v", affected, execErr)
 	}
-	count, err := pool.QueryInt64(ctx, "SELECT COUNT(*) FROM items")
-	if err != nil || count != 1 {
-		t.Fatalf("count items: count=%d err=%v", count, err)
+	count, queryErr := pool.QueryInt64(ctx, "SELECT COUNT(*) FROM items")
+	if queryErr != nil || count != 1 {
+		t.Fatalf("count items: count=%d err=%v", count, queryErr)
 	}
 	if _, err := pool.Exec(ctx, `CREATE TABLE processed_messages (
 id TEXT PRIMARY KEY, object_key TEXT NOT NULL, payload TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL
@@ -84,24 +84,24 @@ id TEXT PRIMARY KEY, object_key TEXT NOT NULL, payload TEXT NOT NULL, created_at
 	record := domain.ProcessedMessageRecord{
 		ID: "message-one", ObjectKey: "messages/one", Payload: "payload", CreatedAt: time.Now().UTC(),
 	}
-	inserted, err := pool.Insert(ctx, record)
-	if err != nil || !inserted {
-		t.Fatalf("insert processed message: inserted=%t err=%v", inserted, err)
+	inserted, insertErr := pool.Insert(ctx, record)
+	if insertErr != nil || !inserted {
+		t.Fatalf("insert processed message: inserted=%t err=%v", inserted, insertErr)
 	}
-	inserted, err = pool.Insert(ctx, record)
-	if err != nil || inserted {
-		t.Fatalf("repeat processed message: inserted=%t err=%v", inserted, err)
+	inserted, insertErr = pool.Insert(ctx, record)
+	if insertErr != nil || inserted {
+		t.Fatalf("repeat processed message: inserted=%t err=%v", inserted, insertErr)
 	}
 	if existing, err := pool.ExistingSeedIDs(ctx); err != nil || len(existing) != 0 {
 		t.Fatalf("list empty seeds: seeds=%v err=%v", existing, err)
 	}
-	seeded, err := pool.InsertSeed(ctx, seedrecord.Record{ID: "seed-one", Value: "value"})
-	if err != nil || !seeded {
-		t.Fatalf("insert seed: inserted=%t err=%v", seeded, err)
+	seeded, seedErr := pool.InsertSeed(ctx, seedrecord.Record{ID: "seed-one", Value: "value"})
+	if seedErr != nil || !seeded {
+		t.Fatalf("insert seed: inserted=%t err=%v", seeded, seedErr)
 	}
-	seeded, err = pool.InsertSeed(ctx, seedrecord.Record{ID: "seed-one", Value: "value"})
-	if err != nil || seeded {
-		t.Fatalf("repeat seed: inserted=%t err=%v", seeded, err)
+	seeded, seedErr = pool.InsertSeed(ctx, seedrecord.Record{ID: "seed-one", Value: "value"})
+	if seedErr != nil || seeded {
+		t.Fatalf("repeat seed: inserted=%t err=%v", seeded, seedErr)
 	}
 	if existing, err := pool.ExistingSeedIDs(ctx); err != nil || len(existing) != 1 || existing[0] != "seed-one" {
 		t.Fatalf("list seeds: seeds=%v err=%v", existing, err)
@@ -365,10 +365,10 @@ type fakeRows struct {
 	closed  bool
 }
 
-func (f *fakeRows) Close()                                       { f.closed = true }
-func (f *fakeRows) Err() error                                   { return f.rowsErr }
-func (f *fakeRows) CommandTag() pgconn.CommandTag                { return pgconn.CommandTag{} }
-func (f *fakeRows) FieldDescriptions() []pgconn.FieldDescription { return nil }
+func (f *fakeRows) Close()                                     { f.closed = true }
+func (f *fakeRows) Err() error                                 { return f.rowsErr }
+func (*fakeRows) CommandTag() pgconn.CommandTag                { return pgconn.CommandTag{} }
+func (*fakeRows) FieldDescriptions() []pgconn.FieldDescription { return nil }
 func (f *fakeRows) Next() bool {
 	if f.index >= len(f.values) {
 		return false
@@ -388,6 +388,6 @@ func (f *fakeRows) Scan(destinations ...any) error {
 	*value = f.values[f.index-1]
 	return nil
 }
-func (f *fakeRows) Values() ([]any, error) { return nil, nil }
-func (f *fakeRows) RawValues() [][]byte    { return nil }
-func (f *fakeRows) Conn() *pgx.Conn        { return nil }
+func (*fakeRows) Values() ([]any, error) { return nil, nil }
+func (*fakeRows) RawValues() [][]byte    { return nil }
+func (*fakeRows) Conn() *pgx.Conn        { return nil }

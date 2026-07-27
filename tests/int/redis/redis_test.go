@@ -18,9 +18,9 @@ import (
 
 func TestClientAgainstRedis(t *testing.T) {
 	ctx := context.Background()
-	started, err := standardhelper.StartKv(ctx, standardhelper.RedisOptions{})
-	if err != nil {
-		t.Fatalf("start Redis: %v", err)
+	started, startErr := standardhelper.StartKv(ctx, standardhelper.RedisOptions{})
+	if startErr != nil {
+		t.Fatalf("start Redis: %v", startErr)
 	}
 	t.Cleanup(func() {
 		if terminateErr := started.Terminate(ctx); terminateErr != nil {
@@ -29,9 +29,9 @@ func TestClientAgainstRedis(t *testing.T) {
 	})
 
 	tracer, emitter, _ := newTracer(t)
-	client, err := redisadapter.Open(started.Entry, tracer)
-	if err != nil {
-		t.Fatalf("open adapter: %v", err)
+	client, openErr := redisadapter.Open(started.Entry, tracer)
+	if openErr != nil {
+		t.Fatalf("open adapter: %v", openErr)
 	}
 	t.Cleanup(func() {
 		if closeErr := client.Close(); closeErr != nil {
@@ -53,17 +53,17 @@ func TestClientAgainstRedis(t *testing.T) {
 	if value, found, err := client.Get(ctx, "empty"); err != nil || !found || value != "" {
 		t.Fatalf("unexpected empty result: value=%q found=%t err=%v", value, found, err)
 	}
-	stored, err := client.SetIfAbsent(ctx, "marker", "one")
-	if err != nil || !stored {
-		t.Fatalf("set absent marker: stored=%t err=%v", stored, err)
+	stored, storeErr := client.SetIfAbsent(ctx, "marker", "one")
+	if storeErr != nil || !stored {
+		t.Fatalf("set absent marker: stored=%t err=%v", stored, storeErr)
 	}
-	stored, err = client.SetIfAbsent(ctx, "marker", "two")
-	if err != nil || stored {
-		t.Fatalf("set existing marker: stored=%t err=%v", stored, err)
+	stored, storeErr = client.SetIfAbsent(ctx, "marker", "two")
+	if storeErr != nil || stored {
+		t.Fatalf("set existing marker: stored=%t err=%v", stored, storeErr)
 	}
-	deleted, err := client.Delete(ctx, "marker")
-	if err != nil || deleted != 1 {
-		t.Fatalf("delete marker: deleted=%d err=%v", deleted, err)
+	deleted, deleteErr := client.Delete(ctx, "marker")
+	if deleteErr != nil || deleted != 1 {
+		t.Fatalf("delete marker: deleted=%d err=%v", deleted, deleteErr)
 	}
 	if deleted, err := client.Delete(ctx); err != nil || deleted != 0 {
 		t.Fatalf("empty delete: deleted=%d err=%v", deleted, err)
@@ -75,20 +75,20 @@ func TestClientAgainstRedis(t *testing.T) {
 
 func TestTokenStoreAgainstRedis(t *testing.T) {
 	ctx := context.Background()
-	started, err := standardhelper.StartKv(ctx, standardhelper.RedisOptions{})
-	if err != nil {
-		t.Fatalf("start Redis: %v", err)
+	started, startErr := standardhelper.StartKv(ctx, standardhelper.RedisOptions{})
+	if startErr != nil {
+		t.Fatalf("start Redis: %v", startErr)
 	}
 	t.Cleanup(func() { _ = started.Terminate(ctx) })
 	tracer, _, _ := newTracer(t)
-	client, err := redisadapter.Open(started.Entry, tracer)
-	if err != nil {
-		t.Fatalf("open adapter: %v", err)
+	client, openErr := redisadapter.Open(started.Entry, tracer)
+	if openErr != nil {
+		t.Fatalf("open adapter: %v", openErr)
 	}
 	t.Cleanup(func() { _ = client.Close() })
-	store, err := redisadapter.NewTokenStore(client)
-	if err != nil {
-		t.Fatalf("construct token store: %v", err)
+	store, storeErr := redisadapter.NewTokenStore(client)
+	if storeErr != nil {
+		t.Fatalf("construct token store: %v", storeErr)
 	}
 
 	if token, found, err := store.Get(ctx, "missing-token"); err != nil || found || token.Value != "" {
@@ -102,9 +102,9 @@ func TestTokenStoreAgainstRedis(t *testing.T) {
 	if err := store.Set(ctx, "token", token, time.Hour); err != nil {
 		t.Fatalf("set token: %v", err)
 	}
-	loaded, found, err := store.Get(ctx, "token")
-	if err != nil || !found || loaded.Value != token.Value || !loaded.ExpiresAt.Equal(token.ExpiresAt) {
-		t.Fatalf("unexpected loaded token: token=%#v found=%t err=%v", loaded, found, err)
+	loaded, found, loadErr := store.Get(ctx, "token")
+	if loadErr != nil || !found || loaded.Value != token.Value || !loaded.ExpiresAt.Equal(token.ExpiresAt) {
+		t.Fatalf("unexpected loaded token: token=%#v found=%t err=%v", loaded, found, loadErr)
 	}
 	if err := store.Delete(ctx, "token"); err != nil {
 		t.Fatalf("delete token: %v", err)
@@ -142,9 +142,9 @@ func TestClientValidationAndDriverFailures(t *testing.T) {
 	}
 	tlsEntry := valid
 	tlsEntry.TLS = true
-	tlsClient, err := redisadapter.Open(tlsEntry, tracer)
-	if err != nil {
-		t.Fatalf("construct TLS client: %v", err)
+	tlsClient, tlsErr := redisadapter.Open(tlsEntry, tracer)
+	if tlsErr != nil {
+		t.Fatalf("construct TLS client: %v", tlsErr)
 	}
 	if err := tlsClient.Close(); err != nil {
 		t.Fatalf("close TLS client: %v", err)
@@ -168,9 +168,9 @@ func TestClientValidationAndDriverFailures(t *testing.T) {
 		pingErr: driverErr, getErr: driverErr, setErr: driverErr,
 		setNXErr: driverErr, deleteErr: driverErr, closeErr: driverErr,
 	}
-	client, err := redisadapter.New(driver, tracer)
-	if err != nil {
-		t.Fatalf("construct fake adapter: %v", err)
+	client, clientErr := redisadapter.New(driver, tracer)
+	if clientErr != nil {
+		t.Fatalf("construct fake adapter: %v", clientErr)
 	}
 	if client.Native() != nil {
 		t.Fatal("wrapped fake must not expose a native client")

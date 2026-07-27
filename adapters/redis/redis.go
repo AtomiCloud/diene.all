@@ -94,7 +94,6 @@ func (c *Client) Get(ctx context.Context, key string) (string, bool, error) {
 	}
 	value, operationErr := c.commands.Get(ctx, key).Result()
 	if errors.Is(operationErr, goredis.Nil) {
-		operationErr = nil
 		if endErr := span.End(nil); endErr != nil {
 			return "", false, endErr
 		}
