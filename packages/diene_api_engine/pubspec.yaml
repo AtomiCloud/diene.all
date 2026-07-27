@@ -24,8 +24,8 @@ resolution: workspace
 # diene_auth_engine (the IAuth / ResourceKey / ResourceToken seam this engine
 # keys its per-backend tokens off) declares `flutter: '>=3.24.0'`. MEASURED, not
 # reasoned — `dart pub get` on a manifest whose only dependency is
-# diene_auth_engine ^1.0.1 refuses outright:
-#   "Because sdk_probe depends on diene_auth_engine >=1.0.1 which requires the
+# diene_auth_engine ^1.0.2 refuses outright:
+#   "Because sdk_probe depends on diene_auth_engine >=1.0.2 which requires the
 #    Flutter SDK, version solving failed. Flutter users should use `flutter pub`
 #    instead of `dart pub`."
 # So every gate invokes the Flutter SDK's tooling. See
@@ -43,11 +43,11 @@ dependencies:
   # satisfying the constraint — and "am I on the newest?" is also the only
   # currently-implementable retraction control, because retraction is always
   # declared by something published AFTER the retracted version. Read live from
-  # the pub.dev API at this head: auth_engine 1.0.1, problems 0.1.1, result 1.0.0.
+  # the pub.dev API at this head: auth_engine 1.0.2, problems 0.1.1, result 1.0.0.
   # diene_problems is pinned ^0.1.1 so the solver cannot reach 0.1.0, which
   # R-E24a and 0.1.1's own changelog both declare was published from rejected
   # content while the registry still reports retracted=false for it.
-  diene_auth_engine: ^1.0.1
+  diene_auth_engine: ^1.0.2
   diene_problems: ^0.1.1
   diene_result: ^1.0.0
   dio: ^5.11.0

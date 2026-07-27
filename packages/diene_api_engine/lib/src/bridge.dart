@@ -20,10 +20,21 @@ class BridgeProblems {
   static String _uri(String id) =>
       problemTypeUri(portal: portal, version: 'v1', id: id);
 
-  static String get transportFailure => _uri('transport-failure');
-  static String get unexpectedResponse => _uri('unexpected-response');
-  static String get duplicateBackend => _uri('duplicate-backend');
-  static String get authTokenUnavailable => _uri('auth-token-unavailable');
+  // R-E14 WIRE-ID LAW. These ids are snake_case, NOT kebab. The published
+  // `problemWireIdPattern` is `^[a-z][a-z0-9_]*$`, so a hyphen is rejected at
+  // construction:
+  //   Invalid argument (id): must be a non-empty single path segment matching
+  //   its contract pattern: "transport-failure"
+  // All four were kebab and every call site that built one threw — which is why
+  // ClientTree.register, toResult and the whole contract-parity suite failed the
+  // moment the tiers could finally run. The ids are the ONLY composition here
+  // (`_uri` passes its argument straight through), so there is no second half to
+  // this fix; `bridge_wire_id_test.dart` asserts each one against the PUBLISHED
+  // pattern rather than a local copy, so the two cannot drift apart again.
+  static String get transportFailure => _uri('transport_failure');
+  static String get unexpectedResponse => _uri('unexpected_response');
+  static String get duplicateBackend => _uri('duplicate_backend');
+  static String get authTokenUnavailable => _uri('auth_token_unavailable');
 }
 
 /// Guard: does a decoded JSON object structurally look like an RFC 9457

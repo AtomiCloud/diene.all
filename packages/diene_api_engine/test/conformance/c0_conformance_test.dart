@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:diene_api_engine/diene_api_engine.dart';
 import 'package:diene_problems/diene_problems.dart'
-    show ErrorPortal, problemTypeUri;
+    show ErrorPortal, problemTypeUri, r14WireId;
 import 'package:flutter_test/flutter_test.dart';
 
 /// problem-envelope vector PROJECTED from the neutral C0 release
@@ -46,12 +46,39 @@ void main() {
     final Map<String, Object?> fixture = _loadFixture('problem_envelope.json');
 
     test('type matches the owned single-source builder', () {
-      // The projected envelope's type equals the C0 §2 template output built
-      // from the release's own typeUri segments; drift (a hand edit) fails both
-      // here and in the digest-compare gate.
+      // R-E14. The frozen release predates the wire-id law and its SAMPLE ids
+      // are still KEBAB (`entity-not-found`), while the published
+      // `problemWireIdPattern` is `^[a-z][a-z0-9_]*$`. Passing the fixture's id
+      // straight in therefore THROWS — "must be a non-empty single path segment
+      // matching its contract pattern" — which is what this test did before.
+      //
+      // The release bytes are authoritative for the envelope vocabulary and the
+      // type-URI TEMPLATE, and the correction is owed at the release owner, so
+      // the id is projected through the ONE documented normalization
+      // (`r14WireId`, exactly `-` → `_`) rather than by hand-editing a frozen
+      // vector. Precedent: lib/dart/problems does exactly this in its own
+      // conformance suite.
+      //
+      // Only the TRAILING wire id may differ from the release bytes; the second
+      // assertion pins that, so this cannot quietly become a licence to differ
+      // anywhere else in the URI.
+      const String legacyId = 'entity-not-found';
+      final String wireId = r14WireId(legacyId);
+      final String releaseType = fixture['type']! as String;
+      final String expected = releaseType.replaceRange(
+        releaseType.lastIndexOf('/') + 1,
+        null,
+        wireId,
+      );
+
       expect(
-        fixture['type'],
-        problemTypeUri(portal: _portal, version: 'v1', id: 'entity-not-found'),
+        problemTypeUri(portal: _portal, version: 'v1', id: wireId),
+        expected,
+      );
+      expect(
+        expected.substring(0, expected.lastIndexOf('/')),
+        releaseType.substring(0, releaseType.lastIndexOf('/')),
+        reason: 'only the trailing wire id may differ from the release bytes',
       );
     });
 
@@ -75,7 +102,7 @@ void main() {
             problemTypeUri(
               portal: _portal,
               version: 'v1',
-              id: 'entity-not-found',
+              id: r14WireId('entity-not-found'),
             ),
         isFalse,
       );

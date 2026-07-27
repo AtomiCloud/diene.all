@@ -15,6 +15,37 @@ void main() {
     test('throws on Err', () {
       expect(() => expectOk(err), throwsA(isA<AssertionError>()));
     });
+    test('the diagnostic names the Problem type and status', () {
+      // A helper that throws an EMPTY diagnostic is barely better than no
+      // helper: the consumer still has to go and find out what happened. So the
+      // message content is asserted, not just the throw.
+      expect(
+        () => expectOk(err),
+        throwsA(
+          isA<AssertionError>().having(
+            (AssertionError e) => e.message.toString(),
+            'message',
+            allOf(contains('boom'), contains('expected Ok')),
+          ),
+        ),
+      );
+    });
+    test('the optional `because` reason is appended to the diagnostic', () {
+      // `because` was never passed anywhere in this tier, so the branch that
+      // composes it into the message had NEVER executed — the one uncovered line
+      // in the whole helper. An unexercised diagnostic path is exactly where a
+      // broken message hides until a consumer hits it.
+      expect(
+        () => expectOk(err, because: 'the backend must accept this token'),
+        throwsA(
+          isA<AssertionError>().having(
+            (AssertionError e) => e.message.toString(),
+            'message',
+            contains('the backend must accept this token'),
+          ),
+        ),
+      );
+    });
   });
 
   group('expectErr', () {
@@ -23,6 +54,30 @@ void main() {
     });
     test('throws on Ok', () {
       expect(() => expectErr(ok), throwsA(isA<AssertionError>()));
+    });
+    test('the diagnostic shows the unexpected Ok value', () {
+      expect(
+        () => expectErr(ok),
+        throwsA(
+          isA<AssertionError>().having(
+            (AssertionError e) => e.message.toString(),
+            'message',
+            allOf(contains('expected Err'), contains('1')),
+          ),
+        ),
+      );
+    });
+    test('the optional `because` reason is appended to the diagnostic', () {
+      expect(
+        () => expectErr(ok, because: 'an absent token must fail closed'),
+        throwsA(
+          isA<AssertionError>().having(
+            (AssertionError e) => e.message.toString(),
+            'message',
+            contains('an absent token must fail closed'),
+          ),
+        ),
+      );
     });
   });
 

@@ -65,6 +65,24 @@ trap 'rm -rf "${scratch}" "${expected}"' EXIT
 git init -q "${scratch}"
 cp "${pubignore}" "${scratch}/.gitignore"
 
+# THE VERDICT COMES FROM THE PLAIN FORM ONLY.
+#
+# `git check-ignore -v` EXITS 0 ON A NEGATED MATCH: the -v form answers "a
+# pattern matched, here is the line", and a `!negation` IS a match. So rc=0 from
+# -v does NOT mean the path is excluded. Verified on a synthetic control with
+# known answers before relying on it — with `.gitignore` = {`result-*`,
+# `!result-keep.json`}:
+#
+#   result-drop.json   plain rc=0   -v rc=0   -> excluded
+#   result-keep.json   plain rc=1   -v rc=0   -> NOT excluded  <-- the trap
+#   unrelated.txt      plain rc=1   -v rc=1   -> not matched
+#
+# -v NAMES THE LINE; THE PLAIN FORM GIVES THE VERDICT. This helper is
+# deliberately the only thing that decides, and it uses `-q` (plain). `-v` is
+# used below purely to report WHICH rule fired, and only after this function has
+# already returned a positive verdict — so a negation can never be reported as an
+# exclusion. (Credit: peer `noel` circulated this correction after prescribing -v
+# as the instrument; the hazard was re-measured here rather than taken on trust.)
 ignored() { # ignored <path-relative-to-member>
   (cd "${scratch}" && git check-ignore --no-index -q -- "$1")
 }
@@ -86,6 +104,20 @@ git ls-files -z -- \
   sed "s|^${member_dir}/||" |
   sort -u >"${expected}"
 
+# DRILLED, because a guard nobody has watched fire is unproven rather than
+# passing. Pointing `member_dir` at a directory that exists but holds only a
+# `.pubignore` reaches this branch and it behaves correctly:
+#   → 0 tracked must-ship paths under packages/diene_TMPTEST
+#   ❌ REFUSING: enumerated zero must-ship paths …            (rc=1)
+#
+# A CORRECTION TO MYSELF is recorded here rather than silently dropped. I first
+# added a second guard above this one, capturing a `git ls-files` rc on the theory
+# that a bad pathspec would abort under errexit before this refusal could print.
+# MEASURED: `git ls-files -- <nonexistent path>` exits **0**, so that guard could
+# never fire — I introduced an unfalsifiable check while acting on a warning about
+# unfalsifiable checks. It has been removed. The rc=2 that suggested it came from a
+# mutated COPY of this script, not from this script. Test the premise, not the
+# story that explains it.
 expected_count="$(wc -l <"${expected}")"
 echo "→ ${expected_count} tracked must-ship paths under ${member_dir}"
 if [ "${expected_count}" -eq 0 ]; then

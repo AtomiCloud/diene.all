@@ -37,7 +37,7 @@ member_pubspec="${member_dir}/pubspec.yaml"
 # version actually exercised here.
 declare -A expected_deps=(
   [collection]='^1.19.1'
-  [diene_auth_engine]='^1.0.1'
+  [diene_auth_engine]='^1.0.2'
   [diene_problems]='^0.1.1'
   [diene_result]='^1.0.0'
   [dio]='^5.11.0'
