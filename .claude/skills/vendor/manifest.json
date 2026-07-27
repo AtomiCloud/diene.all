@@ -1,1 +1,27 @@
-[]
+[
+  "diene.api-engine/diene-api-engine-usage/SKILL.md",
+  "diene.api-engine/diene-api-engine-usage/patterns.md",
+  "diene.auth-engine/diene-auth-engine-usage/SKILL.md",
+  "diene.auth-engine/diene-auth-engine-usage/patterns.md",
+  "diene.config/diene-config-usage/SKILL.md",
+  "diene.config/diene-config-usage/assets/consumer.cjs",
+  "diene.config/diene-config-usage/assets/consumer.ts",
+  "diene.config/diene-config-usage/assets/test-helper.md",
+  "diene.core-utils/diene-core-utils-usage/SKILL.md",
+  "diene.core-utils/diene-core-utils-usage/patterns.md",
+  "diene.frontend-utils/diene-frontend-utils-usage/SKILL.md",
+  "diene.frontend-utils/diene-frontend-utils-usage/agents/openai.yaml",
+  "diene.frontend-utils/diene-frontend-utils-usage/assets/consumer-test.ts",
+  "diene.frontend-utils/diene-frontend-utils-usage/assets/consumer.ts",
+  "diene.interfaces/diene-interfaces-usage/SKILL.md",
+  "diene.interfaces/diene-interfaces-usage/patterns.md",
+  "diene.otel/diene-otel-usage/SKILL.md",
+  "diene.otel/diene-otel-usage/patterns.md",
+  "diene.problems/diene-problems-usage/SKILL.md",
+  "diene.result/diene-result-usage/SKILL.md",
+  "diene.result/diene-result-usage/assets/consumer.cjs",
+  "diene.result/diene-result-usage/assets/consumer.ts",
+  "diene.result/diene-result-usage/assets/test-helper.md",
+  "diene.standard-config/diene-standard-config-usage/SKILL.md",
+  "diene.standard-config/diene-standard-config-usage/patterns.md"
+]
