@@ -8,7 +8,7 @@ import (
 	"github.com/AtomiCloud/diene.go-errors-problems/lib/problem"
 )
 
-const MessageHandlerFailedID = "message-handler-failed"
+const MessageHandlerFailedID = "message_handler_failed"
 
 // Problems is the service-owned problem registry and exported catalog.
 type Problems struct {
@@ -57,13 +57,12 @@ func NewProblems(
 		return nil, setupError(err)
 	}
 	catalog := problem.NewCatalog(portal)
-	if err := catalog.AddGenerics(); err != nil {
-		return nil, setupError(err)
-	}
-	_ = catalog.AddType(handlerType, problem.CatalogEndpoint{
+	if err := catalog.AddType(handlerType, problem.CatalogEndpoint{
 		Method: "CONSUME",
 		Path:   "/streams/" + strings.TrimSpace(stream),
-	})
+	}); err != nil {
+		return nil, setupError(err)
+	}
 	for _, problemType := range extra {
 		if err := catalog.AddType(problemType); err != nil {
 			return nil, setupError(err)
