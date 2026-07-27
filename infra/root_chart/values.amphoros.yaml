@@ -1,5 +1,4 @@
 # Landscape overlay: amphoros (production landscape).
 ledger:
   landscape: amphoros
-mode: active
 replicas: 2

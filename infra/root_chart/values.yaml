@@ -13,6 +13,9 @@ image:
 replicas: 1
 
 # -- Reconcile mode: observe (read-only, report the would-apply plan) or active.
+# The base remains active for compatibility. Every new or changed Garden
+# installation must explicitly start with `--set mode=observe`; operators inspect
+# the would-apply plan and brakes, then explicitly promote with `--set mode=active`.
 mode: active
 
 # -- Destructive-write percentage-per-tick blast-brake cap.
@@ -53,6 +56,19 @@ controllers:
   cf-deploy: false
   # -- Enable the reserved Problem sub-component seam.
   problem: false
+
+# -- Optional Garden dependency-subset credential slots. Each slot names a
+# deploy-time Secret (name + key), never a value. An empty secretName renders
+# nothing. Presence feeds the manager's fail-closed capability matrix; profiles
+# that must start with zero credentials (rotom/absol) leave every slot empty.
+credentials:
+  dependency:
+    brokerToken:
+      secretName: ''
+      secretKey: token
+    nativeTigrisKey:
+      secretName: ''
+      secretKey: key
 
 # -- Manager resource requests and limits.
 resources:

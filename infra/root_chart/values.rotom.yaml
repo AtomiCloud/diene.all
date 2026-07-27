@@ -1,0 +1,8 @@
+# Garden-profile overlay: rotom (hermetic offline development).
+# Dependency-only subset; fake-local secret mode; ZERO credentials by law
+# (ENV-SPEC Q-ENV50): startup must succeed with no seed, vault, broker, or
+# provider material. Observe-first upgrade ritual applies (see README).
+controllers:
+  dependency: true
+ledger:
+  landscape: rotom

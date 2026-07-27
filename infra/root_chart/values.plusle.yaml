@@ -1,0 +1,15 @@
+# Garden-profile overlay: plusle (staging-data preview / deploy rehearsal).
+# Dependency-only subset. Slots name deploy-time Secrets planted by the trusted
+# preview automation (allocation-scoped); values NEVER live in this file.
+controllers:
+  dependency: true
+ledger:
+  landscape: plusle
+credentials:
+  dependency:
+    brokerToken:
+      secretName: fleet-operator-broker-token
+      secretKey: token
+    nativeTigrisKey:
+      secretName: fleet-operator-tigris-fork-key
+      secretKey: key

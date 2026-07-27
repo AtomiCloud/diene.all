@@ -21,6 +21,7 @@ Manager chart for the AtomiCloud fleet operator (CRDs, RBAC, deployment, observa
 | controllers.problem | bool | `false` | Enable the reserved Problem sub-component seam. |
 | controllers.traffic | bool | `false` | Enable the traffic controller. |
 | controllers.webhook | bool | `false` | Enable the webhook controller. |
+| credentials | object | `{"dependency":{"brokerToken":{"secretKey":"token","secretName":""},"nativeTigrisKey":{"secretKey":"key","secretName":""}}}` | Optional Garden dependency-subset credential slots. Each slot names a deploy-time Secret (name + key), never a value. An empty secretName renders nothing. Presence feeds the manager's fail-closed capability matrix; profiles that must start with zero credentials (rotom/absol) leave every slot empty. |
 | dashboard | object | `{"enabled":true}` | Grafana dashboard shipped as a sidecar-labelled ConfigMap. |
 | dashboard.enabled | bool | `true` | Ship the dashboard ConfigMap. |
 | dependencyDestructiveCapPerTick | int | `3` | Dependency destructive-module cap per tick. |
@@ -38,7 +39,7 @@ Manager chart for the AtomiCloud fleet operator (CRDs, RBAC, deployment, observa
 | metricLabels.vendors | list | `["cloudflare","neon","aws","infisical","mercury"]` | Closed vendor label vocabulary (plus the fixed `other` overflow). The ProviderAccount CRD vendor grammar is deliberately open; this observability vocabulary is not that grammar, and an unlisted vendor is identified from the vendor-call-failure log line instead of by minting a new series. |
 | metrics | object | `{"port":8443}` | Secured metrics endpoint configuration. |
 | metrics.port | int | `8443` | Metrics bind port (HTTPS, authn/authz filtered). |
-| mode | string | `"active"` | Reconcile mode: observe (read-only, report the would-apply plan) or active. |
+| mode | string | `"active"` | Reconcile mode: observe (read-only, report the would-apply plan) or active. The base remains active for compatibility. Every new or changed Garden installation must explicitly start with `--set mode=observe`; operators inspect the would-apply plan and brakes, then explicitly promote with `--set mode=active`. |
 | replicas | int | `1` | Number of manager replicas. Leader election keeps a single active manager. |
 | resources | object | `{"limits":{"cpu":"500m","memory":"256Mi"},"requests":{"cpu":"50m","memory":"64Mi"}}` | Manager resource requests and limits. |
 | serviceAccount | object | `{"name":""}` | ServiceAccount name override; defaults to the release fullname. |

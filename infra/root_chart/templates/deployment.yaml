@@ -59,6 +59,20 @@ spec:
                   name: {{ include "fleet-operator.fullname" . }}-ledger
                   key: secretKey
                   optional: true
+            {{- if .Values.credentials.dependency.brokerToken.secretName }}
+            - name: FLEET_OPERATOR_DEPENDENCY_BROKER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.credentials.dependency.brokerToken.secretName | quote }}
+                  key: {{ .Values.credentials.dependency.brokerToken.secretKey | quote }}
+            {{- end }}
+            {{- if .Values.credentials.dependency.nativeTigrisKey.secretName }}
+            - name: FLEET_OPERATOR_DEPENDENCY_NATIVE_TIGRIS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.credentials.dependency.nativeTigrisKey.secretName | quote }}
+                  key: {{ .Values.credentials.dependency.nativeTigrisKey.secretKey | quote }}
+            {{- end }}
           ports:
             - name: metrics
               containerPort: {{ .Values.metrics.port }}

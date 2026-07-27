@@ -1,5 +1,4 @@
 # Landscape overlay: raichu (production landscape).
 ledger:
   landscape: raichu
-mode: active
 replicas: 2

@@ -1,0 +1,7 @@
+# Garden-profile overlay: eevee (hosted live development).
+# Dependency-only subset; the read-only landscape seed remains ESO-owned and
+# local realizations use no fork door by default.
+controllers:
+  dependency: true
+ledger:
+  landscape: eevee

@@ -1,0 +1,7 @@
+# Garden-profile overlay: ditto (connected system integration testing).
+# Dependency-only subset; the read-only landscape seed remains ESO-owned and
+# deterministic local realizations require no operator credential slots.
+controllers:
+  dependency: true
+ledger:
+  landscape: ditto

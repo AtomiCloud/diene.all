@@ -1,4 +1,5 @@
 # Landscape overlay: lapras (local/dev k3d landscape).
+controllers:
+  dependency: true
 ledger:
   landscape: lapras
-mode: active

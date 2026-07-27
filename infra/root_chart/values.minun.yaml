@@ -1,0 +1,15 @@
+# Garden-profile overlay: minun (separately authorized prod-derived preview).
+# Dependency-only subset. Slots name deploy-time Secrets planted by the trusted
+# preview automation (allocation-scoped); values NEVER live in this file.
+controllers:
+  dependency: true
+ledger:
+  landscape: minun
+credentials:
+  dependency:
+    brokerToken:
+      secretName: fleet-operator-broker-token
+      secretKey: token
+    nativeTigrisKey:
+      secretName: fleet-operator-tigris-fork-key
+      secretKey: key
