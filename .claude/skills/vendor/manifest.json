@@ -1,0 +1,14 @@
+[
+  "diene.config/diene-config-usage/SKILL.md",
+  "diene.config/diene-config-usage/assets/consumer.cjs",
+  "diene.config/diene-config-usage/assets/consumer.ts",
+  "diene.config/diene-config-usage/assets/test-helper.md",
+  "diene.core-utils/diene-core-utils-usage/SKILL.md",
+  "diene.core-utils/diene-core-utils-usage/patterns.md",
+  "diene.interfaces/diene-interfaces-usage/SKILL.md",
+  "diene.interfaces/diene-interfaces-usage/patterns.md",
+  "diene.result/diene-result-usage/SKILL.md",
+  "diene.result/diene-result-usage/assets/consumer.cjs",
+  "diene.result/diene-result-usage/assets/consumer.ts",
+  "diene.result/diene-result-usage/assets/test-helper.md"
+]

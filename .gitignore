@@ -34,3 +34,10 @@ coverage/
 #### source: bun-lib
 *.tgz
 .npmrc
+
+### standard-config-vendor
+#### source: standard-config
+# Temporary bridge: keep the vendored, certified @atomicloud/diene.config tarball
+# tracked (it re-includes past the bun-lib `*.tgz` ignore) so the branch installs
+# reproducibly while config's real npm publish is blocked. See vendor/README.md.
+!vendor/*.tgz

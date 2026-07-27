@@ -26,7 +26,12 @@ if [[ ${mode} == "content" || ${mode} == "all" ]]; then
     package/dist/index.cjs
     package/dist/index.d.ts
     package/dist/index.d.cts
-    package/skills/diene-bun-lib-usage/SKILL.md
+    package/dist/test-helper.js
+    package/dist/test-helper.cjs
+    package/dist/test-helper.d.ts
+    package/dist/test-helper.d.cts
+    package/skills/diene-standard-config-usage/SKILL.md
+    package/skills/diene-standard-config-usage/patterns.md
   )
   missing=0
   for path in "${expected[@]}"; do
@@ -46,7 +51,10 @@ fi
 
 if [[ ${mode} == "attw" || ${mode} == "all" ]]; then
   echo "🔎 Checking type resolvability (attw)..."
-  ./node_modules/.bin/attw pkg.tgz
+  # node10 predates the "exports" field and cannot resolve the /test-helper
+  # subpath export; profile to node16 so its EOL resolver does not false-fail the
+  # multi-entry package. node16 (CJS+ESM) and bundler are checked.
+  ./node_modules/.bin/attw pkg.tgz --profile node16
 fi
 
 echo "✅ Package validation (${mode}) passed"
