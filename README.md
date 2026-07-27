@@ -16,7 +16,7 @@ Diene's reproducible development environment is managed by Nix. Run `direnv allo
 <!-- ### workspace -->
 <!-- #### source: workspace -->
 
-This repository inherits the all-features workspace baseline: split CI/CD, Docker,
+This repository inherits the all-features workspace baseline: split CI/CD,
 secrets, release configuration, validators, standards, and vendored agent-skill
 synchronization.
 
@@ -24,7 +24,6 @@ synchronization.
 
 - `pls setup` — synchronize installed diene package skills.
 - `pls lint` — run every pre-commit gate.
-- `pls docker:build` — build the local Go image.
 - `pls secret:scan` — scan tracked content for secrets.
 - `pls skills:sync` — rebuild `.claude/skills/vendor/` from installed packages.
 
@@ -48,7 +47,6 @@ template-maintenance boundary.
 
 - [CI/CD workflows](docs/standards/ci-cd/index.md)
 - [conventional commits](docs/standards/conventional-commits/index.md)
-- [Docker build and publishing](docs/standards/docker/index.md)
 - [Infisical and secrets](docs/standards/infisical/index.md)
 - [linting and pre-commit](docs/standards/linting/index.md)
 - [Nix flakes and development shells](docs/standards/nix/index.md)

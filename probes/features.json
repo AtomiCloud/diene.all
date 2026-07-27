@@ -101,11 +101,6 @@
   },
   {
     "template": "diene/workspace",
-    "name": "docker-build",
-    "class": "smoke"
-  },
-  {
-    "template": "diene/workspace",
     "name": "secret-guards",
     "class": "gate"
   },
@@ -263,16 +258,6 @@
   {
     "template": "diene/go-base",
     "name": "deadcode-production",
-    "class": "gate"
-  },
-  {
-    "template": "diene/go-base",
-    "name": "distroless-base-policy",
-    "class": "gate"
-  },
-  {
-    "template": "diene/go-base",
-    "name": "nonroot-image-policy",
     "class": "gate"
   },
   {

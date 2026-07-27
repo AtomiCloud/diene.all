@@ -17,6 +17,7 @@ if [ "${mode}" = "wiring" ]; then
   done < <(rg -o --no-filename 'scripts/ci/[A-Za-z0-9._-]+[.]sh' .github/workflows | sort -u)
 
   for orchestrator in .github/workflows/ci.yaml .github/workflows/cd.yaml .github/workflows/release.yaml; do
+    [ -f "${orchestrator}" ] || continue
     while IFS=$'\t' read -r job reusable; do
       [ -z "${reusable}" ] && echo "❌ '${orchestrator}' job '${job}' must call a reusable workflow" >&2 && exit 1
       [[ ${reusable} == ./.github/workflows/* ]] || {
@@ -41,8 +42,8 @@ fi
 
 if [ "${mode}" = "workflow-names" ]; then
   [ "$(yq -r '.name' .github/workflows/ci.yaml)" != "CI" ] && echo "❌ ci.yaml workflow name must be CI" >&2 && exit 1
-  [ "$(yq -r '.name' .github/workflows/cd.yaml)" != "CD" ] && echo "❌ cd.yaml workflow name must be CD" >&2 && exit 1
-  echo "✅ CI/CD workflow names conform"
+  [ -f .github/workflows/cd.yaml ] && [ "$(yq -r '.name' .github/workflows/cd.yaml)" != "CD" ] && echo "❌ cd.yaml workflow name must be CD" >&2 && exit 1
+  echo "✅ Workflow names conform"
   exit 0
 fi
 
