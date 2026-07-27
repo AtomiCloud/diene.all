@@ -13,6 +13,8 @@ import 'config/app_settings_controller.dart';
 import 'core/result.dart';
 import 'i18n/translations.g.dart';
 import 'onboarding/onboarding.dart';
+import 'routing/app_router.dart';
+import 'screens/login_screen.dart';
 import 'theme/app_theme.dart';
 import 'widgets/amount_input.dart';
 import 'widgets/async_button.dart';
@@ -39,8 +41,14 @@ final class DieneApp extends StatefulWidget {
 }
 
 final class _DieneAppState extends State<DieneApp> with WidgetsBindingObserver {
-  late final GoRouter _router = GoRouter(
-    routes: <RouteBase>[
+  late final GoRouter _router = buildAppRouter(
+    isAuthenticated: () => widget.session.tokens != null,
+    loginBuilder: (BuildContext context, String returnTo) =>
+        LoginScreen(session: widget.session, returnTo: returnTo),
+    // The shell keeps its own root route: `/` is the existing scaffold home and
+    // is deliberately NOT a registry screen, so it is mounted alongside rather
+    // than through the route map.
+    extraRoutes: <RouteBase>[
       GoRoute(
         path: '/',
         builder: (BuildContext context, GoRouterState state) => HomeScreen(
@@ -51,6 +59,7 @@ final class _DieneAppState extends State<DieneApp> with WidgetsBindingObserver {
         ),
       ),
     ],
+    initialLocation: '/',
   );
 
   @override
