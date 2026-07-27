@@ -59,6 +59,15 @@ void main() {
       );
     });
 
+    test('AuthAssertionError renders its message', () {
+      // Arrange
+      final AuthAssertionError error = AuthAssertionError('boom');
+
+      // Act + Assert — the toString is what a failing tier actually prints.
+      expect(error.toString(), 'AuthAssertionError: boom');
+      expect(error.message, 'boom');
+    });
+
     test('phase / status pass on match and throw on mismatch', () {
       AuthExpect.phase(OnboardingPhase.ready, OnboardingPhase.ready);
       expect(
@@ -250,6 +259,103 @@ void main() {
         expect(ref.processed, isTrue);
       },
     );
+
+    test('unscripted fakes fail LOUDLY rather than returning a stub', () async {
+      // Arrange — a fake with nothing scripted for the seam under exercise.
+      final ResourceKey key = AuthFixtures.resourceKey();
+      final FakeAuthProvider provider = FakeAuthProvider();
+      final FakeUserDirectory directory = FakeUserDirectory(throwOnGet: true);
+      final FakeLandscapeSelectorSource source = FakeLandscapeSelectorSource(
+        error: const FormatException('doc B unreachable'),
+      );
+
+      // Act + Assert — an unscripted seam must throw, never hand back a
+      // silently-empty value that would make a real test vacuously pass.
+      await expectLater(provider.resourceToken(key), throwsStateError);
+      await expectLater(
+        provider.refresh(AuthFixtures.sessionTokens(now: now)),
+        throwsStateError,
+      );
+      await expectLater(
+        provider.reMintOnOpen(AuthFixtures.sessionTokens(now: now)),
+        throwsStateError,
+      );
+      await expectLater(provider.signIn(), throwsStateError);
+      await expectLater(
+        directory.getUserMe(backendId: 'b', accessToken: 't'),
+        throwsStateError,
+      );
+      await expectLater(source.fetch(), throwsFormatException);
+      await expectLater(
+        FakeLandscapeSelectorSource().fetch(),
+        throwsStateError,
+      );
+    });
+
+    test('FakeAuthProvider honours the onFreshClaimToken callback', () async {
+      // Arrange — the callback arm takes precedence over the fixed value.
+      final FakeAuthProvider provider = FakeAuthProvider(
+        onFreshClaimToken: () async => 'callback.claim.jwt',
+        freshClaimTokenValue: 'ignored',
+      );
+
+      // Act + Assert
+      expect(await provider.freshClaimToken(), 'callback.claim.jwt');
+      expect(provider.freshClaimTokenCount, 1);
+    });
+
+    test('FakeAuth synthesizes a 401 problem for an unscripted key', () async {
+      // Arrange — a batch that does NOT carry the requested key.
+      final ResourceKey scripted = AuthFixtures.resourceKey();
+      final ResourceKey missing = AuthFixtures.resourceKey(service: 'other');
+      final FakeAuth auth = FakeAuth(<Map<ResourceKey, Result<ResourceToken>>>[
+        <ResourceKey, Result<ResourceToken>>{
+          scripted: Ok<ResourceToken>(
+            AuthFixtures.resourceToken(now: now, jwtToken: 'j'),
+          ),
+        },
+      ]);
+
+      // Act
+      final Result<ResourceToken> result = await auth.tokenFor(missing);
+
+      // Assert — a total map still needs a TERMINAL entry per key, so the fake
+      // fabricates the same shape a real coordinator failure would.
+      final Problem problem = AuthExpect.errType(
+        result,
+        'urn:diene:problem:resource-token',
+      );
+      expect(problem.status, 401);
+      expect(problem.data['resource'], missing.mapKey);
+    });
+
+    test('FakeAppHandoffApi defaults to the no-oracle expiry', () async {
+      // Arrange — no scripted result at all.
+      final FakeAppHandoffApi api = FakeAppHandoffApi();
+
+      // Act
+      final Result<RedeemResult> result = await api.redeem(
+        nonce: 'n',
+        device: const DeviceInfo(platform: 'android'),
+      );
+
+      // Assert — the single generic failure, never an account-state oracle.
+      AuthExpect.status(
+        AuthExpect.errType(result, 'urn:diene:problem:app-handoff-expired'),
+        410,
+      );
+      expect(api.lastNonce, 'n');
+    });
+
+    test('FakeClipboardCarrierSource reads back its contents', () async {
+      // Arrange
+      final FakeClipboardCarrierSource clip = FakeClipboardCarrierSource('tok');
+
+      // Act + Assert — read is the launch-time carrier probe.
+      expect(await clip.read(), 'tok');
+      await clip.clearIfEquals('tok');
+      expect(await clip.read(), isNull);
+    });
 
     test(
       'FakeLandscapeSelectorSource / FakeRegionPinger honour scripts',
