@@ -28,7 +28,7 @@ export default {
       name: 'mutation-unit-tests-caught',
       description: 'dart test test/unit fails once an assertion is inverted',
       kind: 'mutation',
-      expectedImpact: [],
+      expectedImpact: ['unit-coverage-ledger'],
       async run(repo: any) {
         const tests = (await repo.glob('packages/*/test/unit/**/*.dart')).sort();
         const target = tests[0];

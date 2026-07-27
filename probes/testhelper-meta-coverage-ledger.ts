@@ -28,7 +28,7 @@ export default {
       name: 'mutation-testhelper-meta-coverage-ledger-caught',
       description: 'the meta coverage ledger fails when an uncovered helper function is added',
       kind: 'mutation',
-      expectedImpact: [],
+      expectedImpact: ['deadcode-whole-package'],
       async run(repo: any) {
         const helpers = (await repo.glob('packages/*/lib/test_helper.dart')).sort();
         const target = helpers[0];

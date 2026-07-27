@@ -24,7 +24,7 @@ export default {
       name: 'mutation-dart-format-caught',
       description: 'dart format fails once a library source file drifts from canonical style',
       kind: 'mutation',
-      expectedImpact: [],
+      expectedImpact: ['pana-score'],
       async run(repo: any) {
         const sources = (await repo.glob('packages/*/lib/src/**/*.dart')).sort();
         const target = sources[0];

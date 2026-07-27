@@ -25,7 +25,7 @@ export default {
       name: 'mutation-dart-analyze-caught',
       description: 'dart analyze fails when a library source file introduces a lint violation',
       kind: 'mutation',
-      expectedImpact: [],
+      expectedImpact: ['unit-coverage-ledger', 'pana-score'],
       async run(repo: any) {
         const sources = (await repo.glob('packages/*/lib/src/**/*.dart')).sort();
         const target = sources[0];

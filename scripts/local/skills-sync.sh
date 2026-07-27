@@ -6,14 +6,49 @@ set -euo pipefail
 vendor_dir=".claude/skills/vendor"
 staging="$(mktemp -d .claude/skills/.vendor.XXXXXX)"
 resolver_dir="$(mktemp -d)"
+swap_dir=""
+backup=""
+swap_committed=false
 cleanup() {
+  local status=$?
+  local rollback_failed=false
+  trap - EXIT INT TERM
+  set +e
+
+  if [ -n "${backup}" ] && [ -e "${backup}" ]; then
+    if [ ! -e "${vendor_dir}" ]; then
+      if ! mv "${backup}" "${vendor_dir}"; then
+        echo "❌ Failed to restore the previous vendored-skills tree" >&2
+        rollback_failed=true
+      fi
+    elif [ "${swap_committed}" = false ]; then
+      chmod -R u+w "${vendor_dir}" 2>/dev/null || true
+      rm -rf "${vendor_dir}"
+      if ! mv "${backup}" "${vendor_dir}"; then
+        echo "❌ Failed to roll back the previous vendored-skills tree" >&2
+        rollback_failed=true
+      fi
+    else
+      chmod -R u+w "${backup}" 2>/dev/null || true
+      rm -rf "${backup}"
+    fi
+  fi
   if [ -d "${staging}" ]; then
     chmod -R u+w "${staging}" 2>/dev/null || true
     rm -rf "${staging}"
   fi
+  if [ -n "${swap_dir}" ] && [ -d "${swap_dir}" ]; then
+    rm -rf "${swap_dir}"
+  fi
   rm -rf "${resolver_dir}"
+  if [ "${rollback_failed}" = true ]; then
+    exit 1
+  fi
+  exit "${status}"
 }
 trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 node_declared=false
 node_staged=false
@@ -52,6 +87,57 @@ jq_match() {
     exit "${status}"
     ;;
   esac
+}
+
+# ### dart-lib-pub-root-uri
+# #### source: dart-lib
+# Dart package_config rootUri values are URIs, not paths. Hosted packages use
+# absolute file:/// URIs, while workspace packages normally use paths relative
+# to .dart_tool/package_config.json. Decode URI escapes before asking realpath
+# to normalize the resulting filesystem path.
+decode_uri_path() {
+  local encoded=$1
+  local decoded=""
+  local prefix
+  local hex
+  local byte
+
+  while [[ ${encoded} == *%* ]]; do
+    prefix="${encoded%%\%*}"
+    decoded+="${prefix}"
+    encoded="${encoded#*%}"
+    if [[ ! ${encoded} =~ ^([[:xdigit:]]{2})(.*)$ ]]; then
+      echo "❌ Invalid percent escape in Dart package root URI" >&2
+      return 1
+    fi
+    hex="${BASH_REMATCH[1]}"
+    encoded="${BASH_REMATCH[2]}"
+    printf -v byte '%b' "\\x${hex}"
+    decoded+="${byte}"
+  done
+
+  printf '%s' "${decoded}${encoded}"
+}
+
+resolve_pub_root() {
+  local root_uri=$1
+  local package_path
+
+  case "${root_uri}" in
+  file://localhost/*) package_path="/${root_uri#file://localhost/}" ;;
+  file:///*) package_path="${root_uri#file://}" ;;
+  file://*)
+    echo "❌ Unsupported authority in Dart package root URI: ${root_uri}" >&2
+    return 1
+    ;;
+  /*) package_path="${root_uri}" ;;
+  *) package_path=".dart_tool/${root_uri}" ;;
+  esac
+
+  if [[ ${package_path} == *%* ]]; then
+    package_path="$(decode_uri_path "${package_path}")" || return 1
+  fi
+  realpath -m -- "${package_path}"
 }
 
 if [ -f package.json ]; then
@@ -191,7 +277,10 @@ if [ -f .dart_tool/package_config.json ]; then
   fi
   while IFS=$'\t' read -r package root_uri; do
     [ -n "${package}" ] || continue
-    package_root="$(realpath -m ".dart_tool/${root_uri}")"
+    if ! package_root="$(resolve_pub_root "${root_uri}")"; then
+      echo "❌ Failed to resolve Dart package root for ${package}" >&2
+      exit 1
+    fi
     [ -d "${package_root}" ] || continue
     skills_dir="${package_root}/skills"
     [ -d "${skills_dir}" ] || continue
@@ -260,11 +349,26 @@ fi
 
 jq -R -s 'split("\n") | map(select(length > 0)) | sort' "${staged_list}" >"${staging}/manifest.json"
 
+# ### dart-lib-vendor-transaction
+# #### source: dart-lib
+# Keep the previous tree at a same-filesystem sibling until the fully populated
+# staging tree has been renamed into place. The EXIT trap restores the backup
+# if publication fails or is interrupted between the two renames.
+mkdir -p "$(dirname "${vendor_dir}")"
+swap_dir="$(mktemp -d .claude/skills/.vendor-swap.XXXXXX)"
+backup="${swap_dir}/vendor"
 if [ -d "${vendor_dir}" ]; then
   chmod -R u+w "${vendor_dir}"
+  mv "${vendor_dir}" "${backup}"
 fi
-rm -rf "${vendor_dir}"
-mkdir -p "$(dirname "${vendor_dir}")"
 mv "${staging}" "${vendor_dir}"
+swap_committed=true
+if [ -e "${backup}" ]; then
+  chmod -R u+w "${backup}" 2>/dev/null || true
+  rm -rf "${backup}"
+fi
+backup=""
+rm -rf "${swap_dir}"
+swap_dir=""
 
 echo "✅ Vendored skills synchronized"

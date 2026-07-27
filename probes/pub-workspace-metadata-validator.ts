@@ -24,7 +24,7 @@ export default {
       name: 'mutation-pub-workspace-metadata-validator-caught',
       description: 'the validator fails when the member drops resolution: workspace',
       kind: 'mutation',
-      expectedImpact: [],
+      expectedImpact: ['dart-analyze', 'unit-tests'],
       async run(repo: any) {
         await repo.patch('packages/diene_dart_lib/pubspec.yaml', {
           find: 'resolution: workspace',

@@ -20,7 +20,7 @@ export default {
       name: 'mutation-release-type-vocabulary-caught',
       description: 'A focused sabotage must turn the release-type-vocabulary mechanism red.',
       kind: 'mutation',
-      expectedImpact: [],
+      expectedImpact: ['release-policy-values'],
       async run(repo: any) {
         await repo.patch('atomi_release.yaml', { find: '  - type: chore', replace: '  - type: chores' });
         await expectRed(

@@ -40,7 +40,7 @@ export default {
       name: 'mutation-package-validate-workflow-wiring-caught',
       description: 'the wiring check detects the reusable workflow pointing at a missing script',
       kind: 'mutation',
-      expectedImpact: [],
+      expectedImpact: ['workflow-wiring'],
       async run(repo: any) {
         if (!(await wiringResolves(repo))) {
           throw new Error('package-validate-workflow-wiring: wiring already broken before sabotage');

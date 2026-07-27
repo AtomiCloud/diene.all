@@ -282,6 +282,11 @@
   },
   {
     "template": "diene/dart-lib",
+    "name": "release-policy-values",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dart-lib",
     "name": "publish-tag-policy",
     "class": "gate"
   },

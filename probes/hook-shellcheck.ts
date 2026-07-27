@@ -16,7 +16,7 @@ export default {
       name: 'mutation-hook-shellcheck-caught',
       description: 'A focused sabotage must turn the hook-shellcheck mechanism red.',
       kind: 'mutation',
-      expectedImpact: [],
+      expectedImpact: ['release-policy-values'],
       async run(repo: any) {
         const source = await repo.read('scripts/release/bump.sh');
         await repo.write('scripts/release/bump.sh', `${source}\necho $UNQUOTED\n`);

@@ -29,7 +29,7 @@ export default {
       name: 'mutation-testhelper-meta-contract-caught',
       description: 'the meta suite fails once the TestHelper equality check is inverted',
       kind: 'mutation',
-      expectedImpact: [],
+      expectedImpact: ['testhelper-meta-coverage-ledger'],
       async run(repo: any) {
         const helpers = (await repo.glob('packages/*/lib/test_helper.dart')).sort();
         const target = helpers[0];

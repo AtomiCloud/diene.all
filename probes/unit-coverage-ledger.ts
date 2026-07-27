@@ -38,7 +38,7 @@ export default {
       name: 'mutation-unit-coverage-ledger-caught',
       description: 'the unit coverage ledger fails when an uncovered public member is added',
       kind: 'mutation',
-      expectedImpact: [],
+      expectedImpact: ['publish-dry-run'],
       async run(repo: any) {
         const barrel = await findBarrel(repo);
         const memberDir = barrel.replace(/\/lib\/[^/]+$/, '');

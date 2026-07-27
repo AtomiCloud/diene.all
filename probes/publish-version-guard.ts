@@ -23,7 +23,7 @@ export default {
       name: 'mutation-publish-version-guard-caught',
       description: 'the version guard fails once the member pubspec version drifts',
       kind: 'mutation',
-      expectedImpact: [],
+      expectedImpact: ['pub-workspace-metadata-validator'],
       async run(repo: any) {
         const version = (await repo.read('VERSION')).trim();
         await repo.patch('packages/diene_dart_lib/pubspec.yaml', {

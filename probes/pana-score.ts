@@ -27,7 +27,7 @@ export default {
       name: 'mutation-pana-score-caught',
       description: 'pana fails the threshold once the package description is removed',
       kind: 'mutation',
-      expectedImpact: [],
+      expectedImpact: ['publish-dry-run'],
       async run(repo: any) {
         await repo.patch('packages/diene_dart_lib/pubspec.yaml', {
           find: 'description:',
