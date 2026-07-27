@@ -114,21 +114,28 @@ class RescueRouter {
       store.delete(_pinKey(coordinate));
 
   /// Probe whether a base URL is reachable (a received status < 500).
+  /// Probe [baseUrl] and report whether it answered healthily.
+  ///
+  /// This method does NOT contain a throwing transport, deliberately. A probe is
+  /// always issued through [_probeWithinBudget], which already carries an
+  /// `onError` arm for exactly that case — so containment lives THERE, at ONE
+  /// point, placed where the author had already put a handler.
+  ///
+  /// The alternative (catching here as well) was implemented first and removed:
+  /// two containment points for one condition is harder to reason about, and the
+  /// inner catch made the outer arm unreachable, so the code carried a handler
+  /// that could never run. Proven before this change landed, test-first in a
+  /// throwaway: a discriminating test FAILED with the inner catch present and
+  /// PASSED without it, with coverage instrumentation showing all three
+  /// `onError` lines at hit=1 — the arm demonstrated to RUN, not merely to be
+  /// coverable.
+  ///
+  /// A rejection from this future is therefore expected and handled one level up;
+  /// it never reaches a caller of [rescue].
   Future<bool> probeHealthy(Uri baseUrl) async {
-    // A probe FAILS CLOSED. Same contract-violation guard as the document
-    // fetches: a throwing transport must read as "not healthy", never propagate
-    // into the caller's request path. `_probeWithinBudget` already carries an
-    // `onError` arm for this shape, which is the author's own evidence that the
-    // case was expected; guarding here means the arm is defence in depth rather
-    // than the only line.
-    final TransportOutcome outcome;
-    try {
-      outcome = await transport.send(
-        HttpRequest(method: HttpMethod.head, url: baseUrl),
-      );
-    } on Object {
-      return false;
-    }
+    final TransportOutcome outcome = await transport.send(
+      HttpRequest(method: HttpMethod.head, url: baseUrl),
+    );
     return outcome is Received && outcome.response.status < 500;
   }
 
