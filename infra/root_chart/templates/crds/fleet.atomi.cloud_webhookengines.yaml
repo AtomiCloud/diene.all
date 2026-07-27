@@ -1,0 +1,415 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.20.1
+  name: webhookengines.fleet.atomi.cloud
+spec:
+  group: fleet.atomi.cloud
+  names:
+    kind: WebhookEngine
+    listKind: WebhookEngineList
+    plural: webhookengines
+    shortNames:
+    - wheng
+    singular: webhookengine
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.home.vlandscape
+      name: Home
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="Ready")].status
+      name: Ready
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: WebhookEngine is the Schema for the webhookengines API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: |-
+              WebhookEngineSpec is management/config intent only. It deliberately has no
+              Worker, D1, KV, version, engine-version, or deployment fields: mercury owns
+              its runtime and is configured through its product management API.
+            properties:
+              backoff:
+                description: Backoff is the retry curve.
+                properties:
+                  initial:
+                    description: Initial is the first retry delay.
+                    pattern: ^[0-9]+(ns|us|ms|s|m|h)$
+                    type: string
+                  shape:
+                    description: Shape is the seconds-to-minutes-to-hours curve.
+                    enum:
+                    - exponential
+                    type: string
+                required:
+                - initial
+                - shape
+                type: object
+              circuitBreaker:
+                description: CircuitBreaker isolates a continuously failing endpoint.
+                properties:
+                  failWindow:
+                    description: FailWindow is the failure duration before the endpoint
+                      circuit opens.
+                    pattern: ^[0-9]+(ns|us|ms|s|m|h)$
+                    type: string
+                required:
+                - failWindow
+                type: object
+              customDomains:
+                description: CustomDomains is registered state, not a CNAME-only declaration.
+                items:
+                  maxLength: 253
+                  minLength: 1
+                  type: string
+                maxItems: 64
+                type: array
+                x-kubernetes-list-type: set
+              dedupWindow:
+                description: DedupWindow is the v1 deduplication horizon.
+                pattern: ^[0-9]+(ns|us|ms|s|m|h)$
+                type: string
+              home:
+                description: Home binds this internal tenant immutably to a vlandscape.
+                properties:
+                  vlandscape:
+                    description: |-
+                      VLandscape is immutable because moving intake requires a new tenant and
+                      an explicit cutover.
+                    maxLength: 63
+                    minLength: 1
+                    pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                    type: string
+                    x-kubernetes-validations:
+                    - message: home.vlandscape is immutable
+                      rule: self == oldSelf
+                required:
+                - vlandscape
+                type: object
+              quotas:
+                description: Quotas are enforced in mercury itself.
+                properties:
+                  burst:
+                    description: Burst is the permitted burst size.
+                    format: int32
+                    minimum: 1
+                    type: integer
+                  intakeRps:
+                    description: IntakeRPS is the sustained per-tenant intake rate.
+                    format: int32
+                    minimum: 1
+                    type: integer
+                required:
+                - burst
+                - intakeRps
+                type: object
+              retention:
+                description: Retention configures monthly live streams and archive-before-drop.
+                properties:
+                  archive:
+                    description: Archive identifies the archive-before-drop store.
+                    properties:
+                      bucket:
+                        description: Bucket is the Tigris bucket name.
+                        maxLength: 63
+                        minLength: 1
+                        pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                        type: string
+                      store:
+                        description: Store is the ruled archive store class.
+                        enum:
+                        - tigris
+                        type: string
+                    required:
+                    - bucket
+                    - store
+                    type: object
+                  cycle:
+                    description: Cycle is fixed to monthly in v1.
+                    enum:
+                    - monthly
+                    type: string
+                  keepMonths:
+                    description: KeepMonths is the number of month streams retained
+                      live.
+                    format: int32
+                    maximum: 120
+                    minimum: 1
+                    type: integer
+                required:
+                - archive
+                - cycle
+                - keepMonths
+                type: object
+              retryWindow:
+                description: RetryWindow is the maximum independent endpoint retry
+                  duration.
+                pattern: ^[0-9]+(ns|us|ms|s|m|h)$
+                type: string
+            required:
+            - backoff
+            - circuitBreaker
+            - dedupWindow
+            - home
+            - quotas
+            - retention
+            - retryWindow
+            type: object
+          status:
+            description: WebhookEngineStatus is the observed internal-tenant configuration
+              state.
+            properties:
+              conditions:
+                description: |-
+                  Conditions include ConfigCompiled, SecretsFanned, HomeChangeBlocked,
+                  TargetNotServed, Conflict, TenantProvisioned, OrphanedProvider and Ready.
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              landscapes:
+                additionalProperties:
+                  description: WebhookLandscapeStatus mirrors mercury's compilation
+                    acknowledgement.
+                  properties:
+                    acked:
+                      description: Acked reports that the serving landscape observes
+                        that generation.
+                      type: boolean
+                    conditions:
+                      description: Conditions isolate per-landscape compilation/ack
+                        failures.
+                      items:
+                        description: Condition contains details for one aspect of
+                          the current state of this API Resource.
+                        properties:
+                          lastTransitionTime:
+                            description: |-
+                              lastTransitionTime is the last time the condition transitioned from one status to another.
+                              This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                            format: date-time
+                            type: string
+                          message:
+                            description: |-
+                              message is a human readable message indicating details about the transition.
+                              This may be an empty string.
+                            maxLength: 32768
+                            type: string
+                          observedGeneration:
+                            description: |-
+                              observedGeneration represents the .metadata.generation that the condition was set based upon.
+                              For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                              with respect to the current state of the instance.
+                            format: int64
+                            minimum: 0
+                            type: integer
+                          reason:
+                            description: |-
+                              reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                              Producers of specific condition types may define expected values and meanings for this field,
+                              and whether the values are considered a guaranteed API.
+                              The value should be a CamelCase string.
+                              This field may not be empty.
+                            maxLength: 1024
+                            minLength: 1
+                            pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                            type: string
+                          status:
+                            description: status of the condition, one of True, False,
+                              Unknown.
+                            enum:
+                            - "True"
+                            - "False"
+                            - Unknown
+                            type: string
+                          type:
+                            description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                            maxLength: 316
+                            pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                            type: string
+                        required:
+                        - lastTransitionTime
+                        - message
+                        - reason
+                        - status
+                        - type
+                        type: object
+                      type: array
+                      x-kubernetes-list-map-keys:
+                      - type
+                      x-kubernetes-list-type: map
+                    configGeneration:
+                      description: ConfigGeneration is the generation mercury compiled
+                        for this landscape.
+                      format: int64
+                      type: integer
+                  type: object
+                description: Landscapes mirrors mercury config generations and acknowledgements.
+                type: object
+              observedGeneration:
+                description: ObservedGeneration is the spec generation last reconciled.
+                format: int64
+                type: integer
+              providers:
+                additionalProperties:
+                  description: WebhookProviderStatus records route use and last-known
+                    orphan grace.
+                  properties:
+                    conditions:
+                      description: Conditions include OrphanedProvider.
+                      items:
+                        description: Condition contains details for one aspect of
+                          the current state of this API Resource.
+                        properties:
+                          lastTransitionTime:
+                            description: |-
+                              lastTransitionTime is the last time the condition transitioned from one status to another.
+                              This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                            format: date-time
+                            type: string
+                          message:
+                            description: |-
+                              message is a human readable message indicating details about the transition.
+                              This may be an empty string.
+                            maxLength: 32768
+                            type: string
+                          observedGeneration:
+                            description: |-
+                              observedGeneration represents the .metadata.generation that the condition was set based upon.
+                              For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                              with respect to the current state of the instance.
+                            format: int64
+                            minimum: 0
+                            type: integer
+                          reason:
+                            description: |-
+                              reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                              Producers of specific condition types may define expected values and meanings for this field,
+                              and whether the values are considered a guaranteed API.
+                              The value should be a CamelCase string.
+                              This field may not be empty.
+                            maxLength: 1024
+                            minLength: 1
+                            pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                            type: string
+                          status:
+                            description: status of the condition, one of True, False,
+                              Unknown.
+                            enum:
+                            - "True"
+                            - "False"
+                            - Unknown
+                            type: string
+                          type:
+                            description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                            maxLength: 316
+                            pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                            type: string
+                        required:
+                        - lastTransitionTime
+                        - message
+                        - reason
+                        - status
+                        - type
+                        type: object
+                      type: array
+                      x-kubernetes-list-map-keys:
+                      - type
+                      x-kubernetes-list-type: map
+                    orphaned:
+                      description: Orphaned keeps last-known verification config through
+                        retention.
+                      type: boolean
+                    routeCount:
+                      description: RouteCount is the number of live routes using this
+                        provider config.
+                      format: int32
+                      type: integer
+                  type: object
+                description: Providers tracks route count and orphan grace per provider.
+                type: object
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

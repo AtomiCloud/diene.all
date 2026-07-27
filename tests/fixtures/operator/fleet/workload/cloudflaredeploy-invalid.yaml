@@ -1,0 +1,11 @@
+apiVersion: fleet.atomi.cloud/v1alpha1
+kind: CloudflareDeploy
+metadata:
+  name: web-nitroso-invalid
+  namespace: nitroso
+spec:
+  scriptName: web-nitroso
+  desiredVersion: version-41
+  desiredVersionFrom:
+    tag: freight-2026-07-27
+  pin: true

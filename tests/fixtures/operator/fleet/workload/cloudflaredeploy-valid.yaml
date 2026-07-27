@@ -1,0 +1,18 @@
+apiVersion: fleet.atomi.cloud/v1alpha1
+kind: CloudflareDeploy
+metadata:
+  name: web-nitroso
+  namespace: nitroso
+spec:
+  scriptName: web-nitroso
+  desiredVersionFrom:
+    tag: freight-2026-07-27
+  rollout:
+    strategy: gradual
+    steps:
+      - percent: 10
+        soak: 10m
+      - percent: 50
+        soak: 30m
+      - percent: 100
+  pin: true

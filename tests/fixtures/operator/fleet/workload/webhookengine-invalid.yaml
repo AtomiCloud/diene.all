@@ -1,0 +1,24 @@
+apiVersion: fleet.atomi.cloud/v1alpha1
+kind: WebhookEngine
+metadata:
+  name: mercury-invalid
+  namespace: nitroso
+spec:
+  home:
+    vlandscape: mew
+  retention:
+    cycle: weekly
+    keepMonths: 2
+    archive:
+      store: tigris
+      bucket: webhook-archive
+  retryWindow: 72h
+  backoff:
+    initial: 5s
+    shape: exponential
+  circuitBreaker:
+    failWindow: 24h
+  dedupWindow: 72h
+  quotas:
+    intakeRps: 50
+    burst: 200

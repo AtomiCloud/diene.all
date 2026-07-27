@@ -1,0 +1,2080 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.20.1
+  name: platformdependencies.fleet.atomi.cloud
+spec:
+  group: fleet.atomi.cloud
+  names:
+    kind: PlatformDependency
+    listKind: PlatformDependencyList
+    plural: platformdependencies
+    shortNames:
+    - pdep
+    singular: platformdependency
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.platform
+      name: Platform
+      type: string
+    - jsonPath: .spec.landscape
+      name: Landscape
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="Ready")].status
+      name: Ready
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: PlatformDependency is the Schema for the platformdependencies
+          API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: |-
+              PlatformDependencySpec is the desired state of a row or one shared
+              platform-by-vlandscape declaration.
+
+              Garden names are the seven ruled workload landscapes. Local parity types
+              are legal there, preview fork types are legal only in plusle/minun, and
+              registered host/vlandscape declarations use production realizations.
+              Cross-object facts (account existence/permissions, envelope membership,
+              preferred-host validity, and cluster multiplicity) remain reconcile-time
+              ERROR conditions because CRD CEL cannot query the registry.
+            properties:
+              cache:
+                additionalProperties:
+                  description: |-
+                    PlatformDependencyModuleSpec is the flat realization-independent module
+                    core plus the explicit type and typed engine union.
+                  properties:
+                    account:
+                      description: |-
+                        Account is the legacy named-account spelling. If present it must agree
+                        with ProviderAccountRef.
+                      properties:
+                        name:
+                          description: Name is unique within the selected vendor.
+                          maxLength: 63
+                          minLength: 1
+                          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                          type: string
+                      required:
+                      - name
+                      type: object
+                    adopt:
+                      description: Adopt explicitly permits rebinding to a changed
+                        backing identity.
+                      type: boolean
+                    backup:
+                      description: Backup declares the hard cross-vendor recovery
+                        obligation.
+                      properties:
+                        crossVendor:
+                          description: CrossVendor requires the recovery copy to leave
+                            the primary vendor.
+                          type: boolean
+                      required:
+                      - crossVendor
+                      type: object
+                    cpu:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      description: CPU is a quantity-like string or numeric CPU count.
+                      x-kubernetes-int-or-string: true
+                    credentialMode:
+                      description: CredentialMode declares whether the application
+                        receives credentials.
+                      enum:
+                      - standard
+                      - none
+                      type: string
+                    delivery:
+                      description: Delivery selects vendor, direct local, or ApplicationSet
+                        realization.
+                      enum:
+                      - external
+                      - local
+                      - replicated
+                      type: string
+                    engine:
+                      description: Engine carries exactly the selected type's provider-specific
+                        settings.
+                      properties:
+                        cf-email-sending:
+                          description: CFEmailSending configures Cloudflare Email
+                            Sending.
+                          type: object
+                        cnpg:
+                          description: CNPG selects the local CNPG realization.
+                          type: object
+                        dragonfly:
+                          description: Dragonfly configures a local or replicated
+                            Dragonfly instance.
+                          properties:
+                            snapshot:
+                              description: Snapshot enables the upstream snapshot
+                                durability used for local KV.
+                              type: boolean
+                          type: object
+                        mailpit:
+                          description: Mailpit configures the credential-free local
+                            mail sink.
+                          type: object
+                        minio:
+                          description: MinIO configures a Garden-local MinIO bucket.
+                          type: object
+                        neon:
+                          description: Neon configures a Neon project.
+                          properties:
+                            autoscale:
+                              description: Autoscale is the optional compute-unit
+                                range.
+                              properties:
+                                maxCu:
+                                  description: MaxCU is the upper autoscaling bound.
+                                  minimum: 0
+                                  type: number
+                                minCu:
+                                  description: MinCU is the lower autoscaling bound.
+                                  minimum: 0
+                                  type: number
+                              required:
+                              - maxCu
+                              - minCu
+                              type: object
+                            tier:
+                              description: Tier is the named Neon plan/tier.
+                              minLength: 1
+                              type: string
+                          type: object
+                        neon-fork:
+                          description: NeonFork configures a broker-created Neon branch.
+                          properties:
+                            parent:
+                              description: Parent is the credential-free LPSM coordinate
+                                of the source module.
+                              properties:
+                                landscape:
+                                  description: Landscape is the parent host or virtual
+                                    landscape.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                module:
+                                  description: Module is the parent's logical module
+                                    name.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                platform:
+                                  description: Platform is the parent platform.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                service:
+                                  description: Service is the parent service.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                              required:
+                              - landscape
+                              - module
+                              - platform
+                              - service
+                              type: object
+                            ttl:
+                              description: TTL is the renewable allocation lifetime.
+                              pattern: ^[0-9]+(ns|us|ms|s|m|h)$
+                              type: string
+                          required:
+                          - parent
+                          - ttl
+                          type: object
+                        r2:
+                          description: R2 configures a Cloudflare R2 bucket.
+                          type: object
+                        s3:
+                          description: S3 configures an S3 bucket.
+                          type: object
+                        ses:
+                          description: SES configures AWS SES sending.
+                          type: object
+                        tigris:
+                          description: Tigris configures a managed snapshot-enabled
+                            Tigris bucket.
+                          type: object
+                        tigris-fork:
+                          description: TigrisFork configures a native Tigris CoW fork.
+                          properties:
+                            parent:
+                              description: Parent is the credential-free LPSM coordinate
+                                of the source module.
+                              properties:
+                                landscape:
+                                  description: Landscape is the parent host or virtual
+                                    landscape.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                module:
+                                  description: Module is the parent's logical module
+                                    name.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                platform:
+                                  description: Platform is the parent platform.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                service:
+                                  description: Service is the parent service.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                              required:
+                              - landscape
+                              - module
+                              - platform
+                              - service
+                              type: object
+                            ttl:
+                              description: TTL is the renewable allocation lifetime.
+                              pattern: ^[0-9]+(ns|us|ms|s|m|h)$
+                              type: string
+                          required:
+                          - parent
+                          - ttl
+                          type: object
+                        upstash:
+                          description: Upstash configures a managed Upstash database.
+                          type: object
+                        upstash-fork:
+                          description: UpstashFork configures a broker-created Upstash
+                            restore fork.
+                          properties:
+                            parent:
+                              description: Parent is the credential-free LPSM coordinate
+                                of the source module.
+                              properties:
+                                landscape:
+                                  description: Landscape is the parent host or virtual
+                                    landscape.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                module:
+                                  description: Module is the parent's logical module
+                                    name.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                platform:
+                                  description: Platform is the parent platform.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                service:
+                                  description: Service is the parent service.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                              required:
+                              - landscape
+                              - module
+                              - platform
+                              - service
+                              type: object
+                            ttl:
+                              description: TTL is the renewable allocation lifetime.
+                              pattern: ^[0-9]+(ns|us|ms|s|m|h)$
+                              type: string
+                          required:
+                          - parent
+                          - ttl
+                          type: object
+                      type: object
+                    providerAccountRef:
+                      description: ProviderAccountRef names the ProviderAccount for
+                        an external type.
+                      maxLength: 63
+                      minLength: 1
+                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                      type: string
+                    ram:
+                      description: RAM is a Kubernetes-style quantity.
+                      minLength: 1
+                      type: string
+                    rotation:
+                      description: Rotation is the explicit registered-fleet rotation
+                        knob.
+                      enum:
+                      - "on"
+                      - "off"
+                      type: string
+                    storage:
+                      description: Storage is a Kubernetes-style quantity.
+                      minLength: 1
+                      type: string
+                    type:
+                      description: Type is the sole realization selector.
+                      enum:
+                      - neon
+                      - neon-fork
+                      - cnpg
+                      - upstash
+                      - upstash-fork
+                      - dragonfly
+                      - tigris
+                      - tigris-fork
+                      - r2
+                      - s3
+                      - minio
+                      - ses
+                      - cf-email-sending
+                      - mailpit
+                      type: string
+                    version:
+                      description: Version is the requested engine version.
+                      minLength: 1
+                      type: string
+                  required:
+                  - credentialMode
+                  - delivery
+                  - engine
+                  - rotation
+                  - type
+                  type: object
+                  x-kubernetes-validations:
+                  - message: exactly one engine key must be present and equal type
+                    rule: has(self.engine.neon) == (self.type == 'neon') && has(self.engine.neon__dash__fork)
+                      == (self.type == 'neon-fork') && has(self.engine.cnpg) == (self.type
+                      == 'cnpg') && has(self.engine.upstash) == (self.type == 'upstash')
+                      && has(self.engine.upstash__dash__fork) == (self.type == 'upstash-fork')
+                      && has(self.engine.dragonfly) == (self.type == 'dragonfly')
+                      && has(self.engine.tigris) == (self.type == 'tigris') && has(self.engine.tigris__dash__fork)
+                      == (self.type == 'tigris-fork') && has(self.engine.r2) == (self.type
+                      == 'r2') && has(self.engine.s3) == (self.type == 's3') && has(self.engine.minio)
+                      == (self.type == 'minio') && has(self.engine.ses) == (self.type
+                      == 'ses') && has(self.engine.cf__dash__email__dash__sending)
+                      == (self.type == 'cf-email-sending') && has(self.engine.mailpit)
+                      == (self.type == 'mailpit')
+                  - message: delivery is not legal for the selected type
+                    rule: 'self.type in [''neon'',''neon-fork'',''upstash'',''upstash-fork'',''tigris'',''tigris-fork'',''r2'',''s3'',''ses'',''cf-email-sending'']
+                      ? self.delivery == ''external'' : self.type in [''cnpg'',''minio'',''mailpit'']
+                      ? self.delivery == ''local'' : self.type == ''dragonfly'' ?
+                      self.delivery in [''local'',''replicated''] : false'
+                  - message: external modules require providerAccountRef and local
+                      or replicated modules cannot select an account
+                    rule: (self.delivery == 'external' && has(self.providerAccountRef))
+                      || (self.delivery != 'external' && !has(self.providerAccountRef)
+                      && !has(self.account))
+                  - message: account.name and providerAccountRef must agree when both
+                      are present
+                    rule: '!has(self.account) || !has(self.providerAccountRef) ||
+                      self.account.name == self.providerAccountRef'
+                description: Cache holds ephemeral Dragonfly modules.
+                maxProperties: 128
+                type: object
+                x-kubernetes-validations:
+                - message: cache modules must use dragonfly
+                  rule: self.all(k, m, m.type == 'dragonfly')
+              database:
+                additionalProperties:
+                  description: |-
+                    PlatformDependencyModuleSpec is the flat realization-independent module
+                    core plus the explicit type and typed engine union.
+                  properties:
+                    account:
+                      description: |-
+                        Account is the legacy named-account spelling. If present it must agree
+                        with ProviderAccountRef.
+                      properties:
+                        name:
+                          description: Name is unique within the selected vendor.
+                          maxLength: 63
+                          minLength: 1
+                          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                          type: string
+                      required:
+                      - name
+                      type: object
+                    adopt:
+                      description: Adopt explicitly permits rebinding to a changed
+                        backing identity.
+                      type: boolean
+                    backup:
+                      description: Backup declares the hard cross-vendor recovery
+                        obligation.
+                      properties:
+                        crossVendor:
+                          description: CrossVendor requires the recovery copy to leave
+                            the primary vendor.
+                          type: boolean
+                      required:
+                      - crossVendor
+                      type: object
+                    cpu:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      description: CPU is a quantity-like string or numeric CPU count.
+                      x-kubernetes-int-or-string: true
+                    credentialMode:
+                      description: CredentialMode declares whether the application
+                        receives credentials.
+                      enum:
+                      - standard
+                      - none
+                      type: string
+                    delivery:
+                      description: Delivery selects vendor, direct local, or ApplicationSet
+                        realization.
+                      enum:
+                      - external
+                      - local
+                      - replicated
+                      type: string
+                    engine:
+                      description: Engine carries exactly the selected type's provider-specific
+                        settings.
+                      properties:
+                        cf-email-sending:
+                          description: CFEmailSending configures Cloudflare Email
+                            Sending.
+                          type: object
+                        cnpg:
+                          description: CNPG selects the local CNPG realization.
+                          type: object
+                        dragonfly:
+                          description: Dragonfly configures a local or replicated
+                            Dragonfly instance.
+                          properties:
+                            snapshot:
+                              description: Snapshot enables the upstream snapshot
+                                durability used for local KV.
+                              type: boolean
+                          type: object
+                        mailpit:
+                          description: Mailpit configures the credential-free local
+                            mail sink.
+                          type: object
+                        minio:
+                          description: MinIO configures a Garden-local MinIO bucket.
+                          type: object
+                        neon:
+                          description: Neon configures a Neon project.
+                          properties:
+                            autoscale:
+                              description: Autoscale is the optional compute-unit
+                                range.
+                              properties:
+                                maxCu:
+                                  description: MaxCU is the upper autoscaling bound.
+                                  minimum: 0
+                                  type: number
+                                minCu:
+                                  description: MinCU is the lower autoscaling bound.
+                                  minimum: 0
+                                  type: number
+                              required:
+                              - maxCu
+                              - minCu
+                              type: object
+                            tier:
+                              description: Tier is the named Neon plan/tier.
+                              minLength: 1
+                              type: string
+                          type: object
+                        neon-fork:
+                          description: NeonFork configures a broker-created Neon branch.
+                          properties:
+                            parent:
+                              description: Parent is the credential-free LPSM coordinate
+                                of the source module.
+                              properties:
+                                landscape:
+                                  description: Landscape is the parent host or virtual
+                                    landscape.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                module:
+                                  description: Module is the parent's logical module
+                                    name.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                platform:
+                                  description: Platform is the parent platform.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                service:
+                                  description: Service is the parent service.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                              required:
+                              - landscape
+                              - module
+                              - platform
+                              - service
+                              type: object
+                            ttl:
+                              description: TTL is the renewable allocation lifetime.
+                              pattern: ^[0-9]+(ns|us|ms|s|m|h)$
+                              type: string
+                          required:
+                          - parent
+                          - ttl
+                          type: object
+                        r2:
+                          description: R2 configures a Cloudflare R2 bucket.
+                          type: object
+                        s3:
+                          description: S3 configures an S3 bucket.
+                          type: object
+                        ses:
+                          description: SES configures AWS SES sending.
+                          type: object
+                        tigris:
+                          description: Tigris configures a managed snapshot-enabled
+                            Tigris bucket.
+                          type: object
+                        tigris-fork:
+                          description: TigrisFork configures a native Tigris CoW fork.
+                          properties:
+                            parent:
+                              description: Parent is the credential-free LPSM coordinate
+                                of the source module.
+                              properties:
+                                landscape:
+                                  description: Landscape is the parent host or virtual
+                                    landscape.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                module:
+                                  description: Module is the parent's logical module
+                                    name.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                platform:
+                                  description: Platform is the parent platform.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                service:
+                                  description: Service is the parent service.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                              required:
+                              - landscape
+                              - module
+                              - platform
+                              - service
+                              type: object
+                            ttl:
+                              description: TTL is the renewable allocation lifetime.
+                              pattern: ^[0-9]+(ns|us|ms|s|m|h)$
+                              type: string
+                          required:
+                          - parent
+                          - ttl
+                          type: object
+                        upstash:
+                          description: Upstash configures a managed Upstash database.
+                          type: object
+                        upstash-fork:
+                          description: UpstashFork configures a broker-created Upstash
+                            restore fork.
+                          properties:
+                            parent:
+                              description: Parent is the credential-free LPSM coordinate
+                                of the source module.
+                              properties:
+                                landscape:
+                                  description: Landscape is the parent host or virtual
+                                    landscape.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                module:
+                                  description: Module is the parent's logical module
+                                    name.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                platform:
+                                  description: Platform is the parent platform.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                service:
+                                  description: Service is the parent service.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                              required:
+                              - landscape
+                              - module
+                              - platform
+                              - service
+                              type: object
+                            ttl:
+                              description: TTL is the renewable allocation lifetime.
+                              pattern: ^[0-9]+(ns|us|ms|s|m|h)$
+                              type: string
+                          required:
+                          - parent
+                          - ttl
+                          type: object
+                      type: object
+                    providerAccountRef:
+                      description: ProviderAccountRef names the ProviderAccount for
+                        an external type.
+                      maxLength: 63
+                      minLength: 1
+                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                      type: string
+                    ram:
+                      description: RAM is a Kubernetes-style quantity.
+                      minLength: 1
+                      type: string
+                    rotation:
+                      description: Rotation is the explicit registered-fleet rotation
+                        knob.
+                      enum:
+                      - "on"
+                      - "off"
+                      type: string
+                    storage:
+                      description: Storage is a Kubernetes-style quantity.
+                      minLength: 1
+                      type: string
+                    type:
+                      description: Type is the sole realization selector.
+                      enum:
+                      - neon
+                      - neon-fork
+                      - cnpg
+                      - upstash
+                      - upstash-fork
+                      - dragonfly
+                      - tigris
+                      - tigris-fork
+                      - r2
+                      - s3
+                      - minio
+                      - ses
+                      - cf-email-sending
+                      - mailpit
+                      type: string
+                    version:
+                      description: Version is the requested engine version.
+                      minLength: 1
+                      type: string
+                  required:
+                  - credentialMode
+                  - delivery
+                  - engine
+                  - rotation
+                  - type
+                  type: object
+                  x-kubernetes-validations:
+                  - message: exactly one engine key must be present and equal type
+                    rule: has(self.engine.neon) == (self.type == 'neon') && has(self.engine.neon__dash__fork)
+                      == (self.type == 'neon-fork') && has(self.engine.cnpg) == (self.type
+                      == 'cnpg') && has(self.engine.upstash) == (self.type == 'upstash')
+                      && has(self.engine.upstash__dash__fork) == (self.type == 'upstash-fork')
+                      && has(self.engine.dragonfly) == (self.type == 'dragonfly')
+                      && has(self.engine.tigris) == (self.type == 'tigris') && has(self.engine.tigris__dash__fork)
+                      == (self.type == 'tigris-fork') && has(self.engine.r2) == (self.type
+                      == 'r2') && has(self.engine.s3) == (self.type == 's3') && has(self.engine.minio)
+                      == (self.type == 'minio') && has(self.engine.ses) == (self.type
+                      == 'ses') && has(self.engine.cf__dash__email__dash__sending)
+                      == (self.type == 'cf-email-sending') && has(self.engine.mailpit)
+                      == (self.type == 'mailpit')
+                  - message: delivery is not legal for the selected type
+                    rule: 'self.type in [''neon'',''neon-fork'',''upstash'',''upstash-fork'',''tigris'',''tigris-fork'',''r2'',''s3'',''ses'',''cf-email-sending'']
+                      ? self.delivery == ''external'' : self.type in [''cnpg'',''minio'',''mailpit'']
+                      ? self.delivery == ''local'' : self.type == ''dragonfly'' ?
+                      self.delivery in [''local'',''replicated''] : false'
+                  - message: external modules require providerAccountRef and local
+                      or replicated modules cannot select an account
+                    rule: (self.delivery == 'external' && has(self.providerAccountRef))
+                      || (self.delivery != 'external' && !has(self.providerAccountRef)
+                      && !has(self.account))
+                  - message: account.name and providerAccountRef must agree when both
+                      are present
+                    rule: '!has(self.account) || !has(self.providerAccountRef) ||
+                      self.account.name == self.providerAccountRef'
+                description: Database holds postgres modules.
+                maxProperties: 128
+                type: object
+                x-kubernetes-validations:
+                - message: database modules must use a database type
+                  rule: self.all(k, m, m.type in ['neon','neon-fork','cnpg'])
+              deletionPolicy:
+                description: DeletionPolicy controls the post-delete Secret-pointer
+                  grace.
+                properties:
+                  retainSecret:
+                    description: RetainSecret is a Go-style duration such as 168h.
+                    pattern: ^[0-9]+(ns|us|ms|s|m|h)$
+                    type: string
+                required:
+                - retainSecret
+                type: object
+              email:
+                additionalProperties:
+                  description: |-
+                    PlatformDependencyModuleSpec is the flat realization-independent module
+                    core plus the explicit type and typed engine union.
+                  properties:
+                    account:
+                      description: |-
+                        Account is the legacy named-account spelling. If present it must agree
+                        with ProviderAccountRef.
+                      properties:
+                        name:
+                          description: Name is unique within the selected vendor.
+                          maxLength: 63
+                          minLength: 1
+                          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                          type: string
+                      required:
+                      - name
+                      type: object
+                    adopt:
+                      description: Adopt explicitly permits rebinding to a changed
+                        backing identity.
+                      type: boolean
+                    backup:
+                      description: Backup declares the hard cross-vendor recovery
+                        obligation.
+                      properties:
+                        crossVendor:
+                          description: CrossVendor requires the recovery copy to leave
+                            the primary vendor.
+                          type: boolean
+                      required:
+                      - crossVendor
+                      type: object
+                    cpu:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      description: CPU is a quantity-like string or numeric CPU count.
+                      x-kubernetes-int-or-string: true
+                    credentialMode:
+                      description: CredentialMode declares whether the application
+                        receives credentials.
+                      enum:
+                      - standard
+                      - none
+                      type: string
+                    delivery:
+                      description: Delivery selects vendor, direct local, or ApplicationSet
+                        realization.
+                      enum:
+                      - external
+                      - local
+                      - replicated
+                      type: string
+                    engine:
+                      description: Engine carries exactly the selected type's provider-specific
+                        settings.
+                      properties:
+                        cf-email-sending:
+                          description: CFEmailSending configures Cloudflare Email
+                            Sending.
+                          type: object
+                        cnpg:
+                          description: CNPG selects the local CNPG realization.
+                          type: object
+                        dragonfly:
+                          description: Dragonfly configures a local or replicated
+                            Dragonfly instance.
+                          properties:
+                            snapshot:
+                              description: Snapshot enables the upstream snapshot
+                                durability used for local KV.
+                              type: boolean
+                          type: object
+                        mailpit:
+                          description: Mailpit configures the credential-free local
+                            mail sink.
+                          type: object
+                        minio:
+                          description: MinIO configures a Garden-local MinIO bucket.
+                          type: object
+                        neon:
+                          description: Neon configures a Neon project.
+                          properties:
+                            autoscale:
+                              description: Autoscale is the optional compute-unit
+                                range.
+                              properties:
+                                maxCu:
+                                  description: MaxCU is the upper autoscaling bound.
+                                  minimum: 0
+                                  type: number
+                                minCu:
+                                  description: MinCU is the lower autoscaling bound.
+                                  minimum: 0
+                                  type: number
+                              required:
+                              - maxCu
+                              - minCu
+                              type: object
+                            tier:
+                              description: Tier is the named Neon plan/tier.
+                              minLength: 1
+                              type: string
+                          type: object
+                        neon-fork:
+                          description: NeonFork configures a broker-created Neon branch.
+                          properties:
+                            parent:
+                              description: Parent is the credential-free LPSM coordinate
+                                of the source module.
+                              properties:
+                                landscape:
+                                  description: Landscape is the parent host or virtual
+                                    landscape.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                module:
+                                  description: Module is the parent's logical module
+                                    name.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                platform:
+                                  description: Platform is the parent platform.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                service:
+                                  description: Service is the parent service.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                              required:
+                              - landscape
+                              - module
+                              - platform
+                              - service
+                              type: object
+                            ttl:
+                              description: TTL is the renewable allocation lifetime.
+                              pattern: ^[0-9]+(ns|us|ms|s|m|h)$
+                              type: string
+                          required:
+                          - parent
+                          - ttl
+                          type: object
+                        r2:
+                          description: R2 configures a Cloudflare R2 bucket.
+                          type: object
+                        s3:
+                          description: S3 configures an S3 bucket.
+                          type: object
+                        ses:
+                          description: SES configures AWS SES sending.
+                          type: object
+                        tigris:
+                          description: Tigris configures a managed snapshot-enabled
+                            Tigris bucket.
+                          type: object
+                        tigris-fork:
+                          description: TigrisFork configures a native Tigris CoW fork.
+                          properties:
+                            parent:
+                              description: Parent is the credential-free LPSM coordinate
+                                of the source module.
+                              properties:
+                                landscape:
+                                  description: Landscape is the parent host or virtual
+                                    landscape.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                module:
+                                  description: Module is the parent's logical module
+                                    name.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                platform:
+                                  description: Platform is the parent platform.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                service:
+                                  description: Service is the parent service.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                              required:
+                              - landscape
+                              - module
+                              - platform
+                              - service
+                              type: object
+                            ttl:
+                              description: TTL is the renewable allocation lifetime.
+                              pattern: ^[0-9]+(ns|us|ms|s|m|h)$
+                              type: string
+                          required:
+                          - parent
+                          - ttl
+                          type: object
+                        upstash:
+                          description: Upstash configures a managed Upstash database.
+                          type: object
+                        upstash-fork:
+                          description: UpstashFork configures a broker-created Upstash
+                            restore fork.
+                          properties:
+                            parent:
+                              description: Parent is the credential-free LPSM coordinate
+                                of the source module.
+                              properties:
+                                landscape:
+                                  description: Landscape is the parent host or virtual
+                                    landscape.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                module:
+                                  description: Module is the parent's logical module
+                                    name.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                platform:
+                                  description: Platform is the parent platform.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                service:
+                                  description: Service is the parent service.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                              required:
+                              - landscape
+                              - module
+                              - platform
+                              - service
+                              type: object
+                            ttl:
+                              description: TTL is the renewable allocation lifetime.
+                              pattern: ^[0-9]+(ns|us|ms|s|m|h)$
+                              type: string
+                          required:
+                          - parent
+                          - ttl
+                          type: object
+                      type: object
+                    providerAccountRef:
+                      description: ProviderAccountRef names the ProviderAccount for
+                        an external type.
+                      maxLength: 63
+                      minLength: 1
+                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                      type: string
+                    ram:
+                      description: RAM is a Kubernetes-style quantity.
+                      minLength: 1
+                      type: string
+                    rotation:
+                      description: Rotation is the explicit registered-fleet rotation
+                        knob.
+                      enum:
+                      - "on"
+                      - "off"
+                      type: string
+                    storage:
+                      description: Storage is a Kubernetes-style quantity.
+                      minLength: 1
+                      type: string
+                    type:
+                      description: Type is the sole realization selector.
+                      enum:
+                      - neon
+                      - neon-fork
+                      - cnpg
+                      - upstash
+                      - upstash-fork
+                      - dragonfly
+                      - tigris
+                      - tigris-fork
+                      - r2
+                      - s3
+                      - minio
+                      - ses
+                      - cf-email-sending
+                      - mailpit
+                      type: string
+                    version:
+                      description: Version is the requested engine version.
+                      minLength: 1
+                      type: string
+                  required:
+                  - credentialMode
+                  - delivery
+                  - engine
+                  - rotation
+                  - type
+                  type: object
+                  x-kubernetes-validations:
+                  - message: exactly one engine key must be present and equal type
+                    rule: has(self.engine.neon) == (self.type == 'neon') && has(self.engine.neon__dash__fork)
+                      == (self.type == 'neon-fork') && has(self.engine.cnpg) == (self.type
+                      == 'cnpg') && has(self.engine.upstash) == (self.type == 'upstash')
+                      && has(self.engine.upstash__dash__fork) == (self.type == 'upstash-fork')
+                      && has(self.engine.dragonfly) == (self.type == 'dragonfly')
+                      && has(self.engine.tigris) == (self.type == 'tigris') && has(self.engine.tigris__dash__fork)
+                      == (self.type == 'tigris-fork') && has(self.engine.r2) == (self.type
+                      == 'r2') && has(self.engine.s3) == (self.type == 's3') && has(self.engine.minio)
+                      == (self.type == 'minio') && has(self.engine.ses) == (self.type
+                      == 'ses') && has(self.engine.cf__dash__email__dash__sending)
+                      == (self.type == 'cf-email-sending') && has(self.engine.mailpit)
+                      == (self.type == 'mailpit')
+                  - message: delivery is not legal for the selected type
+                    rule: 'self.type in [''neon'',''neon-fork'',''upstash'',''upstash-fork'',''tigris'',''tigris-fork'',''r2'',''s3'',''ses'',''cf-email-sending'']
+                      ? self.delivery == ''external'' : self.type in [''cnpg'',''minio'',''mailpit'']
+                      ? self.delivery == ''local'' : self.type == ''dragonfly'' ?
+                      self.delivery in [''local'',''replicated''] : false'
+                  - message: external modules require providerAccountRef and local
+                      or replicated modules cannot select an account
+                    rule: (self.delivery == 'external' && has(self.providerAccountRef))
+                      || (self.delivery != 'external' && !has(self.providerAccountRef)
+                      && !has(self.account))
+                  - message: account.name and providerAccountRef must agree when both
+                      are present
+                    rule: '!has(self.account) || !has(self.providerAccountRef) ||
+                      self.account.name == self.providerAccountRef'
+                description: Email holds the platform-scoped sender or local sink.
+                maxProperties: 128
+                type: object
+                x-kubernetes-validations:
+                - message: email modules must use an email type
+                  rule: self.all(k, m, m.type in ['ses','cf-email-sending','mailpit'])
+              kv:
+                additionalProperties:
+                  description: |-
+                    PlatformDependencyModuleSpec is the flat realization-independent module
+                    core plus the explicit type and typed engine union.
+                  properties:
+                    account:
+                      description: |-
+                        Account is the legacy named-account spelling. If present it must agree
+                        with ProviderAccountRef.
+                      properties:
+                        name:
+                          description: Name is unique within the selected vendor.
+                          maxLength: 63
+                          minLength: 1
+                          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                          type: string
+                      required:
+                      - name
+                      type: object
+                    adopt:
+                      description: Adopt explicitly permits rebinding to a changed
+                        backing identity.
+                      type: boolean
+                    backup:
+                      description: Backup declares the hard cross-vendor recovery
+                        obligation.
+                      properties:
+                        crossVendor:
+                          description: CrossVendor requires the recovery copy to leave
+                            the primary vendor.
+                          type: boolean
+                      required:
+                      - crossVendor
+                      type: object
+                    cpu:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      description: CPU is a quantity-like string or numeric CPU count.
+                      x-kubernetes-int-or-string: true
+                    credentialMode:
+                      description: CredentialMode declares whether the application
+                        receives credentials.
+                      enum:
+                      - standard
+                      - none
+                      type: string
+                    delivery:
+                      description: Delivery selects vendor, direct local, or ApplicationSet
+                        realization.
+                      enum:
+                      - external
+                      - local
+                      - replicated
+                      type: string
+                    engine:
+                      description: Engine carries exactly the selected type's provider-specific
+                        settings.
+                      properties:
+                        cf-email-sending:
+                          description: CFEmailSending configures Cloudflare Email
+                            Sending.
+                          type: object
+                        cnpg:
+                          description: CNPG selects the local CNPG realization.
+                          type: object
+                        dragonfly:
+                          description: Dragonfly configures a local or replicated
+                            Dragonfly instance.
+                          properties:
+                            snapshot:
+                              description: Snapshot enables the upstream snapshot
+                                durability used for local KV.
+                              type: boolean
+                          type: object
+                        mailpit:
+                          description: Mailpit configures the credential-free local
+                            mail sink.
+                          type: object
+                        minio:
+                          description: MinIO configures a Garden-local MinIO bucket.
+                          type: object
+                        neon:
+                          description: Neon configures a Neon project.
+                          properties:
+                            autoscale:
+                              description: Autoscale is the optional compute-unit
+                                range.
+                              properties:
+                                maxCu:
+                                  description: MaxCU is the upper autoscaling bound.
+                                  minimum: 0
+                                  type: number
+                                minCu:
+                                  description: MinCU is the lower autoscaling bound.
+                                  minimum: 0
+                                  type: number
+                              required:
+                              - maxCu
+                              - minCu
+                              type: object
+                            tier:
+                              description: Tier is the named Neon plan/tier.
+                              minLength: 1
+                              type: string
+                          type: object
+                        neon-fork:
+                          description: NeonFork configures a broker-created Neon branch.
+                          properties:
+                            parent:
+                              description: Parent is the credential-free LPSM coordinate
+                                of the source module.
+                              properties:
+                                landscape:
+                                  description: Landscape is the parent host or virtual
+                                    landscape.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                module:
+                                  description: Module is the parent's logical module
+                                    name.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                platform:
+                                  description: Platform is the parent platform.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                service:
+                                  description: Service is the parent service.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                              required:
+                              - landscape
+                              - module
+                              - platform
+                              - service
+                              type: object
+                            ttl:
+                              description: TTL is the renewable allocation lifetime.
+                              pattern: ^[0-9]+(ns|us|ms|s|m|h)$
+                              type: string
+                          required:
+                          - parent
+                          - ttl
+                          type: object
+                        r2:
+                          description: R2 configures a Cloudflare R2 bucket.
+                          type: object
+                        s3:
+                          description: S3 configures an S3 bucket.
+                          type: object
+                        ses:
+                          description: SES configures AWS SES sending.
+                          type: object
+                        tigris:
+                          description: Tigris configures a managed snapshot-enabled
+                            Tigris bucket.
+                          type: object
+                        tigris-fork:
+                          description: TigrisFork configures a native Tigris CoW fork.
+                          properties:
+                            parent:
+                              description: Parent is the credential-free LPSM coordinate
+                                of the source module.
+                              properties:
+                                landscape:
+                                  description: Landscape is the parent host or virtual
+                                    landscape.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                module:
+                                  description: Module is the parent's logical module
+                                    name.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                platform:
+                                  description: Platform is the parent platform.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                service:
+                                  description: Service is the parent service.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                              required:
+                              - landscape
+                              - module
+                              - platform
+                              - service
+                              type: object
+                            ttl:
+                              description: TTL is the renewable allocation lifetime.
+                              pattern: ^[0-9]+(ns|us|ms|s|m|h)$
+                              type: string
+                          required:
+                          - parent
+                          - ttl
+                          type: object
+                        upstash:
+                          description: Upstash configures a managed Upstash database.
+                          type: object
+                        upstash-fork:
+                          description: UpstashFork configures a broker-created Upstash
+                            restore fork.
+                          properties:
+                            parent:
+                              description: Parent is the credential-free LPSM coordinate
+                                of the source module.
+                              properties:
+                                landscape:
+                                  description: Landscape is the parent host or virtual
+                                    landscape.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                module:
+                                  description: Module is the parent's logical module
+                                    name.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                platform:
+                                  description: Platform is the parent platform.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                service:
+                                  description: Service is the parent service.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                              required:
+                              - landscape
+                              - module
+                              - platform
+                              - service
+                              type: object
+                            ttl:
+                              description: TTL is the renewable allocation lifetime.
+                              pattern: ^[0-9]+(ns|us|ms|s|m|h)$
+                              type: string
+                          required:
+                          - parent
+                          - ttl
+                          type: object
+                      type: object
+                    providerAccountRef:
+                      description: ProviderAccountRef names the ProviderAccount for
+                        an external type.
+                      maxLength: 63
+                      minLength: 1
+                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                      type: string
+                    ram:
+                      description: RAM is a Kubernetes-style quantity.
+                      minLength: 1
+                      type: string
+                    rotation:
+                      description: Rotation is the explicit registered-fleet rotation
+                        knob.
+                      enum:
+                      - "on"
+                      - "off"
+                      type: string
+                    storage:
+                      description: Storage is a Kubernetes-style quantity.
+                      minLength: 1
+                      type: string
+                    type:
+                      description: Type is the sole realization selector.
+                      enum:
+                      - neon
+                      - neon-fork
+                      - cnpg
+                      - upstash
+                      - upstash-fork
+                      - dragonfly
+                      - tigris
+                      - tigris-fork
+                      - r2
+                      - s3
+                      - minio
+                      - ses
+                      - cf-email-sending
+                      - mailpit
+                      type: string
+                    version:
+                      description: Version is the requested engine version.
+                      minLength: 1
+                      type: string
+                  required:
+                  - credentialMode
+                  - delivery
+                  - engine
+                  - rotation
+                  - type
+                  type: object
+                  x-kubernetes-validations:
+                  - message: exactly one engine key must be present and equal type
+                    rule: has(self.engine.neon) == (self.type == 'neon') && has(self.engine.neon__dash__fork)
+                      == (self.type == 'neon-fork') && has(self.engine.cnpg) == (self.type
+                      == 'cnpg') && has(self.engine.upstash) == (self.type == 'upstash')
+                      && has(self.engine.upstash__dash__fork) == (self.type == 'upstash-fork')
+                      && has(self.engine.dragonfly) == (self.type == 'dragonfly')
+                      && has(self.engine.tigris) == (self.type == 'tigris') && has(self.engine.tigris__dash__fork)
+                      == (self.type == 'tigris-fork') && has(self.engine.r2) == (self.type
+                      == 'r2') && has(self.engine.s3) == (self.type == 's3') && has(self.engine.minio)
+                      == (self.type == 'minio') && has(self.engine.ses) == (self.type
+                      == 'ses') && has(self.engine.cf__dash__email__dash__sending)
+                      == (self.type == 'cf-email-sending') && has(self.engine.mailpit)
+                      == (self.type == 'mailpit')
+                  - message: delivery is not legal for the selected type
+                    rule: 'self.type in [''neon'',''neon-fork'',''upstash'',''upstash-fork'',''tigris'',''tigris-fork'',''r2'',''s3'',''ses'',''cf-email-sending'']
+                      ? self.delivery == ''external'' : self.type in [''cnpg'',''minio'',''mailpit'']
+                      ? self.delivery == ''local'' : self.type == ''dragonfly'' ?
+                      self.delivery in [''local'',''replicated''] : false'
+                  - message: external modules require providerAccountRef and local
+                      or replicated modules cannot select an account
+                    rule: (self.delivery == 'external' && has(self.providerAccountRef))
+                      || (self.delivery != 'external' && !has(self.providerAccountRef)
+                      && !has(self.account))
+                  - message: account.name and providerAccountRef must agree when both
+                      are present
+                    rule: '!has(self.account) || !has(self.providerAccountRef) ||
+                      self.account.name == self.providerAccountRef'
+                description: KV holds persistent key-value modules.
+                maxProperties: 128
+                type: object
+                x-kubernetes-validations:
+                - message: kv modules must use a kv type
+                  rule: self.all(k, m, m.type in ['upstash','upstash-fork','dragonfly'])
+              landscape:
+                description: Landscape may name a registered host, a vlandscape, or
+                  a Garden profile.
+                maxLength: 63
+                minLength: 1
+                pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                type: string
+              placement:
+                description: Placement anchors shared externals without selecting
+                  their type.
+                properties:
+                  preferredHost:
+                    description: PreferredHost is the host whose region anchors a
+                      vlandscape external.
+                    maxLength: 63
+                    minLength: 1
+                    pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                    type: string
+                required:
+                - preferredHost
+                type: object
+              platform:
+                description: Platform is the declaring platform.
+                maxLength: 63
+                minLength: 1
+                pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                type: string
+              service:
+                description: |-
+                  Service is present for service-row declarations and absent for a
+                  platform-shared declaration rendered by the platform home.
+                maxLength: 63
+                minLength: 1
+                pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                type: string
+              store:
+                additionalProperties:
+                  description: |-
+                    PlatformDependencyModuleSpec is the flat realization-independent module
+                    core plus the explicit type and typed engine union.
+                  properties:
+                    account:
+                      description: |-
+                        Account is the legacy named-account spelling. If present it must agree
+                        with ProviderAccountRef.
+                      properties:
+                        name:
+                          description: Name is unique within the selected vendor.
+                          maxLength: 63
+                          minLength: 1
+                          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                          type: string
+                      required:
+                      - name
+                      type: object
+                    adopt:
+                      description: Adopt explicitly permits rebinding to a changed
+                        backing identity.
+                      type: boolean
+                    backup:
+                      description: Backup declares the hard cross-vendor recovery
+                        obligation.
+                      properties:
+                        crossVendor:
+                          description: CrossVendor requires the recovery copy to leave
+                            the primary vendor.
+                          type: boolean
+                      required:
+                      - crossVendor
+                      type: object
+                    cpu:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      description: CPU is a quantity-like string or numeric CPU count.
+                      x-kubernetes-int-or-string: true
+                    credentialMode:
+                      description: CredentialMode declares whether the application
+                        receives credentials.
+                      enum:
+                      - standard
+                      - none
+                      type: string
+                    delivery:
+                      description: Delivery selects vendor, direct local, or ApplicationSet
+                        realization.
+                      enum:
+                      - external
+                      - local
+                      - replicated
+                      type: string
+                    engine:
+                      description: Engine carries exactly the selected type's provider-specific
+                        settings.
+                      properties:
+                        cf-email-sending:
+                          description: CFEmailSending configures Cloudflare Email
+                            Sending.
+                          type: object
+                        cnpg:
+                          description: CNPG selects the local CNPG realization.
+                          type: object
+                        dragonfly:
+                          description: Dragonfly configures a local or replicated
+                            Dragonfly instance.
+                          properties:
+                            snapshot:
+                              description: Snapshot enables the upstream snapshot
+                                durability used for local KV.
+                              type: boolean
+                          type: object
+                        mailpit:
+                          description: Mailpit configures the credential-free local
+                            mail sink.
+                          type: object
+                        minio:
+                          description: MinIO configures a Garden-local MinIO bucket.
+                          type: object
+                        neon:
+                          description: Neon configures a Neon project.
+                          properties:
+                            autoscale:
+                              description: Autoscale is the optional compute-unit
+                                range.
+                              properties:
+                                maxCu:
+                                  description: MaxCU is the upper autoscaling bound.
+                                  minimum: 0
+                                  type: number
+                                minCu:
+                                  description: MinCU is the lower autoscaling bound.
+                                  minimum: 0
+                                  type: number
+                              required:
+                              - maxCu
+                              - minCu
+                              type: object
+                            tier:
+                              description: Tier is the named Neon plan/tier.
+                              minLength: 1
+                              type: string
+                          type: object
+                        neon-fork:
+                          description: NeonFork configures a broker-created Neon branch.
+                          properties:
+                            parent:
+                              description: Parent is the credential-free LPSM coordinate
+                                of the source module.
+                              properties:
+                                landscape:
+                                  description: Landscape is the parent host or virtual
+                                    landscape.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                module:
+                                  description: Module is the parent's logical module
+                                    name.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                platform:
+                                  description: Platform is the parent platform.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                service:
+                                  description: Service is the parent service.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                              required:
+                              - landscape
+                              - module
+                              - platform
+                              - service
+                              type: object
+                            ttl:
+                              description: TTL is the renewable allocation lifetime.
+                              pattern: ^[0-9]+(ns|us|ms|s|m|h)$
+                              type: string
+                          required:
+                          - parent
+                          - ttl
+                          type: object
+                        r2:
+                          description: R2 configures a Cloudflare R2 bucket.
+                          type: object
+                        s3:
+                          description: S3 configures an S3 bucket.
+                          type: object
+                        ses:
+                          description: SES configures AWS SES sending.
+                          type: object
+                        tigris:
+                          description: Tigris configures a managed snapshot-enabled
+                            Tigris bucket.
+                          type: object
+                        tigris-fork:
+                          description: TigrisFork configures a native Tigris CoW fork.
+                          properties:
+                            parent:
+                              description: Parent is the credential-free LPSM coordinate
+                                of the source module.
+                              properties:
+                                landscape:
+                                  description: Landscape is the parent host or virtual
+                                    landscape.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                module:
+                                  description: Module is the parent's logical module
+                                    name.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                platform:
+                                  description: Platform is the parent platform.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                service:
+                                  description: Service is the parent service.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                              required:
+                              - landscape
+                              - module
+                              - platform
+                              - service
+                              type: object
+                            ttl:
+                              description: TTL is the renewable allocation lifetime.
+                              pattern: ^[0-9]+(ns|us|ms|s|m|h)$
+                              type: string
+                          required:
+                          - parent
+                          - ttl
+                          type: object
+                        upstash:
+                          description: Upstash configures a managed Upstash database.
+                          type: object
+                        upstash-fork:
+                          description: UpstashFork configures a broker-created Upstash
+                            restore fork.
+                          properties:
+                            parent:
+                              description: Parent is the credential-free LPSM coordinate
+                                of the source module.
+                              properties:
+                                landscape:
+                                  description: Landscape is the parent host or virtual
+                                    landscape.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                module:
+                                  description: Module is the parent's logical module
+                                    name.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                platform:
+                                  description: Platform is the parent platform.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                                service:
+                                  description: Service is the parent service.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                              required:
+                              - landscape
+                              - module
+                              - platform
+                              - service
+                              type: object
+                            ttl:
+                              description: TTL is the renewable allocation lifetime.
+                              pattern: ^[0-9]+(ns|us|ms|s|m|h)$
+                              type: string
+                          required:
+                          - parent
+                          - ttl
+                          type: object
+                      type: object
+                    providerAccountRef:
+                      description: ProviderAccountRef names the ProviderAccount for
+                        an external type.
+                      maxLength: 63
+                      minLength: 1
+                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                      type: string
+                    ram:
+                      description: RAM is a Kubernetes-style quantity.
+                      minLength: 1
+                      type: string
+                    rotation:
+                      description: Rotation is the explicit registered-fleet rotation
+                        knob.
+                      enum:
+                      - "on"
+                      - "off"
+                      type: string
+                    storage:
+                      description: Storage is a Kubernetes-style quantity.
+                      minLength: 1
+                      type: string
+                    type:
+                      description: Type is the sole realization selector.
+                      enum:
+                      - neon
+                      - neon-fork
+                      - cnpg
+                      - upstash
+                      - upstash-fork
+                      - dragonfly
+                      - tigris
+                      - tigris-fork
+                      - r2
+                      - s3
+                      - minio
+                      - ses
+                      - cf-email-sending
+                      - mailpit
+                      type: string
+                    version:
+                      description: Version is the requested engine version.
+                      minLength: 1
+                      type: string
+                  required:
+                  - credentialMode
+                  - delivery
+                  - engine
+                  - rotation
+                  - type
+                  type: object
+                  x-kubernetes-validations:
+                  - message: exactly one engine key must be present and equal type
+                    rule: has(self.engine.neon) == (self.type == 'neon') && has(self.engine.neon__dash__fork)
+                      == (self.type == 'neon-fork') && has(self.engine.cnpg) == (self.type
+                      == 'cnpg') && has(self.engine.upstash) == (self.type == 'upstash')
+                      && has(self.engine.upstash__dash__fork) == (self.type == 'upstash-fork')
+                      && has(self.engine.dragonfly) == (self.type == 'dragonfly')
+                      && has(self.engine.tigris) == (self.type == 'tigris') && has(self.engine.tigris__dash__fork)
+                      == (self.type == 'tigris-fork') && has(self.engine.r2) == (self.type
+                      == 'r2') && has(self.engine.s3) == (self.type == 's3') && has(self.engine.minio)
+                      == (self.type == 'minio') && has(self.engine.ses) == (self.type
+                      == 'ses') && has(self.engine.cf__dash__email__dash__sending)
+                      == (self.type == 'cf-email-sending') && has(self.engine.mailpit)
+                      == (self.type == 'mailpit')
+                  - message: delivery is not legal for the selected type
+                    rule: 'self.type in [''neon'',''neon-fork'',''upstash'',''upstash-fork'',''tigris'',''tigris-fork'',''r2'',''s3'',''ses'',''cf-email-sending'']
+                      ? self.delivery == ''external'' : self.type in [''cnpg'',''minio'',''mailpit'']
+                      ? self.delivery == ''local'' : self.type == ''dragonfly'' ?
+                      self.delivery in [''local'',''replicated''] : false'
+                  - message: external modules require providerAccountRef and local
+                      or replicated modules cannot select an account
+                    rule: (self.delivery == 'external' && has(self.providerAccountRef))
+                      || (self.delivery != 'external' && !has(self.providerAccountRef)
+                      && !has(self.account))
+                  - message: account.name and providerAccountRef must agree when both
+                      are present
+                    rule: '!has(self.account) || !has(self.providerAccountRef) ||
+                      self.account.name == self.providerAccountRef'
+                description: Store holds object-storage modules.
+                maxProperties: 128
+                type: object
+                x-kubernetes-validations:
+                - message: store modules must use a store type
+                  rule: self.all(k, m, m.type in ['tigris','tigris-fork','r2','s3','minio'])
+            required:
+            - deletionPolicy
+            - landscape
+            - placement
+            - platform
+            type: object
+            x-kubernetes-validations:
+            - message: module type is not supported by the target landscape
+              rule: '!(self.landscape in [''lapras'',''ditto'',''rotom'',''absol'',''eevee'',''plusle'',''minun''])
+                ? ((!has(self.database) || self.database.all(k, m, m.type == ''neon''))
+                && (!has(self.kv) || self.kv.all(k, m, m.type == ''upstash'')) &&
+                (!has(self.cache) || self.cache.all(k, m, m.type == ''dragonfly''
+                && m.delivery == ''replicated'')) && (!has(self.store) || self.store.all(k,
+                m, m.type in [''tigris'',''r2'',''s3''])) && (!has(self.email) ||
+                self.email.all(k, m, m.type in [''ses'',''cf-email-sending'']))) :
+                self.landscape in [''plusle'',''minun''] ? ((!has(self.database) ||
+                self.database.all(k, m, m.type == ''neon-fork'')) && (!has(self.kv)
+                || self.kv.all(k, m, m.type == ''upstash-fork'')) && (!has(self.cache)
+                || self.cache.all(k, m, m.type == ''dragonfly'' && m.delivery == ''local''))
+                && (!has(self.store) || self.store.all(k, m, m.type == ''tigris-fork''))
+                && (!has(self.email) || self.email.all(k, m, m.type == ''mailpit''
+                && m.credentialMode == ''none''))) : ((!has(self.database) || self.database.all(k,
+                m, m.type == ''cnpg'')) && (!has(self.kv) || self.kv.all(k, m, m.type
+                == ''dragonfly'' && m.delivery == ''local'')) && (!has(self.cache)
+                || self.cache.all(k, m, m.type == ''dragonfly'' && m.delivery == ''local''))
+                && (!has(self.store) || self.store.all(k, m, m.type == ''minio''))
+                && (!has(self.email) || self.email.all(k, m, m.type == ''mailpit''
+                && m.credentialMode == ''none'')))'
+          status:
+            description: PlatformDependencyStatus is the observed state of a PlatformDependency.
+            properties:
+              conditions:
+                description: Conditions are declaration-wide conditions such as Conflict
+                  and Ready.
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              modules:
+                additionalProperties:
+                  description: PlatformDependencyModuleStatus is isolated per logical
+                    module.
+                  properties:
+                    conditions:
+                      description: |-
+                        Conditions include Provisioned, SecretWritten, Conflict, Unresolved,
+                        NotInEnvelope, SecretRetained, DeclarerChanged, ForkUnsupported and Ready.
+                      items:
+                        description: Condition contains details for one aspect of
+                          the current state of this API Resource.
+                        properties:
+                          lastTransitionTime:
+                            description: |-
+                              lastTransitionTime is the last time the condition transitioned from one status to another.
+                              This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                            format: date-time
+                            type: string
+                          message:
+                            description: |-
+                              message is a human readable message indicating details about the transition.
+                              This may be an empty string.
+                            maxLength: 32768
+                            type: string
+                          observedGeneration:
+                            description: |-
+                              observedGeneration represents the .metadata.generation that the condition was set based upon.
+                              For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                              with respect to the current state of the instance.
+                            format: int64
+                            minimum: 0
+                            type: integer
+                          reason:
+                            description: |-
+                              reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                              Producers of specific condition types may define expected values and meanings for this field,
+                              and whether the values are considered a guaranteed API.
+                              The value should be a CamelCase string.
+                              This field may not be empty.
+                            maxLength: 1024
+                            minLength: 1
+                            pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                            type: string
+                          status:
+                            description: status of the condition, one of True, False,
+                              Unknown.
+                            enum:
+                            - "True"
+                            - "False"
+                            - Unknown
+                            type: string
+                          type:
+                            description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                            maxLength: 316
+                            pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                            type: string
+                        required:
+                        - lastTransitionTime
+                        - message
+                        - reason
+                        - status
+                        - type
+                        type: object
+                      type: array
+                      x-kubernetes-list-map-keys:
+                      - type
+                      x-kubernetes-list-type: map
+                    externalId:
+                      description: ExternalID is unique within the module's named
+                        provider account.
+                      type: string
+                    fork:
+                      description: Fork is populated only for a first-class fork type.
+                      properties:
+                        allocationId:
+                          description: AllocationID is the durable reaper allocation
+                            identifier.
+                          type: string
+                        expiresAt:
+                          description: ExpiresAt is the renewable TTL deadline.
+                          format: date-time
+                          type: string
+                        externalId:
+                          description: ExternalID is unique within the named provider
+                            account.
+                          type: string
+                        generation:
+                          description: Generation fences compare-and-release cleanup.
+                          format: int64
+                          type: integer
+                        owner:
+                          description: Owner is the non-secret allocation owner identity.
+                          type: string
+                        secretRef:
+                          description: SecretRef names the controller-owned cluster-local
+                            result Secret.
+                          type: string
+                      type: object
+                    phase:
+                      description: Phase is the module's level-triggered lifecycle
+                        phase.
+                      type: string
+                    secretPathOrRef:
+                      description: SecretPathOrRef is a pointer/reference and never
+                        secret material.
+                      type: string
+                  type: object
+                description: Modules is a map so one module's conditions cannot overwrite
+                  another's.
+                type: object
+              observedGeneration:
+                description: ObservedGeneration is the spec generation last reconciled.
+                format: int64
+                type: integer
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

@@ -1,0 +1,71 @@
+apiVersion: fleet.atomi.cloud/v1alpha1
+kind: PlatformDependency
+metadata:
+  name: nitroso-raichu-dependencies
+  namespace: nitroso
+spec:
+  platform: nitroso
+  service: zinc
+  landscape: raichu
+  placement:
+    preferredHost: raichu
+  database:
+    maindb:
+      type: neon
+      delivery: external
+      account:
+        name: prod-neon
+      providerAccountRef: prod-neon
+      credentialMode: standard
+      rotation: 'on'
+      cpu: 1
+      ram: 4Gi
+      storage: 20Gi
+      version: '16'
+      backup:
+        crossVendor: true
+      engine:
+        neon:
+          tier: scale
+          autoscale:
+            minCu: 0.25
+            maxCu: 2
+  kv:
+    sessions:
+      type: upstash
+      delivery: external
+      providerAccountRef: prod-upstash
+      credentialMode: standard
+      rotation: 'on'
+      ram: 256Mi
+      engine:
+        upstash: {}
+  cache:
+    hot:
+      type: dragonfly
+      delivery: replicated
+      credentialMode: standard
+      rotation: 'on'
+      ram: 512Mi
+      engine:
+        dragonfly: {}
+  store:
+    assets:
+      type: tigris
+      delivery: external
+      providerAccountRef: prod-tigris
+      credentialMode: standard
+      rotation: 'on'
+      engine:
+        tigris: {}
+  email:
+    sender:
+      type: ses
+      delivery: external
+      providerAccountRef: prod-ses
+      credentialMode: standard
+      rotation: 'on'
+      engine:
+        ses: {}
+  deletionPolicy:
+    retainSecret: 168h

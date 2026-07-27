@@ -1,0 +1,10 @@
+apiVersion: fleet.atomi.cloud/v1alpha1
+kind: Decommission
+metadata:
+  name: nitroso-raichu-teardown
+  namespace: nitroso
+spec:
+  targetRef:
+    kind: PlatformDependency
+    name: nitroso-raichu-dependencies
+  confirm: nitroso-raichu-dependencies

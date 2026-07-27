@@ -1,0 +1,12 @@
+apiVersion: fleet.atomi.cloud/v1alpha1
+kind: WebhookRoute
+metadata:
+  name: stripe-complete-invalid
+  namespace: nitroso
+spec:
+  engine: mercury
+  path: webhook/stripe/complete
+  provider: stripe
+  target:
+    service: zinc
+    module: checkout

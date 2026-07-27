@@ -1,0 +1,12 @@
+apiVersion: fleet.atomi.cloud/v1alpha1
+kind: VirtualLandscapeService
+metadata:
+  name: lithium-mew-raichu
+  namespace: nitroso
+spec:
+  platform: nitroso
+  vlandscape: mew
+  service: lithium
+  module: api
+  landscape: raichu
+  serve: true

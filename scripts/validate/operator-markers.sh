@@ -145,6 +145,142 @@ field|ProviderAccountQuotaSpec.Limit|kubebuilder:validation:Required
 field|ProviderAccountQuotaSpec.Limit|kubebuilder:validation:Minimum=0
 field|ProviderAccountStatus.Conditions|listType=map
 field|ProviderAccountStatus.Conditions|listMapKey=type
+type|PlatformDependency|kubebuilder:object:root=true
+type|PlatformDependency|kubebuilder:subresource:status
+type|PlatformDependency|kubebuilder:resource:scope=Namespaced,shortName=pdep
+printcolumn|PlatformDependency|Platform
+printcolumn|PlatformDependency|Landscape
+printcolumn|PlatformDependency|Ready
+printcolumn|PlatformDependency|Age
+field|PlatformDependencySpec.Platform|kubebuilder:validation:Required
+field|PlatformDependencySpec.Service|kubebuilder:validation:Optional
+field|PlatformDependencySpec.Landscape|kubebuilder:validation:Required
+field|PlatformDependencySpec.Placement|kubebuilder:validation:Required
+field|PlatformDependencySpec.Database|kubebuilder:validation:Optional
+field|PlatformDependencySpec.KV|kubebuilder:validation:Optional
+field|PlatformDependencySpec.Cache|kubebuilder:validation:Optional
+field|PlatformDependencySpec.Store|kubebuilder:validation:Optional
+field|PlatformDependencySpec.Email|kubebuilder:validation:Optional
+field|PlatformDependencySpec.DeletionPolicy|kubebuilder:validation:Required
+field|DependencyPlacement.PreferredHost|kubebuilder:validation:Required
+field|DependencyDeletionPolicy.RetainSecret|kubebuilder:validation:Required
+field|PlatformDependencyModuleSpec.Type|kubebuilder:validation:Required
+field|PlatformDependencyModuleSpec.Type|kubebuilder:validation:Enum=neon;neon-fork;cnpg;upstash;upstash-fork;dragonfly;tigris;tigris-fork;r2;s3;minio;ses;cf-email-sending;mailpit
+field|PlatformDependencyModuleSpec.Delivery|kubebuilder:validation:Required
+field|PlatformDependencyModuleSpec.Delivery|kubebuilder:validation:Enum=external;local;replicated
+field|PlatformDependencyModuleSpec.Account|kubebuilder:validation:Optional
+field|PlatformDependencyModuleSpec.ProviderAccountRef|kubebuilder:validation:Optional
+field|PlatformDependencyModuleSpec.CredentialMode|kubebuilder:validation:Required
+field|PlatformDependencyModuleSpec.CredentialMode|kubebuilder:validation:Enum=standard;none
+field|PlatformDependencyModuleSpec.Rotation|kubebuilder:validation:Required
+field|PlatformDependencyModuleSpec.Rotation|kubebuilder:validation:Enum=on;off
+field|PlatformDependencyModuleSpec.CPU|kubebuilder:validation:Optional
+field|PlatformDependencyModuleSpec.RAM|kubebuilder:validation:Optional
+field|PlatformDependencyModuleSpec.Storage|kubebuilder:validation:Optional
+field|PlatformDependencyModuleSpec.Version|kubebuilder:validation:Optional
+field|PlatformDependencyModuleSpec.Backup|kubebuilder:validation:Optional
+field|PlatformDependencyModuleSpec.Engine|kubebuilder:validation:Required
+field|PlatformDependencyModuleSpec.Adopt|kubebuilder:validation:Optional
+field|PlatformDependencyStatus.Modules|optional
+field|PlatformDependencyStatus.Conditions|listType=map
+field|PlatformDependencyStatus.Conditions|listMapKey=type
+field|PlatformDependencyModuleStatus.Conditions|listType=map
+field|PlatformDependencyModuleStatus.Conditions|listMapKey=type
+cel|PlatformDependencyModuleSpec|has(self.engine.neon) == (self.type == 'neon') && has(self.engine.neon__dash__fork) == (self.type == 'neon-fork') && has(self.engine.cnpg) == (self.type == 'cnpg') && has(self.engine.upstash) == (self.type == 'upstash') && has(self.engine.upstash__dash__fork) == (self.type == 'upstash-fork') && has(self.engine.dragonfly) == (self.type == 'dragonfly') && has(self.engine.tigris) == (self.type == 'tigris') && has(self.engine.tigris__dash__fork) == (self.type == 'tigris-fork') && has(self.engine.r2) == (self.type == 'r2') && has(self.engine.s3) == (self.type == 's3') && has(self.engine.minio) == (self.type == 'minio') && has(self.engine.ses) == (self.type == 'ses') && has(self.engine.cf__dash__email__dash__sending) == (self.type == 'cf-email-sending') && has(self.engine.mailpit) == (self.type == 'mailpit')
+cel|PlatformDependencyModuleSpec|self.type in ['neon','neon-fork','upstash','upstash-fork','tigris','tigris-fork','r2','s3','ses','cf-email-sending'] ? self.delivery == 'external' : self.type in ['cnpg','minio','mailpit'] ? self.delivery == 'local' : self.type == 'dragonfly' ? self.delivery in ['local','replicated'] : false
+cel|PlatformDependencyModuleSpec|(self.delivery == 'external' && has(self.providerAccountRef)) || (self.delivery != 'external' && !has(self.providerAccountRef) && !has(self.account))
+cel|PlatformDependencyModuleSpec|!has(self.account) || !has(self.providerAccountRef) || self.account.name == self.providerAccountRef
+cel|PlatformDependencySpec|!(self.landscape in ['lapras','ditto','rotom','absol','eevee','plusle','minun']) ? ((!has(self.database) || self.database.all(k, m, m.type == 'neon')) && (!has(self.kv) || self.kv.all(k, m, m.type == 'upstash')) && (!has(self.cache) || self.cache.all(k, m, m.type == 'dragonfly' && m.delivery == 'replicated')) && (!has(self.store) || self.store.all(k, m, m.type in ['tigris','r2','s3'])) && (!has(self.email) || self.email.all(k, m, m.type in ['ses','cf-email-sending']))) : self.landscape in ['plusle','minun'] ? ((!has(self.database) || self.database.all(k, m, m.type == 'neon-fork')) && (!has(self.kv) || self.kv.all(k, m, m.type == 'upstash-fork')) && (!has(self.cache) || self.cache.all(k, m, m.type == 'dragonfly' && m.delivery == 'local')) && (!has(self.store) || self.store.all(k, m, m.type == 'tigris-fork')) && (!has(self.email) || self.email.all(k, m, m.type == 'mailpit' && m.credentialMode == 'none'))) : ((!has(self.database) || self.database.all(k, m, m.type == 'cnpg')) && (!has(self.kv) || self.kv.all(k, m, m.type == 'dragonfly' && m.delivery == 'local')) && (!has(self.cache) || self.cache.all(k, m, m.type == 'dragonfly' && m.delivery == 'local')) && (!has(self.store) || self.store.all(k, m, m.type == 'minio')) && (!has(self.email) || self.email.all(k, m, m.type == 'mailpit' && m.credentialMode == 'none')))
+cel|PlatformDependencySpec.Database|self.all(k, m, m.type in ['neon','neon-fork','cnpg'])
+cel|PlatformDependencySpec.KV|self.all(k, m, m.type in ['upstash','upstash-fork','dragonfly'])
+cel|PlatformDependencySpec.Cache|self.all(k, m, m.type == 'dragonfly')
+cel|PlatformDependencySpec.Store|self.all(k, m, m.type in ['tigris','tigris-fork','r2','s3','minio'])
+cel|PlatformDependencySpec.Email|self.all(k, m, m.type in ['ses','cf-email-sending','mailpit'])
+type|VirtualLandscapeService|kubebuilder:object:root=true
+type|VirtualLandscapeService|kubebuilder:subresource:status
+type|VirtualLandscapeService|kubebuilder:resource:scope=Namespaced,shortName=vls
+printcolumn|VirtualLandscapeService|VLandscape
+printcolumn|VirtualLandscapeService|Landscape
+printcolumn|VirtualLandscapeService|Serve
+printcolumn|VirtualLandscapeService|Ready
+printcolumn|VirtualLandscapeService|Age
+field|VirtualLandscapeServiceSpec.Platform|kubebuilder:validation:Required
+field|VirtualLandscapeServiceSpec.VLandscape|kubebuilder:validation:Required
+field|VirtualLandscapeServiceSpec.Service|kubebuilder:validation:Required
+field|VirtualLandscapeServiceSpec.Module|kubebuilder:validation:Required
+field|VirtualLandscapeServiceSpec.Landscape|kubebuilder:validation:Required
+field|VirtualLandscapeServiceSpec.Serve|kubebuilder:validation:Required
+field|VirtualLandscapeServiceStatus.Modules|optional
+field|VirtualLandscapeServiceStatus.Conditions|listType=map
+field|VirtualLandscapeServiceStatus.Conditions|listMapKey=type
+field|VirtualLandscapeServiceModuleStatus.Conditions|listType=map
+field|VirtualLandscapeServiceModuleStatus.Conditions|listMapKey=type
+type|WebhookEngine|kubebuilder:object:root=true
+type|WebhookEngine|kubebuilder:subresource:status
+type|WebhookEngine|kubebuilder:resource:scope=Namespaced,shortName=wheng
+printcolumn|WebhookEngine|Home
+printcolumn|WebhookEngine|Ready
+printcolumn|WebhookEngine|Age
+field|WebhookEngineSpec.Home|kubebuilder:validation:Required
+field|WebhookEngineSpec.Retention|kubebuilder:validation:Required
+field|WebhookEngineSpec.RetryWindow|kubebuilder:validation:Required
+field|WebhookEngineSpec.Backoff|kubebuilder:validation:Required
+field|WebhookEngineSpec.CircuitBreaker|kubebuilder:validation:Required
+field|WebhookEngineSpec.DedupWindow|kubebuilder:validation:Required
+field|WebhookEngineSpec.Quotas|kubebuilder:validation:Required
+field|WebhookEngineSpec.CustomDomains|kubebuilder:validation:Optional
+field|WebhookEngineHome.VLandscape|kubebuilder:validation:XValidation:rule="self == oldSelf",message="home.vlandscape is immutable"
+field|WebhookEngineStatus.Conditions|listType=map
+field|WebhookEngineStatus.Conditions|listMapKey=type
+field|WebhookLandscapeStatus.Conditions|listType=map
+field|WebhookLandscapeStatus.Conditions|listMapKey=type
+field|WebhookProviderStatus.Conditions|listType=map
+field|WebhookProviderStatus.Conditions|listMapKey=type
+cel|WebhookEngineHome.VLandscape|self == oldSelf
+type|WebhookRoute|kubebuilder:object:root=true
+type|WebhookRoute|kubebuilder:subresource:status
+type|WebhookRoute|kubebuilder:resource:scope=Namespaced,shortName=whr
+printcolumn|WebhookRoute|Engine
+printcolumn|WebhookRoute|Provider
+printcolumn|WebhookRoute|Path
+printcolumn|WebhookRoute|Ready
+printcolumn|WebhookRoute|Age
+field|WebhookRouteSpec.Engine|kubebuilder:validation:Required
+field|WebhookRouteSpec.Path|kubebuilder:validation:Required
+field|WebhookRouteSpec.Provider|kubebuilder:validation:Required
+field|WebhookRouteSpec.Scheme|kubebuilder:validation:Optional
+field|WebhookRouteSpec.Target|kubebuilder:validation:Required
+field|WebhookRouteStatus.Conditions|listType=map
+field|WebhookRouteStatus.Conditions|listMapKey=type
+type|CloudflareDeploy|kubebuilder:object:root=true
+type|CloudflareDeploy|kubebuilder:subresource:status
+type|CloudflareDeploy|kubebuilder:resource:scope=Namespaced,shortName=cfd
+printcolumn|CloudflareDeploy|Script
+printcolumn|CloudflareDeploy|Live
+printcolumn|CloudflareDeploy|Complete
+printcolumn|CloudflareDeploy|Age
+field|CloudflareDeploySpec.ScriptName|kubebuilder:validation:Required
+field|CloudflareDeploySpec.DesiredVersion|kubebuilder:validation:Optional
+field|CloudflareDeploySpec.DesiredVersionFrom|kubebuilder:validation:Optional
+field|CloudflareDeploySpec.Rollout|kubebuilder:validation:Optional
+field|CloudflareDeploySpec.Pin|kubebuilder:validation:Required
+field|CloudflareRollout.Steps|kubebuilder:validation:XValidation:rule="self.exists(step, step.percent == 100)",message="rollout steps must contain a 100 percent step"
+field|CloudflareDeployStatus.Conditions|listType=map
+field|CloudflareDeployStatus.Conditions|listMapKey=type
+cel|CloudflareDeploySpec|has(self.desiredVersion) != has(self.desiredVersionFrom)
+cel|CloudflareRollout.Steps|self.exists(step, step.percent == 100)
+type|Decommission|kubebuilder:object:root=true
+type|Decommission|kubebuilder:subresource:status
+type|Decommission|kubebuilder:resource:scope=Namespaced,shortName=decom
+printcolumn|Decommission|Kind
+printcolumn|Decommission|Target
+printcolumn|Decommission|Deleted
+printcolumn|Decommission|Age
+field|DecommissionSpec.TargetRef|kubebuilder:validation:Required
+field|DecommissionSpec.Confirm|kubebuilder:validation:Required
+field|DecommissionStatus.Conditions|listType=map
+field|DecommissionStatus.Conditions|listMapKey=type
+cel|DecommissionSpec|self.confirm == self.targetRef.name
 EOF
 )"
 
