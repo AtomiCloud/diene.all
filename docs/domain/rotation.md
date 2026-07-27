@@ -51,37 +51,58 @@ orphan (see below), not a live credential half-consumers already trust.
 
 `New(state, clock)` consumes a persisted `State` verbatim and adopts its in-flight
 phase; it never resets a partially-complete rotation to the start. `Begin(N, clock)`
-is the fresh-start helper that plans minting `N+1`. The constructor validates the
-state structurally — known phase, non-negative generations, a duplicate-free
-required cluster set, and confirmations that are a subset of that set — and fails
-closed otherwise. A missing clock is rejected: time is always injected, so every
+is the fresh-start helper that plans minting `N+1`; `N == math.MaxInt64` is rejected
+instead of wrapping. The constructor treats persisted state as untrusted and
+rejects every representation that the public transition methods could not have
+produced. A missing clock is also rejected: time is always injected, so every
 transition and the overlap deadline are deterministic.
+
+The persisted invariants are phase-specific:
+
+| Phase range                                   | Generation relationship                                | Confirmation fields                                                              | Time fields                                                                               |
+| --------------------------------------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `MintPlanned` through `SmokePassed`           | `next == active + 1`, checked without overflow         | `requiredClusters` and `confirmed` are empty                                     | both timestamps are zero                                                                  |
+| `FannedOut`                                   | `next == active + 1`, checked without overflow         | required set is nonempty; confirmed is a valid, duplicate-free **proper subset** | both timestamps are zero                                                                  |
+| `Confirmed`                                   | `next == active + 1`, checked without overflow         | confirmed is exactly the complete required set                                   | nonzero UTC `lastConfirmationAt`; deadline is zero                                        |
+| `OverlapClockStarted` through `ResmokePassed` | `next == active + 1`, checked without overflow         | confirmed is exactly the complete required set                                   | nonzero UTC last confirmation and exact UTC `overlapDeadline == lastConfirmationAt + 48h` |
+| `GenerationAdvanced`                          | `active == next > 0` (the former `N+1` in both fields) | the complete required set is retained                                            | the exact UTC last-confirmation/deadline pair is retained                                 |
+
+Blank or duplicate cluster names, confirmations outside the required set,
+generation gaps/equality during an in-flight phase, stale fields from a later
+phase, missing required fields, non-UTC timestamps, and forged deadlines all fail
+construction. Slices are deep-copied on input and output, so caller mutation cannot
+alter the validated machine state.
 
 ## The 48-hour overlap deadline
 
 The overlap deadline is **exactly 48 hours after the last required confirmation**
 (`OverlapWindow`). `Confirm` records the anchoring instant (normalized to UTC) when
 the final required cluster acknowledges; `StartOverlapClock` pins
-`overlapDeadline = lastConfirmation + 48h`. Revocation is legal at or after the
-deadline and refused strictly before it — the boundary is inclusive of the deadline
-instant itself and exclusive one nanosecond earlier.
+`overlapDeadline = lastConfirmation + 48h`. Saturating `time.Time` arithmetic is
+rejected rather than accepting a shortened interval. Revocation is legal at or
+after the deadline and refused strictly before it — the boundary is inclusive of
+the deadline instant itself and exclusive one nanosecond earlier.
 
 ## Revoke predicate — fail closed
 
 `CanRevoke(target)` judges a revocation on the current state alone, independent of
-how that state was reached, so a resumed or corrupt state is still safe. It refuses
+how that state was reached. It re-checks the same complete persisted-state
+invariants used by `New`, so an incoherent state is never trusted. It refuses
 unless **all** of the following hold:
 
 - the phase is `OverlapClockStarted` (`ErrInvalidTransition` otherwise);
-- every required cluster has confirmed and the required set is non-empty
-  (`ErrMissingConfirmation`);
-- the overlap deadline is set and has elapsed (`ErrInvalidState` /
-  `ErrOverlapNotElapsed`);
+- every required cluster has confirmed, the last-confirmation time is present, and
+  the required set is non-empty (`ErrInvalidState` / `ErrMissingConfirmation`);
+- the deadline is the exact UTC `lastConfirmationAt + 48h` value and has elapsed
+  (`ErrInvalidState` / `ErrOverlapNotElapsed`);
 - `target` is the old generation `N`, never the protected active generation `N+1`
   (`ErrProtectedActiveKey`).
 
-The last predicate is what protects the newly-active, ledger-named key: only the
-generation being retired may be revoked.
+The last predicate plus the exact in-flight `N`/`N+1` relationship protects the
+new, ledger-named key: only the generation being retired may be revoked. A missed
+week remains a valid resume: an already-elapsed deadline is accepted when it is
+the exact deadline derived from the persisted last confirmation, while a merely
+past, forged deadline is rejected.
 
 ## Orphan classification (the Fix-3 orphan rule)
 

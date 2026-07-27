@@ -2,6 +2,7 @@ package operator_test
 
 import (
 	"errors"
+	"math"
 	"testing"
 	"time"
 
@@ -40,6 +41,17 @@ func TestBeginRejectsNegativeGeneration(t *testing.T) {
 
 	_, err := rotation.Begin(-1, newClock(anchor).now)
 	require.ErrorIs(t, err, rotation.ErrInvalidGeneration)
+}
+
+func TestBeginRejectsGenerationOverflow(t *testing.T) {
+	t.Parallel()
+
+	_, err := rotation.Begin(math.MaxInt64, newClock(anchor).now)
+	require.ErrorIs(t, err, rotation.ErrInvalidGeneration)
+
+	m, err := rotation.Begin(math.MaxInt64-1, newClock(anchor).now)
+	require.NoError(t, err)
+	require.Equal(t, int64(math.MaxInt64), m.State().NextGeneration)
 }
 
 func TestFullWalkAdvancesGeneration(t *testing.T) {
@@ -197,6 +209,269 @@ func TestNewFailsClosed(t *testing.T) {
 	})
 }
 
+func TestNewAcceptsValidResumeAtEveryPhase(t *testing.T) {
+	t.Parallel()
+
+	for _, phase := range allPhases() {
+		t.Run(string(phase), func(t *testing.T) {
+			t.Parallel()
+			persisted := validState(phase)
+			m, err := rotation.New(persisted, newClock(anchor.Add(7*24*time.Hour)).now)
+			require.NoError(t, err)
+			require.Equal(t, persisted, m.State())
+		})
+	}
+}
+
+func TestNewRejectsIncoherentGenerations(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name  string
+		state rotation.State
+	}{
+		{
+			name:  "active equals next while in flight",
+			state: rotation.State{Phase: rotation.PhaseMintPlanned, ActiveGeneration: 1, NextGeneration: 1},
+		},
+		{
+			name: "active equals next at revoke phase",
+			state: func() rotation.State {
+				st := validState(rotation.PhaseOverlapClockStarted)
+				st.ActiveGeneration = st.NextGeneration
+				return st
+			}(),
+		},
+		{
+			name:  "generation gap",
+			state: rotation.State{Phase: rotation.PhaseCommitted, ActiveGeneration: 1, NextGeneration: 3},
+		},
+		{
+			name:  "generation reversed",
+			state: rotation.State{Phase: rotation.PhaseSmokePassed, ActiveGeneration: 2, NextGeneration: 1},
+		},
+		{
+			name:  "in-flight max int cannot increment",
+			state: rotation.State{Phase: rotation.PhaseMinted, ActiveGeneration: math.MaxInt64, NextGeneration: math.MaxInt64},
+		},
+		{
+			name: "terminal retains old and next relation",
+			state: func() rotation.State {
+				st := validState(rotation.PhaseGenerationAdvanced)
+				st.ActiveGeneration = 1
+				st.NextGeneration = 2
+				return st
+			}(),
+		},
+		{
+			name: "terminal zero was never reachable",
+			state: func() rotation.State {
+				st := validState(rotation.PhaseGenerationAdvanced)
+				st.ActiveGeneration = 0
+				st.NextGeneration = 0
+				return st
+			}(),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := rotation.New(tc.state, newClock(anchor).now)
+			require.ErrorIs(t, err, rotation.ErrInvalidGeneration)
+		})
+	}
+
+	// MaxInt64 is coherent in the terminal phase: reaching it required the safe
+	// in-flight relationship MaxInt64-1 -> MaxInt64 and terminal performs no add.
+	terminalMax := validState(rotation.PhaseGenerationAdvanced)
+	terminalMax.ActiveGeneration = math.MaxInt64
+	terminalMax.NextGeneration = math.MaxInt64
+	_, err := rotation.New(terminalMax, newClock(anchor).now)
+	require.NoError(t, err)
+}
+
+func TestNewRejectsPhaseIncoherentConfirmationState(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name  string
+		state rotation.State
+		cause error
+	}{
+		{
+			name: "required clusters before fan-out",
+			state: rotation.State{
+				Phase: rotation.PhaseSmokePassed, ActiveGeneration: 1, NextGeneration: 2,
+				RequiredClusters: []string{"a"},
+			},
+			cause: rotation.ErrInvalidState,
+		},
+		{
+			name: "confirmations before fan-out",
+			state: rotation.State{
+				Phase: rotation.PhaseMinted, ActiveGeneration: 1, NextGeneration: 2,
+				RequiredClusters: []string{"a"}, Confirmed: []string{"a"},
+			},
+			cause: rotation.ErrInvalidState,
+		},
+		{
+			name:  "fan-out requires clusters",
+			state: rotation.State{Phase: rotation.PhaseFannedOut, ActiveGeneration: 1, NextGeneration: 2},
+			cause: rotation.ErrNoClusters,
+		},
+		{
+			name: "fan-out cannot retain a complete set",
+			state: rotation.State{
+				Phase: rotation.PhaseFannedOut, ActiveGeneration: 1, NextGeneration: 2,
+				RequiredClusters: []string{"a"}, Confirmed: []string{"a"},
+			},
+			cause: rotation.ErrInvalidState,
+		},
+		{
+			name: "confirmed requires the complete set",
+			state: rotation.State{
+				Phase: rotation.PhaseConfirmed, ActiveGeneration: 1, NextGeneration: 2,
+				RequiredClusters: []string{"a", "b"}, Confirmed: []string{"a"},
+				LastConfirmationAt: anchor.UTC(),
+			},
+			cause: rotation.ErrMissingConfirmation,
+		},
+		{
+			name: "confirmed set cannot name another cluster",
+			state: rotation.State{
+				Phase: rotation.PhaseConfirmed, ActiveGeneration: 1, NextGeneration: 2,
+				RequiredClusters: []string{"a"}, Confirmed: []string{"b"},
+				LastConfirmationAt: anchor.UTC(),
+			},
+			cause: rotation.ErrUnknownCluster,
+		},
+		{
+			name: "timestamp before confirmed",
+			state: func() rotation.State {
+				st := validState(rotation.PhaseFannedOut)
+				st.LastConfirmationAt = anchor.UTC()
+				return st
+			}(),
+			cause: rotation.ErrInvalidState,
+		},
+		{
+			name: "confirmed requires timestamp",
+			state: func() rotation.State {
+				st := validState(rotation.PhaseConfirmed)
+				st.LastConfirmationAt = time.Time{}
+				return st
+			}(),
+			cause: rotation.ErrInvalidState,
+		},
+		{
+			name: "last confirmation must be UTC normalized",
+			state: func() rotation.State {
+				st := validState(rotation.PhaseConfirmed)
+				st.LastConfirmationAt = anchor
+				return st
+			}(),
+			cause: rotation.ErrInvalidState,
+		},
+		{
+			name: "deadline before overlap phase",
+			state: func() rotation.State {
+				st := validState(rotation.PhaseConfirmed)
+				st.OverlapDeadline = st.LastConfirmationAt.Add(rotation.OverlapWindow)
+				return st
+			}(),
+			cause: rotation.ErrInvalidState,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := rotation.New(tc.state, newClock(anchor).now)
+			require.ErrorIs(t, err, tc.cause)
+			if tc.cause != rotation.ErrUnknownCluster {
+				require.ErrorIs(t, err, rotation.ErrInvalidState)
+			}
+		})
+	}
+}
+
+func TestNewRejectsIncoherentOverlapDeadline(t *testing.T) {
+	t.Parallel()
+
+	exact := anchor.UTC().Add(rotation.OverlapWindow)
+	cases := []struct {
+		name  string
+		state rotation.State
+	}{
+		{
+			name: "missing deadline",
+			state: func() rotation.State {
+				st := validState(rotation.PhaseOverlapClockStarted)
+				st.OverlapDeadline = time.Time{}
+				return st
+			}(),
+		},
+		{
+			name: "past forged deadline",
+			state: func() rotation.State {
+				st := validState(rotation.PhaseOverlapClockStarted)
+				st.OverlapDeadline = st.LastConfirmationAt.Add(-time.Hour)
+				return st
+			}(),
+		},
+		{
+			name: "future forged deadline",
+			state: func() rotation.State {
+				st := validState(rotation.PhaseOverlapClockStarted)
+				st.OverlapDeadline = exact.Add(time.Second)
+				return st
+			}(),
+		},
+		{
+			name: "deadline must be UTC normalized",
+			state: func() rotation.State {
+				st := validState(rotation.PhaseOverlapClockStarted)
+				st.OverlapDeadline = exact.In(time.FixedZone("UTC+1", 60*60))
+				return st
+			}(),
+		},
+		{
+			name: "later phase cannot lose deadline",
+			state: func() rotation.State {
+				st := validState(rotation.PhaseRevoked)
+				st.OverlapDeadline = time.Time{}
+				return st
+			}(),
+		},
+		{
+			name: "terminal phase cannot forge deadline",
+			state: func() rotation.State {
+				st := validState(rotation.PhaseGenerationAdvanced)
+				st.OverlapDeadline = exact.Add(-time.Nanosecond)
+				return st
+			}(),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := rotation.New(tc.state, newClock(anchor.Add(7*24*time.Hour)).now)
+			require.ErrorIs(t, err, rotation.ErrInvalidState)
+		})
+	}
+}
+
+func TestResumeAllowsElapsedExactDeadline(t *testing.T) {
+	t.Parallel()
+
+	state := validState(rotation.PhaseOverlapClockStarted)
+	m, err := rotation.New(state, newClock(state.OverlapDeadline.Add(7*24*time.Hour)).now)
+	require.NoError(t, err)
+	require.NoError(t, m.CanRevoke(state.ActiveGeneration))
+}
+
 func TestCommitBeforeSmokeRefused(t *testing.T) {
 	t.Parallel()
 
@@ -334,29 +609,63 @@ func TestOverlapDeadlineBoundary(t *testing.T) {
 	}
 }
 
-func TestStartOverlapClockRequiresConfirmedInstant(t *testing.T) {
+func TestStartOverlapClockRequiresConfirmedPhase(t *testing.T) {
 	t.Parallel()
 
-	t.Run("wrong phase refused", func(t *testing.T) {
-		t.Parallel()
-		m := resume(t, rotation.State{Phase: rotation.PhaseFannedOut, ActiveGeneration: 1, NextGeneration: 2, RequiredClusters: []string{"a"}})
-		_, err := m.StartOverlapClock()
-		require.ErrorIs(t, err, rotation.ErrInvalidTransition)
+	m := resume(t, rotation.State{
+		Phase:            rotation.PhaseFannedOut,
+		ActiveGeneration: 1,
+		NextGeneration:   2,
+		RequiredClusters: []string{"a"},
 	})
+	_, err := m.StartOverlapClock()
+	require.ErrorIs(t, err, rotation.ErrInvalidTransition)
+}
 
-	t.Run("missing last-confirmation instant fails closed", func(t *testing.T) {
-		t.Parallel()
-		// A corrupt resumed Confirmed state with no anchor instant.
-		m := resume(t, rotation.State{
-			Phase:            rotation.PhaseConfirmed,
-			ActiveGeneration: 1,
-			NextGeneration:   2,
-			RequiredClusters: []string{"a"},
-			Confirmed:        []string{"a"},
-		})
-		_, err := m.StartOverlapClock()
-		require.ErrorIs(t, err, rotation.ErrInvalidState)
-	})
+func TestStartOverlapClockRejectsArithmeticOverflowWithoutMutation(t *testing.T) {
+	t.Parallel()
+
+	// time.Time stores Unix seconds with this year-1-to-1970 offset. Starting
+	// one hour below its internal ceiling makes Add(48h) saturate, which must not
+	// collapse the promised overlap window to one hour.
+	const unixToInternal = int64(62_135_596_800)
+	lastConfirmation := time.Unix(math.MaxInt64-unixToInternal-60*60, 0).UTC()
+	confirmed := rotation.State{
+		Phase:              rotation.PhaseConfirmed,
+		ActiveGeneration:   1,
+		NextGeneration:     2,
+		RequiredClusters:   []string{"a"},
+		Confirmed:          []string{"a"},
+		LastConfirmationAt: lastConfirmation,
+	}
+	m := resume(t, confirmed)
+
+	_, err := m.StartOverlapClock()
+	require.ErrorIs(t, err, rotation.ErrInvalidState)
+	require.Equal(t, confirmed, m.State())
+
+	forged := confirmed
+	forged.Phase = rotation.PhaseOverlapClockStarted
+	forged.OverlapDeadline = lastConfirmation.Add(rotation.OverlapWindow)
+	_, err = rotation.New(forged, newClock(lastConfirmation).now)
+	require.ErrorIs(t, err, rotation.ErrInvalidState)
+}
+
+func TestConfirmRejectsZeroClockWithoutMutation(t *testing.T) {
+	t.Parallel()
+
+	m, err := rotation.New(rotation.State{
+		Phase:            rotation.PhaseFannedOut,
+		ActiveGeneration: 1,
+		NextGeneration:   2,
+		RequiredClusters: []string{"a"},
+	}, func() time.Time { return time.Time{} })
+	require.NoError(t, err)
+
+	_, err = m.Confirm("a")
+	require.ErrorIs(t, err, rotation.ErrInvalidState)
+	require.Equal(t, rotation.PhaseFannedOut, m.Phase())
+	require.Empty(t, m.State().Confirmed)
 }
 
 func TestRevokePredicateFailsClosed(t *testing.T) {
@@ -379,34 +688,6 @@ func TestRevokePredicateFailsClosed(t *testing.T) {
 		m := resumeAt(t, rotation.State{Phase: rotation.PhaseConfirmed, ActiveGeneration: 1, NextGeneration: 2, RequiredClusters: []string{"a"}, Confirmed: []string{"a"}, LastConfirmationAt: anchor.UTC()}, past)
 		_, err := m.Revoke(1)
 		require.ErrorIs(t, err, rotation.ErrInvalidTransition)
-	})
-
-	t.Run("missing confirmation refused", func(t *testing.T) {
-		t.Parallel()
-		st := ready
-		st.Confirmed = []string{"a"} // only one of two required
-		m := resumeAt(t, st, past)
-		_, err := m.Revoke(1)
-		require.ErrorIs(t, err, rotation.ErrMissingConfirmation)
-	})
-
-	t.Run("no required clusters refused", func(t *testing.T) {
-		t.Parallel()
-		st := ready
-		st.RequiredClusters = nil
-		st.Confirmed = nil
-		m := resumeAt(t, st, past)
-		_, err := m.Revoke(1)
-		require.ErrorIs(t, err, rotation.ErrMissingConfirmation)
-	})
-
-	t.Run("overlap deadline unset fails closed", func(t *testing.T) {
-		t.Parallel()
-		st := ready
-		st.OverlapDeadline = time.Time{}
-		m := resumeAt(t, st, past)
-		_, err := m.Revoke(1)
-		require.ErrorIs(t, err, rotation.ErrInvalidState)
 	})
 
 	t.Run("overlap window not elapsed refused", func(t *testing.T) {
@@ -443,12 +724,6 @@ func TestInvalidTransitions(t *testing.T) {
 
 	// Each forward step is legal from exactly one source phase. Drive every step
 	// from a wrong phase and assert an invalid-transition refusal.
-	all := []rotation.Phase{
-		rotation.PhaseMintPlanned, rotation.PhaseMinted, rotation.PhaseCommitted,
-		rotation.PhaseSmokePassed, rotation.PhaseFannedOut, rotation.PhaseConfirmed,
-		rotation.PhaseOverlapClockStarted, rotation.PhaseRevoked, rotation.PhaseResmokePassed,
-		rotation.PhaseGenerationAdvanced,
-	}
 	steps := []struct {
 		name string
 		from rotation.Phase
@@ -460,11 +735,11 @@ func TestInvalidTransitions(t *testing.T) {
 		{name: "advance", from: rotation.PhaseResmokePassed, call: func(m *rotation.Machine) error { _, e := m.AdvanceGeneration(); return e }},
 	}
 	for _, step := range steps {
-		for _, phase := range all {
+		for _, phase := range allPhases() {
 			if phase == step.from {
 				continue
 			}
-			m := resume(t, rotation.State{Phase: phase, ActiveGeneration: 1, NextGeneration: 2})
+			m := resume(t, validState(phase))
 			err := step.call(m)
 			require.ErrorIsf(t, err, rotation.ErrInvalidTransition, "%s from %s", step.name, phase)
 		}
@@ -528,6 +803,24 @@ func TestStateReturnsCopy(t *testing.T) {
 	require.Equal(t, []string{"a"}, fresh.Confirmed)
 }
 
+func TestMachineDoesNotAliasCallerSlices(t *testing.T) {
+	t.Parallel()
+
+	persisted := validState(rotation.PhaseFannedOut)
+	m := resume(t, persisted)
+	persisted.RequiredClusters[0] = "mutated"
+	persisted.Confirmed[0] = "mutated"
+	require.Equal(t, []string{"a", "b"}, m.State().RequiredClusters)
+	require.Equal(t, []string{"a"}, m.State().Confirmed)
+
+	fanOutMachine := resume(t, validState(rotation.PhaseSmokePassed))
+	clusters := []string{"east", "west"}
+	_, err := fanOutMachine.FanOut(clusters)
+	require.NoError(t, err)
+	clusters[0] = "mutated"
+	require.Equal(t, []string{"east", "west"}, fanOutMachine.State().RequiredClusters)
+}
+
 func TestPhaseValid(t *testing.T) {
 	t.Parallel()
 
@@ -549,6 +842,53 @@ func TestTransitionErrorMessageAndUnwrap(t *testing.T) {
 	require.Equal(t, rotation.PhaseMintPlanned, te.From)
 	require.Contains(t, err.Error(), "cannot commit")
 	require.ErrorIs(t, err, rotation.ErrInvalidTransition)
+}
+
+func allPhases() []rotation.Phase {
+	return []rotation.Phase{
+		rotation.PhaseMintPlanned,
+		rotation.PhaseMinted,
+		rotation.PhaseCommitted,
+		rotation.PhaseSmokePassed,
+		rotation.PhaseFannedOut,
+		rotation.PhaseConfirmed,
+		rotation.PhaseOverlapClockStarted,
+		rotation.PhaseRevoked,
+		rotation.PhaseResmokePassed,
+		rotation.PhaseGenerationAdvanced,
+	}
+}
+
+func validState(phase rotation.Phase) rotation.State {
+	state := rotation.State{
+		Phase:            phase,
+		ActiveGeneration: 1,
+		NextGeneration:   2,
+	}
+
+	switch phase {
+	case rotation.PhaseFannedOut:
+		state.RequiredClusters = []string{"a", "b"}
+		state.Confirmed = []string{"a"}
+	case rotation.PhaseConfirmed:
+		state.RequiredClusters = []string{"a", "b"}
+		state.Confirmed = []string{"b", "a"}
+		state.LastConfirmationAt = anchor.UTC()
+	case rotation.PhaseOverlapClockStarted, rotation.PhaseRevoked, rotation.PhaseResmokePassed:
+		state.RequiredClusters = []string{"a", "b"}
+		state.Confirmed = []string{"b", "a"}
+		state.LastConfirmationAt = anchor.UTC()
+		state.OverlapDeadline = anchor.UTC().Add(rotation.OverlapWindow)
+	case rotation.PhaseGenerationAdvanced:
+		state.ActiveGeneration = 2
+		state.NextGeneration = 2
+		state.RequiredClusters = []string{"a", "b"}
+		state.Confirmed = []string{"b", "a"}
+		state.LastConfirmationAt = anchor.UTC()
+		state.OverlapDeadline = anchor.UTC().Add(rotation.OverlapWindow)
+	}
+
+	return state
 }
 
 // resume constructs a machine from persisted state with a clock pinned at the

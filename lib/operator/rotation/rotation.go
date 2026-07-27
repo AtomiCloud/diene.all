@@ -27,6 +27,7 @@ package rotation
 import (
 	"errors"
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 	"time"
@@ -133,49 +134,32 @@ type Machine struct {
 	state State
 }
 
-// New resumes a rotation from persisted state. It validates the state structurally
-// and adopts the in-flight phase as-is — it never restarts a partially-complete
-// rotation. The clock is mandatory and fails closed when absent.
+// New resumes a rotation from persisted state. It validates the complete
+// phase-specific state and adopts the in-flight phase as-is — it never restarts a
+// partially-complete rotation. The clock is mandatory and fails closed when
+// absent.
 func New(state State, now Clock) (*Machine, error) {
 	if now == nil {
 		return nil, ErrInvalidClock
 	}
-	if !state.Phase.Valid() {
-		return nil, fmt.Errorf("%w: %q", ErrInvalidPhase, state.Phase)
-	}
-	if state.ActiveGeneration < 0 || state.NextGeneration < 0 {
-		return nil, fmt.Errorf("%w: generations must be non-negative", ErrInvalidGeneration)
-	}
-	if err := validateClusters(state.RequiredClusters); err != nil {
+	if err := validateState(state); err != nil {
 		return nil, err
-	}
-	required := toSet(state.RequiredClusters)
-	seen := map[string]struct{}{}
-	for _, cluster := range state.Confirmed {
-		if strings.TrimSpace(cluster) == "" {
-			return nil, fmt.Errorf("%w: confirmed cluster must be nonblank", ErrInvalidCluster)
-		}
-		if _, ok := required[cluster]; !ok {
-			return nil, fmt.Errorf("%w: confirmed cluster %q is not in the fan-out set", ErrUnknownCluster, cluster)
-		}
-		if _, dup := seen[cluster]; dup {
-			return nil, fmt.Errorf("%w: confirmed cluster %q", ErrDuplicateCluster, cluster)
-		}
-		seen[cluster] = struct{}{}
 	}
 	return &Machine{now: now, state: state.clone()}, nil
 }
 
 // Begin starts a fresh rotation that plans minting generation activeGeneration+1.
-// It fails closed on a negative active generation.
+// It fails closed on a negative active generation or an increment that would
+// overflow int64.
 func Begin(activeGeneration int64, now Clock) (*Machine, error) {
-	if activeGeneration < 0 {
-		return nil, fmt.Errorf("%w: active generation must be non-negative", ErrInvalidGeneration)
+	next, err := incrementGeneration(activeGeneration)
+	if err != nil {
+		return nil, err
 	}
 	return New(State{
 		Phase:            PhaseMintPlanned,
 		ActiveGeneration: activeGeneration,
-		NextGeneration:   activeGeneration + 1,
+		NextGeneration:   next,
 	}, now)
 }
 
@@ -249,8 +233,13 @@ func (m *Machine) Confirm(cluster string) (State, error) {
 	}
 	m.state.Confirmed = append(m.state.Confirmed, cluster)
 	if len(m.state.Confirmed) == len(m.state.RequiredClusters) {
+		confirmedAt := m.now().UTC()
+		if confirmedAt.IsZero() {
+			m.state.Confirmed = m.state.Confirmed[:len(m.state.Confirmed)-1]
+			return State{}, fmt.Errorf("%w: last confirmation instant is unset", ErrInvalidState)
+		}
 		m.state.Phase = PhaseConfirmed
-		m.state.LastConfirmationAt = m.now().UTC()
+		m.state.LastConfirmationAt = confirmedAt
 	}
 	return m.state.clone(), nil
 }
@@ -261,11 +250,12 @@ func (m *Machine) StartOverlapClock() (State, error) {
 	if m.state.Phase != PhaseConfirmed {
 		return State{}, &TransitionError{Operation: "start overlap clock", From: m.state.Phase, Cause: ErrInvalidTransition}
 	}
-	if m.state.LastConfirmationAt.IsZero() {
-		return State{}, fmt.Errorf("%w: last confirmation instant is unset", ErrInvalidState)
+	deadline, err := calculateOverlapDeadline(m.state.LastConfirmationAt)
+	if err != nil {
+		return State{}, err
 	}
 	m.state.Phase = PhaseOverlapClockStarted
-	m.state.OverlapDeadline = m.state.LastConfirmationAt.Add(OverlapWindow)
+	m.state.OverlapDeadline = deadline
 	return m.state.clone(), nil
 }
 
@@ -276,14 +266,13 @@ func (m *Machine) StartOverlapClock() (State, error) {
 // overlap window must have elapsed, and target must be the old generation — never
 // the protected active (N+1) key.
 func (m *Machine) CanRevoke(target int64) error {
-	if m.state.Phase != PhaseOverlapClockStarted {
-		return &TransitionError{Operation: "revoke", From: m.state.Phase, Cause: ErrInvalidTransition}
-	}
-	if len(m.state.RequiredClusters) == 0 || len(m.state.Confirmed) < len(m.state.RequiredClusters) {
-		return ErrMissingConfirmation
-	}
-	if m.state.OverlapDeadline.IsZero() {
-		return fmt.Errorf("%w: overlap deadline is unset", ErrInvalidState)
+	stateErr := validateState(m.state)
+	if m.state.Phase != PhaseOverlapClockStarted || stateErr != nil {
+		return &TransitionError{
+			Operation: "revoke",
+			From:      m.state.Phase,
+			Cause:     errors.Join(ErrInvalidTransition, stateErr),
+		}
 	}
 	if m.now().UTC().Before(m.state.OverlapDeadline) {
 		return ErrOverlapNotElapsed
@@ -391,6 +380,152 @@ func Reconcile(vendorKeys []VendorKey, ledger CommittedLedger) []OrphanKey {
 		orphans = append(orphans, OrphanKey{Key: key, Reason: "no durable COMMIT entry"})
 	}
 	return orphans
+}
+
+// validateState enforces the exact persisted representation reachable through
+// the public transition methods. That makes New an integrity boundary rather than
+// a phase-only decoder, and lets safety predicates re-check the same laws.
+func validateState(state State) error {
+	if !state.Phase.Valid() {
+		return fmt.Errorf("%w: %q", ErrInvalidPhase, state.Phase)
+	}
+	if err := validateGenerations(state); err != nil {
+		return err
+	}
+	if err := validateClusters(state.RequiredClusters); err != nil {
+		return err
+	}
+	if err := validateConfirmations(state.RequiredClusters, state.Confirmed); err != nil {
+		return err
+	}
+
+	phaseOrder := order[state.Phase]
+	fannedOutOrder := order[PhaseFannedOut]
+	confirmedOrder := order[PhaseConfirmed]
+	overlapOrder := order[PhaseOverlapClockStarted]
+
+	if phaseOrder < fannedOutOrder {
+		if len(state.RequiredClusters) != 0 || len(state.Confirmed) != 0 {
+			return fmt.Errorf("%w: phase %q cannot retain confirmation fields", ErrInvalidState, state.Phase)
+		}
+	} else {
+		if len(state.RequiredClusters) == 0 {
+			return fmt.Errorf("%w: %w in phase %q", ErrInvalidState, ErrNoClusters, state.Phase)
+		}
+		if phaseOrder == fannedOutOrder && len(state.Confirmed) == len(state.RequiredClusters) {
+			return fmt.Errorf("%w: phase %q requires an incomplete confirmation set", ErrInvalidState, state.Phase)
+		}
+		if phaseOrder >= confirmedOrder && len(state.Confirmed) != len(state.RequiredClusters) {
+			return fmt.Errorf("%w: %w in phase %q", ErrInvalidState, ErrMissingConfirmation, state.Phase)
+		}
+	}
+
+	if err := validateLastConfirmationTime(state, phaseOrder, confirmedOrder); err != nil {
+		return err
+	}
+
+	if phaseOrder < overlapOrder {
+		if !state.OverlapDeadline.IsZero() {
+			return fmt.Errorf("%w: phase %q cannot retain an overlap deadline", ErrInvalidState, state.Phase)
+		}
+	} else {
+		expected, err := calculateOverlapDeadline(state.LastConfirmationAt)
+		if err != nil {
+			return err
+		}
+		if state.OverlapDeadline.IsZero() {
+			return fmt.Errorf("%w: phase %q requires an overlap deadline", ErrInvalidState, state.Phase)
+		}
+		if state.OverlapDeadline.Location() != time.UTC {
+			return fmt.Errorf("%w: overlap deadline must be UTC-normalized", ErrInvalidState)
+		}
+		if state.OverlapDeadline != expected {
+			return fmt.Errorf("%w: overlap deadline must equal last confirmation plus %s", ErrInvalidState, OverlapWindow)
+		}
+	}
+
+	return nil
+}
+
+// validateLastConfirmationTime enforces the zero-before-confirmed and nonzero-UTC
+// from-confirmed-onward timestamp representation.
+func validateLastConfirmationTime(state State, phaseOrder, confirmedOrder int) error {
+	switch {
+	case phaseOrder < confirmedOrder:
+		if !state.LastConfirmationAt.IsZero() {
+			return fmt.Errorf("%w: phase %q cannot retain a last-confirmation time", ErrInvalidState, state.Phase)
+		}
+		return nil
+	case state.LastConfirmationAt.IsZero():
+		return fmt.Errorf("%w: phase %q requires a last-confirmation time", ErrInvalidState, state.Phase)
+	case state.LastConfirmationAt.Location() != time.UTC:
+		return fmt.Errorf("%w: last-confirmation time must be UTC-normalized", ErrInvalidState)
+	default:
+		return nil
+	}
+}
+
+// calculateOverlapDeadline rejects time.Time's saturating overflow behavior so
+// every accepted deadline still represents a complete 48-hour interval.
+func calculateOverlapDeadline(lastConfirmationAt time.Time) (time.Time, error) {
+	deadline := lastConfirmationAt.Add(OverlapWindow)
+	if deadline.Sub(lastConfirmationAt) != OverlapWindow {
+		return time.Time{}, fmt.Errorf("%w: overlap deadline arithmetic overflow", ErrInvalidState)
+	}
+	return deadline, nil
+}
+
+// validateGenerations enforces the reachable generation relationship without
+// ever evaluating active+1 until overflow has been excluded. In-flight states
+// retain old N and next N+1; the terminal transition stores N+1 in both fields.
+func validateGenerations(state State) error {
+	if state.ActiveGeneration < 0 || state.NextGeneration < 0 {
+		return fmt.Errorf("%w: generations must be non-negative", ErrInvalidGeneration)
+	}
+	if state.Phase == PhaseGenerationAdvanced {
+		if state.ActiveGeneration == 0 || state.ActiveGeneration != state.NextGeneration {
+			return fmt.Errorf("%w: terminal generations must be equal and positive", ErrInvalidGeneration)
+		}
+		return nil
+	}
+	expected, err := incrementGeneration(state.ActiveGeneration)
+	if err != nil {
+		return err
+	}
+	if state.NextGeneration != expected {
+		return fmt.Errorf("%w: next generation must equal active generation plus one", ErrInvalidGeneration)
+	}
+	return nil
+}
+
+// incrementGeneration returns active+1 only when the arithmetic is defined.
+func incrementGeneration(active int64) (int64, error) {
+	if active < 0 {
+		return 0, fmt.Errorf("%w: active generation must be non-negative", ErrInvalidGeneration)
+	}
+	if active == math.MaxInt64 {
+		return 0, fmt.Errorf("%w: active generation cannot be incremented without overflow", ErrInvalidGeneration)
+	}
+	return active + 1, nil
+}
+
+// validateConfirmations rejects blank, duplicate, or out-of-set confirmations.
+func validateConfirmations(requiredClusters, confirmed []string) error {
+	required := toSet(requiredClusters)
+	seen := map[string]struct{}{}
+	for _, cluster := range confirmed {
+		if strings.TrimSpace(cluster) == "" {
+			return fmt.Errorf("%w: confirmed cluster must be nonblank", ErrInvalidCluster)
+		}
+		if _, ok := required[cluster]; !ok {
+			return fmt.Errorf("%w: confirmed cluster %q is not in the fan-out set", ErrUnknownCluster, cluster)
+		}
+		if _, dup := seen[cluster]; dup {
+			return fmt.Errorf("%w: confirmed cluster %q", ErrDuplicateCluster, cluster)
+		}
+		seen[cluster] = struct{}{}
+	}
+	return nil
 }
 
 // validateClusters rejects a nil/empty set, blank names, and duplicates.
