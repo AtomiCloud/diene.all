@@ -4,10 +4,10 @@ set -euo pipefail
 mode="${1:-}"
 coverage_mode="${2:-no-coverage}"
 
-# The publishable member lives under packages/diene_dart_lib (pub workspace).
+# The publishable member lives under packages/diene_config (pub workspace).
 # `dart pub get` resolves at the repo root; `dart test`, coverage collection and
 # the coverage:format_coverage run all execute with CWD = the member directory.
-member_dir="${MEMBER_DIR:-packages/diene_dart_lib}"
+member_dir="${MEMBER_DIR:-packages/diene_config}"
 test_helper_path="${TEST_HELPER_PATH:-lib/test_helper.dart}"
 meta_test_path="${META_TEST_PATH:-test/meta}"
 
@@ -17,13 +17,30 @@ meta_test_path="${META_TEST_PATH:-test/meta}"
 root_dir="$(git rev-parse --show-toplevel)"
 cd "${root_dir}"
 
-# Conditional meta activation: the meta tier is a successful no-op unless BOTH
-# the TestHelper source and the meta test directory exist. Presence of exactly
-# one is caught by the package-validate identity checks; here we simply skip when
-# neither is present so a no-helper fixture stays green.
-if [[ ${mode} == "meta" && (! -f "${member_dir}/${test_helper_path}" || ! -d "${member_dir}/${meta_test_path}") ]]; then
-  echo "✅ Meta tier inactive: this package has no TestHelper"
-  exit 0
+# diene_config is a YES-TestHelper library, so its meta tier is MANDATORY, not
+# conditional. The inherited template treated the tier as a successful no-op
+# whenever the helper or the meta directory was missing; for this package that
+# turned deletion of the whole meta suite into a green CI job that uploaded no
+# TestHelper coverage at all. Both halves are therefore required, and their
+# absence is an error rather than a skip.
+#
+# TEST_HELPER_PATH/META_TEST_PATH remain overridable so probes can point the
+# tier at a deliberately absent path and prove this failure fires.
+if [[ ${mode} == "meta" ]]; then
+  if [[ ! -f "${member_dir}/${test_helper_path}" ]]; then
+    echo "❌ ${member_dir}/${test_helper_path} is missing; diene_config ships a TestHelper and its meta tier is mandatory" >&2
+    exit 1
+  fi
+  if [[ ! -d "${member_dir}/${meta_test_path}" ]]; then
+    echo "❌ ${member_dir}/${meta_test_path} is missing; the TestHelper must be dogfooded by a meta suite" >&2
+    exit 1
+  fi
+  meta_test_count="$(find "${member_dir}/${meta_test_path}" -name '*_test.dart' -type f | wc -l)"
+  echo "→ meta tier is mandatory; ${meta_test_path} holds ${meta_test_count} test file(s)"
+  if [[ ${meta_test_count} -eq 0 ]]; then
+    echo "❌ ${member_dir}/${meta_test_path} contains no *_test.dart; an empty meta directory is not a meta suite" >&2
+    exit 1
+  fi
 fi
 
 ./scripts/ci/setup.sh

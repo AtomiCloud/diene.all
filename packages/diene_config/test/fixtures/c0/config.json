@@ -1,0 +1,105 @@
+{
+  "$generated": {
+    "tool": "tool/gen_c0_projection.dart",
+    "sourceCase": "contracts/c0/cases/config.json",
+    "sourceCaseSha256": "3cda07ebb84726ba01def993f83c8e0b053eea3d51496dbc4abc5d08e07cb7b0",
+    "domain": "config",
+    "releaseId": "c0-fixtures-r2",
+    "releaseDigest": "0e64439c681a22fb4f02285c082ed8ffb7b465e732fde4e49757e9e3c9a5783e",
+    "releaseDigestDomain": "atomicloud.diene.c0-fixtures.release.v1",
+    "releaseManifestPath": "contracts/c0/RELEASE.json",
+    "releaseManifestWithoutDigest": "{\"c0ProseSource\":{\"note\":\"workspace overlay pinned by SHA-256; r2 verbatim excerpt set committed under contracts/c0/provenance\",\"path\":\"goals/c0-contracts.md\",\"sha256\":\"7dd7a06279f3078a5e195d4103d01ce9fd1b30a7d88178ec37c3e6f0465c7101\"},\"contractVersion\":2,\"domains\":[\"config\",\"identity\",\"problem\",\"result-wire\"],\"formatterPolicy\":{\"path\":\".prettierignore\",\"prettierExcludedPaths\":[\"/contracts/c0/RELEASE.json\",\"/contracts/c0/cases/config.json\",\"/contracts/c0/cases/identity.json\",\"/contracts/c0/cases/problem.json\",\"/contracts/c0/cases/result-wire.json\",\"/contracts/c0/provenance/app-handoff.md\",\"/contracts/c0/provenance/config-precedence.md\",\"/contracts/c0/provenance/edge-docs.md\",\"/contracts/c0/provenance/home-claim.md\",\"/contracts/c0/provenance/onboarding-claim.md\",\"/contracts/c0/provenance/problem-catalog.md\",\"/contracts/c0/provenance/problem-schema.md\",\"/contracts/c0/provenance/result-semantics.md\",\"/contracts/c0/provenance/token-lifetimes.md\",\"/test/fixtures/c0/catalog-entry.json\",\"/test/fixtures/c0/config.json\",\"/test/fixtures/c0/envelope.json\",\"/test/fixtures/c0/identity.json\",\"/test/fixtures/c0/problem-envelope.json\",\"/test/fixtures/c0/result-wire.json\",\"/test/fixtures/c0/type-uri.json\"],\"sha256\":\"a5163b3ccf4e9da2956f3ed0f6866569fc34164050ca55e3e805ee1cc9a5bb02\"},\"releaseId\":\"c0-fixtures-r2\",\"secondarySources\":[{\"path\":\"goals/lib/dart-family.md\",\"sha256\":\"ece72edbb18e2c45f6f16e3a4da2172862f7b044d4218292f90e5219da0b5bd6\"},{\"path\":\"goals/lib/result-deep-dive.md\",\"sha256\":\"68e9ec021b3c286fa377bfb8ee02373cfab3146d5c6f43ce9d0085c27fefb164\"}]}",
+    "releaseLedgerPath": "contracts/c0/SHA256SUMS",
+    "releaseLedgerEntry": "cases/config.json",
+    "releaseLedger": "f99c9659dc9c2f210f2f4014831beabc581452a6f738d56245e3f8af631d69a8  README.md\n3cda07ebb84726ba01def993f83c8e0b053eea3d51496dbc4abc5d08e07cb7b0  cases/config.json\nadd399f33101bd68b98ac6aea3f073d6f7e852410cba5e846c7311ce2028ac59  cases/identity.json\na8c02554c198627df9badc6c2377218556ec8bd3a0b1edcdb20aedeebe43f988  cases/problem.json\n7a72a9ad48435771141a927057ea117d0f50786b07f8cb5bfef07812b936f821  cases/result-wire.json\nb8a65b4dcf56fc25101b5198a084b6efa65abe47a57dc6d1b13a9fff90f2ebde  provenance/PROVENANCE.md\n11409d1a6a55462b200786d87c50b50f0b98466e48f7053d5ecaf2fa8825783d  provenance/app-handoff.md\n0897674a1337b6a628a53c6116dcb7918d237e0fa4dd8f446ce1de742ffcc366  provenance/config-precedence.md\n0479f96fb2821f0e839f999ee91618a0324272cd2f905c72375979154320f3e8  provenance/edge-docs.md\n90979eb13550501e41cd8d2444ab5ca89e660aafabbdb57aa613525f8f71937f  provenance/home-claim.md\nd92dcbcc4ccea3c6ebc1d899f475b1cc20b2d54bb7cf10ee1f5e58a803d111d3  provenance/onboarding-claim.md\n033e3b250447015466240406b16deb379038df2d5f4c723abb07523de6d85b16  provenance/problem-catalog.md\nf9f12fa7d07d3ff96d42ae5a6655db563f3c3f75f787738a6c87048763863251  provenance/problem-schema.md\nd9a65990cd6ab40af3fa1593b084184077b4aec32fca9d54bfa92578ca90e81e  provenance/result-semantics.md\n72c00ef23dcfd80c4c49418783fd3ec77a1cdae8baee95c2e5e48b88d7c40e00  provenance/token-lifetimes.md\n",
+    "projectedCases": [
+      "blankIsUnset",
+      "caseInsensitiveKeyMatching",
+      "finalLayerValidation",
+      "layeringAndIndexedList",
+      "noJsonNoComma"
+    ]
+  },
+  "c0Sections": [
+    "§3 Config precedence"
+  ],
+  "blankIsUnset": {
+    "baseYaml": "app:\n  name: base\n  retries: 1\n  tags: [base]\n",
+    "defines": {
+      "ACME_APP__NAME": "",
+      "ACME_APP__TAGS__0": ""
+    },
+    "expected": {
+      "name": "base",
+      "retries": 1,
+      "tags": [
+        "base"
+      ]
+    },
+    "prefix": "ACME_"
+  },
+  "caseInsensitiveKeyMatching": {
+    "baseYaml": "app-settings:\n  displayName: base\n",
+    "prefix": "ACME_",
+    "variants": [
+      {
+        "defineKey": "ACME_APP_SETTINGS__DISPLAY_NAME",
+        "expectedValue": "snake"
+      },
+      {
+        "defineKey": "acme_app-settings__display-name",
+        "expectedValue": "kebab"
+      },
+      {
+        "defineKey": "AcMe_AppSettings__DisplayName",
+        "expectedValue": "pascal"
+      }
+    ]
+  },
+  "finalLayerValidation": {
+    "invalid": {
+      "baseYaml": "app:\n  name: service\n  retries: -1\n  tags: []\n",
+      "defines": {},
+      "prefix": "ACME_"
+    }
+  },
+  "layeringAndIndexedList": {
+    "baseYaml": "app:\n  name: base\n  retries: -1\n  tags: [base]\n",
+    "defines": {
+      "ACME_APP__NAME": "define",
+      "ACME_APP__TAGS__0": "first",
+      "ACME_APP__TAGS__1": "second"
+    },
+    "developmentYaml": "app:\n  name: development\n  tags: [development]\n",
+    "expected": {
+      "name": "define",
+      "retries": 2,
+      "tags": [
+        "first",
+        "second"
+      ]
+    },
+    "landscapeYaml": "app:\n  name: landscape\n  retries: 2\n",
+    "prefix": "ACME_"
+  },
+  "noJsonNoComma": {
+    "rejected": [
+      {
+        "baseYaml": "app:\n  name: service\n  retries: 1\n  tags: []\n",
+        "defines": {
+          "ACME_APP__TAGS": "[\"first\",\"second\"]"
+        },
+        "name": "JSON",
+        "prefix": "ACME_"
+      },
+      {
+        "baseYaml": "app:\n  name: service\n  retries: 1\n  tags: []\n",
+        "defines": {
+          "ACME_APP__TAGS": "first,second"
+        },
+        "name": "comma-separated",
+        "prefix": "ACME_"
+      }
+    ]
+  }
+}
