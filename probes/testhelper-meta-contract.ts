@@ -8,9 +8,7 @@ export default {
   contractVersion: 1,
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
   setup: {
-    post: [
-      'nix develop .#ci --no-write-lock-file -c dart pub get --offline || nix develop .#ci --no-write-lock-file -c dart pub get',
-    ],
+    post: ['nix develop .#ci --no-write-lock-file -c dart pub get --offline'],
   },
   probes: [
     {
@@ -36,12 +34,17 @@ export default {
         if (!target) {
           throw new Error('testhelper-meta-contract: no lib/test_helper.dart to sabotage');
         }
-        await repo.patch(target, { find: 'if (actual != expected) {', replace: 'if (actual == expected) {' });
-        await expectRed(
-          repo,
-          'nix develop .#ci --no-write-lock-file -c ./scripts/ci/test.sh meta no-coverage',
-          'testhelper-meta-contract',
-        );
+        const original = await repo.read(target);
+        try {
+          await repo.patch(target, { find: 'if (actual != expected) {', replace: 'if (actual == expected) {' });
+          await expectRed(
+            repo,
+            'nix develop .#ci --no-write-lock-file -c ./scripts/ci/test.sh meta no-coverage',
+            'testhelper-meta-contract',
+          );
+        } finally {
+          await repo.write(target, original);
+        }
       },
     },
   ],

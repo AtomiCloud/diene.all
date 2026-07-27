@@ -32,12 +32,16 @@ export default {
           throw new Error('dart-format: no library source file to sabotage');
         }
         const original = await repo.read(target);
-        await repo.write(target, `${original}\nfinal int probeUnformatted =  1;\n`);
-        await expectRed(
-          repo,
-          'nix develop .#ci --no-write-lock-file -c dart format --output=none --set-exit-if-changed .',
-          'dart-format',
-        );
+        try {
+          await repo.write(target, `${original}\nfinal int probeUnformatted =  1;\n`);
+          await expectRed(
+            repo,
+            'nix develop .#ci --no-write-lock-file -c dart format --output=none --set-exit-if-changed .',
+            'dart-format',
+          );
+        } finally {
+          await repo.write(target, original);
+        }
       },
     },
   ],

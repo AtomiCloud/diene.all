@@ -7,9 +7,7 @@ export default {
   // shipped usage skill; restore .dart_tool from the warm PUB_CACHE first so the
   // vendored copy is regenerated identically (otherwise skills-sync drops it).
   setup: {
-    post: [
-      'nix develop .#ci --no-write-lock-file -c dart pub get --offline || nix develop .#ci --no-write-lock-file -c dart pub get',
-    ],
+    post: ['nix develop .#ci --no-write-lock-file -c dart pub get --offline'],
   },
   probes: [
     {

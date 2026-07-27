@@ -8,9 +8,7 @@ export default {
   contractVersion: 1,
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
   setup: {
-    post: [
-      'nix develop .#ci --no-write-lock-file -c dart pub get --offline || nix develop .#ci --no-write-lock-file -c dart pub get',
-    ],
+    post: ['nix develop .#ci --no-write-lock-file -c dart pub get --offline'],
   },
   probes: [
     {
@@ -33,8 +31,12 @@ export default {
           throw new Error('dart-analyze: no library source file to sabotage');
         }
         const original = await repo.read(target);
-        await repo.write(target, `${original}\nvoid _probeAnalyzeViolation() {\n  print('probe');\n}\n`);
-        await expectRed(repo, 'nix develop .#ci --no-write-lock-file -c ./scripts/ci/analyze.sh', 'dart-analyze');
+        try {
+          await repo.write(target, `${original}\nvoid _probeAnalyzeViolation() {\n  print('probe');\n}\n`);
+          await expectRed(repo, 'nix develop .#ci --no-write-lock-file -c ./scripts/ci/analyze.sh', 'dart-analyze');
+        } finally {
+          await repo.write(target, original);
+        }
       },
     },
   ],

@@ -22,12 +22,18 @@ export default {
       kind: 'mutation',
       expectedImpact: ['release-policy-values'],
       async run(repo: any) {
-        await repo.patch('atomi_release.yaml', { find: '  - type: chore', replace: '  - type: chores' });
-        await expectRed(
-          repo,
-          'nix develop .#ci -c ./scripts/validate/release-config.sh types',
-          'release-type-vocabulary',
-        );
+        const path = 'atomi_release.yaml';
+        const source = await repo.read(path);
+        try {
+          await repo.patch(path, { find: '  - type: chore', replace: '  - type: chores' });
+          await expectRed(
+            repo,
+            'nix develop .#ci -c ./scripts/validate/release-config.sh types',
+            'release-type-vocabulary',
+          );
+        } finally {
+          await repo.write(path, source);
+        }
       },
     },
   ],

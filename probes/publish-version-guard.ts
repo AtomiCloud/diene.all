@@ -26,11 +26,17 @@ export default {
       expectedImpact: ['pub-workspace-metadata-validator'],
       async run(repo: any) {
         const version = (await repo.read('VERSION')).trim();
-        await repo.patch('packages/diene_dart_lib/pubspec.yaml', {
-          find: `version: ${version}`,
-          replace: `version: ${version}-probe-drift`,
-        });
-        await expectRed(repo, GUARD, 'publish-version-guard');
+        const path = 'packages/diene_dart_lib/pubspec.yaml';
+        const original = await repo.read(path);
+        try {
+          await repo.patch(path, {
+            find: `version: ${version}`,
+            replace: `version: ${version}-probe-drift`,
+          });
+          await expectRed(repo, GUARD, 'publish-version-guard');
+        } finally {
+          await repo.write(path, original);
+        }
       },
     },
   ],

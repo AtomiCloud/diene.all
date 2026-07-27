@@ -46,9 +46,13 @@ export default {
           throw new Error('publish-workflow-wiring: wiring already broken before sabotage');
         }
         const reusable = await repo.read(REUSABLE);
-        await repo.write(REUSABLE, reusable.replace('publish.sh', 'publish-missing.sh'));
-        if (await wiringResolves(repo)) {
-          throw new Error('publish-workflow-wiring: wiring survived sabotage');
+        try {
+          await repo.write(REUSABLE, reusable.replace('publish.sh', 'publish-missing.sh'));
+          if (await wiringResolves(repo)) {
+            throw new Error('publish-workflow-wiring: wiring survived sabotage');
+          }
+        } finally {
+          await repo.write(REUSABLE, reusable);
         }
       },
     },

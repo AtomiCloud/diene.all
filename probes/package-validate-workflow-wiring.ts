@@ -46,9 +46,13 @@ export default {
           throw new Error('package-validate-workflow-wiring: wiring already broken before sabotage');
         }
         const reusable = await repo.read(REUSABLE);
-        await repo.write(REUSABLE, reusable.replace('package-validate.sh', 'package-validate-missing.sh'));
-        if (await wiringResolves(repo)) {
-          throw new Error('package-validate-workflow-wiring: wiring survived sabotage');
+        try {
+          await repo.write(REUSABLE, reusable.replace('package-validate.sh', 'package-validate-missing.sh'));
+          if (await wiringResolves(repo)) {
+            throw new Error('package-validate-workflow-wiring: wiring survived sabotage');
+          }
+        } finally {
+          await repo.write(REUSABLE, reusable);
         }
       },
     },

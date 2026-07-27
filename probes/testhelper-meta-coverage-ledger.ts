@@ -7,9 +7,7 @@ export default {
   contractVersion: 1,
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
   setup: {
-    post: [
-      'nix develop .#ci --no-write-lock-file -c dart pub get --offline || nix develop .#ci --no-write-lock-file -c dart pub get',
-    ],
+    post: ['nix develop .#ci --no-write-lock-file -c dart pub get --offline'],
   },
   probes: [
     {
@@ -35,12 +33,17 @@ export default {
         if (!target) {
           throw new Error('testhelper-meta-coverage-ledger: no lib/test_helper.dart to sabotage');
         }
-        await repo.write(target, `${await repo.read(target)}\nint probeUncoveredHelper() {\n  return 1;\n}\n`);
-        await expectRed(
-          repo,
-          'nix develop .#ci --no-write-lock-file -c ./scripts/ci/test.sh meta coverage',
-          'testhelper-meta-coverage-ledger',
-        );
+        const original = await repo.read(target);
+        try {
+          await repo.write(target, `${original}\nint probeUncoveredHelper() {\n  return 1;\n}\n`);
+          await expectRed(
+            repo,
+            'nix develop .#ci --no-write-lock-file -c ./scripts/ci/test.sh meta coverage',
+            'testhelper-meta-coverage-ledger',
+          );
+        } finally {
+          await repo.write(target, original);
+        }
       },
     },
   ],
