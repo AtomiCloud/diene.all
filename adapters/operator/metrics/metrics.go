@@ -53,9 +53,8 @@ const (
 // the per-object surfaces; metrics are the bounded alertable aggregate.
 const LabelOther = "other"
 
-// controllerVocabulary is the closed controller label vocabulary: the two fenced
-// sample controllers (kept only for source compatibility until the R1 deletion)
-// plus every real enable seam the runtime declares, including the reserved
+// controllerVocabulary is the closed controller label vocabulary: every real
+// enable seam the runtime declares, including the reserved
 // "problem" seam — a known future controller must land on its own label rather
 // than collapse into LabelOther the day its writer arrives. It is mirrored by
 // infra/root_chart/values.yaml metricLabels.controllers, which the alert pack
@@ -64,8 +63,6 @@ const LabelOther = "other"
 //
 // BEGIN taxonomy:controllers — the validator parses the literals between these markers.
 var controllerVocabulary = []string{
-	"note",
-	"journal",
 	"cluster",
 	"platform",
 	"dependency",

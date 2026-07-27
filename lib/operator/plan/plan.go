@@ -23,8 +23,7 @@ import (
 
 // ─── Condition-vocabulary compatibility facade ───────────────────────────────
 //
-// These alias the authoritative vocabulary in lib/operator/conditions so the
-// inherited note/journal controllers and their tests keep compiling unchanged.
+// These alias the authoritative vocabulary in lib/operator/conditions.
 
 // Condition is the pure, k8s-free condition intent (aliased to conditions.Condition).
 type Condition = conditions.Condition

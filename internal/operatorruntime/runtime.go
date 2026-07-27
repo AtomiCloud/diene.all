@@ -3,14 +3,10 @@ package operatorruntime
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"strconv"
-	"time"
 
-	"github.com/minio/minio-go/v7"
-	miniocredentials "github.com/minio/minio-go/v7/pkg/credentials"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -19,13 +15,11 @@ import (
 	metricsfilters "sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	"github.com/AtomiCloud/diene.fleet-operator/adapters/operator/controllers"
 	"github.com/AtomiCloud/diene.fleet-operator/adapters/operator/kube"
-	"github.com/AtomiCloud/diene.fleet-operator/adapters/operator/ledgerstore"
 	operatormetrics "github.com/AtomiCloud/diene.fleet-operator/adapters/operator/metrics"
-	apiv1alpha1 "github.com/AtomiCloud/diene.fleet-operator/api/v1alpha1"
+	apifleet "github.com/AtomiCloud/diene.fleet-operator/api/fleet/v1alpha1"
+	apiproblems "github.com/AtomiCloud/diene.fleet-operator/api/problems/v1alpha1"
 	"github.com/AtomiCloud/diene.fleet-operator/lib/operator/brake"
-	"github.com/AtomiCloud/diene.fleet-operator/lib/operator/ledger"
 )
 
 const leaderElectionID = "fleet-operator.diene.atomi.cloud"
@@ -49,16 +43,8 @@ const (
 	envBroadT4Root         = "FLEET_OPERATOR_T4_ROOT_PATH"
 )
 
-// ErrLedgerEndpointRequired reports an enabled Note controller without a ledger endpoint.
-var ErrLedgerEndpointRequired = errors.New("note controller enabled but --ledger-endpoint/LEDGER_ENDPOINT is empty; set an endpoint or disable the Note controller (--enable-note=false)")
-
-// ErrNoteLedgerRequired reports an enabled Note controller without its runtime dependency.
-var ErrNoteLedgerRequired = errors.New("note controller enabled without a ledger service")
-
 // Config is the manager configuration populated by its real command-line flags.
 type Config struct {
-	EnableNote                      bool
-	EnableJournal                   bool
 	EnableCluster                   bool
 	EnablePlatform                  bool
 	EnableDependency                bool
@@ -78,7 +64,6 @@ type Config struct {
 	LedgerEndpoint                  string
 	LedgerBucket                    string
 	LedgerSecure                    bool
-	LedgerNotePrefix                string
 	LedgerAccessKey                 string
 	LedgerSecretKey                 string
 }
@@ -90,8 +75,6 @@ func DefaultConfig(getenv func(string) string) Config {
 		ledgerBucket = "fleet-operator-ledger"
 	}
 	return Config{
-		EnableNote:                      true,
-		EnableJournal:                   true,
 		MetricsAddress:                  ":8443",
 		HealthAddress:                   ":8081",
 		LeaderElection:                  true,
@@ -103,7 +86,6 @@ func DefaultConfig(getenv func(string) string) Config {
 		LedgerEndpoint:                  getenv("LEDGER_ENDPOINT"),
 		LedgerBucket:                    ledgerBucket,
 		LedgerSecure:                    getenv("LEDGER_SECURE") == "true",
-		LedgerNotePrefix:                "notes/",
 		LedgerAccessKey:                 getenv("LEDGER_ACCESS_KEY"),
 		LedgerSecretKey:                 getenv("LEDGER_SECRET_KEY"),
 	}
@@ -147,8 +129,6 @@ func CredentialSetFromEnvironment(getenv func(string) string) CredentialSet {
 
 // BindFlags binds the manager's public runtime interface directly to config.
 func BindFlags(flags *flag.FlagSet, config *Config) {
-	flags.BoolVar(&config.EnableNote, "enable-note", config.EnableNote, "enable the Note controller")
-	flags.BoolVar(&config.EnableJournal, "enable-journal", config.EnableJournal, "enable the Journal controller")
 	flags.BoolVar(&config.EnableCluster, "enable-cluster", config.EnableCluster, "enable the cluster controller")
 	flags.BoolVar(&config.EnablePlatform, "enable-platform", config.EnablePlatform, "enable the platform controller")
 	flags.BoolVar(&config.EnableDependency, "enable-dependency", config.EnableDependency, "enable the dependency controller")
@@ -181,7 +161,6 @@ func BindFlags(flags *flag.FlagSet, config *Config) {
 	flags.StringVar(&config.LedgerEndpoint, "ledger-endpoint", config.LedgerEndpoint, "S3/MinIO ledger endpoint host:port")
 	flags.StringVar(&config.LedgerBucket, "ledger-bucket", config.LedgerBucket, "ledger bucket name")
 	flags.BoolVar(&config.LedgerSecure, "ledger-secure", config.LedgerSecure, "use TLS for the ledger endpoint")
-	flags.StringVar(&config.LedgerNotePrefix, "ledger-note-prefix", config.LedgerNotePrefix, "per-controller ledger object prefix for the Note controller")
 }
 
 type mirroredIntValue struct {
@@ -213,10 +192,9 @@ func (v *mirroredIntValue) Get() any {
 
 // ControllerDependencies contains replaceable runtime dependencies for registration tests.
 type ControllerDependencies struct {
-	Clock      kube.Clock
-	Metrics    operatormetrics.Recorder
-	NoteLedger *ledger.Service
-	Bundles    Bundles
+	Clock   kube.Clock
+	Metrics operatormetrics.Recorder
+	Bundles Bundles
 }
 
 // NewScheme returns the scheme used by both the production manager and fixtures.
@@ -225,8 +203,11 @@ func NewScheme() (*runtime.Scheme, error) {
 	if err := clientgoscheme.AddToScheme(scheme); err != nil {
 		return nil, fmt.Errorf("register client-go scheme: %w", err)
 	}
-	if err := apiv1alpha1.AddToScheme(scheme); err != nil {
-		return nil, fmt.Errorf("register sample scheme: %w", err)
+	if err := apifleet.AddToScheme(scheme); err != nil {
+		return nil, fmt.Errorf("register fleet scheme: %w", err)
+	}
+	if err := apiproblems.AddToScheme(scheme); err != nil {
+		return nil, fmt.Errorf("register problems scheme: %w", err)
 	}
 	return scheme, nil
 }
@@ -247,7 +228,7 @@ func NewManager(restConfig *rest.Config, scheme *runtime.Scheme, config Config) 
 }
 
 // RegisterControllers applies the real per-controller enable flags to manager registration.
-func RegisterControllers(manager ctrl.Manager, config Config, dependencies ControllerDependencies) error {
+func RegisterControllers(_ ctrl.Manager, config Config, dependencies ControllerDependencies) error {
 	if config.EnableProblem {
 		return ErrProblemNotFolded
 	}
@@ -344,47 +325,6 @@ func RegisterControllers(manager ctrl.Manager, config Config, dependencies Contr
 
 	// Phase 2 intentionally stops at these six bundle-gated registration
 	// seams. Phase 3 adds each real reconciler inside its matching branch.
-	clock := dependencies.Clock
-	if clock == nil {
-		clock = kube.RealClock{}
-	}
-	recorder := dependencies.Metrics
-	if recorder == nil {
-		recorder = operatormetrics.NewPrometheus()
-	}
-
-	if config.EnableNote {
-		if dependencies.NoteLedger == nil {
-			return ErrNoteLedgerRequired
-		}
-		reconciler := &controllers.NoteReconciler{
-			Client:     manager.GetClient(),
-			Clock:      clock,
-			Recorder:   kube.NewEventRecorder(manager.GetEventRecorderFor("note-controller")),
-			ConfigMaps: kube.NewConfigMapAdapter(manager.GetClient(), manager.GetScheme(), controllers.NoteOwnerLabel),
-			Ledger:     *dependencies.NoteLedger,
-			Metrics:    recorder,
-			Observe:    config.Observe,
-			BrakeCap:   config.BlastBrakeCap,
-			Platform:   config.Platform,
-			Landscape:  config.Landscape,
-		}
-		if err := reconciler.SetupWithManager(manager); err != nil {
-			return fmt.Errorf("register Note controller: %w", err)
-		}
-	}
-
-	if config.EnableJournal {
-		reconciler := &controllers.JournalReconciler{
-			Client:   manager.GetClient(),
-			Clock:    clock,
-			Recorder: kube.NewEventRecorder(manager.GetEventRecorderFor("journal-controller")),
-			Metrics:  recorder,
-		}
-		if err := reconciler.SetupWithManager(manager); err != nil {
-			return fmt.Errorf("register Journal controller: %w", err)
-		}
-	}
 	return nil
 }
 
@@ -429,7 +369,7 @@ func StartWithCredentials(ctx context.Context, restConfig *rest.Config, config C
 	return manager.Start(ctx)
 }
 
-func productionDependencies(ctx context.Context, config Config, credentials CredentialSet) (ControllerDependencies, error) {
+func productionDependencies(_ context.Context, config Config, credentials CredentialSet) (ControllerDependencies, error) {
 	bundles, err := BuildBundles(config, credentials)
 	if err != nil {
 		return ControllerDependencies{}, err
@@ -439,28 +379,5 @@ func productionDependencies(ctx context.Context, config Config, credentials Cred
 		Metrics: operatormetrics.NewPrometheus(),
 		Bundles: bundles,
 	}
-	if !config.EnableNote {
-		return dependencies, nil
-	}
-	if config.LedgerEndpoint == "" {
-		return ControllerDependencies{}, ErrLedgerEndpointRequired
-	}
-	client, err := minio.New(config.LedgerEndpoint, &minio.Options{
-		Creds:  miniocredentials.NewStaticV4(config.LedgerAccessKey, config.LedgerSecretKey, ""),
-		Secure: config.LedgerSecure,
-	})
-	if err != nil {
-		return ControllerDependencies{}, fmt.Errorf("build ledger client: %w", err)
-	}
-	store := ledgerstore.NewMinioStore(client, config.LedgerBucket, config.LedgerNotePrefix)
-	// Bound the startup bucket check: a black-holed ledger endpoint must fail fast
-	// rather than block manager.Start (and the health server) indefinitely.
-	bctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-	if err := store.EnsureBucket(bctx); err != nil {
-		return ControllerDependencies{}, fmt.Errorf("ensure ledger bucket: %w", err)
-	}
-	service := ledger.NewService(store)
-	dependencies.NoteLedger = &service
 	return dependencies, nil
 }

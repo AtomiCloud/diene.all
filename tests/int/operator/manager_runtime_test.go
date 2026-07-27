@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"flag"
 	"io"
 	"net"
 	"net/http"
@@ -46,8 +47,6 @@ func TestManagerRuntimeConfigAndCredentialParsing(t *testing.T) {
 	getenv := func(name string) string { return environment[name] }
 
 	config := operatorruntime.DefaultConfig(getenv)
-	require.True(t, config.EnableNote)
-	require.True(t, config.EnableJournal)
 	require.False(t, config.EnableCluster)
 	require.False(t, config.EnablePlatform)
 	require.False(t, config.EnableDependency)
@@ -58,6 +57,18 @@ func TestManagerRuntimeConfigAndCredentialParsing(t *testing.T) {
 	require.Equal(t, brake.DefaultTrafficCapPercent, config.TrafficCapPercent)
 	require.Equal(t, brake.DefaultDependencyCapPerTick, config.DependencyDestructiveCapPerTick)
 	require.Equal(t, 20, config.BlastBrakeCap)
+
+	flags := flag.NewFlagSet("manager-runtime", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	operatorruntime.BindFlags(flags, &config)
+	require.NoError(t, flags.Parse([]string{
+		"--observe=true",
+		"--metrics-bind-address=127.0.0.1:9443",
+		"--health-probe-bind-address=127.0.0.1:9081",
+	}))
+	require.True(t, config.Observe)
+	require.Equal(t, "127.0.0.1:9443", config.MetricsAddress)
+	require.Equal(t, "127.0.0.1:9081", config.HealthAddress)
 
 	credentials := operatorruntime.CredentialSetFromEnvironment(getenv)
 	require.Equal(t, "cluster", credentials.Cluster.ProviderAPI)
@@ -96,8 +107,6 @@ func TestManagerRuntimeHealthEndpoints(t *testing.T) {
 	command := exec.CommandContext(
 		t.Context(),
 		binary,
-		"--enable-note=false",
-		"--enable-journal=false",
 		"--enable-cluster=false",
 		"--enable-platform=false",
 		"--enable-dependency=false",
@@ -152,8 +161,6 @@ func TestManagerRuntimeProblemReservedSeam(t *testing.T) {
 	command := exec.CommandContext(
 		t.Context(),
 		binary,
-		"--enable-note=false",
-		"--enable-journal=false",
 		"--enable-problem=true",
 		"--leader-elect=false",
 		"--metrics-bind-address=0",

@@ -107,9 +107,9 @@ const RETIRED_SCAN_FILES = [
   'observability/dashboards/README.md',
 ];
 
-// The safe DEFAULT render: both sample controllers enabled, no configured MarkTick
-// producer. Nothing here may page on an empty series.
-const defaultManifests = render(['--set', 'controllers.note=true', '--set', 'controllers.journal=true']);
+// The safe DEFAULT render has every controller disabled and no configured
+// MarkTick producer. Nothing here may page on an empty series.
+const defaultManifests = render([]);
 const docs = toDocs(defaultManifests);
 
 // The EXPLICIT-PRODUCER render: one real controller declared as a producer of the
@@ -169,12 +169,21 @@ const dashExprs: string[] = [];
   }
 
   const reconcileErr = findRule(r => /controller_runtime_reconcile_errors_total/.test(exprOf(r)));
-  check(!!reconcileErr && sourceOf(reconcileErr) === 'toy', 'missing toy reconcile-error-rate alert');
+  check(
+    !reconcileErr,
+    `default alert pack must not reference reconcile errors; offending rule uid=${reconcileErr?.uid ?? '(no uid)'}`,
+  );
 
   const latency = findRule(r =>
     /histogram_quantile\(.*controller_runtime_reconcile_time_seconds_bucket/.test(exprOf(r)),
   );
-  check(!!latency && sourceOf(latency) === 'toy', 'missing toy reconcile-latency alert');
+  check(
+    !latency,
+    `default alert pack must not reference reconcile latency; offending rule uid=${latency?.uid ?? '(no uid)'}`,
+  );
+
+  const toyRule = findRule(r => sourceOf(r) === 'toy');
+  check(!toyRule, `default alert pack must not render source=toy; offending rule uid=${toyRule?.uid ?? '(no uid)'}`);
 
   // SAFE DEFAULT: with no controller declared as a MarkTick producer, no staleness
   // rule may be shipped at all — an unwritten series must never page forever — and
@@ -208,7 +217,10 @@ const dashExprs: string[] = [];
   );
 
   const ledger = findRule(r => /fleet_operator_ledger_failures_total/.test(exprOf(r)));
-  check(!!ledger && sourceOf(ledger) === 'toy', 'missing durable-ledger-failure alert');
+  check(
+    !ledger,
+    `default alert pack must not reference durable-ledger failures; offending rule uid=${ledger?.uid ?? '(no uid)'}`,
+  );
 
   const vendor = findRule(r => /fleet_operator_vendor_api_failures_total/.test(exprOf(r)));
   check(
@@ -607,11 +619,31 @@ function sameSet(a: string[], b: string[]): boolean {
     (cr?.rules ?? []).some((r: any) => (r?.nonResourceURLs ?? []).includes('/metrics')),
   );
   check(!!scraper, 'missing least-privilege metrics scraper ClusterRole (nonResourceURLs /metrics)');
-  const manager = clusterRoles.find(cr => {
-    const resources = (cr?.rules ?? []).flatMap((r: any) => r?.resources ?? []);
-    return resources.includes('tokenreviews') && resources.includes('subjectaccessreviews');
-  });
-  check(!!manager, 'missing manager authn/authz review grants (tokenreviews + subjectaccessreviews)');
+  const managers = clusterRoles.filter(cr => cr?.metadata?.name === 'fleet-operator-manager');
+  check(managers.length === 1, `expected exactly one fleet-operator-manager ClusterRole, found ${managers.length}`);
+  check(
+    managers.length === 1 && Array.isArray(managers[0]?.rules) && managers[0].rules.length === 0,
+    `fleet-operator-manager rules field must be exactly []; rendered rules=${JSON.stringify(managers[0]?.rules)}`,
+  );
+  const renderedClusterRoles = [
+    ...clusterRoles.map(role => ({ render: 'default', role })),
+    ...byKind(producerDocs, 'ClusterRole').map(role => ({ render: 'explicit-producer', role })),
+  ];
+  const reviewGrant = renderedClusterRoles.find(({ role }) =>
+    (role?.rules ?? []).some((rule: any) =>
+      (rule?.resources ?? []).some(
+        (resource: string) => resource === 'tokenreviews' || resource === 'subjectaccessreviews',
+      ),
+    ),
+  );
+  check(
+    !reviewGrant,
+    `no rendered ClusterRole may grant tokenreviews or subjectaccessreviews; offending render=${reviewGrant?.render ?? '(unknown)'} ClusterRole=${reviewGrant?.role?.metadata?.name ?? '(unnamed)'}`,
+  );
+  const managerBindings = byKind(docs, 'ClusterRoleBinding').filter(
+    binding => binding?.roleRef?.kind === 'ClusterRole' && binding?.roleRef?.name === 'fleet-operator-manager',
+  );
+  check(managerBindings.length >= 1, 'fleet-operator-manager must retain a ClusterRoleBinding');
 }
 
 // ---- ServiceMonitor external-secret mode -----------------------------------------

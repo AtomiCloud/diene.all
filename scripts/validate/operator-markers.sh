@@ -3,7 +3,6 @@ set -euo pipefail
 
 # controller-gen emits a valid-but-weaker CRD when a required marker is absent — docs/domain/operator-conventions.md.
 
-types_dir="api/v1alpha1"
 fleet_types_dir="api/fleet/v1alpha1"
 problems_types_dir="api/problems/v1alpha1"
 controllers_dir="adapters/operator/controllers"
@@ -14,7 +13,6 @@ expected_inherited_cel_count=14
 expected_problem_cel_count=5
 expected_total_cel_count=19
 
-[ ! -d "${types_dir}" ] && echo "❌ operator marker lint: missing API types directory ${types_dir}" >&2 && exit 1
 [ ! -d "${fleet_types_dir}" ] && echo "❌ operator marker lint: missing API types directory ${fleet_types_dir}" >&2 && exit 1
 [ ! -d "${problems_types_dir}" ] && echo "❌ operator marker lint: missing API types directory ${problems_types_dir}" >&2 && exit 1
 [ ! -d "${controllers_dir}" ] && echo "❌ operator marker lint: missing controllers directory ${controllers_dir}" >&2 && exit 1
@@ -23,45 +21,6 @@ expected_total_cel_count=19
 # Facts: type|<Kind>|<marker> · printcolumn|<Kind>|<column> · field|<Type>.<Field>|<marker> · rbac|<controller>|<marker> · cel|<Type>.<Field>|<rule>
 required="$(
   cat <<'EOF'
-type|Note|kubebuilder:object:root=true
-type|Note|kubebuilder:subresource:status
-type|Note|kubebuilder:resource:scope=Namespaced,shortName=nt
-printcolumn|Note|Category
-printcolumn|Note|Copies
-printcolumn|Note|Ready
-printcolumn|Note|Age
-field|NoteSpec.Title|kubebuilder:validation:Required
-field|NoteSpec.Title|kubebuilder:validation:MinLength=1
-field|NoteSpec.Title|kubebuilder:validation:MaxLength=253
-field|NoteSpec.Body|kubebuilder:validation:Required
-field|NoteSpec.Body|kubebuilder:validation:MinLength=1
-field|NoteSpec.Category|kubebuilder:validation:Required
-field|NoteSpec.Category|kubebuilder:validation:Enum=personal;work;archive
-field|NoteSpec.Replicas|kubebuilder:validation:Minimum=0
-field|NoteSpec.Replicas|kubebuilder:validation:Maximum=50
-field|NoteSpec.Replicas|kubebuilder:default=1
-field|NoteStatus.Conditions|listType=map
-field|NoteStatus.Conditions|listMapKey=type
-type|Journal|kubebuilder:object:root=true
-type|Journal|kubebuilder:subresource:status
-type|Journal|kubebuilder:resource:scope=Namespaced,shortName=jn
-printcolumn|Journal|Ready
-printcolumn|Journal|Age
-field|JournalSpec.Message|kubebuilder:validation:Required
-field|JournalSpec.Message|kubebuilder:validation:MinLength=1
-field|JournalSpec.Message|kubebuilder:validation:MaxLength=1024
-field|JournalStatus.Conditions|listType=map
-field|JournalStatus.Conditions|listMapKey=type
-rbac|note|groups=sample.diene.atomi.cloud,resources=notes,verbs=get;list;watch;update
-rbac|note|groups=sample.diene.atomi.cloud,resources=notes/status,verbs=get;update;patch
-rbac|note|groups=sample.diene.atomi.cloud,resources=notes/finalizers,verbs=update
-rbac|note|groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
-rbac|note|groups="",resources=events,verbs=create;patch
-rbac|note|groups=authentication.k8s.io,resources=tokenreviews,verbs=create
-rbac|note|groups=authorization.k8s.io,resources=subjectaccessreviews,verbs=create
-rbac|note|groups=coordination.k8s.io,resources=leases,verbs=get;create;update
-rbac|journal|groups=sample.diene.atomi.cloud,resources=journals,verbs=get;list;watch
-rbac|journal|groups=sample.diene.atomi.cloud,resources=journals/status,verbs=get;update;patch
 type|Landscape|kubebuilder:object:root=true
 type|Landscape|kubebuilder:subresource:status
 type|Landscape|kubebuilder:resource:scope=Cluster,shortName=lsc
@@ -358,12 +317,12 @@ cel|ProblemSpec.Version|self == oldSelf
 EOF
 )"
 
-echo "🔎 extracting kubebuilder markers from ${types_dir}, ${fleet_types_dir}, ${problems_types_dir} and ${controllers_dir}"
+echo "🔎 extracting kubebuilder markers from ${fleet_types_dir}, ${problems_types_dir} and ${controllers_dir}"
 
 # Each marker block counts only at the declaration it precedes, never file-wide.
 facts=""
 open='struct {'
-for file in "${types_dir}"/*_types.go "${fleet_types_dir}"/*_types.go "${problems_types_dir}"/*_types.go; do
+for file in "${fleet_types_dir}"/*_types.go "${problems_types_dir}"/*_types.go; do
   [ ! -f "${file}" ] && continue
   scope=""
   inside=0
@@ -472,6 +431,19 @@ while IFS= read -r got; do
   [ -z "${got}" ] && continue
   ! grep -qxF "${got}" <<<"${required}" && echo "❌ operator marker lint: RBAC marker outside the declared grant set → ${got}" >&2 && exit 1
 done <<<"$(grep '^rbac|' <<<"${facts}" || true)"
+
+policy_rbac_count="$(sed -n '/^rbac|/p' <<<"${required}" | wc -l | tr -d '[:space:]')"
+source_rbac_count="$(sed -n '/^rbac|/p' <<<"${facts}" | wc -l | tr -d '[:space:]')"
+generated_grant_count="$(yq -r '.rules | length' infra/root_chart/templates/rbac/role.yaml)"
+if [ "${source_rbac_count}" -ne "${policy_rbac_count}" ]; then
+  echo "❌ operator marker lint: source RBAC facts ${source_rbac_count} != policy RBAC facts ${policy_rbac_count}" >&2
+  exit 1
+fi
+if [ "${generated_grant_count}" -ne "${policy_rbac_count}" ]; then
+  echo "❌ operator marker lint: generated grants ${generated_grant_count} != policy RBAC facts ${policy_rbac_count}" >&2
+  exit 1
+fi
+echo "🧮 policy rbac facts: ${policy_rbac_count} == generated grants: ${generated_grant_count}"
 
 # The declared rules are the whole CEL set, so an unlisted or reworded rule is a silent schema change.
 while IFS= read -r got; do

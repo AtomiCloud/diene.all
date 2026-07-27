@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Consumers reuse this k3d harness by overriding the chart, values, fixtures, and image.
+# Consumers reuse this k3d harness by overriding the chart, values, and image.
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Resolved dynamically so copied consumer harnesses remain relocatable; the helper
 # is checked independently by the same shellcheck hook.
@@ -13,13 +13,12 @@ invocation_id="$(e2e_invocation_id "${script_dir}" "$$")"
 cluster="$(e2e_cluster_name "${CLUSTER:-}" "${invocation_id}")"
 chart="${CHART:-infra/root_chart}"
 values="${VALUES:-infra/root_chart/values.lapras.yaml}"
-note_fixture="${NOTE_FIXTURE:-${FIXTURE:-tests/fixtures/operator/valid-note.yaml}}"
 image="$(e2e_image_name "${IMAGE:-}" "${invocation_id}")"
 timeout="${TIMEOUT:-180s}"
 namespace="${NAMESPACE:-fleet-operator}"
 release="${RELEASE:-fleet-operator}"
 remove_default_image=false
-[ -z "${IMAGE:-}" ] && remove_default_image=true
+[[ -z ${IMAGE:-} ]] && remove_default_image=true
 
 kubeconfig_dir="$(mktemp -d "${TMPDIR:-/tmp}/operator-e2e-${invocation_id}.XXXXXX")"
 kubeconfig="${kubeconfig_dir}/kubeconfig"
@@ -48,9 +47,20 @@ else
   image_tag="latest"
 fi
 
-note_name="$(yq -r '.metadata.name // ""' "${note_fixture}")"
-[ -z "${note_name}" ] && echo "❌ Note fixture has no metadata.name: ${note_fixture}" >&2 && exit 2
-expected_copies="${EXPECTED_COPIES:-$(yq -r '.spec.replicas // 1' "${note_fixture}")}"
+expected_crds=(
+  cloudflaredeploys.fleet.atomi.cloud
+  clusterregistrations.fleet.atomi.cloud
+  decommissions.fleet.atomi.cloud
+  landscapes.fleet.atomi.cloud
+  platformdependencies.fleet.atomi.cloud
+  platforms.fleet.atomi.cloud
+  problems.atomi.cloud
+  provideraccounts.fleet.atomi.cloud
+  virtuallandscapes.fleet.atomi.cloud
+  virtuallandscapeservices.fleet.atomi.cloud
+  webhookengines.fleet.atomi.cloud
+  webhookroutes.fleet.atomi.cloud
+)
 
 echo "🔨 Creating k3d cluster ${cluster}"
 k3d cluster create "${cluster}" \
@@ -66,44 +76,7 @@ k3d image import "${image}" -c "${cluster}"
 
 kubectl create namespace "${namespace}" --dry-run=client -o yaml | kubectl apply -f -
 
-echo "📦 Deploying the MinIO ledger"
-kubectl apply -n "${namespace}" -f - <<'MINIO'
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: minio
-spec:
-  replicas: 1
-  selector:
-    matchLabels: { app: minio }
-  template:
-    metadata:
-      labels: { app: minio }
-    spec:
-      containers:
-        - name: minio
-          image: minio/minio:RELEASE.2024-01-16T16-07-38Z
-          args: ["server", "/data"]
-          env:
-            - { name: MINIO_ROOT_USER, value: minioadmin }
-            - { name: MINIO_ROOT_PASSWORD, value: minioadmin }
-          ports:
-            - containerPort: 9000
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: minio
-spec:
-  selector: { app: minio }
-  ports:
-    - port: 9000
-      targetPort: 9000
-MINIO
-kubectl rollout status -n "${namespace}" deploy/minio --timeout "${timeout}"
-kubectl create secret generic "${release}-ledger" -n "${namespace}" --from-literal=accessKey=minioadmin --from-literal=secretKey=minioadmin --dry-run=client -o yaml | kubectl apply -f -
-
-echo "📦 Installing the manager chart"
+echo "📦 Installing the all-disabled observe-mode manager chart"
 helm install "${release}" "${chart}" -n "${namespace}" -f "${values}" \
   --set image.repository="${image_repository}" \
   --set image.tag="${image_tag}" \
@@ -111,34 +84,58 @@ helm install "${release}" "${chart}" -n "${namespace}" -f "${values}" \
   --set serviceMonitor.enabled=false \
   --set alerts.enabled=false \
   --set dashboard.enabled=false \
-  --set controllers.note=true \
-  --set controllers.journal=true \
-  --set ledger.endpoint=minio:9000 \
-  --set ledger.secure=false \
+  --set mode=observe \
+  --set controllers.cluster=false \
+  --set controllers.platform=false \
+  --set controllers.dependency=false \
+  --set controllers.traffic=false \
+  --set controllers.webhook=false \
+  --set controllers.cf-deploy=false \
+  --set controllers.problem=false \
   --wait --timeout "${timeout}"
+
+mapfile -t actual_crds < <(kubectl get customresourcedefinitions -o name | sed 's|^customresourcedefinition.apiextensions.k8s.io/||' | sort)
+if [[ ${#actual_crds[@]} -ne ${#expected_crds[@]} ]]; then
+  printf 'expected CRDs:\n%s\nactual CRDs:\n%s\n' "$(printf '%s\n' "${expected_crds[@]}")" "$(printf '%s\n' "${actual_crds[@]}")" >&2
+  exit 1
+fi
+for index in "${!expected_crds[@]}"; do
+  if [[ ${actual_crds[index]} != "${expected_crds[index]}" ]]; then
+    echo "❌ CRD set differs at index ${index}: expected ${expected_crds[index]}, got ${actual_crds[index]}" >&2
+    exit 1
+  fi
+done
+for crd in "${expected_crds[@]}"; do
+  kubectl wait --for=condition=Established --timeout "${timeout}" "customresourcedefinition/${crd}"
+done
+
 kubectl rollout status -n "${namespace}" "deploy/${release}" --timeout "${timeout}"
-
 pod="$(kubectl get pods -n "${namespace}" -l "app.kubernetes.io/instance=${release}" -o jsonpath='{.items[0].metadata.name}')"
-[ -z "${pod}" ] && echo "❌ manager pod was not created" >&2 && exit 1
+if [[ -z ${pod} ]]; then
+  echo "❌ manager pod was not created" >&2
+  exit 1
+fi
 health="$(kubectl get --raw "/api/v1/namespaces/${namespace}/pods/${pod}:8081/proxy/healthz")"
-[ "${health}" != "ok" ] && echo "❌ manager /healthz returned '${health}'" >&2 && exit 1
+if [[ ${health} != "ok" ]]; then
+  echo "❌ manager /healthz returned '${health}'" >&2
+  exit 1
+fi
 ready="$(kubectl get --raw "/api/v1/namespaces/${namespace}/pods/${pod}:8081/proxy/readyz")"
-[ "${ready}" != "ok" ] && echo "❌ manager /readyz returned '${ready}'" >&2 && exit 1
+if [[ ${ready} != "ok" ]]; then
+  echo "❌ manager /readyz returned '${ready}'" >&2
+  exit 1
+fi
 
-echo "🧪 Applying Note and Journal fixtures"
-kubectl apply -n "${namespace}" -f "${note_fixture}"
-kubectl apply -n "${namespace}" -f - <<'JOURNAL'
-apiVersion: sample.diene.atomi.cloud/v1alpha1
-kind: Journal
-metadata:
-  name: harness-journal
-spec:
-  message: converged by the k3d harness
-JOURNAL
-kubectl wait -n "${namespace}" --for=condition=Ready --timeout "${timeout}" "note/${note_name}"
-kubectl wait -n "${namespace}" --for=condition=Ready --timeout "${timeout}" journal/harness-journal
+args="$(kubectl get deployment -n "${namespace}" "${release}" -o json | jq -r '.spec.template.spec.containers[0].args[]')"
+if ! rg -qx -- '--observe=true' <<<"${args}"; then
+  echo "❌ manager did not start in observe mode" >&2
+  exit 1
+fi
+for controller in cluster platform dependency traffic webhook cf-deploy problem; do
+  if ! rg -qx -- "--enable-${controller}=false" <<<"${args}"; then
+    echo "❌ controller ${controller} was not explicitly disabled" >&2
+    exit 1
+  fi
+done
 
-copies="$(kubectl get configmaps -n "${namespace}" -l "fleet-operator.diene.atomi.cloud/note=${note_name}" -o name | wc -l | tr -d ' ')"
-[ "${copies}" -ne "${expected_copies}" ] && echo "❌ expected ${expected_copies} owned ConfigMaps, found ${copies}" >&2 && exit 1
-
-echo "✅ Operator k3d e2e passed: manager healthy, Note and Journal Ready, ${copies} owned ConfigMaps"
+echo "✅ Operator k3d skeleton passed: 12 CRDs Established, all controllers disabled, observe-mode manager healthy"

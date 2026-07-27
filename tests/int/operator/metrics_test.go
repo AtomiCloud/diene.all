@@ -346,8 +346,8 @@ func TestMetricsBoundedLabelsAggregateUnknownToOther(t *testing.T) {
 	// of this test is that such a value can never reach the exposition.
 	const (
 		secretish    = "AKIAIOSFODNN7EXAMPLE" //nolint:gosec // intentional secret-shaped input, not a credential
-		objectish    = "note/default/my-note-9f2c1b"
-		injectionish = `evil",controller="note`
+		objectish    = "cluster/default/my-obj-9f2c1b"
+		injectionish = `evil",controller="cluster`
 	)
 
 	// A KNOWN controller with several UNKNOWN vendors must fold to exactly one
@@ -490,11 +490,10 @@ func TestMetricsExposesNoRetiredWebhookSurface(t *testing.T) {
 // TestMetricsGenericFoundationByteCompatible proves the three inherited metrics
 // still record under their existing names and shapes through a real scrape,
 // including the BlastBrakeTripped paging condition the alert pack watches on the
-// shared condition gauge, and that both sample controllers stay bounded label
-// values until the R1 sample deletion.
+// shared condition gauge, using a real bounded controller label.
 func TestMetricsGenericFoundationByteCompatible(t *testing.T) {
 	rec := metrics.NewPrometheus()
-	const ctrl = "journal"
+	const ctrl = "cluster"
 	labels := map[string]string{"controller": ctrl}
 
 	before := scrapeRegistry(t)
@@ -516,7 +515,11 @@ func TestMetricsGenericFoundationByteCompatible(t *testing.T) {
 	require.Equal(t, 0.0, scrape.only(t, metrics.ConditionMetric,
 		map[string]string{"controller": ctrl, "type": "Drifted"}).value)
 
-	require.Contains(t, metrics.Controllers(), "note")
-	require.Contains(t, metrics.Controllers(), "journal")
+	for _, controller := range []string{"cluster", "platform", "dependency", "traffic", "webhook", "cf-deploy", "problem"} {
+		require.Contains(t, metrics.Controllers(), controller)
+	}
+	for _, retired := range []string{"n" + "ote", "jour" + "nal"} {
+		require.NotContains(t, metrics.Controllers(), retired)
+	}
 	require.NotEmpty(t, scrape.controllerSeries(metrics.ReconcileTickMetric))
 }

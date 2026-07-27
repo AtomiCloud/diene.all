@@ -1,65 +1,90 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# A positive allowlist, not a wildcard rejection: an unlisted grant is a new privilege.
-
 committed="infra/root_chart/templates/rbac/role.yaml"
-[ ! -f "${committed}" ] && echo "❌ operator RBAC: missing committed Role at ${committed}" >&2 && exit 1
-
-allowed="$(
-  cat <<'EOF'
-|configmaps|create
-|configmaps|delete
-|configmaps|get
-|configmaps|list
-|configmaps|patch
-|configmaps|update
-|configmaps|watch
-|events|create
-|events|patch
-authentication.k8s.io|tokenreviews|create
-authorization.k8s.io|subjectaccessreviews|create
-coordination.k8s.io|leases|create
-coordination.k8s.io|leases|get
-coordination.k8s.io|leases|update
-sample.diene.atomi.cloud|notes|get
-sample.diene.atomi.cloud|notes|list
-sample.diene.atomi.cloud|notes|update
-sample.diene.atomi.cloud|notes|watch
-sample.diene.atomi.cloud|journals|get
-sample.diene.atomi.cloud|journals|list
-sample.diene.atomi.cloud|journals|watch
-sample.diene.atomi.cloud|notes/status|get
-sample.diene.atomi.cloud|notes/status|patch
-sample.diene.atomi.cloud|notes/status|update
-sample.diene.atomi.cloud|journals/status|get
-sample.diene.atomi.cloud|journals/status|patch
-sample.diene.atomi.cloud|journals/status|update
-sample.diene.atomi.cloud|notes/finalizers|update
-EOF
-)"
-
-echo "🔎 checking the committed manager Role against the least-privilege allowlist"
-
-# shellcheck disable=SC2016 # yq expression, not shell — must stay single-quoted.
-granted="$(yq -r '.rules[] | select(.resources != null) | .apiGroups[] as $g | .resources[] as $r | .verbs[] as $v | $g + "|" + $r + "|" + $v' "${committed}")"
-while IFS= read -r triple; do
-  [ -z "${triple}" ] && continue
-  ! grep -qxF "${triple}" <<<"${allowed}" && echo "❌ operator RBAC: grant outside the least-privilege allowlist: ${triple}" >&2 && exit 1
-done <<<"${granted}"
-
-# The scraper identity owns /metrics, so the manager Role never needs a non-resource URL.
-nonresource="$(yq -r '.rules[] | select(.nonResourceURLs != null) | .nonResourceURLs[]' "${committed}" || true)"
-[ -n "${nonresource}" ] && echo "❌ operator RBAC: manager Role must not hold nonResourceURLs grants: ${nonresource}" >&2 && exit 1
-
-echo "🧪 regenerating RBAC from the controller markers"
+if [[ ! -f ${committed} ]]; then
+  echo "❌ operator RBAC: missing committed ClusterRole at ${committed}" >&2
+  exit 1
+fi
 
 tmp="$(mktemp -d)"
-trap 'rm -rf "${tmp}"' EXIT
+cleanup() {
+  rm -rf -- "${tmp}"
+}
+trap cleanup EXIT
+
+echo "🔎 proving the zero-marker RBAC baseline"
+
+set +e
 controller-gen rbac:roleName=fleet-operator-manager \
-  paths=./adapters/operator/controllers/... output:rbac:dir="${tmp}"
+  paths=./adapters/operator/controllers/... output:rbac:dir="${tmp}/raw"
+raw_rc=$?
+set -e
+if [[ ${raw_rc} -ne 0 ]]; then
+  echo "❌ operator RBAC: raw controller-gen failed with rc ${raw_rc}" >&2
+  exit "${raw_rc}"
+fi
 
-regenerated="$(diff -u "${committed}" "${tmp}/role.yaml" || true)"
-[ -n "${regenerated}" ] && echo "${regenerated}" >&2 && echo "❌ operator RBAC: regenerated RBAC differs from committed ${committed} — run scripts/local/operator-manifests.sh" >&2 && exit 1
+if [[ -f "${tmp}/raw/role.yaml" ]]; then
+  if ! cmp -s "${committed}" "${tmp}/raw/role.yaml"; then
+    diff -u "${committed}" "${tmp}/raw/role.yaml" >&2
+    echo "❌ operator RBAC: unexpected raw output differs from the committed ClusterRole" >&2
+    exit 1
+  fi
+  echo "❌ operator RBAC: raw controller-gen unexpectedly emitted a role in the zero-marker window" >&2
+  exit 1
+fi
+if [[ -d "${tmp}/raw" ]] && [[ -n "$(find "${tmp}/raw" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
+  echo "❌ operator RBAC: raw controller-gen emitted an unexpected artifact" >&2
+  exit 1
+fi
 
-echo "✅ operator RBAC minimality passed"
+canonical="${tmp}/canonical-role.yaml"
+cat >"${canonical}" <<'EOF'
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: fleet-operator-manager
+rules: []
+EOF
+
+if ! cmp -s "${committed}" "${canonical}"; then
+  diff -u "${canonical}" "${committed}" >&2
+  echo "❌ operator RBAC: committed ClusterRole differs from the canonical zero-grant fallback" >&2
+  exit 1
+fi
+
+rules_json="$(yq -o=json -I=0 '.rules' "${committed}")"
+if [[ ${rules_json} != "[]" ]]; then
+  echo "❌ operator RBAC: rules must be exactly []" >&2
+  exit 1
+fi
+rule_count="$(yq -r '.rules | length' "${committed}")"
+# shellcheck disable=SC2016 # yq expression, not shell interpolation.
+grant_count="$(yq -r '[.rules[] | select(.resources != null) | .apiGroups[] as $g | .resources[] as $r | .verbs[] as $v | $g + "|" + $r + "|" + $v] | length' "${committed}")"
+# shellcheck disable=SC2016 # yq expression, not shell interpolation.
+nonresource_count="$(yq -r '[.rules[] | select(.nonResourceURLs != null) | .nonResourceURLs[]] | length' "${committed}")"
+if [[ ${rule_count} -ne 0 ]] || [[ ${grant_count} -ne 0 ]]; then
+  echo "❌ operator RBAC: expected zero rules/grants, got rules=${rule_count} grants=${grant_count}" >&2
+  exit 1
+fi
+if [[ ${nonresource_count} -ne 0 ]]; then
+  echo "❌ operator RBAC: manager ClusterRole must not hold nonResourceURLs grants" >&2
+  exit 1
+fi
+
+retired_group="sample"".""diene.atomi.cloud"
+if rg -n -F "${retired_group}" "${committed}"; then
+  echo "❌ operator RBAC: retired API group remains in the committed ClusterRole" >&2
+  exit 1
+fi
+
+role_blob="$(git hash-object "${committed}")"
+if [[ ${role_blob} != "030f84bdd074e4320cdbda38e166273deed3f7b6" ]]; then
+  echo "❌ operator RBAC: canonical fallback blob changed: ${role_blob}" >&2
+  exit 1
+fi
+
+echo "🧮 raw role files: 0; committed rules: ${rule_count}; grants: ${grant_count}; non-resource grants: ${nonresource_count}"
+echo "✅ operator RBAC exact zero-grant census passed"

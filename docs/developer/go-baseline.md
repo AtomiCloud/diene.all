@@ -23,9 +23,9 @@ exclusion.
 - `tests/int/` proves adapters against real dependencies with envtest and
   testcontainers-go.
 
-The operator sample (toy `Note`/`Journal` CRDs, pure reconcile services, and the
-S3/MinIO ledger store) is fenced by these structural directories. Downstream
-templates may replace the sample while retaining the same gates and tier
+The operator's fleet/Problem schema surface, pure reconcile services, and
+S3/MinIO ledger store are fenced by these structural directories. Downstream
+templates may extend the surface while retaining the same gates and tier
 boundaries.
 
 ## Commands

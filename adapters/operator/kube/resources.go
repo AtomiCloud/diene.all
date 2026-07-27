@@ -20,7 +20,7 @@ type OwnedConfigMap struct {
 }
 
 // ConfigMapPort is the narrow owned-resource port a controller uses to converge a
-// Note's owned ConfigMap set. Ownership is decided by the controller
+// controller's owned ConfigMap set. Ownership is decided by the controller
 // OwnerReference UID, never by a mutable label, so a foreign or spoof-labelled
 // object is never counted, overwritten, or deleted.
 type ConfigMapPort interface {

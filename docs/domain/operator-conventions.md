@@ -2,8 +2,9 @@
 
 The reusable operator skeleton restated in family conventions. Every dogfood
 consumer (`dependency-operator`/T3, `boron`, `logto-operator`, `error-portal`)
-implements these conventions; it does not reinvent them. The toy `Note` and
-`Journal` controllers in this template exercise the generic subset end to end.
+implements these conventions; it does not reinvent them. The former toy
+controllers exercised the generic subset; the fleet and Problem API surface now
+anchors the template.
 
 ## Three-layer shape
 
@@ -20,8 +21,8 @@ implements these conventions; it does not reinvent them. The toy `Note` and
 ## Why marker completeness uses a custom gate
 
 A missing Kubebuilder marker is not a syntax error anywhere in the toolchain: it
-silently produces a weaker CRD. The marker-lint spike removed
-`+kubebuilder:subresource:status` from `Note` and re-ran the installed tools.
+silently produces a weaker CRD. The marker-lint spike removed a required
+`+kubebuilder:subresource:status` marker and re-ran the installed tools.
 
 - `controller-gen crd paths=./api/...` exited zero and emitted a complete CRD;
   the only difference was `subresources: {}` where the committed artifact has
@@ -53,8 +54,8 @@ asserts a declared policy:
   behaviour cannot change silently.
 
 The gate reads markers from every API type directory, not just one. Today those
-are the sample tree `api/v1alpha1`, the fleet registry/workload tree
-`api/fleet/v1alpha1`, and the Problem tree `api/problems/v1alpha1`; each has its
+are the fleet registry/workload tree `api/fleet/v1alpha1` and the Problem tree
+`api/problems/v1alpha1`; each has its
 own `groupversion_info.go` and group constant (the fleet group is
 `fleet.atomi.cloud`; Problem's is `atomi.cloud`, never derived from the fleet
 constant). A new API version directory is added to the gate's scan set when it
@@ -146,8 +147,8 @@ The manager registers generic metrics on the controller-runtime registry and the
 chart ships a `ServiceMonitor`, a `GrafanaAlertRuleGroup` (the observability
 standard — never a `PrometheusRule`), and a Grafana dashboard.
 
-The sample controllers actually emit: `fleet_operator_condition` (condition-state
-gauge by controller and type), `fleet_operator_ledger_failures_total`,
+The generic recorder exposes `fleet_operator_condition` (condition-state gauge by
+controller and type), `fleet_operator_ledger_failures_total`,
 `fleet_operator_reconcile_ticks_total`, and the built-in
 `controller_runtime_reconcile_*` reconcile/latency metrics. The dashboard and the
 alert group query exactly these.
@@ -157,7 +158,7 @@ last-successful-tick timestamp gauge, the webhook **config-plane** signals
 (config-compile failures, per-landscape materialization/ack lag, internal-tenant
 sync failures), and the observe-mode plan surface — is shipped as a parameterized
 metric-name **source** (the `metric-taxonomy` ConfigMap), which real controllers
-implement. The samples do not claim to emit it. A durable-ledger endpoint failure
+implement. The schema-only foundation does not claim to emit it. A durable-ledger endpoint failure
 surfaces as the `WaitingForEndpoint` condition and increments the ledger-failure
 metric.
 
@@ -171,8 +172,7 @@ Poll-loop liveness is a **timestamp**, never a rate: `MarkTick` writes
 `fleet_operator_last_successful_tick_timestamp_seconds` and staleness is
 `time() - value`. Its alert pages on no-data, so the chart renders it **only** for
 controllers listed in `alerts.tickProducerControllers` — a controller with no
-writer must never page forever on a deliberately empty series, and the sample
-controllers are not producers.
+writer must never page forever on a deliberately empty series.
 
 Every public metric label is **bounded at the recorder boundary**: controller,
 vendor, and condition type are folded to a closed documented vocabulary plus the
@@ -199,7 +199,7 @@ changes.
 ## Reusable k3d harness
 
 `scripts/local/operator-e2e.sh` provisions a throwaway k3d cluster, builds and
-imports the manager image, stands up a MinIO ledger, installs the chart, applies
-a toy `Note`, waits for `Ready`, asserts the owned resources, and tears down.
-Consumers reuse it by pointing `CHART`, `VALUES`, and `FIXTURE` at their own
-CRDs.
+imports the manager image, installs the all-disabled chart, asserts exactly the
+12 fleet/Problem CRDs reach `Established`, verifies the observe-mode manager is
+healthy, and tears down. Consumers reuse it by pointing `CHART` and `VALUES` at
+their own CRDs.

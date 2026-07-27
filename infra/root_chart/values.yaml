@@ -18,6 +18,12 @@ mode: active
 # -- Destructive-write percentage-per-tick blast-brake cap.
 blastBrakeCap: 20
 
+# -- Traffic record-removal percentage-per-tick cap.
+trafficCapPercent: 20
+
+# -- Dependency destructive-module cap per tick.
+dependencyDestructiveCapPerTick: 3
+
 # -- Ledger coordinate scope and S3/MinIO backend.
 ledger:
   # -- Platform coordinate.
@@ -33,12 +39,20 @@ ledger:
 
 # -- Per-controller enablement flags.
 controllers:
-  # -- Enable the ledger-backed Note controller. Off by default so a zero-config
-  # install never crashes on an empty ledger endpoint; landscape/e2e overlays
-  # enable it together with a real ledger.endpoint.
-  note: false
-  # -- Enable the Journal controller (no external dependency).
-  journal: true
+  # -- Enable the cluster controller.
+  cluster: false
+  # -- Enable the platform controller.
+  platform: false
+  # -- Enable the dependency controller.
+  dependency: false
+  # -- Enable the traffic controller.
+  traffic: false
+  # -- Enable the webhook controller.
+  webhook: false
+  # -- Enable the Cloudflare deployment controller.
+  cf-deploy: false
+  # -- Enable the reserved Problem sub-component seam.
+  problem: false
 
 # -- Manager resource requests and limits.
 resources:
@@ -86,8 +100,7 @@ alerts:
   # -- Controllers explicitly configured as producers of the last-successful-tick
   # TIMESTAMP gauge (`Recorder.MarkTick`). The timestamp-staleness rule pages on
   # no-data by design, so it is rendered ONLY for the controllers listed here — a
-  # controller with no writer (an enabled sample, or a real controller whose poll
-  # loop has not landed yet) would otherwise page forever on a deliberately empty
+  # controller with no writer would otherwise page forever on a deliberately empty
   # series. Empty is the safe default: no staleness rule is shipped at all. Every
   # entry must be a bounded `metricLabels.controllers` value or the render fails.
   tickProducerControllers: []
@@ -100,14 +113,11 @@ alerts:
 # Go recorder by `scripts/validate/operator-observability-artifacts.ts`.
 metricLabels:
   # -- Closed controller label vocabulary (plus the fixed `other` overflow): the
-  # two fenced sample controllers (source compatibility only, until the R1
-  # deletion) and every real enable seam the runtime declares. `problem` is
+  # seven real enable seams the runtime declares. `problem` is
   # reserved — its seam is not folded yet, so nothing emits under that label
   # today, but a known future controller must have its own label instead of
   # collapsing into `other` the day its writer lands.
   controllers:
-    - note
-    - journal
     - cluster
     - platform
     - dependency

@@ -54,18 +54,17 @@ shared by all of them. An unknown, object-derived, or secret-bearing string
 therefore adds at most one child series per family, is never exposed verbatim, and
 never becomes a new label value.
 
-| Label         | Vocabulary                                                                      | Worst case |
-| ------------- | ------------------------------------------------------------------------------- | ---------- |
-| `controller`  | 9 documented controllers (2 fenced samples + the 7 real enable seams) + `other` | 10         |
-| `vendor`      | 5 documented vendors + `other`                                                  | 6          |
-| `type`        | the pure `lib/operator/conditions` constant set (40 types) + `other`            | 41         |
-| `destructive` | `true` / `false`                                                                | 2          |
+| Label         | Vocabulary                                                           | Worst case |
+| ------------- | -------------------------------------------------------------------- | ---------- |
+| `controller`  | 7 documented controllers (the 7 real enable seams) + `other`         | 8          |
+| `vendor`      | 5 documented vendors + `other`                                       | 6          |
+| `type`        | the pure `lib/operator/conditions` constant set (40 types) + `other` | 41         |
+| `destructive` | `true` / `false`                                                     | 2          |
 
 The controller list covers every `--enable-*` seam the runtime declares, including
 the reserved `problem` seam, which is not folded yet and emits nothing today. A
 known future controller is listed deliberately: otherwise its first writer would
-land on `other` and its series would be invisible until someone noticed. `note` and
-`journal` stay listed only for source compatibility until the R1 sample deletion.
+land on `other` and its series would be invisible until someone noticed.
 
 The controller and vendor vocabularies are declared once in the chart
 (`infra/root_chart/values.yaml` → `metricLabels`), rendered into the
@@ -132,8 +131,7 @@ holds an empty plan and no paging condition True. The staleness rule is the one
 alert that pages on an EMPTY series, so it is rendered only for controllers
 explicitly declared as producers of the timestamp gauge in the chart's
 `alerts.tickProducerControllers` (default: empty, so no staleness rule ships at
-all). A controller with no `MarkTick` writer — a fenced sample, or a real
-controller whose poll loop has not landed — would otherwise page forever on a
+all). A real controller with no `MarkTick` writer would otherwise page forever on a
 deliberately empty series, which is a permanent false page, not liveness. For a
 declared producer the strong `noDataState: Alerting` behavior is exactly right and
 is preserved.

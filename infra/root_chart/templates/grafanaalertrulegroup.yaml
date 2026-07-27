@@ -43,8 +43,6 @@
 {{- if .Values.alerts.enabled }}
 {{- /* Enabled toy controllers emit the generic reconcile/ledger/condition metrics today. */ -}}
 {{- $toy := list }}
-{{- if .Values.controllers.note }}{{- $toy = append $toy "note" }}{{- end }}
-{{- if .Values.controllers.journal }}{{- $toy = append $toy "journal" }}{{- end }}
 {{- /* Real fleet controllers inherit the consumer-extension rules; every metric they
        reference is registered by adapters/operator/metrics/metrics.go. */ -}}
 {{- $consumers := .Values.alerts.consumerControllers | default (list "cluster" "platform" "dependency" "traffic" "webhook" "cf-deploy") }}

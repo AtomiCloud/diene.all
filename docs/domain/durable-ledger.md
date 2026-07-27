@@ -63,7 +63,7 @@ generation fence. Recovery resumes from each intermediate phase:
 - orphaned resumes with Adopt then Confirm.
 
 The inherited `NewService`, Get, Intent, Adopt, Created, Confirm, and Orphan facade
-remains for existing sample and fake-store consumers. It delegates to the same
+remains for existing fake-store consumers. It delegates to the same
 engine, records no timestamp because the old constructor has no clock, and keeps
 the historical leniency for out-of-order Created and Confirm calls. It does not
 relax coordinate validation. New product paths use `NewStrictService` and
@@ -127,7 +127,7 @@ These surfaces are deliberately outside this foundation's ownership:
 
 - the composition root should move from deprecated `EnsureBucket` to
   `VerifyBucket` and wire product controllers through `NewStrictService` with
-  its clock instead of the sample compatibility constructor;
+  its clock instead of the lenient compatibility constructor;
 - the local operator e2e harness must bootstrap the MinIO bucket before manager
   startup;
 - the Garden dependency-only profile must be able to run without the Primordial

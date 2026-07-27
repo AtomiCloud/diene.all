@@ -12,7 +12,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
-	apiv1alpha1 "github.com/AtomiCloud/diene.fleet-operator/api/v1alpha1"
+	apifleet "github.com/AtomiCloud/diene.fleet-operator/api/fleet/v1alpha1"
+	apiproblems "github.com/AtomiCloud/diene.fleet-operator/api/problems/v1alpha1"
 )
 
 // Shared envtest fixtures for the whole int suite. envtest runs a real
@@ -53,8 +54,11 @@ func runSuite(m *testing.M) (int, error) {
 	if err = clientgoscheme.AddToScheme(scheme); err != nil {
 		return 0, fmt.Errorf("register client-go scheme: %w", err)
 	}
-	if err = apiv1alpha1.AddToScheme(scheme); err != nil {
-		return 0, fmt.Errorf("register sample scheme: %w", err)
+	if err = apifleet.AddToScheme(scheme); err != nil {
+		return 0, fmt.Errorf("register fleet scheme: %w", err)
+	}
+	if err = apiproblems.AddToScheme(scheme); err != nil {
+		return 0, fmt.Errorf("register problems scheme: %w", err)
 	}
 
 	c, err := client.New(cfg, client.Options{Scheme: scheme})

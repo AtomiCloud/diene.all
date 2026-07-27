@@ -1,7 +1,7 @@
 // Package v1alpha1 holds the fleet registry API surface.
 //
-// The fleet group is a SEPARATE API tree from the sample domain in
-// api/v1alpha1 and from the Problem API in api/problems/v1alpha1: it owns its
+// The fleet group is a SEPARATE API tree from the Problem API in
+// api/problems/v1alpha1: it owns its
 // own group constant, SchemeBuilder and AddToScheme, and nothing derives one
 // group's identity from another. The group string is a discovered consumer
 // contract — carbon's primordial chart and every service primordial chart
