@@ -25,13 +25,13 @@ It is deliberately **additive** — it does not modify any frozen flutter-base f
 `test/integration/e4_scaffold_test.dart`) of every point that swaps a flutter-base
 local optimistic bridge for the real diene package delivered via `lib/dart/e2e`:
 
-| flutter-base local bridge | diene package (via e2e) |
-| --- | --- |
-| `lib/core/result.dart` | `diene_result` |
-| `lib/core/problem_catalog.dart` + `local_error.dart` | `diene_problems` |
-| `lib/config/app_config.dart` loaders | `diene_config` + `diene_core_utils` |
-| `lib/auth/*` gateways + session controller | `diene_auth_engine` |
-| `lib/generated/service/**` | `diene_api_engine` |
+| flutter-base local bridge                            | diene package (via e2e)             |
+| ---------------------------------------------------- | ----------------------------------- |
+| `lib/core/result.dart`                               | `diene_result`                      |
+| `lib/core/problem_catalog.dart` + `local_error.dart` | `diene_problems`                    |
+| `lib/config/app_config.dart` loaders                 | `diene_config` + `diene_core_utils` |
+| `lib/auth/*` gateways + session controller           | `diene_auth_engine`                 |
+| `lib/generated/service/**`                           | `diene_api_engine`                  |
 
 ## Primary hold reason
 
