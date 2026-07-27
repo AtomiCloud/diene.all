@@ -18,6 +18,12 @@ with env;
   ci = pkgs.mkShell {
     buildInputs = lint ++ main ++ system;
     inherit shellHook;
+
+    # ### nextjs-frontend-playwright-env-ci
+    # #### source: nextjs-frontend
+    PLAYWRIGHT_BROWSERS_PATH = packages.playwright-browsers;
+    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1";
+    PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "true";
   };
 
   # ### nix-root-default
@@ -25,6 +31,12 @@ with env;
   default = pkgs.mkShell {
     buildInputs = system ++ main ++ lint ++ dev;
     inherit shellHook;
+
+    # ### nextjs-frontend-playwright-env-default
+    # #### source: nextjs-frontend
+    PLAYWRIGHT_BROWSERS_PATH = packages.playwright-browsers;
+    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1";
+    PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "true";
   };
 
   # ### workspace-releaser

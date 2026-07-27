@@ -3,7 +3,7 @@ import { expectBunGreen, expectBunRed } from './lib/bun-command.ts';
 // Cost: heavy — a next build plus one Playwright slice. Deep-linkability is only
 // observable through a real history stack, so the browser is the mechanism.
 const command =
-  'nix develop .#ci -c bash -lc \'./scripts/ci/setup.sh && export PATH="$(pwd)/node_modules/.bin:$PATH" && next build && ./scripts/local/standalone-assets.sh && (playwright install --with-deps chromium >/dev/null 2>&1 || playwright install chromium) && playwright test url-as-state.spec.ts\'';
+  'nix develop .#ci -c bash -lc \'./scripts/ci/setup.sh && export PATH="$(pwd)/node_modules/.bin:$PATH" && next build && ./scripts/local/standalone-assets.sh && playwright test url-as-state.spec.ts\'';
 
 export default {
   contractVersion: 1,

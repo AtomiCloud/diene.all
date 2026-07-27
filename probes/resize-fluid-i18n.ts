@@ -3,7 +3,7 @@ import { expectBunGreen, expectBunRed } from './lib/bun-command.ts';
 // Cost: heavy — a next build plus one Playwright slice. Assertions are DOM/overflow
 // based, never pixel diffs (no golden or screenshot evidence anywhere in this tree).
 const command =
-  'nix develop .#ci -c bash -lc \'./scripts/ci/setup.sh && export PATH="$(pwd)/node_modules/.bin:$PATH" && next build && ./scripts/local/standalone-assets.sh && (playwright install --with-deps chromium >/dev/null 2>&1 || playwright install chromium) && playwright test resize-fluid.spec.ts\'';
+  'nix develop .#ci -c bash -lc \'./scripts/ci/setup.sh && export PATH="$(pwd)/node_modules/.bin:$PATH" && next build && ./scripts/local/standalone-assets.sh && playwright test resize-fluid.spec.ts\'';
 
 export default {
   contractVersion: 1,

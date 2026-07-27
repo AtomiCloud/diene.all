@@ -14,7 +14,10 @@ next build
 ./scripts/local/standalone-assets.sh
 
 echo "🧪 Running Playwright journeys (webServer boots the standalone server)..."
-playwright install --with-deps chromium >/dev/null 2>&1 || playwright install chromium
+if [[ ! -d ${PLAYWRIGHT_BROWSERS_PATH:-/nonexistent} ]]; then
+  echo "❌ PLAYWRIGHT_BROWSERS_PATH is unset or not a directory — the Nix dev shell must provide the Playwright browsers (nix/packages.nix playwright-browsers)" >&2
+  exit 1
+fi
 playwright test
 
 ./scripts/ci/bruno.sh

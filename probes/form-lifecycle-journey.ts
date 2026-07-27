@@ -6,7 +6,7 @@ import { expectBunGreen, expectBunRed } from './lib/bun-command.ts';
 const contract =
   "nix develop .#ci -c bash -lc './scripts/ci/setup.sh && bun test --config=bunfig.unit.toml tests/unit/form-draft-contract.test.ts'";
 const journey =
-  'nix develop .#ci -c bash -lc \'./scripts/ci/setup.sh && export PATH="$(pwd)/node_modules/.bin:$PATH" && next build && ./scripts/local/standalone-assets.sh && (playwright install --with-deps chromium >/dev/null 2>&1 || playwright install chromium) && playwright test form-lifecycle.spec.ts\'';
+  'nix develop .#ci -c bash -lc \'./scripts/ci/setup.sh && export PATH="$(pwd)/node_modules/.bin:$PATH" && next build && ./scripts/local/standalone-assets.sh && playwright test form-lifecycle.spec.ts\'';
 
 export default {
   contractVersion: 1,

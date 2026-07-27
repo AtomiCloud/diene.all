@@ -4,7 +4,7 @@ import { expectBunGreen, expectBunRed } from './lib/bun-command.ts';
 // the whole suite: this row proves the browser RAIL runs and catches a regression,
 // while the individual journeys are their own rows).
 const command =
-  'nix develop .#ci -c bash -lc \'./scripts/ci/setup.sh && export PATH="$(pwd)/node_modules/.bin:$PATH" && next build && ./scripts/local/standalone-assets.sh && (playwright install --with-deps chromium >/dev/null 2>&1 || playwright install chromium) && playwright test well-known.spec.ts locale.spec.ts\'';
+  'nix develop .#ci -c bash -lc \'./scripts/ci/setup.sh && export PATH="$(pwd)/node_modules/.bin:$PATH" && next build && ./scripts/local/standalone-assets.sh && playwright test well-known.spec.ts locale.spec.ts\'';
 
 export default {
   contractVersion: 1,

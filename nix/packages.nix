@@ -99,6 +99,13 @@ let
         # wrangler and the standalone server need Node >= 22; atomiutils ships
         # v20, so the shell pins a modern runtime explicitly.
         nodejs = nodejs_24;
+        # Playwright browsers come from the store so probe runs never download a
+        # browser without its runtime libraries. Chromium only: the suites use
+        # no other engine.
+        playwright-browsers = playwright-driver.browsers.override {
+          withFirefox = false;
+          withWebkit = false;
+        };
       }
     );
 
