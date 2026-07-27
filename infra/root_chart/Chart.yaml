@@ -1,8 +1,0 @@
-# ### workspace-chart
-# #### source: workspace
-apiVersion: v2
-name: dotnet-base
-description: Helm chart for diene/dotnet-base
-type: application
-version: 0.1.0
-appVersion: '1.0.0'

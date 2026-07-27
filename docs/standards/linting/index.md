@@ -27,7 +27,6 @@ The workspace owns these mechanisms:
 - trusted-major and non-trusted-SHA GitHub Action pins;
 - shared nscloud cache-tag shape;
 - executable shell-script permissions;
-- Helm docs and chart linting;
 - Infisical full-tree and staged-diff scans;
 - many-owner keyed-block structure;
 - nixpkgs snapshot, lock, registry, and channel consistency;
