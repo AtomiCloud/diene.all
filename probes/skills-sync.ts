@@ -1,7 +1,44 @@
 import { expectGreen } from './lib/helpers.ts';
 
-const goModFixture = 'module example.com/app\n\ngo 1.22\n\nrequire diene.example.com/go-core v0.1.0\n';
+const externalGoModule = 'github.com/AtomiCloud/diene.go-fixture';
+const goModFixture = `module example.com/app\n\ngo 1.22\n\nrequire ${externalGoModule} v0.1.0\n`;
+const neutralGoModFixture = 'module example.com/no-diene-dependencies\n\ngo 1.22\n';
 const goSelfModuleFixture = 'module diene.example.com/go-base\n\ngo 1.22\n';
+
+const externalGoShim = [
+  '#!/usr/bin/env bash',
+  'case "$*" in',
+  '  "mod edit -json")',
+  `    printf '{"Module":{"Path":"example.com/app"},"Go":"1.22","Require":[{"Path":"${externalGoModule}","Version":"v0.1.0"}]}\\n'`,
+  '    ;;',
+  '  "list -m -json all")',
+  '    printf \'{"Path":"example.com/app","Main":true,"Dir":"%s"}\\n\' "$PWD"',
+  `    printf '{"Path":"${externalGoModule}","Version":"v0.1.0","Dir":"%s/go-fixture"}\\n' "$PWD"`,
+  '    ;;',
+  '  *)',
+  '    echo "unexpected fake-go invocation: $*" >&2',
+  '    exit 97',
+  '    ;;',
+  'esac',
+  '',
+].join('\n');
+
+const neutralGoShim = [
+  '#!/usr/bin/env bash',
+  'case "$*" in',
+  '  "mod edit -json")',
+  '    printf \'{"Module":{"Path":"example.com/no-diene-dependencies"},"Go":"1.22"}\\n\'',
+  '    ;;',
+  '  "list -m -json all")',
+  '    printf \'{"Path":"example.com/no-diene-dependencies","Main":true,"Dir":"%s"}\\n\' "$PWD"',
+  '    ;;',
+  '  *)',
+  '    echo "unexpected fake-go invocation: $*" >&2',
+  '    exit 97',
+  '    ;;',
+  'esac',
+  '',
+].join('\n');
 
 const selfModuleGoShim = [
   '#!/usr/bin/env bash',
@@ -43,17 +80,25 @@ const declaringPackageJson = `${JSON.stringify(
   2,
 )}\n`;
 
-const keptSkill = '.claude/skills/vendor/diene.kept/example/SKILL.md';
+const vendorDir = '.claude/skills/vendor';
+const keptSkill = `${vendorDir}/diene.kept/example/SKILL.md`;
 const probeCleanTargets = [
-  '.claude/skills/vendor',
+  vendorDir,
   'node_modules/@atomicloud/diene.readonly',
   'node_modules/@atomicloud/diene.untracked',
   'package.json',
   'go.mod',
+  'go-fixture',
   'go-shim',
 ].join(' ');
 
 async function restoreProbeState(repo: any): Promise<void> {
+  const madeWritable = await repo.exec(
+    `for target in ${probeCleanTargets}; do if [ -e "$target" ]; then chmod -R u+w -- "$target" || exit 1; fi; done`,
+  );
+  if (madeWritable.exitCode !== 0) {
+    throw new Error(`could not make probe fixtures writable: ${madeWritable.stderr || madeWritable.stdout}`);
+  }
   const restored = await repo.exec('git restore --source=HEAD --staged --worktree -- .');
   if (restored.exitCode !== 0) {
     throw new Error(`could not restore tracked probe state: ${restored.stderr || restored.stdout}`);
@@ -81,6 +126,15 @@ async function stageKeptSkill(repo: any): Promise<void> {
   }
 }
 
+async function removeCommittedVendor(repo: any): Promise<void> {
+  const removed = await repo.exec(`git rm -rf -- ${vendorDir}`);
+  if (removed.exitCode !== 0) {
+    throw new Error(
+      `could not remove committed vendored skills from an empty-world fixture: ${removed.stderr || removed.stdout}`,
+    );
+  }
+}
+
 export default {
   contractVersion: 1,
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
@@ -92,10 +146,13 @@ export default {
       kind: 'baseline',
       async run(repo: any) {
         await withCleanProbeState(repo, async () => {
+          await repo.write('go.mod', goModFixture);
+          await repo.write('go-shim/go', externalGoShim);
+          await repo.write('go-fixture/skills/example/SKILL.md', 'external Go skill\n');
           await repo.write('.claude/skills/vendor/stale/SKILL.md', 'stale\n');
           await expectGreen(
             repo,
-            `nix develop .#ci -c bash -c 'set -euo pipefail; first="$(mktemp -d)"; second="$(mktemp -d)"; readonly_skill="node_modules/@atomicloud/diene.readonly/skills/example"; trap "rm -rf \\"$first\\" \\"$second\\"" EXIT; mkdir -p "$readonly_skill"; printf "readonly skill\\n" >"$readonly_skill/SKILL.md"; chmod -R a-w node_modules/@atomicloud/diene.readonly .claude/skills/vendor/stale; ./scripts/local/skills-sync.sh; test ! -e .claude/skills/vendor/stale; test -f .claude/skills/vendor/diene.readonly/example/SKILL.md; jq -e ". == [\\"diene.readonly/example/SKILL.md\\"]" .claude/skills/vendor/manifest.json >/dev/null; cp -R .claude/skills/vendor/. "$first"/; ./scripts/local/skills-sync.sh; cp -R .claude/skills/vendor/. "$second"/; diff -ru "$first" "$second"'`,
+            `nix develop .#ci -c bash -c 'set -euo pipefail; first="$(mktemp -d)"; second="$(mktemp -d)"; readonly_skill="node_modules/@atomicloud/diene.readonly/skills/example"; trap "rm -rf \\"$first\\" \\"$second\\"" EXIT; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; mkdir -p "$readonly_skill"; printf "readonly skill\\n" >"$readonly_skill/SKILL.md"; chmod -R a-w node_modules/@atomicloud/diene.readonly .claude/skills/vendor/stale; ./scripts/local/skills-sync.sh; test ! -e .claude/skills/vendor/stale; test -f .claude/skills/vendor/diene.readonly/example/SKILL.md; test -f .claude/skills/vendor/diene.go-fixture/example/SKILL.md; jq -e ". == [\\"diene.go-fixture/example/SKILL.md\\", \\"diene.readonly/example/SKILL.md\\"]" .claude/skills/vendor/manifest.json >/dev/null; cp -R .claude/skills/vendor/. "$first"/; ./scripts/local/skills-sync.sh; cp -R .claude/skills/vendor/. "$second"/; diff -ru "$first" "$second"'`,
             'skills-sync',
           );
         });
@@ -109,10 +166,12 @@ export default {
       async run(repo: any) {
         await withCleanProbeState(repo, async () => {
           await repo.write('package.json', declaringPackageJson);
+          await repo.write('go.mod', neutralGoModFixture);
+          await repo.write('go-shim/go', neutralGoShim);
           await stageKeptSkill(repo);
           await expectGreen(
             repo,
-            `nix develop .#ci -c bash -c 'set -euo pipefail; ./scripts/local/skills-sync.sh; test "$(cat ${keptSkill})" = "committed skill"'`,
+            `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ./scripts/local/skills-sync.sh; test "$(cat ${keptSkill})" = "committed skill"'`,
             'skills-sync',
           );
         });
@@ -156,6 +215,7 @@ export default {
       kind: 'baseline',
       async run(repo: any) {
         await withCleanProbeState(repo, async () => {
+          await removeCommittedVendor(repo);
           await repo.write('go.mod', goSelfModuleFixture);
           await repo.write('go-shim/go', selfModuleGoShim);
           await expectGreen(
@@ -199,6 +259,7 @@ export default {
       expectedImpact: [],
       async run(repo: any) {
         await withCleanProbeState(repo, async () => {
+          await removeCommittedVendor(repo);
           await repo.patch('scripts/local/skills-sync.sh', {
             find: '  go_declares_external=false\n',
             replace:
@@ -231,11 +292,15 @@ export default {
       expectedImpact: [],
       async run(repo: any) {
         await withCleanProbeState(repo, async () => {
+          await removeCommittedVendor(repo);
           await repo.write('package.json', declaringPackageJson);
+          await repo.write('go.mod', neutralGoModFixture);
+          await repo.write('go-shim/go', neutralGoShim);
           await repo.write(`${keptSkill}.untracked`, 'untracked content is not a committed fallback\n');
-          const result = await repo.exec('nix develop .#ci -c ./scripts/local/skills-sync.sh', {
-            timeoutMs: 240000,
-          });
+          const result = await repo.exec(
+            `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ./scripts/local/skills-sync.sh'`,
+            { timeoutMs: 240000 },
+          );
           if (result.exitCode === 0) {
             throw new Error('skills-sync stayed green after a declared package produced no skills');
           }
