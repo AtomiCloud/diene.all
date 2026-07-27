@@ -281,11 +281,18 @@ func TestManagerWiringRejectsCrossControllerDoorSubstitution(t *testing.T) {
 		},
 	)
 	malformed := assertMalformedBundle(t, err, "dependency", "vendor-engine", "has the wrong kind")
-	require.Equal(t, "provider-api", malformed.ActualKind)
+	require.Empty(t, malformed.ActualKind)
+	require.NotContains(t, err.Error(), foreignDoor.Kind())
 }
 
 func TestManagerWiringRejectsWrongKindCustomDoor(t *testing.T) {
 	t.Parallel()
+
+	// A hostile or misconfigured direct-injected door may return sensitive
+	// provider material from Kind(). That untrusted value must never be retained
+	// in the returned error metadata nor formatted into its string, while the
+	// fixed controller/door/reason and the errors.Is category stay exact.
+	const sensitiveKindValue = "account=AKIA-live-do-not-expose"
 
 	err := operatorruntime.RegisterControllers(
 		nil,
@@ -293,13 +300,14 @@ func TestManagerWiringRejectsWrongKindCustomDoor(t *testing.T) {
 		operatorruntime.ControllerDependencies{
 			Bundles: operatorruntime.Bundles{
 				Cluster: &operatorruntime.ClusterBundle{
-					ProviderAPI: testProviderDoor{kind: "custom-wrong-kind"},
+					ProviderAPI: testProviderDoor{kind: sensitiveKindValue},
 				},
 			},
 		},
 	)
 	malformed := assertMalformedBundle(t, err, "cluster", "provider-api", "has the wrong kind")
-	require.Equal(t, "custom-wrong-kind", malformed.ActualKind)
+	require.Empty(t, malformed.ActualKind)
+	require.NotContains(t, err.Error(), sensitiveKindValue)
 }
 
 func TestManagerWiringRejectsUnavailableRequiredDoor(t *testing.T) {

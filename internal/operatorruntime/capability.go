@@ -93,9 +93,11 @@ func (e *MissingBundleError) Error() string {
 func (*MissingBundleError) Unwrap() error { return ErrControllerBundleRequired }
 
 // MalformedBundleError identifies a controller bundle whose door does not
-// satisfy the registration contract. ActualKind is populated only for a kind
-// mismatch; provider availability errors are deliberately not retained so
-// their contents cannot leak through startup errors.
+// satisfy the registration contract. ActualKind is retained as an exported
+// field for source compatibility but is deliberately left empty by registration
+// validation: an injected door's Kind() is untrusted provider input, so it is
+// never retained and cannot leak through the error string or errors.As metadata.
+// Provider availability errors are likewise not retained.
 type MalformedBundleError struct {
 	Controller string
 	Door       string
@@ -181,13 +183,11 @@ func validateDoorKind(controller, expectedKind string, door ProviderDoor) error 
 			Reason:     "contains a typed nil",
 		}
 	}
-	actualKind := door.Kind()
-	if actualKind != expectedKind {
+	if door.Kind() != expectedKind {
 		return &MalformedBundleError{
 			Controller: controller,
 			Door:       expectedKind,
 			Reason:     "has the wrong kind",
-			ActualKind: actualKind,
 		}
 	}
 	return nil
