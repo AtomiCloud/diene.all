@@ -115,9 +115,20 @@ class RescueRouter {
 
   /// Probe whether a base URL is reachable (a received status < 500).
   Future<bool> probeHealthy(Uri baseUrl) async {
-    final TransportOutcome outcome = await transport.send(
-      HttpRequest(method: HttpMethod.head, url: baseUrl),
-    );
+    // A probe FAILS CLOSED. Same contract-violation guard as the document
+    // fetches: a throwing transport must read as "not healthy", never propagate
+    // into the caller's request path. `_probeWithinBudget` already carries an
+    // `onError` arm for this shape, which is the author's own evidence that the
+    // case was expected; guarding here means the arm is defence in depth rather
+    // than the only line.
+    final TransportOutcome outcome;
+    try {
+      outcome = await transport.send(
+        HttpRequest(method: HttpMethod.head, url: baseUrl),
+      );
+    } on Object {
+      return false;
+    }
     return outcome is Received && outcome.response.status < 500;
   }
 
@@ -249,9 +260,10 @@ class RescueRouter {
       if (!isAllowed(url)) {
         continue;
       }
-      final TransportOutcome outcome = await transport.send(
-        HttpRequest(method: HttpMethod.get, url: url),
-      );
+      final TransportOutcome? outcome = await _sendOrNull(url);
+      if (outcome == null) {
+        continue; // this host is unusable — try the next baked seed
+      }
       if (outcome is Received && outcome.response.status == 200) {
         final Map<String, Object?>? json = _jsonObject(outcome.response.body);
         if (json != null && json['catalogHosts'] is List) {
@@ -278,9 +290,10 @@ class RescueRouter {
       if (!isAllowed(url)) {
         continue;
       }
-      final TransportOutcome outcome = await transport.send(
-        HttpRequest(method: HttpMethod.get, url: url),
-      );
+      final TransportOutcome? outcome = await _sendOrNull(url);
+      if (outcome == null) {
+        continue; // this host is unusable — try the next Doc-A-supplied host
+      }
       if (outcome is Received && outcome.response.status == 200) {
         final DocC? doc = DocC.tryDecode(outcome.response.body);
         if (doc != null) {
@@ -289,6 +302,42 @@ class RescueRouter {
       }
     }
     return null;
+  }
+
+  /// Send [url] and return its outcome, or `null` if the transport itself
+  /// FAILED TO ANSWER.
+  ///
+  /// [HttpTransport] documents that it never throws — a hard failure is returned
+  /// as [NetworkFailure]. But `HttpTransport` is a PUBLIC seam of this package,
+  /// so a third-party implementation that violates that contract is a real
+  /// possibility rather than a hypothetical, and without this guard such a throw
+  /// escapes the document-fetch loops and propagates out of [rescue] as an
+  /// unhandled error into the caller's request path.
+  ///
+  /// That is unacceptable in the component whose entire purpose is degrading
+  /// gracefully during an outage: the rescue router exists so a caller gets a
+  /// `Problem` it can act on, never a crash. The evidence the case was
+  /// anticipated is already in this file — `_probeWithinBudget` carries an
+  /// `onError` arm for exactly this shape of failure, but the fetches sit
+  /// upstream of it, so a throw never reached that handler.
+  ///
+  /// Failure is scoped PER HOST rather than per scan, matching how an
+  /// unallowlisted or non-200 host is already treated: one bad host is skipped
+  /// and the next candidate is tried, so a single misbehaving mirror cannot
+  /// abort a rescue that other seeds could have satisfied.
+  Future<TransportOutcome?> _sendOrNull(Uri url) async {
+    try {
+      return await transport.send(
+        HttpRequest(method: HttpMethod.get, url: url),
+      );
+    } on Object {
+      // Deliberately broad: the contract says nothing is thrown, so anything
+      // that arrives here is already outside the contract and cannot be
+      // usefully discriminated. Swallowing it is correct — the loop's own
+      // fallbacks (next host, last-known-good, RescueUnavailable) are the
+      // caller-visible answer.
+      return null;
+    }
   }
 
   Uri _hostUri(String host, String path) => host.contains('://')
