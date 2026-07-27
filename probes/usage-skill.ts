@@ -1,7 +1,7 @@
 // Presence: the consumer usage skill ships with the package — its SKILL.md
 // declares the expected skill name in frontmatter and its patterns companion
 // exists.
-const SKILL_DIR = 'packages/diene_dart_lib/skills/diene-dart-lib-usage';
+const SKILL_DIR = 'packages/diene_auth_engine/skills/diene-auth-engine-usage';
 
 export default {
   contractVersion: 1,
@@ -18,7 +18,7 @@ export default {
           throw new Error('usage-skill: SKILL.md has no frontmatter block');
         }
         const name = frontmatter[1].match(/^name:\s*(.+)$/m)?.[1]?.trim();
-        if (name !== 'diene-dart-lib-usage') {
+        if (name !== 'diene-auth-engine-usage') {
           throw new Error(`usage-skill: unexpected skill name ${name ?? '(none)'}`);
         }
         if ((await repo.glob(`${SKILL_DIR}/patterns.md`)).length !== 1) {

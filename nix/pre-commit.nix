@@ -9,7 +9,24 @@ let
     name = "workspace-validator-runtime";
     paths = [
       packages.bash
-      packages.dart
+      # ### lib-dart-auth-engine-validator-runtime
+      # #### source: lib/dart/auth-engine
+      # SUPERSEDES the inherited `packages.dart` entry — deliberately replacing
+      # it, not adding alongside it.
+      #
+      # The validator wrapper below sets PATH to EXACTLY this buildEnv, so a
+      # tool absent here is `command not found` (exit 127) inside every hook, no
+      # matter what nix/env.nix puts in the dev shell. diene_auth_engine is a
+      # Flutter package, so its analyze/test/package validators shell out to
+      # `flutter`.
+      #
+      # `packages.dart` CANNOT be listed as well: `dart = flutter.dart`, so both
+      # paths ship `dartdoc_options.yaml` and buildEnv aborts with "two given
+      # paths contain a conflicting subpath". Nothing is lost by dropping it —
+      # flutter-wrapped/bin/dart is a symlink to the very same
+      # dart-3.12.2/bin/dart that `packages.dart` resolves to, so `dart` stays
+      # on the hook PATH at the identical version.
+      packages.flutter
       packages.git
       packages.jq
       packages.ripgrep
@@ -198,7 +215,7 @@ pre-commit-lib.run {
       enable = true;
       name = "Dart format";
       entry = "${packages.dart}/bin/dart format --output=none --set-exit-if-changed";
-      files = "^packages/diene_dart_lib/(lib|test|example)/.*[.]dart$";
+      files = "^packages/diene_auth_engine/(lib|test|example)/.*[.]dart$";
       pass_filenames = true;
       language = "system";
     };
@@ -207,7 +224,7 @@ pre-commit-lib.run {
       enable = true;
       name = "Dart analyze";
       entry = validator "scripts/ci/analyze.sh";
-      files = "^packages/diene_dart_lib/(lib|test|example|tool)/.*[.]dart$|^(packages/diene_dart_lib/(pubspec|analysis_options)|pubspec)[.]yaml$";
+      files = "^packages/diene_auth_engine/(lib|test|example|tool)/.*[.]dart$|^(packages/diene_auth_engine/(pubspec|analysis_options)|pubspec)[.]yaml$";
       pass_filenames = false;
       language = "system";
     };
@@ -216,7 +233,7 @@ pre-commit-lib.run {
       enable = true;
       name = "Dart unit, C0, and meta tests";
       entry = validator "scripts/ci/test-all.sh";
-      files = "^packages/diene_dart_lib/(lib|test)/.*[.]dart$|^(packages/diene_dart_lib/pubspec|pubspec)[.]yaml$";
+      files = "^packages/diene_auth_engine/(lib|test)/.*[.]dart$|^(packages/diene_auth_engine/pubspec|pubspec)[.]yaml$";
       pass_filenames = false;
       language = "system";
     };
@@ -225,7 +242,7 @@ pre-commit-lib.run {
       enable = true;
       name = "Dart package and TestHelper boundary";
       entry = validator "scripts/validate/dart-package.sh";
-      files = "^(packages/diene_dart_lib/(lib/.*[.]dart|pubspec[.]yaml|README[.]md|CHANGELOG[.]md|LICENSE|skills/.*|doc/diene_dart_lib[.]md)|pubspec[.]yaml|VERSION)$";
+      files = "^(packages/diene_auth_engine/(lib/.*[.]dart|pubspec[.]yaml|README[.]md|CHANGELOG[.]md|LICENSE|skills/.*|doc/diene_auth_engine[.]md)|pubspec[.]yaml|VERSION)$";
       pass_filenames = false;
       language = "system";
     };

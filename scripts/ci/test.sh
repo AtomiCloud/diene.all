@@ -4,10 +4,13 @@ set -euo pipefail
 mode="${1:-}"
 coverage_mode="${2:-no-coverage}"
 
-# The publishable member lives under packages/diene_dart_lib (pub workspace).
-# `dart pub get` resolves at the repo root; `dart test`, coverage collection and
-# the coverage:format_coverage run all execute with CWD = the member directory.
-member_dir="${MEMBER_DIR:-packages/diene_dart_lib}"
+# The publishable member lives under packages/diene_auth_engine (pub workspace).
+# `flutter pub get` resolves at the repo root; `flutter test`, coverage collection
+# and the coverage:format_coverage run all execute with CWD = the member
+# directory. This member depends on the Flutter SDK (logto_dart_sdk), so the
+# runner is `flutter test`, not `dart test` — see
+# exec/nodes/lib__dart__auth-engine/evidence/flutter-toolchain-delta.md.
+member_dir="${MEMBER_DIR:-packages/diene_auth_engine}"
 test_helper_path="${TEST_HELPER_PATH:-lib/test_helper.dart}"
 meta_test_path="${META_TEST_PATH:-test/meta}"
 
@@ -35,7 +38,7 @@ tests=("${meta_test_path}")
 [[ ${mode} == "unit" ]] && tests=(test/unit test/conformance)
 
 if [[ ${coverage_mode} == "no-coverage" ]]; then
-  dart test --reporter=expanded "${tests[@]}"
+  flutter test --reporter=expanded "${tests[@]}"
   echo "✅ ${mode} tests passed"
   exit 0
 fi
@@ -48,11 +51,11 @@ rm -rf "${coverage_dir}"
 mkdir -p "${raw_dir}"
 
 set +e
-dart test --reporter=expanded --coverage="${raw_dir}" "${tests[@]}"
+flutter test --reporter=expanded --coverage="${raw_dir}" "${tests[@]}"
 test_status=$?
 set -e
 
-dart run coverage:format_coverage \
+flutter pub run coverage:format_coverage \
   --lcov \
   --in="${raw_dir}" \
   --out="${all_ledger}" \

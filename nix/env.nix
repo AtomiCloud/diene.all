@@ -14,6 +14,12 @@ with packages;
     # ### dart-lib-dev
     # #### source: dart-lib
     dart
+    # ### lib-dart-auth-engine-dev
+    # #### source: lib/dart/auth-engine
+    # FORK, not inheritance: diene_auth_engine depends on the Flutter SDK
+    # (logto_dart_sdk 3.0.0 requires environment.flutter >=1.17.0), so its
+    # resolve/test/publish gates need `flutter`, not just `flutter.dart`.
+    flutter
   ];
 
   # ### workspace-lint
@@ -54,6 +60,14 @@ with packages;
     # ### dart-lib-main
     # #### source: dart-lib
     dart
+    # ### lib-dart-auth-engine-main
+    # #### source: lib/dart/auth-engine
+    # `main` is the only group present in ALL FOUR shells (cd/ci/default/
+    # releaser), and the pre-commit hooks that run `flutter test` execute in
+    # `.#default` while the probe matrix runs in `.#ci` — so flutter must be
+    # here, mirroring exactly how dart-lib placed `dart`. Putting it only in
+    # `dev` would leave every CI gate without a Flutter SDK.
+    flutter
   ];
 
   # ### workspace-releaser-bootstrap

@@ -15,11 +15,11 @@ coverage:
 flags:
   unit:
     paths:
-      - packages/diene_dart_lib/lib/src
+      - packages/diene_auth_engine/lib/src
     carryforward: true
   meta:
     paths:
-      - packages/diene_dart_lib/lib/test_helper.dart
+      - packages/diene_auth_engine/lib/test_helper.dart
     carryforward: true
 
 comment:
