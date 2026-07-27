@@ -73,6 +73,55 @@ void main() {
     expect(resp.expiresIn, 120);
   });
 
+  test('mint REFUSES before mintingUser is set', () async {
+    // A fixture-invariant, and the assert-the-asserter case for the mint guard:
+    // `addUser` registers an identity in the directory but does NOT make it the
+    // minting identity — `mintingUser` is a separate field the journey sets,
+    // mirroring the real server reading it from the authenticated session.
+    // Without this guard a journey that forgot to set it would mint a token
+    // attributed to nobody and the consumer's test would pass on a fiction.
+    //
+    // INVOKED THROUGH `handlerFor` rather than over HTTP, deliberately.
+    // StubServer._handle does not wrap handlers in a try, so an uncaught throw
+    // surfaces to a client as a dropped connection rather than as the StateError
+    // under test — an HTTP-level assertion would be about the transport, not the
+    // guard.
+    final StubServer bare = await StubServer.start();
+    addTearDown(bare.close);
+    final AppHandoffStub fresh = AppHandoffStub(problemTypeUri: typeUri)
+      ..addUser(const AppHandoffUser(sub: 'u9', primaryEmail: 'z@b.com'));
+
+    expect(
+      fresh.mintingUser,
+      isNull,
+      reason: 'addUser must not implicitly set the minting identity',
+    );
+
+    fresh.mount(bare, now: () => clock);
+    final StubHandler? mintHandler = bare.handlerFor('POST', fresh.mountPath);
+    expect(
+      mintHandler,
+      isNotNull,
+      reason: 'mount must register the mint route',
+    );
+
+    final StubRequest mintCall = StubRequest(
+      method: 'POST',
+      path: '/app-handoff',
+      headers: const <String, String>{},
+      body: '{}',
+    );
+    await expectLater(() => mintHandler!(mintCall), throwsA(isA<StateError>()));
+
+    // POSITIVE CONTROL: the identical call succeeds once mintingUser is set, so
+    // the throw above is attributable to the guard and not to the invocation.
+    fresh.mintingUser = const AppHandoffUser(
+      sub: 'u9',
+      primaryEmail: 'z@b.com',
+    );
+    expect((await mintHandler!(mintCall)).status, 200);
+  });
+
   test('single-use: replay returns the identical generic 410', () async {
     stub.mintingUser = const AppHandoffUser(sub: 'u1', primaryEmail: 'a@b.com');
     final AppHandoffMint minted = AppHandoffMint.fromJson((await mint()).$2);

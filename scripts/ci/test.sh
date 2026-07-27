@@ -73,23 +73,38 @@ set -e
 
 # The two ledgers must PARTITION this package's own Dart sources: production code
 # in the unit ledger, TestHelper code in the meta ledger, nothing in both and
-# nothing in neither. The inherited patterns assumed the sample's shape, where
-# ALL helper code lived in the single file lib/test_helper.dart:
+# nothing in neither.
 #
-#   unit: (^|/)lib/src/.*[.]dart$      meta: (^|/)lib/test_helper[.]dart$
+# THIS PATTERN IS THIS NODE'S OWN VALUE. The mechanism is inherited; the value is
+# not, and adopting the sibling's verbatim failed loudly rather than silently —
+# "❌ meta coverage ledger contains no source files". That is the gate working.
 #
-# That is wrong for this package. lib/test_helper.dart is a pure barrel of
-# `export` directives with NO executable lines, and the real helper code lives in
-# lib/src/test_helper/{assertions,builders,fakes}.dart. Under the inherited
-# patterns the meta ledger would match a file with nothing in it ("meta coverage
-# ledger contains no source files") while the unit ledger silently swallowed all
-# the TestHelper code through `lib/src/.*` — inflating the unit denominator with
-# helper lines, which the dart-family goal explicitly forbids ("TestHelper
-# excluded from the unit ledger").
+# The api-engine sibling keeps its helper code in lib/src/test_helper/{assertions,
+# builders,fakes}.dart, so its pattern matched that subtree. diene_e2e has NO
+# lib/src/test_helper/ directory at all: it is the family HARNESS, so its helper
+# code IS its journey drivers, stub servers and assertions, living in
+# lib/src/{assertions,journey,stub}/.
 #
-# So `meta` matches the helper subtree plus its barrel, and `unit` matches
-# lib/src/ MINUS that subtree.
-helper_pattern='(^|/)lib/(test_helper[.]dart|src/test_helper/.*[.]dart)$'
+# DERIVED FROM THE BARRELS RATHER THAN GUESSED, because the barrels are the
+# structural definition of which side a file is on — a file is TestHelper code iff
+# `lib/test_helper.dart` exports it, and production code iff `lib/diene_e2e.dart`
+# does. Measured at this head:
+#   main barrel      -> src/app_handoff/{carrier,wire}.dart          (unit subject)
+#   test_helper.dart -> src/assertions/assertions.dart               (meta subject)
+#                       src/journey/{journey,deferred_login_journey}.dart
+#                       src/stub/{stub_server,app_handoff_stub}.dart
+# The measured coverage corroborates the split exactly: the unit run covered
+# carrier 40/40 and wire 43/43 and left every helper file at or near zero, because
+# the helper files are exercised by the META tier.
+#
+# lib/test_helper.dart itself is a pure `export` barrel with no executable lines,
+# so it contributes nothing either way and is matched into the meta side for
+# completeness rather than for coverage.
+#
+# IF A NEW lib/src SUBTREE IS ADDED it must be added to exactly one side here, and
+# the partition-totality assertion below is what forces that rather than letting a
+# new directory fall silently into neither ledger.
+helper_pattern='(^|/)lib/(test_helper[.]dart|src/(assertions|journey|stub)/.*[.]dart)$'
 if [[ ${mode} == "unit" ]]; then
   include='(^|/)lib/src/.*[.]dart$'
   exclude="${helper_pattern}"
@@ -107,42 +122,74 @@ awk -v inc="${include}" -v exc="${exclude}" '
   }
   keep { print }
 ' "${all_ledger}" >"${ledger}"
+
+# ### lib-dart-e2e-partition-totality
+# #### source: lib/dart/e2e
+#
+# ASSERT THE PARTITION IS TOTAL. The comment above CLAIMS that every lib/ source
+# lands in exactly one ledger; a claim in a comment is not a gate. This proves it
+# against the raw pre-filter ledger, so a newly added lib/src subtree cannot fall
+# silently into NEITHER side (which is how a whole directory of code stops being
+# measured while both tiers stay green).
+#
+# Refuses on an empty subject rather than reporting clean: "found nothing" and
+# "could not look" must not produce the same answer.
+partition_report="$(awk -v helper="${helper_pattern}" '
+  /^SF:/ {
+    path = substr($0, 4)
+    if (path !~ /(^|\/)lib\//) next
+    total++
+    if (path ~ helper) { meta++ } else { unit++ }
+  }
+  END { printf "%d %d %d", total + 0, unit + 0, meta + 0 }
+' "${all_ledger}")"
+read -r part_total part_unit part_meta <<<"${partition_report}"
+echo "→ ledger partition: ${part_total} lib/ sources = ${part_unit} unit + ${part_meta} meta"
+if [[ ${part_total} -eq 0 ]]; then
+  echo "❌ REFUSE: the raw coverage ledger names no lib/ sources — cannot judge the partition" >&2
+  exit 1
+fi
+if [[ $((part_unit + part_meta)) -ne ${part_total} ]]; then
+  echo "❌ ledger partition is NOT total: ${part_unit} + ${part_meta} != ${part_total}" >&2
+  exit 1
+fi
+
 rm -f "${all_ledger}"
 
 # ### lib-dart-e2e-coverage-floor
 # #### source: lib/dart/e2e
 #
-# THE UNIT FLOOR IS THE MEASURED ACHIEVABLE MAXIMUM, NOT 100%. Ruled by the lead
-# after the residue was measured (not predicted) at the landed head.
+# THIS NODE'S UNIT FLOOR IS A TRUE 100%, and that is a MEASUREMENT, not an
+# aspiration. The inherited value was api-engine's 571/577 — its measured
+# achievable maximum, held below 100% because that package ships GENERATED
+# OpenAPI clients and a private constructor whose lines cannot be reached. Adopted
+# here it failed loudly ("unit coverage REGRESSED: 188 lines hit, floor is 571"),
+# which is the gate correctly refusing to judge this package by another's value.
 #
-# THE ARGUMENT, which is this session's own law turned around: A GATE THAT IS
-# ALWAYS RED DETECTS NOTHING. We spent this session removing gates that could not
-# FAIL; a gate that cannot PASS is the same defect wearing the opposite sign — it
-# stops being read, and the next person to see it assumes it is noise. A 100%
-# threshold on a package shipping GENERATED code and a private constructor is not
-# a stricter gate, it is arithmetically unmeetable and therefore permanently
-# uninformative.
+# diene_e2e has no generated code at all. Its unit subject is exactly the two
+# app-handoff contract-model files the MAIN barrel exports, and every line of both
+# is reached: 83/83, with the uncovered-line enumeration returning EMPTY. So the
+# concession api-engine needed does not apply, and taking it anyway would have set
+# a floor this package can beat by 495 lines — a gate that cannot fail.
 #
-# A floor at the proven-achievable maximum still catches every regression: one
-# newly uncovered line drops below it and the gate goes red for a real reason.
-# That is strictly MORE detection than 100%-always-red.
+# NO EXCLUSIONS AND NO `coverage:ignore` ANYWHERE (R12: two passes, no exclusion
+# lists). The floor equals the denominator, so any newly uncovered line drops
+# below it and reddens for a real reason.
 #
-# THE SIX UNREACHABLE LINES ARE STILL COUNTED IN THE DENOMINATOR — deliberately.
-# An exclusion or a `coverage:ignore-file` would delete them from view forever,
-# including if the OpenAPI spec later declares the String-returning endpoint that
-# would make one of them live. They stay visible, counted, and enumerated in
-# exec/nodes/lib__dart__e2e/evidence/CERTIFICATION-*.md.
+# STANDING OBLIGATION, inherited and kept verbatim in force: THIS FLOOR MAY ONLY
+# EVER MOVE UP. Lowering it is a LEAD DECISION requiring its own escalation, never
+# a local edit to make a red go away. Since it already sits at 100% the only
+# lawful movement is upward with the denominator as code is added.
 #
-# STANDING OBLIGATION: THIS FLOOR MAY ONLY EVER MOVE UP. Lowering it is a LEAD
-# DECISION requiring its own escalation, never a local edit to make a red go away.
-# That clause is what stops a measured floor from becoming an exclusion by another
-# route. Raise it whenever a line is genuinely closed.
-#
-# The META tier stays at a strict 100%: its subject is the shipped TestHelper,
-# which contains no generated code and no unreachable-by-design members, so 100%
-# is achievable there and IS achieved (74/74).
-unit_floor_hit=571
-unit_floor_found=577
+# The META tier is likewise a strict 100% and IS achieved at 173/173. Two lines
+# were uncovered when this node's tiers were first measured —
+# stub_server.dart's non-object `jsonBody` FormatException and
+# app_handoff_stub.dart's `mintingUser` StateError guard. Both were REAL,
+# REACHABLE error paths, so they were CLOSED WITH TESTS (each with a positive
+# control) rather than excluded or floored around. A reachable guard that nothing
+# exercises is a map of a missing test, not a candidate for an exemption.
+unit_floor_hit=83
+unit_floor_found=83
 
 awk -v mode="${mode}" -v floor_hit="${unit_floor_hit}" \
   -v floor_found="${unit_floor_found}" '

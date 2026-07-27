@@ -146,20 +146,47 @@ fi
 # --- 2. the exclusions must still work in the OTHER direction --------------
 # An exclusion is two claims — this is excluded AND nothing else is. Checking only
 # the first is how a narrow exclusion silently becomes a broad one.
+#
+# ### lib-dart-e2e-must-exclude
+# #### source: lib/dart/e2e
+#
+# THIS LIST IS THIS NODE'S OWN VALUE. Inherited from api-engine it named
+# test/unit/bridge_test.dart, openapi/service.openapi.yaml and
+# swagger_parser.yaml — three paths that DO NOT EXIST in this package, because
+# diene_e2e generates no OpenAPI client. The gate reported them as "SHOULD NOT
+# SHIP BUT WOULD", i.e. it correctly refused to certify an archive it could not
+# actually reason about.
+#
+# AND IT EXPOSED A WEAKNESS WORTH FIXING RATHER THAN JUST RETOKENIZING: `ignored`
+# answers "would this path be excluded", which a NONEXISTENT path can satisfy for
+# the wrong reason. A list naming absent files is a guard that passes without
+# checking anything — the vacuity family, one level down. So each entry is now
+# asserted to EXIST before its exclusion is judged, and "found nothing" can no
+# longer read as "correctly excluded".
 must_exclude=(
-  "test/unit/bridge_test.dart"
+  "test/unit/wire_test.dart"
+  "test/meta/version_train_bundle_meta_test.dart"
+  "test/fixtures/c0/identity.json"
   "tool/deadcode_entrypoints.dart"
-  "openapi/service.openapi.yaml"
-  "swagger_parser.yaml"
 )
 kept_out=0
+missing_subject=0
 for rel in "${must_exclude[@]}"; do
+  if [ ! -e "${member_dir}/${rel}" ]; then
+    echo "   REFUSE: must_exclude names a path that does not exist: ${rel}" >&2
+    missing_subject=$((missing_subject + 1))
+    continue
+  fi
   if ignored "${rel}"; then
     kept_out=$((kept_out + 1))
   else
     echo "   SHOULD NOT SHIP BUT WOULD: ${rel}" >&2
   fi
 done
+if [ "${missing_subject}" -ne 0 ]; then
+  echo "❌ ${missing_subject} must_exclude entries have no subject — an exclusion asserted over an absent file proves nothing" >&2
+  exit 1
+fi
 echo "→ dev/CI paths correctly excluded: ${kept_out}/${#must_exclude[@]} (must be ${#must_exclude[@]})"
 [ "${kept_out}" -eq "${#must_exclude[@]}" ] || exit 1
 

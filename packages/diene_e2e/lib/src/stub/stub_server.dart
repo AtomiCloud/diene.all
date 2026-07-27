@@ -104,6 +104,19 @@ class StubServer {
     _routes[_key(method, path)] = handler;
   }
 
+  /// The handler registered for `method path`, or `null` when the route is not
+  /// registered.
+  ///
+  /// This exists so a caller can invoke a mounted route DIRECTLY, without going
+  /// through HTTP. That matters for negative-path assertions: [_handle] does not
+  /// wrap handlers in a try, so a handler that throws surfaces to a client as a
+  /// dropped connection rather than as the error it threw. A test that asserted
+  /// over HTTP would therefore be asserting about the transport instead of about
+  /// the handler's own guard. It is also the honest way to check that a `mount`
+  /// helper registered the routes it claims to.
+  StubHandler? handlerFor(String method, String path) =>
+      _routes[_key(method, path)];
+
   /// Clears the recorded request log (route handlers are left intact).
   void clearRequests() => _requests.clear();
 

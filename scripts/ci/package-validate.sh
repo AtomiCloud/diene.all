@@ -14,7 +14,16 @@ cd "${root_dir}"
 # exists only in the ARCHIVE — that is exactly how both published
 # diene_auth_engine releases shipped unusable.
 ./scripts/validate/publish-archive.sh
-./scripts/validate/c0-release.sh
+# NOTE: scripts/validate/c0-release.sh is deliberately NOT invoked here, and the
+# script is deliberately NOT carried on this branch. It validates a vendored
+# `contracts/c0/` RELEASE.json + SHA256SUMS tree — an asset the api-engine sibling
+# owns and this node does not have. diene_e2e consumes C0 through a DIFFERENT and
+# equally-gated shape: it vendors the single `identity.json` case it needs, with
+# its digest recorded in packages/diene_e2e/test/fixtures/c0/PROVENANCE.md, pinned
+# byte-for-byte by .prettierignore, and asserted by
+# test/conformance/app_handoff_conformance_test.dart. Wiring a gate for an absent
+# tree would have been a permanent red that teaches readers to ignore the gate.
+./scripts/validate/c0-fixture-provenance.sh
 
 # pub.dev dry-run and pana score run against the publishable member.
 cd "${root_dir}/packages/diene_e2e"

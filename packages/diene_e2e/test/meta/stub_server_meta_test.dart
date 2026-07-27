@@ -52,6 +52,44 @@ void main() {
     await resp.drain<void>();
   });
 
+  test('jsonBody REJECTS a body that is not a JSON object', () async {
+    // The assert-the-asserter half of the meta contract: a helper that decodes
+    // untrusted input must be shown to FAIL on a known-bad case, not only to
+    // pass on a good one. A JSON array and a bare scalar both decode fine but
+    // are not objects, so both must throw rather than silently yield an empty
+    // map — a stub that swallowed a malformed body would make a consumer's
+    // negative-path test pass for the wrong reason.
+    late Object? caught;
+    server.on('POST', '/strict', (StubRequest r) {
+      try {
+        r.jsonBody();
+        caught = null;
+      } on FormatException catch (error) {
+        caught = error;
+      }
+      return const StubResponse();
+    });
+
+    await (await post('/strict', '[1,2,3]')).drain<void>();
+    expect(
+      caught,
+      isA<FormatException>(),
+      reason: 'a JSON array is valid JSON but is not a JSON object',
+    );
+
+    await (await post('/strict', '"a string"')).drain<void>();
+    expect(caught, isA<FormatException>(), reason: 'a scalar is not an object');
+
+    // POSITIVE CONTROL: the same helper on a real object must NOT throw, or the
+    // two cases above would prove nothing about discrimination.
+    await (await post('/strict', '{"ok":true}')).drain<void>();
+    expect(
+      caught,
+      isNull,
+      reason: 'a JSON object must decode without throwing',
+    );
+  });
+
   test('clearRequests empties the log but keeps handlers', () async {
     server.on('POST', '/x', (StubRequest r) => const StubResponse());
     await (await post('/x', '')).drain<void>();
