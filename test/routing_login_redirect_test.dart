@@ -1,9 +1,13 @@
+import 'package:diene_flutter_base/auth/session_controller.dart';
+import 'package:diene_flutter_base/config/app_config.dart';
 import 'package:diene_flutter_base/i18n/translations.g.dart';
+import 'package:diene_flutter_base/onboarding/onboarding.dart';
 import 'package:diene_flutter_base/routing/app_router.dart';
 import 'package:diene_flutter_base/routing/deeplink.dart';
 import 'package:diene_flutter_base/routing/query_state.dart';
 import 'package:diene_flutter_base/routing/route_map.dart';
 import 'package:diene_flutter_base/screens/app_screens.dart';
+import 'package:diene_flutter_base/screens/login_screen.dart';
 import 'package:diene_flutter_base/screens/screen_registry.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -520,6 +524,118 @@ void main() {
       expect(find.text('unresolvedOnly=true'), findsOneWidget);
     });
   });
+
+  group('LoginScreen completes the return journey', () {
+    // The shipped login screen, mounted through the real router: the redirect
+    // carries returnTo here, and signing in continues to it. This is the half a
+    // pure-function test cannot cover.
+
+    testWidgets('signing in continues to the deeplinked location', (
+      WidgetTester tester,
+    ) async {
+      final SessionController session = _session();
+      bool authenticated = false;
+      final GoRouter router = buildAppRouter(
+        isAuthenticated: () => authenticated,
+        initialLocation: '/settings?q=disk&sort=severity',
+        loginBuilder: (BuildContext context, String returnTo) =>
+            LoginScreen(session: session, returnTo: returnTo),
+      );
+      addTearDown(router.dispose);
+
+      await tester.pumpWidget(_app(router));
+      await tester.pumpAndSettle();
+
+      // Redirected to login, carrying the whole intended location.
+      expect(find.byType(LoginScreen), findsOneWidget);
+      expect(
+        find.text('returnTo=/settings?q=disk&sort=severity'),
+        findsOneWidget,
+      );
+
+      session.addListener(() => authenticated = session.tokens != null);
+      await tester.tap(find.byType(FilledButton));
+      await tester.pumpAndSettle();
+
+      // Landed on the target WITH its query, and the screen shows the restored
+      // filters — the end of the deeplink -> login -> target journey.
+      expect(
+        router.routerDelegate.currentConfiguration.uri.toString(),
+        '/settings?q=disk&sort=severity',
+      );
+      expect(find.byType(SettingsScreen), findsOneWidget);
+      expect(find.text('text=disk'), findsOneWidget);
+      expect(find.text('sort=severity'), findsOneWidget);
+    });
+
+    testWidgets('an unsafe returnTo lands on the safe default instead', (
+      WidgetTester tester,
+    ) async {
+      // Defence in depth: even if a caller hands the screen a hostile value, the
+      // screen re-validates at the point of use rather than trusting it.
+      final SessionController session = _session();
+      await tester.pumpWidget(
+        TranslationProvider(
+          child: MaterialApp(
+            home: LoginScreen(
+              session: session,
+              returnTo: 'https://evil.test/steal',
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('returnTo=/home'), findsOneWidget);
+    });
+  });
+}
+
+/// A session controller over an in-memory gateway: enough to complete a real
+/// sign-in without a network.
+SessionController _session() {
+  final AppConfig config = testConfig();
+  return SessionController(
+    gateway: _MemoryAuthGateway(),
+    onboarding: OnboardingCoordinator(
+      homePicker: SingleRegionHomePicker(
+        gateway: MemoryHomeClaimGateway(),
+        landscape: 'lapras',
+      ),
+      gateway: DemoOnboardingGateway(),
+      backendId: 'primary',
+    ),
+    accessLifetime: config.session.accessLifetime,
+    refreshLifetime: config.session.refreshLifetime,
+  );
+}
+
+final class _MemoryAuthGateway implements AuthGateway {
+  int _rotation = 0;
+
+  @override
+  Future<SessionTokens> signIn() async => _tokens();
+
+  @override
+  Future<SessionTokens> refresh(SessionTokens current) async => _tokens();
+
+  @override
+  Future<SessionTokens> reMintOnOpen(SessionTokens current) async => _tokens();
+
+  @override
+  Future<void> signOut() async {}
+
+  SessionTokens _tokens() {
+    _rotation += 1;
+    final DateTime now = DateTime.now().toUtc();
+    return SessionTokens(
+      accessToken: 'access-$_rotation',
+      refreshToken: 'refresh-$_rotation',
+      refreshFamily: 'login-screen-family',
+      accessExpiresAt: now.add(const Duration(minutes: 10)),
+      refreshExpiresAt: now.add(const Duration(days: 14)),
+    );
+  }
 }
 
 Widget _loginBuilder(BuildContext context, String returnTo) =>
