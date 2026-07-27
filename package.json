@@ -1,7 +1,7 @@
 {
-  "name": "@atomicloud/diene.bun-lib",
-  "version": "1.3.1",
-  "description": "Bun library baseline for AtomiCloud/diene.bun-lib — a publishable ESM + CJS + types sample.",
+  "name": "@atomicloud/diene.e2e",
+  "version": "1.1.0",
+  "description": "The AtomiCloud Bun family version train: one dependency for ten coherent diene libraries and their test helpers.",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -16,11 +16,212 @@
         "types": "./dist/index.d.cts",
         "default": "./dist/index.cjs"
       }
+    },
+    "./test-helper": {
+      "import": {
+        "types": "./dist/test-helper.d.ts",
+        "default": "./dist/test-helper.js"
+      },
+      "require": {
+        "types": "./dist/test-helper.d.cts",
+        "default": "./dist/test-helper.cjs"
+      }
+    },
+    "./result": {
+      "import": {
+        "types": "./dist/result.d.ts",
+        "default": "./dist/result.js"
+      },
+      "require": {
+        "types": "./dist/result.d.cts",
+        "default": "./dist/result.cjs"
+      }
+    },
+    "./result/test-helper": {
+      "import": {
+        "types": "./dist/result-test-helper.d.ts",
+        "default": "./dist/result-test-helper.js"
+      },
+      "require": {
+        "types": "./dist/result-test-helper.d.cts",
+        "default": "./dist/result-test-helper.cjs"
+      }
+    },
+    "./interfaces": {
+      "import": {
+        "types": "./dist/interfaces.d.ts",
+        "default": "./dist/interfaces.js"
+      },
+      "require": {
+        "types": "./dist/interfaces.d.cts",
+        "default": "./dist/interfaces.cjs"
+      }
+    },
+    "./interfaces/test-helper": {
+      "import": {
+        "types": "./dist/interfaces-test-helper.d.ts",
+        "default": "./dist/interfaces-test-helper.js"
+      },
+      "require": {
+        "types": "./dist/interfaces-test-helper.d.cts",
+        "default": "./dist/interfaces-test-helper.cjs"
+      }
+    },
+    "./core-utils": {
+      "import": {
+        "types": "./dist/core-utils.d.ts",
+        "default": "./dist/core-utils.js"
+      },
+      "require": {
+        "types": "./dist/core-utils.d.cts",
+        "default": "./dist/core-utils.cjs"
+      }
+    },
+    "./config": {
+      "import": {
+        "types": "./dist/config.d.ts",
+        "default": "./dist/config.js"
+      },
+      "require": {
+        "types": "./dist/config.d.cts",
+        "default": "./dist/config.cjs"
+      }
+    },
+    "./config/test-helper": {
+      "import": {
+        "types": "./dist/config-test-helper.d.ts",
+        "default": "./dist/config-test-helper.js"
+      },
+      "require": {
+        "types": "./dist/config-test-helper.d.cts",
+        "default": "./dist/config-test-helper.cjs"
+      }
+    },
+    "./problems": {
+      "import": {
+        "types": "./dist/problems.d.ts",
+        "default": "./dist/problems.js"
+      },
+      "require": {
+        "types": "./dist/problems.d.cts",
+        "default": "./dist/problems.cjs"
+      }
+    },
+    "./problems/test-helper": {
+      "import": {
+        "types": "./dist/problems-test-helper.d.ts",
+        "default": "./dist/problems-test-helper.js"
+      },
+      "require": {
+        "types": "./dist/problems-test-helper.d.cts",
+        "default": "./dist/problems-test-helper.cjs"
+      }
+    },
+    "./otel": {
+      "import": {
+        "types": "./dist/otel.d.ts",
+        "default": "./dist/otel.js"
+      },
+      "require": {
+        "types": "./dist/otel.d.cts",
+        "default": "./dist/otel.cjs"
+      }
+    },
+    "./otel/test-helper": {
+      "import": {
+        "types": "./dist/otel-test-helper.d.ts",
+        "default": "./dist/otel-test-helper.js"
+      },
+      "require": {
+        "types": "./dist/otel-test-helper.d.cts",
+        "default": "./dist/otel-test-helper.cjs"
+      }
+    },
+    "./auth": {
+      "import": {
+        "types": "./dist/auth.d.ts",
+        "default": "./dist/auth.js"
+      },
+      "require": {
+        "types": "./dist/auth.d.cts",
+        "default": "./dist/auth.cjs"
+      }
+    },
+    "./auth/test-helper": {
+      "import": {
+        "types": "./dist/auth-test-helper.d.ts",
+        "default": "./dist/auth-test-helper.js"
+      },
+      "require": {
+        "types": "./dist/auth-test-helper.d.cts",
+        "default": "./dist/auth-test-helper.cjs"
+      }
+    },
+    "./api": {
+      "import": {
+        "types": "./dist/api.d.ts",
+        "default": "./dist/api.js"
+      },
+      "require": {
+        "types": "./dist/api.d.cts",
+        "default": "./dist/api.cjs"
+      }
+    },
+    "./api/test-helper": {
+      "import": {
+        "types": "./dist/api-test-helper.d.ts",
+        "default": "./dist/api-test-helper.js"
+      },
+      "require": {
+        "types": "./dist/api-test-helper.d.cts",
+        "default": "./dist/api-test-helper.cjs"
+      }
+    },
+    "./standard-config": {
+      "import": {
+        "types": "./dist/standard-config.d.ts",
+        "default": "./dist/standard-config.js"
+      },
+      "require": {
+        "types": "./dist/standard-config.d.cts",
+        "default": "./dist/standard-config.cjs"
+      }
+    },
+    "./standard-config/test-helper": {
+      "import": {
+        "types": "./dist/standard-config-test-helper.d.ts",
+        "default": "./dist/standard-config-test-helper.js"
+      },
+      "require": {
+        "types": "./dist/standard-config-test-helper.d.cts",
+        "default": "./dist/standard-config-test-helper.cjs"
+      }
+    },
+    "./frontend-utils": {
+      "import": {
+        "types": "./dist/frontend-utils.d.ts",
+        "default": "./dist/frontend-utils.js"
+      },
+      "require": {
+        "types": "./dist/frontend-utils.d.cts",
+        "default": "./dist/frontend-utils.cjs"
+      }
+    },
+    "./frontend-utils/test-helper": {
+      "import": {
+        "types": "./dist/frontend-utils-test-helper.d.ts",
+        "default": "./dist/frontend-utils-test-helper.js"
+      },
+      "require": {
+        "types": "./dist/frontend-utils-test-helper.d.cts",
+        "default": "./dist/frontend-utils-test-helper.cjs"
+      }
     }
   },
   "files": [
     "dist",
-    "skills"
+    "skills",
+    "docs/standards/e2e"
   ],
   "sideEffects": false,
   "publishConfig": {
@@ -28,38 +229,53 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/AtomiCloud/diene.bun-lib.git"
+    "url": "git+https://github.com/AtomiCloud/diene.bun-e2e.git"
   },
-  "homepage": "https://github.com/AtomiCloud/diene.bun-lib#readme",
+  "homepage": "https://github.com/AtomiCloud/diene.bun-e2e#readme",
   "bugs": {
-    "url": "https://github.com/AtomiCloud/diene.bun-lib/issues"
+    "url": "https://github.com/AtomiCloud/diene.bun-e2e/issues"
   },
   "license": "MIT",
   "author": "AtomiCloud",
   "keywords": [
     "atomicloud",
     "bun",
-    "library",
+    "version-train",
+    "e2e",
+    "test-helper",
     "esm",
-    "cjs",
-    "redis",
-    "kv-store"
+    "cjs"
   ],
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
-    "ioredis": "^5.11.1"
+    "@atomicloud/diene.api-engine": "~1.0.0",
+    "@atomicloud/diene.auth-engine": "~1.0.0",
+    "@atomicloud/diene.config": "~1.0.0",
+    "@atomicloud/diene.core-utils": "~1.0.0",
+    "@atomicloud/diene.frontend-utils": "~1.0.0",
+    "@atomicloud/diene.interfaces": "~1.0.0",
+    "@atomicloud/diene.otel": "~1.0.0",
+    "@atomicloud/diene.problems": "~1.0.0",
+    "@atomicloud/diene.result": "~1.0.2",
+    "@atomicloud/diene.standard-config": "~1.0.0"
+  },
+  "peerDependencies": {
+    "testcontainers": "^12.0.4"
+  },
+  "peerDependenciesMeta": {
+    "testcontainers": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.2",
     "@biomejs/biome": "^2.5.1",
     "@types/bun": "^1.3.14",
     "@types/node": "^26.0.1",
-    "dts-bundle-generator": "^9",
     "knip": "^6.23.0",
     "publint": "^0.3.16",
-    "should": "^13.2.3",
     "testcontainers": "^12.0.4",
     "typescript": "^6.0.3"
   }

@@ -61,6 +61,16 @@ Use `type(scope)!: subject`. Omit `(scope)` only when the type's `default` scope
 | Scope | Description | Release |
 | --- | --- | --- |
 | `default` | Update a dependency | no release |
+| `api-engine` | Update the api-engine train member | minor |
+| `auth-engine` | Update the auth-engine train member | minor |
+| `config` | Update the config train member | minor |
+| `core-utils` | Update the core-utils train member | minor |
+| `frontend-utils` | Update the frontend-utils train member | minor |
+| `interfaces` | Update the interfaces train member | minor |
+| `otel` | Update the otel train member | minor |
+| `problems` | Update the problems train member | minor |
+| `result` | Update the result train member | minor |
+| `standard-config` | Update the standard-config train member | minor |
 | `patch` | Patch dependency update | patch |
 | `minor` | Minor dependency update | minor |
 | `major` | Major dependency update | major |
