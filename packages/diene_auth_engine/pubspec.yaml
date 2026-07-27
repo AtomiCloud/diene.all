@@ -1,0 +1,57 @@
+name: diene_auth_engine
+description: Logto auth flows, per-resource tokens, claims-first per-backend onboarding, deferred login, and Doc B landscape selection for Flutter applications.
+version: 1.0.2
+repository: https://github.com/AtomiCloud/diene.dart_auth_engine
+issue_tracker: https://github.com/AtomiCloud/diene.dart_auth_engine/issues
+homepage: https://github.com/AtomiCloud/diene.dart_auth_engine
+topics:
+  - auth
+  - logto
+  - oidc
+  - onboarding
+  - flutter
+resolution: workspace
+# UNLIKE the four pure-Dart siblings (result, interfaces, core-utils, problems)
+# this package depends on the FLUTTER SDK. That is forced, not stylistic:
+# logto_dart_sdk 3.0.0 declares `environment.flutter: '>=1.17.0'` and pulls
+# flutter_secure_storage and flutter_web_auth_2, and the deferred-login carrier
+# read needs real platform Clipboard / Install-Referrer access. The dart-family
+# goal names neon `auth/auth_service.dart` (logto_dart_sdk) as BOTH this lib's
+# seed AND its flutter-base deletion target, so the Logto binding has to live
+# here for the E4 swap-in to delete the in-app copy. Recorded as a deliberate
+# cross-family parity delta in doc/diene_auth_engine.md.
+environment:
+  sdk: '>=3.12.0 <4.0.0'
+  flutter: '>=3.24.0'
+dependencies:
+  diene_problems: ^0.1.1
+  diene_result: ^1.0.0
+  flutter:
+    sdk: flutter
+  http: ^1.6.0
+  logto_dart_sdk: ^3.0.0
+  meta: ^1.16.0
+dev_dependencies:
+  coverage: ^1.15.1
+  crypto: ^3.0.6
+  dart_code_linter: ^4.1.7
+  # NO `test:` dependency, deliberately — this is the one dev_dependencies
+  # delta from the pure-Dart siblings. `flutter_test` from the SDK pins
+  # `test_api` to 0.7.11 while `test >=1.31.2` requires `test_api` 0.7.13, so
+  # declaring both makes version solving fail outright ("test >=1.31.2 is
+  # incompatible with flutter_test from sdk"). `flutter_test` re-exports the
+  # `test` framework, so every tier (unit, conformance, meta) still runs on the
+  # same matchers — nothing is lost, and `flutter test` is the runner.
+  flutter_test:
+    sdk: flutter
+  lints: ^6.1.0
+  # NO `pana:` dev_dependency either, and for the same root cause. A Dart pub
+  # WORKSPACE shares ONE resolution across every member, so a pana dev_dep is
+  # solved against flutter_test's SDK pins: pana >=0.23.13 needs analyzer ^13
+  # and test ^1.26.2, flutter_test pins matcher 0.12.19 + test_api 0.7.11, and
+  # the solver reports "pana >=0.23.13 is incompatible with flutter_test from
+  # sdk". Moving it to the workspace ROOT manifest does NOT help — same shared
+  # resolution. pana is therefore installed into its OWN isolated resolution
+  # (`dart pub global activate pana`) and invoked as `dart pub global run pana`;
+  # that is exactly how pub.dev itself runs it, and the pana-score gate keeps
+  # its `--exit-code-threshold 0` assertion unchanged.

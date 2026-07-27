@@ -7,7 +7,7 @@ export default {
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
   setup: {
     post: [
-      'nix develop .#ci --no-write-lock-file -c dart pub get --offline || nix develop .#ci --no-write-lock-file -c dart pub get',
+      'nix develop .#ci --no-write-lock-file -c flutter pub get --offline || nix develop .#ci --no-write-lock-file -c flutter pub get',
     ],
   },
   probes: [
@@ -25,7 +25,7 @@ export default {
         const relative = target.slice(member.length + 1);
         await expectGreen(
           repo,
-          `nix develop .#ci --no-write-lock-file -c bash -lc 'cd ${member} && dart run ${relative}'`,
+          `nix develop .#ci --no-write-lock-file -c bash -lc 'cd ${member} && flutter pub run ${relative}'`,
           'sample-execution-consumption',
         );
       },
