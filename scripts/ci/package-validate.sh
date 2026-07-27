@@ -9,7 +9,7 @@ cd "${root_dir}"
 ./scripts/validate/release-policy.sh
 
 # pub.dev dry-run and pana score run against the publishable member.
-cd "${root_dir}/packages/diene_dart_lib"
+cd "${root_dir}/packages/diene_config"
 
 echo "📦 Running pub.dev publish dry-run..."
 dart pub publish --dry-run

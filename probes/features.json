@@ -211,132 +211,132 @@
     "class": "gate"
   },
   {
-    "template": "diene/dart-lib",
+    "template": "diene/dart-config",
     "name": "dart-format",
     "class": "gate"
   },
   {
-    "template": "diene/dart-lib",
+    "template": "diene/dart-config",
     "name": "dart-analyze",
     "class": "gate"
   },
   {
-    "template": "diene/dart-lib",
+    "template": "diene/dart-config",
     "name": "unit-tests",
     "class": "gate"
   },
   {
-    "template": "diene/dart-lib",
+    "template": "diene/dart-config",
     "name": "c0-fixture-harness",
     "class": "gate"
   },
   {
-    "template": "diene/dart-lib",
+    "template": "diene/dart-config",
     "name": "unit-coverage-ledger",
     "class": "gate"
   },
   {
-    "template": "diene/dart-lib",
+    "template": "diene/dart-config",
     "name": "testhelper-meta-contract",
     "class": "gate"
   },
   {
-    "template": "diene/dart-lib",
+    "template": "diene/dart-config",
     "name": "testhelper-meta-coverage-ledger",
     "class": "gate"
   },
   {
-    "template": "diene/dart-lib",
-    "name": "conditional-meta-activation",
+    "template": "diene/dart-config",
+    "name": "mandatory-meta-tier",
     "class": "gate"
   },
   {
-    "template": "diene/dart-lib",
+    "template": "diene/dart-config",
     "name": "deadcode-whole-package",
     "class": "gate"
   },
   {
-    "template": "diene/dart-lib",
+    "template": "diene/dart-config",
     "name": "deadcode-production-only",
     "class": "gate"
   },
   {
-    "template": "diene/dart-lib",
+    "template": "diene/dart-config",
     "name": "pub-workspace-metadata-validator",
     "class": "gate"
   },
   {
-    "template": "diene/dart-lib",
+    "template": "diene/dart-config",
     "name": "publish-archive-contents",
     "class": "gate"
   },
   {
-    "template": "diene/dart-lib",
+    "template": "diene/dart-config",
     "name": "pana-score",
     "class": "gate"
   },
   {
-    "template": "diene/dart-lib",
+    "template": "diene/dart-config",
     "name": "publish-version-guard",
     "class": "gate"
   },
   {
-    "template": "diene/dart-lib",
+    "template": "diene/dart-config",
     "name": "publish-tag-policy",
     "class": "gate"
   },
   {
-    "template": "diene/dart-lib",
+    "template": "diene/dart-config",
     "name": "automated-publishing-credential-policy",
     "class": "gate"
   },
   {
-    "template": "diene/dart-lib",
+    "template": "diene/dart-config",
     "name": "publish-command-policy",
     "class": "gate"
   },
   {
-    "template": "diene/dart-lib",
+    "template": "diene/dart-config",
     "name": "package-validate-workflow-wiring",
     "class": "gate"
   },
   {
-    "template": "diene/dart-lib",
+    "template": "diene/dart-config",
     "name": "publish-workflow-wiring",
     "class": "gate"
   },
   {
-    "template": "diene/dart-lib",
+    "template": "diene/dart-config",
     "name": "dart-tool-inventory",
     "class": "smoke"
   },
   {
-    "template": "diene/dart-lib",
+    "template": "diene/dart-config",
     "name": "pub-workspace-resolution",
     "class": "smoke"
   },
   {
-    "template": "diene/dart-lib",
+    "template": "diene/dart-config",
     "name": "sample-execution-consumption",
     "class": "smoke"
   },
   {
-    "template": "diene/dart-lib",
+    "template": "diene/dart-config",
     "name": "publish-dry-run",
     "class": "smoke"
   },
   {
-    "template": "diene/dart-lib",
+    "template": "diene/dart-config",
     "name": "usage-skill",
     "class": "presence"
   },
   {
-    "template": "diene/dart-lib",
+    "template": "diene/dart-config",
     "name": "codecov-configuration",
     "class": "presence"
   },
   {
-    "template": "diene/dart-lib",
+    "template": "diene/dart-config",
     "name": "probe-inventory",
     "class": "presence"
   }

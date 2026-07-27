@@ -18,7 +18,7 @@ export default {
       async run(repo: any) {
         await expectGreen(
           repo,
-          "nix develop .#ci --no-write-lock-file -c bash -lc 'cd packages/diene_dart_lib && dart pub publish --dry-run'",
+          "nix develop .#ci --no-write-lock-file -c bash -lc 'cd packages/diene_config && dart pub publish --dry-run'",
           'publish-dry-run',
         );
       },
