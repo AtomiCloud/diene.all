@@ -4,7 +4,7 @@
 # tag push, or by workflow_dispatch with an explicit release tag. Materializes
 # the AtomiCloud org pub.dev credential, pins the published member to the
 # release tag's bytes, then runs the manifest==tag guard and
-# `dart pub publish --force`.
+# `flutter pub publish --force`.
 # pub.dev trusted publishing (OIDC) is deliberately NOT used (user ruling
 # 2026-07-25); the long-lived org credential is the only publish credential.
 name: ⚡ Reusable Dart Publish
@@ -39,8 +39,8 @@ jobs:
             exit 1
           }
           git fetch --tags --force origin
-          git checkout "refs/tags/${TAG}" -- packages/diene_dart_lib
-          git --no-pager diff --stat "refs/tags/${TAG}" -- packages/diene_dart_lib
+          git checkout "refs/tags/${TAG}" -- packages/diene_api_engine
+          git --no-pager diff --stat "refs/tags/${TAG}" -- packages/diene_api_engine
       - name: Configure pub.dev credentials
         env:
           PUB_CREDENTIALS_JSON: ${{ secrets.PUB_CREDENTIALS_JSON }}

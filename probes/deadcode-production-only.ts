@@ -5,17 +5,17 @@ import { expectGreen, expectRed } from './lib/helpers.ts';
 // are surfaced as dead code. This probe replicates that standalone pass inline
 // (mirroring scripts/local/deadcode.sh) and proves a public export unreferenced
 // by the production entrypoints is flagged.
-const MEMBER = 'packages/diene_dart_lib';
+const MEMBER = 'packages/diene_api_engine';
 const PRODUCTION_PASS = [
   'nix develop .#ci --no-write-lock-file -c bash -lc ',
-  "'set -e; member=packages/diene_dart_lib; prod=$(mktemp -d); ",
+  "'set -e; member=packages/diene_api_engine; prod=$(mktemp -d); ",
   'cp "$member/analysis_options.yaml" "$prod/analysis_options.yaml"; ',
   'yq "del(.resolution)" "$member/pubspec.yaml" > "$prod/pubspec.yaml"; ',
   'cp -R "$member/lib" "$prod/lib"; mkdir -p "$prod/bin"; ',
   'cp "$member/tool/deadcode_entrypoints.dart" "$prod/bin/main.dart"; ',
-  'cd "$prod"; dart pub get; ',
-  'dart run dart_code_linter:metrics check-unused-code .; ',
-  "dart run dart_code_linter:metrics check-unused-files .'",
+  'cd "$prod"; flutter pub get; ',
+  'flutter pub run dart_code_linter:metrics check-unused-code .; ',
+  "flutter pub run dart_code_linter:metrics check-unused-files .'",
 ].join('');
 
 export default {
@@ -23,7 +23,7 @@ export default {
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
   setup: {
     post: [
-      'nix develop .#ci --no-write-lock-file -c dart pub get --offline || nix develop .#ci --no-write-lock-file -c dart pub get',
+      'nix develop .#ci --no-write-lock-file -c flutter pub get --offline || nix develop .#ci --no-write-lock-file -c flutter pub get',
     ],
   },
   probes: [
@@ -48,7 +48,7 @@ export default {
         await repo.write(`${MEMBER}/lib/src/probe_production_only.dart`, 'int probeProductionOnly() => 1;\n');
         await repo.write(
           `${MEMBER}/test/unit/probe_production_only_test.dart`,
-          "import 'package:diene_dart_lib/src/probe_production_only.dart';\n" +
+          "import 'package:diene_api_engine/src/probe_production_only.dart';\n" +
             "import 'package:test/test.dart';\n\n" +
             "void main() {\n  test('probe production only', () {\n    expect(probeProductionOnly(), 1);\n  });\n}\n",
         );

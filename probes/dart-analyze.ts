@@ -1,6 +1,6 @@
 import { expectGreen, expectRed } from './lib/helpers.ts';
 
-// Gate: `scripts/ci/analyze.sh` runs `dart analyze --fatal-infos
+// Gate: `scripts/ci/analyze.sh` runs `flutter analyze --fatal-infos
 // --fatal-warnings` across the workspace. Sabotage injects a lint-violating
 // declaration (`print` + unused element) into a library source file and proves
 // the analyzer escalates it to a failure.
@@ -9,13 +9,13 @@ export default {
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
   setup: {
     post: [
-      'nix develop .#ci --no-write-lock-file -c dart pub get --offline || nix develop .#ci --no-write-lock-file -c dart pub get',
+      'nix develop .#ci --no-write-lock-file -c flutter pub get --offline || nix develop .#ci --no-write-lock-file -c flutter pub get',
     ],
   },
   probes: [
     {
       name: 'baseline-dart-analyze-green',
-      description: 'dart analyze passes on the pristine template with infos/warnings fatal',
+      description: 'flutter analyze passes on the pristine template with infos/warnings fatal',
       kind: 'baseline',
       async run(repo: any) {
         await expectGreen(repo, 'nix develop .#ci --no-write-lock-file -c ./scripts/ci/analyze.sh', 'dart-analyze');
@@ -23,7 +23,7 @@ export default {
     },
     {
       name: 'mutation-dart-analyze-caught',
-      description: 'dart analyze fails when a library source file introduces a lint violation',
+      description: 'flutter analyze fails when a library source file introduces a lint violation',
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
