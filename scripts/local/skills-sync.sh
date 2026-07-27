@@ -170,14 +170,30 @@ if [ -f go.mod ]; then
   done <"${go_entries}"
 fi
 
-pub_status=0
-rg -q '^(name:[[:space:]]+diene_[[:alnum:]_]+|[[:space:]]+diene_[[:alnum:]_]+[[:space:]]*:)' --glob pubspec.yaml --glob pubspec.lock . ||
-  pub_status=$?
-if [ "${pub_status}" -ge 2 ]; then
-  echo "❌ Failed to scan pubspec manifests for diene packages (rg exit ${pub_status})" >&2
-  exit "${pub_status}"
-fi
-if [ "${pub_status}" -eq 0 ]; then
+# A matching package name is not a dependency obligation. Parse the dependency
+# MAPS rather than pattern-matching the file: a prefix match over a manifest
+# cannot distinguish a package from its dependencies, so a package named
+# `diene_<x>` would otherwise declare ITSELF and never resolve.
+#
+# Every pubspec.yaml in the tree is read, not only the root one. A pub
+# workspace keeps its real dependencies in packages/<name>/pubspec.yaml while
+# the root carries only a `workspace:` member list, so a root-only parse sees
+# no dependencies on exactly the nodes that have them.
+pub_manifests="${resolver_dir}/pub-manifests.txt"
+find . -name pubspec.yaml -type f -not -path '*/.dart_tool/*' -print >"${pub_manifests}"
+pub_deps="${resolver_dir}/pub-deps.txt"
+: >"${pub_deps}"
+while IFS= read -r pub_manifest; do
+  [ -n "${pub_manifest}" ] || continue
+  if ! yq -r '
+    [(.dependencies // {}), (.dev_dependencies // {}), (.dependency_overrides // {})]
+    | .[] | keys | .[] | select(. == "diene_*")
+  ' "${pub_manifest}" >>"${pub_deps}"; then
+    echo "❌ Failed to parse ${pub_manifest} dependency maps with yq" >&2
+    exit 1
+  fi
+done <"${pub_manifests}"
+if [ -s "${pub_deps}" ]; then
   pub_declared=true
 fi
 
