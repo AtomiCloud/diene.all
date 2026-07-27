@@ -10,13 +10,10 @@
         severity: {{ .severity | default "warning" }}
         controller: {{ .controller }}
         source: {{ .source }}
-        {{- if .state }}
-        webhook_state: {{ .state }}
-        {{- end }}
       annotations:
         summary: {{ .summary | quote }}
         {{- if eq .source "consumer-extension" }}
-        description: {{ .description | default (printf "Consumer-extension signal: the toy operator does not emit this metric. A real %s controller implements it; this parameterized rule is source that consumers inherit." .controller) | quote }}
+        description: {{ .description | default (printf "Consumer-extension signal for the %s controller. The metric is registered by adapters/operator/metrics; real fleet controllers drive it as they land." .controller) | quote }}
         {{- end }}
       data:
         - refId: A
@@ -44,16 +41,19 @@
             refId: C
 {{- end -}}
 {{- if .Values.alerts.enabled }}
-{{- /* Enabled toy controllers emit the generic reconcile/ledger metrics. */ -}}
+{{- /* Enabled toy controllers emit the generic reconcile/ledger/condition metrics today. */ -}}
 {{- $toy := list }}
 {{- if .Values.controllers.note }}{{- $toy = append $toy "note" }}{{- end }}
 {{- if .Values.controllers.journal }}{{- $toy = append $toy "journal" }}{{- end }}
-{{- /* Downstream operators override these names when adopting the consumer-extension rules. */ -}}
+{{- /* Real fleet controllers inherit the consumer-extension rules; every metric they
+       reference is registered by adapters/operator/metrics/metrics.go. */ -}}
 {{- $consumers := .Values.alerts.consumerControllers | default (list "cluster" "platform" "dependency" "traffic" "webhook" "cf-deploy") }}
 {{- $webhook := .Values.alerts.webhookController | default "webhook" }}
 {{- $latency := .Values.alerts.reconcileLatencySeconds | default 10 }}
-{{- $livenessRate := .Values.alerts.livenessMinTickRate | default "0.001" }}
+{{- $stale := .Values.alerts.livenessStalenessSeconds | default 300 }}
 {{- $provisioningBudget := .Values.alerts.provisioningBudgetSeconds | default 300 }}
+{{- $ackLagBudget := .Values.alerts.materializationAckLagSeconds | default 300 }}
+{{- $pagingConditions := .Values.alerts.pagingConditionTypes | default "Conflict|Unresolved|Drifted|BlastBrakeTripped" }}
 apiVersion: grafana.integreatly.org/v1beta1
 kind: GrafanaAlertRuleGroup
 metadata:
@@ -85,21 +85,21 @@ spec:
       "controller" $ctrl "source" "toy" "severity" "warning" "for" "10m"
       "expr" (printf "histogram_quantile(0.99, sum by (le) (rate(controller_runtime_reconcile_time_seconds_bucket{controller=\"%s\"}[5m])))" $ctrl)
       "evaluator" "gt" "threshold" $latency) }}
-{{- /* poll-loop liveness / staleness — no successful ticks pages, even on no-data */ -}}
+{{- /* poll-loop liveness — TIMESTAMP staleness (time() - last-successful-tick), pages even on no-data */ -}}
 {{- include "fleet-operator.alertrule" (dict
-      "uid" (printf "fleet-operator-%s-reconcile-liveness" $ctrl)
-      "title" (printf "fleet-operator %s reconcile loop stalled" $ctrl)
-      "summary" (printf "The %s reconcile/poll loop reported no successful ticks (stale = page)" $ctrl)
+      "uid" (printf "fleet-operator-%s-reconcile-staleness" $ctrl)
+      "title" (printf "fleet-operator %s reconcile loop stale" $ctrl)
+      "summary" (printf "The %s reconcile/poll loop has not reported a successful tick recently (stale = page)" $ctrl)
       "controller" $ctrl "source" "toy" "severity" "critical" "for" "10m" "noData" "Alerting"
-      "expr" (printf "sum(rate(fleet_operator_reconcile_ticks_total{controller=\"%s\"}[10m]))" $ctrl)
-      "evaluator" "lt" "threshold" $livenessRate) }}
-{{- /* persistent condition state — Conflict/Unresolved/Drifted held True pages */ -}}
+      "expr" (printf "time() - max by (controller) (fleet_operator_last_successful_tick_timestamp_seconds{controller=\"%s\"})" $ctrl)
+      "evaluator" "gt" "threshold" $stale) }}
+{{- /* persistent condition state — Conflict/Unresolved/Drifted/BlastBrakeTripped held True pages */ -}}
 {{- include "fleet-operator.alertrule" (dict
       "uid" (printf "fleet-operator-%s-condition-state" $ctrl)
       "title" (printf "fleet-operator %s persistent bad condition" $ctrl)
-      "summary" (printf "The %s controller holds a Conflict/Unresolved/Drifted condition True" $ctrl)
+      "summary" (printf "The %s controller holds a paging condition (incl. BlastBrakeTripped) True" $ctrl)
       "controller" $ctrl "source" "toy" "severity" "critical" "for" "15m"
-      "expr" (printf "max by (type) (fleet_operator_condition{controller=\"%s\",type=~\"Conflict|Unresolved|Drifted\"})" $ctrl)
+      "expr" (printf "max by (type) (fleet_operator_condition{controller=\"%s\",type=~\"%s\"})" $ctrl $pagingConditions)
       "evaluator" "gt" "threshold" 0) }}
 {{- /* durable-ledger failures */ -}}
 {{- include "fleet-operator.alertrule" (dict
@@ -111,7 +111,7 @@ spec:
       "evaluator" "gt" "threshold" 0) }}
 {{- end }}
 {{- range $ctrl := $consumers }}
-{{- /* DNS/vendor API failure rate (consumer-extension) */ -}}
+{{- /* DNS/vendor API failure rate */ -}}
 {{- include "fleet-operator.alertrule" (dict
       "uid" (printf "fleet-operator-%s-vendor-api-failures" $ctrl)
       "title" (printf "fleet-operator %s DNS/vendor API failures" $ctrl)
@@ -119,7 +119,7 @@ spec:
       "controller" $ctrl "source" "consumer-extension" "severity" "warning" "for" "5m"
       "expr" (printf "sum(rate(fleet_operator_vendor_api_failures_total{controller=\"%s\"}[5m]))" $ctrl)
       "evaluator" "gt" "threshold" 0) }}
-{{- /* provisioning duration budget (consumer-extension) */ -}}
+{{- /* provisioning duration budget */ -}}
 {{- include "fleet-operator.alertrule" (dict
       "uid" (printf "fleet-operator-%s-provisioning-duration" $ctrl)
       "title" (printf "fleet-operator %s provisioning duration over budget" $ctrl)
@@ -127,22 +127,37 @@ spec:
       "controller" $ctrl "source" "consumer-extension" "severity" "warning" "for" "15m"
       "expr" (printf "histogram_quantile(0.99, sum by (le) (rate(fleet_operator_provisioning_duration_seconds_bucket{controller=\"%s\"}[30m])))" $ctrl)
       "evaluator" "gt" "threshold" $provisioningBudget) }}
-{{- end }}
-{{- /* owned is healthy and non-alerting; lag is a classified event rate, not a duration budget. */ -}}
-{{- $webhookAlerts := list
-      (dict "state" "double-own" "severity" "critical" "summary" "two owners claimed the same webhook route (double-own)")
-      (dict "state" "no-owner" "severity" "critical" "summary" "a webhook event matched no owner (no-owner)")
-      (dict "state" "misroute" "severity" "warning" "summary" "a webhook event was misrouted (misroute)")
-      (dict "state" "dead-letter" "severity" "critical" "summary" "a webhook event was dead-lettered (dead-letter)")
-      (dict "state" "lag" "severity" "warning" "summary" "webhook events classified as lagging (lag)") }}
-{{- range $wa := $webhookAlerts }}
+{{- /* persistent condition state incl. BlastBrakeTripped — real controllers are where brakes trip */ -}}
 {{- include "fleet-operator.alertrule" (dict
-      "uid" (printf "fleet-operator-%s-%s" $webhook $wa.state)
-      "title" (printf "fleet-operator %s webhook %s" $webhook $wa.state)
-      "summary" $wa.summary
-      "controller" $webhook "source" "consumer-extension" "severity" $wa.severity "for" "5m"
-      "state" $wa.state
-      "expr" (printf "sum(rate(fleet_operator_webhook_events_total{controller=\"%s\",state=\"%s\"}[5m]))" $webhook $wa.state)
+      "uid" (printf "fleet-operator-%s-condition-state" $ctrl)
+      "title" (printf "fleet-operator %s persistent bad condition" $ctrl)
+      "summary" (printf "The %s controller holds a paging condition (incl. BlastBrakeTripped) True" $ctrl)
+      "controller" $ctrl "source" "consumer-extension" "severity" "critical" "for" "15m"
+      "expr" (printf "max by (type) (fleet_operator_condition{controller=\"%s\",type=~\"%s\"})" $ctrl $pagingConditions)
       "evaluator" "gt" "threshold" 0) }}
 {{- end }}
+{{- /* Webhook config-plane signals (Q-WH13): compile failures, per-landscape ack lag, tenant-sync.
+       Delivery-path metrics (error/dead-letter/misroute/lag) are mercury's own in-app exports (Q-WH8),
+       never emitted here — so no fleet_operator_webhook_events_total taxonomy exists. */ -}}
+{{- include "fleet-operator.alertrule" (dict
+      "uid" (printf "fleet-operator-%s-webhook-compile-failures" $webhook)
+      "title" (printf "fleet-operator %s webhook config-compile failures" $webhook)
+      "summary" (printf "The %s controller is failing to compile webhook config fragments" $webhook)
+      "controller" $webhook "source" "consumer-extension" "severity" "warning" "for" "5m"
+      "expr" (printf "sum(rate(fleet_operator_webhook_compile_failures_total{controller=\"%s\"}[5m]))" $webhook)
+      "evaluator" "gt" "threshold" 0) }}
+{{- include "fleet-operator.alertrule" (dict
+      "uid" (printf "fleet-operator-%s-materialization-ack-lag" $webhook)
+      "title" (printf "fleet-operator %s materialization/ack lag over budget" $webhook)
+      "summary" (printf "A landscape is stuck behind cfg:gen — %s materialization/ack lag exceeds %v s" $webhook $ackLagBudget)
+      "controller" $webhook "source" "consumer-extension" "severity" "critical" "for" "10m"
+      "expr" (printf "max by (controller) (fleet_operator_materialization_ack_lag_seconds{controller=\"%s\"})" $webhook)
+      "evaluator" "gt" "threshold" $ackLagBudget) }}
+{{- include "fleet-operator.alertrule" (dict
+      "uid" (printf "fleet-operator-%s-tenant-sync-failures" $webhook)
+      "title" (printf "fleet-operator %s internal-tenant sync failures" $webhook)
+      "summary" (printf "The %s controller is failing to sync internal tenants through mercury's management API" $webhook)
+      "controller" $webhook "source" "consumer-extension" "severity" "warning" "for" "5m"
+      "expr" (printf "sum(rate(fleet_operator_tenant_sync_failures_total{controller=\"%s\"}[5m]))" $webhook)
+      "evaluator" "gt" "threshold" 0) }}
 {{- end }}

@@ -1,5 +1,8 @@
 {{- if .Values.dashboard.enabled }}
-# Consumer-extension metrics are inherited source contracts, never claimed as toy output.
+# The taxonomy is the single source of truth for which metric names the chart may
+# reference. Every fleet_operator_* / controller_runtime_* name used by the alert
+# pack or dashboard must appear under emitted or framework below; the
+# operator-observability-artifacts validator fails closed on any drift.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -9,33 +12,33 @@ metadata:
     {{- include "fleet-operator.labels" . | nindent 4 }}
 data:
   taxonomy.yaml: |
-    # Metrics the toy manager actually registers and emits (adapters/operator/metrics).
-    emittedByToy:
+    # Metric families the fleet-operator manager registers (adapters/operator/metrics/metrics.go).
+    emitted:
       - fleet_operator_condition
       - fleet_operator_ledger_failures_total
       - fleet_operator_reconcile_ticks_total
+      - fleet_operator_vendor_api_failures_total
+      - fleet_operator_provisioning_duration_seconds
+      - fleet_operator_last_successful_tick_timestamp_seconds
+      - fleet_operator_webhook_compile_failures_total
+      - fleet_operator_materialization_ack_lag_seconds
+      - fleet_operator_tenant_sync_failures_total
+      - fleet_operator_plan_actions
+    # controller-runtime framework metrics the manager exposes for free.
+    framework:
       - controller_runtime_reconcile_total
       - controller_runtime_reconcile_errors_total
       - controller_runtime_reconcile_time_seconds
-    # Real consumer controllers implement these parameterized source contracts.
-    consumerExtensions:
-      provisioning:
-        metric: fleet_operator_provisioning_duration_seconds
-        histogramBucket: fleet_operator_provisioning_duration_seconds_bucket
-      vendor:
-        metric: fleet_operator_vendor_api_failures_total
-        covers:
-          - dns
-          - vendor-api
-      webhook:
-        metric: fleet_operator_webhook_events_total
-        # owned is healthy and non-alerting; lag is an event classification, not a duration.
-        healthyState: owned
-        states:
-          - owned
-          - double-own
-          - no-owner
-          - misroute
-          - dead-letter
-          - lag
+    # Poll-loop liveness is a TIMESTAMP gauge; staleness = time() - value, never a tick rate.
+    liveness:
+      metric: fleet_operator_last_successful_tick_timestamp_seconds
+      semantics: timestamp-staleness
+    # Blast-brake trips page through the shared condition gauge as a paging condition type.
+    paging:
+      conditionMetric: fleet_operator_condition
+      conditionTypes:
+        - Conflict
+        - Unresolved
+        - Drifted
+        - BlastBrakeTripped
 {{- end }}

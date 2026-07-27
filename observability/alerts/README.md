@@ -1,5 +1,12 @@
 # Alert sets
 
+The fleet-operator's default alert pack (reconcile RED, timestamp-staleness
+liveness, persistent conditions incl. `BlastBrakeTripped`, ledger/vendor
+failures, provisioning duration, and the webhook config-plane) ships today as the
+chart's parameterized `GrafanaAlertRuleGroup`. This folder is reserved for curated
+Gate 5 alert sets a Phase 3/4 controller needs beyond that default — keep it a
+scaffold until such a decision lands in `../SIGNALS.md`.
+
 Create one folder per approved Gate 5 alert:
 
 ```text

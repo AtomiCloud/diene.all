@@ -1,8 +1,14 @@
 # Curated dashboards
 
-This directory starts empty. Add dashboard JSON only when a Gate 4 decision in
-`../SIGNALS.md` approves custom/domain panels that the generic LPSM dashboard
-does not already provide.
+The fleet-operator's generic reconcile + fleet-taxonomy dashboard (reconcile RED,
+condition state, timestamp staleness, ledger/vendor failures, provisioning
+duration, the webhook config-plane, and the observe-mode plan surface) ships today
+as the chart's `dashboard.yaml`. This directory stays a scaffold — a Phase 4
+curation boundary.
+
+Add dashboard JSON here only when a Gate 4 decision in `../SIGNALS.md` approves
+custom/domain panels that the generic LPSM dashboard and the in-chart dashboard do
+not already provide.
 
 - `overview.json` is the first curated dashboard and the target for alert panel
   links.

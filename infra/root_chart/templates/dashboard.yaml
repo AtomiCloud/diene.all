@@ -10,7 +10,7 @@ metadata:
 data:
   fleet-operator.json: |
     {
-      "title": "Operator Template — Reconcile",
+      "title": "Fleet Operator — Reconcile & Fleet Taxonomy",
       "uid": "fleet-operator",
       "schemaVersion": 39,
       "editable": true,
@@ -55,6 +55,7 @@ data:
           "id": 5,
           "title": "Condition state by controller/type",
           "type": "timeseries",
+          "description": "Conflict/Unresolved/Drifted/BlastBrakeTripped held True is a paging condition.",
           "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
           "targets": [
             { "refId": "A", "expr": "fleet_operator_condition" }
@@ -71,25 +72,26 @@ data:
         },
         {
           "id": 7,
-          "title": "Reconcile liveness (ticks) by controller",
+          "title": "Reconcile/poll staleness (s since last successful tick)",
           "type": "timeseries",
+          "description": "Timestamp-staleness liveness: time() - last-successful-tick. Stale = page.",
           "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
           "targets": [
-            { "refId": "A", "expr": "sum by (controller) (rate(fleet_operator_reconcile_ticks_total[5m]))" }
+            { "refId": "A", "expr": "time() - max by (controller) (fleet_operator_last_successful_tick_timestamp_seconds)" }
           ]
         },
         {
           "id": 8,
-          "title": "DNS/vendor API failures by controller (consumer-extension)",
+          "title": "DNS/vendor API failures by controller",
           "type": "timeseries",
           "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
           "targets": [
-            { "refId": "A", "expr": "sum by (controller) (rate(fleet_operator_vendor_api_failures_total[5m]))" }
+            { "refId": "A", "expr": "sum by (controller, vendor) (rate(fleet_operator_vendor_api_failures_total[5m]))" }
           ]
         },
         {
           "id": 9,
-          "title": "Provisioning duration p99 (consumer-extension)",
+          "title": "Provisioning duration p99",
           "type": "timeseries",
           "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
           "targets": [
@@ -98,12 +100,40 @@ data:
         },
         {
           "id": 10,
-          "title": "Webhook intake by six-state taxonomy (consumer-extension)",
+          "title": "Webhook config-compile failures",
           "type": "timeseries",
-          "description": "owned/double-own/no-owner/misroute/dead-letter/lag",
           "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
           "targets": [
-            { "refId": "A", "expr": "sum by (state) (rate(fleet_operator_webhook_events_total{state=~\"owned|double-own|no-owner|misroute|dead-letter|lag\"}[5m]))" }
+            { "refId": "A", "expr": "sum by (controller) (rate(fleet_operator_webhook_compile_failures_total[5m]))" }
+          ]
+        },
+        {
+          "id": 11,
+          "title": "Webhook materialization/ack lag (s)",
+          "type": "timeseries",
+          "description": "A landscape stuck behind cfg:gen shows rising lag.",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+          "targets": [
+            { "refId": "A", "expr": "max by (controller) (fleet_operator_materialization_ack_lag_seconds)" }
+          ]
+        },
+        {
+          "id": 12,
+          "title": "Webhook internal-tenant sync failures",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
+          "targets": [
+            { "refId": "A", "expr": "sum by (controller) (rate(fleet_operator_tenant_sync_failures_total[5m]))" }
+          ]
+        },
+        {
+          "id": 13,
+          "title": "Observe-mode plan actions (destructive split)",
+          "type": "timeseries",
+          "description": "The would-apply plan surface: a healthy fleet in observe mode holds an empty plan.",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 48 },
+          "targets": [
+            { "refId": "A", "expr": "sum by (controller, destructive) (fleet_operator_plan_actions)" }
           ]
         }
       ]

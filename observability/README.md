@@ -17,8 +17,16 @@ observability/
     └── README.md
 ```
 
-The empty scaffold is intentional. Do not add a placeholder dashboard or alert
-just to populate a directory:
+The fleet-operator's default reconcile + fleet-taxonomy alert pack, dashboard,
+and metric taxonomy currently ship as chart templates
+(`infra/root_chart/templates/{grafanaalertrulegroup,dashboard,metric-taxonomy}.yaml`),
+proven by `scripts/validate/operator-observability-artifacts.ts`. This directory
+holds the signal DECISIONS (`SIGNALS.md`, `overview.md`) and is the home for any
+future curated per-controller dashboards and alert sets.
+
+The empty `dashboards/` and `alerts/` scaffold is intentional — that curation is
+a Phase 4 concern. Do not add a placeholder dashboard or alert just to populate a
+directory:
 
 - Record every feature's six-gate decision in `SIGNALS.md`.
 - Add `dashboards/overview.json` only when Gate 4 approves custom panels.
