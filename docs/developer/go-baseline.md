@@ -62,18 +62,16 @@ blocking CI-only job; its negative proof routes a pinned vulnerable fixture
 through a deterministic scanner double, while the healthy path uses the real
 vulnerability database.
 
-## Docker and Helm
+## Docker
 
 The Dockerfile builds a static binary and runs it from
 `gcr.io/distroless/static-debian12:nonroot` as UID/GID 65532. Separate policy
-checks enforce the runtime base and user. The root chart remains a minimal
-all-yes Helm surface and is intentionally independent of downstream service
-chart design.
+checks enforce the runtime base and user.
 
 ## Template-maintenance boundary
 
 Downstream authors may adapt package/module identity, sample domain code,
-coverage thresholds after adding real surface, the Docker entrypoint, chart
-metadata, and README badges. They must preserve black-box tests, tier scoping,
+coverage thresholds after adding real surface, the Docker entrypoint, and README
+badges. They must preserve black-box tests, tier scoping,
 both deadcode passes, the CI-only vulnerability gate, one composition root,
 distroless nonroot runtime policy, and generated hook/probe coverage.

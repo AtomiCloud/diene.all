@@ -10,20 +10,16 @@ tasks live under `tasks/` and are included by namespace.
 
 ## Current surface
 
-| Command             | Purpose                                  |
-| ------------------- | ---------------------------------------- |
-| `pls setup`         | synchronize generated vendored skills    |
-| `pls lint`          | run all pre-commit gates                 |
-| `pls skills:sync`   | rebuild `.claude/skills/vendor/`         |
-| `pls docker:build`  | build the local Go image                 |
-| `pls docker:run`    | run the local image                      |
-| `pls docker:clean`  | remove the local image                   |
-| `pls helm:deps`     | build chart dependencies                 |
-| `pls helm:lint`     | lint the root chart                      |
-| `pls helm:template` | render the root chart                    |
-| `pls helm:debug`    | render with Helm debug output            |
-| `pls secret:fetch`  | fetch the selected Infisical environment |
-| `pls secret:scan`   | scan tracked content for secrets         |
+| Command            | Purpose                                  |
+| ------------------ | ---------------------------------------- |
+| `pls setup`        | synchronize generated vendored skills    |
+| `pls lint`         | run all pre-commit gates                 |
+| `pls skills:sync`  | rebuild `.claude/skills/vendor/`         |
+| `pls docker:build` | build the local Go image                 |
+| `pls docker:run`   | run the local image                      |
+| `pls docker:clean` | remove the local image                   |
+| `pls secret:fetch` | fetch the selected Infisical environment |
+| `pls secret:scan`  | scan tracked content for secrets         |
 
 ## Rules
 
@@ -31,10 +27,10 @@ tasks live under `tasks/` and are included by namespace.
 2. Move conditional or multi-step local logic to `scripts/local/`.
 3. Never call `scripts/ci/*` from a Taskfile; workflows own those entry points.
 4. Use lowercase names and colon-separated namespaces.
-5. Put repository-specific image and chart values in Taskfile `vars:` blocks.
+5. Put repository-specific image values in Taskfile `vars:` blocks.
 6. Do not add progress-only `echo` commands; the runner already displays each
    command.
 
-The root file includes `docker`, `helm`, and `secret` task files. Each include
+The root file includes `docker` and `secret` task files. Each include
 and many-owner block remains self-contained so downstream strips can remove only
 their own axis.

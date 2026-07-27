@@ -10,10 +10,6 @@ updates:
     directory: /infra
     schedule:
       interval: daily
-  - package-ecosystem: helm
-    directory: /infra/root_chart
-    schedule:
-      interval: daily
 
   # ### go-base-dependabot
   # #### source: go-base
