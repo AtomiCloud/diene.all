@@ -1,0 +1,20 @@
+# Entry ids are snake_case per canon: PascalCase "EntityNotFound" violates
+# ^[a-z][a-z0-9_]*$. Only the id is wrong.
+apiVersion: atomi.cloud/v1alpha1
+kind: Problem
+metadata:
+  name: zinc-raichu-v1
+  namespace: nitroso
+spec:
+  platform: nitroso
+  service: zinc
+  landscape: raichu
+  version: v1
+  problems:
+    - id: EntityNotFound
+      type: https://errors.atomi.cloud/docs/nitroso/zinc/v1/entity_not_found
+      title: Entity Not Found
+      status: 404
+      recoverable: false
+      schema:
+        type: object

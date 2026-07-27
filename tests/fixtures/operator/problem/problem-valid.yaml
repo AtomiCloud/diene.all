@@ -1,0 +1,38 @@
+apiVersion: atomi.cloud/v1alpha1
+kind: Problem
+metadata:
+  name: zinc-raichu-v1
+  namespace: nitroso
+spec:
+  platform: nitroso
+  service: zinc
+  landscape: raichu
+  version: v1
+  problems:
+    - id: entity_not_found
+      type: https://errors.atomi.cloud/docs/nitroso/zinc/v1/entity_not_found
+      title: Entity Not Found
+      status: 404
+      recoverable: false
+      schema:
+        type: object
+        properties:
+          entityType: { type: string }
+          id: { type: string }
+        required: [entityType, id]
+        x-custom-annotation: preserved-verbatim
+      endpoints:
+        # The path template must be quoted: an unquoted "{" opens a YAML flow
+        # mapping. Templates like this are ordinary string values in the schema.
+        - method: GET
+          path: '/notes/{id}'
+    - id: rate_limited
+      type: https://errors.atomi.cloud/docs/nitroso/zinc/v1/rate_limited
+      title: Rate Limited
+      status: 429
+      recoverable: true
+      schema:
+        type: object
+        properties:
+          retryAfterSeconds: { type: integer }
+        required: [retryAfterSeconds]

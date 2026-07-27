@@ -1,0 +1,20 @@
+# The row name must be {service}-{landscape}-{version}. Everything else here is
+# valid: only metadata.name violates the root CEL rule.
+apiVersion: atomi.cloud/v1alpha1
+kind: Problem
+metadata:
+  name: zinc-raichu
+  namespace: nitroso
+spec:
+  platform: nitroso
+  service: zinc
+  landscape: raichu
+  version: v1
+  problems:
+    - id: entity_not_found
+      type: https://errors.atomi.cloud/docs/nitroso/zinc/v1/entity_not_found
+      title: Entity Not Found
+      status: 404
+      recoverable: false
+      schema:
+        type: object

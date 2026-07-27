@@ -1,0 +1,28 @@
+# Two entries share one id. Map-list semantics keyed by id make within-row
+# duplication an admission rejection — the structural half of the merge
+# component's (version, id) key. Cross-CR conflicts are NOT structural.
+apiVersion: atomi.cloud/v1alpha1
+kind: Problem
+metadata:
+  name: zinc-raichu-v1
+  namespace: nitroso
+spec:
+  platform: nitroso
+  service: zinc
+  landscape: raichu
+  version: v1
+  problems:
+    - id: entity_not_found
+      type: https://errors.atomi.cloud/docs/nitroso/zinc/v1/entity_not_found
+      title: Entity Not Found
+      status: 404
+      recoverable: false
+      schema:
+        type: object
+    - id: entity_not_found
+      type: https://errors.atomi.cloud/docs/nitroso/zinc/v1/entity_not_found_again
+      title: Entity Not Found Again
+      status: 410
+      recoverable: false
+      schema:
+        type: object

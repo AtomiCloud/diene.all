@@ -1,0 +1,21 @@
+# version must match ^v\d+$ (D8): a semver-shaped "1.0" is not a version
+# snapshot. The name matches this spec's own service/landscape/version triple, so
+# the root name rule is satisfied and only the version pattern rejects.
+apiVersion: atomi.cloud/v1alpha1
+kind: Problem
+metadata:
+  name: zinc-raichu-1.0
+  namespace: nitroso
+spec:
+  platform: nitroso
+  service: zinc
+  landscape: raichu
+  version: '1.0'
+  problems:
+    - id: entity_not_found
+      type: https://errors.atomi.cloud/docs/nitroso/zinc/v1/entity_not_found
+      title: Entity Not Found
+      status: 404
+      recoverable: false
+      schema:
+        type: object

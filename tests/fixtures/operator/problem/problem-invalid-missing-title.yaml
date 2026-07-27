@@ -1,0 +1,19 @@
+# title is required on every entry: the portal page has nothing to render
+# without it. Only title is absent.
+apiVersion: atomi.cloud/v1alpha1
+kind: Problem
+metadata:
+  name: zinc-raichu-v1
+  namespace: nitroso
+spec:
+  platform: nitroso
+  service: zinc
+  landscape: raichu
+  version: v1
+  problems:
+    - id: entity_not_found
+      type: https://errors.atomi.cloud/docs/nitroso/zinc/v1/entity_not_found
+      status: 404
+      recoverable: false
+      schema:
+        type: object

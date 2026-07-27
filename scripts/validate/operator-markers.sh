@@ -5,12 +5,18 @@ set -euo pipefail
 
 types_dir="api/v1alpha1"
 fleet_types_dir="api/fleet/v1alpha1"
+problems_types_dir="api/problems/v1alpha1"
 controllers_dir="adapters/operator/controllers"
 crd_dir="infra/root_chart/templates/crds"
-expected_workload_cel_count=13
+# The census is partitioned so the inherited and Problem halves each fail closed
+# on their own: a Problem rule can never be absorbed by an inherited slot.
+expected_inherited_cel_count=14
+expected_problem_cel_count=5
+expected_total_cel_count=19
 
 [ ! -d "${types_dir}" ] && echo "❌ operator marker lint: missing API types directory ${types_dir}" >&2 && exit 1
 [ ! -d "${fleet_types_dir}" ] && echo "❌ operator marker lint: missing API types directory ${fleet_types_dir}" >&2 && exit 1
+[ ! -d "${problems_types_dir}" ] && echo "❌ operator marker lint: missing API types directory ${problems_types_dir}" >&2 && exit 1
 [ ! -d "${controllers_dir}" ] && echo "❌ operator marker lint: missing controllers directory ${controllers_dir}" >&2 && exit 1
 [ ! -d "${crd_dir}" ] && echo "❌ operator marker lint: missing CRD directory ${crd_dir}" >&2 && exit 1
 
@@ -282,15 +288,82 @@ field|DecommissionSpec.Confirm|kubebuilder:validation:Required
 field|DecommissionStatus.Conditions|listType=map
 field|DecommissionStatus.Conditions|listMapKey=type
 cel|DecommissionSpec|self.confirm == self.targetRef.name
+type|Problem|kubebuilder:object:root=true
+type|Problem|kubebuilder:subresource:status
+type|Problem|kubebuilder:resource:scope=Namespaced,shortName=prb
+printcolumn|Problem|Service
+printcolumn|Problem|Landscape
+printcolumn|Problem|Version
+printcolumn|Problem|Published
+printcolumn|Problem|Age
+field|ProblemSpec.Platform|kubebuilder:validation:Required
+field|ProblemSpec.Platform|kubebuilder:validation:MinLength=1
+field|ProblemSpec.Platform|kubebuilder:validation:MaxLength=63
+field|ProblemSpec.Platform|kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+field|ProblemSpec.Platform|kubebuilder:validation:XValidation:rule="self == oldSelf",message="platform is immutable"
+field|ProblemSpec.Service|kubebuilder:validation:Required
+field|ProblemSpec.Service|kubebuilder:validation:MinLength=1
+field|ProblemSpec.Service|kubebuilder:validation:MaxLength=63
+field|ProblemSpec.Service|kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+field|ProblemSpec.Service|kubebuilder:validation:XValidation:rule="self == oldSelf",message="service is immutable"
+field|ProblemSpec.Landscape|kubebuilder:validation:Required
+field|ProblemSpec.Landscape|kubebuilder:validation:MinLength=1
+field|ProblemSpec.Landscape|kubebuilder:validation:MaxLength=63
+field|ProblemSpec.Landscape|kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+field|ProblemSpec.Landscape|kubebuilder:validation:XValidation:rule="self == oldSelf",message="landscape is immutable"
+field|ProblemSpec.Version|kubebuilder:validation:Required
+field|ProblemSpec.Version|kubebuilder:validation:MaxLength=16
+field|ProblemSpec.Version|kubebuilder:validation:Pattern=`^v\d+$`
+field|ProblemSpec.Version|kubebuilder:validation:XValidation:rule="self == oldSelf",message="version is immutable — a version bump is a new CR"
+field|ProblemSpec.Problems|optional
+field|ProblemSpec.Problems|listType=map
+field|ProblemSpec.Problems|listMapKey=id
+field|ProblemSpec.Problems|kubebuilder:validation:MaxItems=1024
+field|ProblemEntry.ID|kubebuilder:validation:Required
+field|ProblemEntry.ID|kubebuilder:validation:MinLength=1
+field|ProblemEntry.ID|kubebuilder:validation:MaxLength=63
+field|ProblemEntry.ID|kubebuilder:validation:Pattern=`^[a-z][a-z0-9_]*$`
+field|ProblemEntry.Type|kubebuilder:validation:Required
+field|ProblemEntry.Type|kubebuilder:validation:MaxLength=2048
+field|ProblemEntry.Type|kubebuilder:validation:Pattern=`^https://\S+$`
+field|ProblemEntry.Title|kubebuilder:validation:Required
+field|ProblemEntry.Title|kubebuilder:validation:MinLength=1
+field|ProblemEntry.Title|kubebuilder:validation:MaxLength=253
+field|ProblemEntry.Status|kubebuilder:validation:Required
+field|ProblemEntry.Status|kubebuilder:validation:Minimum=100
+field|ProblemEntry.Status|kubebuilder:validation:Maximum=599
+field|ProblemEntry.Recoverable|kubebuilder:validation:Required
+field|ProblemEntry.Schema|kubebuilder:validation:Required
+field|ProblemEntry.Schema|kubebuilder:pruning:PreserveUnknownFields
+field|ProblemEntry.Schema|kubebuilder:validation:Type=object
+field|ProblemEntry.Endpoints|optional
+field|ProblemEntry.Endpoints|listType=atomic
+field|ProblemEntry.Endpoints|kubebuilder:validation:MaxItems=64
+field|ProblemEndpoint.Method|kubebuilder:validation:Required
+field|ProblemEndpoint.Method|kubebuilder:validation:MaxLength=16
+field|ProblemEndpoint.Method|kubebuilder:validation:Pattern=`^[A-Z]+$`
+field|ProblemEndpoint.Path|kubebuilder:validation:Required
+field|ProblemEndpoint.Path|kubebuilder:validation:MinLength=1
+field|ProblemEndpoint.Path|kubebuilder:validation:MaxLength=512
+field|ProblemEndpoint.Path|kubebuilder:validation:Pattern=`^/`
+field|ProblemStatus.Conditions|optional
+field|ProblemStatus.Conditions|listType=map
+field|ProblemStatus.Conditions|listMapKey=type
+field|ProblemStatus.ObservedGeneration|optional
+cel|Problem|self.metadata.name == self.spec.service + '-' + self.spec.landscape + '-' + self.spec.version
+cel|ProblemSpec.Platform|self == oldSelf
+cel|ProblemSpec.Service|self == oldSelf
+cel|ProblemSpec.Landscape|self == oldSelf
+cel|ProblemSpec.Version|self == oldSelf
 EOF
 )"
 
-echo "🔎 extracting kubebuilder markers from ${types_dir}, ${fleet_types_dir} and ${controllers_dir}"
+echo "🔎 extracting kubebuilder markers from ${types_dir}, ${fleet_types_dir}, ${problems_types_dir} and ${controllers_dir}"
 
 # Each marker block counts only at the declaration it precedes, never file-wide.
 facts=""
 open='struct {'
-for file in "${types_dir}"/*_types.go "${fleet_types_dir}"/*_types.go; do
+for file in "${types_dir}"/*_types.go "${fleet_types_dir}"/*_types.go "${problems_types_dir}"/*_types.go; do
   [ ! -f "${file}" ] && continue
   scope=""
   inside=0
@@ -328,25 +401,64 @@ facts="${facts}$(grep -F 'kubebuilder:printcolumn:name=' <<<"${facts}" | sed -E 
 # A CEL rule is schema-level behaviour, so the policy pins its exact expression rather than its presence.
 facts="${facts}$(sed -nE 's/^(type|field)\|([^|]+)\|kubebuilder:validation:XValidation:rule="([^"]*)".*/cel|\2|\3/p' <<<"${facts}" || true)"$'\n'
 
-count_workload_cel_facts() {
-  sed -n '/^cel|LandscapeSpec\.Region|/d; /^cel|/p' |
+# Three deduplicated censuses over one fact stream. The inherited view is every
+# CEL fact that is NOT a Problem fact, the Problem view is exactly the Problem
+# prefix, and the total is every CEL fact — so a rule that moves between
+# partitions, or appears in one side only, cannot net out to a passing count.
+count_inherited_cel_facts() {
+  sed -n '/^cel|Problem/d; /^cel|/p' |
     sort -u |
     wc -l |
     tr -d '[:space:]'
 }
 
-required_workload_cel_count="$(count_workload_cel_facts <<<"${required}")"
-actual_workload_cel_count="$(count_workload_cel_facts <<<"${facts}")"
+count_problem_cel_facts() {
+  sed -n '/^cel|Problem/p' |
+    sort -u |
+    wc -l |
+    tr -d '[:space:]'
+}
 
-if [ "${required_workload_cel_count}" -ne "${expected_workload_cel_count}" ]; then
-  echo "❌ operator marker lint: declared workload CEL census is ${required_workload_cel_count}, expected ${expected_workload_cel_count}" >&2
+count_total_cel_facts() {
+  sed -n '/^cel|/p' |
+    sort -u |
+    wc -l |
+    tr -d '[:space:]'
+}
+
+required_inherited_cel_count="$(count_inherited_cel_facts <<<"${required}")"
+required_problem_cel_count="$(count_problem_cel_facts <<<"${required}")"
+required_total_cel_count="$(count_total_cel_facts <<<"${required}")"
+actual_inherited_cel_count="$(count_inherited_cel_facts <<<"${facts}")"
+actual_problem_cel_count="$(count_problem_cel_facts <<<"${facts}")"
+actual_total_cel_count="$(count_total_cel_facts <<<"${facts}")"
+
+if [ "${required_inherited_cel_count}" -ne "${expected_inherited_cel_count}" ]; then
+  echo "❌ operator marker lint: declared inherited CEL census is ${required_inherited_cel_count}, expected ${expected_inherited_cel_count}" >&2
   exit 1
 fi
-if [ "${actual_workload_cel_count}" -ne "${expected_workload_cel_count}" ]; then
-  echo "❌ operator marker lint: source workload CEL census is ${actual_workload_cel_count}, expected ${expected_workload_cel_count}" >&2
+if [ "${required_problem_cel_count}" -ne "${expected_problem_cel_count}" ]; then
+  echo "❌ operator marker lint: declared problem CEL census is ${required_problem_cel_count}, expected ${expected_problem_cel_count}" >&2
   exit 1
 fi
-echo "🧮 workload CEL census: ${actual_workload_cel_count}"
+if [ "${required_total_cel_count}" -ne "${expected_total_cel_count}" ]; then
+  echo "❌ operator marker lint: declared total CEL census is ${required_total_cel_count}, expected ${expected_total_cel_count}" >&2
+  exit 1
+fi
+if [ "${actual_inherited_cel_count}" -ne "${expected_inherited_cel_count}" ]; then
+  echo "❌ operator marker lint: source inherited CEL census is ${actual_inherited_cel_count}, expected ${expected_inherited_cel_count}" >&2
+  exit 1
+fi
+if [ "${actual_problem_cel_count}" -ne "${expected_problem_cel_count}" ]; then
+  echo "❌ operator marker lint: source problem CEL census is ${actual_problem_cel_count}, expected ${expected_problem_cel_count}" >&2
+  exit 1
+fi
+if [ "${actual_total_cel_count}" -ne "${expected_total_cel_count}" ]; then
+  echo "❌ operator marker lint: source total CEL census is ${actual_total_cel_count}, expected ${expected_total_cel_count}" >&2
+  exit 1
+fi
+echo "🧮 CEL census: policy inherited=${required_inherited_cel_count} problem=${required_problem_cel_count} total=${required_total_cel_count}"
+echo "🧮 CEL census: source inherited=${actual_inherited_cel_count} problem=${actual_problem_cel_count} total=${actual_total_cel_count}"
 
 echo "🧪 asserting the required marker families"
 

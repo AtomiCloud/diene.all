@@ -1,0 +1,10 @@
+apiVersion: atomi.cloud/v1alpha1
+kind: Problem
+metadata:
+  name: cobalt-raichu-v2
+  namespace: nitroso
+spec:
+  platform: nitroso
+  service: cobalt
+  landscape: raichu
+  version: v2

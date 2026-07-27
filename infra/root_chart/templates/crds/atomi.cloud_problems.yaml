@@ -1,0 +1,328 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.20.1
+  name: problems.atomi.cloud
+spec:
+  group: atomi.cloud
+  names:
+    kind: Problem
+    listKind: ProblemList
+    plural: problems
+    shortNames:
+    - prb
+    singular: problem
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.service
+      name: Service
+      type: string
+    - jsonPath: .spec.landscape
+      name: Landscape
+      type: string
+    - jsonPath: .spec.version
+      name: Version
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="Published")].status
+      name: Published
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          Problem is the Schema for the problems API.
+
+          SCHEMA-ONLY in Phase 2. This lane ships the structural schema and its CEL
+          rules and nothing else: there is no reconciler, no webhook server and no merge
+          loop for Problem in this binary. The merge component writes every status
+          condition (the erbium contract), folding in later behind the reserved seventh
+          --enable-problem seam that already exists in internal/operatorruntime and is
+          untouched here. The traffic controller separately publishes the derived edge
+          catalog doc, and frontends classify errors from that doc — they never read
+          this CR at runtime.
+
+          Two conventions are recorded but NOT enforced structurally. First,
+          namespace == platform: root CEL cannot read metadata.namespace, so it is
+          deferred to the named admission-webhook obligation. Second, semantic validity
+          — schema being well-formed JSON Schema, type matching the single-source
+          builder template, cross-CR conflicts for one (platform, service, version, id),
+          byte-identical landscape rows, and staleness or publication state — all
+          require cross-object context admission does not have and belong to the merge
+          component.
+
+          The root rule below pins the row-name convention. As a documented side effect,
+          a CR that omits spec entirely fails it at admission, which makes spec
+          effectively required.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: |-
+              ProblemSpec is ONE catalog row: exactly one
+              (platform, service, landscape, version) tuple and the whole set of problems
+              that release catalogues. A service's release rewrites the ENTIRE row in one
+              write, and a version bump is a NEW CR rather than an in-place spec.version
+              mutation, so all four identity fields are immutable. module is deliberately
+              absent from the identity: sub-scoping lives inside an entry's id.
+            properties:
+              landscape:
+                description: |-
+                  Landscape is the landscape row this catalog was materialized for. Rows for
+                  the same (platform, service, version, id) are expected to be
+                  byte-identical across landscapes; divergence is a merge conflict the merge
+                  component reports, never an admission rejection.
+                maxLength: 63
+                minLength: 1
+                pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                type: string
+                x-kubernetes-validations:
+                - message: landscape is immutable
+                  rule: self == oldSelf
+              platform:
+                description: |-
+                  Platform is the owning platform. By convention the CR also lives in the
+                  namespace of the same name, but that convention is NOT enforced here: root
+                  CEL cannot read metadata.namespace, so namespace == platform is deferred
+                  to the admission-webhook obligation recorded in the docs.
+                maxLength: 63
+                minLength: 1
+                pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                type: string
+                x-kubernetes-validations:
+                - message: platform is immutable
+                  rule: self == oldSelf
+              problems:
+                description: |-
+                  Problems is the whole catalog for this row, keyed by id. It is OPTIONAL
+                  because a release that catalogues nothing must still be expressible as an
+                  empty row — the emitter rewrites the entire row every release, so an
+                  absent list is a meaningful state rather than a missing field. Map-list
+                  semantics make a duplicate id within one row an admission rejection: the
+                  within-row half of the merge key is structural, while cross-row conflicts
+                  are not.
+                items:
+                  description: |-
+                    ProblemEntry is one catalogued problem inside a row. The entry's id is the
+                    within-row half of the merge component's (version, id) key, and map-list
+                    semantics on the containing field make a duplicate id an admission rejection
+                    rather than a merge-time surprise.
+                  properties:
+                    endpoints:
+                      description: Endpoints lists where the problem can occur, as
+                        a documentation aid.
+                      items:
+                        description: |-
+                          ProblemEndpoint records where a catalogued problem can occur. It is a
+                          documentation aid for the rendered portal page, never a routing input: the
+                          portal serves whatever path each entry's pre-minted type URI carries.
+                        properties:
+                          method:
+                            description: Method is the HTTP method, upper-case.
+                            maxLength: 16
+                            pattern: ^[A-Z]+$
+                            type: string
+                          path:
+                            description: |-
+                              Path is the request path the problem can surface on. Path templates such
+                              as /notes/{id} are ordinary values here.
+                            maxLength: 512
+                            minLength: 1
+                            pattern: ^/
+                            type: string
+                        required:
+                        - method
+                        - path
+                        type: object
+                      maxItems: 64
+                      type: array
+                      x-kubernetes-list-type: atomic
+                    id:
+                      description: |-
+                        ID is the problem's snake_case identifier. Sub-scoping a service's
+                        problems lives inside this id: module is not an identity field.
+                      maxLength: 63
+                      minLength: 1
+                      pattern: ^[a-z][a-z0-9_]*$
+                      type: string
+                    recoverable:
+                      description: |-
+                        Recoverable states whether a client can retry or recover, or whether the
+                        problem is terminal.
+                      type: boolean
+                    schema:
+                      description: |-
+                        Schema is the JSON Schema of the problem's data extension, carried
+                        verbatim. The preserve-unknown boundary is EXACTLY here: this object keeps
+                        every key the emitter wrote, including vendor extensions the CRD has never
+                        heard of, while every other unknown field in the CR is pruned normally.
+                        Whether these bytes are well-formed JSON Schema is the merge component's
+                        semantic check, not an admission rule.
+                      type: object
+                      x-kubernetes-preserve-unknown-fields: true
+                    status:
+                      description: |-
+                        Status is the HTTP status this problem maps to — the exception-to-status
+                        mapper's data.
+                      format: int32
+                      maximum: 599
+                      minimum: 100
+                      type: integer
+                    title:
+                      description: Title is the human-readable problem title rendered
+                        on the portal page.
+                      maxLength: 253
+                      minLength: 1
+                      type: string
+                    type:
+                      description: |-
+                        Type is the PRE-MINTED RFC 9457 problem type URI, emitted by the same
+                        single-source builder a service puts in its wire responses. Only the URI
+                        SHAPE is structural here; whether it matches the builder's template is the
+                        merge component's semantic check, never a CRD rule.
+                      maxLength: 2048
+                      pattern: ^https://\S+$
+                      type: string
+                  required:
+                  - id
+                  - recoverable
+                  - schema
+                  - status
+                  - title
+                  - type
+                  type: object
+                maxItems: 1024
+                type: array
+                x-kubernetes-list-map-keys:
+                - id
+                x-kubernetes-list-type: map
+              service:
+                description: Service is the cataloguing service.
+                maxLength: 63
+                minLength: 1
+                pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                type: string
+                x-kubernetes-validations:
+                - message: service is immutable
+                  rule: self == oldSelf
+              version:
+                description: Version is the service's major API version snapshot this
+                  row catalogues.
+                maxLength: 16
+                pattern: ^v\d+$
+                type: string
+                x-kubernetes-validations:
+                - message: version is immutable — a version bump is a new CR
+                  rule: self == oldSelf
+            required:
+            - landscape
+            - platform
+            - service
+            - version
+            type: object
+          status:
+            description: |-
+              ProblemStatus is the observed publication state of the row. Nothing in THIS
+              binary writes it in Phase 2: the merge component (erbium's error-portal job)
+              patches it on delta using the vocabulary Published, SchemaInvalid and Stale.
+              That vocabulary is deliberately NOT encoded as an enum — condition types on
+              metav1.Condition stay open here exactly as they do on every sibling kind.
+            properties:
+              conditions:
+                description: |-
+                  Conditions carry Published, SchemaInvalid and Stale, written by the merge
+                  component.
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the spec generation last processed by the merge
+                  component.
+                format: int64
+                type: integer
+            type: object
+        type: object
+        x-kubernetes-validations:
+        - message: name must be {service}-{landscape}-{version}
+          rule: self.metadata.name == self.spec.service + '-' + self.spec.landscape
+            + '-' + self.spec.version
+    served: true
+    storage: true
+    subresources:
+      status: {}

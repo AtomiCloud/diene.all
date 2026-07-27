@@ -1,0 +1,20 @@
+# status is an HTTP status and must fall in 100..599: 600 is out of range. Only
+# the status is wrong.
+apiVersion: atomi.cloud/v1alpha1
+kind: Problem
+metadata:
+  name: zinc-raichu-v1
+  namespace: nitroso
+spec:
+  platform: nitroso
+  service: zinc
+  landscape: raichu
+  version: v1
+  problems:
+    - id: entity_not_found
+      type: https://errors.atomi.cloud/docs/nitroso/zinc/v1/entity_not_found
+      title: Entity Not Found
+      status: 600
+      recoverable: false
+      schema:
+        type: object

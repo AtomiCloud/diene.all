@@ -1,0 +1,21 @@
+# The type URI shape is structural: it must be https. Plain http is rejected at
+# admission. Whether an https URI matches the single-source builder template is
+# the merge component's semantic check, not a CRD rule.
+apiVersion: atomi.cloud/v1alpha1
+kind: Problem
+metadata:
+  name: zinc-raichu-v1
+  namespace: nitroso
+spec:
+  platform: nitroso
+  service: zinc
+  landscape: raichu
+  version: v1
+  problems:
+    - id: entity_not_found
+      type: http://insecure.example/x
+      title: Entity Not Found
+      status: 404
+      recoverable: false
+      schema:
+        type: object
