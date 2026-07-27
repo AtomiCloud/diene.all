@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-for binary in actionlint bash deadcode docker git go gofumpt golangci-lint gomplate gotestsum govulncheck hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pls pre-commit rg sg shellcheck skopeo staticcheck task treefmt yq; do
+# ### workspace
+# #### source: workspace
+for binary in actionlint bash cyanprint deadcode docker git go gofumpt golangci-lint gomplate gotestsum govulncheck hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pls pre-commit rg sg shellcheck skopeo staticcheck task treefmt yq; do
   command -v "${binary}" >/dev/null || {
     echo "❌ binary '${binary}' is missing" >&2
     exit 1
@@ -17,6 +19,15 @@ actionlint "${tmp}/workflow.yaml"
 
 bash --version >/dev/null
 [ "$(bash -c 'printf smoke')" != "smoke" ] && echo "❌ bash failed a real invocation" >&2 && exit 1
+
+mapfile -t cyanprint_versions < <(
+  awk -F'"' '/^[[:space:]]*cyanprintVersion = "[^"]+";$/ { print $2 }' nix/packages.nix
+)
+if [ "${#cyanprint_versions[@]}" -ne 1 ]; then
+  echo "expected exactly one cyanprintVersion pin in nix/packages.nix" >&2
+  exit 1
+fi
+cyanprint --version | grep -Fqx "cyanprint ${cyanprint_versions[0]}"
 
 docker --version >/dev/null
 docker info --format '{{.ServerVersion}}' >/dev/null
@@ -121,4 +132,6 @@ else
   echo "⏭️ releaser binary awaits the C2 step-2p tools/releaser publish"
 fi
 
+# ### workspace-complete
+# #### source: workspace
 echo "✅ Binary smoke passed"
