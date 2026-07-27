@@ -5,8 +5,11 @@ mode="${1:-}"
 coverage_mode="${2:-no-coverage}"
 
 # The publishable member lives under packages/diene_api_engine (pub workspace).
-# `dart pub get` resolves at the repo root; `dart test`, coverage collection and
-# the coverage:format_coverage run all execute with CWD = the member directory.
+# `flutter pub get` resolves at the repo root; `flutter test` and its coverage
+# collection execute with CWD = the member directory. This member depends on the
+# Flutter SDK (transitively, via diene_auth_engine), so the runner is
+# `flutter test`, not `dart test` — see
+# exec/nodes/lib__dart__api-engine/evidence/flutter-toolchain-delta.md.
 member_dir="${MEMBER_DIR:-packages/diene_api_engine}"
 test_helper_path="${TEST_HELPER_PATH:-lib/test_helper.dart}"
 meta_test_path="${META_TEST_PATH:-test/meta}"
@@ -28,46 +31,83 @@ fi
 
 ./scripts/ci/setup.sh
 
-package_config="${root_dir}/.dart_tool/package_config.json"
 cd "${root_dir}/${member_dir}"
 
 tests=("${meta_test_path}")
 [[ ${mode} == "unit" ]] && tests=(test/unit test/conformance)
 
 if [[ ${coverage_mode} == "no-coverage" ]]; then
-  dart test --reporter=expanded "${tests[@]}"
+  flutter test --reporter=expanded "${tests[@]}"
   echo "✅ ${mode} tests passed"
   exit 0
 fi
 
 coverage_dir="coverage/${mode}"
-raw_dir="${coverage_dir}/raw"
 all_ledger="${coverage_dir}/all.info"
 ledger="${coverage_dir}/lcov.info"
 rm -rf "${coverage_dir}"
-mkdir -p "${raw_dir}"
+mkdir -p "${coverage_dir}"
 
+# FLUTTER COVERAGE, not the dart + coverage:format_coverage pipeline the pure-Dart
+# siblings use. Three reasons, all measured:
+#   * `dart test --coverage=<dir>` takes a VALUE while `flutter test --coverage`
+#     is a bare FLAG — passing a value fails with 'Flag option "--coverage"
+#     should not be given a value.' The blanket dart->flutter invocation
+#     migration produced exactly that broken form here before this block landed.
+#   * `flutter test --coverage` emits LCOV directly at --coverage-path, so the
+#     separate format_coverage conversion is not merely unnecessary but
+#     impossible to feed: there is no raw-JSON directory to convert.
+#   * `--coverage-package` defaults to the current package name, so only this
+#     member's own lib/ is measured and the hosted diene_* deps are excluded
+#     without needing --report-on.
+# The filtering and the 100% assertion below keep the inherited strictness
+# exactly; only the collection mechanism differs.
 set +e
-dart test --reporter=expanded --coverage="${raw_dir}" "${tests[@]}"
+flutter test \
+  --reporter=expanded \
+  --coverage \
+  --coverage-path="${all_ledger}" \
+  "${tests[@]}"
 test_status=$?
 set -e
 
-dart run coverage:format_coverage \
-  --lcov \
-  --in="${raw_dir}" \
-  --out="${all_ledger}" \
-  --packages="${package_config}" \
-  --report-on=lib
+# The two ledgers must PARTITION this package's own Dart sources: production code
+# in the unit ledger, TestHelper code in the meta ledger, nothing in both and
+# nothing in neither. The inherited patterns assumed the sample's shape, where
+# ALL helper code lived in the single file lib/test_helper.dart:
+#
+#   unit: (^|/)lib/src/.*[.]dart$      meta: (^|/)lib/test_helper[.]dart$
+#
+# That is wrong for this package. lib/test_helper.dart is a pure barrel of
+# `export` directives with NO executable lines, and the real helper code lives in
+# lib/src/test_helper/{assertions,builders,fakes}.dart. Under the inherited
+# patterns the meta ledger would match a file with nothing in it ("meta coverage
+# ledger contains no source files") while the unit ledger silently swallowed all
+# the TestHelper code through `lib/src/.*` — inflating the unit denominator with
+# helper lines, which the dart-family goal explicitly forbids ("TestHelper
+# excluded from the unit ledger").
+#
+# So `meta` matches the helper subtree plus its barrel, and `unit` matches
+# lib/src/ MINUS that subtree.
+helper_pattern='(^|/)lib/(test_helper[.]dart|src/test_helper/.*[.]dart)$'
+if [[ ${mode} == "unit" ]]; then
+  include='(^|/)lib/src/.*[.]dart$'
+  exclude="${helper_pattern}"
+else
+  include="${helper_pattern}"
+  exclude='^$'
+fi
 
-pattern='(^|/)lib/test_helper[.]dart$'
-[[ ${mode} == "unit" ]] && pattern='(^|/)lib/src/.*[.]dart$'
-
-awk -v pattern="${pattern}" '
-  /^SF:/ { keep = substr($0, 4) ~ pattern }
+# `inc`/`exc`, not `include`/`exclude`: gawk reserves `include` (for @include) and
+# dies with "cannot use gawk builtin `include' as variable name".
+awk -v inc="${include}" -v exc="${exclude}" '
+  /^SF:/ {
+    path = substr($0, 4)
+    keep = (path ~ inc) && !(path ~ exc)
+  }
   keep { print }
 ' "${all_ledger}" >"${ledger}"
 rm -f "${all_ledger}"
-rm -rf "${raw_dir}"
 
 awk -v mode="${mode}" '
   BEGIN { files = 0; lines_found = 0; lines_hit = 0 }

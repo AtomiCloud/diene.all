@@ -8,7 +8,7 @@ function commandPolicyHolds(source: string): boolean {
   return (
     source.includes('scripts/validate/publish-version.sh') &&
     source.includes('packages/diene_api_engine') &&
-    source.includes('dart pub publish --force')
+    source.includes('flutter pub publish --force')
   );
 }
 

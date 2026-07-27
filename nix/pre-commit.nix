@@ -9,7 +9,23 @@ let
     name = "workspace-validator-runtime";
     paths = [
       packages.bash
-      packages.dart
+      # ### lib-dart-api-engine-validator-runtime
+      # #### source: lib/dart/api-engine
+      # SUPERSEDES the inherited `packages.dart` entry — deliberately replacing
+      # it, not adding alongside it.
+      #
+      # The validator wrapper below sets PATH to EXACTLY this buildEnv, so a tool
+      # absent here is `command not found` (exit 127) inside every hook no matter
+      # what nix/env.nix puts in the dev shell. diene_api_engine is a Flutter
+      # package, so its analyze/test/package validators shell out to `flutter`.
+      #
+      # `packages.dart` CANNOT be listed as well: `dart = flutter.dart`, so both
+      # paths ship `dartdoc_options.yaml` and buildEnv aborts with "two given
+      # paths contain a conflicting subpath". Nothing is lost by dropping it —
+      # flutter-wrapped/bin/dart is a symlink to the very same dart binary
+      # `packages.dart` resolves to, so `dart` stays on the hook PATH at the
+      # identical version.
+      packages.flutter
       packages.git
       packages.jq
       packages.ripgrep
@@ -38,6 +54,15 @@ pre-commit-lib.run {
         "^Changelog\\.md$"
         "^docs/developer/CommitConventions\\.md$"
         "^infra/root_chart/"
+        # ### lib-dart-api-engine-formatter
+        # #### source: lib/dart/api-engine
+        # Digest-bound C0 projection — see the matching keyed block in
+        # nix/fmt.nix. Excluded at BOTH levels deliberately: fmt.nix governs a
+        # direct `treefmt` run while this list governs the pre-commit hook, and
+        # excluding only one level would leave the other free to rewrite the
+        # fixture and break the sha256 binding that
+        # scripts/validate/gen-c0-projection.sh --check asserts.
+        "^packages/diene_api_engine/test/fixtures/c0/"
       ];
     };
 
@@ -225,7 +250,10 @@ pre-commit-lib.run {
       enable = true;
       name = "Dart package and TestHelper boundary";
       entry = validator "scripts/validate/dart-package.sh";
-      files = "^(packages/diene_api_engine/(lib/.*[.]dart|pubspec[.]yaml|README[.]md|CHANGELOG[.]md|LICENSE|skills/.*|doc/diene_api_engine[.]md)|pubspec[.]yaml|VERSION)$";
+      # Also triggers on the C0 projection inputs and outputs, so a moved frozen
+      # release or a hand-edited fixture is caught at commit time rather than
+      # leaving the conformance tier green but no longer bound to the contract.
+      files = "^(packages/diene_api_engine/(lib/.*[.]dart|pubspec[.]yaml|README[.]md|CHANGELOG[.]md|LICENSE|skills/.*|test/fixtures/c0/.*|doc/diene_api_engine[.]md)|contracts/c0/.*|\\.prettierignore|pubspec[.]yaml|VERSION)$";
       pass_filenames = false;
       language = "system";
     };

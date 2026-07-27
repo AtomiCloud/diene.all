@@ -6,14 +6,14 @@ import { expectGreen, expectRed } from './lib/helpers.ts';
 // it as dead code.
 const MEMBER = 'packages/diene_api_engine';
 const WHOLE_PASS =
-  "nix develop .#ci --no-write-lock-file -c bash -lc 'cd packages/diene_api_engine && dart run dart_code_linter:metrics check-unused-code lib test example && dart run dart_code_linter:metrics check-unused-files lib test example'";
+  "nix develop .#ci --no-write-lock-file -c bash -lc 'cd packages/diene_api_engine && flutter pub run dart_code_linter:metrics check-unused-code lib test example && flutter pub run dart_code_linter:metrics check-unused-files lib test example'";
 
 export default {
   contractVersion: 1,
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
   setup: {
     post: [
-      'nix develop .#ci --no-write-lock-file -c dart pub get --offline || nix develop .#ci --no-write-lock-file -c dart pub get',
+      'nix develop .#ci --no-write-lock-file -c flutter pub get --offline || nix develop .#ci --no-write-lock-file -c flutter pub get',
     ],
   },
   probes: [

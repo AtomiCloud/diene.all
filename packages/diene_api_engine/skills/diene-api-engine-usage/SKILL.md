@@ -1,39 +1,57 @@
 ---
 name: diene-api-engine-usage
-description: Use when consuming package:diene_api_engine — importing the barrel, calling the Note value type and summarizeNote transform, or deciding whether to reach for its dependency-light TestHelper.
+description: Use when calling backends from a diene Dart/Flutter app — register LPSM backends, make Result-typed calls, handle Problems, and fake backends in tests with diene_api_engine.
 ---
 
 # diene_api_engine usage
 
-Import only the public barrel; never reach into `lib/src`:
+`diene_api_engine` is the client-side backend layer. Every call returns
+`Result<T, Problem>`; nothing throws.
+
+## Register (LPSM client tree)
+
+- One backend = one `LpsmCoordinate` (`landscape.platform.service.module`) +
+  one base-URL **hostname** from config values (never a literal) + an optional
+  per-resource auth binding.
+- Build the engine from the engine-owned config block:
+  `ApiEngine.fromConfig(config, auth: retriever, store: FileRescueStore(dir))`.
+- Resolve a backend with `engine.backend(coordinate)`. Duplicate registrations
+  are a typed `Err`, not a throw.
+
+## Multi-backend
+
+- ONE app registers MANY backends. Tokens resolve **per backend** through the
+  `IAuth` seam (`tokenFor(coordinate, resource:)`) — never a shared/singleton
+  token. Auth-engine's onboarding machinery keys off the same registrations.
+
+## Call + handle Problems
 
 ```dart
-import 'package:diene_api_engine/diene_api_engine.dart';
+final r = await backend.call(method: HttpMethod.get, path: '/user/me', decode: X.fromJson);
+r.match(ok: use, err: showProblem);
 ```
 
-## Public API
+- Classification (`toResult`): 2xx JSON → `Ok`; problem body → that `Problem`;
+  non-problem JSON error → unexpected-response Problem; network/non-JSON/
+  status-only → transport-failure Problem.
 
-- `Note({required String title, required String body})` — an immutable value
-  type with value equality. `Note.fromJson(Map<String, Object?>)` decodes the
-  JSON wire form and throws `FormatException` on a missing/empty title or a
-  non-string body; `toJson()` encodes it back.
-- `summarizeNote(Note note, {int maxLength = defaultSummaryLength})` — a pure
-  function returning a single-line summary. It collapses whitespace, joins the
-  title and a non-empty body with an em dash, and truncates with an ellipsis
-  beyond `maxLength`. It throws `ArgumentError` when `maxLength` is not positive.
-- `defaultSummaryLength` — the default cap (`80`).
+## Resilience (don't hand-roll it)
 
-Prefer `Note.fromJson` / `toJson` only at a JSON wire boundary. Keep the value
-type immutable; build a new `Note` rather than mutating.
+- Retry-once on opaque network error is automatic; received statuses (incl.
+  5xx) are never retried.
+- The dormant rescue router wakes only on a hard connect-failure (Flutter/
+  browser contexts). It rescues **addresses only, same landscape**, behind a
+  baked suffix allowlist + monotonic doc versions + always-baked issuer. Do not
+  add your own physical-URL list, circuit breaker, or failover ladder.
 
-## TestHelper decision
+## TestHelper
 
-`package:diene_api_engine/test_helper.dart` ships `assertNoteSummary`, a
-dependency-light assertion that throws `NoteAssertionFailure` (a `StateError`)
-on mismatch and imports no test framework. Use it in consumer tests when you
-want a runner-agnostic assertion over the summary. If you only need one-off
-checks, plain `package:test` matchers over `summarizeNote` are enough — reach
-for the TestHelper when the assertion is shared across suites or runners.
+`import 'package:diene_api_engine/test_helper.dart';` (dependency-light):
 
-See `patterns.md` for the TestHelper rationale and how a materialized child
-replaces the sample domain.
+- `FakeHttpTransport.byHost({...})` / `.sequence([...])` — scripted transports.
+- `FakeAuth({coordKey: token})` — per-backend tokens; `.queried` proves no
+  cross-backend bleed.
+- `FakeRescueStore`, `noSleep`, `noJitter` — deterministic rescue tests.
+- `expectOk` / `expectErr` / `expectProblemType` — plain-throw assertions.
+- `okJson` / `problemResponse` / `nonProblemJson` / `nonJsonResponse` /
+  `networkFailure` — reconciliation-matrix builders.

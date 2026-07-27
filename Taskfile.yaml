@@ -41,8 +41,8 @@ tasks:
   build:
     desc: Validate the publishable Dart library and example
     cmds:
-      - dart pub get >/dev/null
-      - dart analyze --fatal-infos packages/diene_api_engine/lib packages/diene_api_engine/example
+      - flutter pub get >/dev/null
+      - flutter analyze --fatal-infos packages/diene_api_engine/lib packages/diene_api_engine/example
 
   analyze:
     desc: Analyze the whole workspace, tests, and tooling

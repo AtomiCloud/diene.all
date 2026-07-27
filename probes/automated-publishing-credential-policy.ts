@@ -10,7 +10,7 @@
 // — key set, name, env mapping, and command sequence. Substring searching cannot
 // certify this boundary. A step can read the credential without ever naming the
 // file (`base64 "$HOME/.config/dart/"*`), spend it outside the approved
-// entrypoint (`dart pub publish --force`), relocate it (`env: {HOME: /tmp}`), or
+// entrypoint (`flutter pub publish --force`), relocate it (`env: {HOME: /tmp}`), or
 // neutralize its guard through control flow alone (`continue-on-error: true` on
 // the write, `if: always()` on the publish). None of those spell anything a
 // filter could match, so the only sound rule is: exactly these steps, exactly
@@ -353,11 +353,11 @@ const BYPASSES: Array<{ label: string; build: (source: string) => string }> = [
       insertAfterConfigure(source, '      - name: Collect diagnostics\n        run: base64 "$HOME/.config/dart/"*\n'),
   },
   {
-    label: 'rogue dart pub publish spends the credential outside the approved entrypoint',
+    label: 'rogue flutter pub publish spends the credential outside the approved entrypoint',
     build: source =>
       insertAfterConfigure(
         source,
-        '      - name: Extra publish\n        run: cd packages/diene_api_engine && dart pub publish --force\n',
+        '      - name: Extra publish\n        run: cd packages/diene_api_engine && flutter pub publish --force\n',
       ),
   },
   {

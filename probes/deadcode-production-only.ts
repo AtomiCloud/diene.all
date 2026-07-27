@@ -13,9 +13,9 @@ const PRODUCTION_PASS = [
   'yq "del(.resolution)" "$member/pubspec.yaml" > "$prod/pubspec.yaml"; ',
   'cp -R "$member/lib" "$prod/lib"; mkdir -p "$prod/bin"; ',
   'cp "$member/tool/deadcode_entrypoints.dart" "$prod/bin/main.dart"; ',
-  'cd "$prod"; dart pub get; ',
-  'dart run dart_code_linter:metrics check-unused-code .; ',
-  "dart run dart_code_linter:metrics check-unused-files .'",
+  'cd "$prod"; flutter pub get; ',
+  'flutter pub run dart_code_linter:metrics check-unused-code .; ',
+  "flutter pub run dart_code_linter:metrics check-unused-files .'",
 ].join('');
 
 export default {
@@ -23,7 +23,7 @@ export default {
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
   setup: {
     post: [
-      'nix develop .#ci --no-write-lock-file -c dart pub get --offline || nix develop .#ci --no-write-lock-file -c dart pub get',
+      'nix develop .#ci --no-write-lock-file -c flutter pub get --offline || nix develop .#ci --no-write-lock-file -c flutter pub get',
     ],
   },
   probes: [

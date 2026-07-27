@@ -16,6 +16,6 @@ root_dir="$(git rev-parse --show-toplevel)"
 cd "${root_dir}/packages/diene_api_engine"
 
 echo "🚀 Publishing diene_api_engine ${tag#v} to pub.dev..."
-dart pub publish --force
+flutter pub publish --force
 
 echo "✅ Published diene_api_engine ${tag#v}"
