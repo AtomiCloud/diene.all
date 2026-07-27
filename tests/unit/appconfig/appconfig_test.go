@@ -205,7 +205,7 @@ func TestLoadPropagatesSchemaReflectionFailure(t *testing.T) {
 func TestSchemaAndConstants(t *testing.T) {
 	t.Parallel()
 
-	blocks, err := appconfig.OwnBlocks()
+	blocks, err := appconfig.OwnBlocksWith(config.FragmentFromType)
 	if err != nil {
 		t.Fatalf("OwnBlocks() error = %v", err)
 	}
@@ -221,7 +221,7 @@ func TestSchemaAndConstants(t *testing.T) {
 		t.Fatalf("OwnBlocks() keys = %v, want %v", gotKeys, wantKeys)
 	}
 
-	schema, err := appconfig.Schema()
+	schema, err := appconfig.SchemaWith(config.FragmentFromType)
 	if err != nil {
 		t.Fatalf("Schema() error = %v", err)
 	}

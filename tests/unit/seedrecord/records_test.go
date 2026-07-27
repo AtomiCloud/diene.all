@@ -8,7 +8,7 @@ import (
 	"github.com/AtomiCloud/diene.go-errors-problems/lib/problem"
 )
 
-func TestParseAndSelectMissing(t *testing.T) {
+func TestParse(t *testing.T) {
 	t.Parallel()
 	records, err := seedrecord.Parse([]byte(`[
   {"id":" existing ","value":"one"},
@@ -19,14 +19,6 @@ func TestParseAndSelectMissing(t *testing.T) {
 	}
 	if len(records) != 2 || records[0].ID != "existing" || records[1].Value != "" {
 		t.Fatalf("records = %#v", records)
-	}
-	missing := seedrecord.SelectMissing(records, map[string]struct{}{"existing": {}})
-	if len(missing) != 1 || missing[0].ID != "missing" {
-		t.Fatalf("missing = %#v", missing)
-	}
-	all := seedrecord.SelectMissing(records, nil)
-	if len(all) != 2 {
-		t.Fatalf("all missing = %#v", all)
 	}
 }
 

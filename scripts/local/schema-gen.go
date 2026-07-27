@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/AtomiCloud/diene.go-config/lib/config"
 	"github.com/AtomiCloud/diene.go-consumer/lib/appconfig"
 )
 
@@ -15,7 +16,7 @@ func main() {
 	output := flag.String("out", "schemas/go-consumer.schema.json", "schema output path")
 	flag.Parse()
 
-	schema, err := appconfig.Schema()
+	schema, err := appconfig.SchemaWith(config.FragmentFromType)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "compose schema: %v\n", err)
 		os.Exit(1)

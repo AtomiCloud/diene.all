@@ -93,11 +93,6 @@ type ApplicationConfig struct {
 // Fragmenter reflects an application-owned Go model into a JSON Schema fragment.
 type Fragmenter func(model any) (map[string]any, error)
 
-// OwnBlocks reflects every service-owned configuration block from its Go type.
-func OwnBlocks() ([]config.Block, error) {
-	return OwnBlocksWith(config.FragmentFromType)
-}
-
 // OwnBlocksWith reflects service-owned blocks using an injectable reflector.
 func OwnBlocksWith(fragment Fragmenter) ([]config.Block, error) {
 	models := []struct {
@@ -120,11 +115,6 @@ func OwnBlocksWith(fragment Fragmenter) ([]config.Block, error) {
 		blocks = append(blocks, config.NewBlock(model.key, true, reflected))
 	}
 	return blocks, nil
-}
-
-// Schema composes the application root schema in the contract-defined order.
-func Schema() (config.Schema, error) {
-	return SchemaWith(config.FragmentFromType)
 }
 
 // SchemaWith composes the root schema using an injectable service-block reflector.

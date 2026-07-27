@@ -53,17 +53,6 @@ func Parse(value []byte) ([]Record, error) {
 	return records, nil
 }
 
-// SelectMissing preserves input order while selecting records not already present.
-func SelectMissing(records []Record, existingIDs map[string]struct{}) []Record {
-	missing := make([]Record, 0, len(records))
-	for _, record := range records {
-		if _, exists := existingIDs[record.ID]; !exists {
-			missing = append(missing, record)
-		}
-	}
-	return missing
-}
-
 func seedError(detail string, cause error) error {
 	problemType := problem.Type{
 		ID: problemInvalidSeedRecords, Title: "Invalid seed records", Version: problemVersion, Status: 400,
