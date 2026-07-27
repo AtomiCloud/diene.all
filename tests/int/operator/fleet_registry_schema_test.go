@@ -356,9 +356,9 @@ func TestFleetRegistrySchemaProviderAccountCarriesNoCredential(t *testing.T) {
 // reserved "account" delimiter token — "account-prod" here — must stay
 // schema-valid: the registry CRD keeps vendor/name the full DNS-label charset
 // and never narrows it to dodge the derived-pointer grammar. Keeping the derived
-// pointer injective for such names is the separately owned F4 mapping, so this
-// test proves only that the S2 schema still ACCEPTS the name, and deliberately
-// does not derive a pointer from it.
+// pointer injective for such names is the separately owned F4 mapping. This
+// cross-boundary witness therefore proves both halves against the object the API
+// server actually accepted: S2 keeps the name and F4 derives its escaped path.
 func TestFleetRegistrySchemaKeepsAccountNameDomainOpen(t *testing.T) {
 	c := newFleetClient(t)
 	ensureFleetNamespace(t, c)
@@ -374,8 +374,15 @@ func TestFleetRegistrySchemaKeepsAccountNameDomainOpen(t *testing.T) {
 	stored := &unstructured.Unstructured{}
 	stored.SetGroupVersionKind(account.GroupVersionKind())
 	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(account), stored))
+	vendor, found, err := unstructured.NestedString(stored.Object, "spec", "vendor")
+	require.NoError(t, err)
+	require.True(t, found)
 	name, found, err := unstructured.NestedString(stored.Object, "spec", "name")
 	require.NoError(t, err)
 	require.True(t, found)
 	require.Equal(t, "account-prod", name)
+
+	pointer, err := provideraccount.CredentialPointerPath("nitroso", "raichu", "database", vendor, name)
+	require.NoError(t, err)
+	require.Equal(t, "/nitroso/raichu/database/_pa_neon_account-prod", pointer)
 }
