@@ -25,15 +25,25 @@ member_pubspec="${member_dir}/pubspec.yaml"
 # cascaded as a MECHANISM with each node setting its own value and a GATE
 # asserting it — so this pins the EXACT count and EVERY constraint by name. A
 # silent dependency addition, removal or constraint loosening reddens here.
+# These lower bounds are TIGHTENED to the resolved versions, not hand-picked.
+# pana's "Compatible with dependency constraint lower bounds" check performs a
+# DOWNGRADE analysis, and the inherited loose bounds failed it: at retrofit 4.4.0
+# the generated client does not compile —
+#   UNDEFINED_NAMED_PARAMETER lib/src/generated/clients/users_client.g.dart:43:45
+#   the named parameter 'response' isn't defined
+# because `errorLogger?.logError(e, s, _options, response: _result)` uses an API
+# added after 4.4.0. A constraint whose lower bound cannot build is a promise the
+# package cannot keep, so `flutter pub upgrade --tighten` set each bound to the
+# version actually exercised here.
 declare -A expected_deps=(
-  [collection]='^1.19.0'
+  [collection]='^1.19.1'
   [diene_auth_engine]='^1.0.1'
   [diene_problems]='^0.1.1'
   [diene_result]='^1.0.0'
-  [dio]='^5.7.0'
-  [json_annotation]='^4.9.0'
-  [meta]='^1.15.0'
-  [retrofit]='^4.4.0'
+  [dio]='^5.11.0'
+  [json_annotation]='^4.12.0'
+  [meta]='^1.18.0'
+  [retrofit]='^4.9.2'
 )
 # `flutter` is a bare SDK dependency (`sdk: flutter`), not a version constraint,
 # so it is counted but its value is checked separately below.

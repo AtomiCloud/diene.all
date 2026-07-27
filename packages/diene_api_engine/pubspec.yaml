@@ -1,9 +1,11 @@
 name: diene_api_engine
+# pana scores a description outside 60-180 characters as an INVALID pubspec
+# ("search engines display only the first part"). The previous wording measured
+# 284 characters and cost the whole 10-point pubspec section.
 description: >-
-  Typed OA3 backend-client engine for the diene Dart family: wraps generated
-  OpenAPI SDKs into Result/Problem outcomes, registers N backends on the LPSM
-  client tree, retries once on hard network failure, and ships a dormant
-  disk-cached rescue router for same-landscape address failover.
+  Typed OA3 backend-client engine: wraps generated OpenAPI SDKs into
+  Result/Problem outcomes, registers N backends, retries once on network
+  failure, ships a dormant rescue router.
 version: 0.0.0
 repository: https://github.com/AtomiCloud/diene.dart_api_engine
 issue_tracker: https://github.com/AtomiCloud/diene.dart_api_engine/issues
@@ -34,7 +36,7 @@ environment:
   flutter: '>=3.24.0'
 
 dependencies:
-  collection: ^1.19.0
+  collection: ^1.19.1
   # Owned sibling contracts, each pinned to the NEWEST published version. Under
   # the untracked-lockfile rule (pubspec.lock is gitignored here) a local gate run
   # only proves the bytes CI will resolve if the locked version equals the newest
@@ -48,15 +50,15 @@ dependencies:
   diene_auth_engine: ^1.0.1
   diene_problems: ^0.1.1
   diene_result: ^1.0.0
-  dio: ^5.7.0
+  dio: ^5.11.0
   flutter:
     sdk: flutter
-  json_annotation: ^4.9.0
-  meta: ^1.15.0
-  retrofit: ^4.4.0
+  json_annotation: ^4.12.0
+  meta: ^1.18.0
+  retrofit: ^4.9.2
 
 dev_dependencies:
-  dart_code_linter: ^4.1.7
+  dart_code_linter: ^4.1.8
   # `flutter_test` REPLACES the `test` dev_dependency the pure-Dart siblings
   # carry. A Dart pub workspace shares ONE resolution across every member, so
   # `test` is solved against flutter_test's pins and becomes unsolvable:
