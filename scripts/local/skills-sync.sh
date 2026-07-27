@@ -26,16 +26,32 @@ pub_staged=false
 
 touch "${staging}/.gitkeep"
 
-# jq -e answers 1 for a false/null result and 2 or more for a real failure. Only
-# the latter may abort the sync.
+# jq -e uses both 1 (false/null) and 4 (no output) for legitimate no-match
+# results. Missing input, filter compilation, malformed input, and unknown
+# future statuses must remain loud failures.
 jq_match() {
   local status=0
   jq -e "$@" >/dev/null || status=$?
-  if [ "${status}" -ge 2 ]; then
-    echo "❌ Failed to inspect a dependency manifest with jq (exit ${status})" >&2
+  case "${status}" in
+  0) return 0 ;;
+  1 | 4) return 1 ;;
+  2)
+    echo "❌ Failed to inspect a dependency manifest: jq could not read its input (exit 2)" >&2
+    exit 2
+    ;;
+  3)
+    echo "❌ Failed to inspect a dependency manifest: jq could not compile its filter (exit 3)" >&2
+    exit 3
+    ;;
+  5)
+    echo "❌ Failed to inspect a dependency manifest: jq rejected malformed input (exit 5)" >&2
+    exit 5
+    ;;
+  *)
+    echo "❌ Failed to inspect a dependency manifest: unexpected jq exit ${status}" >&2
     exit "${status}"
-  fi
-  return "${status}"
+    ;;
+  esac
 }
 
 if [ -f package.json ]; then
