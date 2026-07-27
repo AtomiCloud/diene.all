@@ -1,20 +1,49 @@
 # Published archive keeps only lib/, example/, doc/, skills/, README.md,
 # CHANGELOG.md, LICENSE, and pubspec.yaml. Everything below is dev/CI/test
 # tooling that must not ship to pub.dev.
+#
+# ANCHORING IS LOAD-BEARING. .pubignore uses gitignore semantics, so a BARE
+# `config/` matches a directory named `config` at ANY DEPTH — including
+# `lib/src/config/`. That is exactly how diene_auth_engine 1.0.0 and 1.0.1
+# shipped WITHOUT `lib/src/config/auth_engine_config.dart` while
+# `lib/diene_auth_engine.dart` line 22 still exports it: both archives are
+# structurally unusable, every consumer fails to compile with
+# "Type 'AuthEngineConfig' not found", and publication is irreversible.
+# The intent was always the repo-root layers. `config/`, `test/` and `tool/` are
+# anchored below: `config` is the LIVE defect, and `test`/`tool` are anchored
+# because `lib/src/test/` and `lib/src/tool/` are plausible future paths that
+# would fail the same silent way.
+#
+# The other 11 bare patterns are left as-is DELIBERATELY, to keep this interim a
+# minimal diff against the parent it will be replaced by. Audited over the 31
+# tracked ship-scope files (lib/ example/ doc/ skills/): `config` was the only
+# collision; .claude .dart_tool .direnv .github .kagent .kloop coverage docs nix
+# scripts tasks all scored 0. They are latent, not safe — re-audit if a new
+# subdirectory is added under lib/.
+#
+# INTERIM — SUPERSEDED BY THE PARENT MERGE.
+#   owner:   dart-lib (packages/diene_dart_lib/.pubignore)
+#   session: carl (node-worker:dart-lib-bundle)
+#   shape:   R-E8a latency clause. This is a recorded parent obligation, NOT an
+#            independent per-branch port. dart-lib still carries the bare
+#            `config/` at authoritative 602610f, and EVERY dart lib inherits it.
+#   on_cascade: resolve IN FAVOUR OF THE PARENT and DELETE this interim block;
+#            do not merge around it. See exec/nodes/lib__dart__auth-engine/
+#            node.json -> evidence.parent_obligations[pubignore-unanchored-config].
 .claude/
 .dart_tool/
 .direnv/
 .github/
 .kagent/
 .kloop/
-config/
+/config/
 coverage/
 docs/
 nix/
 scripts/
 tasks/
-test/
-tool/
+/test/
+/tool/
 .coderabbit.yaml
 .envrc
 .markdownlint-cli2.jsonc
