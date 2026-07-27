@@ -12,13 +12,7 @@
     "version": "v1",
     "problems": [
       {
-        "id": "message_handler_failed",
-        "type": "https://errors.atomi.cloud/docs/lapras/diene/go-consumer/worker/v1/message_handler_failed",
-        "title": "Message handler failed",
-        "status": 500,
-        "recoverable": true,
-        "schema": {
-          "$schema": "http://json-schema.org/draft-07/schema#",
+        "data": {
           "additionalProperties": false,
           "properties": {
             "messageId": {
@@ -41,7 +35,12 @@
             "method": "CONSUME",
             "path": "/streams/go-consumer.messages"
           }
-        ]
+        ],
+        "id": "message_handler_failed",
+        "recoverable": true,
+        "status": 500,
+        "title": "Message handler failed",
+        "type": "https://errors.atomi.cloud/docs/lapras/diene/go-consumer/worker/v1/message_handler_failed"
       }
     ]
   }
