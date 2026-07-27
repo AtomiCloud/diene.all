@@ -192,9 +192,15 @@ func (e *RegistryError) Is(target error) bool {
 	return false
 }
 
-// CredentialPointerPath derives the canonical S10 logical credential pointer.
-// It returns a pointer only; callers must not use this pure package to read or
-// hold the credential value.
+// CredentialPointerPath derives the canonical S10 logical credential pointer
+//
+//	/{platform}/{landscape}/{class}/{vendor}-account-{name}
+//
+// Every component is validated against the strict safe-segment grammar
+// documented on validateSegment; the ordinary already-canonical inputs are
+// preserved byte-for-byte, so this pointer stays identical to the folder path
+// carbon writes and dependency-operator reads. It returns a pointer only;
+// callers must not use this pure package to read or hold the credential value.
 func CredentialPointerPath(platform, landscape, class, vendor, name string) (string, error) {
 	segments := []struct {
 		field string
@@ -237,12 +243,55 @@ func validateAccount(account Account) error {
 	return validateSegment("name", account.Name)
 }
 
+// reservedDelimiterToken is the fixed infix that joins vendor and name in the
+// final pointer component ({vendor}-account-{name}). It is reserved: no segment
+// may contain it. See validateSegment for why this single rule guarantees the
+// component decomposes to exactly one (vendor, name) identity.
+const reservedDelimiterToken = "account"
+
+// validateSegment enforces the strict, documented safe-segment grammar that
+// every logical pointer component (platform, landscape, class, vendor, name)
+// and every account identity field must obey. It is deliberately a REJECT-only
+// grammar: an input that is not already canonical is refused rather than
+// silently normalized, so two distinct identities can never be folded onto one
+// accepted pointer.
+//
+// A valid segment:
+//   - is nonblank (neither empty nor whitespace-only);
+//   - contains only lowercase ASCII letters (a-z), digits (0-9), and the hyphen
+//     (-). This one character rule rejects, together, every reserved or
+//     ambiguous form the pointer must never carry: the path separator "/" and
+//     the backslash alias "\", the path-special "." and ".." components,
+//     percent/escape sequences such as "%2e"/"%2f", any Unicode whitespace, and
+//     uppercase input — uppercase is rejected, never case-folded, so "Neon" and
+//     "neon" cannot be canonicalized onto the same pointer;
+//   - does not contain the reserved delimiter token "account".
+//
+// Injectivity of the final component: it is built as {vendor}-account-{name}.
+// Because neither vendor nor name may contain "account", and the delimiter's
+// surrounding "-" cannot be part of an "account" run (that token has no
+// hyphen), the "-account-" the constructor inserts is the ONLY occurrence of
+// "account" in the component. It therefore decomposes to exactly one
+// (vendor, name) pair. Distinct identities such as (vendor="a", name="b-account-c")
+// and (vendor="a-account-b", name="c") are both rejected outright and can never
+// resolve to the same accepted pointer.
 func validateSegment(field, value string) error {
 	if strings.TrimSpace(value) == "" {
 		return fmt.Errorf("%s must be nonblank", field)
 	}
-	if strings.Contains(value, "/") {
-		return fmt.Errorf("%s must be one path segment", field)
+	for _, r := range value {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '-':
+			// permitted safe-segment character
+		default:
+			return fmt.Errorf(
+				"%s must be a safe path segment of only lowercase letters, digits, and hyphens; %q is not permitted",
+				field, value,
+			)
+		}
+	}
+	if strings.Contains(value, reservedDelimiterToken) {
+		return fmt.Errorf("%s must not contain the reserved %q delimiter token", field, reservedDelimiterToken)
 	}
 	return nil
 }
