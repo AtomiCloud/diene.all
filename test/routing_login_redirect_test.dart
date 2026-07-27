@@ -1,5 +1,7 @@
+import 'package:diene_flutter_base/app.dart';
 import 'package:diene_flutter_base/auth/session_controller.dart';
 import 'package:diene_flutter_base/config/app_config.dart';
+import 'package:diene_flutter_base/config/app_settings_controller.dart';
 import 'package:diene_flutter_base/i18n/translations.g.dart';
 import 'package:diene_flutter_base/onboarding/onboarding.dart';
 import 'package:diene_flutter_base/routing/app_router.dart';
@@ -12,6 +14,7 @@ import 'package:diene_flutter_base/screens/screen_registry.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'test_support.dart';
 
@@ -525,6 +528,63 @@ void main() {
     });
   });
 
+  group('the shipped app shell passes a real session check', () {
+    // COVERAGE OF THE MOUNT, not of the router.
+    //
+    // Every other test in this file calls buildAppRouter directly and INJECTS
+    // isAuthenticated, which tests the router correctly and cannot test the
+    // ARGUMENT lib/app.dart passes it. That left the production wiring with no
+    // coverage at all: `widget.session.tokens != null` could be inverted or
+    // replaced with a constant and the whole suite stayed green — verified, a
+    // `() => true` there passed all 330 tests.
+    //
+    // These two pump the REAL DieneApp so the assertion is about what ships. The
+    // pair matters: the first alone would pass against a constant `false`, and
+    // the second alone would pass against a constant `true`. Only both together
+    // pin the value to the session.
+
+    testWidgets('an unauthenticated shell sends a protected route to login', (
+      WidgetTester tester,
+    ) async {
+      final _Shell shell = await _pumpShell(tester, authenticated: false);
+
+      shell.router.go('/profile?tab=security');
+      await tester.pumpAndSettle();
+
+      expect(find.byType(LoginScreen), findsOneWidget);
+      expect(find.byType(ProfileScreen), findsNothing);
+      // And the deeplink was preserved on the way, not merely blocked.
+      expect(find.text('returnTo=/profile?tab=security'), findsOneWidget);
+    });
+
+    testWidgets('an authenticated shell renders the protected route', (
+      WidgetTester tester,
+    ) async {
+      final _Shell shell = await _pumpShell(tester, authenticated: true);
+
+      shell.router.go('/profile?tab=security');
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ProfileScreen), findsOneWidget);
+      expect(find.byType(LoginScreen), findsNothing);
+      expect(find.text('tab=security'), findsOneWidget);
+    });
+
+    testWidgets('the shell still serves its own root route', (
+      WidgetTester tester,
+    ) async {
+      // `/` is the inherited shell home and is deliberately NOT a registry
+      // screen, so it must stay reachable and stay public.
+      await _pumpShell(tester, authenticated: false);
+
+      expect(find.byType(LoginScreen), findsNothing);
+      expect(
+        find.text('A calm control room for every landscape.'),
+        findsOneWidget,
+      );
+    });
+  });
+
   group('LoginScreen completes the return journey', () {
     // The shipped login screen, mounted through the real router: the redirect
     // carries returnTo here, and signing in continues to it. This is the half a
@@ -589,6 +649,41 @@ void main() {
       expect(find.text('returnTo=/home'), findsOneWidget);
     });
   });
+}
+
+/// A pumped `DieneApp` plus a handle on the router it built, so a test can drive
+/// navigation through the SHIPPED shell rather than a router of its own.
+final class _Shell {
+  const _Shell(this.router);
+
+  final GoRouter router;
+}
+
+/// Pumps the real [DieneApp]. When [authenticated] is true the session is signed
+/// in first, so `session.tokens != null` — which is the value lib/app.dart reads.
+Future<_Shell> _pumpShell(
+  WidgetTester tester, {
+  required bool authenticated,
+}) async {
+  SharedPreferences.setMockInitialValues(<String, Object>{});
+  final SharedPreferences preferences = await SharedPreferences.getInstance();
+  final AppConfig config = testConfig();
+  final SessionController session = _session();
+  if (authenticated) {
+    await session.signIn();
+  }
+  await tester.pumpWidget(
+    DieneApp(
+      config: config,
+      settings: AppSettingsController(config: config, preferences: preferences),
+      session: session,
+      preferences: preferences,
+    ),
+  );
+  await tester.pumpAndSettle();
+  // `GoRouter.of` needs a context BELOW the router, so it is read from the
+  // rendered Scaffold rather than from the MaterialApp that owns it.
+  return _Shell(GoRouter.of(tester.element(find.byType(Scaffold).first)));
 }
 
 /// A session controller over an in-memory gateway: enough to complete a real
