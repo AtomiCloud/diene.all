@@ -1,0 +1,182 @@
+{{- /* ### nextjs-frontend-garden-app-deployment */ -}}
+{{- /* #### source: nextjs-frontend */ -}}
+{{- include "gardenApp.validateIdentity" . -}}
+{{- /* ONE Deployment running the immutable Next.js `output: standalone` Node
+       server (`.next/standalone/server.js`) as nonroot. Q-ENV14 scopes this
+       chart to narrowly owned objects: this Deployment, one ClusterIP Service,
+       and an optional ServiceAccount. No Gateway, ListenerSet, HTTPRoute,
+       Certificate, Boron, kgateway, cert-manager, issuer, or callback-tunnel
+       object is owned here — those belong to Garden and the exposure
+       materializer.
+
+       Runtime configuration is projected as container env, NOT as a ConfigMap:
+       nothing this chart owns is readable outside the pod, so there is no
+       client-visible surface a secret could leak through. Secrets arrive
+       exclusively by reference (`envFrom` secretRef / `valueFrom` secretKeyRef)
+       and no secret value is ever templated into an object. */ -}}
+{{- $runtime := .Values.runtime -}}
+{{- $landscape := include "gardenApp.runtimeLandscape" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "gardenApp.resourceName" (dict "root" . "token" .Values.serviceTree.module) }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "gardenApp.labels" . | nindent 4 }}
+  annotations:
+    {{- include "gardenApp.annotations" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.workload.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: {{ .Values.workload.rollingUpdate.maxUnavailable }}
+      maxSurge: {{ .Values.workload.rollingUpdate.maxSurge }}
+  selector:
+    matchLabels:
+      {{- include "gardenApp.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "gardenApp.labels" . | nindent 8 }}
+      annotations:
+        {{- include "gardenApp.annotations" . | nindent 8 }}
+    spec:
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "gardenApp.serviceAccountName" . }}
+      {{- end }}
+      {{- /* The server needs no Kubernetes API access. */}}
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ .Values.workload.terminationGracePeriodSeconds }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Values.serviceTree.module }}
+          image: {{ include "gardenApp.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: {{ .Values.service.portName }}
+              containerPort: {{ $runtime.port }}
+              protocol: TCP
+          env:
+            {{- /* `server.js` reads PORT and HOSTNAME. */}}
+            - name: PORT
+              value: {{ $runtime.port | quote }}
+            - name: HOSTNAME
+              value: {{ $runtime.host | quote }}
+            - name: NODE_ENV
+              value: production
+            {{- /* Landscape is RUNTIME and SERVER-FED on both rails (R21): a
+                   Worker binding on OpenNext, this value in Garden. The browser
+                   never detects it — the server tells the client. */}}
+            - name: ATOMI_LANDSCAPE
+              value: {{ $landscape | quote }}
+            {{- /* LPSM reaches the telemetry pipeline through the config tree,
+                   so the workload's resource attributes agree with its labels. */}}
+            - name: ATOMI_APP__SERVICETREE__LANDSCAPE
+              value: {{ $landscape | quote }}
+            - name: ATOMI_APP__SERVICETREE__PLATFORM
+              value: {{ .Values.serviceTree.platform | quote }}
+            - name: ATOMI_APP__SERVICETREE__SERVICE
+              value: {{ .Values.serviceTree.service | quote }}
+            - name: ATOMI_APP__SERVICETREE__MODULE
+              value: {{ .Values.serviceTree.module | quote }}
+            {{- with $runtime.auth.issuer }}
+            - name: ATOMI_AUTH__LOGTO__ENDPOINT
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with $runtime.auth.appId }}
+            - name: ATOMI_AUTH__LOGTO__APPID
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with $runtime.auth.managementEndpoint }}
+            - name: ATOMI_AUTH__LOGTO__MANAGEMENT__ENDPOINT
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with $runtime.auth.managementClientId }}
+            - name: ATOMI_AUTH__LOGTO__MANAGEMENT__CLIENTID
+              value: {{ . | quote }}
+            {{- end }}
+            {{- range $backend := $runtime.backends }}
+            - name: {{ printf "ATOMI_BACKENDS__%s__BASEURL" (upper (regexReplaceAll "[^A-Za-z0-9]+" $backend.key "")) }}
+              value: {{ $backend.baseUrl | quote }}
+            {{- end }}
+            {{- range $key, $value := $runtime.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- /* Secret VALUES never appear in any object this chart owns —
+                   only references to Secrets ESO/Garden already materialized. */}}
+            {{- range $secret := $runtime.secretEnv }}
+            - name: {{ $secret.name }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secret.secretName }}
+                  key: {{ $secret.secretKey }}
+                  {{- if hasKey $secret "optional" }}
+                  optional: {{ $secret.optional }}
+                  {{- end }}
+            {{- end }}
+          {{- with $runtime.secretRefs }}
+          envFrom:
+            {{- range $secret := . }}
+            - secretRef:
+                name: {{ $secret.name }}
+                {{- if hasKey $secret "optional" }}
+                optional: {{ $secret.optional }}
+                {{- end }}
+            {{- end }}
+          {{- end }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.health.path }}
+              port: {{ .Values.service.portName }}
+            initialDelaySeconds: {{ .Values.health.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.health.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.health.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.health.liveness.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.health.path }}
+              port: {{ .Values.service.portName }}
+            initialDelaySeconds: {{ .Values.health.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.health.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.health.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.health.readiness.failureThreshold }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.workload.resources | nindent 12 }}
+          {{- /* The only writable paths, so the root filesystem stays read-only. */}}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: cache
+              mountPath: {{ .Values.scratch.cachePath }}
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: {{ .Values.scratch.tmpSizeLimit }}
+        - name: cache
+          emptyDir:
+            sizeLimit: {{ .Values.scratch.cacheSizeLimit }}
+      {{- with .Values.workload.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.workload.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.workload.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.workload.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

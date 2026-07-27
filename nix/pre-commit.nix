@@ -40,7 +40,7 @@ let
     dontFixup = true;
     outputHashMode = "recursive";
     outputHashAlgo = "sha256";
-    outputHash = "sha256-dEFLB1Li7H8L6ppoLSQCGA5a63t0fFVeELAdWvRUuRE=";
+    outputHash = "sha256-Ukb/sGi7cgVJ02K8xY6Qu0u0UgWt0KDhxY7591tPxgw=";
   };
   bun-tool = name: "${packages.bun}/bin/bun ${bun-tooling}/node_modules/.bin/${name}";
   biome-platform =
@@ -66,6 +66,10 @@ let
       pkgs.findutils
       pkgs.gnugrep
       pkgs.gnused
+      # ### nextjs-frontend-validator-runtime
+      # #### source: nextjs-frontend
+      # The chart-ownership guard renders the Garden app chart per profile.
+      packages.kubernetes-helm
     ];
   };
   validator =
@@ -278,6 +282,89 @@ pre-commit-lib.run {
       language = "system";
     };
 
+    # ### nextjs-frontend-hooks
+    # #### source: nextjs-frontend
+    a-chart-ownership = {
+      enable = true;
+      name = "Garden app chart ownership";
+      entry = validator "scripts/validate/chart-ownership.sh";
+      files = "^(infra/garden_app_chart/.*|scripts/validate/chart-ownership\\.sh)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-i18n-keys = {
+      enable = true;
+      name = "i18n missing-key lint";
+      entry = "${packages.bun}/bin/bun scripts/validate/i18n-keys.ts";
+      files = "(^messages/.*\\.json$|^scripts/validate/i18n-keys\\.ts$)";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-pure-renderer = {
+      enable = true;
+      name = "Pure-renderer arch lint";
+      entry = "${packages.bun}/bin/bun scripts/validate/pure-renderer.ts";
+      files = "^src/app/.*\\.tsx$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-forbidden-runtime = {
+      enable = true;
+      name = "Forbidden edge runtime";
+      entry = "${packages.bun}/bin/bun scripts/validate/forbidden-runtime.ts";
+      files = "^src/.*\\.(ts|tsx)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-rebrand-static = {
+      enable = true;
+      name = "R21 rebrand static guard";
+      entry = "${packages.bun}/bin/bun scripts/validate/rebrand-static.ts";
+      files = "(^config/config\\.yaml$|^src/.*\\.(ts|tsx)$)";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-wrangler-config = {
+      enable = true;
+      name = "Wrangler config + ISR bindings";
+      entry = "${packages.bun}/bin/bun scripts/validate/wrangler-config.ts";
+      files = "(^wrangler\\.toml$|^scripts/validate/wrangler-config\\.ts$)";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-deploy-policy = {
+      enable = true;
+      name = "CloudflareDeploy promotion policy";
+      entry = "${packages.bun}/bin/bun scripts/validate/deploy-policy.ts";
+      files = "(^scripts/ci/.*\\.sh$|^\\.github/workflows/.*\\.ya?ml$)";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-pwa-manifest = {
+      enable = true;
+      name = "PWA manifest metadata";
+      entry = "${packages.bun}/bin/bun scripts/validate/pwa-manifest.ts";
+      files = "(^config/config\\.yaml$|^src/app/api/manifest/route\\.ts$)";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-config-schema-gen = {
+      enable = true;
+      name = "Config schema gen-check";
+      entry = "${packages.bun}/bin/bun scripts/local/config-schema.ts --check";
+      files = "(^config/schema\\.json$|^src/config/.*\\.ts$)";
+      pass_filenames = false;
+      language = "system";
+    };
+
     # ### shared-hooks
     # #### source: shared
     a-claude-links = {
@@ -293,7 +380,7 @@ pre-commit-lib.run {
       enable = true;
       name = "Markdown lint";
       entry = "${pkgs.markdownlint-cli2}/bin/markdownlint-cli2";
-      files = "^(CLAUDE\\.md|README\\.md|docs/standards/(authorization|contracts|contributor-docs|datetime|domain-driven-design|functional-practices|grafana-dashboards|observability|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/.*\\.md|observability/.*\\.md|probes/observability-.*\\.md|\\.claude/skills/(authorization|contributor-docs|datetime|domain-driven-design|functional-practices|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/SKILL\\.md|\\.claude/skills/(grafana-alert|grafana-alert-set|grafana-dashboards|grafana-runbook|observability-check)/.*\\.md)$";
+      files = "^(CLAUDE\\.md|README\\.md|docs/standards/(authorization|contracts|contributor-docs|datetime|domain-driven-design|frontend-ui-trend|frontend-ux|functional-practices|grafana-dashboards|observability|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/.*\\.md|docs/domain/.*\\.md|docs/developer/nextjs-baseline\\.md|observability/.*\\.md|probes/observability-.*\\.md|\\.claude/skills/(authorization|contributor-docs|datetime|domain-driven-design|functional-practices|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/SKILL\\.md|\\.claude/skills/(grafana-alert|grafana-alert-set|grafana-dashboards|grafana-runbook|observability-check)/.*\\.md|\\.claude/skills/(frontend-ux-check|vision-loop|write-search-bar|write-page|write-protected-page|write-onboarding-gated-app|write-form)/.*\\.md)$";
       pass_filenames = true;
       language = "system";
     };

@@ -41,3 +41,33 @@ jobs:
       contents: read
     uses: ./.github/workflows/⚡reusable-build.yaml
     secrets: inherit
+
+  # ### nextjs-frontend-ci
+  # #### source: nextjs-frontend
+  opennext:
+    name: OpenNext
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-opennext.yaml
+    secrets: inherit
+
+  standby:
+    name: Standby
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-standby.yaml
+    secrets: inherit
+
+  e2e:
+    name: E2E
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-e2e.yaml
+    secrets: inherit
+
+  helm:
+    name: Helm
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-helm.yaml
+    secrets: inherit

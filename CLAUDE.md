@@ -92,3 +92,18 @@ shared engineering standards.
 - [OpenTelemetry alignment](docs/standards/observability/otel.md)
 - [Faro frontend variant](docs/standards/observability/faro.md)
 - [Primordial-chart rendering](docs/standards/observability/primordial-chart.md)
+
+<!-- ### nextjs-frontend-ux -->
+<!-- #### source: nextjs-frontend -->
+
+## Next.js and frontend UX
+
+Read [the Next.js baseline](docs/developer/nextjs-baseline.md) before changing
+the template boundary, the App-Router-on-Workers rules, or either deploy rail.
+
+- [Frontend UX](docs/standards/frontend-ux/index.md) — the timeless checklist
+  ([the five patterns](docs/standards/frontend-ux/patterns.md))
+- [Frontend UI trend](docs/standards/frontend-ui-trend/index.md) — the dated,
+  swappable visual pick
+- [Identity](docs/domain/identity.md) — the mandatory per-app palette, UI
+  language, and voice

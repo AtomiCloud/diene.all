@@ -67,3 +67,16 @@ boundary. TypeScript variants accompany the shared standards for
 [testing](docs/standards/testing/languages/typescript.md),
 [utilities](docs/standards/utilities/languages/typescript.md), and
 [validation](docs/standards/validation/languages/typescript.md).
+
+<!-- ### nextjs-frontend-ux -->
+<!-- #### source: nextjs-frontend -->
+
+## Frontend
+
+See the [Next.js baseline](docs/developer/nextjs-baseline.md) for the template
+maintenance boundary, the App-Router-on-Workers rules, and the two deploy rails.
+UI quality is governed by three layered documents: the timeless
+[frontend UX checklist](docs/standards/frontend-ux/index.md) with its
+[five patterns](docs/standards/frontend-ux/patterns.md), the dated
+[UI trend pick](docs/standards/frontend-ui-trend/index.md), and the per-app
+[identity](docs/domain/identity.md) that every real app must replace.

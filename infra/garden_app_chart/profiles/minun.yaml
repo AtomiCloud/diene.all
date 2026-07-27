@@ -1,0 +1,22 @@
+# ### nextjs-frontend-garden-app-profile-minun
+# #### source: nextjs-frontend
+# MINUN — hosted vcluster under the signed safety envelope. edge.mode
+# `entei-shared`, secret.mode `infisical-readonly`, callback.mode
+# `mercury-routing` when declared AND signed (ENV-SPEC §2.1).
+#
+# As on plusle, the frontend does not use that capability: it publishes no
+# per-preview callback endpoint (§11.1), so `callbackMode` stays `none`. Safe-mode
+# configuration objects belong to the Minun effect-fence adapter, never to an
+# application chart.
+profile: minun
+instance: preview
+zone: entei.atomi.cloud
+serviceTree:
+  landscape: minun
+exposure:
+  mode: entei-service-sync
+image:
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+runtime:
+  env:
+    ATOMI_SEO__BASEURL: https://webapp.nextjs-frontend.diene.preview.minun.entei.atomi.cloud

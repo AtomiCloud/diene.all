@@ -1,0 +1,53 @@
+# Cloudflare Workers deployment (OpenNext). One Worker artifact promotes
+# through pichu → pikachu → raichu by swapping the env binding — landscape is
+# a RUNTIME binding (server tells client), never rebuilt per stage.
+name = "diene-nextjs-frontend"
+main = ".open-next/worker.js"
+compatibility_date = "2025-03-25"
+compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
+
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+# ISR bindings (App-Router-on-Workers caveat 4): R2 incremental cache + DO
+# queue + D1 tag cache — never KV for ISR. next/image rides the Images binding
+# (caveat 5).
+[[r2_buckets]]
+binding = "NEXT_INC_CACHE_R2_BUCKET"
+bucket_name = "diene-nextjs-frontend-inc-cache"
+
+[[durable_objects.bindings]]
+name = "NEXT_CACHE_DO_QUEUE"
+class_name = "DOQueueHandler"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["DOQueueHandler"]
+
+[[d1_databases]]
+binding = "NEXT_TAG_CACHE_D1"
+database_name = "diene-nextjs-frontend-tag-cache"
+database_id = "00000000-0000-0000-0000-000000000000"
+
+[images]
+binding = "IMAGES"
+
+[vars]
+ATOMI_LANDSCAPE = "base"
+
+[env.pichu]
+name = "diene-nextjs-frontend-pichu"
+vars = { ATOMI_LANDSCAPE = "pichu" }
+
+[env.pikachu]
+name = "diene-nextjs-frontend-pikachu"
+vars = { ATOMI_LANDSCAPE = "pikachu" }
+
+[env.raichu]
+name = "diene-nextjs-frontend-raichu"
+vars = { ATOMI_LANDSCAPE = "raichu" }

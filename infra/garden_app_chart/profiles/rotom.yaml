@@ -1,0 +1,18 @@
+# ### nextjs-frontend-garden-app-profile-rotom
+# #### source: nextjs-frontend
+# ROTOM — hermetic local landscape. edge.mode `local-kgateway`, secret.mode
+# `fake-local`, callback.mode `none` (ENV-SPEC §2.1). Every credential comes from
+# the hermetic fake store Garden owns, so the chart references those Secret names
+# exactly as it would reference real ones.
+profile: rotom
+instance: ci
+zone: cluster.atomi.cloud
+serviceTree:
+  landscape: rotom
+exposure:
+  mode: local-loopback
+image:
+  tag: local
+runtime:
+  env:
+    ATOMI_SEO__BASEURL: http://webapp.nextjs-frontend.diene.ci.rotom.cluster.atomi.cloud

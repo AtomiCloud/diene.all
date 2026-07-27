@@ -1,0 +1,45 @@
+{{- /* ### nextjs-frontend-garden-app-service */ -}}
+{{- /* #### source: nextjs-frontend */ -}}
+{{- include "gardenApp.validateIdentity" . -}}
+{{- /* ONE ordinary ClusterIP Service — the entire exposure surface this chart
+       owns. Hosted profiles (eevee/plusle/minun) sync THIS Service to ENTEI
+       through `entei-service-sync`, and the exposure materializer owns the exact
+       DNS/TLS/ListenerSet/HTTPRoute objects. Local profiles reach it through
+       their existing kgateway path (ditto/rotom/absol) or Boron (lapras).
+
+       The port is uniquely NAMED: Garden surfaces reference the name, never the
+       number. The exposure declaration below is a claim, not an implementation —
+       the class, the rail, and the canonical dotted surface name are annotated so
+       `exposure-compile` can read them off the Service it is given, and the chart
+       installs nothing beyond this object. `public-callback` is not a member of
+       the class enum and `callbackMode` is pinned to `none`, so the frontend can
+       never publish a per-preview callback endpoint. */ -}}
+{{- $prefix := include "gardenApp.labelPrefix" . -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "gardenApp.resourceName" (dict "root" . "token" .Values.serviceTree.module) }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "gardenApp.labels" . | nindent 4 }}
+    {{- if .Values.exposure.enabled }}
+    {{ $prefix }}/exposure-class: {{ .Values.exposure.class | quote }}
+    {{ $prefix }}/exposure-mode: {{ .Values.exposure.mode | quote }}
+    {{- end }}
+  annotations:
+    {{- include "gardenApp.annotations" . | nindent 4 }}
+    {{- if .Values.exposure.enabled }}
+    {{ $prefix }}/exposure-surface-id: {{ .Values.exposure.surfaceId | quote }}
+    {{ $prefix }}/exposure-path: {{ .Values.exposure.path | quote }}
+    {{ $prefix }}/exposure-required: {{ .Values.exposure.required | quote }}
+    {{ $prefix }}/exposure-callback-mode: {{ .Values.exposure.callbackMode | quote }}
+    {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    {{- include "gardenApp.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: {{ .Values.service.portName }}
+      port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.portName }}
+      protocol: TCP

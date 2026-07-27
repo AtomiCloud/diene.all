@@ -1,0 +1,17 @@
+# ### nextjs-frontend-garden-app-profile-ditto
+# #### source: nextjs-frontend
+# DITTO — explicitly inspectable local landscape. edge.mode `local-kgateway`,
+# secret.mode `infisical-readonly`, callback.mode `none` (ENV-SPEC §2.1). The
+# human rail is the dotted local-loopback address served by the local kgateway.
+profile: ditto
+instance: local
+zone: cluster.atomi.cloud
+serviceTree:
+  landscape: ditto
+exposure:
+  mode: local-loopback
+image:
+  tag: local
+runtime:
+  env:
+    ATOMI_SEO__BASEURL: http://webapp.nextjs-frontend.diene.local.ditto.cluster.atomi.cloud

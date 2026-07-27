@@ -1,8 +1,21 @@
 [test]
 root = "tests/integration"
 timeout = 120000
+# Neutralize the RSC marker packages so server and client adapters are both importable
+# under bun; the real boundary is enforced by next build + scripts/validate/pure-renderer.ts.
+preload = ["./tests/integration/preload.ts"]
 coverageReporter = ["text", "lcov"]
 coverageDir = "coverage/int"
 coverageSkipTestFiles = true
-# Int ledger = the adapters tier only; the domain is the unit ledger, the glue is not an adapter, tests/** never counts.
-coveragePathIgnorePatterns = ["src/index.ts", "src/lib/**", "tests/**"]
+# Int ledger = the adapters tier only; the domain is the unit ledger, the glue is not an adapter,
+# src/config is the schema composition root (declaration only, proven through the adapters that read it),
+# and tests/** never counts.
+coveragePathIgnorePatterns = [
+  "src/index.ts",
+  "src/lib/**",
+  "src/config/**",
+  "src/app/**",
+  "src/components/**",
+  "src/i18n/**",
+  "tests/**",
+]

@@ -1,0 +1,199 @@
+# ### nextjs-frontend-garden-app-values
+# #### source: nextjs-frontend
+
+# -- Prefix used by every service-tree label and annotation helper. Single
+# configurable key (R16/B26) — never hard-coded inside a helper.
+labelPrefix: atomi.cloud
+
+# -- The Garden workload profile this release runs in. One of the seven ratified
+# profiles (ENV-SPEC §2.1). It selects the exposure rail and is stamped as its
+# own label; it is NOT an LPSM slot.
+profile: ditto
+
+# -- Instance key. A PROJECTION PARAMETER, never a fifth LPSM slot: it is carried
+# as its own value and its own label/annotation, and it never joins the
+# serviceTree map that produces the LPSM labels.
+instance: local
+
+# -- DNS zone the canonical dotted surface name is projected into. Garden supplies
+# the trusted value; the chart never invents a hostname and never owns DNS.
+zone: cluster.atomi.cloud
+
+# -- Stable service-tree projection (LPSM). Mirrors `config/config.yaml` ->
+# `app.servicetree` (R21: identity is config, never a literal in a template).
+serviceTree:
+  # -- Landscape slot. Each profile values file sets its own.
+  landscape: ditto
+  # -- Platform name; also the namespace on Primordial.
+  platform: diene
+  # -- Service name; one git repository.
+  service: nextjs-frontend
+  # -- Module name for this workload.
+  module: webapp
+
+# -- Exposure DECLARATION only. The chart emits the ordinary ClusterIP Service,
+# the LPSM labels, and this declaration; Garden's `exposure-compile` action owns
+# the hostname, zone, policy, Gateway/Listener, certificate, and DNS. This chart
+# installs no Gateway, ListenerSet, HTTPRoute, Certificate, Boron, kgateway,
+# cert-manager, issuer, or callback-tunnel object.
+exposure:
+  # -- Emit the declaration at all. Off means the workload is Service-DNS only.
+  enabled: true
+  # -- Exposure CLASS (ENV-SPEC §6.1). The frontend may claim `human`, `api`, or
+  # `oidc-public`. `admin`, `management`, `dependency`, and `public-callback` are
+  # denied roles for this chart and are rejected by the values schema.
+  class: human
+  # -- Exposure RAIL. Fixed per profile by the schema: `boron-direct` on lapras,
+  # `local-loopback` on ditto/rotom/absol, `entei-service-sync` on
+  # eevee/plusle/minun. A hosted Boron claim (`boron-direct` on eevee/plusle/minun)
+  # is a schema violation, not a runtime surprise.
+  mode: local-loopback
+  # -- Stable surface id inside the Garden plan.
+  surfaceId: web
+  # -- Path the surface serves. Segment-boundary forms only.
+  path: /*
+  # -- Whether `EnvironmentReady` blocks on this surface.
+  required: true
+  # -- Provider-callback participation. Always `none`: the frontend never
+  # publishes a per-preview callback endpoint (§11.1), so Mercury routing is not
+  # representable here even on plusle/minun.
+  callbackMode: none
+
+# -- The immutable standalone Node image. Garden builds or selects it; one image
+# is promoted across profiles by selection, never rebuilt per landscape.
+image:
+  # -- Registry/repository, without a tag.
+  repository: ghcr.io/atomicloud/diene.nextjs-frontend
+  # -- Mutable tag. Prefer `digest`; a tag alone is only for local iteration.
+  # The default matches the default `profile: ditto` (local rail), so the chart
+  # renders from bare defaults. Every hosted profile pins a digest and the schema
+  # refuses to let them fall back to a tag.
+  tag: local
+  # -- Immutable digest (`sha256:...`). Set this in every non-local profile.
+  digest: ''
+  pullPolicy: IfNotPresent
+  # -- Registry credentials, when the profile pulls from a private registry.
+  pullSecrets: []
+
+# -- Workload shape.
+workload:
+  replicas: 1
+  rollingUpdate:
+    maxUnavailable: 0
+    maxSurge: 1
+  terminationGracePeriodSeconds: 30
+  # -- Requests and limits are mandatory: an unbounded frontend starves the
+  # instance it shares a node with.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 192Mi
+    limits:
+      cpu: '1'
+      memory: 512Mi
+  # -- Extra pod-level scheduling knobs, all optional.
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  topologySpreadConstraints: []
+
+# -- The ordinary ClusterIP Service. Hosted profiles sync THIS Service to ENTEI
+# through `entei-service-sync`; the exposure materializer owns everything beyond
+# it. No other Service type is representable.
+service:
+  type: ClusterIP
+  # -- Service port.
+  port: 80
+  # -- Uniquely named port; Garden surfaces reference the NAME, never the number.
+  portName: http
+
+# -- Optional dedicated ServiceAccount. The workload needs no API access, so the
+# token is never mounted.
+serviceAccount:
+  create: true
+  name: ''
+  annotations: {}
+
+# -- Server runtime configuration for the Node standalone server. Everything here
+# is SERVER-ONLY and is projected as container env — this chart emits NO ConfigMap
+# at all, so there is no client-visible config object that could ever carry a
+# secret. The server injects only the client-safe subset into SSR. Secrets NEVER
+# appear here: they arrive exclusively by reference through `secretRefs`/
+# `secretEnv`, and the schema rejects a known secret key appearing in `env`.
+runtime:
+  # -- Port the standalone server binds. `server.js` reads PORT/HOSTNAME.
+  port: 3000
+  # -- Bind address inside the pod.
+  host: 0.0.0.0
+  # -- Value fed to `ATOMI_LANDSCAPE`. Landscape is RUNTIME and server-fed (R21):
+  # the browser never detects it. Empty means "use the LPSM landscape slot".
+  landscape: ''
+  # -- Non-secret env for the config tree's runtime tier. Keys are the config
+  # library's `ATOMI_`-prefixed, `__`-nested form.
+  env:
+    ATOMI_SEO__BASEURL: http://localhost:3000
+  # -- Backend coordinates the api-engine registers. Base URLs are non-secret and
+  # ship as plain env; per-backend credentials ride `secretRefs`.
+  backends: []
+  # -- Non-secret auth/issuer values. The IdP endpoint and public client id are
+  # config (R21); the client secrets are `secretEnv` entries.
+  auth:
+    # -- Logto issuer endpoint for this instance. Empty leaves the config default.
+    issuer: ''
+    # -- Public OIDC client id.
+    appId: ''
+    # -- Logto management API endpoint.
+    managementEndpoint: ''
+    # -- Public management client id.
+    managementClientId: ''
+  # -- Whole Secrets projected as env (`envFrom`). ESO/Garden owns each target
+  # Secret; this chart only references it and never creates or templates one.
+  secretRefs: []
+  # -- Individual secret keys projected as env. Same rule: reference only.
+  secretEnv: []
+
+# -- Liveness and readiness probes on the standalone server port. The path is
+# config-driven (R21) so a dedicated health route can replace the default without
+# a chart change; the default targets an existing cheap server-rendered route.
+health:
+  path: /api/manifest
+  liveness:
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 6
+  readiness:
+    initialDelaySeconds: 3
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+# -- Pod-level security context. Nonroot is not negotiable.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 1001
+  fsGroup: 1001
+  seccompProfile:
+    type: RuntimeDefault
+
+# -- Container-level security context. The image ships everything it needs
+# read-only; `/tmp` and the Next.js cache are the only writable paths and they
+# are emptyDir mounts, so the root filesystem stays read-only.
+containerSecurityContext:
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+  privileged: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# -- Writable scratch mounts that let `readOnlyRootFilesystem: true` hold.
+scratch:
+  # -- Size limit for the `/tmp` emptyDir.
+  tmpSizeLimit: 64Mi
+  # -- Size limit for the Next.js server cache emptyDir.
+  cacheSizeLimit: 256Mi
+  # -- Mount point of the Next.js server cache inside the image.
+  cachePath: /app/.next/cache

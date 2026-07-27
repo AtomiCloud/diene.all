@@ -1,0 +1,8 @@
+# yaml-language-server: $schema=./schema.json
+app:
+  servicetree:
+    landscape: pichu
+seo:
+  baseUrl: https://webapp.nextjs-frontend.diene.pichu.cluster.atomi.cloud
+faro:
+  app: webapp.nextjs-frontend.pichu

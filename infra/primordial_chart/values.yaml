@@ -1,0 +1,124 @@
+# ### nextjs-frontend-primordial-values
+# #### source: nextjs-frontend
+
+# -- Prefix used by every service-tree label and annotation helper. Single
+# configurable key (R16/B26) — never hard-coded inside a helper.
+labelPrefix: atomi.cloud
+
+# -- API group/version of the dependency-operator CRs.
+dependencyApiVersion: fleet.atomi.cloud/v1alpha1
+
+# -- Stable service-tree projection (LPSM). The slots mirror
+# `config/config.yaml` -> `app.servicetree` exactly (R21: identity is config,
+# never a literal inside a template). The landscape and cluster slots are added
+# by the two independent overlay dimensions; the base file never carries them.
+serviceTree:
+  # -- Platform name. Also the Primordial namespace and the parent Grafana folder uid.
+  platform: diene
+  # -- Service name; one git repository.
+  service: nextjs-frontend
+  # -- Module name for the workload these dependencies serve.
+  module: webapp
+
+# -- Dependency declarations. ONE union-set `PlatformDependency` CR per landscape
+# spanning the modules this service needs. Dependencies are requested through CRs
+# in EVERY landscape (B30) — the operator realizes Dragonfly in-cluster locally
+# and the managed classes from Primordial. The app chart never bundles dependency
+# sub-charts and there is no local-vs-cloud toggle.
+#
+# The frontend is stateless: its only dependency is the KV store backing the
+# server-side auth session (`auth.store` in `config/config.yaml`). It owns no
+# database and no object store.
+platformDependencies:
+  - # -- Target landscape. May name a vlandscape; one CR per landscape, single writer.
+    landscape: mew
+    placement:
+      # -- Required host preference for vlandscape externals.
+      preferredHost: raichu
+    deletionPolicy:
+      # -- How long a materialized secret is retained after the CR is deleted.
+      retainSecret: 168h
+    # -- KV (Upstash class). Server-side session/handoff state only; nothing here
+    # is reachable from the browser bundle.
+    kv:
+      type: upstash
+      delivery: external
+      providerAccountRef: nonprod-upstash
+      credentialMode: standard
+      rotation: 'on'
+      engine:
+        upstash:
+          eviction: false
+
+# -- The one vlandscape-targeted LogtoApp for this app. The frontend IS the
+# placement owner for its own app: it declares the serve-set that the operator
+# derives redirect/post-logout/CORS values from (S6/Q-I36).
+logtoApp:
+  # -- Render the LogtoApp CR.
+  enabled: true
+  # -- API group/version of the LogtoApp CRD.
+  apiVersion: fleet.atomi.cloud/v1alpha1
+  # -- Virtual landscape this app resolves its Logto endpoint from. The endpoint
+  # itself is DERIVED from identityRef plus the namespace — never configured.
+  identityRef: mew
+  # -- Logto application type. The Next.js server runs the confidential
+  # authorization-code + PKCE flow, so this is a Traditional web app.
+  type: Traditional
+  # -- DECLARED PATHS ONLY. Redirect, post-logout, and CORS values are DERIVED by
+  # the operator from the live serve-set (`origin(L) + declaredPath`); a chart
+  # never writes a per-row redirect URI. These mirror the routes the app actually
+  # serves (`src/app/api/logto/[action]/route.ts`).
+  paths:
+    # -- Login callback path.
+    redirectPath: /api/logto/callback
+    # -- Post-logout landing path.
+    postLogoutPath: /
+  # -- Explicit LogtoResource CR names this app takes tokens for. A missing ref is
+  # a hard `ResourceRefMissing` error, never inferred.
+  resourceRefs: []
+  # -- Non-HTTPS / local / vendor redirect exceptions. The ONLY escape from the
+  # derived set; no environment-specific implicit branch exists.
+  extraRedirectUris: []
+  # -- Post-logout exceptions, same rule.
+  extraPostLogoutRedirectUris: []
+  # -- CORS origin exceptions (scheme + host + optional non-default port only).
+  extraCorsOrigins: []
+
+# -- Grafana Operator rendering of the repository's `observability/` source
+# (docs/standards/observability/primordial-chart.md). The root directory is
+# authoritative; the chart build copies it into the gitignored
+# `files/observability/` before lint/template/package/publish.
+#
+# The six-gate method legitimately yields ZERO dashboards and ZERO alerts, so
+# every template renders cleanly with none present. No placeholder is ever added
+# just to populate a directory.
+observability:
+  # -- Render the GrafanaFolder and any dashboards/alerts found.
+  enabled: true
+  # -- API group/version of the Grafana Operator CRDs.
+  apiVersion: grafana.integreatly.org/v1beta1
+  # -- Glob root, relative to the chart directory, for the copied `observability/`.
+  path: files/observability
+  # -- Which Grafana instances on Primordial pick these resources up.
+  instanceSelector:
+    matchLabels:
+      dashboards: grafana
+  # -- Dashboard resync cadence.
+  resyncPeriod: 10m
+  # -- Alert-group evaluation interval.
+  alertInterval: 1m
+  # -- Lookback window, in seconds, for each rule's instant query.
+  relativeTimeRangeFrom: 600
+  # -- Platform-pinned datasource UIDs. An alert file's `datasource:` selects one
+  # by name; an unknown name is a render-time failure.
+  datasourceUids:
+    # -- PromQL datasource.
+    metrics: mimir
+    # -- LogQL datasource.
+    logs: loki
+    # -- Frontend RUM (Faro) datasource; this template ships a browser rail.
+    frontend: faro
+  # -- Repository base URL that every `runbook_url` annotation is built from.
+  repositoryUrl: https://github.com/AtomiCloud/diene.nextjs-frontend/blob/main
+  # -- Generic LPSM dashboard an alert links when it declares no `panel`.
+  genericDashboardUid: atomi-generic-lpsm

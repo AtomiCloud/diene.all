@@ -1,0 +1,26 @@
+meta {
+  name: Problem manifest
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v1.0/error-info
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+tests {
+  test("RFC 9457 manifest lists registered problems with type URIs", function () {
+    const body = res.getBody();
+    expect(body.problems.length).to.be.greaterThan(0);
+    for (const problem of body.problems) {
+      expect(problem.type).to.contain("://");
+      expect(problem.status).to.be.a("number");
+    }
+  });
+}
