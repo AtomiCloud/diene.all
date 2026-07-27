@@ -40,6 +40,21 @@ let
   validator =
     command:
     "${packages.bash}/bin/bash -c 'export PATH=${validator-runtime}/bin; exec ${packages.bash}/bin/bash ${command}'";
+
+  # ### go-base-skills-validator
+  # #### source: go-base
+  # skills-sync resolves usage skills from the ambient Go module cache. Give its
+  # freshness hook the Go toolchain without redirecting GOMODCACHE to go-deps.
+  go-ambient-validator-runtime = pkgs.buildEnv {
+    name = "go-base-ambient-validator-runtime";
+    paths = [
+      validator-runtime
+      packages.go
+    ];
+  };
+  go-ambient-validator =
+    command:
+    "${packages.bash}/bin/bash -c 'export PATH=${go-ambient-validator-runtime}/bin; exec ${packages.bash}/bin/bash ${command}'";
 in
 pre-commit-lib.run {
   src = ../.;
@@ -213,7 +228,7 @@ pre-commit-lib.run {
     a-skills-freshness = {
       enable = true;
       name = "Vendored skills freshness";
-      entry = validator "scripts/validate/skills-freshness.sh";
+      entry = go-ambient-validator "scripts/validate/skills-freshness.sh";
       pass_filenames = false;
       language = "system";
     };
