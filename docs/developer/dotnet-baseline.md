@@ -36,6 +36,11 @@ tier:
 - unit: every `[Lib*]*` assembly at 100%;
 - integration: the host-safe C0 codec/fixture boundary.
 
+The runner then parses the merged `coverage.cobertura.xml` with `xmlstarlet`: it
+rejects a report that measured zero lines, rejects any package whose assembly name
+escapes the tier ledger, and re-checks the tier minimum against every package's own
+`line-rate` rather than the merged total alone.
+
 Adding `Lib2` and `UnitTest2` requires one solution line per project and one YAML
 list entry for `UnitTest2`. Assembly filters, merged thresholds, Codecov globs,
 and production dead-code project discovery follow the naming convention

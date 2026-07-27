@@ -35,9 +35,9 @@ The workspace owns these mechanisms:
 - vendored-skill freshness; and
 - workflow job-to-script wiring.
 
-The commit-msg stage also registers
-`releaser lint-commit -c atomi_release.yaml`. Its binary becomes available when
-`tools/releaser` folds in at C2 step 2p; no `.gitlint` hook or file exists.
+The commit-msg stage registers `releaser lint-commit -c atomi_release.yaml`
+from the immutable `AtomiCloud/releaser` v1.0.0 flake input. No `.gitlint` hook
+or file exists.
 
 ## Configuration rules
 
