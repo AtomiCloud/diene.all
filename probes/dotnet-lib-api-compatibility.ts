@@ -23,11 +23,11 @@ export default defineGate({
   },
   mutation: {
     name: 'mutation-dotnet-lib-api-compatibility-caught',
-    description: 'Removing one public 1.0 interface member turns PackageValidation red.',
+    description: 'Removing one public 1.0 factory member turns PackageValidation red.',
     expectedImpact: [],
     async run(repo: any) {
-      await repo.patch('Lib/INoteRepository.cs', {
-        find: '\n    Task<NotePrincipal?> Find(string id, CancellationToken cancellationToken = default);',
+      await repo.patch('Lib/ResultFactory.cs', {
+        find: '\n    public static Result<T, E> Ok<T, E>(T value) => new(value);',
         replace: '',
       });
       await expectRed(
