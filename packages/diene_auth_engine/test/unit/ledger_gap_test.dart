@@ -310,6 +310,35 @@ void main() {
       // Act + Assert
       expect(AuthExpect.ok(await session.signIn()).refreshFamily, 'family');
     });
+
+    test('rejects a provider-issued REFRESH token that outlives the family '
+        'lifetime', () async {
+      // Arrange — the access half is legal but the refresh half overshoots.
+      // Lifetimes are ENFORCED, not trusted (C0 §12), so an over-long refresh
+      // token must be refused even though the provider offered it.
+      final FakeAuthProvider provider = FakeAuthProvider(
+        onSignIn: () => AuthFixtures.sessionTokens(
+          now: now,
+          refresh: TokenLifetimes.refresh + const Duration(days: 1),
+        ),
+      );
+      final SessionController session = SessionController(
+        provider: provider,
+        now: () => now,
+      );
+
+      // Act
+      final Result<SessionTokens> result = await session.signIn();
+
+      // Assert — the over-long grant is rejected, not silently accepted.
+      final Problem problem = AuthExpect.errType(
+        result,
+        'urn:diene:problem:auth',
+      );
+      expect(problem.detail, contains('Refresh token lifetime'));
+      expect(session.status, SessionStatus.failed);
+      expect(session.tokens, isNull);
+    });
   });
 
   group('AuthEngineConfig validation arms', () {
@@ -838,6 +867,121 @@ void main() {
       expect(provider.signInCount, 0);
     });
 
+    test('propagates a POST-login authoritative re-read failure', () async {
+      // Arrange — the pre-login read succeeds (routing straight home, so Doc B
+      // never runs) but the re-read of the FRESHLY ISSUED token fails. That
+      // re-read exists so a server-changed/removed home_landscape overrides the
+      // pre-login value, and a failure there must surface rather than silently
+      // keep the stale home.
+      int reads = 0;
+      final FakeAuthProvider provider = FakeAuthProvider(
+        onSignIn: () => AuthFixtures.sessionTokens(now: now),
+      );
+      final SignInCoordinator coordinator = SignInCoordinator(
+        session: SessionController(provider: provider, now: () => now),
+        homeResolver: HomeClaimResolver(
+          claimReader: () async {
+            reads += 1;
+            if (reads > 1) {
+              throw StateError('issued-token read failed');
+            }
+            return 'pichu';
+          },
+          selector: LandscapeSelectorClient(
+            source: FakeLandscapeSelectorSource(
+              error: const FormatException('Doc B must not run here'),
+            ),
+            pinger: FakeRegionPinger(const <String, Duration?>{}),
+          ),
+        ),
+        onboarding: MultiBackendOnboarding(
+          registry: BackendRegistry(<RegisteredBackend>[
+            RegisteredBackend(
+              backendId: 'api',
+              resources: <ResourceKey>[key],
+              onboardingResource: key,
+            ),
+          ]),
+          auth: FakeAuth(<Map<ResourceKey, Result<ResourceToken>>>[
+            <ResourceKey, Result<ResourceToken>>{},
+          ]),
+          directory: FakeUserDirectory(),
+          idToken: () async => 'header.id.sig',
+        ),
+      );
+
+      // Act
+      final Result<SignInResult> result = await coordinator.signIn();
+
+      // Assert — login DID happen, then the re-read failure propagated.
+      AuthExpect.errType(result, 'urn:diene:problem:home-claim-read');
+      expect(provider.signInCount, 1);
+      expect(reads, 2);
+    });
+
+    test('propagates a confirmation failure on the sign-up path', () async {
+      // Arrange — no stored claim, so Doc B selects a landscape (sign-up).
+      // Onboarding then succeeds, and the FORCE-FRESH confirmation read fails.
+      // The locally selected landscape must NEVER be mirrored as if it were a
+      // confirmed claim (C0 §13), so the failure has to surface.
+      final FakeAuthProvider provider = FakeAuthProvider(
+        onSignIn: () => AuthFixtures.sessionTokens(now: now),
+      );
+      final MemoryHomeClaimStore store = MemoryHomeClaimStore();
+      final SignInCoordinator coordinator = SignInCoordinator(
+        session: SessionController(provider: provider, now: () => now),
+        homeResolver: HomeClaimResolver(
+          claimReader: () async => null,
+          selector: LandscapeSelectorClient(
+            source: FakeLandscapeSelectorSource(
+              doc: const LandscapeSelectorDoc(
+                platform: 'lithium',
+                tier: 'lapras',
+                landscapes: <LandscapeEntry>[
+                  LandscapeEntry(name: 'pichu', region: 'ap-southeast-1'),
+                ],
+              ),
+            ),
+            pinger: FakeRegionPinger(<String, Duration?>{
+              'pichu': const Duration(milliseconds: 5),
+            }),
+          ),
+          store: store,
+          forcedClaimReader: () async =>
+              throw StateError('forced claim read failed'),
+        ),
+        onboarding: MultiBackendOnboarding(
+          registry: BackendRegistry(<RegisteredBackend>[
+            RegisteredBackend(
+              backendId: 'api',
+              resources: <ResourceKey>[key],
+              onboardingResource: key,
+            ),
+          ]),
+          auth: FakeAuth(<Map<ResourceKey, Result<ResourceToken>>>[
+            <ResourceKey, Result<ResourceToken>>{
+              key: Ok<ResourceToken>(
+                AuthFixtures.resourceToken(
+                  now: now,
+                  jwtToken: AuthFixtures.registeredJwt(key),
+                ),
+              ),
+            },
+          ]),
+          directory: FakeUserDirectory(),
+          idToken: () async => 'header.id.sig',
+        ),
+      );
+
+      // Act
+      final Result<SignInResult> result = await coordinator.signIn();
+
+      // Assert — the confirmation failure surfaces and NOTHING was mirrored.
+      AuthExpect.errType(result, 'urn:diene:problem:home-claim-read');
+      expect(store.value, isNull);
+      expect(store.writes, 0);
+    });
+
     test(
       'SignInResult carries home, phases, and the returnTo continuation',
       () {
@@ -878,6 +1022,18 @@ void main() {
         'osVersion': '15',
         'model': 'Pixel 9',
       });
+    });
+
+    test('DeviceInfo is constructible at runtime, not only as a const', () {
+      // Arrange — a const invocation is folded at compile time, so the platform
+      // field is exercised here through a NON-const construction built from a
+      // runtime value.
+      final String platform = <String>['android', 'ios'].first;
+      final DeviceInfo device = DeviceInfo(platform: platform);
+
+      // Assert — the optional telemetry fields stay absent.
+      expect(device.platform, 'android');
+      expect(device.toJson(), <String, Object?>{'platform': 'android'});
     });
 
     test('the ClipboardCarrierReader const constructor is instantiable', () {
