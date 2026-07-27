@@ -2,6 +2,7 @@ package operator_test
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"io"
 	"testing"
@@ -249,7 +250,155 @@ func TestManagerWiringRejectsMalformedDependencyBundle(t *testing.T) {
 			Bundles: operatorruntime.Bundles{Dependency: &operatorruntime.DependencyBundle{}},
 		},
 	)
-	require.ErrorIs(t, err, operatorruntime.ErrControllerBundleRequired)
+	malformed := assertMalformedBundle(t, err, "dependency", "vendor-engine", "is nil")
+	require.Empty(t, malformed.ActualKind)
+}
+
+func TestManagerWiringRejectsCrossControllerDoorSubstitution(t *testing.T) {
+	t.Parallel()
+
+	clusterBundles, err := operatorruntime.BuildBundles(
+		operatorruntime.Config{EnableCluster: true},
+		operatorruntime.CredentialSet{
+			Cluster: operatorruntime.ClusterCredentials{ProviderAPI: "present"},
+		},
+	)
+	require.NoError(t, err)
+	foreignDoor := clusterBundles.Cluster.ProviderAPI
+
+	err = operatorruntime.RegisterControllers(
+		nil,
+		operatorruntime.Config{EnableDependency: true},
+		operatorruntime.ControllerDependencies{
+			Bundles: operatorruntime.Bundles{
+				Dependency: &operatorruntime.DependencyBundle{
+					VendorEngine:    foreignDoor,
+					BrokerToken:     foreignDoor,
+					NativeTigrisKey: foreignDoor,
+					ReadOnlySeed:    foreignDoor,
+				},
+			},
+		},
+	)
+	malformed := assertMalformedBundle(t, err, "dependency", "vendor-engine", "has the wrong kind")
+	require.Equal(t, "provider-api", malformed.ActualKind)
+}
+
+func TestManagerWiringRejectsWrongKindCustomDoor(t *testing.T) {
+	t.Parallel()
+
+	err := operatorruntime.RegisterControllers(
+		nil,
+		operatorruntime.Config{EnableCluster: true},
+		operatorruntime.ControllerDependencies{
+			Bundles: operatorruntime.Bundles{
+				Cluster: &operatorruntime.ClusterBundle{
+					ProviderAPI: testProviderDoor{kind: "custom-wrong-kind"},
+				},
+			},
+		},
+	)
+	malformed := assertMalformedBundle(t, err, "cluster", "provider-api", "has the wrong kind")
+	require.Equal(t, "custom-wrong-kind", malformed.ActualKind)
+}
+
+func TestManagerWiringRejectsUnavailableRequiredDoor(t *testing.T) {
+	t.Parallel()
+
+	providerError := errors.New("provider error containing a credential value")
+	err := operatorruntime.RegisterControllers(
+		nil,
+		operatorruntime.Config{EnableCluster: true},
+		operatorruntime.ControllerDependencies{
+			Bundles: operatorruntime.Bundles{
+				Cluster: &operatorruntime.ClusterBundle{
+					ProviderAPI: testProviderDoor{kind: "provider-api", available: providerError},
+				},
+			},
+		},
+	)
+	malformed := assertMalformedBundle(t, err, "cluster", "provider-api", "is unavailable")
+	require.Empty(t, malformed.ActualKind)
+	require.NotContains(t, err.Error(), providerError.Error())
+	require.NotErrorIs(t, err, providerError)
+}
+
+func TestManagerWiringRejectsTypedNilDoor(t *testing.T) {
+	t.Parallel()
+
+	var typedNil *typedNilProviderDoor
+	err := operatorruntime.RegisterControllers(
+		nil,
+		operatorruntime.Config{EnableCluster: true},
+		operatorruntime.ControllerDependencies{
+			Bundles: operatorruntime.Bundles{
+				Cluster: &operatorruntime.ClusterBundle{ProviderAPI: typedNil},
+			},
+		},
+	)
+	malformed := assertMalformedBundle(t, err, "cluster", "provider-api", "contains a typed nil")
+	require.Empty(t, malformed.ActualKind)
+}
+
+func TestManagerWiringRejectsUnavailableCustomDependencyDoor(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		available error
+	}{
+		{name: "provider error", available: errors.New("provider error containing a credential value")},
+		{name: "fake absent refusal", available: operatorruntime.ErrDoorAbsent},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			config := operatorruntime.Config{EnableDependency: true}
+			bundles, err := operatorruntime.BuildBundles(config, operatorruntime.CredentialSet{})
+			require.NoError(t, err)
+			bundles.Dependency.VendorEngine = testProviderDoor{
+				kind:      "vendor-engine",
+				available: test.available,
+			}
+
+			err = operatorruntime.RegisterControllers(
+				nil,
+				config,
+				operatorruntime.ControllerDependencies{Bundles: bundles},
+			)
+			malformed := assertMalformedBundle(
+				t,
+				err,
+				"dependency",
+				"vendor-engine",
+				"is unavailable without typed absence",
+			)
+			require.Empty(t, malformed.ActualKind)
+			require.NotContains(t, err.Error(), test.available.Error())
+			require.NotErrorIs(t, err, test.available)
+		})
+	}
+}
+
+func TestManagerWiringAcceptsUnavailableDependencyDoors(t *testing.T) {
+	t.Parallel()
+
+	config := operatorruntime.Config{EnableDependency: true}
+	bundles, err := operatorruntime.BuildBundles(config, operatorruntime.CredentialSet{})
+	require.NoError(t, err)
+	for _, door := range []operatorruntime.ProviderDoor{
+		bundles.Dependency.VendorEngine,
+		bundles.Dependency.BrokerToken,
+		bundles.Dependency.NativeTigrisKey,
+		bundles.Dependency.ReadOnlySeed,
+	} {
+		require.ErrorIs(t, door.Available(), operatorruntime.ErrDoorAbsent)
+	}
+	require.NoError(t, operatorruntime.RegisterControllers(
+		nil,
+		config,
+		operatorruntime.ControllerDependencies{Bundles: bundles},
+	))
 }
 
 func TestManagerWiringProblemReservedSeam(t *testing.T) {
@@ -262,4 +411,34 @@ func TestManagerWiringProblemReservedSeam(t *testing.T) {
 	)
 	require.ErrorIs(t, err, operatorruntime.ErrProblemNotFolded)
 	require.EqualError(t, err, "problem sub-component not yet folded")
+}
+
+type testProviderDoor struct {
+	kind      string
+	available error
+}
+
+func (d testProviderDoor) Kind() string     { return d.kind }
+func (d testProviderDoor) Available() error { return d.available }
+
+type typedNilProviderDoor struct{}
+
+func (*typedNilProviderDoor) Kind() string     { return "provider-api" }
+func (*typedNilProviderDoor) Available() error { return nil }
+
+func assertMalformedBundle(
+	t *testing.T,
+	err error,
+	controller string,
+	door string,
+	reason string,
+) *operatorruntime.MalformedBundleError {
+	t.Helper()
+	require.ErrorIs(t, err, operatorruntime.ErrControllerBundleRequired)
+	var malformed *operatorruntime.MalformedBundleError
+	require.ErrorAs(t, err, &malformed)
+	require.Equal(t, controller, malformed.Controller)
+	require.Equal(t, door, malformed.Door)
+	require.Equal(t, reason, malformed.Reason)
+	return malformed
 }

@@ -253,38 +253,92 @@ func RegisterControllers(manager ctrl.Manager, config Config, dependencies Contr
 	}
 	if config.EnableCluster {
 		bundle := dependencies.Bundles.Cluster
-		if bundle == nil || bundle.ProviderAPI == nil {
+		if bundle == nil {
 			return &MissingBundleError{Controller: controllerCluster}
+		}
+		if err := validateRequiredDoor(controllerCluster, capClusterProviderAPI, bundle.ProviderAPI); err != nil {
+			return err
 		}
 	}
 	if config.EnablePlatform {
 		bundle := dependencies.Bundles.Platform
-		if bundle == nil || bundle.InfisicalAdmin == nil || bundle.GitHubOrgRead == nil || bundle.FleetRepoWrite == nil {
+		if bundle == nil {
 			return &MissingBundleError{Controller: controllerPlatform}
+		}
+		for _, requirement := range []struct {
+			kind string
+			door ProviderDoor
+		}{
+			{kind: capPlatformInfisicalAdmin, door: bundle.InfisicalAdmin},
+			{kind: capPlatformGitHubOrgRead, door: bundle.GitHubOrgRead},
+			{kind: capPlatformFleetRepoWrite, door: bundle.FleetRepoWrite},
+		} {
+			if err := validateRequiredDoor(controllerPlatform, requirement.kind, requirement.door); err != nil {
+				return err
+			}
 		}
 	}
 	if config.EnableDependency {
 		bundle := dependencies.Bundles.Dependency
-		if bundle == nil || bundle.VendorEngine == nil || bundle.BrokerToken == nil || bundle.NativeTigrisKey == nil || bundle.ReadOnlySeed == nil {
+		if bundle == nil {
 			return &MissingBundleError{Controller: controllerDependency}
+		}
+		for _, requirement := range []struct {
+			kind string
+			door ProviderDoor
+		}{
+			{kind: capDependencyVendorEngine, door: bundle.VendorEngine},
+			{kind: capDependencyBrokerToken, door: bundle.BrokerToken},
+			{kind: capDependencyNativeTigris, door: bundle.NativeTigrisKey},
+			{kind: capDependencyReadOnlySeed, door: bundle.ReadOnlySeed},
+		} {
+			if err := validateOptionalDoor(controllerDependency, requirement.kind, requirement.door); err != nil {
+				return err
+			}
 		}
 	}
 	if config.EnableTraffic {
 		bundle := dependencies.Bundles.Traffic
-		if bundle == nil || bundle.Route53 == nil || bundle.CloudflareDNS == nil || bundle.EdgePublisher == nil {
+		if bundle == nil {
 			return &MissingBundleError{Controller: controllerTraffic}
+		}
+		for _, requirement := range []struct {
+			kind string
+			door ProviderDoor
+		}{
+			{kind: capTrafficRoute53, door: bundle.Route53},
+			{kind: capTrafficCloudflareDNS, door: bundle.CloudflareDNS},
+			{kind: capTrafficEdgePublisher, door: bundle.EdgePublisher},
+		} {
+			if err := validateRequiredDoor(controllerTraffic, requirement.kind, requirement.door); err != nil {
+				return err
+			}
 		}
 	}
 	if config.EnableWebhook {
 		bundle := dependencies.Bundles.Webhook
-		if bundle == nil || bundle.MercuryManagement == nil || bundle.LandscapeMercuryKV == nil {
+		if bundle == nil {
 			return &MissingBundleError{Controller: controllerWebhook}
+		}
+		for _, requirement := range []struct {
+			kind string
+			door ProviderDoor
+		}{
+			{kind: capWebhookMercuryManagement, door: bundle.MercuryManagement},
+			{kind: capWebhookLandscapeKV, door: bundle.LandscapeMercuryKV},
+		} {
+			if err := validateRequiredDoor(controllerWebhook, requirement.kind, requirement.door); err != nil {
+				return err
+			}
 		}
 	}
 	if config.EnableCfDeploy {
 		bundle := dependencies.Bundles.CfDeploy
-		if bundle == nil || bundle.CloudflareWorkers == nil {
+		if bundle == nil {
 			return &MissingBundleError{Controller: controllerCfDeploy}
+		}
+		if err := validateRequiredDoor(controllerCfDeploy, capCfDeployWorkers, bundle.CloudflareWorkers); err != nil {
+			return err
 		}
 	}
 

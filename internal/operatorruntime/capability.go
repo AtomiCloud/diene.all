@@ -3,6 +3,7 @@ package operatorruntime
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 )
 
@@ -91,12 +92,119 @@ func (e *MissingBundleError) Error() string {
 // Unwrap exposes ErrControllerBundleRequired.
 func (*MissingBundleError) Unwrap() error { return ErrControllerBundleRequired }
 
+// MalformedBundleError identifies a controller bundle whose door does not
+// satisfy the registration contract. ActualKind is populated only for a kind
+// mismatch; provider availability errors are deliberately not retained so
+// their contents cannot leak through startup errors.
+type MalformedBundleError struct {
+	Controller string
+	Door       string
+	Reason     string
+	ActualKind string
+}
+
+// Error implements error.
+func (e *MalformedBundleError) Error() string {
+	if e.ActualKind != "" {
+		return fmt.Sprintf(
+			"%s: %s controller %s door %s (got kind %q)",
+			ErrControllerBundleRequired,
+			e.Controller,
+			e.Door,
+			e.Reason,
+			e.ActualKind,
+		)
+	}
+	return fmt.Sprintf(
+		"%s: %s controller %s door %s",
+		ErrControllerBundleRequired,
+		e.Controller,
+		e.Door,
+		e.Reason,
+	)
+}
+
+// Unwrap exposes ErrControllerBundleRequired.
+func (*MalformedBundleError) Unwrap() error { return ErrControllerBundleRequired }
+
 // ProviderDoor is the deliberately small Phase 2 provider port. Phase 3
 // composition replaces present markers with narrow adapter interfaces; callers
 // can already require optional doors without risking a nil dereference.
 type ProviderDoor interface {
 	Kind() string
 	Available() error
+}
+
+func validateRequiredDoor(controller, expectedKind string, door ProviderDoor) error {
+	if err := validateDoorKind(controller, expectedKind, door); err != nil {
+		return err
+	}
+	if err := door.Available(); err != nil {
+		return &MalformedBundleError{
+			Controller: controller,
+			Door:       expectedKind,
+			Reason:     "is unavailable",
+		}
+	}
+	return nil
+}
+
+func validateOptionalDoor(controller, expectedKind string, door ProviderDoor) error {
+	if err := validateDoorKind(controller, expectedKind, door); err != nil {
+		return err
+	}
+	if _, absent := door.(*AbsentDoor); absent {
+		return nil
+	}
+	if err := door.Available(); err != nil {
+		return &MalformedBundleError{
+			Controller: controller,
+			Door:       expectedKind,
+			Reason:     "is unavailable without typed absence",
+		}
+	}
+	return nil
+}
+
+func validateDoorKind(controller, expectedKind string, door ProviderDoor) error {
+	if door == nil {
+		return &MalformedBundleError{
+			Controller: controller,
+			Door:       expectedKind,
+			Reason:     "is nil",
+		}
+	}
+	if providerDoorIsTypedNil(door) {
+		return &MalformedBundleError{
+			Controller: controller,
+			Door:       expectedKind,
+			Reason:     "contains a typed nil",
+		}
+	}
+	actualKind := door.Kind()
+	if actualKind != expectedKind {
+		return &MalformedBundleError{
+			Controller: controller,
+			Door:       expectedKind,
+			Reason:     "has the wrong kind",
+			ActualKind: actualKind,
+		}
+	}
+	return nil
+}
+
+// providerDoorIsTypedNil keeps ProviderDoor open to narrow adapter
+// implementations while covering the nil-able dynamic kinds an interface may
+// hold before invoking their methods. All other validation uses the port
+// directly.
+func providerDoorIsTypedNil(door ProviderDoor) bool {
+	value := reflect.ValueOf(door)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return value.IsNil()
+	default:
+		return false
+	}
 }
 
 // AbsentDoor is an explicit, typed optional capability refusal. It is both a
