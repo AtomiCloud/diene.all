@@ -2,25 +2,113 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
 
-	"github.com/AtomiCloud/diene.go-lib/adapters/kv"
-	"github.com/AtomiCloud/diene.go-lib/lib/note"
-	"github.com/AtomiCloud/diene.go-lib/testhelper"
+	"github.com/AtomiCloud/diene.go-errors-problems/lib/problem"
+	"github.com/AtomiCloud/diene.go-errors-problems/testhelper"
 )
 
+// This consumer exercises every exported identifier of the library so the
+// strict production deadcode pass sees the whole public surface as reachable.
 func main() {
-	ctx := context.Background()
-	memory := testhelper.NewMemoryStore()
-	value := note.New("Deadcode Consumer", "public surface")
-	service := note.NewService(memory)
-	_ = note.Slug(value.Slug)
-	_ = note.NamespacedKey("notes", value.Slug)
-	_ = service.Save(ctx, value)
-	_, _ = service.Load(ctx, value.Slug)
-	_ = memory.Save(ctx, value.Slug, value.Body)
-	_, _ = memory.Load(ctx, value.Slug)
-	redis := kv.NewRedisStore("127.0.0.1:6379")
-	_ = redis.Save
-	_ = redis.Load
-	_ = redis.Close
+	portal := problem.ErrorPortal{
+		Scheme: "https", Host: "docs.example.atomi.cloud",
+		Landscape: "raichu", Platform: "go", Service: "user", Module: "api",
+	}
+	_ = problem.LocalErrorPortal()
+
+	uri, uriErr := problem.TypeURI(portal, "v1", "entity-not-found")
+	if uriErr != nil {
+		var segmentErr *problem.InvalidSegmentError
+		if errors.As(uriErr, &segmentErr) {
+			fmt.Println(segmentErr.Error())
+		}
+	}
+
+	envelope := problem.Problem{Type: uri, Title: "Entity not found", Status: 404, Detail: new("d"), Instance: new("/i"), Recoverable: false, Data: map[string]any{"resource": "user"}}
+	encoded, _ := json.Marshal(envelope)
+	var decoded problem.Problem
+	_ = json.Unmarshal(encoded, &decoded)
+	_, _ = envelope.MarshalJSON()
+	_ = decoded.UnmarshalJSON(encoded)
+	_ = envelope.Equal(decoded)
+	fmt.Println(envelope.String())
+	fmt.Println(problem.UncataloguedProblemID)
+
+	registry, regErr := problem.NewRegistry(portal)
+	if regErr != nil {
+		var dupErr *problem.DuplicateTypeError
+		_ = errors.As(regErr, &dupErr)
+	}
+	_ = registry.Portal()
+	_ = registry.Register(problem.EntityNotFound())
+	_, _ = registry.Lookup("entity-not-found")
+	if _, reqErr := registry.Require("missing"); reqErr != nil {
+		var unknownErr *problem.UnknownTypeError
+		if errors.As(reqErr, &unknownErr) {
+			fmt.Println(unknownErr.Error())
+		}
+	}
+	_ = registry.Entries()
+	_, _ = registry.TypeURIFor(problem.EntityNotFound())
+	_ = problem.RegisterGenerics(registry)
+
+	_ = problem.GenericProblems()
+	_ = problem.ValidationError()
+	_ = problem.EntityNotFound()
+	_ = problem.Conflict()
+	_ = problem.Unauthenticated()
+	_ = problem.Unauthorized()
+	_ = problem.InvalidJSON()
+
+	catalog := problem.NewCatalog(portal)
+	_ = catalog.Portal()
+	catalog.Add(problem.CatalogEntry{ID: "x", TypeURI: uri, Title: "X", Status: 500})
+	_ = catalog.AddType(problem.EntityNotFound(), problem.CatalogEndpoint{Method: "GET", Path: "/user"})
+	_ = catalog.AddGenerics()
+	_, _ = catalog.Lookup("x")
+	_ = catalog.Entries()
+	_ = catalog.ToCRDContent()
+	_ = problem.CatalogEndpoint{Method: "GET", Path: "/user"}.ToContent()
+	_ = problem.CatalogEntry{ID: "x"}.ToCRDContent()
+
+	problemErr := problem.NewError(envelope)
+	wrapped := problem.WrapError(envelope, errors.New("cause"))
+	fmt.Println(problemErr.Error(), wrapped.Error())
+	_ = problemErr.Unwrap()
+
+	options := problem.DefaultTransformOptions()
+	options.Registry = registry
+	_ = problem.FromObject(errors.New("boom"), options)
+
+	local := problem.NewLocalError(problem.NoopErrorSink{})
+	local = problem.NewLocalErrorWithPortal(problem.NoopErrorSink{}, portal)
+	_, _ = local.Wrap(context.Background(), errors.New("boom"), "stack")
+	var sink problem.ErrorSink = problem.NoopErrorSink{}
+	_ = sink.Capture(context.Background(), envelope)
+
+	sample := testhelper.SampleProblem()
+	_ = testhelper.SampleErrorPortal()
+	_ = testhelper.CheckProblem(sample,
+		testhelper.ExpectType(sample.Type),
+		testhelper.ExpectID("entity-not-found"),
+		testhelper.ExpectTitle(sample.Title),
+		testhelper.ExpectStatus(sample.Status),
+		testhelper.ExpectRecoverable(sample.Recoverable),
+		testhelper.ExpectDetail("d"),
+		testhelper.ExpectInstance("/i"),
+		testhelper.ExpectData(sample.Data),
+	)
+	reporter := deadcodeReporter{}
+	testhelper.AssertProblem(reporter, sample, testhelper.ExpectStatus(404))
+	_, _ = testhelper.CheckError(problemErr)
+	_ = testhelper.AssertError(reporter, problemErr)
 }
+
+type deadcodeReporter struct{}
+
+func (deadcodeReporter) Helper() {}
+
+func (deadcodeReporter) Fatalf(string, ...any) {}
