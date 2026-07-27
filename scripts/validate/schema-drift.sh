@@ -12,7 +12,7 @@ echo "🧬 Checking generated configuration schema..."
   echo "❌ committed schema ${committed} is missing or empty — refusing an empty comparison" >&2
   exit 1
 }
-go run ./scripts/local/schema-gen.go --out "${generated}"
+go run ./scripts/local/schemagen --out "${generated}"
 [ -s "${generated}" ] || {
   echo "❌ schema generator produced no content — refusing an empty comparison" >&2
   exit 1
