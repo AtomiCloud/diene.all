@@ -205,7 +205,7 @@ pre-commit-lib.run {
     a-releaser-commit = {
       enable = true;
       name = "Conventional commit";
-      entry = "releaser lint-commit -c atomi_release.yaml";
+      entry = "${packages.releaser}/bin/releaser lint-commit -c atomi_release.yaml";
       stages = [ "commit-msg" ];
       pass_filenames = true;
       language = "system";
@@ -252,17 +252,8 @@ pre-commit-lib.run {
       enable = true;
       name = ".NET release type vocabulary";
       entry = validator "scripts/validate/dotnet-release.sh";
-      files = "^(atomi_release\\.yaml|\\.gitlint)$";
+      files = "^atomi_release\\.yaml$";
       pass_filenames = false;
-      language = "system";
-    };
-
-    gitlint = {
-      enable = true;
-      name = "Git commit message lint";
-      entry = "${packages.gitlint}/bin/gitlint --staged --msg-filename";
-      stages = [ "commit-msg" ];
-      pass_filenames = true;
       language = "system";
     };
 

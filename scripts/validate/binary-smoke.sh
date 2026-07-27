@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-for binary in actionlint bash dn-inspect docker dotnet dotnetlint git gitlint gomplate hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pls pre-commit rg sg shellcheck skopeo task treefmt yq; do
+# ### workspace
+# #### source: workspace
+for binary in actionlint bash cyanprint dn-inspect docker dotnet dotnetlint git gomplate hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pls pre-commit releaser rg shellcheck skopeo task treefmt yq; do
   command -v "${binary}" >/dev/null || {
     echo "❌ binary '${binary}' is missing" >&2
     exit 1
@@ -17,6 +19,15 @@ actionlint "${tmp}/workflow.yaml"
 
 bash --version >/dev/null
 [ "$(bash -c 'printf smoke')" != "smoke" ] && echo "❌ bash failed a real invocation" >&2 && exit 1
+
+mapfile -t cyanprint_versions < <(
+  awk -F'"' '/^[[:space:]]*cyanprintVersion = "[^"]+";$/ { print $2 }' nix/packages.nix
+)
+if [ "${#cyanprint_versions[@]}" -ne 1 ]; then
+  echo "expected exactly one cyanprintVersion pin in nix/packages.nix" >&2
+  exit 1
+fi
+cyanprint --version | grep -Fqx "cyanprint ${cyanprint_versions[0]}"
 
 docker --version >/dev/null
 docker info --format '{{.ServerVersion}}' >/dev/null
@@ -37,10 +48,6 @@ dotnetlint --version >/dev/null
 
 git --version >/dev/null
 git rev-parse --is-inside-work-tree >/dev/null
-
-gitlint --version >/dev/null
-printf '%s\n' 'feat: binary smoke' >"${tmp}/commit-message"
-gitlint --msg-filename "${tmp}/commit-message"
 
 gomplate --version >/dev/null
 [ "$(gomplate -i '{{ add 1 1 }}')" != "2" ] && echo "❌ gomplate failed a real template" >&2 && exit 1
@@ -86,11 +93,13 @@ pre-commit validate-config .pre-commit-config.yaml
 rg --version >/dev/null
 rg -q 'Diene .NET base template' README.md
 
-sg --version >/dev/null
-printf '%s\n' '[general]' 'contrib=CT1' 'ignore=B6' '' '[contrib-title-conventional-commits]' 'types = amend' >"${tmp}/.gitlint"
-yq '.gitlint = ".gitlint"' atomi_release.yaml >"${tmp}/sg-config.yaml"
-(cd "${tmp}" && sg gitlint -c sg-config.yaml >/dev/null 2>&1 || true)
-rg -q 'chore' "${tmp}/.gitlint"
+printf '%s\n' 'feat: binary smoke' >"${tmp}/commit-message"
+releaser lint-commit -c atomi_release.yaml "${tmp}/commit-message"
+printf '%s\n' 'not conventional' >"${tmp}/invalid-commit-message"
+if releaser lint-commit -c atomi_release.yaml "${tmp}/invalid-commit-message"; then
+  echo "❌ releaser accepted an invalid commit message" >&2
+  exit 1
+fi
 
 shellcheck --version >/dev/null
 shellcheck scripts/validate/binary-smoke.sh
@@ -109,10 +118,8 @@ treefmt --completion bash >"${tmp}/treefmt-completion.bash"
 yq --version >/dev/null
 yq -en '.ok = true | .ok == true' >/dev/null
 
-if command -v releaser >/dev/null; then
-  releaser --help >/dev/null
-else
-  echo "⏭️ releaser binary awaits the C2 step-2p tools/releaser publish"
-fi
+releaser --help >/dev/null
 
+# ### workspace-complete
+# #### source: workspace
 echo "✅ Binary smoke passed"
