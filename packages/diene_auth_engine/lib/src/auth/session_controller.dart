@@ -1,7 +1,7 @@
+import 'package:diene_problems/diene_problems.dart';
+import 'package:diene_result/diene_result.dart';
 import 'package:flutter/foundation.dart';
 
-import '../contracts/problem.dart';
-import '../contracts/result.dart';
 import '../tokens/session_tokens.dart';
 import '../tokens/token_lifetimes.dart';
 import 'auth_provider.dart';
@@ -50,7 +50,7 @@ final class SessionController extends ChangeNotifier {
       _tokens = issued;
       _status = SessionStatus.authenticated;
       notifyListeners();
-      return Success<SessionTokens>(issued);
+      return Ok<SessionTokens>(issued);
     } on Object catch (error) {
       return _fail(
         type: 'urn:diene:problem:auth',
@@ -65,7 +65,7 @@ final class SessionController extends ChangeNotifier {
   Future<Result<SessionTokens>> refresh() async {
     final SessionTokens? current = _tokens;
     if (current == null || !current.refreshValidAt(_now())) {
-      return const Failure<SessionTokens>(
+      return const Err<SessionTokens>(
         Problem(
           type: 'urn:diene:problem:refresh-expired',
           title: 'Refresh expired',
@@ -78,7 +78,7 @@ final class SessionController extends ChangeNotifier {
       if (next.refreshFamily != current.refreshFamily ||
           next.refreshToken == current.refreshToken) {
         await signOut();
-        return const Failure<SessionTokens>(
+        return const Err<SessionTokens>(
           Problem(
             type: 'urn:diene:problem:refresh-reuse',
             title: 'Refresh token reuse detected',
@@ -89,9 +89,9 @@ final class SessionController extends ChangeNotifier {
       _validateLifetime(next);
       _tokens = next;
       notifyListeners();
-      return Success<SessionTokens>(next);
+      return Ok<SessionTokens>(next);
     } on Object catch (error) {
-      return Failure<SessionTokens>(
+      return Err<SessionTokens>(
         Problem(
           type: 'urn:diene:problem:refresh',
           title: 'Session refresh failed',
@@ -108,7 +108,7 @@ final class SessionController extends ChangeNotifier {
   Future<Result<SessionTokens>> onAppOpen() async {
     final SessionTokens? current = _tokens;
     if (current == null) {
-      return const Failure<SessionTokens>(
+      return const Err<SessionTokens>(
         Problem(
           type: 'urn:diene:problem:not-authenticated',
           title: 'Not authenticated',
@@ -118,7 +118,7 @@ final class SessionController extends ChangeNotifier {
     }
     if (!current.refreshValidAt(_now())) {
       await signOut();
-      return const Failure<SessionTokens>(
+      return const Err<SessionTokens>(
         Problem(
           type: 'urn:diene:problem:refresh-expired',
           title: 'Refresh expired',
@@ -131,9 +131,9 @@ final class SessionController extends ChangeNotifier {
       _validateLifetime(next);
       _tokens = next;
       notifyListeners();
-      return Success<SessionTokens>(next);
+      return Ok<SessionTokens>(next);
     } on Object catch (error) {
-      return Failure<SessionTokens>(
+      return Err<SessionTokens>(
         Problem(
           type: 'urn:diene:problem:remint',
           title: 'Could not renew the access token',
@@ -169,7 +169,7 @@ final class SessionController extends ChangeNotifier {
     _status = SessionStatus.failed;
     _problem = problem;
     notifyListeners();
-    return Failure<SessionTokens>(problem);
+    return Err<SessionTokens>(problem);
   }
 
   void _validateLifetime(SessionTokens value) {

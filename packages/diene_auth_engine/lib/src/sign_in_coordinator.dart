@@ -1,6 +1,7 @@
+import 'package:diene_problems/diene_problems.dart';
+import 'package:diene_result/diene_result.dart';
+
 import 'auth/session_controller.dart';
-import 'contracts/problem.dart';
-import 'contracts/result.dart';
 import 'home/home_claim.dart';
 import 'onboarding/onboarding_phase.dart';
 import 'returnto/return_to.dart';
@@ -53,26 +54,26 @@ final class SignInCoordinator {
     final Result<HomeResolution> homeResult = await _homeResolver.resolve(
       preferred: preferredLandscape,
     );
-    if (homeResult is Failure<HomeResolution>) {
-      return Failure<SignInResult>(homeResult.problem);
+    if (homeResult is Err<HomeResolution>) {
+      return Err<SignInResult>(homeResult.problem);
     }
-    HomeResolution home = (homeResult as Success<HomeResolution>).value;
+    HomeResolution home = (homeResult as Ok<HomeResolution>).value;
 
     // 2. OIDC login (carries deferred-login one-time token when present).
     final Result<Object?> login = await _session.signIn(
       extraParams: extraParams,
     );
-    if (login is Failure) {
-      return Failure<SignInResult>(login.problem);
+    if (login is Err) {
+      return Err<SignInResult>(login.problem);
     }
 
     // 3. Re-read the AUTHORITATIVE claim from the freshly issued JWT so a
     //    server-changed/removed home_landscape overrides the pre-login value.
     final Result<String?> issued = await _homeResolver.authoritativeHome();
-    if (issued is Failure<String?>) {
-      return Failure<SignInResult>(issued.problem);
+    if (issued is Err<String?>) {
+      return Err<SignInResult>(issued.problem);
     }
-    final String? issuedHome = (issued as Success<String?>).value;
+    final String? issuedHome = (issued as Ok<String?>).value;
     if (issuedHome != null) {
       home = HomeResolution(
         landscape: issuedHome,
@@ -94,23 +95,23 @@ final class SignInCoordinator {
       for (final MapEntry<String, Result<OnboardingPhase>> entry
           in phases.entries) {
         final Result<OnboardingPhase> outcome = entry.value;
-        if (outcome is Failure<OnboardingPhase>) {
+        if (outcome is Err<OnboardingPhase>) {
           // Do NOT mirror the selection; surface the onboarding failure.
-          return Failure<SignInResult>(outcome.problem);
+          return Err<SignInResult>(outcome.problem);
         }
       }
       // Confirm the claim from a FORCE-FRESH claim-bearing JWT (never the
       // possibly-stale stored token): the exact token returned by
       // AuthProvider.freshClaimToken is decoded here.
       final Result<String?> confirmed = await _homeResolver.confirmedHome();
-      if (confirmed is Failure<String?>) {
-        return Failure<SignInResult>(confirmed.problem);
+      if (confirmed is Err<String?>) {
+        return Err<SignInResult>(confirmed.problem);
       }
-      final String? confirmedHome = (confirmed as Success<String?>).value;
+      final String? confirmedHome = (confirmed as Ok<String?>).value;
       if (confirmedHome == null) {
         // OnboardSync did not surface a home_landscape claim: an explicit
         // unconfirmed state, NOT a mirrored selection.
-        return const Failure<SignInResult>(
+        return const Err<SignInResult>(
           Problem(
             type: 'urn:diene:problem:home-claim-unconfirmed',
             title: 'Home landscape claim not confirmed after onboarding',
@@ -133,9 +134,9 @@ final class SignInCoordinator {
         ? null
         : ReturnTo.capture(
             returnTo,
-          ).match(onSuccess: (_) => returnTo, onFailure: (_) => null);
+          ).match(ok: (_) => returnTo, err: (_) => null);
 
-    return Success<SignInResult>(
+    return Ok<SignInResult>(
       SignInResult(home: home, phases: phases, continueTo: continueTo),
     );
   }

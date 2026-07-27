@@ -1,5 +1,6 @@
 import 'package:diene_auth_engine/diene_auth_engine.dart';
 import 'package:diene_auth_engine/test_helper.dart';
+import 'package:diene_result/diene_result.dart';
 
 /// The engine-owned `authEngine` config block, as the `config` lib would hand
 /// it over after merging YAML layers and `--dart-define` overrides. The OIDC
@@ -49,7 +50,7 @@ Future<void> main() async {
     'utm_source=play&app_handoff=atomi-app-handoff%3Av1%3A$nonce',
   );
   final FakeAppHandoffApi handoff = FakeAppHandoffApi(
-    result: const Success<RedeemResult>(
+    result: const Ok<RedeemResult>(
       RedeemResult(token: 'one-time', email: 'user@example.com'),
     ),
   );

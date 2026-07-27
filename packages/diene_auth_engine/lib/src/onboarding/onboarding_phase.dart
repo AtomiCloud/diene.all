@@ -1,7 +1,8 @@
+import 'package:diene_problems/diene_problems.dart';
+import 'package:diene_result/diene_result.dart';
+
 import '../auth/auth_seam.dart';
 import '../auth/claims.dart';
-import '../contracts/problem.dart';
-import '../contracts/result.dart';
 import '../tokens/resource_key.dart';
 import '../tokens/session_tokens.dart';
 import 'backend_registry.dart';
@@ -14,7 +15,7 @@ enum OnboardingPhase { bootstrapping, needsOnboarding, ready, error }
 /// Reads the raw OIDC ID token for the `POST /User` create body.
 typedef IdTokenReader = Future<String?> Function();
 
-/// Drives ONE backend through the C0 §8 claims-first state table. Failure is
+/// Drives ONE backend through the C0 §8 claims-first state table. Err is
 /// isolated to this backend; disjoint backends run their own machines.
 final class OnboardingMachine {
   OnboardingMachine({
@@ -65,7 +66,7 @@ final class OnboardingMachine {
 
     // Step 3: registration absent from ANY token → one GET /User/Me.
     final ResourceToken onboarding =
-        (batch[_backend.onboardingResource]! as Success<ResourceToken>).value;
+        (batch[_backend.onboardingResource]! as Ok<ResourceToken>).value;
     try {
       final int getStatus = await _directory.getUserMe(
         backendId: _backend.backendId,
@@ -147,22 +148,22 @@ final class OnboardingMachine {
     final String? appClaim = _backend.appOnboardingClaim;
     if (appClaim != null) {
       final ResourceToken onboarding =
-          (batch[_backend.onboardingResource]! as Success<ResourceToken>).value;
+          (batch[_backend.onboardingResource]! as Ok<ResourceToken>).value;
       final Map<String, Object?> claims = Claims.decode(onboarding.token);
       final Object? value = claims[appClaim];
       final bool present = value is String && value == 'true';
       if (!present) {
         _phase = OnboardingPhase.needsOnboarding;
-        return Success<OnboardingPhase>(_phase);
+        return Ok<OnboardingPhase>(_phase);
       }
     }
     _phase = OnboardingPhase.ready;
-    return Success<OnboardingPhase>(_phase);
+    return Ok<OnboardingPhase>(_phase);
   }
 
   bool _allRegistered(Map<ResourceKey, Result<ResourceToken>> batch) {
     for (final ResourceKey key in _backend.resources) {
-      final ResourceToken token = (batch[key]! as Success<ResourceToken>).value;
+      final ResourceToken token = (batch[key]! as Ok<ResourceToken>).value;
       final Map<String, Object?> claims = Claims.decode(token.token);
       if (!Claims.hasRegistration(
         claims,
@@ -177,7 +178,7 @@ final class OnboardingMachine {
 
   Problem? _firstFailure(Map<ResourceKey, Result<ResourceToken>> batch) {
     for (final Result<ResourceToken> result in batch.values) {
-      if (result is Failure<ResourceToken>) {
+      if (result is Err<ResourceToken>) {
         return result.problem;
       }
     }
@@ -194,7 +195,7 @@ final class OnboardingMachine {
 
   Result<OnboardingPhase> _error(Problem problem) {
     _phase = OnboardingPhase.error;
-    return Failure<OnboardingPhase>(problem);
+    return Err<OnboardingPhase>(problem);
   }
 }
 

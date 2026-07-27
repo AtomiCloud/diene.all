@@ -1,5 +1,7 @@
 import 'package:diene_auth_engine/diene_auth_engine.dart';
 import 'package:diene_auth_engine/test_helper.dart';
+import 'package:diene_problems/diene_problems.dart';
+import 'package:diene_result/diene_result.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -23,10 +25,10 @@ void main() {
         auth: FakeAuth(<Map<ResourceKey, Result<ResourceToken>>>[
           <ResourceKey, Result<ResourceToken>>{
             key: fail
-                ? const Failure<ResourceToken>(
+                ? const Err<ResourceToken>(
                     Problem(type: 't', title: 'onboarding down', status: 503),
                   )
-                : Success<ResourceToken>(
+                : Ok<ResourceToken>(
                     AuthFixtures.resourceToken(
                       now: now,
                       jwtToken: AuthFixtures.registeredJwt(key),
@@ -200,7 +202,7 @@ void main() {
       final Result<SignInResult> result = await wired.coordinator.signIn();
 
       // Assert — onboarding failure surfaces; no confirmation, no mirror.
-      expect(result, isA<Failure<SignInResult>>());
+      expect(result, isA<Err<SignInResult>>());
       expect(wired.store.value, isNull);
       expect(wired.provider.freshClaimTokenCount, 0);
     },
@@ -214,7 +216,7 @@ void main() {
     );
 
     // Act + Assert
-    expect(await wired.coordinator.signIn(), isA<Failure<SignInResult>>());
+    expect(await wired.coordinator.signIn(), isA<Err<SignInResult>>());
   });
 
   test('an invalid returnTo yields no continuation', () async {

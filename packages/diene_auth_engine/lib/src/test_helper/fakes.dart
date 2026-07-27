@@ -1,7 +1,8 @@
+import 'package:diene_problems/diene_problems.dart';
+import 'package:diene_result/diene_result.dart';
+
 import '../auth/auth_provider.dart';
 import '../auth/auth_seam.dart';
-import '../contracts/problem.dart';
-import '../contracts/result.dart';
 import '../deferred/deferred_login.dart';
 import '../deferred/redeem_client.dart';
 import '../home/home_claim.dart';
@@ -112,7 +113,7 @@ final class FakeAuth implements IAuth {
   Future<Result<ResourceToken>> tokenFor(ResourceKey key) async {
     final Result<ResourceToken>? result = _current[key];
     return result ??
-        Failure<ResourceToken>(
+        Err<ResourceToken>(
           Problem(
             type: 'urn:diene:problem:resource-token',
             title: 'No token scripted',
@@ -184,7 +185,7 @@ final class FakeUserDirectory implements UserDirectory {
 /// Scriptable [AppHandoffApi] fake.
 final class FakeAppHandoffApi implements AppHandoffApi {
   FakeAppHandoffApi({Result<RedeemResult>? result})
-    : _result = result ?? Failure<RedeemResult>(appHandoffExpired());
+    : _result = result ?? Err<RedeemResult>(appHandoffExpired());
 
   final Result<RedeemResult> _result;
   int redeemCount = 0;

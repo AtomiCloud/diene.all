@@ -1,5 +1,6 @@
 import 'package:diene_auth_engine/diene_auth_engine.dart';
 import 'package:diene_auth_engine/test_helper.dart';
+import 'package:diene_result/diene_result.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -17,11 +18,11 @@ void main() {
     // Assert
     expect(
       ReturnTo.capture(Uri.parse('https://evil.example/x')),
-      isA<Failure<String>>(),
+      isA<Err<String>>(),
     );
-    expect(ReturnTo.resolve('//evil.example/x'), isA<Failure<Uri>>());
-    expect(ReturnTo.resolve('/\\evil'), isA<Failure<Uri>>());
-    expect(ReturnTo.resolve('https://evil'), isA<Failure<Uri>>());
+    expect(ReturnTo.resolve('//evil.example/x'), isA<Err<Uri>>());
+    expect(ReturnTo.resolve('/\\evil'), isA<Err<Uri>>());
+    expect(ReturnTo.resolve('https://evil'), isA<Err<Uri>>());
   });
 
   test('builds a login redirect carrying the returnTo', () {

@@ -1,5 +1,7 @@
 import 'package:diene_auth_engine/diene_auth_engine.dart';
 import 'package:diene_auth_engine/test_helper.dart';
+import 'package:diene_problems/diene_problems.dart';
+import 'package:diene_result/diene_result.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -16,7 +18,7 @@ void main() {
   Map<ResourceKey, Result<ResourceToken>> registered({
     Map<String, Object?> extra = const <String, Object?>{},
   }) => <ResourceKey, Result<ResourceToken>>{
-    key: Success<ResourceToken>(
+    key: Ok<ResourceToken>(
       AuthFixtures.resourceToken(
         now: now,
         jwtToken: AuthFixtures.registeredJwt(key, extra: extra),
@@ -26,7 +28,7 @@ void main() {
 
   Map<ResourceKey, Result<ResourceToken>> unregistered() =>
       <ResourceKey, Result<ResourceToken>>{
-        key: Success<ResourceToken>(
+        key: Ok<ResourceToken>(
           AuthFixtures.resourceToken(
             now: now,
             jwtToken: AuthFixtures.unregisteredJwt(key),
@@ -146,7 +148,7 @@ void main() {
     );
 
     // Act + Assert
-    expect(await m.run(), isA<Failure<OnboardingPhase>>());
+    expect(await m.run(), isA<Err<OnboardingPhase>>());
     AuthExpect.phase(m.phase, OnboardingPhase.error);
   });
 
@@ -158,7 +160,7 @@ void main() {
     );
 
     // Act + Assert
-    expect(await m.run(), isA<Failure<OnboardingPhase>>());
+    expect(await m.run(), isA<Err<OnboardingPhase>>());
   });
 
   test('claim still absent after create → OnboardingClaimMissing', () async {
@@ -183,7 +185,7 @@ void main() {
     final OnboardingMachine m = machine(
       FakeAuth(<Map<ResourceKey, Result<ResourceToken>>>[
         <ResourceKey, Result<ResourceToken>>{
-          key: const Failure<ResourceToken>(
+          key: const Err<ResourceToken>(
             Problem(type: 't', title: 'down', status: 503),
           ),
         },
@@ -191,7 +193,7 @@ void main() {
     );
 
     // Act + Assert
-    expect(await m.run(), isA<Failure<OnboardingPhase>>());
+    expect(await m.run(), isA<Err<OnboardingPhase>>());
   });
 
   test('markStaleClaim errors without re-detecting', () {
@@ -225,13 +227,13 @@ void main() {
     // Shared auth: primary key registered, billing key failed.
     final FakeAuth auth = FakeAuth(<Map<ResourceKey, Result<ResourceToken>>>[
       <ResourceKey, Result<ResourceToken>>{
-        key: Success<ResourceToken>(
+        key: Ok<ResourceToken>(
           AuthFixtures.resourceToken(
             now: now,
             jwtToken: AuthFixtures.registeredJwt(key),
           ),
         ),
-        keyB: const Failure<ResourceToken>(
+        keyB: const Err<ResourceToken>(
           Problem(type: 't', title: 'down', status: 503),
         ),
       },
@@ -248,8 +250,8 @@ void main() {
         .runAll();
 
     // Assert
-    expect(results['primary'], isA<Success<OnboardingPhase>>());
-    expect(results['secondary'], isA<Failure<OnboardingPhase>>());
+    expect(results['primary'], isA<Ok<OnboardingPhase>>());
+    expect(results['secondary'], isA<Err<OnboardingPhase>>());
     expect(onboarding.machineFor('primary').phase, OnboardingPhase.ready);
     expect(onboarding.machineFor('secondary').phase, OnboardingPhase.error);
   });
@@ -274,13 +276,13 @@ void main() {
     ]);
     final FakeAuth auth = FakeAuth(<Map<ResourceKey, Result<ResourceToken>>>[
       <ResourceKey, Result<ResourceToken>>{
-        shared: Success<ResourceToken>(
+        shared: Ok<ResourceToken>(
           AuthFixtures.resourceToken(
             now: now,
             jwtToken: AuthFixtures.registeredJwt(shared),
           ),
         ),
-        extra: Success<ResourceToken>(
+        extra: Ok<ResourceToken>(
           AuthFixtures.resourceToken(
             now: now,
             jwtToken: AuthFixtures.registeredJwt(extra),
@@ -301,8 +303,8 @@ void main() {
 
     // Assert — exactly one initial acquisition batch for the whole registry.
     expect(auth.fetchAllCount, 1);
-    expect(results['a'], isA<Success<OnboardingPhase>>());
-    expect(results['b'], isA<Success<OnboardingPhase>>());
+    expect(results['a'], isA<Ok<OnboardingPhase>>());
+    expect(results['b'], isA<Ok<OnboardingPhase>>());
     expect(onboarding.machineFor('a').phase, OnboardingPhase.ready);
     expect(onboarding.machineFor('b').phase, OnboardingPhase.ready);
   });

@@ -1,4 +1,4 @@
-import '../contracts/problem.dart';
+import 'package:diene_problems/diene_problems.dart';
 import 'carrier.dart';
 import 'redeem_client.dart';
 
@@ -99,11 +99,11 @@ final class DeferredLoginClient {
   Future<DeferredLoginOutcome> _redeem(AppHandoffCarrier carrier) async {
     final result = await _api.redeem(nonce: carrier.nonce, device: _device);
     return result.match(
-      onSuccess: (RedeemResult redeemed) => DeferredLoginReady(<String, String>{
+      ok: (RedeemResult redeemed) => DeferredLoginReady(<String, String>{
         'one_time_token': redeemed.token,
         'login_hint': redeemed.email,
       }),
-      onFailure: DeferredLoginFallback.new,
+      err: DeferredLoginFallback.new,
     );
   }
 

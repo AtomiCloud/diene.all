@@ -1,7 +1,7 @@
 import 'dart:async';
 
-import '../contracts/problem.dart';
-import '../contracts/result.dart';
+import 'package:diene_problems/diene_problems.dart';
+import 'package:diene_result/diene_result.dart';
 import '../tokens/resource_key.dart';
 import '../tokens/session_tokens.dart';
 import 'auth_provider.dart';
@@ -49,9 +49,7 @@ final class AuthCoordinator implements IAuth {
     final DateTime now = _now().toUtc();
     final ResourceToken? cached = _cache[key.mapKey];
     if (cached != null && cached.expiresAt.isAfter(now.add(_refreshSkew))) {
-      return Future<Result<ResourceToken>>.value(
-        Success<ResourceToken>(cached),
-      );
+      return Future<Result<ResourceToken>>.value(Ok<ResourceToken>(cached));
     }
     // Single-flight: concurrent callers for the same key share one acquisition.
     final Future<Result<ResourceToken>>? pending = _inflight[key.mapKey];
@@ -67,9 +65,9 @@ final class AuthCoordinator implements IAuth {
     try {
       final ResourceToken token = await _provider.resourceToken(key);
       _cache[key.mapKey] = token;
-      return Success<ResourceToken>(token);
+      return Ok<ResourceToken>(token);
     } on Object catch (error) {
-      return Failure<ResourceToken>(
+      return Err<ResourceToken>(
         Problem(
           type: 'urn:diene:problem:resource-token',
           title: 'Could not acquire a resource token',

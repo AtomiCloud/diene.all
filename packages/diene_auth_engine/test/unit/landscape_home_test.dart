@@ -1,5 +1,6 @@
 import 'package:diene_auth_engine/diene_auth_engine.dart';
 import 'package:diene_auth_engine/test_helper.dart';
+import 'package:diene_result/diene_result.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 LandscapeSelectorDoc _doc(List<String> names) => LandscapeSelectorDoc(
@@ -56,7 +57,7 @@ void main() {
       );
 
       // Act + Assert
-      expect(await client.selectHome(), isA<Failure<String>>());
+      expect(await client.selectHome(), isA<Err<String>>());
     });
 
     test('propagates a doc fetch failure', () async {
@@ -67,7 +68,7 @@ void main() {
       );
 
       // Act + Assert
-      expect(await client.selectHome(), isA<Failure<String>>());
+      expect(await client.selectHome(), isA<Err<String>>());
     });
   });
 

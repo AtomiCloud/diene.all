@@ -1,6 +1,7 @@
+import 'package:diene_problems/diene_problems.dart';
+import 'package:diene_result/diene_result.dart';
+
 import '../auth/claims.dart';
-import '../contracts/problem.dart';
-import '../contracts/result.dart';
 import 'landscape_selector.dart';
 
 /// Reads the AUTHORITATIVE `home_landscape` claim from the provider's
@@ -73,15 +74,15 @@ final class HomeClaimResolver {
   final HomeClaimReader? _forcedClaimReader;
 
   /// Reads the AUTHORITATIVE `home_landscape` claim from the provider's JWT,
-  /// WITHOUT running Doc B. `null` (inside a [Success]) means the claim is
+  /// WITHOUT running Doc B. `null` (inside a [Ok]) means the claim is
   /// absent. Used by the coordinator to re-check the freshly issued token after
   /// login so a server-changed/removed claim is always observed.
   Future<Result<String?>> authoritativeHome() async {
     try {
       final String? claim = await _claimReader();
-      return Success<String?>(claim != null && claim.isNotEmpty ? claim : null);
+      return Ok<String?>(claim != null && claim.isNotEmpty ? claim : null);
     } on Object catch (error) {
-      return Failure<String?>(
+      return Err<String?>(
         Problem(
           type: 'urn:diene:problem:home-claim-read',
           title: 'Could not read the home landscape claim',
@@ -95,19 +96,19 @@ final class HomeClaimResolver {
 
   /// Confirms the home claim AFTER onboarding/OnboardSync by decoding a
   /// FORCE-FRESH claim-bearing token (never the possibly-stale stored token).
-  /// `null` (inside a [Success]) means the claim could not be confirmed —
+  /// `null` (inside a [Ok]) means the claim could not be confirmed —
   /// fail-closed: absent forced reader, a null/blank fresh token, or a token
   /// without the claim all map to `null` so the coordinator refuses to mirror.
   Future<Result<String?>> confirmedHome() async {
     final HomeClaimReader? reader = _forcedClaimReader;
     if (reader == null) {
-      return const Success<String?>(null);
+      return const Ok<String?>(null);
     }
     try {
       final String? claim = await reader();
-      return Success<String?>(claim != null && claim.isNotEmpty ? claim : null);
+      return Ok<String?>(claim != null && claim.isNotEmpty ? claim : null);
     } on Object catch (error) {
-      return Failure<String?>(
+      return Err<String?>(
         Problem(
           type: 'urn:diene:problem:home-claim-read',
           title: 'Could not read the home landscape claim',
@@ -123,14 +124,14 @@ final class HomeClaimResolver {
   /// runs the Doc B selector ONLY when that claim is absent (sign-up).
   Future<Result<HomeResolution>> resolve({String? preferred}) async {
     final Result<String?> read = await authoritativeHome();
-    if (read is Failure<String?>) {
-      return Failure<HomeResolution>(read.problem);
+    if (read is Err<String?>) {
+      return Err<HomeResolution>(read.problem);
     }
-    final String? authoritative = (read as Success<String?>).value;
+    final String? authoritative = (read as Ok<String?>).value;
     if (authoritative != null && authoritative.isNotEmpty) {
       // Mirror the authoritative value; the store is not consulted to decide.
       await _mirror(authoritative);
-      return Success<HomeResolution>(
+      return Ok<HomeResolution>(
         HomeResolution(
           landscape: authoritative,
           kind: HomeResolutionKind.fromClaim,

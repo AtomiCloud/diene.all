@@ -14,6 +14,7 @@
 // recorded. See the node completion note, item P1c.
 import 'package:diene_auth_engine/diene_auth_engine.dart';
 import 'package:diene_auth_engine/test_helper.dart';
+import 'package:diene_problems/diene_problems.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

@@ -7,6 +7,12 @@
 ///
 /// Dart is frontend-only — there is NO otel surface here; telemetry rides Faro
 /// through flutter-base.
+///
+/// Every fallible member returns `Result` from `package:diene_result`, with the
+/// canonical `Problem` envelope from `package:diene_problems`. Neither package
+/// is re-exported here — consumers depend on them directly, matching the
+/// accepted `diene_interfaces` shape, so the canonical types have exactly one
+/// owner and cannot drift behind an alias.
 library;
 
 export 'src/auth/auth_provider.dart';
@@ -14,8 +20,6 @@ export 'src/auth/auth_seam.dart';
 export 'src/auth/claims.dart';
 export 'src/auth/session_controller.dart';
 export 'src/config/auth_engine_config.dart';
-export 'src/contracts/problem.dart';
-export 'src/contracts/result.dart';
 export 'src/deferred/carrier.dart';
 export 'src/deferred/deferred_login.dart';
 export 'src/deferred/redeem_client.dart';

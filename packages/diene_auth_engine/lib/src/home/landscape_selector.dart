@@ -1,5 +1,5 @@
-import '../contracts/problem.dart';
-import '../contracts/result.dart';
+import 'package:diene_problems/diene_problems.dart';
+import 'package:diene_result/diene_result.dart';
 
 /// One landscape entry in Doc B — the landscape selector (C0 §10).
 ///
@@ -158,7 +158,7 @@ final class LandscapeSelectorClient {
     try {
       doc = await _source.fetch();
     } on Object catch (error) {
-      return Failure<String>(
+      return Err<String>(
         Problem(
           type: 'urn:diene:problem:landscape-doc',
           title: 'Could not fetch the landscape selector',
@@ -169,7 +169,7 @@ final class LandscapeSelectorClient {
       );
     }
     if (doc.landscapes.isEmpty) {
-      return const Failure<String>(
+      return const Err<String>(
         Problem(
           type: 'urn:diene:problem:landscape-empty',
           title: 'No landscapes offered',
@@ -191,7 +191,7 @@ final class LandscapeSelectorClient {
     ]);
 
     if (healthy.isEmpty) {
-      return const Failure<String>(
+      return const Err<String>(
         Problem(
           type: 'urn:diene:problem:landscape-unhealthy',
           title: 'No healthy landscape found',
@@ -203,12 +203,12 @@ final class LandscapeSelectorClient {
 
     // Honour an explicit healthy preference; otherwise pick the fastest.
     if (preferred != null && healthy.containsKey(preferred)) {
-      return Success<String>(preferred);
+      return Ok<String>(preferred);
     }
     final MapEntry<String, Duration> fastest = healthy.entries.reduce(
       (MapEntry<String, Duration> a, MapEntry<String, Duration> b) =>
           a.value <= b.value ? a : b,
     );
-    return Success<String>(fastest.key);
+    return Ok<String>(fastest.key);
   }
 }

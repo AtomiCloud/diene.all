@@ -1,5 +1,5 @@
-import '../contracts/problem.dart';
-import '../contracts/result.dart';
+import 'package:diene_problems/diene_problems.dart';
+import 'package:diene_result/diene_result.dart';
 
 /// Telemetry-only device info sent on redeem (C0 §7). It MUST NOT affect
 /// identity or authorization.

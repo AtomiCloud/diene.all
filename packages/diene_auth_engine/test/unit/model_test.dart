@@ -5,35 +5,14 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   final DateTime now = DateTime.utc(2026, 7, 21);
 
-  group('Result / Option factories and helpers', () {
-    test('factory ok/err and fold alias', () {
-      expect((Result<int>.ok(1) as Success<int>).value, 1);
-      expect(
-        Result<int>.err(
-          const Problem(type: 't', title: 'x', status: 400),
-        ).isFailure,
-        isTrue,
-      );
-      expect(
-        const Success<int>(
-          2,
-        ).fold(onSuccess: (int v) => v, onFailure: (_) => 0),
-        2,
-      );
-      expect(const Success<int>(2).problemOrNull, isNull);
-    });
-
-    test('Option some/none equality and helpers', () {
-      expect(const Some<int>(1), const Some<int>(1));
-      expect(const None<int>(), const None<int>());
-      expect(Option<int>.some(1).valueOrNull, 1);
-      expect(Option<int>.none().valueOrNull, isNull);
-      expect(
-        const Some<int>(3).match(onSome: (int v) => v, onNone: () => 0),
-        3,
-      );
-    });
-  });
+  // The `Result` / `Option` monad semantics that used to be asserted here are
+  // NOT this package's contract any more. They belong to the hosted
+  // `diene_result`, which proves them in its own suite against the C0 §5
+  // fixtures; re-asserting them here would duplicate a sibling's contract tests
+  // and drift from them (R2 — minimal diff, libs are new files). What this
+  // package still owns, and what the C0 conformance tier asserts, is that its
+  // OWN fallible members return those types — see
+  // test/conformance/c0_conformance_test.dart.
 
   group('SessionTokens / ResourceToken', () {
     test('validity checks and equality', () {

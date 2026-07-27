@@ -1,5 +1,5 @@
-import '../contracts/problem.dart';
-import '../contracts/result.dart';
+import 'package:diene_problems/diene_problems.dart';
+import 'package:diene_result/diene_result.dart';
 
 /// returnTo deeplink continuation (goals/lib/dart-family.md auth-engine row).
 ///
@@ -23,7 +23,7 @@ abstract final class ReturnTo {
         path.startsWith('/\\')) {
       return _reject('returnTo path must begin with a single "/"');
     }
-    return Success<String>(_render(target));
+    return Ok<String>(_render(target));
   }
 
   /// Builds the login redirect [loginBase] carrying the validated returnTo.
@@ -59,7 +59,7 @@ abstract final class ReturnTo {
         raw.startsWith('/\\')) {
       return _reject('returnTo must be a single-slash relative path');
     }
-    return Success<Uri>(Uri.parse(_render(parsed)));
+    return Ok<Uri>(Uri.parse(_render(parsed)));
   }
 
   /// Extracts and resolves the returnTo from a post-login callback URL, or
@@ -78,7 +78,7 @@ abstract final class ReturnTo {
     return '${target.path}$query$fragment';
   }
 
-  static Result<R> _reject<R>(String detail) => Failure<R>(
+  static Result<R> _reject<R>(String detail) => Err<R>(
     Problem(
       type: 'urn:diene:problem:return-to',
       title: 'Invalid returnTo target',

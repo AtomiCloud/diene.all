@@ -1,8 +1,8 @@
 import 'dart:convert';
 
+import 'package:diene_result/diene_result.dart';
 import 'package:http/http.dart' as http;
 
-import '../contracts/result.dart';
 import '../deferred/redeem_client.dart';
 
 /// HTTP implementation of [AppHandoffApi] against `POST {mount}/redeem`.
@@ -38,19 +38,19 @@ final class HttpAppHandoffApi implements AppHandoffApi {
         }),
       );
       if (response.statusCode != 200) {
-        return Failure<RedeemResult>(appHandoffExpired());
+        return Err<RedeemResult>(appHandoffExpired());
       }
       final Object? decoded = jsonDecode(response.body);
       if (decoded is! Map) {
-        return Failure<RedeemResult>(appHandoffExpired());
+        return Err<RedeemResult>(appHandoffExpired());
       }
       final Object? token = decoded['token'];
       final Object? email = decoded['email'];
       if (token is! String || token.isEmpty || email is! String) {
-        return Failure<RedeemResult>(appHandoffExpired());
+        return Err<RedeemResult>(appHandoffExpired());
       }
       final Object? expiresIn = decoded['expiresIn'];
-      return Success<RedeemResult>(
+      return Ok<RedeemResult>(
         RedeemResult(
           token: token,
           email: email,
@@ -58,7 +58,7 @@ final class HttpAppHandoffApi implements AppHandoffApi {
         ),
       );
     } on Object {
-      return Failure<RedeemResult>(appHandoffExpired());
+      return Err<RedeemResult>(appHandoffExpired());
     }
   }
 

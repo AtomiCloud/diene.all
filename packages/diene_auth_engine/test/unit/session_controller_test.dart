@@ -1,5 +1,6 @@
 import 'package:diene_auth_engine/diene_auth_engine.dart';
 import 'package:diene_auth_engine/test_helper.dart';
+import 'package:diene_result/diene_result.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -55,7 +56,7 @@ void main() {
     final Result<SessionTokens> result = await session.signIn();
 
     // Assert
-    expect(result, isA<Failure<SessionTokens>>());
+    expect(result, isA<Err<SessionTokens>>());
     expect(session.status, SessionStatus.failed);
   });
 
@@ -139,7 +140,7 @@ void main() {
     );
 
     // Act + Assert
-    expect((await session.refresh()), isA<Failure<SessionTokens>>());
-    expect((await session.onAppOpen()), isA<Failure<SessionTokens>>());
+    expect((await session.refresh()), isA<Err<SessionTokens>>());
+    expect((await session.onAppOpen()), isA<Err<SessionTokens>>());
   });
 }

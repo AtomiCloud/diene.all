@@ -1,5 +1,6 @@
 import 'package:diene_auth_engine/diene_auth_engine.dart';
 import 'package:diene_auth_engine/test_helper.dart';
+import 'package:diene_result/diene_result.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -15,7 +16,7 @@ void main() {
         'app_handoff=${Uri.encodeComponent(canonical)}',
       );
       final FakeAppHandoffApi api = FakeAppHandoffApi(
-        result: const Success<RedeemResult>(
+        result: const Ok<RedeemResult>(
           RedeemResult(token: 'ott', email: 'a@b.co'),
         ),
       );
@@ -46,7 +47,7 @@ void main() {
     );
     final DeferredLoginClient client = DeferredLoginClient(
       api: FakeAppHandoffApi(
-        result: const Success<RedeemResult>(
+        result: const Ok<RedeemResult>(
           RedeemResult(token: 'ott', email: 'a@b.co'),
         ),
       ),

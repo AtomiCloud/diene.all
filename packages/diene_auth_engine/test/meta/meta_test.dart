@@ -2,39 +2,41 @@
 // parity, fixture/builder invariants). Run via `pls test:meta`.
 import 'package:diene_auth_engine/diene_auth_engine.dart';
 import 'package:diene_auth_engine/test_helper.dart';
+import 'package:diene_problems/diene_problems.dart';
+import 'package:diene_result/diene_result.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   final DateTime now = DateTime.utc(2026, 7, 21);
 
   group('assert-the-asserter: AuthExpect', () {
-    test('ok passes on Success and throws on Failure', () {
+    test('ok passes on Ok and throws on Err', () {
       // Known-good
-      expect(AuthExpect.ok(const Success<int>(1)), 1);
+      expect(AuthExpect.ok(const Ok<int>(1)), 1);
       // Known-bad
       expect(
         () => AuthExpect.ok(
-          const Failure<int>(Problem(type: 't', title: 'x', status: 400)),
+          const Err<int>(Problem(type: 't', title: 'x', status: 400)),
         ),
         throwsA(isA<AuthAssertionError>()),
       );
     });
 
-    test('err passes on Failure and throws on Success', () {
+    test('err passes on Err and throws on Ok', () {
       expect(
         AuthExpect.err(
-          const Failure<int>(Problem(type: 't', title: 'x', status: 400)),
+          const Err<int>(Problem(type: 't', title: 'x', status: 400)),
         ).status,
         400,
       );
       expect(
-        () => AuthExpect.err(const Success<int>(1)),
+        () => AuthExpect.err(const Ok<int>(1)),
         throwsA(isA<AuthAssertionError>()),
       );
     });
 
     test('errType matches the problem type and rejects a mismatch', () {
-      const Result<int> failure = Failure<int>(
+      const Result<int> failure = Err<int>(
         Problem(type: 'urn:x', title: 'x', status: 400),
       );
       expect(AuthExpect.errType(failure, 'urn:x').type, 'urn:x');
@@ -116,7 +118,7 @@ void main() {
       final ResourceKey key = AuthFixtures.resourceKey();
       final FakeAuth auth = FakeAuth(<Map<ResourceKey, Result<ResourceToken>>>[
         <ResourceKey, Result<ResourceToken>>{
-          key: Success<ResourceToken>(
+          key: Ok<ResourceToken>(
             AuthFixtures.resourceToken(now: now, jwtToken: 'j'),
           ),
         },
@@ -194,12 +196,12 @@ void main() {
       final ResourceKey key = AuthFixtures.resourceKey();
       final FakeAuth auth = FakeAuth(<Map<ResourceKey, Result<ResourceToken>>>[
         <ResourceKey, Result<ResourceToken>>{
-          key: Success<ResourceToken>(
+          key: Ok<ResourceToken>(
             AuthFixtures.resourceToken(now: now, jwtToken: 'a'),
           ),
         },
         <ResourceKey, Result<ResourceToken>>{
-          key: Success<ResourceToken>(
+          key: Ok<ResourceToken>(
             AuthFixtures.resourceToken(now: now, jwtToken: 'b'),
           ),
         },
@@ -229,9 +231,7 @@ void main() {
         expect(dir.postCount, 1);
 
         final FakeAppHandoffApi api = FakeAppHandoffApi(
-          result: const Success<RedeemResult>(
-            RedeemResult(token: 't', email: 'e'),
-          ),
+          result: const Ok<RedeemResult>(RedeemResult(token: 't', email: 'e')),
         );
         expect(
           AuthExpect.ok(
