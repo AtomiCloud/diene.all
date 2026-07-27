@@ -18,6 +18,7 @@ func main() {
 
 func run(args []string) int {
 	config := operatorruntime.DefaultConfig(os.Getenv)
+	credentials := operatorruntime.CredentialSetFromEnvironment(os.Getenv)
 	logOptions := zap.Options{Development: false}
 	flags := flag.NewFlagSet("manager", flag.ContinueOnError)
 	flags.SetOutput(os.Stderr)
@@ -37,7 +38,7 @@ func run(args []string) int {
 		setupLog.Error(err, "load Kubernetes configuration")
 		return 1
 	}
-	if err := operatorruntime.Start(ctrl.SetupSignalHandler(), restConfig, config); err != nil {
+	if err := operatorruntime.StartWithCredentials(ctrl.SetupSignalHandler(), restConfig, config, credentials); err != nil {
 		setupLog.Error(err, "run manager")
 		return 1
 	}

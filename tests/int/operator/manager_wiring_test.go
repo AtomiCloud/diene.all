@@ -21,7 +21,7 @@ import (
 	"github.com/AtomiCloud/diene.fleet-operator/lib/operator/plan"
 )
 
-func TestMultiControllerWiring(t *testing.T) {
+func TestManagerWiringLegacyMultiController(t *testing.T) {
 	config := operatorruntime.Config{}
 	flags := flag.NewFlagSet("manager-acceptance", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
@@ -33,12 +33,15 @@ func TestMultiControllerWiring(t *testing.T) {
 		"--metrics-bind-address=0",
 		"--health-probe-bind-address=0",
 		"--blast-brake-cap=20",
+		"--dependency-destructive-cap-per-tick=3",
 		"--platform=diene",
 		"--landscape=lapras",
 	}))
 	require.True(t, config.EnableNote)
 	require.True(t, config.EnableJournal)
 	require.False(t, config.LeaderElection)
+	require.Equal(t, 20, config.TrafficCapPercent)
+	require.Equal(t, 3, config.DependencyDestructiveCapPerTick)
 
 	manager, err := operatorruntime.NewManager(restConfig, testScheme, config)
 	require.NoError(t, err)
@@ -104,4 +107,159 @@ func TestMultiControllerWiring(t *testing.T) {
 		client.MatchingLabels{controllers.NoteOwnerLabel: note.Name},
 	))
 	require.Len(t, owned.Items, 1)
+}
+
+func TestManagerWiringRealControllerFlagsAndGlobalObserve(t *testing.T) {
+	t.Parallel()
+
+	config := operatorruntime.Config{}
+	flags := flag.NewFlagSet("manager-real-flags", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	operatorruntime.BindFlags(flags, &config)
+	require.NoError(t, flags.Parse([]string{
+		"--enable-cluster=true",
+		"--enable-platform=true",
+		"--enable-dependency=true",
+		"--enable-traffic=true",
+		"--enable-webhook=true",
+		"--enable-cf-deploy=true",
+		"--enable-problem=true",
+		"--observe=true",
+	}))
+
+	require.True(t, config.EnableCluster)
+	require.True(t, config.EnablePlatform)
+	require.True(t, config.EnableDependency)
+	require.True(t, config.EnableTraffic)
+	require.True(t, config.EnableWebhook)
+	require.True(t, config.EnableCfDeploy)
+	require.True(t, config.EnableProblem)
+	require.True(t, config.Observe)
+}
+
+func TestManagerWiringBrakeFlagAliases(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		arg  string
+		want int
+	}{
+		{name: "new traffic flag mirrors legacy field", arg: "--traffic-cap-percent=27", want: 27},
+		{name: "legacy flag mirrors new traffic field", arg: "--blast-brake-cap=18", want: 18},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			config := operatorruntime.Config{BlastBrakeCap: 20, TrafficCapPercent: 20}
+			flags := flag.NewFlagSet("manager-brake-flags", flag.ContinueOnError)
+			flags.SetOutput(io.Discard)
+			operatorruntime.BindFlags(flags, &config)
+
+			require.NoError(t, flags.Parse([]string{test.arg}))
+			require.Equal(t, test.want, config.BlastBrakeCap)
+			require.Equal(t, test.want, config.TrafficCapPercent)
+		})
+	}
+}
+
+func TestManagerWiringEnabledControllersRequireOwnBundle(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		controller  string
+		config      operatorruntime.Config
+		credentials operatorruntime.CredentialSet
+	}{
+		{
+			name: "cluster", controller: "cluster",
+			config:      operatorruntime.Config{EnableCluster: true},
+			credentials: operatorruntime.CredentialSet{Cluster: operatorruntime.ClusterCredentials{ProviderAPI: "present"}},
+		},
+		{
+			name: "platform", controller: "platform",
+			config: operatorruntime.Config{EnablePlatform: true},
+			credentials: operatorruntime.CredentialSet{Platform: operatorruntime.PlatformCredentials{
+				InfisicalAdmin: "present", GitHubOrgRead: "present", FleetRepoWrite: "present",
+			}},
+		},
+		{
+			name: "dependency", controller: "dependency",
+			config: operatorruntime.Config{EnableDependency: true},
+		},
+		{
+			name: "traffic", controller: "traffic",
+			config: operatorruntime.Config{EnableTraffic: true},
+			credentials: operatorruntime.CredentialSet{Traffic: operatorruntime.TrafficCredentials{
+				Route53: "present", CloudflareDNS: "present", EdgePublisher: "present",
+			}},
+		},
+		{
+			name: "webhook", controller: "webhook",
+			config: operatorruntime.Config{EnableWebhook: true},
+			credentials: operatorruntime.CredentialSet{Webhook: operatorruntime.WebhookCredentials{
+				MercuryManagement: "present", LandscapeMercuryKV: "present",
+			}},
+		},
+		{
+			name: "cf-deploy", controller: "cf-deploy",
+			config:      operatorruntime.Config{EnableCfDeploy: true},
+			credentials: operatorruntime.CredentialSet{CfDeploy: operatorruntime.CfDeployCredentials{CloudflareWorkers: "present"}},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			err := operatorruntime.RegisterControllers(nil, test.config, operatorruntime.ControllerDependencies{})
+			require.ErrorIs(t, err, operatorruntime.ErrControllerBundleRequired)
+			var missing *operatorruntime.MissingBundleError
+			require.ErrorAs(t, err, &missing)
+			require.Equal(t, test.controller, missing.Controller)
+
+			bundles, err := operatorruntime.BuildBundles(test.config, test.credentials)
+			require.NoError(t, err)
+			require.NoError(t, operatorruntime.RegisterControllers(nil, test.config, operatorruntime.ControllerDependencies{
+				Bundles: bundles,
+			}))
+		})
+	}
+}
+
+func TestManagerWiringFullPrimordialNoOpSeams(t *testing.T) {
+	t.Parallel()
+
+	config := fullControllerConfig()
+	config.Observe = true
+	bundles, err := operatorruntime.BuildBundles(config, fullCredentialSet())
+	require.NoError(t, err)
+	require.NoError(t, operatorruntime.RegisterControllers(nil, config, operatorruntime.ControllerDependencies{
+		Bundles: bundles,
+	}))
+}
+
+func TestManagerWiringRejectsMalformedDependencyBundle(t *testing.T) {
+	t.Parallel()
+
+	err := operatorruntime.RegisterControllers(
+		nil,
+		operatorruntime.Config{EnableDependency: true},
+		operatorruntime.ControllerDependencies{
+			Bundles: operatorruntime.Bundles{Dependency: &operatorruntime.DependencyBundle{}},
+		},
+	)
+	require.ErrorIs(t, err, operatorruntime.ErrControllerBundleRequired)
+}
+
+func TestManagerWiringProblemReservedSeam(t *testing.T) {
+	t.Parallel()
+
+	err := operatorruntime.RegisterControllers(
+		nil,
+		operatorruntime.Config{EnableProblem: true},
+		operatorruntime.ControllerDependencies{},
+	)
+	require.ErrorIs(t, err, operatorruntime.ErrProblemNotFolded)
+	require.EqualError(t, err, "problem sub-component not yet folded")
 }

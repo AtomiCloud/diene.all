@@ -6,10 +6,11 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/minio/minio-go/v7"
-	"github.com/minio/minio-go/v7/pkg/credentials"
+	miniocredentials "github.com/minio/minio-go/v7/pkg/credentials"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -23,10 +24,30 @@ import (
 	"github.com/AtomiCloud/diene.fleet-operator/adapters/operator/ledgerstore"
 	operatormetrics "github.com/AtomiCloud/diene.fleet-operator/adapters/operator/metrics"
 	apiv1alpha1 "github.com/AtomiCloud/diene.fleet-operator/api/v1alpha1"
+	"github.com/AtomiCloud/diene.fleet-operator/lib/operator/brake"
 	"github.com/AtomiCloud/diene.fleet-operator/lib/operator/ledger"
 )
 
 const leaderElectionID = "fleet-operator.diene.atomi.cloud"
+
+const (
+	envClusterProvider     = "FLEET_OPERATOR_CLUSTER_PROVIDER_API"
+	envPlatformInfisical   = "FLEET_OPERATOR_PLATFORM_INFISICAL_ADMIN"
+	envPlatformGitHub      = "FLEET_OPERATOR_PLATFORM_GITHUB_ORG_READ"
+	envPlatformFleetRepo   = "FLEET_OPERATOR_PLATFORM_FLEET_REPO_WRITE"
+	envDependencyVendors   = "FLEET_OPERATOR_DEPENDENCY_VENDOR_ENGINE"
+	envDependencyBroker    = "FLEET_OPERATOR_DEPENDENCY_BROKER_TOKEN"
+	envDependencyTigris    = "FLEET_OPERATOR_DEPENDENCY_NATIVE_TIGRIS_KEY"
+	envDependencySeed      = "FLEET_OPERATOR_DEPENDENCY_READ_ONLY_SEED"
+	envTrafficRoute53      = "FLEET_OPERATOR_TRAFFIC_ROUTE53"
+	envTrafficCloudflare   = "FLEET_OPERATOR_TRAFFIC_CLOUDFLARE_DNS"
+	envTrafficPublisher    = "FLEET_OPERATOR_TRAFFIC_EDGE_PUBLISHER"
+	envWebhookManagement   = "FLEET_OPERATOR_WEBHOOK_MERCURY_MANAGEMENT"
+	envWebhookLandscapeKV  = "FLEET_OPERATOR_WEBHOOK_LANDSCAPE_MERCURY_KV"
+	envCfDeployWorkers     = "FLEET_OPERATOR_CF_DEPLOY_CLOUDFLARE_WORKERS"
+	envBroadInfisicalWrite = "FLEET_OPERATOR_INFISICAL_WRITE"
+	envBroadT4Root         = "FLEET_OPERATOR_T4_ROOT_PATH"
+)
 
 // ErrLedgerEndpointRequired reports an enabled Note controller without a ledger endpoint.
 var ErrLedgerEndpointRequired = errors.New("note controller enabled but --ledger-endpoint/LEDGER_ENDPOINT is empty; set an endpoint or disable the Note controller (--enable-note=false)")
@@ -36,28 +57,30 @@ var ErrNoteLedgerRequired = errors.New("note controller enabled without a ledger
 
 // Config is the manager configuration populated by its real command-line flags.
 type Config struct {
-	EnableNote       bool
-	EnableJournal    bool
-	EnableCluster    bool
-	EnablePlatform   bool
-	EnableDependency bool
-	EnableTraffic    bool
-	EnableWebhook    bool
-	EnableCfDeploy   bool
-	EnableProblem    bool
-	Observe          bool
-	MetricsAddress   string
-	HealthAddress    string
-	LeaderElection   bool
-	BlastBrakeCap    int
-	Platform         string
-	Landscape        string
-	LedgerEndpoint   string
-	LedgerBucket     string
-	LedgerSecure     bool
-	LedgerNotePrefix string
-	LedgerAccessKey  string
-	LedgerSecretKey  string
+	EnableNote                      bool
+	EnableJournal                   bool
+	EnableCluster                   bool
+	EnablePlatform                  bool
+	EnableDependency                bool
+	EnableTraffic                   bool
+	EnableWebhook                   bool
+	EnableCfDeploy                  bool
+	EnableProblem                   bool
+	Observe                         bool
+	MetricsAddress                  string
+	HealthAddress                   string
+	LeaderElection                  bool
+	BlastBrakeCap                   int
+	TrafficCapPercent               int
+	DependencyDestructiveCapPerTick int
+	Platform                        string
+	Landscape                       string
+	LedgerEndpoint                  string
+	LedgerBucket                    string
+	LedgerSecure                    bool
+	LedgerNotePrefix                string
+	LedgerAccessKey                 string
+	LedgerSecretKey                 string
 }
 
 // DefaultConfig returns production-safe defaults, including leader election and secured metrics.
@@ -67,20 +90,58 @@ func DefaultConfig(getenv func(string) string) Config {
 		ledgerBucket = "fleet-operator-ledger"
 	}
 	return Config{
-		EnableNote:       true,
-		EnableJournal:    true,
-		MetricsAddress:   ":8443",
-		HealthAddress:    ":8081",
-		LeaderElection:   true,
-		BlastBrakeCap:    20,
-		Platform:         "diene",
-		Landscape:        "lapras",
-		LedgerEndpoint:   getenv("LEDGER_ENDPOINT"),
-		LedgerBucket:     ledgerBucket,
-		LedgerSecure:     getenv("LEDGER_SECURE") == "true",
-		LedgerNotePrefix: "notes/",
-		LedgerAccessKey:  getenv("LEDGER_ACCESS_KEY"),
-		LedgerSecretKey:  getenv("LEDGER_SECRET_KEY"),
+		EnableNote:                      true,
+		EnableJournal:                   true,
+		MetricsAddress:                  ":8443",
+		HealthAddress:                   ":8081",
+		LeaderElection:                  true,
+		BlastBrakeCap:                   20,
+		TrafficCapPercent:               brake.DefaultTrafficCapPercent,
+		DependencyDestructiveCapPerTick: brake.DefaultDependencyCapPerTick,
+		Platform:                        "diene",
+		Landscape:                       "lapras",
+		LedgerEndpoint:                  getenv("LEDGER_ENDPOINT"),
+		LedgerBucket:                    ledgerBucket,
+		LedgerSecure:                    getenv("LEDGER_SECURE") == "true",
+		LedgerNotePrefix:                "notes/",
+		LedgerAccessKey:                 getenv("LEDGER_ACCESS_KEY"),
+		LedgerSecretKey:                 getenv("LEDGER_SECRET_KEY"),
+	}
+}
+
+// CredentialSetFromEnvironment reads the presence-only controller credential
+// inventory. It does not parse, validate, or construct a client from any value;
+// BuildBundles performs the deterministic enable-by-presence decision later.
+func CredentialSetFromEnvironment(getenv func(string) string) CredentialSet {
+	return CredentialSet{
+		Cluster: ClusterCredentials{
+			ProviderAPI: getenv(envClusterProvider),
+		},
+		Platform: PlatformCredentials{
+			InfisicalAdmin: getenv(envPlatformInfisical),
+			GitHubOrgRead:  getenv(envPlatformGitHub),
+			FleetRepoWrite: getenv(envPlatformFleetRepo),
+		},
+		Dependency: DependencyCredentials{
+			VendorEngine:    getenv(envDependencyVendors),
+			BrokerToken:     getenv(envDependencyBroker),
+			NativeTigrisKey: getenv(envDependencyTigris),
+			ReadOnlySeed:    supplied(getenv(envDependencySeed)),
+		},
+		Traffic: TrafficCredentials{
+			Route53:       getenv(envTrafficRoute53),
+			CloudflareDNS: getenv(envTrafficCloudflare),
+			EdgePublisher: getenv(envTrafficPublisher),
+		},
+		Webhook: WebhookCredentials{
+			MercuryManagement:  getenv(envWebhookManagement),
+			LandscapeMercuryKV: getenv(envWebhookLandscapeKV),
+		},
+		CfDeploy: CfDeployCredentials{
+			CloudflareWorkers: getenv(envCfDeployWorkers),
+		},
+		InfisicalWrite: getenv(envBroadInfisicalWrite),
+		T4RootPath:     getenv(envBroadT4Root),
 	}
 }
 
@@ -88,11 +149,33 @@ func DefaultConfig(getenv func(string) string) Config {
 func BindFlags(flags *flag.FlagSet, config *Config) {
 	flags.BoolVar(&config.EnableNote, "enable-note", config.EnableNote, "enable the Note controller")
 	flags.BoolVar(&config.EnableJournal, "enable-journal", config.EnableJournal, "enable the Journal controller")
+	flags.BoolVar(&config.EnableCluster, "enable-cluster", config.EnableCluster, "enable the cluster controller")
+	flags.BoolVar(&config.EnablePlatform, "enable-platform", config.EnablePlatform, "enable the platform controller")
+	flags.BoolVar(&config.EnableDependency, "enable-dependency", config.EnableDependency, "enable the dependency controller")
+	flags.BoolVar(&config.EnableTraffic, "enable-traffic", config.EnableTraffic, "enable the traffic controller")
+	flags.BoolVar(&config.EnableWebhook, "enable-webhook", config.EnableWebhook, "enable the webhook controller")
+	flags.BoolVar(&config.EnableCfDeploy, "enable-cf-deploy", config.EnableCfDeploy, "enable the cf-deploy controller")
+	flags.BoolVar(&config.EnableProblem, "enable-problem", config.EnableProblem, "enable the reserved Problem sub-component seam")
 	flags.BoolVar(&config.Observe, "observe", config.Observe, "run in observe mode: compute and report the plan without writing")
 	flags.StringVar(&config.MetricsAddress, "metrics-bind-address", config.MetricsAddress, "secured metrics endpoint address")
 	flags.StringVar(&config.HealthAddress, "health-probe-bind-address", config.HealthAddress, "health/readiness probe address")
 	flags.BoolVar(&config.LeaderElection, "leader-elect", config.LeaderElection, "enable leader election (on even for a single replica)")
-	flags.IntVar(&config.BlastBrakeCap, "blast-brake-cap", config.BlastBrakeCap, "destructive-write percentage-per-tick cap")
+	flags.Var(
+		newMirroredIntValue(&config.BlastBrakeCap, &config.TrafficCapPercent),
+		"blast-brake-cap",
+		"legacy alias for --traffic-cap-percent",
+	)
+	flags.Var(
+		newMirroredIntValue(&config.TrafficCapPercent, &config.BlastBrakeCap),
+		"traffic-cap-percent",
+		"traffic record-removal percentage-per-tick cap",
+	)
+	flags.IntVar(
+		&config.DependencyDestructiveCapPerTick,
+		"dependency-destructive-cap-per-tick",
+		config.DependencyDestructiveCapPerTick,
+		"dependency destructive-module cap per tick",
+	)
 	flags.StringVar(&config.Platform, "platform", config.Platform, "ledger platform coordinate")
 	flags.StringVar(&config.Landscape, "landscape", config.Landscape, "ledger landscape coordinate")
 	flags.StringVar(&config.LedgerEndpoint, "ledger-endpoint", config.LedgerEndpoint, "S3/MinIO ledger endpoint host:port")
@@ -101,11 +184,39 @@ func BindFlags(flags *flag.FlagSet, config *Config) {
 	flags.StringVar(&config.LedgerNotePrefix, "ledger-note-prefix", config.LedgerNotePrefix, "per-controller ledger object prefix for the Note controller")
 }
 
+type mirroredIntValue struct {
+	primary *int
+	mirror  *int
+}
+
+func newMirroredIntValue(primary, mirror *int) *mirroredIntValue {
+	return &mirroredIntValue{primary: primary, mirror: mirror}
+}
+
+func (v *mirroredIntValue) String() string {
+	return strconv.Itoa(*v.primary)
+}
+
+func (v *mirroredIntValue) Set(raw string) error {
+	value, err := strconv.Atoi(raw)
+	if err != nil {
+		return fmt.Errorf("parse integer %q: %w", raw, err)
+	}
+	*v.primary = value
+	*v.mirror = value
+	return nil
+}
+
+func (v *mirroredIntValue) Get() any {
+	return *v.primary
+}
+
 // ControllerDependencies contains replaceable runtime dependencies for registration tests.
 type ControllerDependencies struct {
 	Clock      kube.Clock
 	Metrics    operatormetrics.Recorder
 	NoteLedger *ledger.Service
+	Bundles    Bundles
 }
 
 // NewScheme returns the scheme used by both the production manager and fixtures.
@@ -137,6 +248,48 @@ func NewManager(restConfig *rest.Config, scheme *runtime.Scheme, config Config) 
 
 // RegisterControllers applies the real per-controller enable flags to manager registration.
 func RegisterControllers(manager ctrl.Manager, config Config, dependencies ControllerDependencies) error {
+	if config.EnableProblem {
+		return ErrProblemNotFolded
+	}
+	if config.EnableCluster {
+		bundle := dependencies.Bundles.Cluster
+		if bundle == nil || bundle.ProviderAPI == nil {
+			return &MissingBundleError{Controller: controllerCluster}
+		}
+	}
+	if config.EnablePlatform {
+		bundle := dependencies.Bundles.Platform
+		if bundle == nil || bundle.InfisicalAdmin == nil || bundle.GitHubOrgRead == nil || bundle.FleetRepoWrite == nil {
+			return &MissingBundleError{Controller: controllerPlatform}
+		}
+	}
+	if config.EnableDependency {
+		bundle := dependencies.Bundles.Dependency
+		if bundle == nil || bundle.VendorEngine == nil || bundle.BrokerToken == nil || bundle.NativeTigrisKey == nil || bundle.ReadOnlySeed == nil {
+			return &MissingBundleError{Controller: controllerDependency}
+		}
+	}
+	if config.EnableTraffic {
+		bundle := dependencies.Bundles.Traffic
+		if bundle == nil || bundle.Route53 == nil || bundle.CloudflareDNS == nil || bundle.EdgePublisher == nil {
+			return &MissingBundleError{Controller: controllerTraffic}
+		}
+	}
+	if config.EnableWebhook {
+		bundle := dependencies.Bundles.Webhook
+		if bundle == nil || bundle.MercuryManagement == nil || bundle.LandscapeMercuryKV == nil {
+			return &MissingBundleError{Controller: controllerWebhook}
+		}
+	}
+	if config.EnableCfDeploy {
+		bundle := dependencies.Bundles.CfDeploy
+		if bundle == nil || bundle.CloudflareWorkers == nil {
+			return &MissingBundleError{Controller: controllerCfDeploy}
+		}
+	}
+
+	// Phase 2 intentionally stops at these six bundle-gated registration
+	// seams. Phase 3 adds each real reconciler inside its matching branch.
 	clock := dependencies.Clock
 	if clock == nil {
 		clock = kube.RealClock{}
@@ -194,6 +347,16 @@ func AddHealthChecks(manager ctrl.Manager) error {
 
 // Start constructs and runs the production manager until context cancellation.
 func Start(ctx context.Context, restConfig *rest.Config, config Config) error {
+	return StartWithCredentials(ctx, restConfig, config, CredentialSet{})
+}
+
+// StartWithCredentials constructs and runs the production manager with the
+// explicit presence inventory supplied by the command composition root.
+func StartWithCredentials(ctx context.Context, restConfig *rest.Config, config Config, credentials CredentialSet) error {
+	dependencies, err := productionDependencies(ctx, config, credentials)
+	if err != nil {
+		return err
+	}
 	scheme, err := NewScheme()
 	if err != nil {
 		return err
@@ -201,10 +364,6 @@ func Start(ctx context.Context, restConfig *rest.Config, config Config) error {
 	manager, err := NewManager(restConfig, scheme, config)
 	if err != nil {
 		return fmt.Errorf("create manager: %w", err)
-	}
-	dependencies, err := productionDependencies(ctx, config)
-	if err != nil {
-		return err
 	}
 	if err := RegisterControllers(manager, config, dependencies); err != nil {
 		return err
@@ -216,8 +375,16 @@ func Start(ctx context.Context, restConfig *rest.Config, config Config) error {
 	return manager.Start(ctx)
 }
 
-func productionDependencies(ctx context.Context, config Config) (ControllerDependencies, error) {
-	dependencies := ControllerDependencies{Clock: kube.RealClock{}, Metrics: operatormetrics.NewPrometheus()}
+func productionDependencies(ctx context.Context, config Config, credentials CredentialSet) (ControllerDependencies, error) {
+	bundles, err := BuildBundles(config, credentials)
+	if err != nil {
+		return ControllerDependencies{}, err
+	}
+	dependencies := ControllerDependencies{
+		Clock:   kube.RealClock{},
+		Metrics: operatormetrics.NewPrometheus(),
+		Bundles: bundles,
+	}
 	if !config.EnableNote {
 		return dependencies, nil
 	}
@@ -225,7 +392,7 @@ func productionDependencies(ctx context.Context, config Config) (ControllerDepen
 		return ControllerDependencies{}, ErrLedgerEndpointRequired
 	}
 	client, err := minio.New(config.LedgerEndpoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(config.LedgerAccessKey, config.LedgerSecretKey, ""),
+		Creds:  miniocredentials.NewStaticV4(config.LedgerAccessKey, config.LedgerSecretKey, ""),
 		Secure: config.LedgerSecure,
 	})
 	if err != nil {

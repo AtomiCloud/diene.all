@@ -16,47 +16,47 @@ func TestCapabilityMatrixRow1MissingRequiredCredentials(t *testing.T) {
 	tests := []struct {
 		name       string
 		controller string
-		credential string
+		capability string
 		omit       func(*operatorruntime.CredentialSet)
 	}{
 		{
-			name: "cluster provider API", controller: "cluster", credential: "provider-api",
+			name: "cluster provider API", controller: "cluster", capability: "provider-api",
 			omit: func(credentials *operatorruntime.CredentialSet) { credentials.Cluster.ProviderAPI = "" },
 		},
 		{
-			name: "platform Infisical admin", controller: "platform", credential: "infisical-admin",
+			name: "platform Infisical admin", controller: "platform", capability: "infisical-admin",
 			omit: func(credentials *operatorruntime.CredentialSet) { credentials.Platform.InfisicalAdmin = "" },
 		},
 		{
-			name: "platform GitHub org read", controller: "platform", credential: "github-org-read",
+			name: "platform GitHub org read", controller: "platform", capability: "github-org-read",
 			omit: func(credentials *operatorruntime.CredentialSet) { credentials.Platform.GitHubOrgRead = "" },
 		},
 		{
-			name: "platform fleet repo write", controller: "platform", credential: "fleet-repo-write",
+			name: "platform fleet repo write", controller: "platform", capability: "fleet-repo-write",
 			omit: func(credentials *operatorruntime.CredentialSet) { credentials.Platform.FleetRepoWrite = "" },
 		},
 		{
-			name: "traffic Route53", controller: "traffic", credential: "route53",
+			name: "traffic Route53", controller: "traffic", capability: "route53",
 			omit: func(credentials *operatorruntime.CredentialSet) { credentials.Traffic.Route53 = "" },
 		},
 		{
-			name: "traffic Cloudflare DNS", controller: "traffic", credential: "cloudflare-dns",
+			name: "traffic Cloudflare DNS", controller: "traffic", capability: "cloudflare-dns",
 			omit: func(credentials *operatorruntime.CredentialSet) { credentials.Traffic.CloudflareDNS = "" },
 		},
 		{
-			name: "traffic edge publisher", controller: "traffic", credential: "edge-publisher",
+			name: "traffic edge publisher", controller: "traffic", capability: "edge-publisher",
 			omit: func(credentials *operatorruntime.CredentialSet) { credentials.Traffic.EdgePublisher = "" },
 		},
 		{
-			name: "webhook mercury management", controller: "webhook", credential: "mercury-management",
+			name: "webhook mercury management", controller: "webhook", capability: "mercury-management",
 			omit: func(credentials *operatorruntime.CredentialSet) { credentials.Webhook.MercuryManagement = "" },
 		},
 		{
-			name: "webhook landscape mercury KV", controller: "webhook", credential: "landscape-mercury-kv",
+			name: "webhook landscape mercury KV", controller: "webhook", capability: "landscape-mercury-kv",
 			omit: func(credentials *operatorruntime.CredentialSet) { credentials.Webhook.LandscapeMercuryKV = "" },
 		},
 		{
-			name: "cf-deploy workers", controller: "cf-deploy", credential: "cloudflare-workers",
+			name: "cf-deploy workers", controller: "cf-deploy", capability: "cloudflare-workers",
 			omit: func(credentials *operatorruntime.CredentialSet) { credentials.CfDeploy.CloudflareWorkers = "" },
 		},
 	}
@@ -74,7 +74,7 @@ func TestCapabilityMatrixRow1MissingRequiredCredentials(t *testing.T) {
 			var missing *operatorruntime.MissingCredentialError
 			require.ErrorAs(t, err, &missing)
 			require.Equal(t, test.controller, missing.Controller)
-			require.Equal(t, test.credential, missing.Credential)
+			require.Equal(t, test.capability, missing.Credential)
 		})
 	}
 }
@@ -85,64 +85,72 @@ func TestCapabilityMatrixRow2CredentialsForDisabledControllers(t *testing.T) {
 	tests := []struct {
 		name       string
 		controller string
-		credential string
+		capability string
 		supply     func(*operatorruntime.CredentialSet)
 	}{
 		{
-			name: "cluster provider API", controller: "cluster", credential: "provider-api",
-			supply: func(credentials *operatorruntime.CredentialSet) { credentials.Cluster.ProviderAPI = "present" },
+			name: "cluster provider API", controller: "cluster", capability: "provider-api",
+			supply: func(credentials *operatorruntime.CredentialSet) { credentials.Cluster.ProviderAPI = markerValue() },
 		},
 		{
-			name: "platform Infisical admin", controller: "platform", credential: "infisical-admin",
-			supply: func(credentials *operatorruntime.CredentialSet) { credentials.Platform.InfisicalAdmin = "present" },
+			name: "platform Infisical admin", controller: "platform", capability: "infisical-admin",
+			supply: func(credentials *operatorruntime.CredentialSet) { credentials.Platform.InfisicalAdmin = markerValue() },
 		},
 		{
-			name: "platform GitHub org read", controller: "platform", credential: "github-org-read",
-			supply: func(credentials *operatorruntime.CredentialSet) { credentials.Platform.GitHubOrgRead = "present" },
+			name: "platform GitHub org read", controller: "platform", capability: "github-org-read",
+			supply: func(credentials *operatorruntime.CredentialSet) { credentials.Platform.GitHubOrgRead = markerValue() },
 		},
 		{
-			name: "platform fleet repo write", controller: "platform", credential: "fleet-repo-write",
-			supply: func(credentials *operatorruntime.CredentialSet) { credentials.Platform.FleetRepoWrite = "present" },
+			name: "platform fleet repo write", controller: "platform", capability: "fleet-repo-write",
+			supply: func(credentials *operatorruntime.CredentialSet) { credentials.Platform.FleetRepoWrite = markerValue() },
 		},
 		{
-			name: "dependency vendor engine", controller: "dependency", credential: "vendor-engine",
-			supply: func(credentials *operatorruntime.CredentialSet) { credentials.Dependency.VendorEngine = "present" },
+			name: "dependency vendor engine", controller: "dependency", capability: "vendor-engine",
+			supply: func(credentials *operatorruntime.CredentialSet) { credentials.Dependency.VendorEngine = markerValue() },
 		},
 		{
-			name: "dependency broker token", controller: "dependency", credential: "broker-token",
-			supply: func(credentials *operatorruntime.CredentialSet) { credentials.Dependency.BrokerToken = "present" },
+			name: "dependency broker token", controller: "dependency", capability: "broker-token",
+			supply: func(credentials *operatorruntime.CredentialSet) { credentials.Dependency.BrokerToken = markerValue() },
 		},
 		{
-			name: "dependency native Tigris", controller: "dependency", credential: "native-tigris-key",
-			supply: func(credentials *operatorruntime.CredentialSet) { credentials.Dependency.NativeTigrisKey = "present" },
+			name: "dependency native Tigris", controller: "dependency", capability: "native-tigris-key",
+			supply: func(credentials *operatorruntime.CredentialSet) {
+				credentials.Dependency.NativeTigrisKey = markerValue()
+			},
 		},
 		{
-			name: "dependency read-only seed", controller: "dependency", credential: "read-only-seed",
+			name: "dependency read-only seed", controller: "dependency", capability: "read-only-seed",
 			supply: func(credentials *operatorruntime.CredentialSet) { credentials.Dependency.ReadOnlySeed = true },
 		},
 		{
-			name: "traffic Route53", controller: "traffic", credential: "route53",
-			supply: func(credentials *operatorruntime.CredentialSet) { credentials.Traffic.Route53 = "present" },
+			name: "traffic Route53", controller: "traffic", capability: "route53",
+			supply: func(credentials *operatorruntime.CredentialSet) { credentials.Traffic.Route53 = markerValue() },
 		},
 		{
-			name: "traffic Cloudflare DNS", controller: "traffic", credential: "cloudflare-dns",
-			supply: func(credentials *operatorruntime.CredentialSet) { credentials.Traffic.CloudflareDNS = "present" },
+			name: "traffic Cloudflare DNS", controller: "traffic", capability: "cloudflare-dns",
+			supply: func(credentials *operatorruntime.CredentialSet) { credentials.Traffic.CloudflareDNS = markerValue() },
 		},
 		{
-			name: "traffic edge publisher", controller: "traffic", credential: "edge-publisher",
-			supply: func(credentials *operatorruntime.CredentialSet) { credentials.Traffic.EdgePublisher = "present" },
+			name: "traffic edge publisher", controller: "traffic", capability: "edge-publisher",
+			supply: func(credentials *operatorruntime.CredentialSet) { credentials.Traffic.EdgePublisher = markerValue() },
 		},
 		{
-			name: "webhook mercury management", controller: "webhook", credential: "mercury-management",
-			supply: func(credentials *operatorruntime.CredentialSet) { credentials.Webhook.MercuryManagement = "present" },
+			name: "webhook mercury management", controller: "webhook", capability: "mercury-management",
+			supply: func(credentials *operatorruntime.CredentialSet) {
+				credentials.Webhook.MercuryManagement = markerValue()
+			},
 		},
 		{
-			name: "webhook landscape mercury KV", controller: "webhook", credential: "landscape-mercury-kv",
-			supply: func(credentials *operatorruntime.CredentialSet) { credentials.Webhook.LandscapeMercuryKV = "present" },
+			name: "webhook landscape mercury KV", controller: "webhook", capability: "landscape-mercury-kv",
+			supply: func(credentials *operatorruntime.CredentialSet) {
+				credentials.Webhook.LandscapeMercuryKV = markerValue()
+			},
 		},
 		{
-			name: "cf-deploy workers", controller: "cf-deploy", credential: "cloudflare-workers",
-			supply: func(credentials *operatorruntime.CredentialSet) { credentials.CfDeploy.CloudflareWorkers = "present" },
+			name: "cf-deploy workers", controller: "cf-deploy", capability: "cloudflare-workers",
+			supply: func(credentials *operatorruntime.CredentialSet) {
+				credentials.CfDeploy.CloudflareWorkers = markerValue()
+			},
 		},
 	}
 
@@ -155,7 +163,7 @@ func TestCapabilityMatrixRow2CredentialsForDisabledControllers(t *testing.T) {
 			bundles, err := operatorruntime.BuildBundles(operatorruntime.Config{}, credentials)
 
 			require.Equal(t, operatorruntime.Bundles{}, bundles)
-			assertCredentialOutsideEnabledSet(t, err, test.controller, test.credential)
+			assertCredentialOutsideEnabledSet(t, err, test.controller, test.capability)
 		})
 	}
 }
@@ -176,14 +184,14 @@ func TestCapabilityMatrixRow3ProblemReservedSeam(t *testing.T) {
 func TestCapabilityMatrixRow4GardenAllowsEveryDependencySubset(t *testing.T) {
 	t.Parallel()
 
-	for mask := 0; mask < 16; mask++ {
+	for mask := range 16 {
 		t.Run(fmt.Sprintf("doors-%04b", mask), func(t *testing.T) {
 			t.Parallel()
 			credentials := operatorruntime.CredentialSet{
 				Dependency: operatorruntime.DependencyCredentials{
-					VendorEngine:    optionalValue(mask&1 != 0),
-					BrokerToken:     optionalValue(mask&2 != 0),
-					NativeTigrisKey: optionalValue(mask&4 != 0),
+					VendorEngine:    optionalValue(doorExpectation(mask&1 != 0)),
+					BrokerToken:     optionalValue(doorExpectation(mask&2 != 0)),
+					NativeTigrisKey: optionalValue(doorExpectation(mask&4 != 0)),
 					ReadOnlySeed:    mask&8 != 0,
 				},
 			}
@@ -195,10 +203,10 @@ func TestCapabilityMatrixRow4GardenAllowsEveryDependencySubset(t *testing.T) {
 
 			require.NoError(t, err)
 			require.NotNil(t, bundles.Dependency)
-			assertDoorAvailability(t, bundles.Dependency.VendorEngine, mask&1 != 0)
-			assertDoorAvailability(t, bundles.Dependency.BrokerToken, mask&2 != 0)
-			assertDoorAvailability(t, bundles.Dependency.NativeTigrisKey, mask&4 != 0)
-			assertDoorAvailability(t, bundles.Dependency.ReadOnlySeed, mask&8 != 0)
+			assertDoorAvailability(t, bundles.Dependency.VendorEngine, doorExpectation(mask&1 != 0))
+			assertDoorAvailability(t, bundles.Dependency.BrokerToken, doorExpectation(mask&2 != 0))
+			assertDoorAvailability(t, bundles.Dependency.NativeTigrisKey, doorExpectation(mask&4 != 0))
+			assertDoorAvailability(t, bundles.Dependency.ReadOnlySeed, doorExpectation(mask&8 != 0))
 		})
 	}
 }
@@ -233,36 +241,40 @@ func TestCapabilityMatrixRow6GardenRejectsPrimordialCredentials(t *testing.T) {
 	tests := []struct {
 		name       string
 		controller string
-		credential string
+		capability string
 		supply     func(*operatorruntime.CredentialSet)
 	}{
 		{
-			name: "Infisical write", controller: "dependency", credential: "infisical-write",
-			supply: func(credentials *operatorruntime.CredentialSet) { credentials.InfisicalWrite = "present" },
+			name: "Infisical write", controller: "dependency", capability: "infisical-write",
+			supply: func(credentials *operatorruntime.CredentialSet) { credentials.InfisicalWrite = markerValue() },
 		},
 		{
-			name: "T4 root path", controller: "primordial", credential: "t4-root-path",
-			supply: func(credentials *operatorruntime.CredentialSet) { credentials.T4RootPath = "present" },
+			name: "T4 root path", controller: "primordial", capability: "t4-root-path",
+			supply: func(credentials *operatorruntime.CredentialSet) { credentials.T4RootPath = markerValue() },
 		},
 		{
-			name: "cluster group", controller: "cluster", credential: "provider-api",
-			supply: func(credentials *operatorruntime.CredentialSet) { credentials.Cluster.ProviderAPI = "present" },
+			name: "cluster group", controller: "cluster", capability: "provider-api",
+			supply: func(credentials *operatorruntime.CredentialSet) { credentials.Cluster.ProviderAPI = markerValue() },
 		},
 		{
-			name: "platform group", controller: "platform", credential: "infisical-admin",
-			supply: func(credentials *operatorruntime.CredentialSet) { credentials.Platform.InfisicalAdmin = "present" },
+			name: "platform group", controller: "platform", capability: "infisical-admin",
+			supply: func(credentials *operatorruntime.CredentialSet) { credentials.Platform.InfisicalAdmin = markerValue() },
 		},
 		{
-			name: "traffic group", controller: "traffic", credential: "route53",
-			supply: func(credentials *operatorruntime.CredentialSet) { credentials.Traffic.Route53 = "present" },
+			name: "traffic group", controller: "traffic", capability: "route53",
+			supply: func(credentials *operatorruntime.CredentialSet) { credentials.Traffic.Route53 = markerValue() },
 		},
 		{
-			name: "webhook group", controller: "webhook", credential: "mercury-management",
-			supply: func(credentials *operatorruntime.CredentialSet) { credentials.Webhook.MercuryManagement = "present" },
+			name: "webhook group", controller: "webhook", capability: "mercury-management",
+			supply: func(credentials *operatorruntime.CredentialSet) {
+				credentials.Webhook.MercuryManagement = markerValue()
+			},
 		},
 		{
-			name: "cf-deploy group", controller: "cf-deploy", credential: "cloudflare-workers",
-			supply: func(credentials *operatorruntime.CredentialSet) { credentials.CfDeploy.CloudflareWorkers = "present" },
+			name: "cf-deploy group", controller: "cf-deploy", capability: "cloudflare-workers",
+			supply: func(credentials *operatorruntime.CredentialSet) {
+				credentials.CfDeploy.CloudflareWorkers = markerValue()
+			},
 		},
 	}
 
@@ -278,7 +290,7 @@ func TestCapabilityMatrixRow6GardenRejectsPrimordialCredentials(t *testing.T) {
 			)
 
 			require.Equal(t, operatorruntime.Bundles{}, bundles)
-			assertCredentialOutsideEnabledSet(t, err, test.controller, test.credential)
+			assertCredentialOutsideEnabledSet(t, err, test.controller, test.capability)
 		})
 	}
 }
@@ -410,7 +422,7 @@ func TestCapabilityMatrixGardenDependencyCompileShape(t *testing.T) {
 	// Adding an Infisical-write, T4-root, or cross-controller field to
 	// DependencyBundle makes the external black-box test stop compiling.
 	acceptGardenDependencyShape(*bundles.Dependency)
-	typeOfBundle := reflect.TypeOf(*bundles.Dependency)
+	typeOfBundle := reflect.TypeFor[operatorruntime.DependencyBundle]()
 	_, hasInfisicalWrite := typeOfBundle.FieldByName("InfisicalWrite")
 	_, hasT4Root := typeOfBundle.FieldByName("T4RootPath")
 	require.False(t, hasInfisicalWrite)
@@ -464,7 +476,9 @@ func assertCredentialOutsideEnabledSet(t *testing.T, err error, controller, cred
 	require.Equal(t, credential, outside.Credential)
 }
 
-func assertDoorAvailability(t *testing.T, door operatorruntime.ProviderDoor, available bool) {
+type doorExpectation bool
+
+func assertDoorAvailability(t *testing.T, door operatorruntime.ProviderDoor, available doorExpectation) {
 	t.Helper()
 	require.NotNil(t, door)
 	if available {
@@ -474,11 +488,15 @@ func assertDoorAvailability(t *testing.T, door operatorruntime.ProviderDoor, ava
 	require.ErrorIs(t, door.Available(), operatorruntime.ErrDoorAbsent)
 }
 
-func optionalValue(present bool) string {
+func optionalValue(present doorExpectation) string {
 	if present {
 		return "present"
 	}
 	return ""
+}
+
+func markerValue() string {
+	return "present"
 }
 
 func errorSignature(err error) string {

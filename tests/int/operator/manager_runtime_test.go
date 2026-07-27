@@ -17,7 +17,69 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+
+	"github.com/AtomiCloud/diene.fleet-operator/internal/operatorruntime"
+	"github.com/AtomiCloud/diene.fleet-operator/lib/operator/brake"
 )
+
+func TestManagerRuntimeConfigAndCredentialParsing(t *testing.T) {
+	t.Parallel()
+
+	environment := map[string]string{
+		"FLEET_OPERATOR_CLUSTER_PROVIDER_API":         "cluster",
+		"FLEET_OPERATOR_PLATFORM_INFISICAL_ADMIN":     "infisical",
+		"FLEET_OPERATOR_PLATFORM_GITHUB_ORG_READ":     "github",
+		"FLEET_OPERATOR_PLATFORM_FLEET_REPO_WRITE":    "fleet-repo",
+		"FLEET_OPERATOR_DEPENDENCY_VENDOR_ENGINE":     "vendors",
+		"FLEET_OPERATOR_DEPENDENCY_BROKER_TOKEN":      "broker",
+		"FLEET_OPERATOR_DEPENDENCY_NATIVE_TIGRIS_KEY": "tigris",
+		"FLEET_OPERATOR_DEPENDENCY_READ_ONLY_SEED":    "mounted",
+		"FLEET_OPERATOR_TRAFFIC_ROUTE53":              "route53",
+		"FLEET_OPERATOR_TRAFFIC_CLOUDFLARE_DNS":       "cloudflare-dns",
+		"FLEET_OPERATOR_TRAFFIC_EDGE_PUBLISHER":       "publisher",
+		"FLEET_OPERATOR_WEBHOOK_MERCURY_MANAGEMENT":   "management",
+		"FLEET_OPERATOR_WEBHOOK_LANDSCAPE_MERCURY_KV": "landscape-kv",
+		"FLEET_OPERATOR_CF_DEPLOY_CLOUDFLARE_WORKERS": "workers",
+		"FLEET_OPERATOR_INFISICAL_WRITE":              "broad-write",
+		"FLEET_OPERATOR_T4_ROOT_PATH":                 "root-path",
+	}
+	getenv := func(name string) string { return environment[name] }
+
+	config := operatorruntime.DefaultConfig(getenv)
+	require.True(t, config.EnableNote)
+	require.True(t, config.EnableJournal)
+	require.False(t, config.EnableCluster)
+	require.False(t, config.EnablePlatform)
+	require.False(t, config.EnableDependency)
+	require.False(t, config.EnableTraffic)
+	require.False(t, config.EnableWebhook)
+	require.False(t, config.EnableCfDeploy)
+	require.False(t, config.EnableProblem)
+	require.Equal(t, brake.DefaultTrafficCapPercent, config.TrafficCapPercent)
+	require.Equal(t, brake.DefaultDependencyCapPerTick, config.DependencyDestructiveCapPerTick)
+	require.Equal(t, 20, config.BlastBrakeCap)
+
+	credentials := operatorruntime.CredentialSetFromEnvironment(getenv)
+	require.Equal(t, "cluster", credentials.Cluster.ProviderAPI)
+	require.Equal(t, "infisical", credentials.Platform.InfisicalAdmin)
+	require.Equal(t, "github", credentials.Platform.GitHubOrgRead)
+	require.Equal(t, "fleet-repo", credentials.Platform.FleetRepoWrite)
+	require.Equal(t, "vendors", credentials.Dependency.VendorEngine)
+	require.Equal(t, "broker", credentials.Dependency.BrokerToken)
+	require.Equal(t, "tigris", credentials.Dependency.NativeTigrisKey)
+	require.True(t, credentials.Dependency.ReadOnlySeed)
+	require.Equal(t, "route53", credentials.Traffic.Route53)
+	require.Equal(t, "cloudflare-dns", credentials.Traffic.CloudflareDNS)
+	require.Equal(t, "publisher", credentials.Traffic.EdgePublisher)
+	require.Equal(t, "management", credentials.Webhook.MercuryManagement)
+	require.Equal(t, "landscape-kv", credentials.Webhook.LandscapeMercuryKV)
+	require.Equal(t, "workers", credentials.CfDeploy.CloudflareWorkers)
+	require.Equal(t, "broad-write", credentials.InfisicalWrite)
+	require.Equal(t, "root-path", credentials.T4RootPath)
+
+	empty := operatorruntime.CredentialSetFromEnvironment(func(string) string { return "   " })
+	require.False(t, empty.Dependency.ReadOnlySeed)
+}
 
 func TestManagerRuntimeHealthEndpoints(t *testing.T) {
 	binary := os.Getenv("MANAGER_BINARY")
@@ -36,9 +98,18 @@ func TestManagerRuntimeHealthEndpoints(t *testing.T) {
 		binary,
 		"--enable-note=false",
 		"--enable-journal=false",
+		"--enable-cluster=false",
+		"--enable-platform=false",
+		"--enable-dependency=false",
+		"--enable-traffic=false",
+		"--enable-webhook=false",
+		"--enable-cf-deploy=false",
+		"--enable-problem=false",
 		"--leader-elect=false",
 		"--metrics-bind-address=0",
 		"--health-probe-bind-address="+healthAddress,
+		"--traffic-cap-percent=20",
+		"--dependency-destructive-cap-per-tick=3",
 	)
 	command.Env = append(os.Environ(), "KUBECONFIG="+kubeconfig)
 	var output bytes.Buffer
@@ -65,6 +136,36 @@ func TestManagerRuntimeHealthEndpoints(t *testing.T) {
 		}
 	}
 	require.NoError(t, stopRuntime(command, done), output.String())
+}
+
+func TestManagerRuntimeProblemReservedSeam(t *testing.T) {
+	binary := os.Getenv("MANAGER_BINARY")
+	if binary == "" {
+		t.Skip("MANAGER_BINARY is set by the manager-runtime smoke")
+	}
+	binary, err := filepath.Abs(binary)
+	require.NoError(t, err)
+	require.NoError(t, executableFile(binary))
+
+	kubeconfig := writeEnvtestKubeconfig(t)
+	//nolint:gosec // The test resolves and validates the configured manager binary before execution.
+	command := exec.CommandContext(
+		t.Context(),
+		binary,
+		"--enable-note=false",
+		"--enable-journal=false",
+		"--enable-problem=true",
+		"--leader-elect=false",
+		"--metrics-bind-address=0",
+		"--health-probe-bind-address=0",
+	)
+	command.Env = append(os.Environ(), "KUBECONFIG="+kubeconfig)
+	output, err := command.CombinedOutput()
+	require.Error(t, err)
+	var exitError *exec.ExitError
+	require.ErrorAs(t, err, &exitError)
+	require.Equal(t, 1, exitError.ExitCode())
+	require.Contains(t, string(output), "problem sub-component not yet folded")
 }
 
 func executableFile(path string) error {
