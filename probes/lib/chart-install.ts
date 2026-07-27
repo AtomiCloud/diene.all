@@ -35,8 +35,16 @@ cleanup() {
 trap cleanup EXIT
 
 echo "=== k3d cluster create \${CLUSTER} ==="
-k3d cluster create "\${CLUSTER}" --servers 1 --agents 0 \\
+# The k3s image is PINNED deliberately. Without --image, k3d falls back to a
+# default that has been v1.21.7+k3s1 here, and both charts declare
+# kubeVersion '>=1.27.0-0', so every install row fails with
+# "chart requires kubeVersion ... incompatible with Kubernetes v1.21.7+k3s1" —
+# a venue defect that reads exactly like a chart defect. The reference
+# bun-consumer pins the same image in scripts/validate/chart-install.sh.
+k3d cluster create "\${CLUSTER}" --servers 1 --agents 0 --image rancher/k3s:v1.31.5-k3s1 \\
   --k3s-arg "--disable=traefik@server:*" --no-lb --wait
+echo "=== k3s server version (must satisfy the charts' kubeVersion) ==="
+kubectl version -o json 2>/dev/null | jq -r '.serverVersion.gitVersion' || kubectl version --short 2>/dev/null | rg Server
 
 echo "=== apply test-only CRD fixtures ==="
 crds="$(find infra/primordial_chart/crds-local -name '*.yaml' | sort)"
