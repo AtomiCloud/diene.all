@@ -1036,9 +1036,11 @@ void main() {
       expect(device.toJson(), <String, Object?>{'platform': 'android'});
     });
 
-    test('the ClipboardCarrierReader const constructor is instantiable', () {
-      // Arrange + Act — the const arm, recorded only by a real invocation.
-      const ClipboardCarrierReader reader = ClipboardCarrierReader();
+    test('ClipboardCarrierReader is constructible at runtime', () {
+      // Arrange + Act — a const invocation is compile-time folded, so the
+      // constructor is exercised through a NON-const construction.
+      // ignore: prefer_const_constructors
+      final ClipboardCarrierReader reader = ClipboardCarrierReader();
 
       // Assert
       expect(reader, isA<ClipboardCarrierSource>());
