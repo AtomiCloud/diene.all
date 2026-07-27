@@ -6,23 +6,15 @@ title: Semantic Release
 # Semantic Release
 
 `atomi_release.yaml` is the single source of truth for commit types, release
-levels, generated commit-convention documentation, and the semantic-release
-plugin chain. Do not add a standalone `.gitlint` file.
+levels, generated commit-convention documentation, and releaser behavior. Do
+not add a standalone `.gitlint` file or legacy semantic-release plugin chain.
 
-## Build-order boundary
+## Immutable tool boundary
 
-The workspace baseline registers the future commands now, but the `releaser`
-binary is published by `tools/releaser` at C2 step 2p. Until that fold lands:
-
-- the repository-owned validators check the configuration schema, plugin chain,
-  and exact D3 type vocabulary;
-- the commit-msg hook remains registered as
-  `releaser lint-commit -c atomi_release.yaml`;
-- release execution is not considered locally available; and
-- `sg` remains only as a temporary Nix-shell bootstrap dependency.
-
-After step 2p, `releaser` replaces that bootstrap dependency and the registered
-commit and release commands become executable.
+The repository consumes `AtomiCloud/releaser` v1.0.0 directly as an immutable
+flake input. The repository-owned validators enforce the canonical schema and
+exact D3 type vocabulary, while the real releaser binary implements the
+registered commit and release commands.
 
 ## Commands
 
@@ -38,16 +30,11 @@ hand.
 
 ## Configuration
 
-The base plugin order is fixed:
-
-1. `@semantic-release/changelog`
-2. `@semantic-release/exec`
-3. `@semantic-release/git`
-4. `@semantic-release/github`
-
-Plugin versions are pinned in `atomi_release.yaml`. The exec plugin updates
-`VERSION`; the git plugin commits `Changelog.md`, `VERSION`, and the generated
-commit-conventions document.
+The canonical v2 `release` section declares the `main` branch, `v${version}`
+tag format, and `Changelog.md` output. Its commit assets are `Changelog.md`,
+`VERSION`, and the generated commit-conventions document. The `afterWrite`
+prepare hook runs `scripts/release/bump.sh ${version}`, which stamps `VERSION`;
+GitHub publication is enabled for this template through `release.github`.
 
 The unified D3 commit-type vocabulary is:
 
@@ -68,4 +55,5 @@ so the vocabularies cannot drift independently.
    changelog and generated files, creates the tag, and publishes the GitHub
    release.
 
-Actual release execution remains gated on the C2 step-2p `tools/releaser` fold.
+Release execution is available through the immutable flake input; normal
+repository release authorization still applies.
