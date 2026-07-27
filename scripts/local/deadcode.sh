@@ -15,11 +15,16 @@ whole)
   ;;
 production)
   staticcheck -tests=false ./...
+  runner="$(mktemp -d ./deadcode-runner.XXXXXX)"
+  trap 'rm -rf "${runner}"' EXIT
+  cp tests/fixtures/deadcode-consumer.go.txt "${runner}/main.go"
   report="$(deadcode -json ./...)"
   jq -e '(. // []) | length == 0' <<<"${report}" >/dev/null || {
     jq . <<<"${report}" >&2
     exit 1
   }
+  rm -rf "${runner}"
+  trap - EXIT
   ;;
 lax)
   mkdir -p reports

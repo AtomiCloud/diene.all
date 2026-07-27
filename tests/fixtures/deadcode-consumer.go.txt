@@ -1,0 +1,26 @@
+package main
+
+import (
+	"context"
+
+	"github.com/AtomiCloud/diene.go-lib/adapters/kv"
+	"github.com/AtomiCloud/diene.go-lib/lib/note"
+	"github.com/AtomiCloud/diene.go-lib/testhelper"
+)
+
+func main() {
+	ctx := context.Background()
+	memory := testhelper.NewMemoryStore()
+	value := note.New("Deadcode Consumer", "public surface")
+	service := note.NewService(memory)
+	_ = note.Slug(value.Slug)
+	_ = note.NamespacedKey("notes", value.Slug)
+	_ = service.Save(ctx, value)
+	_, _ = service.Load(ctx, value.Slug)
+	_ = memory.Save(ctx, value.Slug, value.Body)
+	_, _ = memory.Load(ctx, value.Slug)
+	redis := kv.NewRedisStore("127.0.0.1:6379")
+	_ = redis.Save
+	_ = redis.Load
+	_ = redis.Close
+}

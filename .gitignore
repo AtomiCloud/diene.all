@@ -28,3 +28,8 @@ desktop.ini
 coverage/
 dist/
 reports/
+
+### go-lib
+#### source: go-lib
+*.zip
+deadcode-runner.*

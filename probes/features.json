@@ -287,12 +287,58 @@
   },
   {
     "template": "diene/go-base",
-    "name": "sample-domain-journey",
-    "class": "smoke"
-  },
-  {
-    "template": "diene/go-base",
     "name": "codecov-config",
     "class": "presence"
+  },
+  {
+    "template": "diene/go-lib",
+    "name": "go-lib-module-path",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-lib",
+    "name": "go-lib-vet",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-lib",
+    "name": "go-lib-api-compatibility",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-lib",
+    "name": "go-lib-publish-semver-guard",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-lib",
+    "name": "go-lib-export-docs",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-lib",
+    "name": "go-lib-examples",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-lib",
+    "name": "go-lib-publish-workflow-wiring",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-lib",
+    "name": "go-lib-meta-tests",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-lib",
+    "name": "go-lib-meta-coverage",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-lib",
+    "name": "go-lib-proxy-roundtrip",
+    "class": "smoke",
+    "deferredUntil": "P-TOKEN mirror tag publication"
   }
 ]

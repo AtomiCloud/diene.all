@@ -2,6 +2,7 @@
 set -euo pipefail
 
 while IFS= read -r file; do
+  [ ! -f "${file}" ] && continue
   [ -x "${file}" ] || {
     echo "❌ '${file}' is tracked but not executable" >&2
     exit 1

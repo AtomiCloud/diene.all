@@ -25,17 +25,12 @@ plugins:
     version: 6.0.3
     config:
       changelogFile: Changelog.md
-  - module: '@semantic-release/exec'
-    version: 6.0.3
-    config:
-      prepareCmd: './scripts/release/bump.sh ${nextRelease.version}'
   - module: '@semantic-release/git'
     version: 10.0.1
     config:
       message: "release: ${nextRelease.version}\n\n${nextRelease.notes}"
       assets:
         - Changelog.md
-        - VERSION
         - docs/developer/CommitConventions.md
   - module: '@semantic-release/github'
     version: 10.3.5

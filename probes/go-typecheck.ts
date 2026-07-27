@@ -25,7 +25,12 @@ export default {
         'deadcode-whole-repo',
         'deadcode-production',
         'build-artifact',
-        'sample-domain-journey',
+        'go-lib-vet',
+        'go-lib-examples',
+        'go-lib-export-docs',
+        'go-lib-api-compatibility',
+        'go-lib-meta-tests',
+        'go-lib-meta-coverage',
       ],
       async run(repo: any) {
         await plantGoFile(repo, 'lib/**/*.go', 'probe_type_error.go', 'var ProbeTypeError int = "wrong"');

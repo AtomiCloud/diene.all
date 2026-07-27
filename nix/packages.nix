@@ -45,6 +45,25 @@ let
     meta.mainProgram = "cyanprint";
   };
   all = rec {
+    # ### go-lib
+    # #### source: go-lib
+    go-lib = {
+      gorelease = pkgs-2605.buildGoModule {
+        pname = "gorelease";
+        version = "0-unstable-2026-07-18";
+        src = pkgs-2605.fetchFromGitHub {
+          owner = "golang";
+          repo = "exp";
+          rev = "764159d718ef";
+          hash = "sha256-fUuFVo6AZWzhOHd/JF0tCVwhrl8N0fX9QiS3XrTamQw=";
+        };
+        subPackages = [ "cmd/gorelease" ];
+        vendorHash = "sha256-ELLQTn79CJbJsLizncA+wL8B3Te0pfYHuV7DIRlD1K4=";
+        doCheck = false;
+      };
+      inherit (pkgs-2605) zip;
+    };
+
     # ### go-base
     # #### source: go-base
     go-base = (
@@ -101,6 +120,7 @@ let
           kubeconform
           kubernetes-helm
           kyverno
+          nodejs
           pre-commit
           ripgrep
           shellcheck
@@ -110,6 +130,15 @@ let
           ;
       }
     );
+
+    # ### workspace-releaser-bootstrap
+    # #### source: workspace
+    # C2: expose the pre-2p `releaser` command as a thin alias over sg.
+    releaser-bootstrap = {
+      releaser = pkgs.writeShellScriptBin "releaser" ''
+        exec ${atomi.sg}/bin/sg "$@"
+      '';
+    };
 
     # ### nix-unstable
     # #### source: main
@@ -125,4 +154,4 @@ let
   };
 in
 with all;
-atomipkgs // nix-2605 // nix-unstable // root // go-base
+atomipkgs // nix-2605 // releaser-bootstrap // nix-unstable // root // go-base // go-lib

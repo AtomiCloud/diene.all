@@ -17,8 +17,8 @@ exclusion.
 
 - `lib/` contains pure domain packages.
 - `adapters/` contains dependency implementations.
-- `cmd/go-base/` is the single composition root and wires concrete adapters
-  explicitly.
+- Executable descendants use `cmd/<name>/` as their single composition root.
+  Library templates deliberately omit `cmd/` and expose packages only.
 - `tests/unit/` imports domain packages only through their public API.
 - `tests/int/` proves adapters against real dependencies with
   testcontainers-go.
@@ -30,7 +30,8 @@ same gates and tier boundaries.
 ## Commands
 
 - `pls setup` installs modules and synchronizes vendored skills.
-- `pls build` creates `dist/go-base`.
+- `pls build` compiles the repository's Go packages or, in executable
+  descendants, creates their declared artifact.
 - `pls typecheck` compiles source packages without running tests.
 - `pls test`, `pls test:unit`, and `pls test:int` run the tiered suites.
 - `pls test:coverage`, `pls test:unit:coverage`, and
@@ -38,8 +39,6 @@ same gates and tier boundaries.
 - `pls test:watch` watches the unit tier.
 - `pls deadcode` runs whole-repository and production-only strict passes, then
   writes the nonblocking review feed to `reports/deadcode-llm.txt`.
-- `pls run -- slug "Hello World"` runs from source.
-- `pls preview -- slug "Hello World"` runs the compiled artifact.
 - `pls up` and `pls down` manage the local Redis dependency.
 
 There is deliberately no `pls dev`: this base is not a long-running server, so
@@ -65,7 +64,7 @@ vulnerability database.
 ## Template-maintenance boundary
 
 Downstream authors may adapt package/module identity, sample domain code,
-coverage thresholds after adding real surface, and README
-badges. They must preserve black-box tests, tier scoping,
-both deadcode passes, the CI-only vulnerability gate, one composition root,
-and generated hook/probe coverage.
+coverage thresholds after adding real surface, and README badges. They must
+preserve black-box tests, tier scoping, both deadcode passes, the CI-only
+vulnerability gate, at most one composition root, and generated hook/probe
+coverage.

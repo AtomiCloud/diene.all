@@ -49,6 +49,10 @@ Plugin versions are pinned in `atomi_release.yaml`. The exec plugin updates
 `VERSION`; the git plugin commits `Changelog.md`, `VERSION`, and the generated
 commit-conventions document.
 
+Go libraries are the sanctioned no-manifest variance: semantic release keeps
+the changelog, git, and GitHub plugins but has no exec stamp and no `VERSION`
+asset. The committed `vX.Y.Z` tag is the module version served by the Go proxy.
+
 The unified D3 commit-type vocabulary is:
 
 ```text
