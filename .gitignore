@@ -32,3 +32,32 @@ build/
 coverage/
 doc/api/
 pubspec.lock
+
+### lib-dart-e2e
+#### source: lib/dart/e2e
+# Flutter-only generated plugin manifests. This member depends on the Flutter SDK
+# (transitively, because the version train includes diene_auth_engine and
+# diene_api_engine), so `flutter pub get` writes files the pure-Dart siblings
+# never produce and the inherited dart-lib list therefore never covered.
+#
+# MEASURED, not reasoned. Real CI at 65c9777 failed Nix Flake Check while all six
+# other jobs passed, and the failing hook's own output says
+# "No issues found! … ✅ Dart analysis passed" immediately above
+# "- files were modified by this hook". Analyze was never the problem.
+#
+# THE ACTUAL CAUSE WAS THAT THE FILE WAS **TRACKED**, committed by accident in
+# 923157c, so every `flutter pub get` REWROTE a tracked file and pre-commit
+# correctly reported a modification. Ignoring it was necessary and NOT sufficient:
+# `.gitignore` has no effect on an already-tracked path, which is why the first
+# attempt at this fix changed nothing and `git check-ignore` still returned 1. The
+# fix is `git rm --cached` PLUS these entries; verified afterwards with the PLAIN
+# check-ignore form (rc=0) and with `-v` naming this exact line, because `-v`
+# alone is not a verdict — it also reports negations.
+#
+# That also explains why local `flutter analyze` was rc=0 while CI was red: both
+# were true. Locally the tracked file's content already matched, so nothing
+# appeared modified; CI checked out a fresh tree where `pub get` produced
+# different bytes. Entries match the accepted api-engine and auth-engine sets
+# rather than inventing a third spelling.
+.flutter-plugins
+.flutter-plugins-dependencies
