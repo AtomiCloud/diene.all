@@ -32,11 +32,3 @@ build/
 coverage/
 doc/api/
 pubspec.lock
-
-### lib-dart-auth-engine
-#### source: lib/dart/auth-engine
-# Flutter-only generated plugin manifests. This member depends on the Flutter
-# SDK (logto_dart_sdk), so `flutter pub get` writes files the pure-Dart siblings
-# never produce. Entries match flutter-base's canonical set.
-.flutter-plugins
-.flutter-plugins-dependencies

@@ -13,22 +13,13 @@ coverage:
         informational: true
 
 flags:
-  # The two flags PARTITION this package's Dart sources, matching the ledger
-  # patterns in scripts/ci/test.sh exactly. This package's TestHelper is NOT a
-  # single `lib/test_helper.dart` (that file is a pure export barrel) — its code
-  # lives in `lib/src/test_helper/`, so that subtree belongs to `meta` and must
-  # be carved OUT of `unit`, or the same lines would be reported under both
-  # flags and the unit denominator would include helper code the dart-family
-  # goal excludes from it.
   unit:
     paths:
-      - packages/diene_auth_engine/lib/src
-      - '!packages/diene_auth_engine/lib/src/test_helper'
+      - packages/diene_dart_lib/lib/src
     carryforward: true
   meta:
     paths:
-      - packages/diene_auth_engine/lib/src/test_helper
-      - packages/diene_auth_engine/lib/test_helper.dart
+      - packages/diene_dart_lib/lib/test_helper.dart
     carryforward: true
 
 comment:

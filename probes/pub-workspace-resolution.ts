@@ -7,18 +7,18 @@ export default {
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
   setup: {
     post: [
-      'nix develop .#ci --no-write-lock-file -c flutter pub get --offline || nix develop .#ci --no-write-lock-file -c flutter pub get',
+      'nix develop .#ci --no-write-lock-file -c dart pub get --offline || nix develop .#ci --no-write-lock-file -c dart pub get',
     ],
   },
   probes: [
     {
       name: 'baseline-pub-workspace-resolution-green',
-      description: 'flutter pub get resolves the workspace and writes a package config',
+      description: 'dart pub get resolves the workspace and writes a package config',
       kind: 'baseline',
       async run(repo: any) {
         await expectGreen(
           repo,
-          "nix develop .#ci --no-write-lock-file -c bash -lc 'flutter pub get --offline || flutter pub get'",
+          "nix develop .#ci --no-write-lock-file -c bash -lc 'dart pub get --offline || dart pub get'",
           'pub-workspace-resolution',
         );
         const config = JSON.parse(await repo.read('.dart_tool/package_config.json'));

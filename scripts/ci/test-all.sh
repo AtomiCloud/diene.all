@@ -5,6 +5,6 @@ set -euo pipefail
 root_dir="$(git rev-parse --show-toplevel)"
 cd "${root_dir}"
 
-flutter pub get >/dev/null
-cd "${root_dir}/packages/diene_auth_engine"
-flutter test
+dart pub get >/dev/null
+cd "${root_dir}/packages/diene_dart_lib"
+dart test
