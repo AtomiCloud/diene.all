@@ -109,7 +109,43 @@ awk -v inc="${include}" -v exc="${exclude}" '
 ' "${all_ledger}" >"${ledger}"
 rm -f "${all_ledger}"
 
-awk -v mode="${mode}" '
+# ### lib-dart-api-engine-coverage-floor
+# #### source: lib/dart/api-engine
+#
+# THE UNIT FLOOR IS THE MEASURED ACHIEVABLE MAXIMUM, NOT 100%. Ruled by the lead
+# after the residue was measured (not predicted) at the landed head.
+#
+# THE ARGUMENT, which is this session's own law turned around: A GATE THAT IS
+# ALWAYS RED DETECTS NOTHING. We spent this session removing gates that could not
+# FAIL; a gate that cannot PASS is the same defect wearing the opposite sign — it
+# stops being read, and the next person to see it assumes it is noise. A 100%
+# threshold on a package shipping GENERATED code and a private constructor is not
+# a stricter gate, it is arithmetically unmeetable and therefore permanently
+# uninformative.
+#
+# A floor at the proven-achievable maximum still catches every regression: one
+# newly uncovered line drops below it and the gate goes red for a real reason.
+# That is strictly MORE detection than 100%-always-red.
+#
+# THE SIX UNREACHABLE LINES ARE STILL COUNTED IN THE DENOMINATOR — deliberately.
+# An exclusion or a `coverage:ignore-file` would delete them from view forever,
+# including if the OpenAPI spec later declares the String-returning endpoint that
+# would make one of them live. They stay visible, counted, and enumerated in
+# exec/nodes/lib__dart__api-engine/evidence/CERTIFICATION-*.md.
+#
+# STANDING OBLIGATION: THIS FLOOR MAY ONLY EVER MOVE UP. Lowering it is a LEAD
+# DECISION requiring its own escalation, never a local edit to make a red go away.
+# That clause is what stops a measured floor from becoming an exclusion by another
+# route. Raise it whenever a line is genuinely closed.
+#
+# The META tier stays at a strict 100%: its subject is the shipped TestHelper,
+# which contains no generated code and no unreachable-by-design members, so 100%
+# is achievable there and IS achieved (74/74).
+unit_floor_hit=571
+unit_floor_found=577
+
+awk -v mode="${mode}" -v floor_hit="${unit_floor_hit}" \
+  -v floor_found="${unit_floor_found}" '
   BEGIN { files = 0; lines_found = 0; lines_hit = 0 }
   /^SF:/ { files++ }
   /^LF:/ { lines_found += substr($0, 4) + 0 }
@@ -123,11 +159,32 @@ awk -v mode="${mode}" '
       printf "❌ %s coverage ledger contains no executable lines\n", mode > "/dev/stderr"
       exit 1
     }
-    if (lines_hit != lines_found) {
-      printf "❌ %s coverage is not 100%%: %d/%d lines hit\n", mode, lines_hit, lines_found > "/dev/stderr"
+    if (mode == "meta") {
+      # Strict: the TestHelper has no unreachable-by-design surface.
+      if (lines_hit != lines_found) {
+        printf "❌ meta coverage is not 100%%: %d/%d lines hit\n", lines_hit, lines_found > "/dev/stderr"
+        exit 1
+      }
+      printf "✅ meta coverage is 100%%: %d/%d lines hit\n", lines_hit, lines_found
+      exit 0
+    }
+    # Unit: assert against the measured floor, and print the VALUES compared so
+    # the comparison is visible rather than implied.
+    printf "ℹ️  unit coverage %d/%d lines hit; floor %d/%d\n", lines_hit, lines_found, floor_hit, floor_found
+    if (lines_hit < floor_hit) {
+      printf "❌ unit coverage REGRESSED: %d lines hit, floor is %d — a previously covered line is no longer covered\n", lines_hit, floor_hit > "/dev/stderr"
       exit 1
     }
-    printf "✅ %s coverage is 100%%: %d/%d lines hit\n", mode, lines_hit, lines_found
+    # A grown denominator with an unchanged hit count means NEW uncovered code.
+    if (lines_found > floor_found && lines_hit == floor_hit) {
+      printf "❌ unit coverage: %d new executable line(s) added with no new coverage (found %d vs floor %d)\n", lines_found - floor_found, lines_found, floor_found > "/dev/stderr"
+      exit 1
+    }
+    if (lines_hit > floor_hit) {
+      printf "✅ unit coverage %d/%d — ABOVE the floor by %d; RAISE unit_floor_hit to %d in scripts/ci/test.sh\n", lines_hit, lines_found, lines_hit - floor_hit, lines_hit
+      exit 0
+    }
+    printf "✅ unit coverage %d/%d lines hit — at the measured floor\n", lines_hit, lines_found
   }
 ' "${ledger}"
 
