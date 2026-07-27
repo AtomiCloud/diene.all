@@ -12,6 +12,7 @@
 !.env.example
 .kagent/
 .kloop/
+.probe-evidence/
 *.log
 *.swo
 *.swp

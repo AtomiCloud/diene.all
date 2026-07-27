@@ -17,9 +17,7 @@ export default {
   contractVersion: 1,
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
   setup: {
-    post: [
-      'nix develop .#ci --no-write-lock-file -c dart pub get --offline || nix develop .#ci --no-write-lock-file -c dart pub get',
-    ],
+    post: ['nix develop .#ci --no-write-lock-file -c dart pub get --offline'],
   },
   probes: [
     {
@@ -38,7 +36,7 @@ export default {
       name: 'mutation-unit-coverage-ledger-caught',
       description: 'the unit coverage ledger fails when an uncovered public member is added',
       kind: 'mutation',
-      expectedImpact: [],
+      expectedImpact: ['publish-dry-run'],
       async run(repo: any) {
         const barrel = await findBarrel(repo);
         const memberDir = barrel.replace(/\/lib\/[^/]+$/, '');

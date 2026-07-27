@@ -2,6 +2,8 @@
 // reusable publish workflow, which in turn must invoke a publish script that
 // exists on disk. Sabotage points the reusable workflow at a missing script and
 // proves the wiring check no longer resolves end to end.
+import { preserveMutationBeforeRestore } from './lib/helpers.ts';
+
 const CD = '.github/workflows/cd.yaml';
 const REUSABLE = '.github/workflows/⚡reusable-publish.yaml';
 const USES = 'uses: ./.github/workflows/⚡reusable-publish.yaml';
@@ -40,15 +42,19 @@ export default {
       name: 'mutation-publish-workflow-wiring-caught',
       description: 'the wiring check detects the reusable workflow pointing at a missing script',
       kind: 'mutation',
-      expectedImpact: [],
+      expectedImpact: ['workflow-wiring'],
       async run(repo: any) {
         if (!(await wiringResolves(repo))) {
           throw new Error('publish-workflow-wiring: wiring already broken before sabotage');
         }
         const reusable = await repo.read(REUSABLE);
-        await repo.write(REUSABLE, reusable.replace('publish.sh', 'publish-missing.sh'));
-        if (await wiringResolves(repo)) {
-          throw new Error('publish-workflow-wiring: wiring survived sabotage');
+        try {
+          await repo.write(REUSABLE, reusable.replace('publish.sh', 'publish-missing.sh'));
+          if (await wiringResolves(repo)) {
+            throw new Error('publish-workflow-wiring: wiring survived sabotage');
+          }
+        } finally {
+          await preserveMutationBeforeRestore(repo, 'publish-workflow-wiring', REUSABLE, reusable);
         }
       },
     },

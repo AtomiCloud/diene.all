@@ -6,9 +6,7 @@ export default {
   contractVersion: 1,
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
   setup: {
-    post: [
-      'nix develop .#ci --no-write-lock-file -c dart pub get --offline || nix develop .#ci --no-write-lock-file -c dart pub get',
-    ],
+    post: ['nix develop .#ci --no-write-lock-file -c dart pub get --offline'],
   },
   probes: [
     {
@@ -18,7 +16,7 @@ export default {
       async run(repo: any) {
         await expectGreen(
           repo,
-          "nix develop .#ci --no-write-lock-file -c bash -lc 'dart pub get --offline || dart pub get'",
+          'nix develop .#ci --no-write-lock-file -c dart pub get --offline',
           'pub-workspace-resolution',
         );
         const config = JSON.parse(await repo.read('.dart_tool/package_config.json'));

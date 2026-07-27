@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRed, preserveMutationBeforeRestore } from './lib/helpers.ts';
 
 // Gate: `scripts/validate/publish-version.sh` refuses to publish unless the
 // member pubspec version and the VERSION ledger agree with the release tag.
@@ -23,14 +23,20 @@ export default {
       name: 'mutation-publish-version-guard-caught',
       description: 'the version guard fails once the member pubspec version drifts',
       kind: 'mutation',
-      expectedImpact: [],
+      expectedImpact: ['pub-workspace-metadata-validator'],
       async run(repo: any) {
         const version = (await repo.read('VERSION')).trim();
-        await repo.patch('packages/diene_dart_lib/pubspec.yaml', {
-          find: `version: ${version}`,
-          replace: `version: ${version}-probe-drift`,
-        });
-        await expectRed(repo, GUARD, 'publish-version-guard');
+        const path = 'packages/diene_dart_lib/pubspec.yaml';
+        const original = await repo.read(path);
+        try {
+          await repo.patch(path, {
+            find: `version: ${version}`,
+            replace: `version: ${version}-probe-drift`,
+          });
+          await expectRed(repo, GUARD, 'publish-version-guard');
+        } finally {
+          await preserveMutationBeforeRestore(repo, 'publish-version-guard', path, original);
+        }
       },
     },
   ],

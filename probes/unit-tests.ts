@@ -7,9 +7,7 @@ export default {
   contractVersion: 1,
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
   setup: {
-    post: [
-      'nix develop .#ci --no-write-lock-file -c dart pub get --offline || nix develop .#ci --no-write-lock-file -c dart pub get',
-    ],
+    post: ['nix develop .#ci --no-write-lock-file -c dart pub get --offline'],
   },
   probes: [
     {
@@ -28,7 +26,7 @@ export default {
       name: 'mutation-unit-tests-caught',
       description: 'dart test test/unit fails once an assertion is inverted',
       kind: 'mutation',
-      expectedImpact: [],
+      expectedImpact: ['unit-coverage-ledger'],
       async run(repo: any) {
         const tests = (await repo.glob('packages/*/test/unit/**/*.dart')).sort();
         const target = tests[0];

@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRed, preserveMutationBeforeRestore } from './lib/helpers.ts';
 
 // Gate: `scripts/validate/dart-package.sh` asserts the pub-workspace metadata
 // contract (member resolution, root workspace listing, publishable identity,
@@ -24,17 +24,23 @@ export default {
       name: 'mutation-pub-workspace-metadata-validator-caught',
       description: 'the validator fails when the member drops resolution: workspace',
       kind: 'mutation',
-      expectedImpact: [],
+      expectedImpact: ['dart-analyze', 'unit-tests'],
       async run(repo: any) {
-        await repo.patch('packages/diene_dart_lib/pubspec.yaml', {
-          find: 'resolution: workspace',
-          replace: 'resolution: none',
-        });
-        await expectRed(
-          repo,
-          'nix develop .#ci --no-write-lock-file -c ./scripts/validate/dart-package.sh',
-          'pub-workspace-metadata-validator',
-        );
+        const path = 'packages/diene_dart_lib/pubspec.yaml';
+        const original = await repo.read(path);
+        try {
+          await repo.patch(path, {
+            find: 'resolution: workspace',
+            replace: 'resolution: none',
+          });
+          await expectRed(
+            repo,
+            'nix develop .#ci --no-write-lock-file -c ./scripts/validate/dart-package.sh',
+            'pub-workspace-metadata-validator',
+          );
+        } finally {
+          await preserveMutationBeforeRestore(repo, 'pub-workspace-metadata-validator', path, original);
+        }
       },
     },
   ],

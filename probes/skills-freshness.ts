@@ -7,9 +7,7 @@ export default {
   // shipped usage skill; restore .dart_tool from the warm PUB_CACHE first so the
   // vendored copy is regenerated identically (otherwise skills-sync drops it).
   setup: {
-    post: [
-      'nix develop .#ci --no-write-lock-file -c dart pub get --offline || nix develop .#ci --no-write-lock-file -c dart pub get',
-    ],
+    post: ['nix develop .#ci --no-write-lock-file -c dart pub get --offline'],
   },
   probes: [
     {
@@ -21,14 +19,34 @@ export default {
       },
     },
     {
-      name: 'mutation-skills-freshness-caught',
-      description: 'A focused sabotage must turn the skills-freshness mechanism red.',
+      name: 'mutation-skills-freshness-independent-oracle-caught',
+      description: 'the independent oracle rejects a generator that agrees with its own incomplete vendor output',
       kind: 'mutation',
-      expectedImpact: [],
+      expectedImpact: ['skills-sync'],
       async run(repo: any) {
-        await repo.write('.claude/skills/vendor/stale/SKILL.md', 'stale\n');
-        await repo.exec('git add .claude/skills/vendor/stale/SKILL.md');
-        await expectRed(repo, 'nix develop .#ci -c ./scripts/validate/skills-freshness.sh', 'skills-freshness');
+        const cwd = await repo.exec('pwd');
+        if (cwd.exitCode !== 0) {
+          throw new Error(`skills-freshness-oracle: failed to resolve sandbox root: ${cwd.stderr || cwd.stdout}`);
+        }
+        await repo.write('.probe/hosted-package/skills/hosted/SKILL.md', '# Hosted probe\n');
+        const packageConfig = JSON.parse(await repo.read('.dart_tool/package_config.json'));
+        packageConfig.packages.push({
+          name: 'diene_oracle_probe',
+          rootUri: `file://${cwd.stdout.trim()}/.probe/hosted-package`,
+          packageUri: 'lib/',
+          languageVersion: '3.6',
+        });
+        await repo.write('.dart_tool/package_config.json', `${JSON.stringify(packageConfig, null, 2)}\n`);
+        await repo.write(
+          'scripts/local/skills-sync.sh',
+          '#!/usr/bin/env bash\nset -euo pipefail\necho "broken generator left vendor unchanged"\n',
+        );
+
+        await expectRed(
+          repo,
+          'nix develop .#ci --no-write-lock-file -c ./scripts/validate/skills-freshness.sh',
+          'skills-freshness-independent-oracle',
+        );
       },
     },
   ],

@@ -1,18 +1,20 @@
 import { expectGreen, expectRed } from './lib/helpers.ts';
 
-// Gate: `pana --exit-code-threshold 0` requires a perfect pub.dev package score.
+// Gate: the SDK must generate API docs, then
+// `pana --no-dartdoc --exit-code-threshold 0` requires a perfect score from
+// every remaining hermetic Pana category. Pana's own Dartdoc integration is
+// excluded because it invokes the current SDK with an unsupported
+// `--sanitize-html` flag; the direct `dart doc --dry-run` retains that coverage.
 // Sabotage comments out the member `description:` (a scored metadata field) and
 // proves pana docks points and fails the threshold.
 const PANA =
-  "nix develop .#ci --no-write-lock-file -c bash -lc 'cd packages/diene_dart_lib && dart run pana --exit-code-threshold 0 .'";
+  "nix develop .#ci --no-write-lock-file -c bash -lc 'cd packages/diene_dart_lib && dart doc --dry-run && dart run pana --no-dartdoc --exit-code-threshold 0 .'";
 
 export default {
   contractVersion: 1,
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
   setup: {
-    post: [
-      'nix develop .#ci --no-write-lock-file -c dart pub get --offline || nix develop .#ci --no-write-lock-file -c dart pub get',
-    ],
+    post: ['nix develop .#ci --no-write-lock-file -c dart pub get --offline'],
   },
   probes: [
     {

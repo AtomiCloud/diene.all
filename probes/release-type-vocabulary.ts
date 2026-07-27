@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRed, preserveMutationBeforeRestore } from './lib/helpers.ts';
 
 export default {
   contractVersion: 1,
@@ -20,14 +20,20 @@ export default {
       name: 'mutation-release-type-vocabulary-caught',
       description: 'A focused sabotage must turn the release-type-vocabulary mechanism red.',
       kind: 'mutation',
-      expectedImpact: [],
+      expectedImpact: ['release-policy-values'],
       async run(repo: any) {
-        await repo.patch('atomi_release.yaml', { find: '  - type: chore', replace: '  - type: chores' });
-        await expectRed(
-          repo,
-          'nix develop .#ci -c ./scripts/validate/release-config.sh types',
-          'release-type-vocabulary',
-        );
+        const path = 'atomi_release.yaml';
+        const source = await repo.read(path);
+        try {
+          await repo.patch(path, { find: '  - type: chore', replace: '  - type: chores' });
+          await expectRed(
+            repo,
+            'nix develop .#ci -c ./scripts/validate/release-config.sh types',
+            'release-type-vocabulary',
+          );
+        } finally {
+          await preserveMutationBeforeRestore(repo, 'release-type-vocabulary', path, source);
+        }
       },
     },
   ],

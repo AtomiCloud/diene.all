@@ -3,6 +3,7 @@
   formatter,
   pkgs,
   pre-commit-lib,
+  offline ? false,
 }:
 let
   validator-runtime = pkgs.buildEnv {
@@ -176,7 +177,7 @@ pre-commit-lib.run {
     };
 
     a-skills-freshness = {
-      enable = true;
+      enable = !offline;
       name = "Vendored skills freshness";
       entry = validator "scripts/validate/skills-freshness.sh";
       pass_filenames = false;
@@ -204,7 +205,7 @@ pre-commit-lib.run {
     };
 
     a-dart-analyze = {
-      enable = true;
+      enable = !offline;
       name = "Dart analyze";
       entry = validator "scripts/ci/analyze.sh";
       files = "^packages/diene_dart_lib/(lib|test|example|tool)/.*[.]dart$|^(packages/diene_dart_lib/(pubspec|analysis_options)|pubspec)[.]yaml$";
@@ -213,7 +214,7 @@ pre-commit-lib.run {
     };
 
     a-dart-test = {
-      enable = true;
+      enable = !offline;
       name = "Dart unit, C0, and meta tests";
       entry = validator "scripts/ci/test-all.sh";
       files = "^packages/diene_dart_lib/(lib|test)/.*[.]dart$|^(packages/diene_dart_lib/pubspec|pubspec)[.]yaml$";
@@ -222,7 +223,7 @@ pre-commit-lib.run {
     };
 
     a-dart-package = {
-      enable = true;
+      enable = !offline;
       name = "Dart package and TestHelper boundary";
       entry = validator "scripts/validate/dart-package.sh";
       files = "^(packages/diene_dart_lib/(lib/.*[.]dart|pubspec[.]yaml|README[.]md|CHANGELOG[.]md|LICENSE|skills/.*|doc/diene_dart_lib[.]md)|pubspec[.]yaml|VERSION)$";

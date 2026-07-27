@@ -1,18 +1,17 @@
 import { expectGreen, expectRed } from './lib/helpers.ts';
 
-// Gate: the publishable archive (as reported by `dart pub publish --dry-run`)
+// Gate: the publishable archive (as reported by the offline-safe
+// `dart pub publish --dry-run --skip-validation` archive builder)
 // must ship the consumer usage skill. Sabotage adds `skills/` to `.pubignore`
 // and proves the skill drops out of the archive listing.
 const DRY_RUN_HAS_SKILL =
-  'nix develop .#ci --no-write-lock-file -c bash -lc \'cd packages/diene_dart_lib && out=$(dart pub publish --dry-run 2>&1 || true); echo "$out" | grep -q diene-dart-lib-usage\'';
+  'nix develop .#ci --no-write-lock-file -c bash -lc \'cd packages/diene_dart_lib && out=$(dart pub publish --dry-run --skip-validation 2>&1) && printf "%s\\n" "$out" | grep -F -q diene-dart-lib-usage\'';
 
 export default {
   contractVersion: 1,
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
   setup: {
-    post: [
-      'nix develop .#ci --no-write-lock-file -c dart pub get --offline || nix develop .#ci --no-write-lock-file -c dart pub get',
-    ],
+    post: ['nix develop .#ci --no-write-lock-file -c dart pub get --offline'],
   },
   probes: [
     {
