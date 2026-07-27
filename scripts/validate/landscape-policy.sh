@@ -20,7 +20,17 @@ rg -q "static const String compiledLandscape = String\.fromEnvironment" lib/conf
 # an error (unsupported syntax, unreadable file). An `if` treats 2 the same as 1,
 # which would turn a regex that never compiled into a clean-looking pass. Only
 # rc=1 certifies "no matches"; rc>=2 is reported as a validator fault.
-landscape_pattern='Platform\.environment|Uri\.base\.host|packageName.*landscape|applicationId.*landscape|^\s*(?!\s*///)[^\n]*\blandscape\b[^\n]*\bhost(name)?\b|^\s*(?!\s*///)[^\n]*\bhost(name)?\b[^\n]*\blandscape\b'
+# The adjacency alternations are CASE-INSENSITIVE via (?i) and match the two
+# words ANYWHERE INSIDE AN IDENTIFIER (`\w*landscape\w*`, `\w*host\w*`). Both
+# properties are load-bearing: an anchored, case-sensitive `\blandscape\b` only
+# caught the all-lowercase standalone spelling, so every natural Dart form a real
+# violation would actually use — resolveLandscape(uri.host),
+# currentLandscapeFor(uri.host), selectedLandscape(u.hostname), someHost() —
+# slipped straight through. Requiring the two to be ADJACENT on one line is what
+# keeps this from banning the word `host`, so widening each side is safe:
+# host-only code (allowsHost) and landscape-only code (compiledLandscape) still
+# pass. Comment lines are excluded so correct prose cannot fail the gate.
+landscape_pattern='Platform\.environment|Uri\.base\.host|packageName.*landscape|applicationId.*landscape|(?i)^\s*(?!\s*//)[^\n]*\w*landscape\w*[^\n]*\w*host(name)?\w*|(?i)^\s*(?!\s*//)[^\n]*\w*host(name)?\w*[^\n]*\w*landscape\w*'
 rule3_rc=0
 rule3_out="$(rg -nP "${landscape_pattern}" lib --glob '*.dart')" || rule3_rc=$?
 if [ "${rule3_rc}" -eq 0 ]; then
