@@ -1,4 +1,4 @@
-import 'package:diene_dart_lib/diene_dart_lib.dart';
+import 'package:diene_api_engine/diene_api_engine.dart';
 
 /// Demonstrates the clean consumer path: build a [Note], summarise it, and
 /// round-trip it through the JSON wire codec via the public barrel alone.

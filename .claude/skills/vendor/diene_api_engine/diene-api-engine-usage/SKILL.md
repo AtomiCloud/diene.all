@@ -1,14 +1,14 @@
 ---
-name: diene-dart-lib-usage
-description: Use when consuming package:diene_dart_lib — importing the barrel, calling the Note value type and summarizeNote transform, or deciding whether to reach for its dependency-light TestHelper.
+name: diene-api-engine-usage
+description: Use when consuming package:diene_api_engine — importing the barrel, calling the Note value type and summarizeNote transform, or deciding whether to reach for its dependency-light TestHelper.
 ---
 
-# diene_dart_lib usage
+# diene_api_engine usage
 
 Import only the public barrel; never reach into `lib/src`:
 
 ```dart
-import 'package:diene_dart_lib/diene_dart_lib.dart';
+import 'package:diene_api_engine/diene_api_engine.dart';
 ```
 
 ## Public API
@@ -28,7 +28,7 @@ type immutable; build a new `Note` rather than mutating.
 
 ## TestHelper decision
 
-`package:diene_dart_lib/test_helper.dart` ships `assertNoteSummary`, a
+`package:diene_api_engine/test_helper.dart` ships `assertNoteSummary`, a
 dependency-light assertion that throws `NoteAssertionFailure` (a `StateError`)
 on mismatch and imports no test framework. Use it in consumer tests when you
 want a runner-agnostic assertion over the summary. If you only need one-off

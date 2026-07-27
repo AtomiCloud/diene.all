@@ -1,11 +1,11 @@
-/// Dependency-light assertions for consumers of `package:diene_dart_lib`.
+/// Dependency-light assertions for consumers of `package:diene_api_engine`.
 ///
 /// This library deliberately depends on no test framework. A mismatch throws
 /// [NoteAssertionFailure] (a [StateError]), so it works with `package:test`,
 /// any other runner, or plain `dart run`.
 library;
 
-import 'diene_dart_lib.dart';
+import 'diene_api_engine.dart';
 
 /// Thrown when a dependency-light [Note] assertion fails.
 ///

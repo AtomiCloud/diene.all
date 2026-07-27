@@ -1,15 +1,15 @@
-// Production dead-code root for the published diene_dart_lib surface.
+// Production dead-code root for the published diene_api_engine surface.
 //
 // This is tooling, not a test. dart_code_linter otherwise treats only the
-// public barrel (diene_dart_lib.dart) as an entrypoint and incorrectly reports
+// public barrel (diene_api_engine.dart) as an entrypoint and incorrectly reports
 // the test_helper.dart public functions as unused. Referencing every public
 // export here keeps the production-only dead-code pass honest without any
 // exclusion list. deadcode.sh copies this file to bin/main.dart inside the
 // production-only sandbox, so it lives in the member package where
-// `package:diene_dart_lib` resolves cleanly (and is excluded from the published
+// `package:diene_api_engine` resolves cleanly (and is excluded from the published
 // archive by .pubignore).
-import 'package:diene_dart_lib/diene_dart_lib.dart';
-import 'package:diene_dart_lib/test_helper.dart';
+import 'package:diene_api_engine/diene_api_engine.dart';
+import 'package:diene_api_engine/test_helper.dart';
 
 void main() {
   const Note note = Note(

@@ -4,7 +4,7 @@ set -euo pipefail
 root_dir="$(git rev-parse --show-toplevel)"
 cd "${root_dir}"
 
-member_dir="packages/diene_dart_lib"
+member_dir="packages/diene_api_engine"
 
 # Resolve the whole workspace once at the root.
 dart pub get

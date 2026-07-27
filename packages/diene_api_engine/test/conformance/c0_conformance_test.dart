@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
-import 'package:diene_dart_lib/diene_dart_lib.dart';
+import 'package:diene_api_engine/diene_api_engine.dart';
 import 'package:test/test.dart';
 
 void main() {

@@ -23,23 +23,23 @@ jobs:
     steps:
       - uses: AtomiCloud/actions.setup-nix@v3
       - name: Run ${{ inputs.mode }} tests
-        if: inputs.mode != 'meta' || hashFiles('packages/diene_dart_lib/lib/test_helper.dart') != ''
+        if: inputs.mode != 'meta' || hashFiles('packages/diene_api_engine/lib/test_helper.dart') != ''
         env:
           TEST_MODE: ${{ inputs.mode }}
         run: nix develop .#ci -c ./scripts/ci/test.sh "$TEST_MODE" coverage
       - name: Upload ${{ inputs.mode }} coverage artifact
-        if: always() && (inputs.mode != 'meta' || hashFiles('packages/diene_dart_lib/lib/test_helper.dart') != '')
+        if: always() && (inputs.mode != 'meta' || hashFiles('packages/diene_api_engine/lib/test_helper.dart') != '')
         uses: actions/upload-artifact@v7
         with:
           name: coverage-${{ inputs.mode }}
-          path: packages/diene_dart_lib/coverage/${{ inputs.mode }}
+          path: packages/diene_api_engine/coverage/${{ inputs.mode }}
           if-no-files-found: warn
       - name: Upload ${{ inputs.mode }} coverage to Codecov
-        if: always() && (inputs.mode != 'meta' || hashFiles('packages/diene_dart_lib/lib/test_helper.dart') != '')
+        if: always() && (inputs.mode != 'meta' || hashFiles('packages/diene_api_engine/lib/test_helper.dart') != '')
         continue-on-error: true
         uses: codecov/codecov-action@v7
         with:
-          files: packages/diene_dart_lib/coverage/${{ inputs.mode }}/lcov.info
+          files: packages/diene_api_engine/coverage/${{ inputs.mode }}/lcov.info
           flags: ${{ inputs.mode }}
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false

@@ -1,6 +1,6 @@
-# diene_dart_lib
+# diene_api_engine
 
-`diene_dart_lib` is the generic, pure-Dart **library template** for the Diene
+`diene_api_engine` is the generic, pure-Dart **library template** for the Diene
 family. It carries a small, deliberately replaceable sample domain plus the
 template machinery (strict analysis, targeted coverage, a dependency-light
 TestHelper, a C0 fixture harness, package hygiene, and a shipped usage skill). A
@@ -12,7 +12,7 @@ own domain.
 Import only the barrel:
 
 ```dart
-import 'package:diene_dart_lib/diene_dart_lib.dart';
+import 'package:diene_api_engine/diene_api_engine.dart';
 ```
 
 It exports:
@@ -45,7 +45,7 @@ locally derived regression inputs, explicitly not authoritative C0 fixtures.
 Consumer tests may import the dependency-light helper:
 
 ```dart
-import 'package:diene_dart_lib/test_helper.dart';
+import 'package:diene_api_engine/test_helper.dart';
 ```
 
 `assertNoteSummary(note, expected, {maxLength})` throws `NoteAssertionFailure`
@@ -58,6 +58,6 @@ only to `lib/test_helper.dart`; the unit ledger covers `lib/src/**`.
 
 A real library deletes `lib/src/note.dart` and `lib/src/note_summary.dart`,
 adds its own types under `lib/src/`, re-points the `export` lines in
-`lib/diene_dart_lib.dart`, and updates the TestHelper, tests, fixtures, example,
+`lib/diene_api_engine.dart`, and updates the TestHelper, tests, fixtures, example,
 and this document. The surrounding template — analysis, coverage ledgers,
 package validation, release, and publish machinery — is unchanged.

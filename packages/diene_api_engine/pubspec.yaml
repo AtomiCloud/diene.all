@@ -1,9 +1,9 @@
-name: diene_dart_lib
+name: diene_api_engine
 description: A generic pure-Dart library template — a Note value type with a JSON wire codec and a pure summariser, ready to retokenize into a real package.
 version: 0.0.0
-repository: https://github.com/AtomiCloud/diene.dart_lib
-issue_tracker: https://github.com/AtomiCloud/diene.dart_lib/issues
-homepage: https://github.com/AtomiCloud/diene.dart_lib
+repository: https://github.com/AtomiCloud/diene.dart_api_engine
+issue_tracker: https://github.com/AtomiCloud/diene.dart_api_engine/issues
+homepage: https://github.com/AtomiCloud/diene.dart_api_engine
 
 topics:
   - template

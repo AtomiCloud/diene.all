@@ -1,9 +1,9 @@
-# diene_dart_lib
+# diene_api_engine
 
-[![pub package](https://img.shields.io/pub/v/diene_dart_lib.svg)](https://pub.dev/packages/diene_dart_lib)
-[![CI](https://github.com/AtomiCloud/diene.dart_lib/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.dart_lib/actions/workflows/ci.yaml)
-[![unit coverage](https://codecov.io/gh/AtomiCloud/diene.dart_lib/graph/badge.svg?flag=unit)](https://codecov.io/gh/AtomiCloud/diene.dart_lib)
-[![meta coverage](https://codecov.io/gh/AtomiCloud/diene.dart_lib/graph/badge.svg?flag=meta)](https://codecov.io/gh/AtomiCloud/diene.dart_lib)
+[![pub package](https://img.shields.io/pub/v/diene_api_engine.svg)](https://pub.dev/packages/diene_api_engine)
+[![CI](https://github.com/AtomiCloud/diene.dart_api_engine/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.dart_api_engine/actions/workflows/ci.yaml)
+[![unit coverage](https://codecov.io/gh/AtomiCloud/diene.dart_api_engine/graph/badge.svg?flag=unit)](https://codecov.io/gh/AtomiCloud/diene.dart_api_engine)
+[![meta coverage](https://codecov.io/gh/AtomiCloud/diene.dart_api_engine/graph/badge.svg?flag=meta)](https://codecov.io/gh/AtomiCloud/diene.dart_api_engine)
 
 The generic, pure-Dart **library template** for the Diene family. It ships a
 small, replaceable sample domain — a `Note` value type with a JSON wire codec
@@ -12,7 +12,7 @@ targeted coverage, a dependency-light TestHelper, a C0 fixture harness, package
 hygiene, and a shipped usage skill).
 
 ```dart
-import 'package:diene_dart_lib/diene_dart_lib.dart';
+import 'package:diene_api_engine/diene_api_engine.dart';
 
 const Note note = Note(title: 'Release', body: 'Ship the template.');
 
@@ -29,11 +29,11 @@ final Note decoded = Note.fromJson(note.toJson());  // round-trips through JSON
 
 ## TestHelper
 
-Consumer tests may import `package:diene_dart_lib/test_helper.dart` for
+Consumer tests may import `package:diene_api_engine/test_helper.dart` for
 `assertNoteSummary`, a dependency-light assertion that throws
 `NoteAssertionFailure` on mismatch and pulls in no test framework.
 
-Read the [package doc](doc/diene_dart_lib.md) for the full API, wire contract,
+Read the [package doc](doc/diene_api_engine.md) for the full API, wire contract,
 C0 harness, and guidance on replacing the sample.
 
 ## Using this template
@@ -41,7 +41,7 @@ C0 harness, and guidance on replacing the sample.
 This is a template: a materialized child retokenizes the package identity to
 `diene_<name>` / `AtomiCloud/diene.dart_<name>`, replaces `lib/src/**` with its
 own domain, and re-points the barrel exports. See
-`skills/diene-dart-lib-usage/patterns.md`.
+`skills/diene-api-engine-usage/patterns.md`.
 
 ## Development
 

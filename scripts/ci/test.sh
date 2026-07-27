@@ -4,10 +4,10 @@ set -euo pipefail
 mode="${1:-}"
 coverage_mode="${2:-no-coverage}"
 
-# The publishable member lives under packages/diene_dart_lib (pub workspace).
+# The publishable member lives under packages/diene_api_engine (pub workspace).
 # `dart pub get` resolves at the repo root; `dart test`, coverage collection and
 # the coverage:format_coverage run all execute with CWD = the member directory.
-member_dir="${MEMBER_DIR:-packages/diene_dart_lib}"
+member_dir="${MEMBER_DIR:-packages/diene_api_engine}"
 test_helper_path="${TEST_HELPER_PATH:-lib/test_helper.dart}"
 meta_test_path="${META_TEST_PATH:-test/meta}"
 

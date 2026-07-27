@@ -1,4 +1,4 @@
-import 'package:diene_dart_lib/diene_dart_lib.dart';
+import 'package:diene_api_engine/diene_api_engine.dart';
 import 'package:test/test.dart';
 
 void main() {

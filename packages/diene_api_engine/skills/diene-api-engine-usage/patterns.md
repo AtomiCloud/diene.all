@@ -1,4 +1,4 @@
-# diene_dart_lib patterns
+# diene_api_engine patterns
 
 ## The TestHelper pattern
 
@@ -30,11 +30,11 @@ materialize a real library:
 
 1. Delete `lib/src/note.dart` and `lib/src/note_summary.dart`; add your own
    types under `lib/src/`.
-2. Re-point the `export` lines in `lib/diene_dart_lib.dart` to your files.
+2. Re-point the `export` lines in `lib/diene_api_engine.dart` to your files.
 3. Rewrite `lib/test_helper.dart` (or delete it) to assert over your surface.
 4. Replace `test/unit/**`, `test/meta/**`, and the `test/fixtures/c0/**`
    fixtures + `manifest.json` (recompute the SHA-256 digests).
-5. Update `example/diene_dart_lib_example.dart`, `doc/diene_dart_lib.md`,
+5. Update `example/diene_api_engine_example.dart`, `doc/diene_api_engine.md`,
    `README.md`, and this skill's identity (`diene-dart-<name>-usage`).
 
 Retokenize the package identity to `diene_<name>` and the mirror to

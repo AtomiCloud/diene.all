@@ -26,7 +26,7 @@ export default {
       expectedImpact: [],
       async run(repo: any) {
         const version = (await repo.read('VERSION')).trim();
-        await repo.patch('packages/diene_dart_lib/pubspec.yaml', {
+        await repo.patch('packages/diene_api_engine/pubspec.yaml', {
           find: `version: ${version}`,
           replace: `version: ${version}-probe-drift`,
         });
