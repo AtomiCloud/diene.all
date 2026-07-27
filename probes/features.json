@@ -384,5 +384,70 @@
     "template": "diene/flutter-base",
     "name": "cd-shells",
     "class": "presence"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "faro-initialization",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "content-state-machine",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "module-di-port",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "picker-allowlist-check",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "picker-home-claim-flow",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "app-handoff-legal-step",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "onboarding-phase-machine",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "deeplink-route-map",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "route-for-every-screen",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "login-redirect-return",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "query-param-state-restoration",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "form-lifecycle",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "published-lib-dart-dependencies",
+    "class": "presence"
   }
 ]
