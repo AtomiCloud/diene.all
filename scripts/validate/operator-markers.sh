@@ -7,6 +7,7 @@ types_dir="api/v1alpha1"
 fleet_types_dir="api/fleet/v1alpha1"
 controllers_dir="adapters/operator/controllers"
 crd_dir="infra/root_chart/templates/crds"
+expected_workload_cel_count=13
 
 [ ! -d "${types_dir}" ] && echo "❌ operator marker lint: missing API types directory ${types_dir}" >&2 && exit 1
 [ ! -d "${fleet_types_dir}" ] && echo "❌ operator marker lint: missing API types directory ${fleet_types_dir}" >&2 && exit 1
@@ -155,13 +156,14 @@ printcolumn|PlatformDependency|Age
 field|PlatformDependencySpec.Platform|kubebuilder:validation:Required
 field|PlatformDependencySpec.Service|kubebuilder:validation:Optional
 field|PlatformDependencySpec.Landscape|kubebuilder:validation:Required
-field|PlatformDependencySpec.Placement|kubebuilder:validation:Required
+field|PlatformDependencySpec.Placement|kubebuilder:validation:Optional
 field|PlatformDependencySpec.Database|kubebuilder:validation:Optional
 field|PlatformDependencySpec.KV|kubebuilder:validation:Optional
 field|PlatformDependencySpec.Cache|kubebuilder:validation:Optional
 field|PlatformDependencySpec.Store|kubebuilder:validation:Optional
 field|PlatformDependencySpec.Email|kubebuilder:validation:Optional
-field|PlatformDependencySpec.DeletionPolicy|kubebuilder:validation:Required
+field|PlatformDependencySpec.DeletionPolicy|kubebuilder:validation:Optional
+field|PlatformDependencySpec.DeletionPolicy|kubebuilder:default={retainSecret: "168h"}
 field|DependencyPlacement.PreferredHost|kubebuilder:validation:Required
 field|DependencyDeletionPolicy.RetainSecret|kubebuilder:validation:Required
 field|PlatformDependencyModuleSpec.Type|kubebuilder:validation:Required
@@ -190,7 +192,6 @@ cel|PlatformDependencyModuleSpec|has(self.engine.neon) == (self.type == 'neon') 
 cel|PlatformDependencyModuleSpec|self.type in ['neon','neon-fork','upstash','upstash-fork','tigris','tigris-fork','r2','s3','ses','cf-email-sending'] ? self.delivery == 'external' : self.type in ['cnpg','minio','mailpit'] ? self.delivery == 'local' : self.type == 'dragonfly' ? self.delivery in ['local','replicated'] : false
 cel|PlatformDependencyModuleSpec|(self.delivery == 'external' && has(self.providerAccountRef)) || (self.delivery != 'external' && !has(self.providerAccountRef) && !has(self.account))
 cel|PlatformDependencyModuleSpec|!has(self.account) || !has(self.providerAccountRef) || self.account.name == self.providerAccountRef
-cel|PlatformDependencySpec|!(self.landscape in ['lapras','ditto','rotom','absol','eevee','plusle','minun']) ? ((!has(self.database) || self.database.all(k, m, m.type == 'neon')) && (!has(self.kv) || self.kv.all(k, m, m.type == 'upstash')) && (!has(self.cache) || self.cache.all(k, m, m.type == 'dragonfly' && m.delivery == 'replicated')) && (!has(self.store) || self.store.all(k, m, m.type in ['tigris','r2','s3'])) && (!has(self.email) || self.email.all(k, m, m.type in ['ses','cf-email-sending']))) : self.landscape in ['plusle','minun'] ? ((!has(self.database) || self.database.all(k, m, m.type == 'neon-fork')) && (!has(self.kv) || self.kv.all(k, m, m.type == 'upstash-fork')) && (!has(self.cache) || self.cache.all(k, m, m.type == 'dragonfly' && m.delivery == 'local')) && (!has(self.store) || self.store.all(k, m, m.type == 'tigris-fork')) && (!has(self.email) || self.email.all(k, m, m.type == 'mailpit' && m.credentialMode == 'none'))) : ((!has(self.database) || self.database.all(k, m, m.type == 'cnpg')) && (!has(self.kv) || self.kv.all(k, m, m.type == 'dragonfly' && m.delivery == 'local')) && (!has(self.cache) || self.cache.all(k, m, m.type == 'dragonfly' && m.delivery == 'local')) && (!has(self.store) || self.store.all(k, m, m.type == 'minio')) && (!has(self.email) || self.email.all(k, m, m.type == 'mailpit' && m.credentialMode == 'none')))
 cel|PlatformDependencySpec.Database|self.all(k, m, m.type in ['neon','neon-fork','cnpg'])
 cel|PlatformDependencySpec.KV|self.all(k, m, m.type in ['upstash','upstash-fork','dragonfly'])
 cel|PlatformDependencySpec.Cache|self.all(k, m, m.type == 'dragonfly')
@@ -326,6 +327,26 @@ facts="${facts}$(grep -F 'kubebuilder:printcolumn:name=' <<<"${facts}" | sed -E 
 
 # A CEL rule is schema-level behaviour, so the policy pins its exact expression rather than its presence.
 facts="${facts}$(sed -nE 's/^(type|field)\|([^|]+)\|kubebuilder:validation:XValidation:rule="([^"]*)".*/cel|\2|\3/p' <<<"${facts}" || true)"$'\n'
+
+count_workload_cel_facts() {
+  sed -n '/^cel|LandscapeSpec\.Region|/d; /^cel|/p' |
+    sort -u |
+    wc -l |
+    tr -d '[:space:]'
+}
+
+required_workload_cel_count="$(count_workload_cel_facts <<<"${required}")"
+actual_workload_cel_count="$(count_workload_cel_facts <<<"${facts}")"
+
+if [ "${required_workload_cel_count}" -ne "${expected_workload_cel_count}" ]; then
+  echo "❌ operator marker lint: declared workload CEL census is ${required_workload_cel_count}, expected ${expected_workload_cel_count}" >&2
+  exit 1
+fi
+if [ "${actual_workload_cel_count}" -ne "${expected_workload_cel_count}" ]; then
+  echo "❌ operator marker lint: source workload CEL census is ${actual_workload_cel_count}, expected ${expected_workload_cel_count}" >&2
+  exit 1
+fi
+echo "🧮 workload CEL census: ${actual_workload_cel_count}"
 
 echo "🧪 asserting the required marker families"
 

@@ -16,7 +16,24 @@ import (
 	fleetv1alpha1 "github.com/AtomiCloud/diene.fleet-operator/api/fleet/v1alpha1"
 )
 
-const fleetWorkloadFixtureCount = 6
+const (
+	fleetWorkloadFixtureCount    = 6
+	fleetWorkloadCELWitnessCount = 13
+
+	celWitnessEngineKey       = "engine key equals type"
+	celWitnessDelivery        = "delivery legality"
+	celWitnessExternalAccount = "external account required"
+	celWitnessAccountAlias    = "account spellings agree"
+	celWitnessDatabaseClass   = "database class map"
+	celWitnessKVClass         = "kv class map"
+	celWitnessCacheClass      = "cache class map"
+	celWitnessStoreClass      = "store class map"
+	celWitnessEmailClass      = "email class map"
+	celWitnessWebhookHome     = "WebhookEngine immutable home"
+	celWitnessVersionSource   = "Cloudflare exactly one version source"
+	celWitnessRolloutComplete = "Cloudflare rollout reaches 100 percent"
+	celWitnessConfirm         = "Decommission confirm friction"
+)
 
 func loadFleetWorkloadFixture(t *testing.T, name string) *unstructured.Unstructured {
 	t.Helper()
@@ -61,6 +78,43 @@ func externalModule(realizationType string) map[string]any {
 		"rotation":           "on",
 		"engine":             map[string]any{realizationType: map[string]any{}},
 	}
+}
+
+func neonForkModule(providerAccount string) map[string]any {
+	return map[string]any{
+		"type":               "neon-fork",
+		"delivery":           "external",
+		"providerAccountRef": providerAccount,
+		"credentialMode":     "standard",
+		"rotation":           "off",
+		"engine": map[string]any{"neon-fork": map[string]any{
+			"ttl": "168h",
+			"parent": map[string]any{
+				"platform": "nitroso", "landscape": "raichu", "service": "zinc", "module": "maindb",
+			},
+		}},
+	}
+}
+
+func localModule(realizationType string) map[string]any {
+	return map[string]any{
+		"type":           realizationType,
+		"delivery":       "local",
+		"credentialMode": "standard",
+		"rotation":       "off",
+		"engine":         map[string]any{realizationType: map[string]any{}},
+	}
+}
+
+func platformDependencyRow(t *testing.T, suffix, landscape string) *unstructured.Unstructured {
+	t.Helper()
+	obj := loadFleetWorkloadFixture(t, "platformdependency-valid.yaml")
+	setWorkloadName(t, obj, suffix)
+	require.NoError(t, unstructured.SetNestedField(obj.Object, landscape, "spec", "landscape"))
+	for _, field := range []string{"placement", "database", "kv", "cache", "store", "email", "deletionPolicy"} {
+		unstructured.RemoveNestedField(obj.Object, "spec", field)
+	}
+	return obj
 }
 
 // TestFleetWorkloadSchemaAcceptsExactlySixValidFixtures is deliberately
@@ -238,149 +292,136 @@ func TestFleetWorkloadSchemaKeepsModuleStatusMapsRoundTrippable(t *testing.T) {
 	require.True(t, apierrors.IsInvalid(err), "duplicate condition types inside one module must be rejected: %v", err)
 }
 
-// TestFleetWorkloadSchemaPlatformDependencyCELWitnesses names every admission
-// rule on the module core and landscape support matrix.
-func TestFleetWorkloadSchemaPlatformDependencyCELWitnesses(t *testing.T) {
+// TestFleetWorkloadSchemaRejectsAllThirteenCELRules count-pins the actual
+// rejection paths: every table entry executes its API-server witness.
+func TestFleetWorkloadSchemaRejectsAllThirteenCELRules(t *testing.T) {
 	c := newFleetClient(t)
 	ensureFleetNamespace(t, c)
 	ctx := context.Background()
 
-	t.Run("engine key equals type", func(t *testing.T) {
-		obj := loadFleetWorkloadFixture(t, "platformdependency-valid.yaml")
-		setWorkloadName(t, obj, "cel-engine-key")
-		require.NoError(t, unstructured.SetNestedMap(obj.Object, map[string]any{"upstash": map[string]any{}},
-			"spec", "database", "maindb", "engine"))
-		requireFleetWorkloadInvalid(t, c.Create(ctx, obj), "exactly one engine key must be present and equal type")
-	})
-
-	t.Run("delivery legality", func(t *testing.T) {
-		obj := loadFleetWorkloadFixture(t, "platformdependency-valid.yaml")
-		setWorkloadName(t, obj, "cel-delivery")
-		require.NoError(t, unstructured.SetNestedField(obj.Object, "local", "spec", "database", "maindb", "delivery"))
-		unstructured.RemoveNestedField(obj.Object, "spec", "database", "maindb", "providerAccountRef")
-		unstructured.RemoveNestedField(obj.Object, "spec", "database", "maindb", "account")
-		requireFleetWorkloadInvalid(t, c.Create(ctx, obj), "delivery is not legal for the selected type")
-	})
-
-	t.Run("external account required", func(t *testing.T) {
-		obj := loadFleetWorkloadFixture(t, "platformdependency-valid.yaml")
-		setWorkloadName(t, obj, "cel-provider-account")
-		unstructured.RemoveNestedField(obj.Object, "spec", "database", "maindb", "providerAccountRef")
-		unstructured.RemoveNestedField(obj.Object, "spec", "database", "maindb", "account")
-		requireFleetWorkloadInvalid(t, c.Create(ctx, obj), "external modules require providerAccountRef")
-	})
-
-	t.Run("account spellings agree", func(t *testing.T) {
-		obj := loadFleetWorkloadFixture(t, "platformdependency-valid.yaml")
-		setWorkloadName(t, obj, "cel-account-alias")
-		require.NoError(t, unstructured.SetNestedField(obj.Object, "other-neon", "spec", "database", "maindb", "account", "name"))
-		requireFleetWorkloadInvalid(t, c.Create(ctx, obj), "account.name and providerAccountRef must agree")
-	})
-
-	t.Run("landscape by type matrix", func(t *testing.T) {
-		obj := loadFleetWorkloadFixture(t, "platformdependency-invalid.yaml")
-		setWorkloadName(t, obj, "cel-landscape-matrix")
-		requireFleetWorkloadInvalid(t, c.Create(ctx, obj), "module type is not supported by the target landscape")
-	})
-}
-
-// TestFleetWorkloadSchemaPlatformDependencyClassCELWitnesses pins every class
-// map restriction. Each error must name its own class rule even though the
-// broader landscape matrix also rejects the deliberately crossed type.
-func TestFleetWorkloadSchemaPlatformDependencyClassCELWitnesses(t *testing.T) {
-	c := newFleetClient(t)
-	ensureFleetNamespace(t, c)
-	ctx := context.Background()
-
-	for _, witness := range []struct {
-		class    string
-		module   string
-		typeName string
-		message  string
-	}{
-		{"database", "maindb", "upstash", "database modules must use a database type"},
-		{"kv", "sessions", "neon", "kv modules must use a kv type"},
-		{"cache", "hot", "neon", "cache modules must use dragonfly"},
-		{"store", "assets", "neon", "store modules must use a store type"},
-		{"email", "sender", "neon", "email modules must use an email type"},
-	} {
-		t.Run(witness.class, func(t *testing.T) {
+	classWitness := func(class, module, typeName, message string) func(*testing.T) {
+		return func(t *testing.T) {
 			obj := loadFleetWorkloadFixture(t, "platformdependency-valid.yaml")
-			setWorkloadName(t, obj, "cel-class-"+witness.class)
-			setModule(t, obj, witness.class, witness.module, externalModule(witness.typeName))
-			requireFleetWorkloadInvalid(t, c.Create(ctx, obj), witness.message)
-		})
+			setWorkloadName(t, obj, "cel-class-"+class)
+			setModule(t, obj, class, module, externalModule(typeName))
+			requireFleetWorkloadInvalid(t, c.Create(ctx, obj), message)
+		}
+	}
+
+	witnesses := []struct {
+		name   string
+		reject func(*testing.T)
+	}{
+		{celWitnessEngineKey, func(t *testing.T) {
+			obj := loadFleetWorkloadFixture(t, "platformdependency-valid.yaml")
+			setWorkloadName(t, obj, "cel-engine-key")
+			require.NoError(t, unstructured.SetNestedMap(obj.Object, map[string]any{"upstash": map[string]any{}},
+				"spec", "database", "maindb", "engine"))
+			requireFleetWorkloadInvalid(t, c.Create(ctx, obj), "exactly one engine key must be present and equal type")
+		}},
+		{celWitnessDelivery, func(t *testing.T) {
+			obj := loadFleetWorkloadFixture(t, "platformdependency-invalid.yaml")
+			setWorkloadName(t, obj, "cel-delivery")
+			requireFleetWorkloadInvalid(t, c.Create(ctx, obj), "delivery is not legal for the selected type")
+		}},
+		{celWitnessExternalAccount, func(t *testing.T) {
+			obj := loadFleetWorkloadFixture(t, "platformdependency-valid.yaml")
+			setWorkloadName(t, obj, "cel-provider-account")
+			unstructured.RemoveNestedField(obj.Object, "spec", "database", "maindb", "providerAccountRef")
+			unstructured.RemoveNestedField(obj.Object, "spec", "database", "maindb", "account")
+			requireFleetWorkloadInvalid(t, c.Create(ctx, obj), "external modules require providerAccountRef")
+		}},
+		{celWitnessAccountAlias, func(t *testing.T) {
+			obj := loadFleetWorkloadFixture(t, "platformdependency-valid.yaml")
+			setWorkloadName(t, obj, "cel-account-alias")
+			require.NoError(t, unstructured.SetNestedField(obj.Object, "other-neon", "spec", "database", "maindb", "account", "name"))
+			requireFleetWorkloadInvalid(t, c.Create(ctx, obj), "account.name and providerAccountRef must agree")
+		}},
+		{celWitnessDatabaseClass, classWitness("database", "maindb", "upstash", "database modules must use a database type")},
+		{celWitnessKVClass, classWitness("kv", "sessions", "neon", "kv modules must use a kv type")},
+		{celWitnessCacheClass, classWitness("cache", "hot", "neon", "cache modules must use dragonfly")},
+		{celWitnessStoreClass, classWitness("store", "assets", "neon", "store modules must use a store type")},
+		{celWitnessEmailClass, classWitness("email", "sender", "neon", "email modules must use an email type")},
+		{celWitnessWebhookHome, func(t *testing.T) {
+			obj := loadFleetWorkloadFixture(t, "webhookengine-valid.yaml")
+			setWorkloadName(t, obj, "cel-home")
+			createFleetWorkloadFixture(t, c, obj)
+			require.NoError(t, unstructured.SetNestedField(obj.Object, "suicune", "spec", "home", "vlandscape"))
+			requireFleetWorkloadInvalid(t, c.Update(ctx, obj), "home.vlandscape is immutable")
+		}},
+		{celWitnessVersionSource, func(t *testing.T) {
+			obj := loadFleetWorkloadFixture(t, "cloudflaredeploy-invalid.yaml")
+			setWorkloadName(t, obj, "cel-version-source")
+			requireFleetWorkloadInvalid(t, c.Create(ctx, obj), "exactly one of desiredVersion or desiredVersionFrom is required")
+		}},
+		{celWitnessRolloutComplete, func(t *testing.T) {
+			obj := loadFleetWorkloadFixture(t, "cloudflaredeploy-valid.yaml")
+			setWorkloadName(t, obj, "cel-rollout-complete")
+			require.NoError(t, unstructured.SetNestedSlice(obj.Object, []any{map[string]any{"percent": int64(10), "soak": "10m"}},
+				"spec", "rollout", "steps"))
+			requireFleetWorkloadInvalid(t, c.Create(ctx, obj), "rollout steps must contain a 100 percent step")
+		}},
+		{celWitnessConfirm, func(t *testing.T) {
+			obj := loadFleetWorkloadFixture(t, "decommission-invalid.yaml")
+			setWorkloadName(t, obj, "cel-confirm")
+			requireFleetWorkloadInvalid(t, c.Create(ctx, obj), "confirm must exactly match targetRef.name")
+		}},
+	}
+
+	require.Len(t, witnesses, fleetWorkloadCELWitnessCount)
+	seen := make(map[string]struct{}, len(witnesses))
+	for _, witness := range witnesses {
+		require.NotContains(t, seen, witness.name, "CEL witness names must be unique")
+		seen[witness.name] = struct{}{}
+		t.Run(witness.name, witness.reject)
 	}
 }
 
-// TestFleetWorkloadSchemaAcceptsRuledLandscapeMatrixExamples checks one local
-// parity module and one preview fork, complementing the production fixture.
-func TestFleetWorkloadSchemaAcceptsRuledLandscapeMatrixExamples(t *testing.T) {
+// TestFleetWorkloadSchemaAcceptsRegistryDependentShapes proves admission keeps
+// only structural checks and leaves landscape classification to reconciliation.
+func TestFleetWorkloadSchemaAcceptsRegistryDependentShapes(t *testing.T) {
 	c := newFleetClient(t)
 	ensureFleetNamespace(t, c)
 	ctx := context.Background()
 
-	local := loadFleetWorkloadFixture(t, "platformdependency-invalid.yaml")
-	setWorkloadName(t, local, "matrix-local")
-	require.NoError(t, unstructured.SetNestedField(local.Object, "lapras", "spec", "landscape"))
-	require.NoError(t, unstructured.SetNestedField(local.Object, "lapras", "spec", "placement", "preferredHost"))
-	require.NoError(t, c.Create(ctx, local))
-	t.Cleanup(func() { _ = c.Delete(ctx, local) })
-
-	preview := loadFleetWorkloadFixture(t, "platformdependency-invalid.yaml")
-	setWorkloadName(t, preview, "matrix-preview")
-	require.NoError(t, unstructured.SetNestedField(preview.Object, "plusle", "spec", "landscape"))
-	require.NoError(t, unstructured.SetNestedField(preview.Object, "plusle", "spec", "placement", "preferredHost"))
-	setModule(t, preview, "database", "maindb", map[string]any{
-		"type":               "neon-fork",
-		"delivery":           "external",
-		"providerAccountRef": "preview-neon",
-		"credentialMode":     "standard",
-		"rotation":           "off",
-		"engine": map[string]any{"neon-fork": map[string]any{
-			"ttl": "168h",
-			"parent": map[string]any{
-				"platform": "nitroso", "landscape": "raichu", "service": "zinc", "module": "maindb",
-			},
-		}},
-	})
-	require.NoError(t, c.Create(ctx, preview))
-	t.Cleanup(func() { _ = c.Delete(ctx, preview) })
-}
-
-// TestFleetWorkloadSchemaRemainingCELWitnesses pins transition/config rules on
-// the other workload kinds.
-func TestFleetWorkloadSchemaRemainingCELWitnesses(t *testing.T) {
-	c := newFleetClient(t)
-	ensureFleetNamespace(t, c)
-	ctx := context.Background()
-
-	t.Run("WebhookEngine immutable home", func(t *testing.T) {
-		obj := loadFleetWorkloadFixture(t, "webhookengine-valid.yaml")
-		setWorkloadName(t, obj, "cel-home")
+	t.Run("mixed Neon base and fork on raichu", func(t *testing.T) {
+		obj := loadFleetWorkloadFixture(t, "platformdependency-valid.yaml")
+		setWorkloadName(t, obj, "mixed-neon")
 		createFleetWorkloadFixture(t, c, obj)
-		require.NoError(t, unstructured.SetNestedField(obj.Object, "suicune", "spec", "home", "vlandscape"))
-		requireFleetWorkloadInvalid(t, c.Update(ctx, obj), "home.vlandscape is immutable")
 	})
 
-	t.Run("Cloudflare exactly one version source", func(t *testing.T) {
-		obj := loadFleetWorkloadFixture(t, "cloudflaredeploy-invalid.yaml")
-		setWorkloadName(t, obj, "cel-version-source")
-		requireFleetWorkloadInvalid(t, c.Create(ctx, obj), "exactly one of desiredVersion or desiredVersionFrom is required")
+	t.Run("Neon fork on lapras", func(t *testing.T) {
+		obj := platformDependencyRow(t, "fork-lapras", "lapras")
+		setModule(t, obj, "database", "previewdb", neonForkModule("garden-neon"))
+		createFleetWorkloadFixture(t, c, obj)
 	})
 
-	t.Run("Cloudflare rollout reaches 100 percent", func(t *testing.T) {
-		obj := loadFleetWorkloadFixture(t, "cloudflaredeploy-valid.yaml")
-		setWorkloadName(t, obj, "cel-rollout-complete")
-		require.NoError(t, unstructured.SetNestedSlice(obj.Object, []any{map[string]any{"percent": int64(10), "soak": "10m"}},
-			"spec", "rollout", "steps"))
-		requireFleetWorkloadInvalid(t, c.Create(ctx, obj), "rollout steps must contain a 100 percent step")
+	t.Run("SES provider account on ditto", func(t *testing.T) {
+		obj := platformDependencyRow(t, "ses-ditto", "ditto")
+		setModule(t, obj, "email", "sender", externalModule("ses"))
+		createFleetWorkloadFixture(t, c, obj)
 	})
 
-	t.Run("Decommission confirm friction", func(t *testing.T) {
-		obj := loadFleetWorkloadFixture(t, "decommission-invalid.yaml")
-		setWorkloadName(t, obj, "cel-confirm")
-		requireFleetWorkloadInvalid(t, c.Create(ctx, obj), "confirm must exactly match targetRef.name")
+	t.Run("structurally legal module on unknown landscape", func(t *testing.T) {
+		obj := platformDependencyRow(t, "cnpg-snorlax", "snorlax")
+		setModule(t, obj, "database", "maindb", localModule("cnpg"))
+		createFleetWorkloadFixture(t, c, obj)
+	})
+
+	t.Run("zero module row defaults deletion policy", func(t *testing.T) {
+		obj := platformDependencyRow(t, "zero-modules", "eevee")
+		createFleetWorkloadFixture(t, c, obj)
+
+		stored := &unstructured.Unstructured{}
+		stored.SetGroupVersionKind(obj.GroupVersionKind())
+		require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(obj), stored))
+		_, placementFound, err := unstructured.NestedMap(stored.Object, "spec", "placement")
+		require.NoError(t, err)
+		require.False(t, placementFound)
+		retainSecret, found, err := unstructured.NestedString(stored.Object, "spec", "deletionPolicy", "retainSecret")
+		require.NoError(t, err)
+		require.True(t, found)
+		require.Equal(t, "168h", retainSecret)
 	})
 }
 

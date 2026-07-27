@@ -30,6 +30,20 @@ spec:
           autoscale:
             minCu: 0.25
             maxCu: 2
+    previewdb:
+      type: neon-fork
+      delivery: external
+      providerAccountRef: preview-neon
+      credentialMode: standard
+      rotation: 'off'
+      engine:
+        neon-fork:
+          ttl: 168h
+          parent:
+            platform: nitroso
+            landscape: raichu
+            service: zinc
+            module: maindb
   kv:
     sessions:
       type: upstash

@@ -11,7 +11,8 @@ spec:
   database:
     maindb:
       type: cnpg
-      delivery: local
+      delivery: external
+      providerAccountRef: prod-neon
       credentialMode: standard
       rotation: 'off'
       engine:

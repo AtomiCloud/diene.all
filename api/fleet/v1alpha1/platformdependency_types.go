@@ -287,14 +287,13 @@ type PlatformDependencyModuleSpec struct {
 // PlatformDependencySpec is the desired state of a row or one shared
 // platform-by-vlandscape declaration.
 //
-// Garden names are the seven ruled workload landscapes. Local parity types
-// are legal there, preview fork types are legal only in plusle/minun, and
-// registered host/vlandscape declarations use production realizations.
-// Cross-object facts (account existence/permissions, envelope membership,
-// preferred-host validity, and cluster multiplicity) remain reconcile-time
-// ERROR conditions because CRD CEL cannot query the registry.
-//
-// +kubebuilder:validation:XValidation:rule="!(self.landscape in ['lapras','ditto','rotom','absol','eevee','plusle','minun']) ? ((!has(self.database) || self.database.all(k, m, m.type == 'neon')) && (!has(self.kv) || self.kv.all(k, m, m.type == 'upstash')) && (!has(self.cache) || self.cache.all(k, m, m.type == 'dragonfly' && m.delivery == 'replicated')) && (!has(self.store) || self.store.all(k, m, m.type in ['tigris','r2','s3'])) && (!has(self.email) || self.email.all(k, m, m.type in ['ses','cf-email-sending']))) : self.landscape in ['plusle','minun'] ? ((!has(self.database) || self.database.all(k, m, m.type == 'neon-fork')) && (!has(self.kv) || self.kv.all(k, m, m.type == 'upstash-fork')) && (!has(self.cache) || self.cache.all(k, m, m.type == 'dragonfly' && m.delivery == 'local')) && (!has(self.store) || self.store.all(k, m, m.type == 'tigris-fork')) && (!has(self.email) || self.email.all(k, m, m.type == 'mailpit' && m.credentialMode == 'none'))) : ((!has(self.database) || self.database.all(k, m, m.type == 'cnpg')) && (!has(self.kv) || self.kv.all(k, m, m.type == 'dragonfly' && m.delivery == 'local')) && (!has(self.cache) || self.cache.all(k, m, m.type == 'dragonfly' && m.delivery == 'local')) && (!has(self.store) || self.store.all(k, m, m.type == 'minio')) && (!has(self.email) || self.email.all(k, m, m.type == 'mailpit' && m.credentialMode == 'none')))",message="module type is not supported by the target landscape"
+// Landscape classification and per-landscape realization legality are
+// registry facts checked at reconcile time. That policy includes preview
+// Mailpit-only email, the ditto SES sandbox carve-out, Garden consumption of
+// remote forks, and Dragonfly local in Garden versus replicated on registered
+// production landscapes. Account existence and permissions, envelope
+// membership, preferred-host validity, and cluster multiplicity are likewise
+// reconcile-time ERROR conditions because CRD CEL cannot query the registry.
 type PlatformDependencySpec struct {
 	// Platform is the declaring platform.
 	// +kubebuilder:validation:Required
@@ -319,8 +318,8 @@ type PlatformDependencySpec struct {
 	Landscape string `json:"landscape"`
 
 	// Placement anchors shared externals without selecting their type.
-	// +kubebuilder:validation:Required
-	Placement DependencyPlacement `json:"placement"`
+	// +kubebuilder:validation:Optional
+	Placement *DependencyPlacement `json:"placement,omitempty"`
 
 	// Database holds postgres modules.
 	// +kubebuilder:validation:Optional
@@ -352,9 +351,11 @@ type PlatformDependencySpec struct {
 	// +kubebuilder:validation:XValidation:rule="self.all(k, m, m.type in ['ses','cf-email-sending','mailpit'])",message="email modules must use an email type"
 	Email map[string]PlatformDependencyModuleSpec `json:"email,omitempty"`
 
-	// DeletionPolicy controls the post-delete Secret-pointer grace.
-	// +kubebuilder:validation:Required
-	DeletionPolicy DependencyDeletionPolicy `json:"deletionPolicy"`
+	// DeletionPolicy controls the post-delete Secret-pointer grace. The API
+	// defaults an omitted policy to retain the pointer for 168h.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default={retainSecret: "168h"}
+	DeletionPolicy *DependencyDeletionPolicy `json:"deletionPolicy,omitempty"`
 }
 
 // PlatformDependencyForkStatus contains only allocation identifiers and a

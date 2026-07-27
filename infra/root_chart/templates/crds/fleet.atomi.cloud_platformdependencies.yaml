@@ -57,12 +57,13 @@ spec:
               PlatformDependencySpec is the desired state of a row or one shared
               platform-by-vlandscape declaration.
 
-              Garden names are the seven ruled workload landscapes. Local parity types
-              are legal there, preview fork types are legal only in plusle/minun, and
-              registered host/vlandscape declarations use production realizations.
-              Cross-object facts (account existence/permissions, envelope membership,
-              preferred-host validity, and cluster multiplicity) remain reconcile-time
-              ERROR conditions because CRD CEL cannot query the registry.
+              Landscape classification and per-landscape realization legality are
+              registry facts checked at reconcile time. That policy includes preview
+              Mailpit-only email, the ditto SES sandbox carve-out, Garden consumption of
+              remote forks, and Dragonfly local in Garden versus replicated on registered
+              production landscapes. Account existence and permissions, envelope
+              membership, preferred-host validity, and cluster multiplicity are likewise
+              reconcile-time ERROR conditions because CRD CEL cannot query the registry.
             properties:
               cache:
                 additionalProperties:
@@ -767,8 +768,11 @@ spec:
                 - message: database modules must use a database type
                   rule: self.all(k, m, m.type in ['neon','neon-fork','cnpg'])
               deletionPolicy:
-                description: DeletionPolicy controls the post-delete Secret-pointer
-                  grace.
+                default:
+                  retainSecret: 168h
+                description: |-
+                  DeletionPolicy controls the post-delete Secret-pointer grace. The API
+                  defaults an omitted policy to retain the pointer for 168h.
                 properties:
                   retainSecret:
                     description: RetainSecret is a Go-style duration such as 168h.
@@ -1866,33 +1870,9 @@ spec:
                 - message: store modules must use a store type
                   rule: self.all(k, m, m.type in ['tigris','tigris-fork','r2','s3','minio'])
             required:
-            - deletionPolicy
             - landscape
-            - placement
             - platform
             type: object
-            x-kubernetes-validations:
-            - message: module type is not supported by the target landscape
-              rule: '!(self.landscape in [''lapras'',''ditto'',''rotom'',''absol'',''eevee'',''plusle'',''minun''])
-                ? ((!has(self.database) || self.database.all(k, m, m.type == ''neon''))
-                && (!has(self.kv) || self.kv.all(k, m, m.type == ''upstash'')) &&
-                (!has(self.cache) || self.cache.all(k, m, m.type == ''dragonfly''
-                && m.delivery == ''replicated'')) && (!has(self.store) || self.store.all(k,
-                m, m.type in [''tigris'',''r2'',''s3''])) && (!has(self.email) ||
-                self.email.all(k, m, m.type in [''ses'',''cf-email-sending'']))) :
-                self.landscape in [''plusle'',''minun''] ? ((!has(self.database) ||
-                self.database.all(k, m, m.type == ''neon-fork'')) && (!has(self.kv)
-                || self.kv.all(k, m, m.type == ''upstash-fork'')) && (!has(self.cache)
-                || self.cache.all(k, m, m.type == ''dragonfly'' && m.delivery == ''local''))
-                && (!has(self.store) || self.store.all(k, m, m.type == ''tigris-fork''))
-                && (!has(self.email) || self.email.all(k, m, m.type == ''mailpit''
-                && m.credentialMode == ''none''))) : ((!has(self.database) || self.database.all(k,
-                m, m.type == ''cnpg'')) && (!has(self.kv) || self.kv.all(k, m, m.type
-                == ''dragonfly'' && m.delivery == ''local'')) && (!has(self.cache)
-                || self.cache.all(k, m, m.type == ''dragonfly'' && m.delivery == ''local''))
-                && (!has(self.store) || self.store.all(k, m, m.type == ''minio''))
-                && (!has(self.email) || self.email.all(k, m, m.type == ''mailpit''
-                && m.credentialMode == ''none'')))'
           status:
             description: PlatformDependencyStatus is the observed state of a PlatformDependency.
             properties:
