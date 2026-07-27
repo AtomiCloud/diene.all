@@ -36,13 +36,13 @@ tasks:
   clean:
     desc: Remove Dart dependency, build, coverage, and generated-doc artifacts
     cmds:
-      - rm -rf .dart_tool packages/diene_auth_engine/.dart_tool packages/diene_auth_engine/coverage packages/diene_auth_engine/doc/api
+      - rm -rf .dart_tool packages/diene_dart_lib/.dart_tool packages/diene_dart_lib/coverage packages/diene_dart_lib/doc/api
 
   build:
     desc: Validate the publishable Dart library and example
     cmds:
-      - flutter pub get >/dev/null
-      - dart analyze --fatal-infos packages/diene_auth_engine/lib packages/diene_auth_engine/example
+      - dart pub get >/dev/null
+      - dart analyze --fatal-infos packages/diene_dart_lib/lib packages/diene_dart_lib/example
 
   analyze:
     desc: Analyze the whole workspace, tests, and tooling

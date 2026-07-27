@@ -103,26 +103,6 @@ let
       }
     );
 
-    # ### lib-dart-auth-engine-packages
-    # #### source: lib/dart/auth-engine
-    # FORKED FROM THE PURE-DART FAMILY SHAPE. diene_auth_engine is the first
-    # dart lib that needs the FULL Flutter SDK, not just `flutter.dart`:
-    # logto_dart_sdk 3.0.0 declares `environment.flutter: '>=1.17.0'` and pulls
-    # flutter_secure_storage + flutter_web_auth_2, so `dart pub get` cannot
-    # resolve this package's manifest at all ("Flutter users should use
-    # `flutter pub` instead of `dart pub`") and its tests need `flutter test`.
-    # `dart` above is retained UNCHANGED and still serves every gate that runs
-    # under pure Dart (format, and the workspace-root gates). See
-    # exec/nodes/lib__dart__auth-engine/evidence/flutter-toolchain-delta.md for
-    # the per-invocation justification; api-engine is expected to follow that
-    # documented delta or justify a difference against it.
-    lib-dart-auth-engine-packages = (
-      with pkgs-unstable;
-      {
-        inherit flutter;
-      }
-    );
-
     # ### dart-lib-tools
     # #### source: dart-lib
     dart-lib-tools = (
@@ -138,12 +118,4 @@ let
   };
 in
 with all;
-atomipkgs
-// nix-2605
-// nix-unstable
-// dart-lib-packages
-// dart-lib-tools
-# ### lib-dart-auth-engine-packages-merge
-# #### source: lib/dart/auth-engine
-// lib-dart-auth-engine-packages
-// root
+atomipkgs // nix-2605 // nix-unstable // dart-lib-packages // dart-lib-tools // root

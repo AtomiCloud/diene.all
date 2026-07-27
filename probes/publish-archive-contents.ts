@@ -1,17 +1,17 @@
 import { expectGreen, expectRed } from './lib/helpers.ts';
 
-// Gate: the publishable archive (as reported by `flutter pub publish --dry-run`)
+// Gate: the publishable archive (as reported by `dart pub publish --dry-run`)
 // must ship the consumer usage skill. Sabotage adds `skills/` to `.pubignore`
 // and proves the skill drops out of the archive listing.
 const DRY_RUN_HAS_SKILL =
-  'nix develop .#ci --no-write-lock-file -c bash -lc \'cd packages/diene_auth_engine && out=$(flutter pub publish --dry-run 2>&1 || true); echo "$out" | grep -q diene-auth-engine-usage\'';
+  'nix develop .#ci --no-write-lock-file -c bash -lc \'cd packages/diene_dart_lib && out=$(dart pub publish --dry-run 2>&1 || true); echo "$out" | grep -q diene-dart-lib-usage\'';
 
 export default {
   contractVersion: 1,
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
   setup: {
     post: [
-      'nix develop .#ci --no-write-lock-file -c flutter pub get --offline || nix develop .#ci --no-write-lock-file -c flutter pub get',
+      'nix develop .#ci --no-write-lock-file -c dart pub get --offline || nix develop .#ci --no-write-lock-file -c dart pub get',
     ],
   },
   probes: [
@@ -29,7 +29,7 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        const pubignore = 'packages/diene_auth_engine/.pubignore';
+        const pubignore = 'packages/diene_dart_lib/.pubignore';
         await repo.write(pubignore, `${await repo.read(pubignore)}\nskills/\n`);
         await expectRed(repo, DRY_RUN_HAS_SKILL, 'publish-archive-contents');
       },

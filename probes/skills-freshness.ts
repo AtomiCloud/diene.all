@@ -8,7 +8,7 @@ export default {
   // vendored copy is regenerated identically (otherwise skills-sync drops it).
   setup: {
     post: [
-      'nix develop .#ci --no-write-lock-file -c flutter pub get --offline || nix develop .#ci --no-write-lock-file -c flutter pub get',
+      'nix develop .#ci --no-write-lock-file -c dart pub get --offline || nix develop .#ci --no-write-lock-file -c dart pub get',
     ],
   },
   probes: [
