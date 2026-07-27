@@ -150,7 +150,7 @@ if [ -f go.mod ]; then
     echo "❌ Failed to list Go modules (go list -m -json all)" >&2
     exit 1
   fi
-  if ! jq -r 'select(.Path | test("(^|/)diene[._-]")) | [.Path, .Dir, (.Main // false)] | @tsv' \
+  if ! jq -r 'select((.Path | test("(^|/)diene[._-]")) and (.Main != true)) | [.Path, .Dir, false] | @tsv' \
     "${go_modules}" >"${go_entries}"; then
     echo "❌ Failed to parse the Go module list with jq" >&2
     exit 1
