@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRed, preserveMutationBeforeRestore } from './lib/helpers.ts';
 
 export default {
   contractVersion: 1,
@@ -24,7 +24,7 @@ export default {
           await repo.write(path, `${source}\necho $UNQUOTED\n`);
           await expectRed(repo, 'nix develop .#ci -c pre-commit run a-shellcheck --all-files', 'hook-shellcheck');
         } finally {
-          await repo.write(path, source);
+          await preserveMutationBeforeRestore(repo, 'hook-shellcheck', path, source);
         }
       },
     },

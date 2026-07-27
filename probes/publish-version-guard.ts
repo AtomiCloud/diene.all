@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRed, preserveMutationBeforeRestore } from './lib/helpers.ts';
 
 // Gate: `scripts/validate/publish-version.sh` refuses to publish unless the
 // member pubspec version and the VERSION ledger agree with the release tag.
@@ -35,7 +35,7 @@ export default {
           });
           await expectRed(repo, GUARD, 'publish-version-guard');
         } finally {
-          await repo.write(path, original);
+          await preserveMutationBeforeRestore(repo, 'publish-version-guard', path, original);
         }
       },
     },

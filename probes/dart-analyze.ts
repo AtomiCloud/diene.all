@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRed, preserveMutationBeforeRestore } from './lib/helpers.ts';
 
 // Gate: `scripts/ci/analyze.sh` runs `dart analyze --fatal-infos
 // --fatal-warnings` across the workspace. Sabotage injects a lint-violating
@@ -35,7 +35,7 @@ export default {
           await repo.write(target, `${original}\nvoid _probeAnalyzeViolation() {\n  print('probe');\n}\n`);
           await expectRed(repo, 'nix develop .#ci --no-write-lock-file -c ./scripts/ci/analyze.sh', 'dart-analyze');
         } finally {
-          await repo.write(target, original);
+          await preserveMutationBeforeRestore(repo, 'dart-analyze', target, original);
         }
       },
     },

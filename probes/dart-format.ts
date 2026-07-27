@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRed, preserveMutationBeforeRestore } from './lib/helpers.ts';
 
 // Gate: `dart format --set-exit-if-changed` keeps the whole tree canonically
 // formatted. Sabotage appends an intentionally mis-spaced (but valid)
@@ -40,7 +40,7 @@ export default {
             'dart-format',
           );
         } finally {
-          await repo.write(target, original);
+          await preserveMutationBeforeRestore(repo, 'dart-format', target, original);
         }
       },
     },

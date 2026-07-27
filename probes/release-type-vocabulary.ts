@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRed, preserveMutationBeforeRestore } from './lib/helpers.ts';
 
 export default {
   contractVersion: 1,
@@ -32,7 +32,7 @@ export default {
             'release-type-vocabulary',
           );
         } finally {
-          await repo.write(path, source);
+          await preserveMutationBeforeRestore(repo, 'release-type-vocabulary', path, source);
         }
       },
     },

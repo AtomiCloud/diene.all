@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRed, preserveMutationBeforeRestore } from './lib/helpers.ts';
 
 // Gate: `scripts/validate/dart-package.sh` asserts the pub-workspace metadata
 // contract (member resolution, root workspace listing, publishable identity,
@@ -39,7 +39,7 @@ export default {
             'pub-workspace-metadata-validator',
           );
         } finally {
-          await repo.write(path, original);
+          await preserveMutationBeforeRestore(repo, 'pub-workspace-metadata-validator', path, original);
         }
       },
     },

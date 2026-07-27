@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRed, preserveMutationBeforeRestore } from './lib/helpers.ts';
 
 // Gate: `scripts/ci/test.sh meta coverage` enforces a 100% line-coverage ledger
 // scoped to `lib/test_helper.dart`. Sabotage appends an uncovered helper
@@ -42,7 +42,7 @@ export default {
             'testhelper-meta-coverage-ledger',
           );
         } finally {
-          await repo.write(target, original);
+          await preserveMutationBeforeRestore(repo, 'testhelper-meta-coverage-ledger', target, original);
         }
       },
     },

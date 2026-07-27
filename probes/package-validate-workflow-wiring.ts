@@ -2,6 +2,8 @@
 // package-validate workflow, which in turn must invoke a script that exists on
 // disk. Sabotage points the reusable workflow at a missing script and proves the
 // wiring check no longer resolves end to end.
+import { preserveMutationBeforeRestore } from './lib/helpers.ts';
+
 const CI = '.github/workflows/ci.yaml';
 const REUSABLE = '.github/workflows/⚡reusable-package-validate.yaml';
 const USES = 'uses: ./.github/workflows/⚡reusable-package-validate.yaml';
@@ -52,7 +54,7 @@ export default {
             throw new Error('package-validate-workflow-wiring: wiring survived sabotage');
           }
         } finally {
-          await repo.write(REUSABLE, reusable);
+          await preserveMutationBeforeRestore(repo, 'package-validate-workflow-wiring', REUSABLE, reusable);
         }
       },
     },

@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRed, preserveMutationBeforeRestore } from './lib/helpers.ts';
 
 // Gate: the meta tier (`scripts/ci/test.sh meta no-coverage`) exercises the
 // shipped TestHelper's own assertions. Sabotage inverts the TestHelper's
@@ -43,7 +43,7 @@ export default {
             'testhelper-meta-contract',
           );
         } finally {
-          await repo.write(target, original);
+          await preserveMutationBeforeRestore(repo, 'testhelper-meta-contract', target, original);
         }
       },
     },
