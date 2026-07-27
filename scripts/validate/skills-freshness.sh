@@ -18,6 +18,21 @@ skills_go="${DIENE_SKILLS_GO:-$(command -v go 2>/dev/null || true)}"
 
 if [ -x "${skills_go}" ]; then
   bash scripts/local/skills-sync.sh
+  # The freshness gate needs a SUBJECT: a `git diff` over a path with nothing
+  # tracked under it compares zero files and can never fail (#16 DEFECT B).
+  # .gitkeep only keeps the directory alive; it can never witness stale content.
+  subjects_status=0
+  subjects="$(git ls-files -- "${vendor_dir}" | grep -F -x -v "${vendor_dir}/.gitkeep")" || subjects_status=$?
+  if [ "${subjects_status}" -ge 2 ]; then
+    echo "❌ Failed to filter tracked vendored skills (grep exit ${subjects_status})" >&2
+    exit "${subjects_status}"
+  fi
+  subject_count="$(printf %s"${subjects}" | grep -c . || true)"
+  echo "ℹ️ Tracked vendored-skill subjects: ${subject_count}"
+  if [ "${subject_count}" -eq 0 ]; then
+    echo "❌ No tracked subject under ${vendor_dir}; the freshness gate would pass vacuously" >&2
+    exit 1
+  fi
   # Fail on BOTH tracked changes and scoped untracked output. A plain `git diff`
   # ignores newly generated but never-added skill files, so check untracked output
   # separately. Purely-staged additions are tolerated, so the very commit that
