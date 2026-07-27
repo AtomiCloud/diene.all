@@ -79,3 +79,14 @@ See [docs/standards/taskfile/index.md](docs/standards/taskfile/index.md).
 Domain-specific architecture and behavior belongs under
 [docs/domain/](docs/domain/README.md). The `docs/standards/contracts/` slot is
 reserved for the separately owned C0 contracts standard.
+
+<!-- ### observability -->
+<!-- #### source: observability -->
+
+## Observability standards
+
+- [Observability](docs/standards/observability/index.md)
+- [Grafana dashboards](docs/standards/grafana-dashboards/index.md)
+- [OpenTelemetry alignment](docs/standards/observability/otel.md)
+- [Faro frontend variant](docs/standards/observability/faro.md)
+- [Primordial-chart rendering](docs/standards/observability/primordial-chart.md)
