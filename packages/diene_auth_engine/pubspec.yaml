@@ -1,6 +1,6 @@
 name: diene_auth_engine
 description: Logto auth flows, per-resource tokens, claims-first per-backend onboarding, deferred login, and Doc B landscape selection for Flutter applications.
-version: 1.0.0
+version: 1.0.1
 repository: https://github.com/AtomiCloud/diene.dart_auth_engine
 issue_tracker: https://github.com/AtomiCloud/diene.dart_auth_engine/issues
 homepage: https://github.com/AtomiCloud/diene.dart_auth_engine

@@ -3,6 +3,13 @@
 All notable changes to this package are documented here. Releases are managed
 from conventional commits by the repository release workflow.
 
+## [1.0.1](https://github.com/AtomiCloud/diene.dart_auth_engine/compare/v1.0.0...v1.0.1) (2026-07-27)
+
+### 🐛 Bug Fixes 🐛
+
+- **dart-lib:** make the released changelog formatter-clean at generation ([#121](https://github.com/AtomiCloud/diene.dart_auth_engine/issues/121)) ([59a812b](https://github.com/AtomiCloud/diene.dart_auth_engine/commit/59a812bf5b78e986dee16c47e4da90f18b20bd7c))
+- **auth-engine:** take the dart-lib changelog fix before release ([6331ea2](https://github.com/AtomiCloud/diene.dart_auth_engine/commit/6331ea267e9c26c83b0aae19c9b27fe9905f562e)), closes [#121](https://github.com/AtomiCloud/diene.dart_auth_engine/issues/121)
+
 ## 1.0.0 (2026-07-27)
 
 ### 📜 Documentation 📜
