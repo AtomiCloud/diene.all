@@ -1,14 +1,14 @@
-# Diene Go library template
+# Diene Go OpenTelemetry library
 
 <!-- ### go-base-badges -->
 <!-- #### source: go-base -->
 
-[![CI](https://github.com/AtomiCloud/diene.go-lib/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.go-lib/actions/workflows/ci.yaml)
-[![Unit coverage](https://codecov.io/gh/AtomiCloud/diene.go-lib/branch/main/graph/badge.svg?flag=unit)](https://codecov.io/gh/AtomiCloud/diene.go-lib)
-[![Integration coverage](https://codecov.io/gh/AtomiCloud/diene.go-lib/branch/main/graph/badge.svg?flag=int)](https://codecov.io/gh/AtomiCloud/diene.go-lib)
-[![Meta coverage](https://codecov.io/gh/AtomiCloud/diene.go-lib/branch/main/graph/badge.svg?flag=meta)](https://codecov.io/gh/AtomiCloud/diene.go-lib)
-[![Go Reference](https://pkg.go.dev/badge/github.com/AtomiCloud/diene.go-lib.svg)](https://pkg.go.dev/github.com/AtomiCloud/diene.go-lib)
-[![Commit activity](https://img.shields.io/github/commit-activity/m/AtomiCloud/diene.go-lib)](https://github.com/AtomiCloud/diene.go-lib/commits/main)
+[![CI](https://github.com/AtomiCloud/diene.go-otel/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.go-otel/actions/workflows/ci.yaml)
+[![Unit coverage](https://codecov.io/gh/AtomiCloud/diene.go-otel/branch/main/graph/badge.svg?flag=unit)](https://codecov.io/gh/AtomiCloud/diene.go-otel)
+[![Integration coverage](https://codecov.io/gh/AtomiCloud/diene.go-otel/branch/main/graph/badge.svg?flag=int)](https://codecov.io/gh/AtomiCloud/diene.go-otel)
+[![Meta coverage](https://codecov.io/gh/AtomiCloud/diene.go-otel/branch/main/graph/badge.svg?flag=meta)](https://codecov.io/gh/AtomiCloud/diene.go-otel)
+[![Go Reference](https://pkg.go.dev/badge/github.com/AtomiCloud/diene.go-otel.svg)](https://pkg.go.dev/github.com/AtomiCloud/diene.go-otel)
+[![Commit activity](https://img.shields.io/github/commit-activity/m/AtomiCloud/diene.go-otel)](https://github.com/AtomiCloud/diene.go-otel/commits/main)
 
 <!-- ### nix-root -->
 <!-- #### source: main -->
@@ -34,18 +34,41 @@ synchronization.
 
 ## Publishable Go module
 
-`github.com/AtomiCloud/diene.go-lib` is the reusable parent for the
-`github.com/AtomiCloud/diene.go-*` module family. It demonstrates small public
-packages, a consumer-facing `testhelper` package, strict black-box tests, and
-tag-based publication through the Go proxy.
+`github.com/AtomiCloud/diene.go-otel` is the Go family's OpenTelemetry engine.
+It exposes the canonical C0 telemetry configuration block and JSON Schema,
+service-tree resource attributes, real SDK-backed logs/metrics/traces, and
+consumer-facing in-memory test helpers. Exporters are off by default; landscape
+overlays enable OTLP HTTP/protobuf on port 4318.
 
 ```bash
-go get github.com/AtomiCloud/diene.go-lib@latest
+go get github.com/AtomiCloud/diene.go-otel@latest
 ```
 
 ```go
-value := note.New("Living Documentation", "pkg.go.dev examples stay executable")
+config := otel.DefaultConfig()
+identity := otel.AppIdentity{
+	Landscape: "lapras",
+	Platform:  "payments",
+	Service:   "api",
+	Module:    "server",
+	Version:   "1.0.0",
+}
+runtime, err := otelsdk.New(ctx, config, identity)
+if err != nil {
+	return err
+}
+defer runtime.Shutdown(ctx) // handle the returned error in production
 ```
+
+Applications may opt into process-wide providers once at boot with
+`otelsdk.WithGlobalRegistration(true)`; the default is local registration only.
+`OTEL_SDK_DISABLED` and set `OTEL_*` variables take precedence over the block.
+
+For tests, inject the three doubles from
+`github.com/AtomiCloud/diene.go-otel/testhelper`. In particular, assert traces
+with `NewInMemoryTraceEmitter` and `AssertTraceRecords`; never start a collector
+or telemetry container in library tests. See the shipped
+`skills/diene-go-otel-usage` skill and package examples for complete patterns.
 
 <!-- ### go-base-commands -->
 <!-- #### source: go-base -->
@@ -56,7 +79,6 @@ value := note.New("Living Documentation", "pkg.go.dev examples stay executable")
 - `pls typecheck` — compile every source package without running tests.
 - `pls test` / `pls test:coverage` — run unit, integration, and active meta tiers.
 - `pls deadcode` — run strict whole-repository and production passes plus the LLM-lax report.
-- `pls up` / `pls down` — start or stop local Redis.
 - `./scripts/ci/pkg-validate.sh all` — run module-path, vet, API, docs, and example validators.
 
 See the [Go baseline](docs/developer/go-baseline.md) for the language contract and
