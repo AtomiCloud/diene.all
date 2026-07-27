@@ -50,15 +50,3 @@ jobs:
       contents: read
     uses: ./.github/workflows/⚡reusable-build.yaml
     secrets: inherit
-
-  docker:
-    name: Docker Image
-    permissions:
-      contents: read
-      id-token: write
-      packages: write
-    uses: ./.github/workflows/⚡reusable-docker.yaml
-    secrets: inherit
-    with:
-      image_name: diene-dotnet-base
-      dockerfile: ./infra/Dockerfile
