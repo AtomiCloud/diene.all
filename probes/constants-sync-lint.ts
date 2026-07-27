@@ -23,11 +23,19 @@ export default {
       async run(repo: any) {
         const source = await repo.read('config/settings.yaml');
         const patched = source.replace(
-          'kv:\n  MAIN:',
-          "kv:\n  SABOTAGE:\n    host: redis\n    port: 6379\n    password: ''\n    db: 2\n    tls: false\n  MAIN:",
+          'storage:\n  MAIN:',
+          `storage:
+  SABOTAGE:
+    endpoint: http://localhost:9000
+    region: us-east-1
+    bucket: bun-consumer
+    accessKeyId: minioadmin
+    secretAccessKey: minioadmin
+    forcePathStyle: true
+  MAIN:`,
         );
         if (patched === source) {
-          throw new Error('no structural kv block found in config/settings.yaml');
+          throw new Error('no structural storage block found in config/settings.yaml');
         }
         await repo.write('config/settings.yaml', patched);
         await expectRed(

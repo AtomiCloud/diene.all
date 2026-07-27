@@ -14,12 +14,14 @@ export default {
     },
     {
       name: 'mutation-helm-lint-caught',
-      description: 'A focused sabotage must turn the helm-lint mechanism red.',
+      description: "A schema-invalid value supplied through Helm's real CLI override seam turns direct lint red.",
       kind: 'mutation',
-      expectedImpact: ['hook-helm-lint'],
       async run(repo: any) {
-        await repo.patch('infra/root_chart/values.yaml', { find: '  replicas: 1', replace: '  replicas: invalid' });
-        await expectRed(repo, 'nix develop .#ci -c helm lint infra/root_chart', 'helm-lint');
+        await expectRed(
+          repo,
+          'nix develop .#ci -c helm lint infra/root_chart --set worker.replicas=invalid',
+          'helm-lint',
+        );
       },
     },
   ],

@@ -14,11 +14,14 @@ export default {
     },
     {
       name: 'mutation-hook-helm-lint-caught',
-      description: 'A focused sabotage must turn the hook-helm-lint mechanism red.',
+      description: 'A schema-invalid value wired through the generated Helm hook turns that hook red.',
       kind: 'mutation',
-      expectedImpact: ['helm-lint'],
       async run(repo: any) {
-        await repo.patch('infra/root_chart/values.yaml', { find: '  replicas: 1', replace: '  replicas: invalid' });
+        await repo.patch('nix/pre-commit.nix', {
+          find: 'entry = "${packages.kubernetes-helm}/bin/helm lint infra/root_chart";',
+          replace:
+            'entry = "${packages.kubernetes-helm}/bin/helm lint infra/root_chart --set worker.replicas=invalid";',
+        });
         await expectRed(repo, 'nix develop .#ci -c pre-commit run a-helm-lint --all-files', 'hook-helm-lint');
       },
     },

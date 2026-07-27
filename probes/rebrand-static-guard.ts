@@ -32,9 +32,21 @@ export default {
         if (targets.length === 0) {
           throw new Error('no structural adapter target found');
         }
-        const path = targets.sort()[0];
-        const source = await repo.read(path);
-        await repo.write(path, `${source.trimEnd()}\n\nexport const HARDCODED_IDENTITY = '${service}';\n`);
+        let target: { path: string; source: string } | undefined;
+        for (const path of targets.sort()) {
+          const source = await repo.read(path);
+          if (source.includes("this.name = 'AdapterError';")) {
+            target = { path, source };
+            break;
+          }
+        }
+        if (!target) {
+          throw new Error('no used adapter error identity found');
+        }
+        await repo.write(
+          target.path,
+          target.source.replace("this.name = 'AdapterError';", `this.name = '${service}';`),
+        );
         await expectRed(
           repo,
           "nix develop .#ci -c bash -lc './scripts/local/setup.sh && ./scripts/validate/rebrand.sh'",
