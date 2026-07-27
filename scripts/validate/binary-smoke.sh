@@ -1,12 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# ### workspace
+# #### source: workspace
+# bun-consumer keeps the package.json-aware form: this node installs a JS
+# toolchain, so the binary set is not fixed. `sg` is taken from workspace;
+# `releaser` moved out of the array into the conditional check below, because
+# workspace establishes it may legitimately be absent before the C2 publish.
 if [ -f package.json ]; then
   ./scripts/local/setup.sh
   export PATH="${PWD}/node_modules/.bin:${PATH}"
 fi
 
-binaries=(actionlint bash cyanprint docker git gomplate hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pls pre-commit releaser rg shellcheck skopeo task treefmt yq)
+binaries=(actionlint bash cyanprint docker git gomplate hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pls pre-commit rg sg shellcheck skopeo task treefmt yq)
 [ -f package.json ] && binaries+=(bun biome knip tsc)
 
 for binary in "${binaries[@]}"; do
@@ -146,4 +152,12 @@ treefmt --completion bash >"${tmp}/treefmt-completion.bash"
 yq --version >/dev/null
 yq -en '.ok = true | .ok == true' >/dev/null
 
+if command -v releaser >/dev/null; then
+  releaser --help >/dev/null
+else
+  echo "⏭️ releaser binary awaits the C2 step-2p tools/releaser publish"
+fi
+
+# ### workspace-complete
+# #### source: workspace
 echo "✅ Binary smoke passed"
