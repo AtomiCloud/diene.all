@@ -89,9 +89,12 @@ func (problems *Problems) RaiseHandler(messageID, stage, detail string, cause er
 	return raiseHandler(problems.registry, messageID, stage, detail, cause)
 }
 
-func raiseLocalHandler(messageID, stage, detail string, cause error) error {
+// raiseConstructionFault reports a handler that cannot be constructed. It uses the
+// LOCAL portal deliberately: construction fails before the service catalog is
+// available, so there is no configured registry to raise through yet.
+func raiseConstructionFault(detail string, cause error) error {
 	registry, _ := problem.NewRegistry(problem.LocalErrorPortal(), MessageHandlerProblem("v1"))
-	return raiseHandler(registry, messageID, stage, detail, cause)
+	return raiseHandler(registry, "constructor", "construction", detail, cause)
 }
 
 func raiseHandler(registry *problem.Registry, messageID, stage, detail string, cause error) error {

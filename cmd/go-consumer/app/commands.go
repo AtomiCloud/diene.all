@@ -120,7 +120,16 @@ func (a *Application) runWorker(
 	}
 
 	// ─── DOMAIN WIRING · go-consumer sample ───
+	domainProblems, err := domain.NewProblems(
+		configured.ErrorPortal.Portal(),
+		configured.Transport.Stream,
+		configured.ErrorPortal.Version,
+	)
+	if err != nil {
+		return err
+	}
 	domainHandler, err := domain.NewSampleWorkerHandler(
+		domainProblems,
 		runtime.postgresMain,
 		runtime.storageMain,
 		encryptor,

@@ -49,7 +49,7 @@ func TestSampleWorkerHandlerSuccess(t *testing.T) {
 	t.Parallel()
 	repository := &fakeRepository{inserted: true}
 	storage := &fakeStorage{}
-	subject, err := domain.NewSampleWorkerHandler(repository, storage, fakeEncryptor{value: "encrypted"}, " processed ")
+	subject, err := domain.NewSampleWorkerHandler(handlerProblems(t), repository, storage, fakeEncryptor{value: "encrypted"}, " processed ")
 	if err != nil {
 		t.Fatalf("construct handler: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestSampleWorkerHandlerSuccess(t *testing.T) {
 func TestSampleWorkerHandlerReportsDuplicate(t *testing.T) {
 	t.Parallel()
 	subject, err := domain.NewSampleWorkerHandler(
-		&fakeRepository{inserted: false}, &fakeStorage{}, fakeEncryptor{value: "encrypted"}, "processed",
+		handlerProblems(t), &fakeRepository{inserted: false}, &fakeStorage{}, fakeEncryptor{value: "encrypted"}, "processed",
 	)
 	if err != nil {
 		t.Fatalf("construct handler: %v", err)
@@ -119,7 +119,7 @@ func TestSampleWorkerHandlerValidatesConstructor(t *testing.T) {
 			if test.name != "encryptor" {
 				injectedEncryptor = test.encryptor
 			}
-			_, err := domain.NewSampleWorkerHandler(test.repository, test.storage, injectedEncryptor, test.prefix)
+			_, err := domain.NewSampleWorkerHandler(handlerProblems(t), test.repository, test.storage, injectedEncryptor, test.prefix)
 			assertProblem(t, err)
 		})
 	}
@@ -142,7 +142,7 @@ func TestSampleWorkerHandlerMapsStageFailures(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			subject, err := domain.NewSampleWorkerHandler(test.repository, test.storage, test.encryptor, "processed")
+			subject, err := domain.NewSampleWorkerHandler(handlerProblems(t), test.repository, test.storage, test.encryptor, "processed")
 			if err != nil {
 				t.Fatalf("construct handler: %v", err)
 			}
@@ -175,4 +175,22 @@ func assertProblem(t *testing.T, err error) {
 	if !errors.As(err, &carried) {
 		t.Fatalf("error is not problem typed: %T %v", err, err)
 	}
+}
+
+// handlerProblems builds the domain catalog the handler raises failures through.
+func handlerProblems(t *testing.T) *domain.Problems {
+	t.Helper()
+	problems, err := domain.NewProblems(samplePortal(), "consumer.messages", "v1")
+	if err != nil {
+		t.Fatalf("new problems: %v", err)
+	}
+	return problems
+}
+
+func TestNewSampleWorkerHandlerRejectsNilProblems(t *testing.T) {
+	t.Parallel()
+	_, err := domain.NewSampleWorkerHandler(
+		nil, &fakeRepository{}, &fakeStorage{}, fakeEncryptor{value: "encrypted"}, "processed",
+	)
+	assertProblem(t, err)
 }

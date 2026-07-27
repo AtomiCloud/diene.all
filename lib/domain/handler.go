@@ -49,6 +49,7 @@ type HandledMessage struct {
 
 // SampleWorkerHandler is the fenced go-consumer sample domain handler.
 type SampleWorkerHandler struct {
+	problems   *Problems
 	repository MessageRepository
 	storage    EncryptedBlobStorage
 	encryptor  encryption.Encryptor
@@ -57,25 +58,30 @@ type SampleWorkerHandler struct {
 
 // NewSampleWorkerHandler validates and constructs the sample domain handler.
 func NewSampleWorkerHandler(
+	problems *Problems,
 	repository MessageRepository,
 	storage EncryptedBlobStorage,
 	encryptor encryption.Encryptor,
 	blobPrefix string,
 ) (*SampleWorkerHandler, error) {
+	if problems == nil {
+		return nil, raiseConstructionFault("domain problems are required", errors.New("nil domain problems"))
+	}
 	if repository == nil {
-		return nil, raiseLocalHandler("constructor", "construction", "message repository is required", errors.New("nil message repository"))
+		return nil, raiseConstructionFault("message repository is required", errors.New("nil message repository"))
 	}
 	if storage == nil {
-		return nil, raiseLocalHandler("constructor", "construction", "encrypted blob storage is required", errors.New("nil encrypted blob storage"))
+		return nil, raiseConstructionFault("encrypted blob storage is required", errors.New("nil encrypted blob storage"))
 	}
 	if encryptor == nil {
-		return nil, raiseLocalHandler("constructor", "construction", "encryptor is required", errors.New("nil encryptor"))
+		return nil, raiseConstructionFault("encryptor is required", errors.New("nil encryptor"))
 	}
 	prefix := strings.TrimSpace(blobPrefix)
 	if prefix == "" {
-		return nil, raiseLocalHandler("constructor", "construction", "blob prefix is required", errors.New("blank blob prefix"))
+		return nil, raiseConstructionFault("blob prefix is required", errors.New("blank blob prefix"))
 	}
 	return &SampleWorkerHandler{
+		problems:   problems,
 		repository: repository,
 		storage:    storage,
 		encryptor:  encryptor,
@@ -91,19 +97,19 @@ func (handler *SampleWorkerHandler) Handle(
 	objectKey := handler.blobPrefix + "/" + message.ID + ".json.enc"
 	encrypted, err := handler.encryptor.Encrypt(message.Payload)
 	if err != nil {
-		return HandledMessage{}, raiseLocalHandler(message.ID, "encryption", "message encryption failed", err)
+		return HandledMessage{}, handler.problems.RaiseHandler(message.ID, "encryption", "message encryption failed", err)
 	}
 	_, err = handler.storage.Save(ctx, SaveInput{
 		Body: encrypted, ContentType: "application/octet-stream", Key: objectKey,
 	})
 	if err != nil {
-		return HandledMessage{}, raiseLocalHandler(message.ID, "storage", "message storage failed", err)
+		return HandledMessage{}, handler.problems.RaiseHandler(message.ID, "storage", "message storage failed", err)
 	}
 	inserted, err := handler.repository.Insert(ctx, ProcessedMessageRecord{
 		ID: message.ID, ObjectKey: objectKey, Payload: message.Payload, CreatedAt: message.CreatedAt.UTC(),
 	})
 	if err != nil {
-		return HandledMessage{}, raiseLocalHandler(message.ID, "persistence", "message persistence failed", err)
+		return HandledMessage{}, handler.problems.RaiseHandler(message.ID, "persistence", "message persistence failed", err)
 	}
 	return HandledMessage{Inserted: inserted, ObjectKey: objectKey}, nil
 }
