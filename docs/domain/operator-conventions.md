@@ -46,12 +46,42 @@ asserts a declared policy:
 - every named spec field carries its required validation constraints, and any
   spec field added later carries at least one `+kubebuilder:validation:` marker;
 - every controller declares exactly the expected RBAC grants — a missing grant
-  and an unlisted extra grant both redden the gate.
+  and an unlisted extra grant both redden the gate;
+- every CEL validation rule is pinned as a closed `cel|<Type>.<Field>|<rule>`
+  fact family: the policy lists the exact rule expressions, and — like the RBAC
+  family — an added, dropped, or reworded rule reddens the gate, so schema-level
+  behaviour cannot change silently.
+
+The gate reads markers from every API type directory, not just one. Today those
+are the sample tree `api/v1alpha1`, the fleet registry/workload tree
+`api/fleet/v1alpha1`, and the Problem tree `api/problems/v1alpha1`; each has its
+own `groupversion_info.go` and group constant (the fleet group is
+`fleet.atomi.cloud`; Problem's is `atomi.cloud`, never derived from the fleet
+constant). A new API version directory is added to the gate's scan set when it
+lands.
 
 Adding a served kind without a policy line reddens the gate too, so the policy
 cannot rot behind new API surface. The `a-operator-markers` hook makes the
 decision blocking, and its probe reddens the gate by dropping one required
 print column while every other marker family stays intact.
+
+## Derived credential pointers, not declared ones
+
+`ProviderAccount` is a schema-only registry kind: the platform home's primordial
+chart renders instances and the dependency controller only reads them. One
+`ProviderAccount` names a vendor/account context — `vendor`, `name`, an optional
+account-wide `plan`, and onboarding `quotas` — and nothing more.
+
+It deliberately carries NO credential source or path field. An account's
+credential lives in Infisical at an address that varies by the consuming
+module's runtime coordinate, and the F4 pure resolver
+(`lib/operator/provideraccount`) derives it as
+`/{platform}/{landscape}/{class}/{vendor}-account-{name}` from that coordinate
+plus the account's vendor/name. Exposing an independent credential address on
+the CR would admit a second, forgeable source of truth that could disagree with
+the derived pointer; the schema therefore leaves it no home, and the API server
+prunes any `credential` object a client supplies. The pointer, like every ledger
+`secretPath`, is a pointer — never a credential value.
 
 ## Lifecycle patterns
 

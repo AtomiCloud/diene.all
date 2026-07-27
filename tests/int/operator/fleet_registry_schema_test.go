@@ -18,6 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	fleetv1alpha1 "github.com/AtomiCloud/diene.fleet-operator/api/fleet/v1alpha1"
+	"github.com/AtomiCloud/diene.fleet-operator/lib/operator/provideraccount"
 )
 
 // fleetRegistryNamespace is where the two namespaced registry kinds land. The
@@ -303,43 +304,78 @@ func TestFleetRegistrySchemaPreservesPipelineStepForms(t *testing.T) {
 	require.Equal(t, []any{"raichu", "amphoros"}, stages[2])
 }
 
-// TestFleetRegistrySchemaKeepsProviderAccountPointerOnly asserts the registry
-// entry stays a POINTER at its account credential. ProviderAccount is
-// schema-only here — the platform home renders instances and the dependency
-// controller only reads them — so a credential VALUE must have nowhere to live.
-func TestFleetRegistrySchemaKeepsProviderAccountPointerOnly(t *testing.T) {
+// TestFleetRegistrySchemaProviderAccountCarriesNoCredential proves the two
+// properties the S2 review repair requires. A ProviderAccount names a
+// vendor/account context only: any credential object supplied on the spec has no
+// served home, because the structural CRD carries no such property and the API
+// server prunes it. And the sole canonical credential address is the one the F4
+// resolver DERIVES from a consuming module's runtime coordinate plus this
+// account's vendor/name — asserted through the published constructor so the
+// address is pinned here without this test re-implementing the pointer grammar.
+func TestFleetRegistrySchemaProviderAccountCarriesNoCredential(t *testing.T) {
+	c := newFleetClient(t)
+	ensureFleetNamespace(t, c)
+	ctx := context.Background()
+
+	// A credential source AND path are both supplied; neither survives to served
+	// state, so the CR cannot become a second source of truth for credentials.
+	withCredential := loadFleetFixture(t, "provideraccount-valid.yaml")
+	withCredential.SetName("fleet-registry-account-credential")
+	require.NoError(t, unstructured.SetNestedField(withCredential.Object,
+		"infisical", "spec", "credential", "source"))
+	require.NoError(t, unstructured.SetNestedField(withCredential.Object,
+		"/forged/unrelated/path", "spec", "credential", "path"))
+	require.NoError(t, c.Create(ctx, withCredential))
+	t.Cleanup(func() { _ = c.Delete(ctx, withCredential) })
+
+	stored := &unstructured.Unstructured{}
+	stored.SetGroupVersionKind(withCredential.GroupVersionKind())
+	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(withCredential), stored))
+
+	_, found, err := unstructured.NestedFieldNoCopy(stored.Object, "spec", "credential")
+	require.NoError(t, err)
+	require.False(t, found, "the schema must leave no served home for a credential source or path")
+
+	// The one legitimate credential address is derived from the runtime
+	// coordinate (platform/landscape/class) plus the account's vendor/name.
+	vendor, found, err := unstructured.NestedString(stored.Object, "spec", "vendor")
+	require.NoError(t, err)
+	require.True(t, found)
+	name, found, err := unstructured.NestedString(stored.Object, "spec", "name")
+	require.NoError(t, err)
+	require.True(t, found)
+
+	pointer, err := provideraccount.CredentialPointerPath("nitroso", "raichu", "database", vendor, name)
+	require.NoError(t, err)
+	require.Equal(t, "/nitroso/raichu/database/neon-account-prod", pointer,
+		"the sole canonical pointer is F4-derived, never read from the CR")
+}
+
+// TestFleetRegistrySchemaKeepsAccountNameDomainOpen is a regression guard from
+// the F4 review. A DNS-label-valid account name that happens to contain the
+// reserved "account" delimiter token — "account-prod" here — must stay
+// schema-valid: the registry CRD keeps vendor/name the full DNS-label charset
+// and never narrows it to dodge the derived-pointer grammar. Keeping the derived
+// pointer injective for such names is the separately owned F4 mapping, so this
+// test proves only that the S2 schema still ACCEPTS the name, and deliberately
+// does not derive a pointer from it.
+func TestFleetRegistrySchemaKeepsAccountNameDomainOpen(t *testing.T) {
 	c := newFleetClient(t)
 	ensureFleetNamespace(t, c)
 	ctx := context.Background()
 
 	account := loadFleetFixture(t, "provideraccount-valid.yaml")
-	account.SetName("fleet-registry-account")
-	require.NoError(t, c.Create(ctx, account))
+	account.SetName("fleet-registry-account-token-name")
+	require.NoError(t, unstructured.SetNestedField(account.Object, "account-prod", "spec", "name"))
+	require.NoError(t, c.Create(ctx, account),
+		"a DNS-label name containing the reserved \"account\" token must remain accepted")
 	t.Cleanup(func() { _ = c.Delete(ctx, account) })
 
 	stored := &unstructured.Unstructured{}
 	stored.SetGroupVersionKind(account.GroupVersionKind())
 	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(account), stored))
-
-	credential, found, err := unstructured.NestedMap(stored.Object, "spec", "credential")
+	name, found, err := unstructured.NestedString(stored.Object, "spec", "name")
 	require.NoError(t, err)
 	require.True(t, found)
-	require.Equal(t, map[string]any{
-		"source": "infisical",
-		"path":   "/nitroso/raichu/database/neon-account-prod",
-	}, credential)
-
-	withValue := loadFleetFixture(t, "provideraccount-valid.yaml")
-	withValue.SetName("fleet-registry-account-value")
-	require.NoError(t, unstructured.SetNestedField(withValue.Object, "super-secret", "spec", "credential", "value"))
-	require.NoError(t, c.Create(ctx, withValue))
-	t.Cleanup(func() { _ = c.Delete(ctx, withValue) })
-
-	pruned := &unstructured.Unstructured{}
-	pruned.SetGroupVersionKind(withValue.GroupVersionKind())
-	require.NoError(t, c.Get(ctx, client.ObjectKeyFromObject(withValue), pruned))
-	prunedCredential, found, err := unstructured.NestedMap(pruned.Object, "spec", "credential")
-	require.NoError(t, err)
-	require.True(t, found)
-	require.NotContains(t, prunedCredential, "value", "the schema must leave no place for a credential value")
+	require.Equal(t, "account-prod", name)
 }

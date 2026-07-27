@@ -1,3 +1,7 @@
+# A ProviderAccount names a vendor/account context only. It carries NO
+# credential source or path: the account's credential lives in Infisical at a
+# path the dependency consumer DERIVES from the consuming module's runtime
+# coordinate plus this vendor/name, never a field on this CR.
 apiVersion: fleet.atomi.cloud/v1alpha1
 kind: ProviderAccount
 metadata:
@@ -7,9 +11,6 @@ spec:
   vendor: neon
   name: prod
   plan: scale
-  credential:
-    source: infisical
-    path: /nitroso/raichu/database/neon-account-prod
   quotas:
     - resource: projects
       limit: 100

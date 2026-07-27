@@ -140,12 +140,6 @@ field|ProviderAccountSpec.Vendor|kubebuilder:validation:Required
 field|ProviderAccountSpec.Vendor|kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
 field|ProviderAccountSpec.Name|kubebuilder:validation:Required
 field|ProviderAccountSpec.Name|kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
-field|ProviderAccountSpec.Credential|kubebuilder:validation:Required
-field|ProviderAccountCredentialSpec.Source|kubebuilder:validation:Required
-field|ProviderAccountCredentialSpec.Source|kubebuilder:validation:Enum=infisical
-field|ProviderAccountCredentialSpec.Source|kubebuilder:default=infisical
-field|ProviderAccountCredentialSpec.Path|kubebuilder:validation:Required
-field|ProviderAccountCredentialSpec.Path|kubebuilder:validation:Pattern=`^/[A-Za-z0-9._/-]+$`
 field|ProviderAccountQuotaSpec.Resource|kubebuilder:validation:Required
 field|ProviderAccountQuotaSpec.Limit|kubebuilder:validation:Required
 field|ProviderAccountQuotaSpec.Limit|kubebuilder:validation:Minimum=0

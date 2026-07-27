@@ -76,8 +76,12 @@ linters:
     generated: lax
     rules:
       # Kubernetes API types require the ",inline" json tag on embedded TypeMeta
-      # and ListMeta; revive's struct-tag rule does not recognise it.
-      - path: api/v1alpha1/
+      # and ListMeta; revive's struct-tag rule does not recognise it. The path
+      # covers every API version directory (the sample api/v1alpha1, the fleet
+      # api/fleet/v1alpha1, and the future api/problems/v1alpha1) so each API
+      # root need not carry a per-line nolint; the specific text keeps this from
+      # suppressing any other revive finding in those packages.
+      - path: 'api/([a-z0-9-]+/)?v1alpha1/'
         linters: [revive]
         text: 'struct-tag: unknown option "inline"'
       # The composition root parses flags in run() (returning an exit code) so it

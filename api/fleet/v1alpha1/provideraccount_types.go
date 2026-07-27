@@ -4,32 +4,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// ProviderAccountCredentialSourceInfisical is the only declared credential
-// source: account-level credentials live in Infisical and are addressed by the
-// logical path notation, never carried in the CR.
-const ProviderAccountCredentialSourceInfisical = "infisical"
-
-// ProviderAccountCredentialSpec POINTS AT an account's root credential. It
-// carries a path and a source and never a value: the pointers-never-values rule
-// that governs the durable ledger governs this registry too.
-type ProviderAccountCredentialSpec struct {
-	// Source names the store holding the credential.
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Enum=infisical
-	// +kubebuilder:default=infisical
-	Source string `json:"source"`
-
-	// Path is the canonical logical address of the account credential, in the
-	// logical notation where the leading segments are project and environment
-	// boundaries rather than real folders. It is a pointer: no credential
-	// material is ever inlined here.
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MinLength=1
-	// +kubebuilder:validation:MaxLength=512
-	// +kubebuilder:validation:Pattern=`^/[A-Za-z0-9._/-]+$`
-	Path string `json:"path"`
-}
-
 // ProviderAccountQuotaSpec is one onboarding prerequisite ceiling for the
 // account. Ceilings are checked at account onboarding, and again per row at
 // reconcile, so a provider ceiling surfaces as a condition before the vendor
@@ -64,6 +38,17 @@ type ProviderAccountQuotaSpec struct {
 // reconciler, no status writer, and no auto-creation — this kind exists so the
 // chart that carries the fleet registry's CRD set also carries this one.
 //
+// This CR carries NO credential source or path. One ProviderAccount names a
+// vendor/account context only; the account's credential lives in Infisical at a
+// path that VARIES by the consuming module's runtime coordinate
+// (platform/landscape/class) and is therefore not a property of the account.
+// The dependency consumer derives the S10 pointer solely from that runtime
+// coordinate plus this account's vendor/name — see the F4 pure resolver
+// (`lib/operator/provideraccount`.CredentialPointerPath) — and never reads a
+// credential field from this CR, because none exists. Exposing an independent
+// credential source/path here would admit a second, forgeable source of truth
+// that could disagree with the derived pointer, so it is deliberately absent.
+//
 // Two uniqueness laws govern the registry and neither is expressible in CRD
 // validation, because both span objects: `name` is unique within one vendor,
 // and the pair (vendor, name) is unique fleet-wide. The reading controller
@@ -87,10 +72,6 @@ type ProviderAccountSpec struct {
 	// +kubebuilder:validation:MaxLength=63
 	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
 	Name string `json:"name"`
-
-	// Credential points at the account's root credential.
-	// +kubebuilder:validation:Required
-	Credential ProviderAccountCredentialSpec `json:"credential"`
 
 	// Plan is the vendor-side plan of this account, where the vendor applies a
 	// plan account-wide and therefore forces separate named accounts instead of
