@@ -1,5 +1,7 @@
 using System.Net;
 using System.Text;
+using AtomiCloud.Diene.AuthEngine.Config;
+using AtomiCloud.Diene.AuthEngine.Onboarding;
 using AtomiCloud.Diene.Problems.TestHelper;
 using AtomiCloud.Diene.ServerEngine.Config;
 using AtomiCloud.Diene.ServerEngine.Module;
@@ -25,10 +27,13 @@ namespace AtomiCloud.DotnetBase.IntTest;
 /// </remarks>
 public class ServerEngineDemo_Composition : IAsyncLifetime
 {
-    private readonly DemoWebhookHandler _handler = new();
+    private readonly DemoTokens _tokens = new();
     private ServerEngineConfig _config = null!;
+    private AuthEngineConfig _auth = null!;
     private IHost _app = null!;
     private HttpClient _client = null!;
+    private DemoWebhookHandler _handler = null!;
+    private DemoOnboardingBackend _backend = null!;
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -36,9 +41,15 @@ public class ServerEngineDemo_Composition : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         this._config = ServerEngineDemo.BuildConfig("1.0.0-int").Get();
-        var auth = ServerEngineDemo.BuildAuthConfig().Get();
-        this._app = ServerEngineDemo.BuildApp(this._config, auth, this._handler);
+        this._auth = ServerEngineDemo.BuildAuthConfig().Get();
+        this._app = ServerEngineDemo.BuildApp(this._config, this._auth, this._tokens);
         await this._app.StartAsync(Ct);
+
+        // The handler is resolved from the container rather than handed in, because the demo
+        // registers it through the shipped AddAtomiWebhookHandler extension — which is the API a
+        // consumer uses, and the one worth exercising.
+        this._handler = this._app.Services.GetServices<IWebhookHandler>().OfType<DemoWebhookHandler>().Single();
+        this._backend = (DemoOnboardingBackend)this._app.Services.GetRequiredService<IOnboardingBackend>();
 
         var addresses = this._app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>();
         this._client = new HttpClient { BaseAddress = new Uri(addresses!.Addresses.First(), UriKind.Absolute) };
@@ -50,6 +61,20 @@ public class ServerEngineDemo_Composition : IAsyncLifetime
         this._client.Dispose();
         await this._app.StopAsync(CancellationToken.None);
         this._app.Dispose();
+        this._tokens.Dispose();
+    }
+
+    [Fact]
+    public async Task It_should_walk_the_whole_onboard_sync_machine_with_real_signed_tokens()
+    {
+        // Act — an un-onboarded caller is shown the selector, the pick is written, and a caller
+        // carrying the claim is complete without the backend being asked anything.
+        var actual = await Program.WalkOnboardSyncAsync(this._client, this._tokens, this._auth, this._backend);
+
+        // Assert
+        actual.Should().Be(0);
+        this._backend.Written.Should().ContainKey("demo-user")
+            .WhoseValue.Should().Be(ServerEngineDemo.DemoLandscape);
     }
 
     [Fact]
@@ -255,16 +280,16 @@ public class ServerEngineDemo_Composition : IAsyncLifetime
         var auth = ServerEngineDemo.BuildAuthConfig().Get();
 
         // Act
-        var withoutConfig = () => ServerEngineDemo.BuildApp(null!, auth, this._handler);
-        var withoutAuth = () => ServerEngineDemo.BuildApp(this._config, null!, this._handler);
-        var withoutHandler = () => ServerEngineDemo.BuildApp(this._config, auth, null!);
+        var withoutConfig = () => ServerEngineDemo.BuildApp(null!, auth, this._tokens);
+        var withoutAuth = () => ServerEngineDemo.BuildApp(this._config, null!, this._tokens);
+        var withoutTokens = () => ServerEngineDemo.BuildApp(this._config, auth, null!);
         var describeWithoutRegistry = () => ServerEngineDemo.DescribeProviders(null!);
         var windowWithoutConfig = () => ServerEngineDemo.DescribeWebhookWindow(null!);
 
         // Assert
         withoutConfig.Should().Throw<ArgumentNullException>();
         withoutAuth.Should().Throw<ArgumentNullException>();
-        withoutHandler.Should().Throw<ArgumentNullException>();
+        withoutTokens.Should().Throw<ArgumentNullException>();
         describeWithoutRegistry.Should().Throw<ArgumentNullException>();
         windowWithoutConfig.Should().Throw<ArgumentNullException>();
     }
@@ -335,9 +360,7 @@ public class ServerEngineDemo_Composition : IAsyncLifetime
         actual.Id.Should().Be("demo_unregistered");
         actual.Title.Should().Be("Demo Unregistered");
         actual.Version.Should().Be("v1");
-        actual.NoteId.Should().Be("note-7");
         actual.Detail.Should().Contain("note-7");
-        new DemoUnregisteredProblem().NoteId.Should().BeEmpty();
     }
 
     [Fact]

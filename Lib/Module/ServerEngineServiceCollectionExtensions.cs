@@ -69,12 +69,22 @@ public static class ServerEngineServiceCollectionExtensions
     /// Registers a webhook handler for one provider. Call it once per provider a service
     /// subscribes to.
     /// </summary>
-    public static IServiceCollection AddAtomiWebhookHandler<THandler>(this IServiceCollection services)
+    /// <remarks>
+    /// The handler is supplied as a factory rather than as a bare type argument, because a real
+    /// handler needs its own dependencies — a repository to dedup against, a client to call
+    /// onward — and a factory lets the caller resolve them from the same provider. A type-only
+    /// overload would work for a handler with a parameterless constructor and quietly fail at
+    /// startup for every other one.
+    /// </remarks>
+    public static IServiceCollection AddAtomiWebhookHandler<THandler>(
+        this IServiceCollection services,
+        Func<IServiceProvider, THandler> handler)
         where THandler : class, IWebhookHandler
     {
         ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(handler);
 
-        services.AddSingleton<IWebhookHandler, THandler>();
+        services.AddSingleton<IWebhookHandler>(handler);
         return services;
     }
 

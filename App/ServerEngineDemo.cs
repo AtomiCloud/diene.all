@@ -73,14 +73,11 @@ public static class ServerEngineDemo
     /// Composes the demo host on an ephemeral loopback port, with the handler instance the
     /// caller can inspect afterwards.
     /// </summary>
-    public static WebApplication BuildApp(
-        ServerEngineConfig config,
-        AuthEngineConfig auth,
-        DemoWebhookHandler handler)
+    public static WebApplication BuildApp(ServerEngineConfig config, AuthEngineConfig auth, DemoTokens tokens)
     {
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(auth);
-        ArgumentNullException.ThrowIfNull(handler);
+        ArgumentNullException.ThrowIfNull(tokens);
 
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseUrls("http://127.0.0.1:0");
@@ -95,21 +92,26 @@ public static class ServerEngineDemo
             new ErrorPortalOption { Scheme = "https", Host = "errors.demo.invalid" },
             catalog => catalog.AddBaseline());
 
-        builder.Services.AddAtomiServerEngine(config);
-
-        // This assembly is registered as an application part explicitly rather than relying on
-        // MVC's default scan of the entry assembly. When the demo is driven from a test host the
-        // entry assembly is the TEST project, so the default scan finds no consumer controller and
-        // every route here 404s with nothing reporting why.
-        builder.Services.AddControllers().AddApplicationPart(typeof(DemoNotesController).Assembly);
-        builder.Services.AddAtomiWebhookSecrets(DemoDelivery.Secret);
-        builder.Services.AddSingleton<IWebhookHandler>(handler);
+        // The registrations chain, and this assembly is added as an MVC application part
+        // explicitly rather than relying on MVC's default scan of the entry assembly. When the demo
+        // is driven from a test host the entry assembly is the TEST project, so the default scan
+        // finds no consumer controller and every route here 404s with nothing reporting why.
+        builder.Services
+            .AddAtomiServerEngine(config)
+            .AddAtomiWebhookSecrets(DemoDelivery.Secret)
+            .AddAtomiWebhookHandler(_ => new DemoWebhookHandler())
+            .AddControllers()
+            .AddApplicationPart(typeof(DemoNotesController).Assembly);
 
         // The clock is registered BEFORE auth-engine, whose own registration is a TryAdd, so
         // one clock governs both token expiry and webhook freshness. Two clocks would make a
         // freshness rejection look like skew on mercury's side.
         builder.Services.TryAddSingleton<IAuthClock>(SystemAuthClock.Instance);
         builder.Services.AddAtomiAuthEngine(auth);
+
+        // The key resolver is registered AFTER auth-engine, whose own registration is not a
+        // TryAdd, so the demo's in-process key wins and no discovery endpoint is contacted.
+        builder.Services.AddSingleton<ISigningKeyResolver>(tokens);
         builder.Services.AddSingleton<IOnboardingBackend, DemoOnboardingBackend>();
         builder.Services.AddSingleton<OnboardingCoordinator>();
 

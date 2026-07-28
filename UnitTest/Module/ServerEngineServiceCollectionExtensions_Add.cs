@@ -1,6 +1,8 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AtomiCloud.Diene.CoreUtils;
+using AtomiCloud.Diene.Problems;
+using AtomiCloud.Diene.Results;
 using AtomiCloud.Diene.ServerEngine.Config;
 using AtomiCloud.Diene.ServerEngine.Module;
 using AtomiCloud.Diene.ServerEngine.Mvc;
@@ -16,8 +18,6 @@ namespace AtomiCloud.DotnetBase.UnitTest.Module;
 
 public class ServerEngineServiceCollectionExtensions_Add
 {
-    private static CancellationToken Ct => TestContext.Current.CancellationToken;
-
     [Fact]
     public void It_should_name_every_controller_it_mounts()
     {
@@ -60,11 +60,27 @@ public class ServerEngineServiceCollectionExtensions_Add
         var services = new ServiceCollection();
 
         // Act
-        services.AddAtomiWebhookHandler<StripeHandler>();
+        services.AddAtomiWebhookHandler(_ => new StripeHandler());
         var actual = services.BuildServiceProvider().GetServices<IWebhookHandler>();
 
         // Assert
         actual.Should().ContainSingle().Which.Should().BeOfType<StripeHandler>();
+    }
+
+    [Fact]
+    public void It_should_let_a_handler_factory_resolve_its_own_dependencies()
+    {
+        // Arrange — a real handler needs a repository or a client, which is why the seam takes a
+        // factory rather than a bare type argument.
+        var services = new ServiceCollection();
+        services.AddSingleton("dependency");
+
+        // Act
+        services.AddAtomiWebhookHandler(provider => new DependentHandler(provider.GetRequiredService<string>()));
+        var actual = services.BuildServiceProvider().GetRequiredService<IWebhookHandler>();
+
+        // Assert
+        actual.Should().BeOfType<DependentHandler>().Which.Dependency.Should().Be("dependency");
     }
 
     [Fact]
@@ -110,7 +126,9 @@ public class ServerEngineServiceCollectionExtensions_Add
         var withoutServices = () => ServerEngineServiceCollectionExtensions.AddAtomiServerEngine(null!, config);
         var withoutConfig = () => new ServiceCollection().AddAtomiServerEngine(null!);
         var handlerWithoutServices = () =>
-            ServerEngineServiceCollectionExtensions.AddAtomiWebhookHandler<StripeHandler>(null!);
+            ServerEngineServiceCollectionExtensions.AddAtomiWebhookHandler(null!, _ => new StripeHandler());
+        var handlerWithoutFactory = () =>
+            new ServiceCollection().AddAtomiWebhookHandler<StripeHandler>(null!);
         var secretsWithoutServices = () =>
             ServerEngineServiceCollectionExtensions.AddAtomiWebhookSecrets(null!, "key");
 
@@ -118,6 +136,7 @@ public class ServerEngineServiceCollectionExtensions_Add
         withoutServices.Should().Throw<ArgumentNullException>();
         withoutConfig.Should().Throw<ArgumentNullException>();
         handlerWithoutServices.Should().Throw<ArgumentNullException>();
+        handlerWithoutFactory.Should().Throw<ArgumentNullException>();
         secretsWithoutServices.Should().Throw<ArgumentNullException>();
     }
 
@@ -138,8 +157,9 @@ public class ServerEngineServiceCollectionExtensions_Add
         options.Converters.Should().ContainItemsAssignableTo<JsonStringEnumConverter>();
     }
 
-    [Fact]
-    public void It_should_produce_options_that_round_trip_the_contract_forms()
+    [Theory]
+    [ClassData(typeof(EnumNameCases))]
+    public void It_should_produce_options_that_round_trip_the_contract_forms(ProbeKind kind, string wireName)
     {
         // Arrange — asserting the settings alone would pass on a converter set that does not
         // actually serialize an instant or an enum the contract's way.
@@ -148,10 +168,14 @@ public class ServerEngineServiceCollectionExtensions_Add
         var instant = new DateTimeOffset(2026, 3, 4, 5, 6, 7, TimeSpan.FromHours(8));
 
         // Act
-        var actual = JsonSerializer.Serialize(new WireProbe(instant, ProbeKind.SecondValue, null), options);
+        var json = JsonSerializer.Serialize(new WireProbe(instant, kind, null), options);
+        var actual = JsonSerializer.Deserialize<WireProbe>(json, options);
 
         // Assert
-        actual.Should().Be($$"""{"at":"{{Wire.Format(instant)}}","kind":"second_value"}""");
+        json.Should().Be($$"""{"at":"{{Wire.Format(instant)}}","kind":"{{wireName}}"}""");
+        actual!.At.Should().Be(instant.ToUniversalTime());
+        actual.Kind.Should().Be(kind);
+        actual.Absent.Should().BeNull();
     }
 
     [Fact]
@@ -164,20 +188,46 @@ public class ServerEngineServiceCollectionExtensions_Add
         act.Should().Throw<ArgumentNullException>();
     }
 
-    private enum ProbeKind
+    /// <summary>A two-member enum, so a snake_case name is distinguishable from an ordinal.</summary>
+    public enum ProbeKind
     {
+        /// <summary>The first member, whose ordinal is zero.</summary>
         FirstValue = 0,
+
+        /// <summary>The second member, whose ordinal is one.</summary>
         SecondValue = 1,
     }
 
     private sealed record WireProbe(DateTimeOffset At, ProbeKind Kind, string? Absent);
 
+    private sealed class EnumNameCases : TheoryData<ProbeKind, string>
+    {
+        public EnumNameCases()
+        {
+            this.Add(ProbeKind.FirstValue, "first_value");
+            this.Add(ProbeKind.SecondValue, "second_value");
+        }
+    }
+
     private sealed class StripeHandler : IWebhookHandler
     {
         public string Provider => "stripe";
 
-        public Task<AtomiCloud.Diene.Results.Result<WebhookOutcome, AtomiCloud.Diene.Problems.IDomainProblem>>
-            HandleAsync(WebhookEnvelope envelope, CancellationToken cancellationToken = default) =>
+        public Task<Result<WebhookOutcome, IDomainProblem>> HandleAsync(
+            WebhookEnvelope envelope,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class DependentHandler(string dependency) : IWebhookHandler
+    {
+        public string Provider => "paypal";
+
+        public string Dependency { get; } = dependency;
+
+        public Task<Result<WebhookOutcome, IDomainProblem>> HandleAsync(
+            WebhookEnvelope envelope,
+            CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
     }
 }
