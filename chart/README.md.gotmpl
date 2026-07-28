@@ -1,0 +1,50 @@
+{{ template "chart.header" . }}
+
+{{ template "chart.versionBadge" . }}{{ template "chart.typeBadge" . }}{{ template "chart.appVersionBadge" . }}
+
+{{ template "chart.description" . }}
+
+{{ template "chart.requirementsSection" . }}
+
+## What chlorine owns (and does not)
+
+chlorine is a **pure passthrough** wrapper over the upstream
+[`stakater/reloader`](https://github.com/stakater/Reloader) controller. It is the
+last hop of the secret-rotation chain (Infisical rotate → ESO sync → **Reloader
+restart**): when a workload's referenced Secret/ConfigMap changes, Reloader
+rolling-restarts that workload's pods.
+
+It is the SIMPLEST wrapper instance — the parity check that the helm-wrapper
+template needs zero bespoke additions. The chart renders one controller
+Deployment plus its RBAC (no CRDs, webhook, or cainjector). The wrapper carries
+only minimal upstream overrides:
+
+- `reloader.image.tag` pinned to the chart appVersion (VAP forbids `:latest`).
+- `reloader.reloader.autoReloadAll: false` — Reloader is **annotation opt-in**,
+  never auto-reload-all. Only workloads carrying `reloader.stakater.com/auto:
+  "true"` are restarted; the helm-wrapper bakes that opt-in into every family
+  chart by default (omitted only for stateful/unsafe workloads).
+- resource envelopes and baseline-plus container hardening so the shared VAP
+  profile passes.
+- the Reloader opt-in annotation on chlorine's own controller Deployment.
+
+## Identity and labels
+
+reloader has no `global.commonLabels` passthrough, so the static service-tree
+labels ride the chart's own `reloader.deployment.labels` override onto the
+controller Deployment and pod. The namespace-sourced platform label cannot be a
+static value, so the wrapper-owned `chlorine-lpsm` ConfigMap carries the full
+dynamic LPSM projection (platform = release namespace, plus the
+landscape/service/module/layer slots and reversible physical-instance
+annotations). `global.serviceTree.platform` is forbidden as a value — platform
+always comes from the release namespace.
+
+## Upstream selection
+
+The vendored dependency is official reloader chart `2.2.14` / app `v1.4.19`,
+pinned pure-passthrough from the recorded source archive hash in
+`chart/upstream-evidence.yaml` (the current official latest). `pls latest` checks
+the official chart repository and the `ghcr.io/stakater` image registry against
+the recorded evidence.
+
+{{ template "chart.valuesSection" . }}

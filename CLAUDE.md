@@ -76,9 +76,9 @@ Domain-specific architecture and behavior belongs under
 [docs/domain/](docs/domain/README.md). The `docs/standards/contracts/` slot is
 reserved for the separately owned C0 contracts standard.
 
-<!-- ### helm-wrapper -->
-<!-- #### source: helm-wrapper -->
+<!-- ### chlorine -->
+<!-- #### source: chlorine -->
 
-## Helm wrapper sample
+## Chlorine chart
 
-Read [docs/developer/helm-wrapper-baseline.md](docs/developer/helm-wrapper-baseline.md) before changing `chart/`, the stacked values, CR/LPSM helpers, provider LoadBalancer annotations, config vendoring, or chart publishing.
+Read [docs/developer/chlorine-baseline.md](docs/developer/chlorine-baseline.md) before changing `chart/`, the stacked values, the stakater/reloader passthrough overrides, the LPSM helpers, the reloader/auto-reload-all/fullname gates, or chart publishing.

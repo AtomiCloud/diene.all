@@ -215,21 +215,21 @@ pre-commit-lib.run {
       language = "system";
     };
 
-    # ### helm-wrapper-hooks
-    # #### source: helm-wrapper
-    a-wrapper-helm-docs = {
+    # ### chlorine-hooks
+    # #### source: chlorine
+    a-chlorine-helm-docs = {
       enable = true;
-      name = "Helm wrapper docs";
+      name = "Chlorine helm docs";
       entry = "${packages.infralint}/bin/helm-docs --chart-search-root chart";
       files = "^chart/.*";
       pass_filenames = false;
       language = "system";
     };
 
-    a-wrapper-helm-lint = {
+    a-chlorine-helm-lint = {
       enable = true;
-      name = "Helm wrapper lint";
-      entry = validator "scripts/validate/helm-wrapper.sh lint";
+      name = "Chlorine helm lint";
+      entry = validator "scripts/validate/chlorine.sh lint";
       files = "^(chart/.*|config/.*|scripts/(local|validate)/.*)$";
       pass_filenames = false;
       language = "system";
