@@ -36,6 +36,8 @@ plugins:
       assets:
         - Changelog.md
         - VERSION
+        - chart/Chart.yaml
+        - chart/README.md
         - docs/developer/CommitConventions.md
   - module: '@semantic-release/github'
     version: 10.3.5

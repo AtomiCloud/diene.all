@@ -1,0 +1,46 @@
+{{- if .Values.migration.enabled -}}
+{{- include "diene-helm-wrapper.validateServiceTree" . -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "diene-helm-wrapper.resourceName" (dict "root" . "token" "migration") }}
+  labels:
+    {{- include "diene-helm-wrapper.labels" . | nindent 4 }}
+  annotations:
+    {{- include "diene-helm-wrapper.annotations" . | nindent 4 }}
+    {{- include "diene-helm-wrapper.reloaderAnnotations" (dict "enabled" .Values.migration.reloader.enabled) | nindent 4 }}
+    helm.sh/hook: pre-install,pre-upgrade
+    argocd.argoproj.io/hook: PreSync
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 1
+  template:
+    metadata:
+      labels:
+        {{- include "diene-helm-wrapper.labels" . | nindent 8 }}
+      annotations:
+        {{- include "diene-helm-wrapper.annotations" . | nindent 8 }}
+        {{- include "diene-helm-wrapper.reloaderAnnotations" (dict "enabled" .Values.migration.reloader.enabled) | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+      containers:
+        - name: migration
+          image: '{{ .Values.migration.image.repository }}:{{ .Values.migration.image.tag }}'
+          imagePullPolicy: {{ .Values.migration.image.pullPolicy }}
+          command:
+            {{- toYaml .Values.migration.command | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            capabilities:
+              drop: [ALL]
+          resources:
+            {{- toYaml .Values.migration.resources | nindent 12 }}
+{{- end }}

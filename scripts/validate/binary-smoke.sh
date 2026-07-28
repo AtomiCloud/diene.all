@@ -3,7 +3,7 @@ set -euo pipefail
 
 # ### workspace
 # #### source: workspace
-for binary in actionlint bash cyanprint docker git gomplate hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pls pre-commit rg sg shellcheck skopeo task treefmt yq; do
+for binary in actionlint bash cyanprint docker git gitlint gomplate hadolint helm helm-docs helm-schema infisical jq k3d kubeconform kubectl kyverno nix pls pre-commit rg sg shellcheck skopeo task treefmt yq; do
   command -v "${binary}" >/dev/null || {
     echo "❌ binary '${binary}' is missing" >&2
     exit 1
@@ -35,6 +35,9 @@ docker info --format '{{.ServerVersion}}' >/dev/null
 git --version >/dev/null
 git rev-parse --is-inside-work-tree >/dev/null
 
+gitlint --version >/dev/null
+gitlint --help >/dev/null
+
 gomplate --version >/dev/null
 [ "$(gomplate -i '{{ add 1 1 }}')" != "2" ] && echo "❌ gomplate failed a real template" >&2 && exit 1
 
@@ -45,6 +48,8 @@ helm-docs --dry-run --chart-search-root infra/root_chart >/dev/null 2>&1
 
 helm version --short >/dev/null
 helm template diene-workspace infra/root_chart | kubeconform -strict -summary >/dev/null
+
+helm-schema --version >/dev/null
 
 infisical --version >/dev/null
 git -C "${tmp}" init -q

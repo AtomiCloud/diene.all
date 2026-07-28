@@ -44,6 +44,17 @@ let
     '';
     meta.mainProgram = "cyanprint";
   };
+  helm-schema = pkgs.writeShellApplication {
+    name = "helm-schema";
+    runtimeInputs = [
+      pkgs.kubernetes-helm
+      pkgs.kubernetes-helmPlugins.helm-schema
+    ];
+    text = ''
+      export HELM_PLUGINS="${pkgs.kubernetes-helmPlugins.helm-schema}"
+      exec helm schema "$@"
+    '';
+  };
   all = rec {
     # ### nix-root
     # #### source: main
@@ -70,6 +81,7 @@ let
           bash
           docker-client
           git
+          gitlint
           go-task
           infisical
           jq
@@ -95,7 +107,7 @@ let
     );
 
     root = {
-      inherit cyanprint;
+      inherit cyanprint helm-schema;
     };
   };
 in
