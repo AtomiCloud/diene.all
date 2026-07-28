@@ -7,7 +7,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="StackExchange.Redis" />
+    <!-- The demo hosts a real upstream over Kestrel so the client engine is exercised across
+         a real socket rather than against an in-memory handler. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
   <ItemGroup>

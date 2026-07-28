@@ -5,7 +5,7 @@ coverage:
       - UnitTest/UnitTest.csproj
     include:
       - '[Lib*]*'
-      - '[AtomiCloud.Diene.Note]*'
+      - '[AtomiCloud.Diene.ApiEngine]*'
     exclude:
       - '[App*]*'
       - '[*.TestHelper]*'
@@ -30,3 +30,11 @@ coverage:
       - '[Lib*]*'
       - '[App*]*'
       - '[*]*.Program'
+      # This node consumes three sibling TestHelper PACKAGES, and the inherited wildcard above
+      # matches them by name. They are excluded by name rather than left to the fact that a
+      # published package carries no portable PDB, because that is a property of the environment:
+      # a run that could read those symbols would fail this ledger for code this node does not own.
+      # The subject of the meta tier is the TestHelper this node ships.
+      - '[AtomiCloud.Diene.AuthEngine.TestHelper]*'
+      - '[AtomiCloud.Diene.Problems.TestHelper]*'
+      - '[AtomiCloud.Diene.Result.TestHelper]*'
