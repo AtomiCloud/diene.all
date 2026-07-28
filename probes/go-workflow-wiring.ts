@@ -19,6 +19,7 @@ export default {
       name: 'mutation-go-workflow-wiring-caught',
       description: 'Pointing one Go reusable at a missing script must turn wiring red.',
       kind: 'mutation',
+      expectedImpact: ['workflow-wiring'],
       async run(repo: any) {
         await breakGoWorkflow(repo);
         await expectRed(repo, gate, 'go-workflow-wiring');

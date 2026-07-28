@@ -24,8 +24,9 @@ export async function flipGoAssertion(repo: ProbeRepo): Promise<void> {
   const paths = (await repo.glob('tests/unit/**/*_test.go')).sort();
   for (const path of paths) {
     const source = await repo.read(path);
-    if (source.includes('; got != ')) {
-      await repo.write(path, source.replace('; got != ', '; got == '));
+    const assertion = source.match(/if [^\n{]* != [^\n{]* \{\n\s*t\.(?:Fatal|Error)f?\(/);
+    if (assertion) {
+      await repo.write(path, source.replace(assertion[0], assertion[0].replace(' != ', ' == ')));
       return;
     }
   }
@@ -52,9 +53,9 @@ export async function breakAdapter(repo: ProbeRepo): Promise<void> {
   const paths = (await repo.glob('adapters/**/*.go')).sort();
   for (const path of paths) {
     const source = await repo.read(path);
-    const target = '.Set(ctx, key, value, 0)';
-    if (source.includes(target)) {
-      await repo.write(path, source.replace(target, '.Set(ctx, key+"-probe", value, 0)'));
+    const target = source.match(/\.Set\(\s*ctx\s*,\s*([^,\s]+)\s*,\s*[^,\n]+\s*,\s*[^)\n]+\)/);
+    if (target) {
+      await repo.write(path, source.replace(target[0], target[0].replace(target[1], `${target[1]}+"-probe"`)));
       return;
     }
   }
@@ -98,14 +99,17 @@ export async function plantProductionOnlySymbol(repo: ProbeRepo): Promise<void> 
 }
 
 export async function unformatGo(repo: ProbeRepo): Promise<void> {
-  const path = await first(repo, 'lib/**/*.go');
-  const source = await repo.read(path);
-  const signature = source.match(/^func ([A-Z][A-Za-z0-9_]*)\(([^)]*)\)([^\n{]*) \{$/m);
-  if (!signature) {
-    throw new Error('no exported Go function signature found');
+  const paths = (await repo.glob('lib/**/*.go')).filter(path => !path.endsWith('_test.go')).sort();
+  for (const path of paths) {
+    const source = await repo.read(path);
+    const signature = source.match(/^func ([A-Z][A-Za-z0-9_]*)\(([^)]*)\)([^\n{]*) \{$/m);
+    if (signature) {
+      const unformatted = `func ${signature[1]}( ${signature[2]} )${signature[3]}{`;
+      await repo.write(path, source.replace(signature[0], unformatted));
+      return;
+    }
   }
-  const unformatted = `func ${signature[1]}( ${signature[2]} )${signature[3]}{`;
-  await repo.write(path, source.replace(signature[0], unformatted));
+  throw new Error('no Go file under lib/**/*.go carries an exported signature');
 }
 
 export async function breakGoWorkflow(repo: ProbeRepo): Promise<void> {
