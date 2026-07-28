@@ -1,32 +1,25 @@
-using AtomiCloud.DotnetBase.App.Adapters.Redis;
-using AtomiCloud.Diene.Note;
-using StackExchange.Redis;
+using AtomiCloud.Diene.AuthEngine.Config;
 
 namespace AtomiCloud.DotnetBase.App;
 
-/// <summary>Composition root: explicit wiring of domain interfaces to concrete adapters.</summary>
+/// <summary>Composition root: explicit wiring of the auth engine into a service.</summary>
 public static class Program
 {
-    public static async Task Main()
+    /// <summary>Runs the demo, printing the composed configuration's mount and lifetimes.</summary>
+    public static void Main()
     {
-        var connectionString = Environment.GetEnvironmentVariable("REDIS_CONNECTION");
-        if (string.IsNullOrWhiteSpace(connectionString)) connectionString = "localhost:6379";
+        var issuer = Environment.GetEnvironmentVariable("AUTH_ISSUER");
+        if (string.IsNullOrWhiteSpace(issuer)) issuer = "https://idp.example.invalid";
 
-        // ── Domain wiring (illustrative sample) — replace this block with your domain ──
-        INoteSummariser summariser = new NoteSummariser();
-        await using var redis = await ConnectionMultiplexer.ConnectAsync(connectionString);
-        INoteRepository notes = new RedisNoteRepository(redis);
+        var endpoint = Environment.GetEnvironmentVariable("AUTH_ENDPOINT");
+        if (string.IsNullOrWhiteSpace(endpoint)) endpoint = "https://idp.example.invalid";
 
-        var saved = await notes.Save(new NoteRecord
-        {
-            Title = "Welcome",
-            Body = "The first note stored through the Redis adapter.",
-        });
-        var found = await notes.Find(saved.Id);
+        var config = AuthEngineDemo.BuildConfig(issuer, endpoint);
 
-        Console.WriteLine(found is null
-            ? $"Note {saved.Id} could not be read back."
-            : summariser.Summarise(found.Record, 80));
-        // ── End domain wiring ──
+        Console.WriteLine(config.Match(
+            settings =>
+                $"auth engine ready: issuer {settings.Logto.Issuer}, mount {settings.Handoff.Mount}, " +
+                $"access {settings.Lifetimes.Access}, refresh {settings.Lifetimes.Refresh}",
+            error => $"configuration rejected -> {error}"));
     }
 }

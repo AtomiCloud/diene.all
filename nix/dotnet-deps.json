@@ -1,58 +1,28 @@
 [
   {
-    "pname": "AtomiCloud.Diene.Note",
+    "pname": "AtomiCloud.Diene.CoreUtils",
     "version": "1.0.0",
-    "hash": "sha256-0O/T/I4nJljobPPOOP5JUojh4uSrfL067vjyI8cY9w8="
+    "hash": "sha256-gc+7c7/QsMA2I/F94aQdF5spHoLwqEOIbYCf9t4SavY="
   },
   {
-    "pname": "AtomiCloud.Diene.Note.TestHelper",
+    "pname": "AtomiCloud.Diene.Interfaces",
     "version": "1.0.0",
-    "hash": "sha256-2pgnoYSeJVD4edL8iaYRjK5XCFby33yJ9uhZX1Y5/IQ="
+    "hash": "sha256-hjQKi+HKCGDDwfiYT9Gwrl5GDvaEPo47sQzMiza49Kg="
   },
   {
-    "pname": "BouncyCastle.Cryptography",
-    "version": "2.6.2",
-    "hash": "sha256-Yjk2+x/RcVeccGOQOQcRKCiYzyx1mlFnhS5auCII+Ms="
+    "pname": "AtomiCloud.Diene.Problems",
+    "version": "1.0.0",
+    "hash": "sha256-x/LIiqSygczRYU/3xrjS7TUHcUmrHp09E6VUD12Gpvk="
+  },
+  {
+    "pname": "AtomiCloud.Diene.Result",
+    "version": "1.0.0",
+    "hash": "sha256-Z4xpdABb5MUIGD/N/GlfTeAW946Y1zgXGEqq8xLwrL0="
   },
   {
     "pname": "coverlet.msbuild",
     "version": "6.0.4",
     "hash": "sha256-HAMarJnbFQY0Y6KvjNC7rOHrR3bRLCdPGvOa1I7Do8Q="
-  },
-  {
-    "pname": "Docker.DotNet.Enhanced",
-    "version": "4.2.0",
-    "hash": "sha256-e+poxFu+FJwPWuZ1JiiDJjZK+3inIDlIl7obZNGYcB8="
-  },
-  {
-    "pname": "Docker.DotNet.Enhanced.Handler.Abstractions",
-    "version": "4.2.0",
-    "hash": "sha256-EsFRWrwvnv8JOK9N3W/kDjzrO1Jh8St8wn2W9UDvh0Y="
-  },
-  {
-    "pname": "Docker.DotNet.Enhanced.LegacyHttp",
-    "version": "4.2.0",
-    "hash": "sha256-MptmUR15Soy74NWJC+ZCWTqJxZP/BEHjfZPYTUq5IeE="
-  },
-  {
-    "pname": "Docker.DotNet.Enhanced.NativeHttp",
-    "version": "4.2.0",
-    "hash": "sha256-9wMMHwBcSI+pJuB9R1QrtQ1VZOGbASeC1Ouu6nxXum8="
-  },
-  {
-    "pname": "Docker.DotNet.Enhanced.NPipe",
-    "version": "4.2.0",
-    "hash": "sha256-MOzo8ySnMneRV+KaeqUC2Hq8NuY2oDqginK6DeI7Zf4="
-  },
-  {
-    "pname": "Docker.DotNet.Enhanced.Unix",
-    "version": "4.2.0",
-    "hash": "sha256-zT4wLE8ZtandcwDZcq/VHhwxKAIPKF02EnigW+h/80U="
-  },
-  {
-    "pname": "Docker.DotNet.Enhanced.X509",
-    "version": "4.2.0",
-    "hash": "sha256-zqimuvpFBmLh1TUUyVvZmjgCHIQbyb6T1suYArQMaFE="
   },
   {
     "pname": "FluentAssertions",
@@ -65,6 +35,11 @@
     "hash": "sha256-bY8RXB3fIsgYIrlLeEuq8dsOfIn8zcbZ0dj2Ra1sFZg="
   },
   {
+    "pname": "JetBrains.ReSharper.GlobalTools",
+    "version": "2026.1.3",
+    "hash": "sha256-rpS2+NAwul94ubUv0nAFpK9ogFnbqSF19DaLRli1R8c="
+  },
+  {
     "pname": "Microsoft.ApplicationInsights",
     "version": "2.23.0",
     "hash": "sha256-5sf3bg7CZZjHseK+F3foOchEhmVeioePxMZVvS6Rjb0="
@@ -75,29 +50,54 @@
     "hash": "sha256-49+H/iFwp+AfCICvWcqo9us4CzxApPKC37Q5Eqrw+JU="
   },
   {
+    "pname": "Microsoft.Bcl.Cryptography",
+    "version": "10.0.2",
+    "hash": "sha256-+OYtcWsd1qZcEXadYeA4t6+pyADg1APQCxpKUtP002M="
+  },
+  {
     "pname": "Microsoft.CodeCoverage",
     "version": "18.7.0",
     "hash": "sha256-QonDzKnOwcYkkVP0T3PT9/QySgUILc/L/bcp6+l+tA8="
   },
   {
     "pname": "Microsoft.Extensions.DependencyInjection.Abstractions",
-    "version": "10.0.5",
-    "hash": "sha256-KrP+hE3gk7pATbJYZsJ1LHiXjzLA+ntHW7G/VGgHk2g="
-  },
-  {
-    "pname": "Microsoft.Extensions.DependencyInjection.Abstractions",
-    "version": "8.0.2",
-    "hash": "sha256-UfLfEQAkXxDaVPC7foE/J3FVEXd31Pu6uQIhTic3JgY="
+    "version": "8.0.0",
+    "hash": "sha256-75KzEGWjbRELczJpCiJub+ltNUMMbz5A/1KQU+5dgP8="
   },
   {
     "pname": "Microsoft.Extensions.Logging.Abstractions",
-    "version": "10.0.5",
-    "hash": "sha256-e3A/l+II+n+D7/OPwjdyQM1IBtKHfHeIdlkJmuRw77w="
+    "version": "8.0.0",
+    "hash": "sha256-Jmddjeg8U5S+iBTwRlVAVLeIHxc4yrrNgqVMOB7EjM4="
   },
   {
-    "pname": "Microsoft.Extensions.Logging.Abstractions",
-    "version": "8.0.3",
-    "hash": "sha256-5MSY1aEwUbRXehSPHYw0cBZyFcUH4jkgabddxhMiu3Q="
+    "pname": "Microsoft.IdentityModel.Abstractions",
+    "version": "8.21.0",
+    "hash": "sha256-YczQD60WDyQpYqZfkgK8m4eH6sVkpyK5YDo7r8tY48A="
+  },
+  {
+    "pname": "Microsoft.IdentityModel.JsonWebTokens",
+    "version": "8.21.0",
+    "hash": "sha256-HVRa2y6adz6QBJkfxsrzEe4RrnetvrF6qv4nLzyNm0c="
+  },
+  {
+    "pname": "Microsoft.IdentityModel.Logging",
+    "version": "8.21.0",
+    "hash": "sha256-/66o2JAG4FV/o+CppS2LdNcY+LekeYYi2EzFZcr8pXo="
+  },
+  {
+    "pname": "Microsoft.IdentityModel.Protocols",
+    "version": "8.21.0",
+    "hash": "sha256-Vw03HdJz0fYfnSZalP+8O8sS99kHcnXU5f/ZuiN6Ln4="
+  },
+  {
+    "pname": "Microsoft.IdentityModel.Protocols.OpenIdConnect",
+    "version": "8.21.0",
+    "hash": "sha256-Se6bqwqd56kTnwRBMMn8Er/aIvswgW6flmzuKGJuMmo="
+  },
+  {
+    "pname": "Microsoft.IdentityModel.Tokens",
+    "version": "8.21.0",
+    "hash": "sha256-3vZD7CiqjzonG+kwQbQzk96ecrhnLxYOIYiX52ffJX0="
   },
   {
     "pname": "Microsoft.NET.Test.Sdk",
@@ -155,26 +155,6 @@
     "hash": "sha256-hy/BieY4qxBWVVsDqqOPaLy1QobiIapkbrESm6v2PHc="
   },
   {
-    "pname": "RESPite",
-    "version": "3.0.11",
-    "hash": "sha256-lWTUL54F9dqT/4SA77+TSnKlB5wTKxZR6nzFYup6wlM="
-  },
-  {
-    "pname": "SharpZipLib",
-    "version": "1.4.2",
-    "hash": "sha256-/giVqikworG2XKqfN9uLyjUSXr35zBuZ2FX2r8X/WUY="
-  },
-  {
-    "pname": "SSH.NET",
-    "version": "2025.1.0",
-    "hash": "sha256-vtpvE5B+IxoMkq9CQMehoR5ZRtihaHQ4VyhmkkIjL98="
-  },
-  {
-    "pname": "StackExchange.Redis",
-    "version": "3.0.11",
-    "hash": "sha256-KR3pJs8eLnJYjGg5VI7bhNSWvuac27NkvXlCRNrSKNM="
-  },
-  {
     "pname": "System.Configuration.ConfigurationManager",
     "version": "6.0.0",
     "hash": "sha256-fPV668Cfi+8pNWrvGAarF4fewdPVEDwlJWvJk0y+Cms="
@@ -185,9 +165,9 @@
     "hash": "sha256-/9EaAbEeOjELRSMZaImS1O8FmUe8j4WuFUw1VOrPyAo="
   },
   {
-    "pname": "System.IO.Hashing",
-    "version": "10.0.5",
-    "hash": "sha256-iZrjJEZU+GnKBWYLi0+NUc+yYKrCSQkaLmQrGDQyyeE="
+    "pname": "System.IdentityModel.Tokens.Jwt",
+    "version": "8.21.0",
+    "hash": "sha256-RX7f1ZL5KJQjpqv2Ymm10sHfHcJxXf4+SlABI+ERwPE="
   },
   {
     "pname": "System.Security.Cryptography.ProtectedData",
@@ -203,16 +183,6 @@
     "pname": "System.Windows.Extensions",
     "version": "6.0.0",
     "hash": "sha256-N+qg1E6FDJ9A9L50wmVt3xPQV8ZxlG1xeXgFuxO+yfM="
-  },
-  {
-    "pname": "Testcontainers",
-    "version": "4.12.0",
-    "hash": "sha256-NM+zFlgQIo0BP5V/WW8gLJ/tcSTZelbbklOZ3llzZ4g="
-  },
-  {
-    "pname": "Testcontainers.Redis",
-    "version": "4.12.0",
-    "hash": "sha256-ECfgQGtObREpw9y3Lks3Ex9m27vHR5cf/0GMk8EnKXg="
   },
   {
     "pname": "xunit.analyzers",
