@@ -207,7 +207,11 @@ if [ -f .dart_tool/package_config.json ]; then
   fi
   while IFS=$'\t' read -r package root_uri; do
     [ -n "${package}" ] || continue
-    package_root="$(realpath -m ".dart_tool/${root_uri}")"
+    case "${root_uri}" in
+    file://*) package_root="$(realpath -m "${root_uri#file://}")" ;;
+    /*) package_root="$(realpath -m "${root_uri}")" ;;
+    *) package_root="$(realpath -m ".dart_tool/${root_uri}")" ;;
+    esac
     [ -d "${package_root}" ] || continue
     skills_dir="${package_root}/skills"
     [ -d "${skills_dir}" ] || continue
