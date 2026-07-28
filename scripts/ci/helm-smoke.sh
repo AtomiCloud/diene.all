@@ -17,13 +17,38 @@ namespace="helm-smoke"
 chart_primordial="infra/primordial_chart"
 chart_garden="infra/garden_app_chart"
 
+# PER-INVOCATION KUBECONFIG — isolation, not cleanup.
+#
+# The cluster NAME is already unique per invocation (`$$`), and that was not
+# enough: two concurrent invocations still collided, because k3d writes the new
+# context into the SHARED ~/.kube/config and every later helm/kubectl call
+# resolves through whichever one landed last. So invocation A's `helm install`
+# ran against invocation B's cluster — "release: already exists", "pods
+# smoke-probe already exists" — and B's EXIT trap then deleted the cluster A was
+# still installing into, surfacing as `Post "https://0.0.0.0:PORT/..."
+# unexpected EOF`.
+#
+# Measured on the af93f63 binding matrix: both `garden-app-chart-install` and
+# `primordial-chart-install` call this script (via chart-install-smoke.sh, which
+# ignores its target argument), so `--parallel 3` runs two copies at once. Two
+# roots poisoned 164 of 198 rows.
+#
+# CONCURRENT PROCESSES SHARING A MUTABLE GLOBAL POINTER ARE FIXED BY NOT SHARING
+# IT. Unique names do not help when the collision is in the pointer rather than
+# the object; delete-if-exists would be worse still, since two concurrent runs
+# would then delete each other's clusters — a race with destruction in it.
+KUBECONFIG="$(mktemp -t diene-helm-smoke-kubeconfig.XXXXXX)"
+export KUBECONFIG
+
 cleanup() {
   echo "🧹 Tearing down ${cluster}..."
   k3d cluster delete "${cluster}" >/dev/null 2>&1 || true
+  rm -f "${KUBECONFIG}"
 }
 trap cleanup EXIT
 
 echo "🚀 Creating throwaway cluster ${cluster} (${k3s_image})..."
+echo "   (isolated KUBECONFIG=${KUBECONFIG})"
 k3d cluster create "${cluster}" --image "${k3s_image}" --wait >/dev/null
 
 kubectl create namespace "${namespace}" >/dev/null
