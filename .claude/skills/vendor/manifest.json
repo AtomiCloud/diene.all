@@ -1,1 +1,16 @@
-[]
+[
+  "diene_api_engine/diene-api-engine-usage/SKILL.md",
+  "diene_api_engine/diene-api-engine-usage/patterns.md",
+  "diene_auth_engine/diene-auth-engine-usage/SKILL.md",
+  "diene_auth_engine/diene-auth-engine-usage/patterns.md",
+  "diene_config/diene-config-usage/SKILL.md",
+  "diene_config/diene-config-usage/patterns.md",
+  "diene_core_utils/diene-core-utils-usage/SKILL.md",
+  "diene_core_utils/diene-core-utils-usage/patterns.md",
+  "diene_interfaces/diene-interfaces-usage/SKILL.md",
+  "diene_interfaces/diene-interfaces-usage/patterns.md",
+  "diene_problems/diene-problems-usage/SKILL.md",
+  "diene_problems/diene-problems-usage/patterns.md",
+  "diene_result/diene-result-usage/SKILL.md",
+  "diene_result/diene-result-usage/patterns.md"
+]

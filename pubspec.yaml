@@ -9,6 +9,17 @@ environment:
 dependencies:
   collection: ^1.19.1
   cupertino_icons: ^1.0.8
+  # Published diene family. Each is pinned to the NEWEST published version so a
+  # local resolve proves the bytes CI resolves (assert-resolved-deps.sh checks
+  # this as printed values). diene_problems is pinned ^0.1.1 so the solver cannot
+  # reach 0.1.0, which R-E24a and 0.1.1's changelog both declare was published
+  # from rejected content.
+  diene_api_engine: ^1.0.0
+  diene_auth_engine: ^1.0.2
+  diene_config: ^1.0.0
+  diene_core_utils: ^1.0.1
+  diene_problems: ^0.1.1
+  diene_result: ^1.0.0
   dio: ^5.9.0
   firebase_core: ^4.3.0
   firebase_messaging: ^16.1.0

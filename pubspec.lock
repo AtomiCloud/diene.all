@@ -225,14 +225,70 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.2.3"
+  diene_api_engine:
+    dependency: "direct main"
+    description:
+      name: diene_api_engine
+      sha256: "871292b813bb8abf754532e4815e1f608e2676d9a9c78e6869a624f6e16c2806"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.0"
+  diene_auth_engine:
+    dependency: "direct main"
+    description:
+      name: diene_auth_engine
+      sha256: a454240e26f78cdd36cacbde41219157eb7517a2be5093f7d94f00852b155314
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.2"
+  diene_config:
+    dependency: "direct main"
+    description:
+      name: diene_config
+      sha256: a4b757ee625af39d0469d91ebe766f2a43525f0a9c5e29daf0fc108df7e3ba43
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.0"
+  diene_core_utils:
+    dependency: "direct main"
+    description:
+      name: diene_core_utils
+      sha256: bd2d48492e2a57da0616fd1e0c78b3e44f399939ec8fd0e2f962625432a93493
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.1"
+  diene_interfaces:
+    dependency: transitive
+    description:
+      name: diene_interfaces
+      sha256: c3e557c3ba25eed49175ae3b246618f0927f4f78bb81b3ba7b380a72a921eeae
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.0"
+  diene_problems:
+    dependency: "direct main"
+    description:
+      name: diene_problems
+      sha256: fa55cf12b5062e438cf56b2affa560430860ef0f0fd56d17266f798d3024f7f5
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.1.1"
+  diene_result:
+    dependency: "direct main"
+    description:
+      name: diene_result
+      sha256: "8a9706e3fcf35b7cd9118570458da0ae1dd17917bffa217d2544609bad730e96"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.0"
   dio:
     dependency: "direct main"
     description:
       name: dio
-      sha256: ea2bad3c89a27635ce2d85cce4d6b199da49a5a48ec77b03e45b65a3b90922b0
+      sha256: "0df44ebba85e503958eb75d07eedd3c86275a58c1d3eda2f2ce8f0a2c3abbb3c"
       url: "https://pub.dev"
     source: hosted
-    version: "5.10.0"
+    version: "5.11.0"
   dio_web_adapter:
     dependency: transitive
     description:
@@ -1058,6 +1114,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.4.0"
+  unorm_dart:
+    dependency: transitive
+    description:
+      name: unorm_dart
+      sha256: "0c69186b03ca6addab0774bcc0f4f17b88d4ce78d9d4d8f0619e30a99ead58e7"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.3.2"
   url_launcher:
     dependency: transitive
     description:
