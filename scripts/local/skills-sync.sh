@@ -107,12 +107,25 @@ if [ -f Directory.Packages.props ]; then
     exit "${nuget_status}"
   fi
   sed -E 's/PackageVersion Include="([^"]+)" Version="([^"]+)"/\1\t\2/' "${nuget_matches}" >"${nuget_packages}"
+
+  # ### dotnet-server-engine-nuget-partial
+  # #### source: lib/dotnet/server-engine
+  # A declared package that is NOT installed is recorded, not skipped. The
+  # cold-checkout guard below is per-ECOSYSTEM, so a cache holding only SOME of the
+  # declared packages leaves nuget_staged true and publishes a PARTIAL vendor tree —
+  # exactly the outcome that guard exists to prevent. The freshness gate then fails
+  # on a diff that names the missing skills but not the reason, which is how a
+  # partially warm runner cache reads as a content defect.
+  nuget_absent=()
   while IFS=$'\t' read -r package version; do
     [ -n "${package}" ] || continue
     nuget_declared=true
     cache_id="$(echo "${package}" | tr '[:upper:]' '[:lower:]')"
     package_dir="${HOME}/.nuget/packages/${cache_id}/${version}"
-    [ -d "${package_dir}" ] || continue
+    if [ ! -d "${package_dir}" ]; then
+      nuget_absent+=("${package} ${version}")
+      continue
+    fi
     skills_dir="${package_dir}/skills"
     [ -d "${skills_dir}" ] || continue
     [ -n "$(find "${skills_dir}" -type f -print -quit)" ] || continue
@@ -120,6 +133,13 @@ if [ -f Directory.Packages.props ]; then
     cp -R "${skills_dir}/." "${staging}/${package}/"
     nuget_staged=true
   done <"${nuget_packages}"
+
+  if [ "${nuget_staged}" = true ] && [ "${#nuget_absent[@]}" -gt 0 ]; then
+    echo "❌ Declared diene packages are not installed, so the vendored tree would be partial:" >&2
+    printf '   - %s\n' "${nuget_absent[@]}" >&2
+    echo "   Run 'dotnet restore' before synchronizing skills." >&2
+    exit 1
+  fi
 fi
 
 if [ -f go.mod ]; then

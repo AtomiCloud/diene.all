@@ -110,6 +110,21 @@ let
       # ### dotnet-base-releaser
       # #### source: dotnet-base
       releaser = releaser-src.packages.${pkgs.stdenv.hostPlatform.system}.releaser;
+
+      # nix/dotnet-deps.json is the offline NuGet lock the dotnetlint pre-commit hook
+      # restores from, so it must be regenerated whenever a PackageReference changes.
+      # Without an exposed generator the file has to be hand-edited, and a hand-edited
+      # lock is only wrong once the hook runs — on someone else's commit.
+      #   nix run .#dotnet-deps-fetch -- "$PWD/nix/dotnet-deps.json"
+      dotnet-deps-fetch =
+        (pkgs.buildDotnetModule {
+          pname = "dotnet-base-dependencies";
+          version = "0";
+          src = ../.;
+          projectFile = "dotnet-base.slnx";
+          nugetDeps = ../nix/dotnet-deps.json;
+          dotnet-sdk = pkgs-2605.dotnet-sdk_10;
+        }).fetch-deps;
     };
   };
 in
