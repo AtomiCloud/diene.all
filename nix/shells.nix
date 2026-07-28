@@ -2,6 +2,7 @@
   pkgs,
   packages,
   env,
+  ciInputs,
   shellHook,
 }:
 with env;
@@ -16,7 +17,7 @@ with env;
   # ### workspace-ci
   # #### source: workspace
   ci = pkgs.mkShell {
-    buildInputs = lint ++ main ++ system;
+    buildInputs = ciInputs;
     inherit shellHook;
   };
 

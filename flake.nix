@@ -61,13 +61,34 @@
         env = import ./nix/env.nix {
           inherit pkgs packages;
         };
+        ciInputs = [
+          pkgs.bun
+          pkgs.gettext
+        ]
+        ++ env.lint
+        ++ env.main
+        ++ env.system;
         devShells = import ./nix/shells.nix {
-          inherit pkgs env packages;
+          inherit
+            pkgs
+            env
+            packages
+            ciInputs
+            ;
           shellHook = checks.pre-commit-check.shellHook;
         };
         checks = {
           pre-commit-check = pre-commit;
           format = formatter;
+          fleet-ci-runtime = pkgs.runCommand "fleet-ci-runtime" { nativeBuildInputs = ciInputs; } ''
+            for cmd in bun envsubst go helm helm-schema jq kubeconform rg yq; do
+              command -v "$cmd" >/dev/null 2>&1 || {
+                echo "missing runtime command: $cmd" >&2
+                exit 1
+              }
+            done
+            touch "$out"
+          '';
         };
       };
       {

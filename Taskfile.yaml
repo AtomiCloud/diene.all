@@ -69,3 +69,10 @@ tasks:
     desc: Delete the local k3d lapras proof cluster
     cmds:
       - ./scripts/local/delete-k3d-cluster.sh
+
+  # ### fleet
+  # #### source: fleet
+  test:fleet:
+    desc: Run the fleet product CI pyramid (contract tier)
+    cmds:
+      - ./scripts/ci/fleet.sh

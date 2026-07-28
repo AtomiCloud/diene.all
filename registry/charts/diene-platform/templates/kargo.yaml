@@ -1,0 +1,112 @@
+{{- $platform := include "diene-platform.platform" . -}}
+{{- $registry := .Values.oci.registry -}}
+{{- $fleet := .Values.fleet -}}
+{{- $kargoApi := .Values.apiVersions.kargo -}}
+{{- $bot := .Values.kargo.bot -}}
+apiVersion: {{ $kargoApi }}
+kind: Project
+metadata:
+  name: {{ $platform }}
+  labels:
+    {{- include "diene-platform.labels" . | nindent 4 }}
+{{- range $svc := .Values.services }}
+{{- $service := required "each services[] entry needs a name" $svc.name }}
+{{- $imageRepo := printf "%s/%s/%s" $registry $platform $service }}
+{{- $chartRepo := printf "oci://%s/%s-%s" $registry $platform $service }}
+---
+apiVersion: {{ $kargoApi }}
+kind: Warehouse
+metadata:
+  name: {{ $service }}
+  namespace: {{ $platform }}
+  labels:
+    {{- include "diene-platform.labels" $ | nindent 4 }}
+spec:
+  # Kargo >=1.8 evaluates this native criterion against discovered artifacts
+  # before creating Freight. Skewed image/chart revisions therefore never
+  # become promotable Freight; mercury uses this same ordinary service rail.
+  interval: 5m0s
+  freightCreationPolicy: Automatic
+  freightCreationCriteria:
+    expression: {{ printf "imageFrom('%s').Tag == chartFrom('%s').Version" $imageRepo $chartRepo | quote }}
+  subscriptions:
+    - image:
+        repoURL: {{ $imageRepo }}
+        imageSelectionStrategy: SemVer
+        constraint: ">=0.0.0"
+        strictSemvers: true
+        discoveryLimit: 5
+    - chart:
+        repoURL: {{ $chartRepo }}
+        semverConstraint: ">=0.0.0"
+        discoveryLimit: 5
+{{- range $i, $step := $.Values.stages }}
+{{- $current := include "diene-platform.stepLandscapes" $step | fromJsonArray }}
+{{- range $ls := $current }}
+---
+apiVersion: {{ $kargoApi }}
+kind: Stage
+metadata:
+  name: {{ include "diene-platform.stageName" (dict "platform" $platform "service" $service "landscape" $ls.landscape) }}
+  namespace: {{ $platform }}
+  labels:
+    {{- include "diene-platform.labels" $ | nindent 4 }}
+    {{ include "diene-platform.labelPrefix" $ }}/landscape: {{ $ls.landscape | quote }}
+  annotations:
+    {{ include "diene-platform.labelPrefix" $ }}/promotion-gate: {{ $ls.gate | quote }}
+    {{- with $ls.soak }}
+    {{ include "diene-platform.labelPrefix" $ }}/soak: {{ . | quote }}
+    {{- end }}
+spec:
+  requestedFreight:
+    - origin:
+        kind: Warehouse
+        name: {{ $service }}
+      sources:
+{{- if eq $i 0 }}
+        # first step subscribes directly to the service's Warehouse
+        direct: true
+{{- else }}
+{{- $previous := include "diene-platform.stepLandscapes" (index $.Values.stages (sub $i 1)) | fromJsonArray }}
+        # every member takes the PRECEDING step as its upstream; the step after
+        # a parallel set therefore lists ALL of that set's members (rendezvous)
+        stages:
+{{- range $prev := $previous }}
+          - {{ include "diene-platform.stageName" (dict "platform" $platform "service" $service "landscape" $prev.landscape) }}
+{{- end }}
+{{- end }}
+{{- with $ls.verification }}
+  verification:
+    {{- toYaml . | nindent 4 }}
+{{- end }}
+  promotionTemplate:
+    spec:
+      # Fixed git-update promotion template (identical for auto and manual
+      # gates). It bumps ONLY the pin in the row file and preserves any
+      # human `values:` override block byte-for-byte.
+      steps:
+        - uses: git-clone
+          config:
+            repoURL: {{ $fleet.repoURL }}
+            checkout:
+              - branch: main
+                path: ./repo
+        - uses: yaml-update
+          config:
+            path: ./repo/platforms/{{ $platform }}/landscapes/{{ $ls.landscape }}/{{ $service }}.yaml
+            updates:
+              - key: pin.tag
+                value: ${{ printf "{{ imageFrom %q | .Tag }}" $imageRepo }}
+        - uses: git-commit
+          config:
+            path: ./repo
+            author:
+              name: {{ $bot.name }}
+              email: {{ $bot.email }}
+            message: {{ printf "chore(%s): promote %s to %s" $platform $service $ls.landscape | quote }}
+        - uses: git-push
+          config:
+            path: ./repo
+{{- end }}
+{{- end }}
+{{- end }}

@@ -32,3 +32,10 @@ jobs:
       contents: read
     uses: ./.github/workflows/⚡reusable-helm-wrapper.yaml
     secrets: inherit
+
+  fleet:
+    name: Fleet
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-fleet.yaml
+    secrets: inherit

@@ -38,6 +38,7 @@ with packages;
     cyanprint
     docker-client
     git
+    go
     go-task
     infisical
     jq

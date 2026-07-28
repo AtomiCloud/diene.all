@@ -1,0 +1,16 @@
+# Landscape CR — FK anchor (T3-DESIGN.md §2). No reconciler; region immutable;
+# tier is metadata only. Human-PR-gated (registry/**, CODEOWNERS fleet-admin).
+#
+# WAL Q-L8(c)/Q-L9 boundary: lapras is a registered Landscape used only as the
+# central secrets-side anchor (Infisical env + landscape identity bundle).
+# Its clusters are anonymous Garden-made copies: there is no ClusterRegistration,
+# platform row, Kargo stage, DNS member, or Primordial dependency materialization.
+apiVersion: fleet.atomi.cloud/v1alpha1
+kind: Landscape
+metadata:
+  name: lapras
+  labels:
+    atomi.cloud/landscape: lapras
+spec:
+  region: ap-southeast-1
+  tier: dev
