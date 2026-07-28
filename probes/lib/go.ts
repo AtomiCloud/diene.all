@@ -98,14 +98,17 @@ export async function plantProductionOnlySymbol(repo: ProbeRepo): Promise<void> 
 }
 
 export async function unformatGo(repo: ProbeRepo): Promise<void> {
-  const path = await first(repo, 'lib/**/*.go');
-  const source = await repo.read(path);
-  const signature = source.match(/^func ([A-Z][A-Za-z0-9_]*)\(([^)]*)\)([^\n{]*) \{$/m);
-  if (!signature) {
-    throw new Error('no exported Go function signature found');
+  const paths = (await repo.glob('lib/**/*.go')).filter(path => !path.endsWith('_test.go')).sort();
+  for (const path of paths) {
+    const source = await repo.read(path);
+    const signature = source.match(/^func ([A-Z][A-Za-z0-9_]*)\(([^)]*)\)([^\n{]*) \{$/m);
+    if (signature) {
+      const unformatted = `func ${signature[1]}( ${signature[2]} )${signature[3]}{`;
+      await repo.write(path, source.replace(signature[0], unformatted));
+      return;
+    }
   }
-  const unformatted = `func ${signature[1]}( ${signature[2]} )${signature[3]}{`;
-  await repo.write(path, source.replace(signature[0], unformatted));
+  throw new Error('no Go file under lib/**/*.go carries an exported signature');
 }
 
 export async function breakGoWorkflow(repo: ProbeRepo): Promise<void> {
