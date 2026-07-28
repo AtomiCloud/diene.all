@@ -13,8 +13,12 @@ namespace AtomiCloud.Diene.ServerEngine.Webhooks;
 /// processed by the wrong code and nothing would report it. Throwing here turns that into a
 /// startup failure the deployment sees.
 /// </remarks>
-public sealed partial class WebhookHandlerRegistry
+public sealed class WebhookHandlerRegistry
 {
+    // A plain Regex rather than [GeneratedRegex]: the generator emits matcher branches this
+    // library never reaches, and they would land in the shipped assembly's coverage ledger.
+    private static readonly Regex ProviderPattern = new("^[a-z0-9][a-z0-9._-]*$", RegexOptions.CultureInvariant);
+
     private readonly Dictionary<string, IWebhookHandler> _handlers;
 
     /// <summary>Builds the registry over every registered handler.</summary>
@@ -26,7 +30,7 @@ public sealed partial class WebhookHandlerRegistry
         foreach (var handler in handlers)
         {
             var provider = handler.Provider;
-            if (string.IsNullOrWhiteSpace(provider) || !ProviderPattern().IsMatch(provider))
+            if (string.IsNullOrWhiteSpace(provider) || !ProviderPattern.IsMatch(provider))
             {
                 throw new InvalidOperationException(
                     $"Webhook handler {handler.GetType().FullName} declares provider '{provider}', which is not a lowercase provider id.");
@@ -56,7 +60,4 @@ public sealed partial class WebhookHandlerRegistry
 
         return this._handlers.TryGetValue(provider, out handler);
     }
-
-    [GeneratedRegex("^[a-z0-9][a-z0-9._-]*$", RegexOptions.CultureInvariant)]
-    private static partial Regex ProviderPattern();
 }

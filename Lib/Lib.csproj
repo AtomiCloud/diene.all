@@ -14,6 +14,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The signature header parser stays internal so it is not part of the published API
+         surface, but the unit suite drives its refusal cases directly rather than through the
+         verifier's clock and key set. -->
+    <InternalsVisibleTo Include="UnitTest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="AtomiCloud.Diene.AuthEngine" />
     <PackageReference Include="AtomiCloud.Diene.CoreUtils" />
     <PackageReference Include="AtomiCloud.Diene.Problems" />

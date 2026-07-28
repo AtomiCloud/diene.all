@@ -4,7 +4,7 @@
     <RootNamespace>AtomiCloud.Diene.ServerEngine.TestHelper</RootNamespace>
     <AssemblyName>AtomiCloud.Diene.ServerEngine.TestHelper</AssemblyName>
     <PackageId>AtomiCloud.Diene.ServerEngine.TestHelper</PackageId>
-    <Description>An in-process controller host, webhook request signer, and response assertions for AtomiCloud.Diene.ServerEngine.</Description>
+    <Description>An in-process controller host, webhook delivery signer, and tri-state reply assertions for AtomiCloud.Diene.ServerEngine.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IsPackable>true</IsPackable>
   </PropertyGroup>
@@ -18,6 +18,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="AtomiCloud.Diene.AuthEngine.TestHelper" />
+    <PackageReference Include="AtomiCloud.Diene.Problems.TestHelper" />
     <PackageReference Include="FluentAssertions" />
     <PackageReference Include="Microsoft.AspNetCore.TestHost" />
   </ItemGroup>

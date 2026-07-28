@@ -20,9 +20,16 @@ namespace AtomiCloud.Diene.ServerEngine.Webhooks;
 /// add a field without a synchronized release of every receiver.
 /// </para>
 /// </remarks>
-public static partial class WebhookEnvelopeReader
+public static class WebhookEnvelopeReader
 {
     private const int DedupSha256HexLength = 64;
+
+    // Plain Regex fields rather than [GeneratedRegex]: the generator emits matcher branches this
+    // library never reaches, and they would land in the shipped assembly's coverage ledger. A
+    // source generator should not be able to lower the measured coverage of hand-written code.
+    private static readonly Regex ProviderPattern = new("^[a-z0-9][a-z0-9._-]*$", RegexOptions.CultureInvariant);
+    private static readonly Regex Base64UrlPattern = new("^[A-Za-z0-9_-]+$", RegexOptions.CultureInvariant);
+    private static readonly Regex LowerHexPattern = new("^[0-9a-f]+$", RegexOptions.CultureInvariant);
 
     /// <summary>Parses and validates the envelope, returning the first field that failed.</summary>
     public static Result<WebhookEnvelope, WebhookEnvelopeError> Read(ReadOnlySpan<byte> body)
@@ -69,7 +76,7 @@ public static partial class WebhookEnvelopeReader
             values[field] = value.Get();
         }
 
-        if (!ProviderPattern().IsMatch(values["provider"]))
+        if (!ProviderPattern.IsMatch(values["provider"]))
         {
             return new WebhookEnvelopeError("provider", "Provider must be a lowercase provider id.");
         }
@@ -122,7 +129,7 @@ public static partial class WebhookEnvelopeReader
 
         if (value.StartsWith(nativePrefix, StringComparison.Ordinal))
         {
-            return value.Length > nativePrefix.Length && Base64UrlPattern().IsMatch(value[nativePrefix.Length..])
+            return value.Length > nativePrefix.Length && Base64UrlPattern.IsMatch(value[nativePrefix.Length..])
                 ? Result.Ok<Unit, WebhookEnvelopeError>(default)
                 : new WebhookEnvelopeError("dedupId", "A native dedup id must carry unpadded base64url content.");
         }
@@ -133,7 +140,7 @@ public static partial class WebhookEnvelopeReader
         }
 
         var hex = value[hashPrefix.Length..];
-        return hex.Length == DedupSha256HexLength && LowerHexPattern().IsMatch(hex)
+        return hex.Length == DedupSha256HexLength && LowerHexPattern.IsMatch(hex)
             ? Result.Ok<Unit, WebhookEnvelopeError>(default)
             : new WebhookEnvelopeError(
                 "dedupId",
@@ -298,13 +305,4 @@ public static partial class WebhookEnvelopeReader
             ? Result.Ok<DateTimeOffset?, WebhookEnvelopeError>(instant)
             : new WebhookEnvelopeError(name, "Value must be an RFC 3339 instant or null.");
     }
-
-    [GeneratedRegex("^[a-z0-9][a-z0-9._-]*$", RegexOptions.CultureInvariant)]
-    private static partial Regex ProviderPattern();
-
-    [GeneratedRegex("^[A-Za-z0-9_-]+$", RegexOptions.CultureInvariant)]
-    private static partial Regex Base64UrlPattern();
-
-    [GeneratedRegex("^[0-9a-f]+$", RegexOptions.CultureInvariant)]
-    private static partial Regex LowerHexPattern();
 }

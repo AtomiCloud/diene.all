@@ -11,8 +11,14 @@ namespace AtomiCloud.Diene.ServerEngine.Config;
 /// the same segment shape here. A coordinate that passed this check but failed there would
 /// let a service describe itself one way and address its problem documentation another.
 /// </remarks>
-public sealed partial class ServiceIdentityConfig
+public sealed class ServiceIdentityConfig
 {
+    // A plain Regex rather than [GeneratedRegex]: the generator emits a matcher class whose
+    // fallback branches this library never reaches, and those unreachable lines land in the
+    // shipped assembly's coverage ledger. A source generator should not be able to lower the
+    // measured coverage of hand-written code.
+    private static readonly Regex SegmentPattern = new("^[A-Za-z0-9][A-Za-z0-9._-]*$", RegexOptions.CultureInvariant);
+
     private ServiceIdentityConfig(
         string landscape,
         string platform,
@@ -62,7 +68,7 @@ public sealed partial class ServiceIdentityConfig
         {
             if (string.IsNullOrWhiteSpace(value)) return new ServerEngineConfigError(field, "Value must not be blank.");
 
-            if (!SegmentPattern().IsMatch(value.Trim()))
+            if (!SegmentPattern.IsMatch(value.Trim()))
             {
                 return new ServerEngineConfigError(
                     field,
@@ -83,6 +89,4 @@ public sealed partial class ServiceIdentityConfig
             version.Trim());
     }
 
-    [GeneratedRegex("^[A-Za-z0-9][A-Za-z0-9._-]*$", RegexOptions.CultureInvariant)]
-    private static partial Regex SegmentPattern();
 }

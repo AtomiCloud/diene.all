@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using AtomiCloud.Diene.CoreUtils.Json;
 using AtomiCloud.Diene.Problems;
 using Microsoft.AspNetCore.Mvc;
@@ -58,9 +59,17 @@ public static class ProblemEnvelope
     /// a rejected webhook signature, an unsupported media type, a malformed envelope.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// These deliberately do not go through the catalog. The statuses C0 §11 fixes are
     /// security-relevant, and resolving them through a registry a consumer must remember to
     /// populate would let a missing registration silently turn a 401 into a 500.
+    /// </para>
+    /// <para>
+    /// <c>data</c> is written as an empty object rather than omitted. The published Problems
+    /// TestHelper asserts all seven Diene members are present, so an omitted <c>data</c> would
+    /// make a consumer's existing <c>BeRfc9457</c> assertion fail on the very responses this
+    /// package writes — a difference between two envelope shapes from one service.
+    /// </para>
     /// </remarks>
     public static Problem FromProtocol(int status, string title, string detail, string instance, string traceId) =>
         new()
@@ -71,6 +80,7 @@ public static class ProblemEnvelope
             Detail = detail,
             Instance = instance,
             Recoverable = false,
+            Data = new JsonObject(),
             Extensions = TraceExtension(traceId),
         };
 
