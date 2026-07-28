@@ -14,6 +14,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The endpoint handlers stay internal so they are not part of the published API
+         surface, but the unit suite drives them directly rather than through a host. -->
+    <InternalsVisibleTo Include="UnitTest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="AtomiCloud.Diene.CoreUtils" />
     <PackageReference Include="AtomiCloud.Diene.Problems" />
     <PackageReference Include="AtomiCloud.Diene.Result" />

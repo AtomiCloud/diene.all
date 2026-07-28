@@ -77,10 +77,17 @@ public sealed class JwtTokenValidator : ITokenValidator
 
         if (!outcome.IsValid) return Result.Err<AuthClaims, IDomainProblem>(Classify(outcome.Exception));
 
-        var claims = Read(outcome.SecurityToken);
+        // JsonWebTokenHandler always yields a JsonWebToken on the valid path. A defensive
+        // `is not` branch here would be unreachable by construction — dead code that reads
+        // like a guard — so the invariant is asserted by a hard cast instead: if the
+        // handler ever breaks it, the failure is loud rather than silently reclassified
+        // as a malformed token.
+        var jwt = (JsonWebToken)outcome.SecurityToken;
+
+        var claims = Read(jwt);
         if (claims.IsFailure(out var unreadable)) return Result.Err<AuthClaims, IDomainProblem>(unreadable);
 
-        return this.CheckLifetime(claims.Get(), outcome.SecurityToken);
+        return this.CheckLifetime(claims.Get(), jwt);
     }
 
     /// <summary>
@@ -121,9 +128,10 @@ public sealed class JwtTokenValidator : ITokenValidator
         // are siblings under SecurityTokenValidationException, with exactly one real
         // parent/child pair — SecurityTokenSignatureKeyNotFoundException derives from
         // SecurityTokenInvalidSignatureException, so it must be matched first.
-        SecurityTokenExpiredException => AuthProblems.ExpiredToken(),
-        SecurityTokenNotYetValidException => AuthProblems.TokenNotYetValid(),
-        SecurityTokenInvalidLifetimeException => AuthProblems.ExpiredToken(),
+        //
+        // There are deliberately NO lifetime arms here. ValidateLifetime is off, so the
+        // handler cannot raise an expiry or not-yet-valid exception; CheckLifetime below
+        // owns those verdicts. Arms for them would be dead code that reads like coverage.
         SecurityTokenInvalidIssuerException => AuthProblems.IssuerMismatch(),
         SecurityTokenInvalidAudienceException => AuthProblems.AudienceMismatch(),
         SecurityTokenSignatureKeyNotFoundException => AuthProblems.InvalidSignature(),
@@ -132,13 +140,8 @@ public sealed class JwtTokenValidator : ITokenValidator
     };
 
     /// <summary>Projects a validated token into the closed claims view.</summary>
-    private static Result<AuthClaims, IDomainProblem> Read(SecurityToken securityToken)
+    private static Result<AuthClaims, IDomainProblem> Read(JsonWebToken jwt)
     {
-        if (securityToken is not JsonWebToken jwt)
-        {
-            return Result.Err<AuthClaims, IDomainProblem>(AuthProblems.MalformedToken());
-        }
-
         var subject = jwt.Subject;
         if (string.IsNullOrWhiteSpace(subject))
         {
@@ -166,14 +169,17 @@ public sealed class JwtTokenValidator : ITokenValidator
             claims);
     }
 
+    /// <summary>
+    /// Reads a claim as a single string, joining a repeated claim's values.
+    /// </summary>
+    /// <remarks>
+    /// The dictionary built above holds only <see cref="string" /> or
+    /// <see cref="string" />[], so those are the only two shapes handled. Arms for other
+    /// runtime types would be unreachable by construction and would read as coverage
+    /// without asserting anything.
+    /// </remarks>
     private static string? FindClaim(IReadOnlyDictionary<string, object?> claims, string name) =>
-        claims.TryGetValue(name, out var value)
-            ? value switch
-            {
-                string text => text,
-                string[] many => string.Join(' ', many),
-                not null => Convert.ToString(value, CultureInfo.InvariantCulture),
-                _ => null,
-            }
-            : null;
+        claims.TryGetValue(name, out var value) && value is string[] many
+            ? string.Join(' ', many)
+            : value as string;
 }

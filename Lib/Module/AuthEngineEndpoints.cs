@@ -4,6 +4,7 @@ using AtomiCloud.Diene.AuthEngine.Tokens;
 using AtomiCloud.Diene.Problems;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 
 namespace AtomiCloud.Diene.AuthEngine.Module;
@@ -35,7 +36,13 @@ public static class AuthEngineEndpoints
 
         var group = endpoints.MapGroup(config.Handoff.Mount);
 
-        group.MapGet("/session", HandleSessionAsync);
+        // AuthGuard and the config are marked [FromServices] explicitly. Minimal APIs
+        // otherwise infer a complex parameter as a request BODY, which throws at map time
+        // on a GET — the route would never even be registered.
+        group.MapGet(
+            "/session",
+            ([FromServices] AuthGuard guard, [FromServices] AuthEngineConfig settings, HttpContext context) =>
+                HandleSessionAsync(context, guard, settings));
 
         return endpoints;
     }

@@ -44,6 +44,15 @@ public sealed class TestTokenIssuer : IDisposable
     public ISigningKeyResolver KeyResolver => new FakeSigningKeyResolver(this.PublicKey);
 
     /// <summary>
+    /// Gets the credentials this issuer signs with, for minting a token whose shape
+    /// <see cref="Mint" /> deliberately refuses — a missing subject, say. Without these a
+    /// test would have to sign with an untrusted key, and the token would then fail on
+    /// the SIGNATURE rather than on the defect under test: a pass for the wrong reason.
+    /// </summary>
+    public SigningCredentials SigningCredentials =>
+        new(new RsaSecurityKey(this._rsa) { KeyId = this._keyId }, SecurityAlgorithms.RsaSha256);
+
+    /// <summary>
     /// Mints a signed token. Every temporal input is explicit so a test states the exact
     /// lifetime it means to exercise rather than inheriting the machine clock.
     /// </summary>
