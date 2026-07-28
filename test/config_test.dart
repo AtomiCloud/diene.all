@@ -1,6 +1,9 @@
 import 'dart:convert';
+import 'package:diene_config/diene_config.dart';
 import 'package:diene_flutter_base/config/app_config.dart';
 import 'package:diene_flutter_base/config/app_settings_controller.dart';
+import 'package:diene_problems/diene_problems.dart';
+import 'package:diene_result/diene_result.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -23,25 +26,74 @@ final class _MemoryAssetBundle extends CachingAssetBundle {
   }
 }
 
+/// Classifies a failure through the published, provenance-checked
+/// [configProblemCode] so a test can only pass when the engine's own loader or
+/// schema produced the `Err` — never a look-alike thrown from app code.
+ConfigProblemCode? _problemCode(Problem problem) => configProblemCode(
+  problem,
+).match(some: (ConfigProblemCode code) => code, none: () => null);
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('deepMerge applies nested overlay without dropping base keys', () {
-    final Map<String, Object?> result = deepMerge(
-      <String, Object?>{
-        'theme': <String, Object?>{'mode': 'system', 'primary': '#000000'},
-      },
-      <String, Object?>{
-        'theme': <String, Object?>{'primary': '#FFFFFF'},
-      },
-    );
+  test(
+    'loader composes base then overlay then canonical nested defines',
+    () async {
+      final AppConfigLoader loader = AppConfigLoader.forTesting(
+        landscape: 'pichu',
+        bundle: _MemoryAssetBundle(<String, String>{
+          'config/base.yaml': _baseYaml,
+          'config/pichu.yaml': _pichuYaml,
+        }),
+      );
 
-    expect(result, <String, Object?>{
-      'theme': <String, Object?>{'mode': 'system', 'primary': '#FFFFFF'},
-    });
-  });
+      final Result<AppConfig> result = await loader.loadResult(
+        defines: const <String, String>{
+          'FLUTTER_BASE_BRANDING__APPNAME': 'CI Brand',
+          'FLUTTER_BASE_API__BASEURL': 'https://override.example.invalid',
+          'FLUTTER_BASE_THEME__MODE': 'dark',
+        },
+      );
 
-  test('loader applies base then flavor then define overrides', () async {
+      expect(result, isA<Ok<AppConfig>>());
+      final AppConfig config = result.unwrap();
+
+      // Overlay wins over base.
+      expect(config.identity.landscape, 'pichu');
+      expect(config.theme.primary, 0xFFFF0000);
+      // Canonically prefixed defines win over overlay and base (last layer).
+      expect(config.branding.appName, 'CI Brand');
+      expect(config.api.baseUrl, Uri.parse('https://override.example.invalid'));
+      expect(config.theme.mode, ConfiguredThemeMode.dark);
+      // Base-only values survive every layer untouched.
+      expect(config.branding.shortName, 'Diene');
+      expect(config.session.accessLifetime, const Duration(minutes: 10));
+      expect(config.onboarding.backendId, 'primary');
+    },
+  );
+
+  test(
+    'loader reports sourceUnreadable for an unknown runtime landscape',
+    () async {
+      final AppConfigLoader loader = AppConfigLoader.forTesting(
+        landscape: 'hostname-derived',
+        bundle: _MemoryAssetBundle(<String, String>{
+          'config/base.yaml': _baseYaml,
+          // No config/hostname-derived.yaml: the selected overlay is absent.
+        }),
+      );
+
+      final Result<AppConfig> result = await loader.loadResult();
+
+      expect(result, isA<Err<AppConfig>>());
+      expect(
+        _problemCode(result.unwrapErr()),
+        ConfigProblemCode.sourceUnreadable,
+      );
+    },
+  );
+
+  test('compatibility load translates legacy injected define names', () async {
     final AppConfigLoader loader = AppConfigLoader.forTesting(
       landscape: 'pichu',
       bundle: _MemoryAssetBundle(<String, String>{
@@ -52,28 +104,49 @@ void main() {
 
     final AppConfig config = await loader.load(
       defines: const <String, String>{
-        'appName': 'CI Brand',
-        'apiBaseUrl': 'https://override.example.invalid',
+        'appName': 'Legacy Brand',
+        'apiBaseUrl': 'https://legacy.example.invalid',
         'themeMode': 'dark',
       },
     );
 
-    expect(config.identity.landscape, 'pichu');
-    expect(config.branding.appName, 'CI Brand');
-    expect(config.branding.shortName, 'Diene');
-    expect(config.api.baseUrl, Uri.parse('https://override.example.invalid'));
+    expect(config.branding.appName, 'Legacy Brand');
+    expect(config.api.baseUrl, Uri.parse('https://legacy.example.invalid'));
     expect(config.theme.mode, ConfiguredThemeMode.dark);
-    expect(config.theme.primary, 0xFFFF0000);
   });
 
-  test('loader rejects runtime-selected unknown landscapes', () async {
+  test('loader reports landscapeMissing for a blank selector', () async {
     final AppConfigLoader loader = AppConfigLoader.forTesting(
-      landscape: 'hostname-derived',
+      landscape: '',
       bundle: _MemoryAssetBundle(const <String, String>{}),
     );
 
-    await expectLater(loader.load(), throwsA(isA<StateError>()));
+    final Result<AppConfig> result = await loader.loadResult();
+
+    expect(result, isA<Err<AppConfig>>());
+    expect(
+      _problemCode(result.unwrapErr()),
+      ConfigProblemCode.landscapeMissing,
+    );
   });
+
+  test(
+    'loader reports schemaInvalid for an unknown configuration root',
+    () async {
+      final AppConfigLoader loader = AppConfigLoader.forTesting(
+        landscape: 'lapras',
+        bundle: _MemoryAssetBundle(<String, String>{
+          'config/base.yaml': _baseYamlWithUnknownRoot,
+          'config/lapras.yaml': '',
+        }),
+      );
+
+      final Result<AppConfig> result = await loader.loadResult();
+
+      expect(result, isA<Err<AppConfig>>());
+      expect(_problemCode(result.unwrapErr()), ConfigProblemCode.schemaInvalid);
+    },
+  );
 
   test('settings persist live theme, locale, and color controls', () async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
@@ -124,3 +197,6 @@ theme: {primary: '#FF0000'}
 api: {baseUrl: https://pichu.example.invalid}
 auth: {redirectUri: cloud.atomi.pichu.platform.service.app://callback}
 ''';
+
+const String _baseYamlWithUnknownRoot =
+    '$_baseYaml\nmystery: {surprise: true}\n';

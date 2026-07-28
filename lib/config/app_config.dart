@@ -1,11 +1,8 @@
-import 'package:diene_core_utils/diene_core_utils.dart' show deepMerge;
+import 'package:diene_config/diene_config.dart';
+import 'package:diene_problems/diene_problems.dart';
+import 'package:diene_result/diene_result.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:yaml/yaml.dart';
-
-// Re-export the C0 §3 layered merge so callers that layer config maps (and the
-// config test) get the single-source implementation, not a local reimplementation.
-export 'package:diene_core_utils/diene_core_utils.dart' show deepMerge;
 
 enum ConfiguredThemeMode { light, dark, system }
 
@@ -211,123 +208,243 @@ final class OnboardingConfig {
   final String backendId;
 }
 
+/// Stable, file-level [ConfigBlock] instances — one per configuration root.
+///
+/// Identity matters: [DieneConfig.slice] keys decoded values by the block
+/// INSTANCE that produced them, so the loader must both compose the schema and
+/// slice the result through these very objects. They are declared once and
+/// never reconstructed.
+final ConfigBlock<AppIdentityConfig> _appBlock = ConfigBlock<AppIdentityConfig>(
+  key: 'app',
+  decode: AppIdentityConfig.fromMap,
+);
+final ConfigBlock<BrandingConfig> _brandingBlock = ConfigBlock<BrandingConfig>(
+  key: 'branding',
+  decode: BrandingConfig.fromMap,
+);
+final ConfigBlock<ThemeConfig> _themeBlock = ConfigBlock<ThemeConfig>(
+  key: 'theme',
+  decode: ThemeConfig.fromMap,
+);
+final ConfigBlock<LocaleConfig> _localeBlock = ConfigBlock<LocaleConfig>(
+  key: 'locale',
+  decode: LocaleConfig.fromMap,
+);
+final ConfigBlock<AuthConfig> _authBlock = ConfigBlock<AuthConfig>(
+  key: 'auth',
+  decode: AuthConfig.fromMap,
+);
+final ConfigBlock<SessionConfig> _sessionBlock = ConfigBlock<SessionConfig>(
+  key: 'session',
+  decode: SessionConfig.fromMap,
+);
+final ConfigBlock<ApiConfig> _apiBlock = ConfigBlock<ApiConfig>(
+  key: 'api',
+  decode: ApiConfig.fromMap,
+);
+final ConfigBlock<NotificationConfig> _notificationsBlock =
+    ConfigBlock<NotificationConfig>(
+      key: 'notifications',
+      decode: NotificationConfig.fromMap,
+    );
+final ConfigBlock<OnboardingConfig> _onboardingBlock =
+    ConfigBlock<OnboardingConfig>(
+      key: 'onboarding',
+      decode: OnboardingConfig.fromMap,
+    );
+
+/// The one strict schema composed from every app-owned block.
+///
+/// `rejectUnknownBlocks` defaults to `true`, so an unrecognised root key is a
+/// validation failure (`schemaInvalid`) rather than a silently ignored typo.
+final ConfigSchema _appConfigSchema = ConfigSchema(
+  blocks: <ConfigBlockSchema>[
+    _appBlock,
+    _brandingBlock,
+    _themeBlock,
+    _localeBlock,
+    _authBlock,
+    _sessionBlock,
+    _apiBlock,
+    _notificationsBlock,
+    _onboardingBlock,
+  ],
+);
+
+/// Builds the typed [AppConfig] from a validated [DieneConfig] by slicing each
+/// stable block instance the schema composed.
+AppConfig _appConfigFromSlices(DieneConfig config) => AppConfig(
+  identity: config.slice<AppIdentityConfig>(_appBlock),
+  branding: config.slice<BrandingConfig>(_brandingBlock),
+  theme: config.slice<ThemeConfig>(_themeBlock),
+  locale: config.slice<LocaleConfig>(_localeBlock),
+  auth: config.slice<AuthConfig>(_authBlock),
+  session: config.slice<SessionConfig>(_sessionBlock),
+  api: config.slice<ApiConfig>(_apiBlock),
+  notifications: config.slice<NotificationConfig>(_notificationsBlock),
+  onboarding: config.slice<OnboardingConfig>(_onboardingBlock),
+);
+
+/// Reads the deployed landscape selector from a single build-time define.
+///
+/// Preserves the legacy `FLUTTER_BASE_LANDSCAPE` selector while delegating the
+/// blank-is-missing rule to the published [landscape] accessor: a blank value
+/// becomes a `landscapeMissing` failure rather than an empty landscape.
+final class _FlutterBaseLandscapeSource implements LandscapeSource {
+  const _FlutterBaseLandscapeSource(this.value);
+
+  final String value;
+
+  @override
+  String read() => value;
+}
+
 final class AppConfigLoader {
   AppConfigLoader({AssetBundle? bundle})
     : bundle = bundle ?? rootBundle,
-      _selectedLandscape = compiledLandscape;
+      _landscapeSource = const _FlutterBaseLandscapeSource(compiledLandscape);
 
   @visibleForTesting
   AppConfigLoader.forTesting({required String landscape, AssetBundle? bundle})
     : bundle = bundle ?? rootBundle,
-      _selectedLandscape = landscape;
+      _landscapeSource = _FlutterBaseLandscapeSource(landscape);
 
+  /// The landscapes shipped by this app.
+  ///
+  /// Retained for source compatibility. Loading no longer rejects names outside
+  /// this inventory up front; the selected overlay reports a `sourceUnreadable`
+  /// result when it does not exist.
   static const Set<String> supportedLandscapes = <String>{
     'lapras',
     'pichu',
     'pikachu',
     'raichu',
   };
+
+  /// Prefix shared by every enumerated `--dart-define`; matched
+  /// case-insensitively by the engine's ingress.
+  static const String definePrefix = 'FLUTTER_BASE_';
+
+  static const Map<String, String> _legacyDefineKeys = <String, String>{
+    'appName': 'FLUTTER_BASE_BRANDING__APPNAME',
+    'primary': 'FLUTTER_BASE_THEME__PRIMARY',
+    'secondary': 'FLUTTER_BASE_THEME__SECONDARY',
+    'themeMode': 'FLUTTER_BASE_THEME__MODE',
+    'apiBaseUrl': 'FLUTTER_BASE_API__BASEURL',
+    'authEndpoint': 'FLUTTER_BASE_AUTH__ENDPOINT',
+    'authClientId': 'FLUTTER_BASE_AUTH__CLIENTID',
+    'authResource': 'FLUTTER_BASE_AUTH__RESOURCE',
+    'authRedirectUri': 'FLUTTER_BASE_AUTH__REDIRECTURI',
+    'defaultLocale': 'FLUTTER_BASE_LOCALE__DEFAULTLOCALE',
+    'notificationsEnabled': 'FLUTTER_BASE_NOTIFICATIONS__ENABLED',
+    'version': 'FLUTTER_BASE_APP__VERSION',
+  };
+
+  /// The build-time landscape selector, defaulting to `lapras` for parity with
+  /// the deployed flavor when no selector is injected.
   static const String compiledLandscape = String.fromEnvironment(
     'FLUTTER_BASE_LANDSCAPE',
     defaultValue: 'lapras',
   );
 
   final AssetBundle bundle;
-  final String _selectedLandscape;
+  final LandscapeSource _landscapeSource;
 
+  /// Loads and validates the layered configuration, unwrapping at this
+  /// compatibility boundary so existing callers keep the `Future<AppConfig>`
+  /// contract. New code and tests should prefer [loadResult].
   Future<AppConfig> load({
     Map<String, String> defines = const <String, String>{},
+  }) async => (await loadResult(defines: defines)).unwrap();
+
+  /// Runs the published precedence ladder — base -> selected overlay ->
+  /// enumerated Dart defines -> a single final schema validation — and returns
+  /// the typed configuration or the failure as a value.
+  Future<Result<AppConfig>> loadResult({
+    Map<String, String> defines = const <String, String>{},
   }) async {
-    final String selected = _selectedLandscape;
-    if (!supportedLandscapes.contains(selected)) {
-      throw StateError('Unsupported build-time landscape: $selected');
+    final Result<String> selected = landscape(source: _landscapeSource);
+    switch (selected) {
+      case Err<String>(problem: final Problem problem):
+        return Err<AppConfig>(problem);
+      case Ok<String>(value: final String name):
+        final ConfigLoader loader = ConfigLoader(
+          base: _yamlSource('config/base.yaml'),
+          overlay: _yamlSource('config/$name.yaml'),
+          dartDefines: DartDefineOverrides(
+            prefix: definePrefix,
+            values: _defineValues(defines),
+          ),
+          schema: _appConfigSchema,
+        );
+        final Result<DieneConfig> loaded = await loader.load();
+        return loaded.map(_appConfigFromSlices);
     }
-    final Map<String, Object?> base = await _loadYaml('config/base.yaml');
-    final Map<String, Object?> overlay = await _loadYaml(
-      'config/$selected.yaml',
-    );
-    final Map<String, Object?> merged = deepMerge(base, overlay);
-    final Map<String, Object?> configured = deepMerge(
-      merged,
-      _compileTimeOverrides(defines),
-    );
-    return AppConfig.fromMap(configured);
   }
 
-  Future<Map<String, Object?>> _loadYaml(String path) async {
-    final Object? document = loadYaml(await bundle.loadString(path));
-    return _plainMap(document);
-  }
+  YamlConfigSource _yamlSource(String path) =>
+      YamlConfigSource(name: path, read: () => bundle.loadString(path));
 
-  Map<String, Object?> _compileTimeOverrides(Map<String, String> injected) {
-    const Map<String, String> compiled = <String, String>{
-      'appName': String.fromEnvironment('FLUTTER_BASE_APP_NAME'),
-      'primary': String.fromEnvironment('FLUTTER_BASE_THEME_PRIMARY'),
-      'secondary': String.fromEnvironment('FLUTTER_BASE_THEME_SECONDARY'),
-      'themeMode': String.fromEnvironment('FLUTTER_BASE_THEME_MODE'),
-      'apiBaseUrl': String.fromEnvironment('FLUTTER_BASE_API_BASE_URL'),
-      'authEndpoint': String.fromEnvironment('FLUTTER_BASE_AUTH_ENDPOINT'),
-      'authClientId': String.fromEnvironment('FLUTTER_BASE_AUTH_CLIENT_ID'),
-      'authResource': String.fromEnvironment('FLUTTER_BASE_AUTH_RESOURCE'),
-      'authRedirectUri': String.fromEnvironment(
-        'FLUTTER_BASE_AUTH_REDIRECT_URI',
-      ),
-      'defaultLocale': String.fromEnvironment('FLUTTER_BASE_DEFAULT_LOCALE'),
-      'notificationsEnabled': String.fromEnvironment(
-        'FLUTTER_BASE_NOTIFICATIONS_ENABLED',
-      ),
-      'version': String.fromEnvironment(
+  /// Enumerates the legacy compile-time flags under canonical nested engine
+  /// keys, then layers any injected (already canonically prefixed) defines on
+  /// top. Blank values stay unset; malformed keys surface as `Err` from the
+  /// engine's define ingress.
+  Map<String, String> _defineValues(Map<String, String> injected) {
+    final Map<String, String> normalizedInjected = <String, String>{};
+    for (final MapEntry<String, String> entry in injected.entries) {
+      final String? canonical = _legacyDefineKeys[entry.key];
+      if (canonical != null) {
+        normalizedInjected[canonical] = entry.value;
+      }
+    }
+    for (final MapEntry<String, String> entry in injected.entries) {
+      if (!_legacyDefineKeys.containsKey(entry.key)) {
+        normalizedInjected[entry.key] = entry.value;
+      }
+    }
+
+    return <String, String>{
+      'FLUTTER_BASE_APP__VERSION': const String.fromEnvironment(
         'FLUTTER_BASE_VERSION',
         defaultValue: '1.0.0',
       ),
+      'FLUTTER_BASE_BRANDING__APPNAME': const String.fromEnvironment(
+        'FLUTTER_BASE_APP_NAME',
+      ),
+      'FLUTTER_BASE_THEME__PRIMARY': const String.fromEnvironment(
+        'FLUTTER_BASE_THEME_PRIMARY',
+      ),
+      'FLUTTER_BASE_THEME__SECONDARY': const String.fromEnvironment(
+        'FLUTTER_BASE_THEME_SECONDARY',
+      ),
+      'FLUTTER_BASE_THEME__MODE': const String.fromEnvironment(
+        'FLUTTER_BASE_THEME_MODE',
+      ),
+      'FLUTTER_BASE_API__BASEURL': const String.fromEnvironment(
+        'FLUTTER_BASE_API_BASE_URL',
+      ),
+      'FLUTTER_BASE_AUTH__ENDPOINT': const String.fromEnvironment(
+        'FLUTTER_BASE_AUTH_ENDPOINT',
+      ),
+      'FLUTTER_BASE_AUTH__CLIENTID': const String.fromEnvironment(
+        'FLUTTER_BASE_AUTH_CLIENT_ID',
+      ),
+      'FLUTTER_BASE_AUTH__RESOURCE': const String.fromEnvironment(
+        'FLUTTER_BASE_AUTH_RESOURCE',
+      ),
+      'FLUTTER_BASE_AUTH__REDIRECTURI': const String.fromEnvironment(
+        'FLUTTER_BASE_AUTH_REDIRECT_URI',
+      ),
+      'FLUTTER_BASE_LOCALE__DEFAULTLOCALE': const String.fromEnvironment(
+        'FLUTTER_BASE_DEFAULT_LOCALE',
+      ),
+      'FLUTTER_BASE_NOTIFICATIONS__ENABLED': const String.fromEnvironment(
+        'FLUTTER_BASE_NOTIFICATIONS_ENABLED',
+      ),
+      ...normalizedInjected,
     };
-    final Map<String, String> values = <String, String>{
-      ...compiled,
-      ...injected,
-    };
-    final Map<String, Object?> overrides = <String, Object?>{
-      'app': <String, Object?>{'version': values['version']},
-    };
-    _put(overrides, <String>['branding', 'appName'], values['appName']);
-    _put(overrides, <String>['theme', 'primary'], values['primary']);
-    _put(overrides, <String>['theme', 'secondary'], values['secondary']);
-    _put(overrides, <String>['theme', 'mode'], values['themeMode']);
-    _put(overrides, <String>['api', 'baseUrl'], values['apiBaseUrl']);
-    _put(overrides, <String>['auth', 'endpoint'], values['authEndpoint']);
-    _put(overrides, <String>['auth', 'clientId'], values['authClientId']);
-    _put(overrides, <String>['auth', 'resource'], values['authResource']);
-    _put(overrides, <String>['auth', 'redirectUri'], values['authRedirectUri']);
-    _put(overrides, <String>[
-      'locale',
-      'defaultLocale',
-    ], values['defaultLocale']);
-    final String? notifications = values['notificationsEnabled'];
-    if (notifications != null && notifications.isNotEmpty) {
-      _put(overrides, <String>[
-        'notifications',
-        'enabled',
-      ], notifications == 'true');
-    }
-    return overrides;
   }
 }
-
-Map<String, Object?> _plainMap(Object? value) {
-  if (value is! Map<Object?, Object?>) {
-    throw const FormatException('Configuration root must be a map');
-  }
-  return value.map(
-    (Object? key, Object? item) => MapEntry(key.toString(), _plainValue(item)),
-  );
-}
-
-Object? _plainValue(Object? value) => switch (value) {
-  final Map<Object?, Object?> map => map.map(
-    (Object? key, Object? item) => MapEntry(key.toString(), _plainValue(item)),
-  ),
-  final List<Object?> list => list.map(_plainValue).toList(growable: false),
-  _ => value,
-};
 
 Map<String, Object?> _map(Map<String, Object?> value, String key) {
   final Object? item = value[key];
@@ -375,15 +492,4 @@ int _hex(Map<String, Object?> value, String key) {
     throw FormatException('Configuration key $key must be #RRGGBB');
   }
   return int.parse('FF${raw.substring(1)}', radix: 16);
-}
-
-void _put(Map<String, Object?> root, List<String> path, Object? value) {
-  if (value == null || (value is String && value.isEmpty)) {
-    return;
-  }
-  final String section = path.first;
-  final Map<String, Object?> target =
-      root.putIfAbsent(section, () => <String, Object?>{})!
-          as Map<String, Object?>;
-  target[path.last] = value;
 }
