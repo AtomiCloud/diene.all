@@ -35,7 +35,7 @@ set -euo pipefail
 
 - Do **not** use flow control (if/else, loops, functions) for simplification or abstraction
 - Prefer parameter/command substitution over `if`/`else` — e.g.
-  `HELM_VERSION="${version:-v0.0.0-${commit}}"` instead of an `if` block, and
+  `artifact_version="${version:-v0.0.0-${commit}}"` instead of an `if` block, and
   `arg="$([[ cond ]] && echo "--flag" || echo "")"` for a conditional flag
 - Use flow control **only when necessary** (e.g. iterating an unknown number of files)
 
@@ -79,7 +79,6 @@ scripts/
 ├── ci/
 │   ├── setup.sh          # CI setup stub
 │   ├── pre-commit.sh     # Pre-commit hooks
-│   ├── helm.sh           # Chart validation and publish
 │   └── release.sh        # Release process
 ├── local/                # Developer-facing helpers
 ├── release/              # Release-time helpers

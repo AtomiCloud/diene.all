@@ -13,9 +13,8 @@ Nix shell.
 
 | Workflow  | Trigger                            | Responsibility                         |
 | --------- | ---------------------------------- | -------------------------------------- |
-| `CI`      | pushes, pull requests, manual runs | pre-commit and Helm lanes              |
+| `CI`      | pushes, pull requests, manual runs | pre-commit gates                       |
 | `Release` | successful `CI` run on `main`      | semantic versioning and GitHub release |
-| `CD`      | one `v*.*.*` tag pattern           | versioned Helm chart                   |
 
 Callers grant permissions, pass only repository-specific values, and use
 `secrets: inherit`. Reusable workflows own setup and invoke exactly one existing
@@ -24,7 +23,6 @@ CI script.
 ## Reusable workflows
 
 - `⚡reusable-precommit.yaml` runs `scripts/ci/pre-commit.sh` in `.#ci`.
-- `⚡reusable-helm.yaml` runs `scripts/ci/helm.sh` in `.#cd`.
 - `⚡reusable-release.yaml` runs `scripts/ci/release.sh` in `.#releaser`.
 
 `AtomiCloud/actions.setup-nix@v3` checks out the repository, so do not add an
@@ -51,18 +49,7 @@ Use the same entry points as CI:
 
 ```bash
 nix develop .#ci -c ./scripts/ci/pre-commit.sh
-nix develop .#cd -c ./scripts/ci/helm.sh
 ```
-
-The Helm script builds locally by default. Its reusable workflow sets the
-documented environment contract to enable publishing.
-
-## Artifact publishing
-
-Helm callers pass per-repository chart values through workflow `with:` inputs.
-Empty release versions produce commit builds; CD passes the tag as the version.
-Add another chart as another caller job rather than putting repository-specific
-branching into the reusable workflow.
 
 Release execution is wired now but awaits the C2 step-2p `tools/releaser` fold;
 the workspace does not claim a working `releaser` binary before then.

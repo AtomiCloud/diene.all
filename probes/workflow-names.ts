@@ -6,7 +6,7 @@ export default {
   probes: [
     {
       name: 'baseline-workflow-names-green',
-      description: 'The split orchestrators are named exactly CI and CD.',
+      description: 'Every present split orchestrator uses its canonical workflow name.',
       kind: 'baseline',
       async run(repo: any) {
         await expectGreen(repo, 'nix develop .#ci -c ./scripts/validate/workflows.sh workflow-names', 'workflow-names');

@@ -3,7 +3,6 @@
 version: '3'
 
 includes:
-  helm: tasks/Taskfile.helm.yaml
   secret: tasks/Taskfile.secret.yaml
 
 tasks:
