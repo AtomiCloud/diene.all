@@ -1,0 +1,91 @@
+{{- /* ### flutter-e4-primordial-logtoapp */ -}}
+{{- /* #### source: flutter-e4 */ -}}
+{{- if .Values.logtoApp.enabled -}}
+{{- include "flutterPrimordial.validateServiceTree" . -}}
+{{- /* Exactly ONE LogtoApp CR per (app x vlandscape) — the single home of all
+       app-level truth (S6/Q-I36); per-row fragment CRs are abolished.
+
+       PLACEMENT-OWNER CONDITION: render this only when THIS chart is the selected
+       placement owner for the app — the chart that declares the app's serve-set.
+       The mobile client owns its own app identity, so it IS the owner and the
+       flag defaults on.
+
+       WHERE THIS DIVERGES FROM AN HTTP SIBLING, AND WHY. The derived set is
+       `origin(L) + declaredPath`, which needs an HTTP origin the operator can
+       resolve. A store-installed binary serves no HTTP and redeems a
+       CUSTOM-SCHEME callback, which has no origin to append a path to. So both
+       path slots are empty here and the real callbacks travel through
+       `extraRedirectUris` — the standard's declared escape for non-HTTPS/vendor
+       redirects, load-bearing for a native client rather than exceptional.
+
+       The path validation below is therefore not dead code guarding an empty
+       value: it stays because `paths` remains a declarable surface, and an
+       operator who later adds a universal-link path must still get the same
+       absolute-RFC-3986 rejection an HTTP sibling gets. */ -}}
+{{- $paths := .Values.logtoApp.paths -}}
+{{- range $key := (list "redirectPath" "postLogoutPath") }}
+{{- $value := get $paths $key }}
+{{- if $value }}
+{{- if not (hasPrefix "/" $value) }}
+{{- fail (printf "logtoApp.paths.%s %q must be an absolute RFC 3986 path beginning with one `/` (C0 §8)" $key $value) }}
+{{- end }}
+{{- if regexMatch "^//|[?#]|(^|/)\\.{1,2}(/|$)|%2[fF]" $value }}
+{{- fail (printf "logtoApp.paths.%s %q must carry no authority, query, fragment, empty/dot segment, or percent-encoded `/`" $key $value) }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- /* A native client with no declared path and no explicit callback would
+       register an app nothing can redirect back into: login would fail at the
+       redirect, in the installed binary, after the chart went green. Refuse to
+       render that rather than emit it. */ -}}
+{{- if and (not $paths.redirectPath) (not .Values.logtoApp.extraRedirectUris) -}}
+{{- fail "logtoApp declares neither paths.redirectPath nor extraRedirectUris: a native client must register at least one callback it can redeem" -}}
+{{- end -}}
+{{- /* Every explicit callback must be an absolute URI with a scheme. A bare path
+       or host here is silently accepted by Logto and fails only at redirect. */ -}}
+{{- range $uri := concat .Values.logtoApp.extraRedirectUris .Values.logtoApp.extraPostLogoutRedirectUris }}
+{{- if not (regexMatch "^[a-zA-Z][a-zA-Z0-9+.-]*:" $uri) }}
+{{- fail (printf "logtoApp redirect %q must be an absolute URI carrying a scheme (RFC 3986 §3.1)" $uri) }}
+{{- end }}
+{{- end }}
+apiVersion: {{ .Values.logtoApp.apiVersion }}
+kind: LogtoApp
+metadata:
+  name: {{ include "flutterPrimordial.resourceName" (dict "root" . "token" .Values.serviceTree.module) }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "flutterPrimordial.labels" . | nindent 4 }}
+  annotations:
+    {{- include "flutterPrimordial.annotations" . | nindent 4 }}
+spec:
+  {{- /* The endpoint is DERIVED from identityRef + namespace, never configured. */}}
+  identityRef: {{ required "logtoApp.identityRef is required when logtoApp.enabled" .Values.logtoApp.identityRef }}
+  platform: {{ .Values.serviceTree.platform }}
+  service: {{ .Values.serviceTree.service }}
+  module: {{ .Values.serviceTree.module }}
+  type: {{ .Values.logtoApp.type }}
+  {{- with $paths.redirectPath }}
+  redirectPath: {{ . | quote }}
+  {{- end }}
+  {{- with $paths.postLogoutPath }}
+  postLogoutPath: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.logtoApp.resourceRefs }}
+  {{- /* Explicit LogtoResource CR names; a missing ref is a hard
+         ResourceRefMissing error, never inferred. */}}
+  resourceRefs:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.logtoApp.extraRedirectUris }}
+  extraRedirectUris:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.logtoApp.extraPostLogoutRedirectUris }}
+  extraPostLogoutRedirectUris:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.logtoApp.extraCorsOrigins }}
+  extraCorsOrigins:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}

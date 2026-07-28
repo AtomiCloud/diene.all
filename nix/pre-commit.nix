@@ -41,6 +41,16 @@ pre-commit-lib.run {
         "^Changelog\\.md$"
         "^docs/developer/CommitConventions\\.md$"
         "^infra/root_chart/"
+
+        # ### flutter-e4-chart-fmt-excludes
+        # #### source: flutter-e4
+        # A Helm template is not YAML: prettier parses
+        # `infra/primordial_chart/templates/*.yaml` as a flow map and errors with
+        # "Indicator : missing in flow map entry" on the leading `{{- /* ... */ -}}`
+        # header. Measured: rc=1 on exactly those four files, while values.yaml and
+        # values.schema.json format cleanly. Mirrors go-consumer's own keyed exclude
+        # (its nix/pre-commit.nix and nix/fmt.nix carry the same pair).
+        "^infra/primordial_chart/templates/"
       ];
     };
 
@@ -348,6 +358,43 @@ pre-commit-lib.run {
       name = "CLAUDE link integrity";
       entry = "${pkgs.coreutils}/bin/env SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt ${pkgs.lychee}/bin/lychee --offline --no-progress CLAUDE.md";
       files = "^(CLAUDE\\.md|docs/standards/.*\\.md)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    # ### flutter-e4-chart
+    # #### source: flutter-e4
+    # The R20 primordial chart gate. `files` is bound to the chart's OWN path plus
+    # its validator, and the pattern was TESTED against real paths rather than
+    # read: `infra/primordial_chart/Chart.yaml` matches, and so do
+    # `templates/logtoapp.yaml` and `values.schema.json`.
+    #
+    # This is deliberately NOT a mirror of nextjs-frontend's `a-chart-ownership`,
+    # whose regex binds `^infra/garden_app_chart/...` and does NOT match
+    # `infra/primordial_chart/` — the node with a primordial chart does not gate
+    # it. The shape is mirrored; that gating defect is not.
+    #
+    # `helm` is not in the shared `validator-runtime`, so this hook carries its
+    # own PATH rather than widening a runtime every other hook depends on.
+    a-chart-primordial = {
+      enable = true;
+      name = "Primordial chart lint and schema";
+      entry =
+        let
+          chart-runtime = pkgs.buildEnv {
+            name = "chart-validator-runtime";
+            paths = [
+              packages.bash
+              packages.git
+              packages.kubernetes-helm
+              packages.yq-go
+              pkgs.coreutils
+              pkgs.gnugrep
+            ];
+          };
+        in
+        "${packages.bash}/bin/bash -c 'export PATH=${chart-runtime}/bin; exec ${packages.bash}/bin/bash scripts/validate/chart-primordial.sh'";
+      files = "^(infra/primordial_chart/.*|scripts/validate/chart-primordial\\.sh)$";
       pass_filenames = false;
       language = "system";
     };

@@ -1,0 +1,122 @@
+# ### flutter-e4-primordial-values
+# #### source: flutter-e4
+
+# -- Prefix used by every service-tree label and annotation helper. Single
+# configurable key (R16/B26) — never hard-coded inside a helper.
+labelPrefix: atomi.cloud
+
+# -- Stable service-tree projection (LPSM). The slots mirror `config/base.yaml`
+# -> `app` exactly (R21: identity is config, never a literal inside a template).
+# The landscape and cluster slots are added by the two independent overlay
+# dimensions; the base file never carries them.
+serviceTree:
+  # -- Platform name. Also the Primordial namespace and the parent Grafana folder uid.
+  platform: platform
+  # -- Service name. Dash-less: every resource name is `<service>-<token>`.
+  service: service
+  # -- Module name for the workload these resources serve.
+  module: app
+  # -- Architecture layer (application tier).
+  layer: '2'
+
+# -- The one vlandscape-targeted LogtoApp for this app. The mobile client IS the
+# placement owner for its own app: it declares the serve-set the operator derives
+# identity from (S6/Q-I36), and `lib/auth/logto_auth_gateway.dart` is a live
+# Logto integration, not a stub.
+logtoApp:
+  # -- Render the LogtoApp CR.
+  enabled: true
+  # @schema const:fleet.atomi.cloud/v1alpha1
+  # -- API group/version of the LogtoApp CRD.
+  apiVersion: fleet.atomi.cloud/v1alpha1
+  # -- Virtual landscape this app resolves its Logto endpoint from. The endpoint
+  # itself is DERIVED from identityRef plus the namespace — never configured.
+  identityRef: mew
+  # -- Logto application type. A store-distributed Flutter binary is a public
+  # client running authorization-code + PKCE with no confidential secret, so it
+  # is `Native` — NOT the sibling backends' `MachineToMachine` and not the
+  # nextjs node's server-side `Traditional`.
+  type: Native
+  # -- DECLARED PATHS ONLY, and this app declares NONE. The derived set is
+  # `origin(L) + declaredPath`, which presupposes an HTTP origin the operator can
+  # resolve from a serve-set. This app serves no HTTP surface at all: it is
+  # installed from a store and its OAuth redirect is a custom-scheme URI, which
+  # has no origin to append a path to. Both slots are therefore empty and the
+  # real redirect targets travel through `extraRedirectUris` below — the
+  # standard's declared escape for non-HTTPS/vendor redirects, used here as the
+  # rule rather than as an exception, because a native client has no other shape.
+  paths:
+    # -- Login callback path. Empty: no HTTP origin exists to derive one from.
+    redirectPath: ''
+    # -- Post-logout path. Empty, for the same reason.
+    postLogoutPath: ''
+  # @schema item:string;uniqueItems:true
+  # -- Explicit LogtoResource CR names this app takes tokens for. A missing ref is
+  # a hard `ResourceRefMissing` error, never inferred. Empty until the API row
+  # this client calls publishes its LogtoResource CR.
+  resourceRefs: []
+  # @schema item:string;uniqueItems:true
+  # -- The custom-scheme OAuth callbacks this native client actually redeems, one
+  # per store track. These mirror `auth.redirectUri` in `config/<landscape>.yaml`
+  # and the flavor application ids in `pubspec.yaml` — a divergence here means the
+  # installed binary's callback is not registered and login fails at the redirect.
+  extraRedirectUris:
+    - cloud.atomi.lapras.platform.service.app://callback
+    - cloud.atomi.pichu.platform.service.app://callback
+    - cloud.atomi.pikachu.platform.service.app://callback
+    - cloud.atomi.raichu.platform.service.app://callback
+  # @schema item:string;uniqueItems:true
+  # -- Post-logout exceptions. `logto_dart_sdk` signs out against the same
+  # custom-scheme callback it signed in with (`logto_auth_gateway.dart` passes
+  # `auth.redirectUri` to both `signIn` and `signOut`), so the set is identical.
+  extraPostLogoutRedirectUris:
+    - cloud.atomi.lapras.platform.service.app://callback
+    - cloud.atomi.pichu.platform.service.app://callback
+    - cloud.atomi.pikachu.platform.service.app://callback
+    - cloud.atomi.raichu.platform.service.app://callback
+  # @schema item:string;uniqueItems:true
+  # -- CORS origin exceptions. None: a native client issues no browser
+  # cross-origin request, so there is no origin to allow.
+  extraCorsOrigins: []
+
+# -- Grafana Operator rendering of the repository's `observability/` source. The
+# root directory is authoritative; the chart build copies it into the gitignored
+# `files/observability/` before lint/template/package/publish.
+#
+# This node's observability rail is live but its CONTENT is owed: see
+# `README.md` -> "Dashboards and alerts are owed". Zero dashboards and zero
+# alerts render cleanly, and no placeholder is ever added to populate a
+# directory.
+observability:
+  # -- Render the GrafanaFolder and any dashboards/alerts found.
+  enabled: true
+  # @schema const:grafana.integreatly.org/v1beta1
+  # -- API group/version of the Grafana Operator CRDs.
+  apiVersion: grafana.integreatly.org/v1beta1
+  # -- Glob root, relative to the chart directory, for the copied `observability/`.
+  path: files/observability
+  # -- Which Grafana instances on Primordial pick these resources up.
+  instanceSelector:
+    matchLabels:
+      dashboards: grafana
+  # -- Dashboard resync cadence.
+  resyncPeriod: 10m
+  # -- Alert-group evaluation interval.
+  alertInterval: 1m
+  # -- Lookback window, in seconds, for each rule's instant query.
+  relativeTimeRangeFrom: 600
+  # -- Platform-pinned datasource UIDs. An alert file's `datasource:` selects one
+  # by name; an unknown name is a render-time failure.
+  datasourceUids:
+    # -- PromQL datasource.
+    metrics: mimir
+    # -- LogQL datasource.
+    logs: loki
+    # -- Client RUM datasource. This node ships a real Faro rail
+    # (`lib/observability/faro.dart` + `lib/integration/observability_wiring.dart`),
+    # so a mobile signal has a datasource to be alerted on.
+    frontend: faro
+  # -- Repository base URL that every `runbook_url` annotation is built from.
+  repositoryUrl: https://github.com/AtomiCloud/diene.flutter-base/blob/main
+  # -- Generic LPSM dashboard an alert links when it declares no `panel`.
+  genericDashboardUid: atomi-generic-lpsm

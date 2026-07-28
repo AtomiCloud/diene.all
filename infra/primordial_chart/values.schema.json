@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Diene flutter-base primordial chart values",
+  "description": "The LogtoApp identity CR for the diene flutter-base mobile client plus its Grafana Operator rendering. Validated against the base values and every stacked landscape/cluster overlay. There is no platformDependencies surface and no Problem surface: a store-distributed Flutter binary owns no database, kv, cache, or object store, and it consumes backend problem types rather than publishing a catalog.",
+  "type": "object",
+  "required": ["labelPrefix", "serviceTree", "logtoApp", "observability"],
+  "properties": {
+    "labelPrefix": {
+      "type": "string",
+      "pattern": "^[a-z0-9.-]+$",
+      "minLength": 1
+    },
+    "serviceTree": {
+      "type": "object",
+      "required": ["platform", "service", "module", "layer"],
+      "properties": {
+        "platform": { "type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" },
+        "service": { "type": "string", "pattern": "^[a-z0-9]+$" },
+        "module": { "type": "string", "pattern": "^[a-z0-9]+$" },
+        "layer": { "type": "string", "pattern": "^[0-9]+$" },
+        "landscape": { "type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" },
+        "cluster": { "type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" }
+      }
+    },
+    "logtoApp": {
+      "description": "The single LogtoApp CR for this app. The mobile client is the placement owner for its own identity. `Native` is the only application type a store-distributed public client can hold: it runs authorization-code + PKCE with no confidential secret.",
+      "type": "object",
+      "required": ["enabled", "apiVersion", "identityRef", "type", "paths"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "apiVersion": { "const": "fleet.atomi.cloud/v1alpha1" },
+        "identityRef": { "type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" },
+        "type": {
+          "description": "Constrained to Native. A store-installed binary cannot hold a confidential secret, so Traditional and MachineToMachine are unrepresentable here rather than merely discouraged.",
+          "const": "Native"
+        },
+        "paths": {
+          "description": "Declared paths only, and empty for this node: a native client has no HTTP origin for the operator to derive `origin(L) + declaredPath` from. The slots stay declarable so a later universal-link path is validated the same way an HTTP sibling's is.",
+          "type": "object",
+          "required": ["redirectPath", "postLogoutPath"],
+          "properties": {
+            "redirectPath": { "type": "string", "pattern": "^(/.*)?$" },
+            "postLogoutPath": { "type": "string", "pattern": "^(/.*)?$" }
+          }
+        },
+        "resourceRefs": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+        "extraRedirectUris": {
+          "description": "The custom-scheme OAuth callbacks this native client redeems, one per store track. Load-bearing here, not exceptional: each must be an absolute URI carrying a scheme, because a bare path is accepted by Logto and fails only at redirect in the installed binary.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/absoluteUri" }
+        },
+        "extraPostLogoutRedirectUris": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/absoluteUri" }
+        },
+        "extraCorsOrigins": {
+          "description": "None for a native client: it issues no browser cross-origin request.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "observability": {
+      "type": "object",
+      "required": [
+        "enabled",
+        "apiVersion",
+        "path",
+        "instanceSelector",
+        "alertInterval",
+        "relativeTimeRangeFrom",
+        "datasourceUids",
+        "repositoryUrl",
+        "genericDashboardUid"
+      ],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "apiVersion": { "const": "grafana.integreatly.org/v1beta1" },
+        "path": { "type": "string", "minLength": 1 },
+        "instanceSelector": { "type": "object" },
+        "resyncPeriod": { "type": "string", "minLength": 1 },
+        "alertInterval": { "type": "string", "minLength": 1 },
+        "relativeTimeRangeFrom": { "type": "integer", "minimum": 1 },
+        "datasourceUids": {
+          "description": "Platform-pinned datasource UIDs. `frontend` is present because this node ships a live Faro client rail, so a mobile RUM signal has a datasource to be alerted on.",
+          "type": "object",
+          "required": ["metrics", "logs", "frontend"],
+          "additionalProperties": { "type": "string", "minLength": 1 }
+        },
+        "repositoryUrl": { "type": "string", "pattern": "^https://" },
+        "genericDashboardUid": { "type": "string", "minLength": 1 }
+      }
+    }
+  },
+  "$defs": {
+    "absoluteUri": {
+      "description": "An absolute URI with a scheme (RFC 3986 §3.1). Permits the custom app scheme a native OAuth callback uses, which is not an https URL.",
+      "type": "string",
+      "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*:"
+    }
+  }
+}

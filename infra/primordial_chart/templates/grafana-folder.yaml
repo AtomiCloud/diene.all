@@ -1,0 +1,30 @@
+{{- /* ### flutter-e4-primordial-grafana-folder */ -}}
+{{- /* #### source: flutter-e4 */ -}}
+{{- if .Values.observability.enabled -}}
+{{- include "flutterPrimordial.validateServiceTree" . -}}
+{{- /* One GrafanaFolder per service identity ("One source file, one resource").
+       Deterministic uid `<platform>-<service>-folder`; the `-folder` suffix keeps
+       it out of the shared dashboard/alert-group uid pool. The parent platform
+       folder (uid `<platform>`) is the platform's, created once — deterministic
+       uids mean no ordering coordination, the operator retries until the parent
+       exists. Nobody hand-creates folders in the UI.
+
+       The folder is emitted even with zero dashboards and zero alerts: this
+       node's dashboard/alert CONTENT is owed (see README.md), and the folder is
+       the service's stable home either way. */ -}}
+apiVersion: {{ .Values.observability.apiVersion }}
+kind: GrafanaFolder
+metadata:
+  name: {{ include "flutterPrimordial.resourceName" (dict "root" . "token" "obsfolder") }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "flutterPrimordial.labels" . | nindent 4 }}
+  annotations:
+    {{- include "flutterPrimordial.annotations" . | nindent 4 }}
+spec:
+  uid: {{ include "flutterPrimordial.grafanaFolderUid" . }}
+  title: {{ printf "%s / %s" .Values.serviceTree.platform .Values.serviceTree.service | quote }}
+  parentFolderUID: {{ .Values.serviceTree.platform | quote }}
+  instanceSelector:
+    {{- toYaml .Values.observability.instanceSelector | nindent 4 }}
+{{- end }}
