@@ -220,16 +220,33 @@ fi
 
 # ### bun-consumer-skills-sync-guard
 # #### source: bun-consumer
-# A sync that resolved zero packages means the ecosystem is not installed yet
-# (cold checkout before `bun install`), not that every vendored skill was
-# uninstalled — swapping the empty staging tree in would delete committed
-# skills and fail the freshness gate. Upstream owns the real fix (run the sync
-# after dependency install); this guard keeps the destructive swap honest.
-if [ -d "${vendor_dir}" ] && [ -z "$(find "${staging}" -mindepth 1 -maxdepth 1 -type d -print -quit)" ] &&
-  [ -n "$(find "${vendor_dir}" -mindepth 1 -maxdepth 1 -type d -print -quit)" ]; then
-  echo "⏭️ No installed packages resolved; keeping the committed vendored skills"
-  exit 0
-fi
+# DISCHARGED 2026-07-28 — SUPERSEDED BY UPSTREAM, NOT DROPPED. Recorded here, in the
+# guard's own place, because a reader who knows only that this node was told to HOLD
+# R-E49a will look for it here, and an obligation that vanishes without a stated
+# reason is indistinguishable from one quietly dropped.
+#
+# THE GUARD NAMED ITS OWN RETIREMENT, verbatim from the block that stood here:
+#   "Upstream owns the real fix (run the sync after dependency install); this guard
+#    keeps the destructive swap honest."
+# It was a stopgap held UNTIL upstream had the fix. Upstream now has it, in this same
+# file, below.
+#
+# UPSTREAM'S TRIGGER IS STRICTLY FINER, which is why keeping both was wrong:
+#   mine     — fired when the staging tree was empty FOR ANY REASON
+#   upstream — fires when a package is DECLARED BUT UNRESOLVED, per ecosystem
+#              (`nuget_declared && !nuget_staged`, `go_declared && !go_staged`, …)
+# Mine is a SUPERSET that misclassifies the legitimate-empty case. Upstream's own
+# comment says what mine could not: "A declaration that yields no skill content is a
+# cold checkout, not a request."
+#
+# MEASURED BEFORE REMOVED, and the sequence is the point. All five assertions of
+# probes/skills-sync.ts PASS with the guard present in the normal case; driven on the
+# GUARD'S OWN CONDITION (vendor populated, nothing resolvable) it preserved a stale
+# file that should have been cleaned and left manifest.json unregenerated. The
+# culpability was established on the guard's own terms first, and only then was
+# removal proposed. A removal justified by a red matrix is a gate weakening; a removal
+# justified by a superseding mechanism is the obligation being MET — and the resulting
+# file is identical either way, so only this record distinguishes them.
 
 chmod -R u+w "${staging}"
 
