@@ -43,6 +43,20 @@ let
     command:
     "${packages.bash}/bin/bash -c 'export PATH=${validator-runtime}/bin; exec ${packages.bash}/bin/bash ${command}'";
 
+  # ### go-base-skills-validator
+  # #### source: go-base
+  # skills-sync resolves usage skills from the ambient Go module cache. Give its
+  # freshness hook the Go toolchain without redirecting GOMODCACHE to go-deps.
+  go-ambient-validator-runtime = pkgs.buildEnv {
+    name = "go-base-ambient-validator-runtime";
+    paths = [
+      validator-runtime
+      packages.go
+    ];
+  };
+  go-ambient-validator =
+    command:
+    "${packages.bash}/bin/bash -c 'export PATH=${go-ambient-validator-runtime}/bin; exec ${packages.bash}/bin/bash ${command}'";
   # ### go-consumer-go-validator
   # #### source: go-consumer
   # A validator runtime that also carries the Go toolchain and the vendored module
@@ -71,14 +85,6 @@ let
     command:
     "${packages.bash}/bin/bash -c 'export PATH=${go-validator-runtime}/bin; export CGO_ENABLED=0; export GOPROXY=file://${go-deps.goModules}; export GOSUMDB=off; export GOMODCACHE=\"\${TMPDIR:-/tmp}/go-consumer-mod-cache\"; exec ${packages.bash}/bin/bash ${command}'";
 
-  # A validator that carries the Go toolchain but does NOT redirect the module
-  # cache. skills-sync reads the vendored usage skills out of the AMBIENT
-  # GOMODCACHE, so pointing it at the isolated proxy cache leaves it reading an
-  # empty tree — and because its ecosystem loop swallows the failure, it then
-  # reports success having vendored nothing.
-  go-ambient-validator =
-    command:
-    "${packages.bash}/bin/bash -c 'export PATH=${go-validator-runtime}/bin; exec ${packages.bash}/bin/bash ${command}'";
 in
 pre-commit-lib.run {
   src = ../.;
