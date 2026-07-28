@@ -56,6 +56,13 @@ while ! mkdir ${LOCK} 2>/dev/null; do
   sleep 5
 done
 echo $$ >${LOCK}/pid
+# Per-ROW compose identity: the stack was keyed by the FIXED dev.yaml project name
+# (diene-go-consumer), an identifier keyed to the NODE that collides across ROWS in one
+# chunk — a control-phase baseline re-run reused a prior row's half-torn-down project and
+# fast-failed. up.sh and down.sh both honour COMPOSE_PROJECT_NAME, so a per-invocation
+# name ($$, already the lock pid) isolates each row; the trap below inherits the SAME
+# value, so teardown targets THIS row's stack and never strands it.
+export COMPOSE_PROJECT_NAME="diene-go-consumer-$$"
 cleanup() {
   ./scripts/local/down.sh >/dev/null 2>&1 || true
   rm -rf ${LOCK}
