@@ -43,8 +43,23 @@ echo "=== k3d cluster create \${CLUSTER} ==="
 # bun-consumer pins the same image in scripts/validate/chart-install.sh.
 k3d cluster create "\${CLUSTER}" --servers 1 --agents 0 --image rancher/k3s:v1.31.5-k3s1 \\
   --k3s-arg "--disable=traefik@server:*" --no-lb --wait
+# CONTEXT FENCE (briana/harriett, 2026-07-28T09:5xZ). The AMBIENT kube context on
+# this box is \`entei-opal\`, a REMOTE DigitalOcean cluster — verified with
+# \`kubectl config current-context\`. Every other call below is pinned with
+# --context/--kube-context, but this version probe was NOT, so it reported the
+# REMOTE server's version instead of the k3d cluster we just created. The comment
+# above explains why that matters: a wrong kubeVersion here is "a venue defect
+# that reads exactly like a chart defect".
+#
+# Assert the context resolves to the cluster THIS run created, and abort if not.
+# Never install against a context we did not create.
+if ! kubectl config get-contexts -o name 2>/dev/null | grep -Fxq "\${CTX}"; then
+  echo "❌ context \${CTX} does not exist — refusing to touch any cluster" >&2
+  exit 1
+fi
 echo "=== k3s server version (must satisfy the charts' kubeVersion) ==="
-kubectl version -o json 2>/dev/null | jq -r '.serverVersion.gitVersion' || kubectl version --short 2>/dev/null | rg Server
+kubectl --context "\${CTX}" version -o json 2>/dev/null | jq -r '.serverVersion.gitVersion' \\
+  || kubectl --context "\${CTX}" version --short 2>/dev/null | rg Server
 
 echo "=== apply test-only CRD fixtures ==="
 crds="$(find infra/primordial_chart/crds-local -name '*.yaml' | sort)"
