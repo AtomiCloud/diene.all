@@ -53,9 +53,9 @@ export async function breakAdapter(repo: ProbeRepo): Promise<void> {
   const paths = (await repo.glob('adapters/**/*.go')).sort();
   for (const path of paths) {
     const source = await repo.read(path);
-    const target = '.Set(ctx, key, value, 0)';
-    if (source.includes(target)) {
-      await repo.write(path, source.replace(target, '.Set(ctx, key+"-probe", value, 0)'));
+    const target = source.match(/\.Set\(\s*ctx\s*,\s*([^,\s]+)\s*,\s*[^,\n]+\s*,\s*[^)\n]+\)/);
+    if (target) {
+      await repo.write(path, source.replace(target[0], target[0].replace(target[1], `${target[1]}+"-probe"`)));
       return;
     }
   }
