@@ -1,15 +1,26 @@
 {
-  "name": "bun-base",
+  "name": "@atomicloud/diene.mercury",
   "version": "1.3.1",
   "private": true,
-  "description": "Bun template baseline for AtomiCloud/diene.bun-base",
+  "description": "Mercury multi-tenant webhook intake, delivery, replay, and management product",
   "type": "module",
   "module": "src/index.ts",
+  "bin": {
+    "mercury": "src/index.ts"
+  },
+  "scripts": {
+    "build": "./scripts/local/build.sh",
+    "dev": "bun --hot src/index.ts serve",
+    "start": "bun src/index.ts serve",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome lint .",
+    "test": "bun run test:unit && bun run test:integration",
+    "test:unit": "bun test --config=bunfig.unit.toml",
+    "test:integration": "bun test --config=bunfig.int.toml",
+    "test:sit": "bun test --config=bunfig.sit.toml"
+  },
   "exports": {
     ".": "./src/index.ts"
-  },
-  "dependencies": {
-    "ioredis": "^5.11.1"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.1",
