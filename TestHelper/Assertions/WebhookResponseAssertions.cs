@@ -55,14 +55,14 @@ public static class WebhookResponseAssertions
             ? " 404 is never an ownership signal in this contract: mercury reads it as a real endpoint failure and retries for the full window."
             : string.Empty;
 
+        // The message is composed before it reaches FailWith rather than passed as format
+        // arguments: FluentAssertions renders a string argument WITH quotes, so the placeholder
+        // form reads 'mean "processed" with status 200' and a consumer reading a failure has to
+        // work out where the quotes came from.
         Execute.Assertion
             .ForCondition(actual == expected)
             .FailWith(
-                "Expected the delivery reply to mean {0} with status {1}, but found {2}.{3}",
-                meaning,
-                expected,
-                actual,
-                aside);
+                $"Expected the delivery reply to mean {meaning} with status {expected}, but found {actual}.{aside}");
 
         return response;
     }

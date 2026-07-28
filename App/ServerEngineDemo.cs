@@ -96,6 +96,12 @@ public static class ServerEngineDemo
             catalog => catalog.AddBaseline());
 
         builder.Services.AddAtomiServerEngine(config);
+
+        // This assembly is registered as an application part explicitly rather than relying on
+        // MVC's default scan of the entry assembly. When the demo is driven from a test host the
+        // entry assembly is the TEST project, so the default scan finds no consumer controller and
+        // every route here 404s with nothing reporting why.
+        builder.Services.AddControllers().AddApplicationPart(typeof(DemoNotesController).Assembly);
         builder.Services.AddAtomiWebhookSecrets(DemoDelivery.Secret);
         builder.Services.AddSingleton<IWebhookHandler>(handler);
 
