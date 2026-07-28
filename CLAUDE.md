@@ -76,9 +76,9 @@ Domain-specific architecture and behavior belongs under
 [docs/domain/](docs/domain/README.md). The `docs/standards/contracts/` slot is
 reserved for the separately owned C0 contracts standard.
 
-<!-- ### helm-wrapper -->
-<!-- #### source: helm-wrapper -->
+<!-- ### cobalt -->
+<!-- #### source: cobalt -->
 
-## Helm wrapper sample
+## Cobalt chart
 
-Read [docs/developer/helm-wrapper-baseline.md](docs/developer/helm-wrapper-baseline.md) before changing `chart/`, the stacked values, CR/LPSM helpers, provider LoadBalancer annotations, config vendoring, or chart publishing.
+Read [docs/developer/cobalt-baseline.md](docs/developer/cobalt-baseline.md) before changing `chart/`, the stacked values, the Infisical ClusterSecretStore, the ESO subchart overrides, or chart validation and publishing.
