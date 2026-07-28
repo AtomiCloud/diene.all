@@ -171,7 +171,7 @@ export default {
           await stageKeptSkill(repo);
           await expectGreen(
             repo,
-            `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ./scripts/local/skills-sync.sh; test "$(cat ${keptSkill})" = "committed skill"'`,
+            `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; iso="$(mktemp -d)"; trap "if [ -d \\"$iso/@atomicloud\\" ]; then rm -rf node_modules/@atomicloud; mkdir -p node_modules; mv \\"$iso/@atomicloud\\" node_modules/; fi; rm -rf \\"$iso\\"" EXIT; if [ -d node_modules/@atomicloud ]; then mv node_modules/@atomicloud "$iso/"; fi; mkdir -p node_modules; ./scripts/local/skills-sync.sh; test "$(cat ${keptSkill})" = "committed skill"'`,
             'skills-sync',
           );
         });
