@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:diene_flutter_base/auth/deferred_login.dart';
 import 'package:diene_flutter_base/auth/session_controller.dart';
-import 'package:diene_flutter_base/core/result.dart';
+import 'package:diene_result/diene_result.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -172,7 +172,7 @@ void main() {
       device: const HandoffDevice(platform: 'ios', model: 'iPhone'),
     );
 
-    expect(result.isSuccess, isTrue);
+    expect(result.isOk, isTrue);
     expect(
       log.uris.single.toString(),
       'https://api.example.invalid/app-handoff/redeem',
@@ -182,7 +182,7 @@ void main() {
       (log.bodies.single['device']! as Map<String, Object?>)['platform'],
       'ios',
     );
-    final RedeemedHandoff handoff = (result as Success<RedeemedHandoff>).value;
+    final RedeemedHandoff handoff = (result as Ok<RedeemedHandoff>).value;
     expect(handoff.token, 'one-time-token');
     expect(handoff.email, 'user@example.invalid');
     expect(handoff.expiresIn, 120);

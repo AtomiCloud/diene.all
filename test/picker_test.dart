@@ -1,8 +1,8 @@
 import 'dart:convert';
 
-import 'package:diene_flutter_base/core/result.dart';
 import 'package:diene_flutter_base/onboarding/home_claim.dart';
 import 'package:diene_flutter_base/onboarding/picker.dart';
+import 'package:diene_result/diene_result.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const EndpointSuffixAllowlist _allowlist = EndpointSuffixAllowlist(
@@ -130,9 +130,9 @@ void main() {
       pinger: _StubPinger(const <String, Duration?>{}),
     ).fetchDocument();
 
-    expect(result.isSuccess, isTrue);
+    expect(result.isOk, isTrue);
     final LandscapeSelectorDoc doc =
-        (result as Success<LandscapeSelectorDoc>).value;
+        (result as Ok<LandscapeSelectorDoc>).value;
     expect(doc.platform, 'platform');
     expect(
       doc.landscapes.map((LandscapeOption o) => o.name),
@@ -150,9 +150,9 @@ void main() {
       pinger: _StubPinger(const <String, Duration?>{}),
     ).fetchDocument();
 
-    expect(result, isA<Failure<LandscapeSelectorDoc>>());
+    expect(result, isA<Err<LandscapeSelectorDoc>>());
     expect(
-      (result as Failure<LandscapeSelectorDoc>).problem.type,
+      (result as Err<LandscapeSelectorDoc>).problem.type,
       'urn:diene:problem:endpoint-suffix-rejected',
     );
     expect(source.fetches, 0, reason: 'a bad suffix must not be fetched');
@@ -173,7 +173,7 @@ void main() {
     ).fetchDocument();
 
     expect(
-      (result as Failure<LandscapeSelectorDoc>).problem.type,
+      (result as Err<LandscapeSelectorDoc>).problem.type,
       'urn:diene:problem:endpoint-suffix-rejected',
     );
   });
@@ -191,7 +191,7 @@ void main() {
     ).fetchDocument();
 
     expect(
-      (result as Failure<LandscapeSelectorDoc>).problem.type,
+      (result as Err<LandscapeSelectorDoc>).problem.type,
       'urn:diene:problem:doc-b-malformed',
     );
   });
@@ -209,7 +209,7 @@ void main() {
     ).fetchDocument();
 
     expect(
-      (result as Failure<LandscapeSelectorDoc>).problem.type,
+      (result as Err<LandscapeSelectorDoc>).problem.type,
       'urn:diene:problem:doc-b-malformed',
       reason: 'the auth issuer is always baked, never doc-sourced',
     );
@@ -226,11 +226,11 @@ void main() {
       pinger: pinger,
     );
     final LandscapeSelectorDoc doc =
-        (await client.fetchDocument() as Success<LandscapeSelectorDoc>).value;
+        (await client.fetchDocument() as Ok<LandscapeSelectorDoc>).value;
 
     final Result<String> picked = await client.pingAndPick(doc);
 
-    expect((picked as Success<String>).value, 'pikachu');
+    expect((picked as Ok<String>).value, 'pikachu');
     expect(pinger.pinged, hasLength(3));
   });
 
@@ -240,12 +240,12 @@ void main() {
       pinger: _StubPinger(const <String, Duration?>{}),
     );
     final LandscapeSelectorDoc doc =
-        (await client.fetchDocument() as Success<LandscapeSelectorDoc>).value;
+        (await client.fetchDocument() as Ok<LandscapeSelectorDoc>).value;
 
     final Result<String> picked = await client.pingAndPick(doc);
 
     expect(
-      (picked as Failure<String>).problem.type,
+      (picked as Err<String>).problem.type,
       'urn:diene:problem:no-healthy-landscape',
     );
   });
@@ -267,7 +267,7 @@ void main() {
       ).resolveForSignIn();
 
       final HomeClaimResolution resolution =
-          (result as Success<HomeClaimResolution>).value;
+          (result as Ok<HomeClaimResolution>).value;
       expect(resolution.landscape, 'pichu');
       expect(resolution.source, HomeClaimSource.existingClaim);
       expect(resolution.pickerShown, isFalse);
@@ -294,7 +294,7 @@ void main() {
       ).resolveForSignIn();
 
       final HomeClaimResolution resolution =
-          (result as Success<HomeClaimResolution>).value;
+          (result as Ok<HomeClaimResolution>).value;
       expect(resolution.landscape, 'pikachu');
       expect(resolution.source, HomeClaimSource.picker);
       expect(resolution.pickerShown, isTrue);
@@ -326,7 +326,7 @@ void main() {
       expect(gateway.writes, 1, reason: 'the claim is written exactly once');
       expect(picker.fetches, 1, reason: 'the second sign-in skips the picker');
       expect(
-        (second as Success<HomeClaimResolution>).value.pickerShown,
+        (second as Ok<HomeClaimResolution>).value.pickerShown,
         isFalse,
       );
     });
@@ -363,7 +363,7 @@ void main() {
       expect(
         () => HomeClaimCheck.assertPickerNotShownWithClaim(
           'raichu',
-          (result as Success<HomeClaimResolution>).value,
+          (result as Ok<HomeClaimResolution>).value,
         ),
         returnsNormally,
       );
@@ -381,7 +381,7 @@ void main() {
       final Result<String> picked = await picker.pickHomeLandscape();
 
       expect(
-        (picked as Failure<String>).problem.type,
+        (picked as Err<String>).problem.type,
         'urn:diene:problem:unlisted-landscape',
       );
     });
@@ -399,7 +399,7 @@ void main() {
 
       final Result<String> picked = await picker.pickHomeLandscape();
 
-      expect((picked as Success<String>).value, 'raichu');
+      expect((picked as Ok<String>).value, 'raichu');
     });
   });
 }

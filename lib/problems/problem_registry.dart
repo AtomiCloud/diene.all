@@ -6,7 +6,7 @@
 /// of `if (problem.type == ...)` at each call site.
 ///
 /// Separation of concerns against the two neighbouring ports:
-/// * `lib/core/problem_catalog.dart` maps *endpoint + HTTP status* → `Problem`
+/// * the runtime endpoint classifier in `lib/problems/catalog_classification.dart` maps *endpoint + HTTP status* → `Problem`
 ///   (transport → domain).
 /// * this file maps *`Problem`* → `ProblemErrorInfo` (domain → presentation).
 /// * `lib/problems/catalog_classification.dart` composes the two.
@@ -17,7 +17,7 @@
 /// one rather than silently indistinguishable.
 library;
 
-import '../core/result.dart';
+import 'package:diene_problems/diene_problems.dart' hide ProblemRegistry;
 
 /// How prominently a problem is surfaced.
 enum ProblemTier {

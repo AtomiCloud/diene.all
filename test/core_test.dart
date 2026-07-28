@@ -1,7 +1,7 @@
-import 'package:diene_flutter_base/core/local_error.dart';
-import 'package:diene_flutter_base/core/problem_catalog.dart';
-import 'package:diene_flutter_base/core/result.dart';
 import 'package:diene_flutter_base/core/temporal.dart';
+import 'package:diene_flutter_base/problems/catalog_classification.dart';
+import 'package:diene_problems/diene_problems.dart' hide ProblemCatalog;
+import 'package:diene_result/diene_result.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 final class _RecordingSink implements ErrorSink {
@@ -13,10 +13,10 @@ final class _RecordingSink implements ErrorSink {
 
 void main() {
   test('Result folds success and RFC-shaped Problem round-trips', () {
-    const Result<int> result = Success<int>(42);
-    final int value = result.fold<int>(
-      onSuccess: (int item) => item,
-      onFailure: (Problem _) => -1,
+    const Result<int> result = Ok<int>(42);
+    final int value = result.match<int>(
+      ok: (int item) => item,
+      err: (Problem _) => -1,
     );
     const Problem problem = Problem(
       type: 'urn:test',
@@ -27,7 +27,7 @@ void main() {
     );
 
     expect(value, 42);
-    expect(result.isSuccess, isTrue);
+    expect(result.isOk, isTrue);
     expect(Problem.fromJson(problem.toJson()).toJson(), problem.toJson());
   });
 
@@ -52,10 +52,11 @@ void main() {
     () async {
       Problem? unexpected;
       final ProblemCatalog catalog = ProblemCatalog(
-        endpoints: const <String, Map<int, ProblemCatalogEntry>>{
-          '/user/me': <int, ProblemCatalogEntry>{
-            404: ProblemCatalogEntry(
-              type: 'urn:test:not-onboarded',
+        endpoints: const <String, Map<int, CatalogEntry>>{
+          '/user/me': <int, CatalogEntry>{
+            404: CatalogEntry(
+              id: 'not-onboarded',
+              typeUri: 'urn:test:not-onboarded',
               title: 'Not onboarded',
               status: 404,
               recoverable: true,

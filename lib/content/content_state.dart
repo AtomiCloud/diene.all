@@ -17,7 +17,8 @@
 ///   showing stale data instead of flashing a spinner over the whole screen.
 library;
 
-import '../core/result.dart';
+import 'package:diene_problems/diene_problems.dart';
+import 'package:diene_result/diene_result.dart';
 
 /// The four content tiers.
 sealed class ContentState<T> {
@@ -157,14 +158,14 @@ final class ContentMachine<T> {
 
   /// Apply a load [result].
   ///
-  /// Success routes to [ContentEmpty] or [ContentValue] via [isEmpty]; failure
+  /// Ok routes to [ContentEmpty] or [ContentValue] via [isEmpty]; failure
   /// routes to [ContentError], retaining any stale content for a
   /// keep-showing-data-with-a-banner presentation.
   ContentState<T> resolve(ContentState<T> current, Result<T> result) =>
-      result.fold<ContentState<T>>(
-        onSuccess: (T value) =>
+      result.match<ContentState<T>>(
+        ok: (T value) =>
             isEmpty(value) ? ContentEmpty<T>() : ContentValue<T>(value),
-        onFailure: (Problem problem) =>
+        err: (Problem problem) =>
             ContentError<T>(problem, previous: current.displayable),
       );
 

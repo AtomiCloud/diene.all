@@ -1,7 +1,8 @@
-import 'package:diene_flutter_base/core/problem_catalog.dart';
-import 'package:diene_flutter_base/core/result.dart';
 import 'package:diene_flutter_base/problems/catalog_classification.dart';
 import 'package:diene_flutter_base/problems/problem_registry.dart';
+import 'package:diene_problems/diene_problems.dart'
+    hide ProblemCatalog, ProblemRegistry;
+import 'package:diene_result/diene_result.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const String _endpoint = '/user/me';
@@ -9,23 +10,29 @@ const String _rateLimited = 'urn:test:rate-limited';
 const String _revoked = 'urn:test:session-revoked';
 const String _upstreamDown = 'urn:test:upstream-down';
 
-const Map<String, Map<int, ProblemCatalogEntry>> _catalogRows =
-    <String, Map<int, ProblemCatalogEntry>>{
-      _endpoint: <int, ProblemCatalogEntry>{
-        429: ProblemCatalogEntry(
-          type: _rateLimited,
+// The runtime classifier reads `typeUri` (the URI a matched row classifies to);
+// `id` is newly required by the published CatalogEntry and is set to the URN's
+// stable slug — it is not read by classification, only carried for the CRD side.
+const Map<String, Map<int, CatalogEntry>> _catalogRows =
+    <String, Map<int, CatalogEntry>>{
+      _endpoint: <int, CatalogEntry>{
+        429: CatalogEntry(
+          id: 'rate-limited',
+          typeUri: _rateLimited,
           title: 'Too many requests',
           status: 429,
           recoverable: true,
         ),
-        401: ProblemCatalogEntry(
-          type: _revoked,
+        401: CatalogEntry(
+          id: 'session-revoked',
+          typeUri: _revoked,
           title: 'Session revoked',
           status: 401,
           recoverable: false,
         ),
-        502: ProblemCatalogEntry(
-          type: _upstreamDown,
+        502: CatalogEntry(
+          id: 'upstream-down',
+          typeUri: _upstreamDown,
           title: 'Upstream unavailable',
           status: 502,
           recoverable: false,
@@ -77,18 +84,18 @@ _build({Map<String, ProblemErrorInfo> overrides = const <String, ProblemErrorInf
   );
 }
 
-ClassifiedProblem _expectSuccess(Result<ClassifiedProblem> result) =>
-    result.fold<ClassifiedProblem>(
-      onSuccess: (ClassifiedProblem value) => value,
-      onFailure: (Problem problem) =>
+ClassifiedProblem _expectOk(Result<ClassifiedProblem> result) =>
+    result.match<ClassifiedProblem>(
+      ok: (ClassifiedProblem value) => value,
+      err: (Problem problem) =>
           fail('expected a consistent classification, got ${problem.detail}'),
     );
 
-Problem _expectFailure(Result<ClassifiedProblem> result) =>
-    result.fold<Problem>(
-      onSuccess: (ClassifiedProblem value) =>
+Problem _expectErr(Result<ClassifiedProblem> result) =>
+    result.match<Problem>(
+      ok: (ClassifiedProblem value) =>
           fail('expected an inconsistency failure, got $value'),
-      onFailure: (Problem problem) => problem,
+      err: (Problem problem) => problem,
     );
 
 void main() {
@@ -96,7 +103,7 @@ void main() {
     test('a catalogued recoverable response classifies as recoverable',
         () async {
       final harness = _build();
-      final ClassifiedProblem classified = _expectSuccess(
+      final ClassifiedProblem classified = _expectOk(
         await harness.classifier.classify(
           endpoint: _endpoint,
           status: 429,
@@ -119,7 +126,7 @@ void main() {
 
     test('a catalogued fatal response classifies as fatal', () async {
       final harness = _build();
-      final ClassifiedProblem classified = _expectSuccess(
+      final ClassifiedProblem classified = _expectOk(
         await harness.classifier.classify(endpoint: _endpoint, status: 401),
       );
 
@@ -133,7 +140,7 @@ void main() {
 
     test('a catalogued 5xx stays fatal and non-retryable', () async {
       final harness = _build();
-      final ClassifiedProblem classified = _expectSuccess(
+      final ClassifiedProblem classified = _expectOk(
         await harness.classifier.classify(endpoint: _endpoint, status: 502),
       );
 
@@ -145,7 +152,7 @@ void main() {
     test('an UNCATALOGUED status behaves as a fatal 5xx and feeds the loop',
         () async {
       final harness = _build();
-      final ClassifiedProblem classified = _expectSuccess(
+      final ClassifiedProblem classified = _expectOk(
         await harness.classifier.classify(
           endpoint: _endpoint,
           status: 418,
@@ -173,7 +180,7 @@ void main() {
     test('an UNCATALOGUED endpoint behaves the same as an unknown status',
         () async {
       final harness = _build();
-      final ClassifiedProblem classified = _expectSuccess(
+      final ClassifiedProblem classified = _expectOk(
         await harness.classifier.classify(
           endpoint: '/never/catalogued',
           status: 404,
@@ -201,7 +208,7 @@ void main() {
             ),
           },
         );
-        final ClassifiedProblem classified = _expectSuccess(
+        final ClassifiedProblem classified = _expectOk(
           await harness.classifier.classify(endpoint: _endpoint, status: 418),
         );
 
@@ -229,7 +236,7 @@ void main() {
             ),
           },
         );
-        final Problem problem = _expectFailure(
+        final Problem problem = _expectErr(
           await harness.classifier.classify(endpoint: _endpoint, status: 502),
         );
 

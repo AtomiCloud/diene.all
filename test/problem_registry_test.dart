@@ -1,5 +1,5 @@
-import 'package:diene_flutter_base/core/result.dart';
 import 'package:diene_flutter_base/problems/problem_registry.dart';
+import 'package:diene_problems/diene_problems.dart' hide ProblemRegistry;
 import 'package:flutter_test/flutter_test.dart';
 
 const String _notOnboarded = 'urn:test:not-onboarded';

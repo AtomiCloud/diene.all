@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:diene_flutter_base/auth/app_handoff.dart';
 import 'package:diene_flutter_base/auth/deferred_login.dart';
 import 'package:diene_flutter_base/auth/session_controller.dart';
-import 'package:diene_flutter_base/core/result.dart';
 import 'package:diene_flutter_base/onboarding/phase_machine.dart';
+import 'package:diene_result/diene_result.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -62,7 +62,7 @@ final class _Tokens implements TokenProvider {
     bool forceRefresh = false,
   }) async => <ResourceKey, Result<ResourceToken>>{
     for (final ResourceKey key in keys)
-      key: Success<ResourceToken>(
+      key: Ok<ResourceToken>(
         ResourceToken(
           raw: 'token-${key.mapKey}',
           claims: registered
@@ -164,7 +164,7 @@ void main() {
 
     final Result<HandoffArrival> result = await flow.arrive();
 
-    final HandoffArrival arrival = (result as Success<HandoffArrival>).value;
+    final HandoffArrival arrival = (result as Ok<HandoffArrival>).value;
     expect(arrival.deferredLogin.outcome, DeferredLoginOutcome.signedIn);
     expect(arrival.stages, <HandoffStage>[
       HandoffStage.identity,
@@ -197,7 +197,7 @@ void main() {
     final Result<HandoffArrival> result = await flow.arrive();
 
     expect(
-      (result as Failure<HandoffArrival>).problem.type,
+      (result as Err<HandoffArrival>).problem.type,
       'urn:diene:problem:legal-consent-declined',
     );
     expect(
@@ -227,7 +227,7 @@ void main() {
 
     final Result<HandoffArrival> result = await flow.arrive();
 
-    expect(result.isSuccess, isTrue);
+    expect(result.isOk, isTrue);
     expect(legal.presentations, 0);
     expect(_onboardingRan(onboarding), isTrue);
   });
@@ -251,10 +251,10 @@ void main() {
 
     final Result<HandoffArrival> result = await flow.arrive();
 
-    expect(result.isSuccess, isTrue);
+    expect(result.isOk, isTrue);
     expect(legal.presentations, 1);
     expect(
-      (result as Success<HandoffArrival>).value.consent!.termsVersion,
+      (result as Ok<HandoffArrival>).value.consent!.termsVersion,
       '2026-07-01',
     );
   });
@@ -274,7 +274,7 @@ void main() {
 
     final Result<HandoffArrival> result = await flow.arrive();
 
-    final HandoffArrival arrival = (result as Success<HandoffArrival>).value;
+    final HandoffArrival arrival = (result as Ok<HandoffArrival>).value;
     expect(arrival.reachedStage, HandoffStage.identity);
     expect(
       arrival.deferredLogin.outcome,
@@ -296,7 +296,7 @@ void main() {
 
     final Result<HandoffArrival> result = await flow.arrive();
 
-    final HandoffArrival arrival = (result as Success<HandoffArrival>).value;
+    final HandoffArrival arrival = (result as Ok<HandoffArrival>).value;
     // Login succeeded, but the standard per-backend gate still ran and did not
     // reach ready — handoff establishes identity only.
     expect(arrival.deferredLogin.outcome, DeferredLoginOutcome.signedIn);

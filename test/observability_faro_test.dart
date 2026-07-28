@@ -1,6 +1,7 @@
-import 'package:diene_flutter_base/core/result.dart';
 import 'package:diene_flutter_base/integration/observability_wiring.dart';
 import 'package:diene_flutter_base/observability/faro.dart';
+import 'package:diene_problems/diene_problems.dart';
+import 'package:diene_result/diene_result.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'test_support.dart';
@@ -61,9 +62,9 @@ void main() {
         config: FaroConfig(collectorUrl: _collector, apiKey: 'secret-key'),
       ).initialize(_labels());
 
-      final FaroSession session = result.fold<FaroSession>(
-        onSuccess: (FaroSession value) => value,
-        onFailure: (Problem problem) =>
+      final FaroSession session = result.match<FaroSession>(
+        ok: (FaroSession value) => value,
+        err: (Problem problem) =>
             fail('expected init to succeed, got ${problem.type}'),
       );
 
@@ -114,9 +115,9 @@ void main() {
         transport: transport,
         config: FaroConfig(collectorUrl: _collector),
       ).initialize(_labels());
-      final FaroSession session = result.fold<FaroSession>(
-        onSuccess: (FaroSession value) => value,
-        onFailure: (Problem problem) => fail('init failed: ${problem.type}'),
+      final FaroSession session = result.match<FaroSession>(
+        ok: (FaroSession value) => value,
+        err: (Problem problem) => fail('init failed: ${problem.type}'),
       );
 
       ObservabilityContext(
@@ -141,11 +142,11 @@ void main() {
         config: FaroConfig(collectorUrl: _collector, enabled: false),
       ).initialize(_labels());
 
-      expect(result.isSuccess, isFalse);
+      expect(result.isOk, isFalse);
       expect(transport.initCalls, 0);
-      final Problem problem = result.fold<Problem>(
-        onSuccess: (FaroSession _) => fail('expected a disabled failure'),
-        onFailure: (Problem value) => value,
+      final Problem problem = result.match<Problem>(
+        ok: (FaroSession _) => fail('expected a disabled failure'),
+        err: (Problem value) => value,
       );
       expect(problem.type, 'urn:diene:problem:faro-disabled');
       expect(problem.recoverable, isTrue);
@@ -167,24 +168,24 @@ void main() {
       );
 
       expect(transport.initCalls, 0);
-      final Problem problem = result.fold<Problem>(
-        onSuccess: (FaroSession _) => fail('expected an identity failure'),
-        onFailure: (Problem value) => value,
+      final Problem problem = result.match<Problem>(
+        ok: (FaroSession _) => fail('expected an identity failure'),
+        err: (Problem value) => value,
       );
       expect(problem.type, 'urn:diene:problem:faro-identity-incomplete');
       expect(problem.status, 500);
       expect(problem.data['missing'], <String>['platform', 'module']);
     });
 
-    test('a throwing transport becomes a Failure, not an exception', () async {
+    test('a throwing transport becomes a Err, not an exception', () async {
       final Result<FaroSession> result = await FaroInitializer(
         transport: _ThrowingFaroTransport(),
         config: FaroConfig(collectorUrl: _collector),
       ).initialize(_labels());
 
-      final Problem problem = result.fold<Problem>(
-        onSuccess: (FaroSession _) => fail('expected an init failure'),
-        onFailure: (Problem value) => value,
+      final Problem problem = result.match<Problem>(
+        ok: (FaroSession _) => fail('expected an init failure'),
+        err: (Problem value) => value,
       );
       expect(problem.type, 'urn:diene:problem:faro-init-failed');
       expect(problem.detail, contains('collector unreachable'));
@@ -197,7 +198,7 @@ void main() {
         config: FaroConfig(collectorUrl: _collector),
       ).initialize(_labels());
 
-      expect(result.isSuccess, isTrue);
+      expect(result.isOk, isTrue);
     });
   });
 }

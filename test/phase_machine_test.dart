@@ -1,5 +1,6 @@
-import 'package:diene_flutter_base/core/result.dart';
 import 'package:diene_flutter_base/onboarding/phase_machine.dart';
+import 'package:diene_problems/diene_problems.dart';
+import 'package:diene_result/diene_result.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const ResourceKey _primaryApi = ResourceKey(
@@ -57,14 +58,14 @@ final class _Tokens implements TokenProvider {
       for (final ResourceKey key in keys)
         if (!omit.contains(key))
           key: failing.contains(key)
-              ? const Failure<ResourceToken>(
+              ? const Err<ResourceToken>(
                   Problem(
                     type: 'urn:diene:problem:token',
                     title: 'Token acquisition failed',
                     status: 503,
                   ),
                 )
-              : Success<ResourceToken>(
+              : Ok<ResourceToken>(
                   ResourceToken(
                     raw: 'token-${key.mapKey}${forceRefresh ? '-fresh' : ''}',
                     claims: source[key] ?? const <String, Object?>{},

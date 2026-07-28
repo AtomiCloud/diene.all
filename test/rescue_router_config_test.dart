@@ -1,6 +1,6 @@
 import 'package:diene_flutter_base/auth/rescue_router_config.dart';
-import 'package:diene_flutter_base/core/result.dart';
 import 'package:diene_flutter_base/onboarding/picker.dart';
+import 'package:diene_result/diene_result.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const RescueDiskCacheConfig _diskCache = RescueDiskCacheConfig(
@@ -47,7 +47,7 @@ RescueRouterConfig _complete({
 );
 
 List<String> _violations(Result<RescueRouterConfig> result) =>
-    ((result as Failure<RescueRouterConfig>).problem.data['violations']!
+    ((result as Err<RescueRouterConfig>).problem.data['violations']!
             as List<Object?>)
         .map((Object? v) => v.toString())
         .toList(growable: false);
@@ -59,7 +59,7 @@ void main() {
     );
 
     expect(
-      result.isSuccess,
+      result.isOk,
       isTrue,
       reason: 'a validator that never passes is as useless as one that never '
           'fails',
@@ -72,7 +72,7 @@ void main() {
         _complete(diskCache: null),
       );
 
-      expect(result, isA<Failure<RescueRouterConfig>>());
+      expect(result, isA<Err<RescueRouterConfig>>());
       expect(_violations(result), contains('diskCache'));
     });
 
@@ -81,7 +81,7 @@ void main() {
         _complete(seeds: const <Uri>[]),
       );
 
-      expect(result, isA<Failure<RescueRouterConfig>>());
+      expect(result, isA<Err<RescueRouterConfig>>());
       expect(_violations(result), contains('seeds'));
     });
 
@@ -90,7 +90,7 @@ void main() {
         _complete(allowlist: null),
       );
 
-      expect(result, isA<Failure<RescueRouterConfig>>());
+      expect(result, isA<Err<RescueRouterConfig>>());
       expect(_violations(result), contains('allowlist'));
     });
 
@@ -105,7 +105,7 @@ void main() {
         ),
       );
 
-      expect(result, isA<Failure<RescueRouterConfig>>());
+      expect(result, isA<Err<RescueRouterConfig>>());
       expect(_violations(result), contains('issuer'));
     });
 

@@ -4,9 +4,9 @@
 /// "per-endpoint Problem catalog from the edge channel drives
 /// recoverable-vs-fatal UX, uncatalogued = 5xx + feeds the catalog loop."
 ///
-/// It composes the two halves that already exist:
-/// * [ProblemCatalog] (`lib/core/problem_catalog.dart`) — endpoint + upstream
-///   status → [Problem];
+/// It composes the two halves:
+/// * [ProblemCatalog] (the local runtime endpoint classifier defined below) —
+///   endpoint + upstream status → [Problem];
 /// * [ProblemRegistry] (`lib/problems/problem_registry.dart`) — [Problem] →
 ///   [ProblemErrorInfo] presentation contract;
 ///
@@ -26,14 +26,75 @@
 /// classifier refuses to produce an inconsistent pairing, so tampering with
 /// either side of the mapping shows up as a failed classification rather than a
 /// merely different one.
+///
+/// The runtime endpoint classifier ([ProblemCatalog]) is a LOCAL type: the
+/// published `diene_problems` `ProblemCatalog` is the CRD-EXPORT producer side
+/// (`add`/`addType`/`toCrdContent`), not a runtime classifier, so it is hidden
+/// on the import below. The per-row entry type is the published
+/// [CatalogEntry] — its `typeUri` carries the URI a matched row classifies to.
 library;
 
-import '../core/problem_catalog.dart';
-import '../core/result.dart';
+import 'package:diene_problems/diene_problems.dart' hide ProblemCatalog, ProblemRegistry;
+import 'package:diene_result/diene_result.dart';
+
 import 'problem_registry.dart';
 
 /// The uncatalogued problem type URN synthesised by [ProblemCatalog.classify].
 const String uncataloguedProblemType = 'urn:diene:problem:uncatalogued';
+
+/// Notified once for each response the catalog had no row for.
+typedef UnexpectedProblemSink = Future<void> Function(Problem problem);
+
+/// Runtime endpoint classifier: maps `endpoint + upstream HTTP status` onto a
+/// [Problem] using per-endpoint [CatalogEntry] rows.
+///
+/// This is the domain-side (transport → [Problem]) counterpart the frontend
+/// classifier needs at runtime. It is deliberately NOT the published
+/// `diene_problems` `ProblemCatalog`, which is the CRD-export producer side.
+final class ProblemCatalog {
+  ProblemCatalog({required this.endpoints, UnexpectedProblemSink? onUnexpected})
+    : _onUnexpected = onUnexpected ?? _ignore;
+
+  /// Per-endpoint, per-status catalog rows.
+  final Map<String, Map<int, CatalogEntry>> endpoints;
+  final UnexpectedProblemSink _onUnexpected;
+
+  /// Classify an [endpoint] + upstream [status] into a [Problem].
+  ///
+  /// A catalogued row becomes the [Problem] its [CatalogEntry.typeUri] names; an
+  /// uncatalogued endpoint/status synthesises a 500
+  /// `urn:diene:problem:uncatalogued` problem and notifies the loop sink once.
+  Future<Problem> classify({
+    required String endpoint,
+    required int status,
+    String? detail,
+    String? instance,
+  }) async {
+    final CatalogEntry? entry = endpoints[endpoint]?[status];
+    if (entry != null) {
+      return Problem(
+        type: entry.typeUri,
+        title: entry.title,
+        status: entry.status,
+        detail: detail,
+        instance: instance,
+        recoverable: entry.recoverable,
+      );
+    }
+    final Problem unexpected = Problem(
+      type: uncataloguedProblemType,
+      title: 'Unexpected service response',
+      status: 500,
+      detail: detail,
+      instance: instance,
+      data: <String, Object?>{'endpoint': endpoint, 'upstreamStatus': status},
+    );
+    await _onUnexpected(unexpected);
+    return unexpected;
+  }
+
+  static Future<void> _ignore(Problem problem) async {}
+}
 
 /// A [Problem] paired with the presentation contract it classified to.
 final class ClassifiedProblem {
@@ -108,9 +169,9 @@ final class CatalogErrorClassifier {
 
   /// Classify a non-success response from [endpoint] with [status].
   ///
-  /// Returns `Failure` only when the catalog and the registry disagree (see
+  /// Returns `Err` only when the catalog and the registry disagree (see
   /// [ClassifiedProblem.isConsistent]) — a wiring defect, not a service error.
-  /// Every well-formed mapping, including the uncatalogued one, is a `Success`
+  /// Every well-formed mapping, including the uncatalogued one, is an `Ok`
   /// carrying the [ClassifiedProblem].
   Future<Result<ClassifiedProblem>> classify({
     required String endpoint,
@@ -141,7 +202,7 @@ final class CatalogErrorClassifier {
     );
 
     if (!classified.isConsistent) {
-      return Failure<ClassifiedProblem>(
+      return Err<ClassifiedProblem>(
         Problem(
           type: classifierInconsistencyType,
           title: 'Inconsistent problem classification',
@@ -161,6 +222,6 @@ final class CatalogErrorClassifier {
         ),
       );
     }
-    return Success<ClassifiedProblem>(classified);
+    return Ok<ClassifiedProblem>(classified);
   }
 }

@@ -9,11 +9,12 @@
 /// content behind it (protected-screen standard, Flutter variant).
 library;
 
+import 'package:diene_problems/diene_problems.dart';
+import 'package:diene_result/diene_result.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../auth/session_controller.dart';
-import '../core/result.dart';
 import '../i18n/translations.g.dart';
 import '../onboarding/onboarding.dart';
 import '../routing/deeplink.dart';
@@ -76,12 +77,12 @@ final class LoginScreen extends StatelessWidget {
                   if (!context.mounted) {
                     return;
                   }
-                  result.fold<void>(
+                  result.match<void>(
                     // Re-validated at the point of use, so a bad value becomes
                     // the safe default rather than an open redirect.
-                    onSuccess: (OnboardingPhase _) =>
+                    ok: (OnboardingPhase _) =>
                         context.go(continueTo(returnTo)),
-                    onFailure: (Problem _) {},
+                    err: (Problem _) {},
                   );
                 },
                 label: Text(copy.startAction),

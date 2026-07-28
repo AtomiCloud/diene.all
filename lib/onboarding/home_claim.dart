@@ -9,7 +9,8 @@
 /// [phase_machine.dart].
 library;
 
-import '../core/result.dart';
+import 'package:diene_problems/diene_problems.dart';
+import 'package:diene_result/diene_result.dart';
 
 /// The custom-data / JWT claim key (C0 §13).
 const String homeLandscapeClaimKey = 'home_landscape';
@@ -96,7 +97,7 @@ final class HomeClaimCheck {
     try {
       existing = await gateway.readHomeLandscapeClaim();
     } on Object catch (error) {
-      return Failure<HomeClaimResolution>(
+      return Err<HomeClaimResolution>(
         Problem(
           type: 'urn:diene:problem:home-claim',
           title: 'Could not read the home landscape claim',
@@ -110,7 +111,7 @@ final class HomeClaimCheck {
     if (existing != null && existing.isNotEmpty) {
       // Present → straight through. The picker is never constructed a second
       // time for this user.
-      return Success<HomeClaimResolution>(
+      return Ok<HomeClaimResolution>(
         HomeClaimResolution(
           landscape: existing,
           source: HomeClaimSource.existingClaim,
@@ -120,14 +121,14 @@ final class HomeClaimCheck {
     }
 
     final Result<String> picked = await picker.pickHomeLandscape();
-    if (picked is Failure<String>) {
-      return Failure<HomeClaimResolution>(picked.problem);
+    if (picked is Err<String>) {
+      return Err<HomeClaimResolution>(picked.problem);
     }
-    final String landscape = (picked as Success<String>).value;
+    final String landscape = (picked as Ok<String>).value;
     try {
       await gateway.writeHomeLandscapeClaim(landscape);
     } on Object catch (error) {
-      return Failure<HomeClaimResolution>(
+      return Err<HomeClaimResolution>(
         Problem(
           type: 'urn:diene:problem:home-claim-write',
           title: 'Could not write the home landscape claim',
@@ -137,7 +138,7 @@ final class HomeClaimCheck {
         ),
       );
     }
-    return Success<HomeClaimResolution>(
+    return Ok<HomeClaimResolution>(
       HomeClaimResolution(
         landscape: landscape,
         source: HomeClaimSource.picker,

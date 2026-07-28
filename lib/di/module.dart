@@ -23,10 +23,10 @@
 /// never asks.
 library;
 
+import 'package:diene_problems/diene_problems.dart';
+import 'package:diene_result/diene_result.dart';
 import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
-
-import '../core/result.dart';
 
 /// Problem type URNs emitted by this port.
 abstract final class ModuleProblemTypes {
@@ -100,7 +100,7 @@ final class ModuleRegistry {
 
   /// Run every module's registration and build the container.
   ///
-  /// Returns `Failure` [ModuleProblemTypes.duplicateBinding] if two modules bind
+  /// Returns `Err` [ModuleProblemTypes.duplicateBinding] if two modules bind
   /// the same type; the container is never half-built.
   Result<ModuleContainer> build() {
     final Map<Type, _Binding> bindings = <Type, _Binding>{};
@@ -109,7 +109,7 @@ final class ModuleRegistry {
       module.register(_Binder(module.name, bindings, duplicates));
     }
     if (duplicates.isNotEmpty) {
-      return Failure<ModuleContainer>(
+      return Err<ModuleContainer>(
         Problem(
           type: ModuleProblemTypes.duplicateBinding,
           title: 'Duplicate module binding',
@@ -119,7 +119,7 @@ final class ModuleRegistry {
         ),
       );
     }
-    return Success<ModuleContainer>(ModuleContainer._(bindings));
+    return Ok<ModuleContainer>(ModuleContainer._(bindings));
   }
 }
 
@@ -142,15 +142,15 @@ final class ModuleContainer {
 
   /// Resolve `T`, building it (once) if needed.
   ///
-  /// Total: an unbound type or a dependency cycle comes back as `Failure`.
+  /// Total: an unbound type or a dependency cycle comes back as `Err`.
   Result<T> resolve<T extends Object>() {
     final Object? existing = _instances[T];
     if (existing != null) {
-      return Success<T>(existing as T);
+      return Ok<T>(existing as T);
     }
     final _Binding? binding = _bindings[T];
     if (binding == null) {
-      return Failure<T>(
+      return Err<T>(
         Problem(
           type: ModuleProblemTypes.missingBinding,
           title: 'Missing module binding',
@@ -163,7 +163,7 @@ final class ModuleContainer {
       );
     }
     if (!_resolving.add(T)) {
-      return Failure<T>(
+      return Err<T>(
         Problem(
           type: ModuleProblemTypes.circularDependency,
           title: 'Circular module dependency',
@@ -178,7 +178,7 @@ final class ModuleContainer {
     try {
       final Object instance = binding.factory(this);
       _instances[T] = instance;
-      return Success<T>(instance as T);
+      return Ok<T>(instance as T);
     } finally {
       _resolving.remove(T);
     }
@@ -188,9 +188,9 @@ final class ModuleContainer {
   ///
   /// For composition-root call sites that cannot meaningfully continue without
   /// the dependency; domain code uses [resolve] and folds the `Result`.
-  T require<T extends Object>() => resolve<T>().fold<T>(
-    onSuccess: (T value) => value,
-    onFailure: (Problem problem) =>
+  T require<T extends Object>() => resolve<T>().match<T>(
+    ok: (T value) => value,
+    err: (Problem problem) =>
         throw StateError('${problem.title}: ${problem.detail}'),
   );
 }

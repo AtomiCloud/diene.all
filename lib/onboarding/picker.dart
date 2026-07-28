@@ -20,9 +20,10 @@ library;
 
 import 'dart:convert';
 
+import 'package:diene_problems/diene_problems.dart';
+import 'package:diene_result/diene_result.dart';
 import 'package:http/http.dart' as http;
 
-import '../core/result.dart';
 import 'home_claim.dart';
 
 /// The authority (DNS name) of [uri], lowercased.
@@ -168,7 +169,7 @@ final class LandscapeSelectorClient {
   /// allowlist, or the whole document is rejected.
   Future<Result<LandscapeSelectorDoc>> fetchDocument() async {
     if (!allowlist.allows(source.documentUri)) {
-      return Failure<LandscapeSelectorDoc>(
+      return Err<LandscapeSelectorDoc>(
         _rejected(DisallowedEndpointSuffix(source.documentUri).toString()),
       );
     }
@@ -176,7 +177,7 @@ final class LandscapeSelectorClient {
     try {
       body = await source.fetch();
     } on Object catch (error) {
-      return Failure<LandscapeSelectorDoc>(
+      return Err<LandscapeSelectorDoc>(
         Problem(
           type: 'urn:diene:problem:doc-b-fetch',
           title: 'Could not fetch the landscape selector',
@@ -191,7 +192,7 @@ final class LandscapeSelectorClient {
     try {
       doc = _parse(body);
     } on Object catch (error) {
-      return Failure<LandscapeSelectorDoc>(
+      return Err<LandscapeSelectorDoc>(
         Problem(
           type: 'urn:diene:problem:doc-b-malformed',
           title: 'The landscape selector is malformed',
@@ -205,12 +206,12 @@ final class LandscapeSelectorClient {
     for (final LandscapeOption option in doc.landscapes) {
       final Uri ping = pingConvention.pingUrlFor(option.name);
       if (!allowlist.allows(ping)) {
-        return Failure<LandscapeSelectorDoc>(
+        return Err<LandscapeSelectorDoc>(
           _rejected(DisallowedEndpointSuffix(ping).toString()),
         );
       }
     }
-    return Success<LandscapeSelectorDoc>(doc);
+    return Ok<LandscapeSelectorDoc>(doc);
   }
 
   /// Pings every listed landscape and returns the fastest responder.
@@ -220,7 +221,7 @@ final class LandscapeSelectorClient {
     for (final LandscapeOption option in doc.landscapes) {
       final Uri url = pingConvention.pingUrlFor(option.name);
       if (!allowlist.allows(url)) {
-        return Failure<String>(
+        return Err<String>(
           _rejected(DisallowedEndpointSuffix(url).toString()),
         );
       }
@@ -234,7 +235,7 @@ final class LandscapeSelectorClient {
       }
     }
     if (best == null) {
-      return const Failure<String>(
+      return const Err<String>(
         Problem(
           type: 'urn:diene:problem:no-healthy-landscape',
           title: 'No landscape answered',
@@ -243,7 +244,7 @@ final class LandscapeSelectorClient {
         ),
       );
     }
-    return Success<String>(best);
+    return Ok<String>(best);
   }
 
   LandscapeSelectorDoc _parse(String body) {
@@ -307,11 +308,11 @@ final class DocBHomeLandscapePicker implements HomeLandscapePicker {
   Future<Result<String>> pickHomeLandscape() async {
     fetches += 1;
     final Result<LandscapeSelectorDoc> doc = await client.fetchDocument();
-    if (doc is Failure<LandscapeSelectorDoc>) {
-      return Failure<String>(doc.problem);
+    if (doc is Err<LandscapeSelectorDoc>) {
+      return Err<String>(doc.problem);
     }
     final LandscapeSelectorDoc document =
-        (doc as Success<LandscapeSelectorDoc>).value;
+        (doc as Ok<LandscapeSelectorDoc>).value;
     final Future<String?> Function(List<LandscapeOption>)? chooser = onChoices;
     if (chooser != null) {
       final String? chosen = await chooser(document.landscapes);
@@ -320,7 +321,7 @@ final class DocBHomeLandscapePicker implements HomeLandscapePicker {
           (LandscapeOption option) => option.name == chosen,
         );
         if (!listed) {
-          return const Failure<String>(
+          return const Err<String>(
             Problem(
               type: 'urn:diene:problem:unlisted-landscape',
               title: 'The chosen landscape is not in the selector',
@@ -328,7 +329,7 @@ final class DocBHomeLandscapePicker implements HomeLandscapePicker {
             ),
           );
         }
-        return Success<String>(chosen);
+        return Ok<String>(chosen);
       }
     }
     return client.pingAndPick(document);

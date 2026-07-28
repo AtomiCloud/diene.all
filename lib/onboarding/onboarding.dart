@@ -1,4 +1,5 @@
-import '../core/result.dart';
+import 'package:diene_problems/diene_problems.dart';
+import 'package:diene_result/diene_result.dart';
 
 abstract interface class HomeClaimGateway {
   Future<String?> readHomeClaim();
@@ -18,12 +19,12 @@ final class SingleRegionHomePicker {
     try {
       final String? current = await gateway.readHomeClaim();
       if (current != null && current.isNotEmpty) {
-        return Success<String>(current);
+        return Ok<String>(current);
       }
       await gateway.writeHomeClaim(landscape);
-      return Success<String>(landscape);
+      return Ok<String>(landscape);
     } on Object catch (error) {
-      return Failure<String>(
+      return Err<String>(
         Problem(
           type: 'urn:diene:problem:home-claim',
           title: 'Could not verify the home landscape',
@@ -60,9 +61,9 @@ final class OnboardingCoordinator {
   Future<Result<OnboardingPhase>> runAfterSignIn() async {
     phase = OnboardingPhase.checkingHome;
     final Result<String> home = await homePicker.resolve();
-    if (home is Failure<String>) {
+    if (home is Err<String>) {
       phase = OnboardingPhase.failed;
-      return Failure<OnboardingPhase>(home.problem);
+      return Err<OnboardingPhase>(home.problem);
     }
     try {
       phase = OnboardingPhase.probing;
@@ -72,10 +73,10 @@ final class OnboardingCoordinator {
         await gateway.synchronizeCurrentUser(backendId);
       }
       phase = OnboardingPhase.ready;
-      return Success<OnboardingPhase>(phase);
+      return Ok<OnboardingPhase>(phase);
     } on Object catch (error) {
       phase = OnboardingPhase.failed;
-      return Failure<OnboardingPhase>(
+      return Err<OnboardingPhase>(
         Problem(
           type: 'urn:diene:problem:onboarding',
           title: 'Onboarding could not complete',

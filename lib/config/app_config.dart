@@ -1,6 +1,11 @@
+import 'package:diene_core_utils/diene_core_utils.dart' show deepMerge;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:yaml/yaml.dart';
+
+// Re-export the C0 §3 layered merge so callers that layer config maps (and the
+// config test) get the single-source implementation, not a local reimplementation.
+export 'package:diene_core_utils/diene_core_utils.dart' show deepMerge;
 
 enum ConfiguredThemeMode { light, dark, system }
 
@@ -305,26 +310,6 @@ final class AppConfigLoader {
     }
     return overrides;
   }
-}
-
-Map<String, Object?> deepMerge(
-  Map<String, Object?> base,
-  Map<String, Object?> overlay,
-) {
-  final Map<String, Object?> result = <String, Object?>{...base};
-  for (final MapEntry<String, Object?> entry in overlay.entries) {
-    final Object? current = result[entry.key];
-    if (current is Map<String, Object?> &&
-        entry.value is Map<String, Object?>) {
-      result[entry.key] = deepMerge(
-        current,
-        entry.value! as Map<String, Object?>,
-      );
-    } else {
-      result[entry.key] = entry.value;
-    }
-  }
-  return result;
 }
 
 Map<String, Object?> _plainMap(Object? value) {

@@ -88,7 +88,7 @@ void main() {
     },
   );
 
-  group('E4 integration manifest (held pending accepted lib/dart/e2e sha)', () {
+  group('E4 integration manifest (diene surface integrated from pub.dev)', () {
     test('frozen accepted flutter-base sha is recorded', () {
       expect(
         flutterBaseAcceptedSha,
@@ -96,10 +96,14 @@ void main() {
       );
     });
 
-    test('integration is honestly held, not falsely complete', () {
-      expect(e4IntegrationComplete, isFalse);
-      expect(e4HeldPoints, isNotEmpty);
-      expect(primaryHoldReason, contains('lib/dart/e2e'));
+    test('integration is complete: no point remains held', () {
+      // The published diene packages landed via pub.dev (declared by W4 at
+      // 15c8185), dissolving the original lib/dart/e2e await, so every point is
+      // cleared.
+      expect(e4IntegrationComplete, isTrue);
+      expect(e4HeldPoints, isEmpty);
+      expect(primaryHoldReason, contains('No hold remains'));
+      expect(primaryHoldReason, contains('pub.dev'));
     });
 
     test('the observability wiring point stands live (not held)', () {
@@ -110,12 +114,36 @@ void main() {
       expect(observability.held, isFalse);
     });
 
-    test('every diene package point is held until e2e lands', () {
+    test('every diene package point is cleared and names its pub.dev package',
+        () {
       final Iterable<E4IntegrationPoint> dieneEngine = e4IntegrationMap.where(
-        (E4IntegrationPoint p) => p.dienePackage.contains('lib/dart/e2e'),
+        (E4IntegrationPoint p) => p.dienePackage.contains('diene_'),
       );
-      expect(dieneEngine, isNotEmpty);
-      expect(dieneEngine.every((E4IntegrationPoint p) => p.held), isTrue);
+      expect(dieneEngine, hasLength(5));
+      expect(dieneEngine.every((E4IntegrationPoint p) => !p.held), isTrue);
+      expect(
+        dieneEngine.every((E4IntegrationPoint p) =>
+            p.dienePackage.contains('pub.dev') &&
+            !p.dienePackage.contains('lib/dart/e2e')),
+        isTrue,
+      );
+    });
+
+    test('auth and api engine points name the transport swap as follow-on owed',
+        () {
+      final Iterable<E4IntegrationPoint> transportOwed = e4IntegrationMap.where(
+        (E4IntegrationPoint p) =>
+            p.dienePackage.contains('diene_auth_engine') ||
+            p.dienePackage.contains('diene_api_engine'),
+      );
+      expect(transportOwed, hasLength(2));
+      // Condition 2 (noel's ruling): the residual transport work must be RECORDED
+      // as owed, not merely omitted — omitting a claim is not recording it.
+      expect(
+        transportOwed
+            .every((E4IntegrationPoint p) => p.note.contains('FOLLOW-ON OWED')),
+        isTrue,
+      );
     });
   });
 }

@@ -8,7 +8,8 @@
 /// absent claim, and a 409 from `POST /User` is create-or-ok, never a failure.
 library;
 
-import '../core/result.dart';
+import 'package:diene_problems/diene_problems.dart';
+import 'package:diene_result/diene_result.dart';
 
 /// The four phases a single backend can be in (C0 §8).
 enum BackendPhase { bootstrapping, needsOnboarding, ready, error }
@@ -285,7 +286,7 @@ final class BackendPhaseMachine {
     for (final MapEntry<ResourceKey, Result<ResourceToken>> entry
         in batch.entries) {
       final Result<ResourceToken> value = entry.value;
-      if (value is! Success<ResourceToken>) {
+      if (value is! Ok<ResourceToken>) {
         return null;
       }
       resolved[entry.key] = value.value;

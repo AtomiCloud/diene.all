@@ -18,7 +18,8 @@
 /// for an expected failure (disabled, incomplete identity, transport error).
 library;
 
-import '../core/result.dart';
+import 'package:diene_problems/diene_problems.dart';
+import 'package:diene_result/diene_result.dart';
 import '../integration/observability_wiring.dart';
 
 /// Grafana Faro app-meta attribute keys.
@@ -177,16 +178,16 @@ final class FaroInitializer {
   /// Initialise Faro for [labels].
   ///
   /// Returns:
-  /// * `Failure` [FaroProblemTypes.disabled] when telemetry is switched off —
+  /// * `Err` [FaroProblemTypes.disabled] when telemetry is switched off —
   ///   recoverable, because the app runs fine without a collector;
-  /// * `Failure` [FaroProblemTypes.incompleteIdentity] when any LPSM label is
+  /// * `Err` [FaroProblemTypes.incompleteIdentity] when any LPSM label is
   ///   blank — an incomplete label set would poison LPSM cardinality, so it is
   ///   refused before the transport is touched;
-  /// * `Failure` [FaroProblemTypes.initFailed] when the transport throws;
-  /// * `Success` with the [FaroSession] otherwise.
+  /// * `Err` [FaroProblemTypes.initFailed] when the transport throws;
+  /// * `Ok` with the [FaroSession] otherwise.
   Future<Result<FaroSession>> initialize(ObservabilityLabels labels) async {
     if (!config.enabled) {
-      return const Failure<FaroSession>(
+      return const Err<FaroSession>(
         Problem(
           type: FaroProblemTypes.disabled,
           title: 'Telemetry disabled',
@@ -199,7 +200,7 @@ final class FaroInitializer {
 
     final List<String> missing = _blankLabelKeys(labels);
     if (missing.isNotEmpty) {
-      return Failure<FaroSession>(
+      return Err<FaroSession>(
         Problem(
           type: FaroProblemTypes.incompleteIdentity,
           title: 'Incomplete observability identity',
@@ -219,7 +220,7 @@ final class FaroInitializer {
         apiKey: config.apiKey,
       );
     } on Object catch (error) {
-      return Failure<FaroSession>(
+      return Err<FaroSession>(
         Problem(
           type: FaroProblemTypes.initFailed,
           title: 'Faro initialization failed',
@@ -232,7 +233,7 @@ final class FaroInitializer {
       );
     }
 
-    return Success<FaroSession>(
+    return Ok<FaroSession>(
       FaroSession(
         collectorUrl: config.collectorUrl,
         labels: labels,

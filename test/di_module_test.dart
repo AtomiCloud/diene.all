@@ -1,5 +1,6 @@
-import 'package:diene_flutter_base/core/result.dart';
 import 'package:diene_flutter_base/di/module.dart';
+import 'package:diene_problems/diene_problems.dart';
+import 'package:diene_result/diene_result.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -88,16 +89,16 @@ final class _CyclicModule implements AppModule {
 }
 
 ModuleContainer _expectContainer(Result<ModuleContainer> result) =>
-    result.fold<ModuleContainer>(
-      onSuccess: (ModuleContainer value) => value,
-      onFailure: (Problem problem) =>
+    result.match<ModuleContainer>(
+      ok: (ModuleContainer value) => value,
+      err: (Problem problem) =>
           fail('expected the container to build, got ${problem.detail}'),
     );
 
 Problem _expectProblem<T extends Object>(Result<T> result) =>
-    result.fold<Problem>(
-      onSuccess: (T value) => fail('expected a failure, got $value'),
-      onFailure: (Problem problem) => problem,
+    result.match<Problem>(
+      ok: (T value) => fail('expected a failure, got $value'),
+      err: (Problem problem) => problem,
     );
 
 void main() {
@@ -141,7 +142,7 @@ void main() {
       expect(container.require<_Repository>(), same(repository));
     });
 
-    test('a MISSING registration is a Failure naming the requested type', () {
+    test('a MISSING registration is a Err naming the requested type', () {
       final ModuleContainer container = _expectContainer(
         ModuleRegistry(<AppModule>[_CoreModule()]).build(),
       );
@@ -157,7 +158,7 @@ void main() {
       expect(problem.detail, contains('_Clock'));
     });
 
-    test('a BROKEN registration inside a factory surfaces as a Failure', () {
+    test('a BROKEN registration inside a factory surfaces as a Err', () {
       // _DataModule without _CoreModule: _Repository's own dependency is unbound.
       final ModuleContainer container = _expectContainer(
         ModuleRegistry(<AppModule>[const _DataModule()]).build(),
@@ -242,16 +243,16 @@ void main() {
             builder: (BuildContext context) {
               resolvedZone = context
                   .module<_Coordinator>()
-                  .fold<String>(
-                    onSuccess: (_Coordinator coordinator) =>
+                  .match<String>(
+                    ok: (_Coordinator coordinator) =>
                         coordinator.repository.clock.zone,
-                    onFailure: (Problem problem) => 'unresolved',
+                    err: (Problem problem) => 'unresolved',
                   );
               missingProblemType = context
                   .module<_UnboundThing>()
-                  .fold<String>(
-                    onSuccess: (_UnboundThing _) => 'unexpectedly resolved',
-                    onFailure: (Problem problem) => problem.type,
+                  .match<String>(
+                    ok: (_UnboundThing _) => 'unexpectedly resolved',
+                    err: (Problem problem) => problem.type,
                   );
               return const SizedBox.shrink();
             },

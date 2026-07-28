@@ -1,7 +1,6 @@
+import 'package:diene_problems/diene_problems.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-
-import '../core/result.dart';
 
 final class ProblemVisualizer extends StatelessWidget {
   const ProblemVisualizer({

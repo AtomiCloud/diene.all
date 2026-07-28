@@ -1,5 +1,6 @@
 import 'package:diene_flutter_base/content/content_state.dart';
-import 'package:diene_flutter_base/core/result.dart';
+import 'package:diene_problems/diene_problems.dart';
+import 'package:diene_result/diene_result.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const Problem _offline = Problem(
@@ -34,7 +35,7 @@ void main() {
     test('loading -> content on a non-empty success', () {
       final ContentState<List<String>> next = machine.resolve(
         machine.initial(),
-        const Success<List<String>>(<String>['a', 'b']),
+        const Ok<List<String>>(<String>['a', 'b']),
       );
 
       expect(_tier(next), 'content');
@@ -45,7 +46,7 @@ void main() {
     test('loading -> empty on an empty success (not content)', () {
       final ContentState<List<String>> next = machine.resolve(
         machine.initial(),
-        const Success<List<String>>(<String>[]),
+        const Ok<List<String>>(<String>[]),
       );
 
       expect(_tier(next), 'empty');
@@ -55,7 +56,7 @@ void main() {
     test('loading -> error on a failure, carrying the problem', () {
       final ContentState<List<String>> next = machine.resolve(
         machine.initial(),
-        const Failure<List<String>>(_offline),
+        const Err<List<String>>(_offline),
       );
 
       expect(_tier(next), 'error');
@@ -72,7 +73,7 @@ void main() {
     test('content -> loading keeps the stale content on screen', () {
       final ContentState<List<String>> content = machine.resolve(
         machine.initial(),
-        const Success<List<String>>(<String>['a']),
+        const Ok<List<String>>(<String>['a']),
       );
       final ContentState<List<String>> refreshing = machine.startLoading(
         content,
@@ -85,11 +86,11 @@ void main() {
     test('content -> error keeps the stale content for a banner', () {
       final ContentState<List<String>> content = machine.resolve(
         machine.initial(),
-        const Success<List<String>>(<String>['a']),
+        const Ok<List<String>>(<String>['a']),
       );
       final ContentState<List<String>> failed = machine.resolve(
         machine.startLoading(content),
-        const Failure<List<String>>(_offline),
+        const Err<List<String>>(_offline),
       );
 
       expect(_tier(failed), 'error');
@@ -99,7 +100,7 @@ void main() {
     test('empty -> loading carries nothing (empty is an answer)', () {
       final ContentState<List<String>> empty = machine.resolve(
         machine.initial(),
-        const Success<List<String>>(<String>[]),
+        const Ok<List<String>>(<String>[]),
       );
 
       expect(machine.startLoading(empty).displayable, isNull);
@@ -108,11 +109,11 @@ void main() {
     test('empty -> content once the payload arrives', () {
       final ContentState<List<String>> empty = machine.resolve(
         machine.initial(),
-        const Success<List<String>>(<String>[]),
+        const Ok<List<String>>(<String>[]),
       );
       final ContentState<List<String>> filled = machine.resolve(
         machine.startLoading(empty),
-        const Success<List<String>>(<String>['a']),
+        const Ok<List<String>>(<String>['a']),
       );
 
       expect(_tier(filled), 'content');
@@ -121,11 +122,11 @@ void main() {
     test('content -> empty when the payload drains', () {
       final ContentState<List<String>> content = machine.resolve(
         machine.initial(),
-        const Success<List<String>>(<String>['a']),
+        const Ok<List<String>>(<String>['a']),
       );
       final ContentState<List<String>> drained = machine.resolve(
         machine.startLoading(content),
-        const Success<List<String>>(<String>[]),
+        const Ok<List<String>>(<String>[]),
       );
 
       expect(_tier(drained), 'empty');
@@ -135,12 +136,12 @@ void main() {
     test('error -> loading -> content recovers via retry', () {
       final ContentState<List<String>> failed = machine.resolve(
         machine.initial(),
-        const Failure<List<String>>(_offline),
+        const Err<List<String>>(_offline),
       );
       final ContentState<List<String>> retrying = machine.retry(failed);
       final ContentState<List<String>> recovered = machine.resolve(
         retrying,
-        const Success<List<String>>(<String>['a']),
+        const Ok<List<String>>(<String>['a']),
       );
 
       expect(_tier(retrying), 'loading');
@@ -151,7 +152,7 @@ void main() {
       final ContentState<List<String>> loading = machine.initial();
       final ContentState<List<String>> content = machine.resolve(
         loading,
-        const Success<List<String>>(<String>['a']),
+        const Ok<List<String>>(<String>['a']),
       );
 
       expect(machine.retry(loading), same(loading));
@@ -165,11 +166,11 @@ void main() {
       );
       final ContentMachine<int> anyNumber = ContentMachine.neverEmpty<int>();
 
-      expect(_tier(balance.resolve(balance.initial(), const Success<int>(0))),
+      expect(_tier(balance.resolve(balance.initial(), const Ok<int>(0))),
           'empty');
-      expect(_tier(balance.resolve(balance.initial(), const Success<int>(5))),
+      expect(_tier(balance.resolve(balance.initial(), const Ok<int>(5))),
           'content');
-      expect(_tier(anyNumber.resolve(anyNumber.initial(), const Success<int>(0))),
+      expect(_tier(anyNumber.resolve(anyNumber.initial(), const Ok<int>(0))),
           'content');
     });
 

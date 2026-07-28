@@ -12,9 +12,10 @@ library;
 
 import 'dart:convert';
 
+import 'package:diene_problems/diene_problems.dart';
+import 'package:diene_result/diene_result.dart';
 import 'package:http/http.dart' as http;
 
-import '../core/result.dart';
 import 'session_controller.dart';
 
 /// The canonical carrier prefix (C0 §7, carrier v1).
@@ -244,18 +245,18 @@ final class AppHandoffRedeemClient {
         }),
       );
       if (response.statusCode != 200) {
-        return Failure<RedeemedHandoff>(_expired(response.statusCode));
+        return Err<RedeemedHandoff>(_expired(response.statusCode));
       }
       final Object? decoded = jsonDecode(response.body);
       if (decoded is! Map<String, Object?>) {
-        return Failure<RedeemedHandoff>(_expired(response.statusCode));
+        return Err<RedeemedHandoff>(_expired(response.statusCode));
       }
       final Object? token = decoded['token'];
       final Object? email = decoded['email'];
       if (token is! String || token.isEmpty || email is! String) {
-        return Failure<RedeemedHandoff>(_expired(response.statusCode));
+        return Err<RedeemedHandoff>(_expired(response.statusCode));
       }
-      return Success<RedeemedHandoff>(
+      return Ok<RedeemedHandoff>(
         RedeemedHandoff(
           token: token,
           email: email,
@@ -263,7 +264,7 @@ final class AppHandoffRedeemClient {
         ),
       );
     } on Object catch (error) {
-      return Failure<RedeemedHandoff>(_expired(0, detail: error.toString()));
+      return Err<RedeemedHandoff>(_expired(0, detail: error.toString()));
     }
   }
 
@@ -359,7 +360,7 @@ final class DeferredLoginReceiver {
         nonce: nonce,
         device: device,
       );
-      if (redeemed is Failure<RedeemedHandoff>) {
+      if (redeemed is Err<RedeemedHandoff>) {
         steps.add('redeem-failed');
         await ledger.markConsumed(nonce, now);
         return DeferredLoginReport(
@@ -370,7 +371,7 @@ final class DeferredLoginReceiver {
       }
       steps.add('redeemed');
 
-      final RedeemedHandoff handoff = (redeemed as Success<RedeemedHandoff>)
+      final RedeemedHandoff handoff = (redeemed as Ok<RedeemedHandoff>)
           .value;
       await ledger.markConsumed(nonce, now);
       try {

@@ -1,6 +1,6 @@
 import 'package:diene_flutter_base/auth/session_controller.dart';
-import 'package:diene_flutter_base/core/result.dart';
 import 'package:diene_flutter_base/onboarding/onboarding.dart';
+import 'package:diene_result/diene_result.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 final class _CountingHomeGateway implements HomeClaimGateway {
@@ -105,8 +105,8 @@ void main() {
         landscape: 'pichu',
       );
 
-      expect((await picker.resolve()).isSuccess, isTrue);
-      expect((await picker.resolve()).isSuccess, isTrue);
+      expect((await picker.resolve()).isOk, isTrue);
+      expect((await picker.resolve()).isOk, isTrue);
       expect(home.reads, 2);
       expect(home.writes, 1);
       expect(home.claim, 'pichu');
@@ -127,8 +127,8 @@ void main() {
       final Result<OnboardingPhase> first = await coordinator.runAfterSignIn();
       final Result<OnboardingPhase> second = await coordinator.runAfterSignIn();
 
-      expect(first.isSuccess, isTrue);
-      expect(second.isSuccess, isTrue);
+      expect(first.isOk, isTrue);
+      expect(second.isOk, isTrue);
       expect(coordinator.phase, OnboardingPhase.ready);
       expect(backend.probes, 2);
       expect(backend.synchronizations, 1);
@@ -147,7 +147,7 @@ void main() {
         now: now,
       );
 
-      expect((await session.signIn()).isSuccess, isTrue);
+      expect((await session.signIn()).isOk, isTrue);
       expect(
         session.tokens!.accessExpiresAt.difference(now),
         const Duration(minutes: 10),
@@ -158,9 +158,9 @@ void main() {
       );
       final String initialRefresh = session.tokens!.refreshToken;
 
-      expect((await session.refresh()).isSuccess, isTrue);
+      expect((await session.refresh()).isOk, isTrue);
       expect(session.tokens!.refreshToken, isNot(initialRefresh));
-      expect((await session.onAppOpen()).isSuccess, isTrue);
+      expect((await session.onAppOpen()).isOk, isTrue);
       expect(auth.reMints, 1);
       expect(session.tokens!.accessToken, 'access-open-1');
     },
@@ -177,7 +177,7 @@ void main() {
 
     final Result<SessionTokens> result = await session.refresh();
 
-    expect(result, isA<Failure<SessionTokens>>());
+    expect(result, isA<Err<SessionTokens>>());
     expect(session.status, SessionStatus.unauthenticated);
     expect(session.tokens, isNull);
     expect(auth.signOuts, 1);

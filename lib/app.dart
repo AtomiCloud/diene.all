@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:diene_problems/diene_problems.dart';
+import 'package:diene_result/diene_result.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -10,7 +12,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'auth/session_controller.dart';
 import 'config/app_config.dart';
 import 'config/app_settings_controller.dart';
-import 'core/result.dart';
 import 'i18n/translations.g.dart';
 import 'onboarding/onboarding.dart';
 import 'routing/app_router.dart';
@@ -359,8 +360,8 @@ final class _HeroPanel extends StatelessWidget {
                                   if (!context.mounted) {
                                     return;
                                   }
-                                  result.fold<void>(
-                                    onSuccess: (OnboardingPhase _) {
+                                  result.match<void>(
+                                    ok: (OnboardingPhase _) {
                                       ScaffoldMessenger.of(
                                         context,
                                       ).showSnackBar(
@@ -371,7 +372,7 @@ final class _HeroPanel extends StatelessWidget {
                                         ),
                                       );
                                     },
-                                    onFailure: (Problem failure) {},
+                                    err: (Problem failure) {},
                                   );
                                 },
                           label: Text(copy.startAction),

@@ -7,7 +7,8 @@
 /// discouraged.
 library;
 
-import '../core/result.dart';
+import 'package:diene_problems/diene_problems.dart';
+import 'package:diene_result/diene_result.dart';
 import '../onboarding/phase_machine.dart';
 import 'deferred_login.dart';
 
@@ -130,7 +131,7 @@ final class AppHandoffFlow {
     if (login.outcome != DeferredLoginOutcome.signedIn) {
       // No identity yet: interactive login takes over. Legal and onboarding
       // both stay unreached.
-      return Success<HandoffArrival>(
+      return Ok<HandoffArrival>(
         HandoffArrival(
           reachedStage: HandoffStage.identity,
           stages: stages,
@@ -142,7 +143,7 @@ final class AppHandoffFlow {
     stages.add(HandoffStage.legal);
     final LegalConsent? consent = await _resolveConsent();
     if (consent == null) {
-      return const Failure<HandoffArrival>(
+      return const Err<HandoffArrival>(
         Problem(
           type: 'urn:diene:problem:legal-consent-declined',
           title: 'Legal consent is required',
@@ -165,7 +166,7 @@ final class AppHandoffFlow {
     if (allReady) {
       stages.add(HandoffStage.ready);
     }
-    return Success<HandoffArrival>(
+    return Ok<HandoffArrival>(
       HandoffArrival(
         reachedStage: stages.last,
         stages: stages,

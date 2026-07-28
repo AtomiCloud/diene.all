@@ -15,7 +15,8 @@
 /// Removing any one of them makes [validateRescueRouterConfig] red.
 library;
 
-import '../core/result.dart';
+import 'package:diene_problems/diene_problems.dart';
+import 'package:diene_result/diene_result.dart';
 import '../onboarding/picker.dart';
 
 /// On-disk cache settings. Last-known-good is kept forever.
@@ -240,9 +241,9 @@ Result<RescueRouterConfig> validateRescueRouterConfig(
   }
 
   if (violations.isEmpty) {
-    return Success<RescueRouterConfig>(config);
+    return Ok<RescueRouterConfig>(config);
   }
-  return Failure<RescueRouterConfig>(
+  return Err<RescueRouterConfig>(
     Problem(
       type: 'urn:diene:problem:rescue-router-config',
       title: 'Rescue router configuration is incomplete',
