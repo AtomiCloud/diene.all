@@ -42,19 +42,31 @@ export OTEL_HTTP_PORT CLICKHOUSE_HTTP_PORT VICTORIA_METRICS_PORT GRAFANA_PORT
 echo "🐳 Starting local dependencies for project ${project}..."
 docker compose --project-name "${project}" --file scripts/local/docker-compose.yaml up --detach --wait postgres redis minio clickhouse otel-collector victoria-metrics alloy grafana
 docker compose --project-name "${project}" --file scripts/local/docker-compose.yaml run --rm minio-create
-# READINESS GATE ON THE OTLP RECEIVER PORT ITSELF — not by circumstance, not by proxy.
+# READINESS GATE ON THE OTLP RECEIVER PORT ITSELF — by HTTP response, not by proxy.
 # `docker compose --wait` blocks until HEALTHY only for services that DECLARE a
 # healthcheck; alloy has none, so --wait returns as soon as its container is STARTED,
 # before its OTLP receiver on :${OTEL_HTTP_PORT} is listening. The worker emits OTLP
-# there and fast-fails with a connection refusal (~0.09s) if it is not yet up. We gate
-# on the ACTUAL port the worker uses — NOT alloy's /-/ready admin server on 12345, which
-# proves process liveness rather than receiver acceptance.
+# there and fast-fails with a connection refusal (~0.09s) if it is not yet up.
+#
+# A BARE TCP CONNECT CANNOT GATE THIS: Docker's published-port forwarder answers the
+# handshake the instant the container STARTS — before alloy binds — so a connect proves
+# docker-proxy, never alloy. (Measured: with alloy held in a 25s sleep, a TCP connect to
+# 127.0.0.1:4318 is OPEN while a real OTLP POST returns 000.) We therefore require an
+# actual HTTP RESPONSE: POST a deliberately INVALID body to the OTLP traces endpoint.
+# Any HTTP status at all (a 400/415/405 rejection is a success here) means a server
+# parsed the request; curl reports http_code 000 when nothing answered at the HTTP layer
+# (docker-proxy accepting the socket then failing to reach an unbound alloy). The body is
+# malformed on purpose so the receiver rejects it and NO telemetry enters the pipeline
+# the suite is measuring. NOT alloy's /-/ready admin server on 12345 — that proves
+# process liveness, not receiver acceptance.
 echo "⏳ Waiting for the OTLP receiver on 127.0.0.1:${OTEL_HTTP_PORT}..."
 otlp_ready=""
 otlp_waited=0
 for _ in $(seq 1 60); do
-  if timeout 2 bash -c "exec 3<>/dev/tcp/127.0.0.1/${OTEL_HTTP_PORT}" 2>/dev/null ||
-    nc -z 127.0.0.1 "${OTEL_HTTP_PORT}" 2>/dev/null; then
+  otlp_code="$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 2 \
+    --request POST "http://127.0.0.1:${OTEL_HTTP_PORT}/v1/traces" \
+    --header 'content-type: application/json' --data '{' 2>/dev/null || true)"
+  if [ -n "${otlp_code}" ] && [ "${otlp_code}" != "000" ]; then
     otlp_ready=1
     break
   fi
