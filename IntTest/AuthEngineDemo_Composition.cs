@@ -1,4 +1,6 @@
+using AtomiCloud.Diene.AuthEngine.Client;
 using AtomiCloud.Diene.AuthEngine.Config;
+using AtomiCloud.Diene.AuthEngine.Module;
 using AtomiCloud.Diene.AuthEngine.Onboarding;
 using AtomiCloud.Diene.AuthEngine.TestHelper.Builders;
 using AtomiCloud.Diene.AuthEngine.TestHelper.Fakes;
@@ -63,7 +65,9 @@ public class AuthEngineDemo_Composition
             "notes:read");
 
         outcome.IsSuccess().Should().BeTrue();
-        AuthEngineDemo.Describe(outcome).Should().Be("authorized user-1 with scopes [notes:read]");
+        AuthEngineDemo.Describe(outcome).Should()
+            .StartWith("authorized user-1 with scopes [notes:read]")
+            .And.Contain($"issuer {Issuer}");
     }
 
     [Fact]
@@ -123,20 +127,103 @@ public class AuthEngineDemo_Composition
     }
 
     [Fact]
-    public void Program_runs_and_reports_the_composed_configuration()
+    public async Task Exercises_the_client_and_onboarding_surface_end_to_end()
+    {
+        using var issuer = new TestTokenIssuer(Issuer);
+        var config = AuthEngineDemo.BuildConfig(Issuer, Endpoint).Get();
+        var clock = new FakeAuthClock(Now);
+        var validator = new JwtTokenValidator(config, issuer.KeyResolver, clock);
+        var backend = new FakeOnboardingBackend("demo-backend");
+        var client = new FakeCredentialClient { RotatedRefreshToken = "rt-2" };
+
+        AuthEngineDemo.DescribeBackend(backend).Should().Contain("demo-backend");
+        (await AuthEngineDemo.BackendKnows(backend, "user-1")).Get().Should().BeFalse();
+
+        var token = issuer.MintValidFor("user-1", "https://api.test.invalid", Now, TimeSpan.FromMinutes(10), ["notes:read"]);
+        var claims = (await validator.ValidateAsync(
+            token,
+            "https://api.test.invalid",
+            TestContext.Current.CancellationToken)).Get();
+
+        AuthEngineDemo.Describe(
+                AtomiCloud.Diene.Results.Result.Ok<AuthClaims, AtomiCloud.Diene.Problems.IDomainProblem>(claims))
+            .Should().Contain("authorized user-1").And.Contain(Issuer);
+
+        (await AuthEngineDemo.GuardAnyScope(validator, token, "https://api.test.invalid", "notes:read"))
+            .IsSuccess().Should().BeTrue();
+
+        (await AuthEngineDemo.CompleteOnboarding(config, backend, claims, "lapras")).IsSuccess().Should().BeTrue();
+        backend.WrittenLandscapes["user-1"].Should().Be("lapras");
+        (await AuthEngineDemo.BackendKnows(backend, "user-1")).Get().Should().BeTrue();
+
+        client.ScriptToken("https://api.test.invalid", "at-2", Now.AddMinutes(10));
+        var refreshed = (await AuthEngineDemo.Refresh(client, "rt-1", "https://api.test.invalid")).Get();
+        AuthEngineDemo.DescribeRefresh(refreshed).Should().Contain("rt-2");
+
+        (await AuthEngineDemo.RevokeSessions(client, "user-1")).IsSuccess().Should().BeTrue();
+        client.RevokedUsers.Should().BeEquivalentTo(["user-1"]);
+
+        var cache = new TokenCache(client, clock, config.Lifetimes);
+        await cache.GetAsync("https://api.test.invalid", cancellationToken: TestContext.Current.CancellationToken);
+        AuthEngineDemo.ClearCachedTokens(cache);
+
+        AuthEngineDemo.DescribeSession(new SessionView("user-1", ["notes:read"], Now.AddMinutes(10)))
+            .Should().Contain("session user-1");
+
+        AuthEngineDemo.DescribeOnboarding(OnboardingPhase.Complete).Should().Contain("complete");
+        AuthEngineDemo.DescribeOnboarding(OnboardingPhase.AwaitingSync).Should().Contain("awaiting");
+        AuthEngineDemo.DescribeOnboarding((OnboardingPhase)99).Should().Contain("unrecognised");
+        AuthEngineDemo.DescribeLifetimes(config).Should().Contain("rotating True");
+    }
+
+    [Fact]
+    public async Task Program_runs_the_whole_surface_and_enables_the_module()
     {
         var original = Console.Out;
         using var captured = new StringWriter();
+        int exit;
         try
         {
             Console.SetOut(captured);
-            Program.Main();
+            exit = await Program.Main([]);
         }
         finally
         {
             Console.SetOut(original);
         }
 
-        captured.ToString().Should().Contain("auth engine ready").And.Contain("/app-handoff");
+        exit.Should().Be(0);
+
+        var output = captured.ToString();
+        output.Should().Contain("auth engine ready");
+        output.Should().Contain("/app-handoff");
+        output.Should().Contain("lifetimes: access");
+        output.Should().Contain("onboarding: show the landscape selector");
+        output.Should().Contain("module enabled");
+    }
+
+    [Fact]
+    public async Task Program_reports_a_rejected_configuration_and_exits_non_zero()
+    {
+        // The failure path must be visible AND distinguishable: a bad issuer names the
+        // field and returns 1 rather than printing a ready line and exiting 0.
+        var original = Console.Out;
+        var issuer = Environment.GetEnvironmentVariable("AUTH_ISSUER");
+        using var captured = new StringWriter();
+        int exit;
+        try
+        {
+            Console.SetOut(captured);
+            Environment.SetEnvironmentVariable("AUTH_ISSUER", "not-a-uri");
+            exit = await Program.Main([]);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("AUTH_ISSUER", issuer);
+            Console.SetOut(original);
+        }
+
+        exit.Should().Be(1);
+        captured.ToString().Should().Contain("configuration rejected").And.Contain("logto.issuer");
     }
 }

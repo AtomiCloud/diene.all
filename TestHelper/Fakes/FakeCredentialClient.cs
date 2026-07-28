@@ -47,7 +47,11 @@ public sealed class FakeCredentialClient : ICredentialClient
     /// which is how a test expresses "the first acquisition succeeds and the renewal
     /// fails" without reaching for a mocking framework.
     /// </summary>
-    public FakeCredentialClient Script(string resource, Result<TokenResponse, IDomainProblem> response)
+    /// <remarks>
+    /// Returns void rather than <c>this</c>. A fluent return that no caller chains is
+    /// surface nobody uses; queue order is already expressed by call order.
+    /// </remarks>
+    public void Script(string resource, Result<TokenResponse, IDomainProblem> response)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(resource);
 
@@ -58,15 +62,14 @@ public sealed class FakeCredentialClient : ICredentialClient
         }
 
         queue.Enqueue(response);
-        return this;
     }
 
     /// <summary>Queues a successful token for a resource, expiring at the supplied instant.</summary>
-    public FakeCredentialClient ScriptToken(string resource, string token, DateTimeOffset expiresAt) =>
+    public void ScriptToken(string resource, string token, DateTimeOffset expiresAt) =>
         this.Script(resource, Result.Ok<TokenResponse, IDomainProblem>(new TokenResponse(token, expiresAt)));
 
     /// <summary>Queues a failure for a resource.</summary>
-    public FakeCredentialClient ScriptFailure(string resource, IDomainProblem problem) =>
+    public void ScriptFailure(string resource, IDomainProblem problem) =>
         this.Script(resource, Result.Err<TokenResponse, IDomainProblem>(problem));
 
     /// <inheritdoc />

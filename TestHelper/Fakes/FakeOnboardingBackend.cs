@@ -35,11 +35,10 @@ public sealed class FakeOnboardingBackend : IOnboardingBackend
     public IReadOnlyDictionary<string, string> WrittenLandscapes => this._landscapes;
 
     /// <summary>Declares that the backend already has a record for the subject.</summary>
-    public FakeOnboardingBackend WithKnownUser(string subject)
+    public void WithKnownUser(string subject)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(subject);
         this._known.Add(subject);
-        return this;
     }
 
     /// <inheritdoc />

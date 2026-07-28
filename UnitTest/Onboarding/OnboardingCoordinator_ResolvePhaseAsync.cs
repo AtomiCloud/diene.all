@@ -74,7 +74,8 @@ public class OnboardingCoordinator_ResolvePhaseAsync
         // Reporting SelectLandscape here would re-show the selector to a user who
         // already chose.
         var claims = await ClaimsWith(null);
-        var backend = new FakeOnboardingBackend().WithKnownUser(AuthEngineFixture.Subject);
+        var backend = new FakeOnboardingBackend();
+        backend.WithKnownUser(AuthEngineFixture.Subject);
         var coordinator = new OnboardingCoordinator(AuthEngineFixture.Config(), backend);
 
         var phase = await coordinator.ResolvePhaseAsync(claims, TestContext.Current.CancellationToken);

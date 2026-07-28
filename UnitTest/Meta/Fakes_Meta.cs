@@ -205,7 +205,8 @@ public class Fakes_Meta
     public async Task StubHttpMessageHandler_captures_requests_and_bodies()
     {
         var handler = new StubHttpMessageHandler();
-        handler.RespondStatus(HttpStatusCode.OK).RespondStatus(HttpStatusCode.OK);
+        handler.RespondStatus(HttpStatusCode.OK);
+        handler.RespondStatus(HttpStatusCode.OK);
         using var http = new HttpClient(handler);
 
         await http.GetAsync(new Uri("https://x.test.invalid/a"), TestContext.Current.CancellationToken);

@@ -25,31 +25,37 @@ public sealed class StubHttpMessageHandler : HttpMessageHandler
     /// <summary>Gets the request bodies received, in order, so a test can assert on the form sent.</summary>
     public IReadOnlyList<string> CapturedBodies => this._bodies;
 
-    /// <summary>Queues a raw response.</summary>
-    public StubHttpMessageHandler Respond(Func<HttpRequestMessage, HttpResponseMessage> responder)
+    /// <summary>
+    /// Queues a raw response.
+    /// </summary>
+    /// <remarks>
+    /// These queue methods return void rather than <c>this</c>. A fluent return that no
+    /// caller chains is surface nobody uses, and the strict dead-code pass is right to
+    /// say so; order is already expressed by call order.
+    /// </remarks>
+    public void Respond(Func<HttpRequestMessage, HttpResponseMessage> responder)
     {
         ArgumentNullException.ThrowIfNull(responder);
         this._responses.Enqueue(responder);
-        return this;
     }
 
     /// <summary>Queues a JSON response with the supplied status.</summary>
-    public StubHttpMessageHandler RespondJson(HttpStatusCode status, string json) =>
+    public void RespondJson(HttpStatusCode status, string json) =>
         this.Respond(_ => new HttpResponseMessage(status)
         {
             Content = new StringContent(json, Encoding.UTF8, "application/json"),
         });
 
     /// <summary>Queues a bare status response with no body.</summary>
-    public StubHttpMessageHandler RespondStatus(HttpStatusCode status) =>
+    public void RespondStatus(HttpStatusCode status) =>
         this.Respond(_ => new HttpResponseMessage(status));
 
     /// <summary>Queues a transport failure, as a dropped connection would produce.</summary>
-    public StubHttpMessageHandler RespondTransportFailure() =>
+    public void RespondTransportFailure() =>
         this.Respond(_ => throw new HttpRequestException("stubbed transport failure"));
 
     /// <summary>Queues a timeout, which surfaces as a cancelled task rather than a status.</summary>
-    public StubHttpMessageHandler RespondTimeout() =>
+    public void RespondTimeout() =>
         this.Respond(_ => throw new TaskCanceledException("stubbed timeout"));
 
     /// <inheritdoc />
