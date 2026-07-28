@@ -51,16 +51,22 @@ docker compose --project-name "${project}" --file scripts/local/docker-compose.y
 # proves process liveness rather than receiver acceptance.
 echo "⏳ Waiting for the OTLP receiver on 127.0.0.1:${OTEL_HTTP_PORT}..."
 otlp_ready=""
+otlp_waited=0
 for _ in $(seq 1 60); do
   if timeout 2 bash -c "exec 3<>/dev/tcp/127.0.0.1/${OTEL_HTTP_PORT}" 2>/dev/null ||
     nc -z 127.0.0.1 "${OTEL_HTTP_PORT}" 2>/dev/null; then
     otlp_ready=1
     break
   fi
+  otlp_waited=$((otlp_waited + 1))
   sleep 1
 done
 [ -n "${otlp_ready}" ] || {
   echo "❌ OTLP receiver on :${OTEL_HTTP_PORT} did not accept a connection within 60s" >&2
   exit 1
 }
+# Timing is the PROOF the gate engaged: otlp_gate_waited_s=0 means alloy was already
+# accepting when --wait returned (the race did not occur this run — inconclusive for the
+# fix); >0 means the gate blocked while alloy's receiver came up (the fix demonstrably acted).
+echo "🔌 OTLP receiver accepted after otlp_gate_waited_s=${otlp_waited} (0 = alloy already warm)"
 echo "✅ Local dependencies are ready for project ${project}"
