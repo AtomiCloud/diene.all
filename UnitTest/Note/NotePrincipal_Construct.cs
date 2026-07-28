@@ -1,4 +1,4 @@
-using AtomiCloud.DotnetBase.Lib.Note;
+using AtomiCloud.Diene.Note;
 using FluentAssertions;
 
 namespace AtomiCloud.DotnetBase.UnitTest.Note;

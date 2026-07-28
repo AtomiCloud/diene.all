@@ -1,4 +1,4 @@
-namespace AtomiCloud.DotnetBase.Lib.Note;
+namespace AtomiCloud.Diene.Note;
 
 /// <summary>Pure, deterministic note preview formatter.</summary>
 public class NoteSummariser : INoteSummariser

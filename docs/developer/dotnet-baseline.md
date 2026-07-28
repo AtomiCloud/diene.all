@@ -60,8 +60,9 @@ enforced in Release builds.
 
 ## Release
 
-Semantic release writes the repository `VERSION`; `.gitlint` and
-`atomi_release.yaml` share one commit-type vocabulary.
+The library descendant replaces the base `VERSION` marker with its imported
+`Version.props` package manifest. `.gitlint` and `atomi_release.yaml` share one
+commit-type vocabulary.
 
 ## Template-maintenance boundary
 

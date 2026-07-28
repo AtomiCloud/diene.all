@@ -32,9 +32,10 @@ hand.
 
 The canonical v2 `release` section declares the `main` branch, `v${version}`
 tag format, and `Changelog.md` output. Its commit assets are `Changelog.md`,
-`VERSION`, and the generated commit-conventions document. The `afterWrite`
-prepare hook runs `scripts/release/bump.sh ${version}`, which stamps `VERSION`;
-GitHub publication is enabled for this template through `release.github`.
+`Version.props`, and the generated commit-conventions document. The `afterWrite`
+prepare hook runs `scripts/release/bump.sh ${version}`, which stamps
+`Version.props`; GitHub publication is enabled for this template through
+`release.github`.
 
 The unified D3 commit-type vocabulary is:
 

@@ -298,5 +298,60 @@
     "template": "diene/dotnet-base",
     "name": "hook-releaser-commit",
     "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-lib",
+    "name": "dotnet-lib-artifact-inventory",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-lib",
+    "name": "dotnet-lib-package-metadata",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-lib",
+    "name": "dotnet-lib-symbol-package",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-lib",
+    "name": "dotnet-lib-publish-version-guard",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-lib",
+    "name": "dotnet-lib-testhelper-meta-ledger",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-lib",
+    "name": "dotnet-lib-package-workflow-wiring",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-lib",
+    "name": "dotnet-lib-publish-workflow-wiring",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-lib",
+    "name": "dotnet-lib-api-compatibility",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-lib",
+    "name": "dotnet-lib-dual-pack",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/dotnet-lib",
+    "name": "dotnet-lib-scratch-consumption",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/dotnet-lib",
+    "name": "dotnet-lib-publish-roundtrip",
+    "class": "smoke"
   }
 ]

@@ -137,7 +137,7 @@ release:
     message: "release: ${version}\n\n${notes}"
     assets:
       - Changelog.md
-      - VERSION
+      - Version.props
       - docs/developer/CommitConventions.md
   github:
     enabled: true

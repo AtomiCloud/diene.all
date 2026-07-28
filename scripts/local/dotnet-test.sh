@@ -4,13 +4,14 @@ set -euo pipefail
 kind="${1:-}"
 mode="${2:-normal}"
 
-[ "${kind}" != "unit" ] && [ "${kind}" != "int" ] && echo "❌ Usage: dotnet-test.sh <unit|int> [--watch|--coverage]" >&2 && exit 1
+[ "${kind}" != "unit" ] && [ "${kind}" != "int" ] && [ "${kind}" != "meta" ] && echo "❌ Usage: dotnet-test.sh <unit|int|meta> [--watch|--coverage]" >&2 && exit 1
 [ "${mode}" != "normal" ] && [ "${mode}" != "--watch" ] && [ "${mode}" != "--coverage" ] && echo "❌ Unknown mode '${mode}'" >&2 && exit 1
 
 root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 config="${DOTNET_TEST_CONFIG:-$(find "${root}/.config" -maxdepth 1 -name '*.test.yaml' 2>/dev/null | head -n 1)}"
 [ ! -f "${config:-/nonexistent}" ] && echo "❌ Test config not found (.config/*.test.yaml)" >&2 && exit 1
 ! command -v yq >/dev/null && echo "❌ yq is required to read ${config}" >&2 && exit 1
+[ "${kind}" = "meta" ] && [ -z "$(find "${root}" -maxdepth 2 -type f -path '*/TestHelper*.csproj' -print -quit)" ] && echo "✅ No TestHelper project; meta tier is inactive" && exit 0
 
 mapfile -t projects < <(yq -r ".coverage.${kind}.projects[]?" "${config}")
 minimum="$(yq -er ".coverage.${kind}.minimum // \"\"" "${config}")"
@@ -105,15 +106,24 @@ valid="$(xmlstarlet sel -t -v '/coverage/@lines-valid' "${report}")"
 packages="$(xmlstarlet sel -t -m '/coverage/packages/package' -v '@name' -o $'\t' -v '@line-rate' -n "${report}")"
 [ -z "${packages}" ] && echo "❌ ${kind} coverage contains no packages" >&2 && exit 1
 
+# The unit ledger is read from the library projects themselves: the inherited [Lib*]*
+# wildcard plus whatever assembly names those projects declare, never a literal package name.
+unit_ledger="$(find "${root}" -mindepth 2 -maxdepth 2 -type f -name '*.csproj' -path "${root}/Lib*/*" -exec xmlstarlet sel -t -m '/Project/PropertyGroup/AssemblyName' -v . -n {} +)"
+
 while IFS=$'\t' read -r assembly line_rate; do
   if [ "${kind}" = "unit" ]; then
-    [[ ${assembly} =~ ^Lib.*$ ]] || {
+    [[ ${assembly} =~ ^Lib.*$ ]] || echo "${unit_ledger}" | rg -Fxq "${assembly}" || {
       echo "❌ unit coverage escaped its [Lib*]* ledger: ${assembly}" >&2
       exit 1
     }
-  else
+  elif [ "${kind}" = "int" ]; then
     [[ ${assembly} =~ ^App.*$ ]] || {
       echo "❌ int coverage escaped its [App*]* ledger: ${assembly}" >&2
+      exit 1
+    }
+  else
+    [[ ${assembly} =~ [.]TestHelper$ ]] || {
+      echo "❌ meta coverage escaped its [*.TestHelper]* ledger: ${assembly}" >&2
       exit 1
     }
   fi

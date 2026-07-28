@@ -94,3 +94,12 @@ Language variants:
 Keep `dotnet-base.slnx`, `.config/dotnet-base.test.yaml`, and
 `AtomiCloud.DotnetBase.*` root namespaces base-named. Observability is absent on
 this branch.
+
+<!-- ### dotnet-lib -->
+<!-- #### source: dotnet-lib -->
+
+## .NET library template
+
+Read [the .NET library baseline](docs/developer/dotnet-lib-baseline.md) before
+changing package identity, release/versioning, package validation, TestHelper,
+meta coverage, or shipped skills.

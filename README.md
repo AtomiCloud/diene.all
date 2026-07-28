@@ -1,4 +1,4 @@
-# Diene .NET base template
+# Diene .NET library template
 
 <!-- ### nix-root -->
 <!-- #### source: main -->
@@ -56,10 +56,10 @@ contracts standard.
 
 ## .NET 10 foundation
 
-[![CI](https://github.com/AtomiCloud/diene.dotnet-base/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.dotnet-base/actions/workflows/ci.yaml)
-[![Unit coverage](https://codecov.io/gh/AtomiCloud/diene.dotnet-base/graph/badge.svg?flag=unit)](https://codecov.io/gh/AtomiCloud/diene.dotnet-base)
-[![Integration coverage](https://codecov.io/gh/AtomiCloud/diene.dotnet-base/graph/badge.svg?flag=int)](https://codecov.io/gh/AtomiCloud/diene.dotnet-base)
-[![Commit activity](https://img.shields.io/github/commit-activity/m/AtomiCloud/diene.dotnet-base)](https://github.com/AtomiCloud/diene.dotnet-base/commits/main)
+[![CI](https://github.com/AtomiCloud/diene.dotnet-lib/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.dotnet-lib/actions/workflows/ci.yaml)
+[![Unit coverage](https://codecov.io/gh/AtomiCloud/diene.dotnet-lib/graph/badge.svg?flag=unit)](https://codecov.io/gh/AtomiCloud/diene.dotnet-lib)
+[![Integration coverage](https://codecov.io/gh/AtomiCloud/diene.dotnet-lib/graph/badge.svg?flag=int)](https://codecov.io/gh/AtomiCloud/diene.dotnet-lib)
+[![Commit activity](https://img.shields.io/github/commit-activity/m/AtomiCloud/diene.dotnet-lib)](https://github.com/AtomiCloud/diene.dotnet-lib/commits/main)
 
 This branch adds the .NET 10 toolchain, the `App`/`Lib`/`UnitTest`/`IntTest`
 sample, merged multi-project coverage, strict and LLM dead-code modes. See [the .NET baseline](docs/developer/dotnet-baseline.md).
@@ -72,3 +72,35 @@ Common commands:
 
 The illustrative Note domain is documented in [docs/domain/note.md](docs/domain/note.md).
 Production observability is intentionally absent until the observability add-back.
+
+<!-- ### dotnet-lib -->
+<!-- #### source: dotnet-lib -->
+
+## Publishable library packages
+
+[![NuGet version](https://img.shields.io/nuget/v/AtomiCloud.Diene.Note)](https://www.nuget.org/packages/AtomiCloud.Diene.Note)
+[![NuGet downloads](https://img.shields.io/nuget/dt/AtomiCloud.Diene.Note)](https://www.nuget.org/packages/AtomiCloud.Diene.Note)
+[![Meta coverage](https://codecov.io/gh/AtomiCloud/diene.dotnet-lib/graph/badge.svg?flag=meta)](https://codecov.io/gh/AtomiCloud/diene.dotnet-lib)
+
+This template publishes `AtomiCloud.Diene.Note` and the companion
+`AtomiCloud.Diene.Note.TestHelper` package at one committed version. The Note
+domain is illustrative; the package lifecycle is the reusable product.
+
+```bash
+dotnet add package AtomiCloud.Diene.Note
+dotnet add package AtomiCloud.Diene.Note.TestHelper
+```
+
+```csharp
+using AtomiCloud.Diene.Note;
+using AtomiCloud.Diene.Note.TestHelper.Note;
+
+var summariser = new NoteSummariser();
+var note = new NoteRecord { Title = "Hello", Body = "world" };
+summariser.AssertSummary(note, 80, "Hello — world");
+```
+
+Run `nix develop .#ci -c ./scripts/ci/pkg-validate.sh` to pack both packages,
+validate metadata and symbols, and restore them into a scratch consumer. See
+[the library baseline](docs/developer/dotnet-lib-baseline.md) for release and
+promotion guidance.

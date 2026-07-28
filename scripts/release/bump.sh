@@ -4,6 +4,7 @@ set -euo pipefail
 version="${1:-}"
 [ -z "${version}" ] && echo "❌ version argument not set" >&2 && exit 1
 
-printf '%s\n' "${version#v}" >VERSION
+git restore --source=HEAD -- Version.props
+xmlstarlet ed --inplace -u '/Project/PropertyGroup/Version' -v "${version#v}" Version.props
 
-echo "✅ VERSION stamped to ${version#v}"
+echo "✅ Version.props stamped to ${version#v}"
