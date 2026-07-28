@@ -37,7 +37,7 @@ export default {
       name: 'mutation-app-chart-lint-caught',
       description: 'Invalid app chart METADATA turns its own lint red.',
       kind: 'mutation',
-      expectedImpact: ['app-chart-template', 'app-chart-install', 'helm-lint', 'hook-helm-lint'],
+      expectedImpact: ['app-chart-template', 'chart-install', 'helm-lint', 'hook-helm-lint'],
       async run(repo: any) {
         // ONE fault, in chart METADATA, distinct from the primordial row's fault:
         // `type` must be `application` or `library`. Helm's own loader rejects it,

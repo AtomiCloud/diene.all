@@ -33,7 +33,7 @@ export default {
       name: 'mutation-primordial-chart-lint-caught',
       description: 'Invalid primordial chart METADATA turns its own lint red.',
       kind: 'mutation',
-      expectedImpact: ['primordial-chart-template', 'primordial-chart-install'],
+      expectedImpact: ['primordial-chart-template', 'chart-install'],
       async run(repo: any) {
         // ONE fault, in chart METADATA, DIFFERENT from the app chart row's fault:
         // `version` must be valid SemVer. Helm validates it in its own loader, and

@@ -432,12 +432,7 @@
   },
   {
     "template": "diene/go-consumer",
-    "name": "app-chart-install",
-    "class": "smoke"
-  },
-  {
-    "template": "diene/go-consumer",
-    "name": "primordial-chart-install",
+    "name": "chart-install",
     "class": "smoke"
   },
   {
