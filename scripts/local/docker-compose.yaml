@@ -63,7 +63,15 @@ services:
     ports:
       - '${CLICKHOUSE_HTTP_PORT}:8123'
     healthcheck:
-      test: ['CMD', 'clickhouse-client', '--host', '127.0.0.1', '--query', 'SELECT 1']
+      test:
+        [
+          'CMD',
+          'clickhouse-client',
+          '--host',
+          '127.0.0.1',
+          '--query',
+          'CREATE TABLE IF NOT EXISTS otel.__ddl_probe (v UInt8) ENGINE = Null',
+        ]
       interval: 3s
       timeout: 2s
       retries: 40
