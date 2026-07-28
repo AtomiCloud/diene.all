@@ -42,4 +42,25 @@ export OTEL_HTTP_PORT CLICKHOUSE_HTTP_PORT VICTORIA_METRICS_PORT GRAFANA_PORT
 echo "🐳 Starting local dependencies for project ${project}..."
 docker compose --project-name "${project}" --file scripts/local/docker-compose.yaml up --detach --wait postgres redis minio clickhouse otel-collector victoria-metrics alloy grafana
 docker compose --project-name "${project}" --file scripts/local/docker-compose.yaml run --rm minio-create
+# READINESS GATE ON THE OTLP RECEIVER PORT ITSELF — not by circumstance, not by proxy.
+# `docker compose --wait` blocks until HEALTHY only for services that DECLARE a
+# healthcheck; alloy has none, so --wait returns as soon as its container is STARTED,
+# before its OTLP receiver on :${OTEL_HTTP_PORT} is listening. The worker emits OTLP
+# there and fast-fails with a connection refusal (~0.09s) if it is not yet up. We gate
+# on the ACTUAL port the worker uses — NOT alloy's /-/ready admin server on 12345, which
+# proves process liveness rather than receiver acceptance.
+echo "⏳ Waiting for the OTLP receiver on 127.0.0.1:${OTEL_HTTP_PORT}..."
+otlp_ready=""
+for _ in $(seq 1 60); do
+  if timeout 2 bash -c "exec 3<>/dev/tcp/127.0.0.1/${OTEL_HTTP_PORT}" 2>/dev/null ||
+    nc -z 127.0.0.1 "${OTEL_HTTP_PORT}" 2>/dev/null; then
+    otlp_ready=1
+    break
+  fi
+  sleep 1
+done
+[ -n "${otlp_ready}" ] || {
+  echo "❌ OTLP receiver on :${OTEL_HTTP_PORT} did not accept a connection within 60s" >&2
+  exit 1
+}
 echo "✅ Local dependencies are ready for project ${project}"
