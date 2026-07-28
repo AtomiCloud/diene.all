@@ -1,228 +1,72 @@
 # @schema pattern:^[a-z0-9.-]+$;minLength:1
-# -- Prefix used by every service-tree label and annotation helper.
 labelPrefix: atomi.cloud
+distributionMode: FLEET # @schema enum:[FLEET,GARDEN-LOCAL]
 
-# @schema pattern:^[a-z0-9]+-[a-z0-9]+$;required:true
-# -- Primary workload fullname. It must be `<service>-<dashless-token>`.
-fullnameOverride: wrapper-api
-
-# -- Stable four-slot service-tree projection. Landscape and cluster are added by independent overlays.
 serviceTree:
-  # @schema pattern:^[a-z0-9]+$;required:true
-  platform: sample
-  # @schema pattern:^[a-z0-9]+$;required:true
-  service: wrapper
-  # @schema pattern:^[a-z0-9]+$;required:true
+  platform: diene
+  service: lithium
   module: api
-  # @schema pattern:^[0-9]+$;required:true
-  layer: '2'
+  layer: '1'
+  landscape: raichu
 
-# -- Optional physical-instance metadata. The instance remains outside LPSM.
-instance:
-  physicalId: example-repository:run-001
+namespace:
+  name: diene
 
-# -- Wrapper-owned sample workload.
+image:
+  repository: ghcr.io/atomicloud/aldehyde.logto
+  tag: 1.41.0
+  digest: '' # Garden target-pull supplies an immutable sha256 digest here.
+  pullPolicy: IfNotPresent
+
+credentialGateImage:
+  repository: busybox
+  tag: 1.36.1
+  runAsUser: 10001
+
+# Felix-owned fork packaging contract: release images use this numeric non-root
+# USER. The chart does not infer a UID from upstream Logto, which has no USER.
+imageSecurity:
+  runAsUser: 10001
+  runAsGroup: 10001
+
 workload:
-  replicas: 1 # @schema minimum:1
-  image:
-    repository: ghcr.io/stefanprodan/podinfo
-    tag: 6.9.2 # @schema pattern:^[A-Za-z0-9][A-Za-z0-9._-]*$
-    pullPolicy: IfNotPresent # @schema enum:[Always, IfNotPresent, Never]
-  port: 9898 # @schema minimum:1;maximum:65535
-  reloader:
-    enabled: true
-  podSecurityContext:
-    runAsNonRoot: true
-    runAsUser: 10000
-    runAsGroup: 10000
-    fsGroup: 10000
-  securityContext:
-    allowPrivilegeEscalation: false
-    readOnlyRootFilesystem: true
-    runAsNonRoot: true
-    runAsUser: 10000
-    runAsGroup: 10000
-    capabilities:
-      drop: [ALL]
+  replicas: 1
+  port: 3001
   resources:
-    requests:
-      cpu: 10m
-      memory: 32Mi
-    limits:
-      cpu: 100m
-      memory: 128Mi
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {cpu: 500m, memory: 512Mi}
 
-# -- Separate pre-sync migration hook. It never owns or recreates the Deployment.
-migration:
-  enabled: true
-  image:
-    repository: busybox
-    tag: 1.37.0-glibc # @schema pattern:^[A-Za-z0-9][A-Za-z0-9._-]*$
-    pullPolicy: IfNotPresent # @schema enum:[Always, IfNotPresent, Never]
-  command: ['sh', '-c', 'echo migration-ready']
-  reloader:
-    enabled: true
-  resources:
-    requests:
-      cpu: 5m
-      memory: 8Mi
-    limits:
-      cpu: 25m
-      memory: 32Mi
+# Fleet consumes, but never writes, the platform-owned secret store.
+fleet:
+  vlandscape: mew
+  issuerZone: cluster.atomi.cloud
+  externalSecrets:
+    refreshInterval: 1h
+    # Carbon owns this platform SecretStore; Lithium only consumes it.
+    secretStoreRef: {kind: SecretStore, name: carbon-store}
+    # The dependency controller fans this standard payload into every serving row.
+    # C0 real Infisical folders are /{class}/{module}; SecretStore selection,
+    # not the folder name, carries the platform and environment boundary.
+    databasePath: /database/lithium
+    databaseSecretName: lithium-database
+    bootSecretName: lithium-boot
+  publicService:
+    type: LoadBalancer
 
-# -- One service-scoped ExternalSecret with folder-prefix rewrites.
-secret:
-  enabled: true
-  refreshInterval: 1h
-  store:
-    kind: SecretStore # @schema enum:[SecretStore, ClusterSecretStore]
-    name: sample-store
-  sharedFolder: /shared
-  serviceFolder: /wrapper
-
-# -- Provider-managed LoadBalancer service for the gateway.
-gateway:
-  enabled: true
-  provider: digitalocean # @schema enum:[aws, oci, digitalocean]
-  port: 80 # @schema minimum:1;maximum:65535
-  aws:
-    subnetIds: [] # @schema item:string;uniqueItems:true
-    eipAllocationIds: [] # @schema item:string;uniqueItems:true
-  oci:
-    reservedPublicIp: ''
-
-# -- Current health and webhook delivery conventions.
-contracts:
-  health:
-    path: /healthz # @schema pattern:^/.*
-    expectedStatus: 2xx
-  webhook:
-    provider: example # @schema pattern:^[a-z0-9-]+$
-    pathPrefix: /internal/webhooks # @schema pattern:^/.*
-  lpsm:
-    landscape: example # @schema pattern:^[a-z0-9-]+$
-    module: api # @schema pattern:^[a-z0-9-]+$
-    service: wrapper # @schema pattern:^[a-z0-9-]+$
-    instance: run001 # @schema pattern:^[a-z0-9-]+$
-    ordinaryZone: cluster.atomi.cloud
-    instanceZone: local.example.invalid
-    parseHostname: ''
-
-# -- Optional Gateway API route scaffold for a webhook receiver.
-webhookRoute:
-  enabled: true
-  parentGateway: sample-gateway
-  parentNamespace: gateway-system
-
-# -- Reusable primordial-chart CR helper inputs against the frozen T3 shapes.
-primordial:
-  enabled: true
-  apiVersions:
-    fleet: fleet.atomi.cloud/v1alpha1
-    identity: identity.atomi.cloud/v1alpha1
-    edge: edge.atomi.cloud/v1alpha1
-  targetLandscape: example
-  vlandscape: example-vlandscape
-  placement:
-    preferredHost: example-host
-  platformDependency:
-    modules:
-      database: # @schema mergeProperties:true
-        maindb:
-          type: neon
-          delivery: external
-          providerAccountRef: example-neon
-          credentialMode: standard
-          rotation: 'on'
-          cpu: 1
-          ram: 1Gi
-          storage: 10Gi
-          version: '16'
-          backup:
-            crossVendor: true
-          engine:
-            neon:
-              tier: example
-      kv: # @schema mergeProperties:true
-        sessions:
-          type: upstash
-          delivery: external
-          providerAccountRef: example-upstash
-          credentialMode: standard
-          rotation: 'on'
-          ram: 128Mi
-          engine:
-            upstash: {}
-      cache: # @schema mergeProperties:true
-        hot:
-          type: dragonfly
-          delivery: replicated
-          credentialMode: standard
-          rotation: 'on'
-          ram: 128Mi
-          engine:
-            dragonfly: {}
-      store: # @schema mergeProperties:true
-        assets:
-          type: tigris
-          delivery: external
-          providerAccountRef: example-tigris
-          credentialMode: standard
-          rotation: 'on'
-          engine:
-            tigris: {}
-  virtualLandscapeService:
-    enabled: true
-    serve: true
-  logtoApp:
-    enabled: true
-    paths: [/auth/callback]
-    extraRedirectUris: [] # @schema item:string;uniqueItems:true
-    resourceRefs: [wrapper-api] # @schema item:string;uniqueItems:true
-  problem:
-    enabled: true
-    version: 0.1.0
-    entries:
-      - id: example
-        type: https://errors.example.invalid/example
-        title: Example problem
-        status: 500
-        recoverable: false
-        schema: {}
-        endpoints:
-          - method: GET
-            path: /
-  cloudflareDeploy:
-    enabled: true
-    scriptName: wrapper-web
-    tag: 0.1.0
-    pin: true
-
-# -- Pinned optional upstream chart. Every instantiated dependency must receive a conforming override.
-upstream:
-  enabled: false
-  fullnameOverride: wrapper-upstream # @schema pattern:^[a-z0-9]+-[a-z0-9]+$
-  image:
-    repository: ghcr.io/stefanprodan/podinfo
-    tag: 6.9.2
-  podAnnotations:
-    reloader.stakater.com/auto: 'true'
-  podSecurityContext:
-    runAsNonRoot: true
-    runAsUser: 10000
-    runAsGroup: 10000
-  securityContext:
-    allowPrivilegeEscalation: false
-    readOnlyRootFilesystem: true
-    runAsNonRoot: true
-    runAsUser: 10000
-    runAsGroup: 10000
-    capabilities:
-      drop: [ALL]
-  resources:
-    requests:
-      cpu: 10m
-      memory: 32Mi
-    limits:
-      cpu: 100m
-      memory: 128Mi
+# Garden supplies local Secrets and the exact exposure-derived issuer. This chart
+# deliberately owns neither an edge route nor a certificate in this mode.
+garden:
+  instance: lapras-001
+  instanceUID: 00000000-0000-0000-0000-000000000001
+  allocationGeneration: '1'
+  landscape: lapras
+  zone: admin.atomi.cloud
+  issuerScheme: https
+  issuerPort: 0
+  databaseSecret: lithium-database
+  databaseKey: DB_URL
+  bootSecret: lithium-boot
+  bootClientIdKey: SEED_M2M_CLIENT_ID
+  bootClientSecretKey: SEED_M2M_CLIENT_SECRET
+  operatorSelector: {app.kubernetes.io/name: logto-operator, app.kubernetes.io/part-of: lithium}
+  ordinaryRailSelector: {atomi.cloud/rail: ordinary}

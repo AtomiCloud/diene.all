@@ -53,15 +53,19 @@ Domain-specific documentation belongs under [docs/domain/](docs/domain/README.md
 The `docs/standards/contracts/` location is reserved for the separately owned C0
 contracts standard.
 
-<!-- ### helm-wrapper -->
-<!-- #### source: helm-wrapper -->
+<!-- ### lithium -->
+<!-- #### source: aldehyde.logto -->
 
-## Helm wrapper sample
+## Lithium distribution charts
 
-This branch adds the production-grade wrapper chart, stacked values, generated schema, rendered-manifest validation, k3d proof, and dual publish modes.
+Lithium distributes the Aldehyde Logto fork. The application chart has explicit
+`FLEET` and `GARDEN-LOCAL` modes; the primordial chart is fleet-only and owns the
+single-vlandscape dependency writer plus serving fragments. Garden-local consumes
+only Garden-owned database and boot Secrets and never emits fleet control-plane or
+secret-provider resources.
 
-- `pls build` — vendor external config and build pinned chart dependencies.
-- `pls test:unit` — run schema, lint, render, contracts, VAP, and publish dry-runs.
-- `pls test:int` — install on ephemeral k3d and round-trip the chart through a local OCI registry.
-- `pls example:lapras:template` — render the independent landscape + cluster stack.
-- [Helm wrapper baseline](docs/developer/helm-wrapper-baseline.md)
+- `pls test:unit` — run chart schema/lint/template, mode contracts, all seven Garden
+  fixtures, rendered-manifest validation, and publish dry-runs.
+- `pls test:int` — run the isolated Garden-local k3d install harness.
+- `pls example:lapras:template` — render the Garden branch namespace overlay.
+- [Lithium distribution](docs/developer/lithium-distribution.md)

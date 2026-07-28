@@ -26,9 +26,9 @@ jobs:
     with:
       chart_path: ./infra/root_chart
 
-  helm-wrapper:
-    name: Helm Wrapper
+  lithium:
+    name: Lithium Distribution Charts
     permissions:
       contents: read
-    uses: ./.github/workflows/⚡reusable-helm-wrapper.yaml
+    uses: ./.github/workflows/⚡reusable-lithium.yaml
     secrets: inherit

@@ -1,0 +1,4 @@
+distributionMode: GARDEN-LOCAL
+serviceTree: {landscape: ditto}
+namespace: {name: lithium-ditto-001}
+garden: {instance: ditto-001, instanceUID: 00000000-0000-0000-0000-000000000002, allocationGeneration: '1', landscape: ditto, zone: localhost, issuerScheme: http, issuerPort: 18081, databaseSecret: lithium-ditto-db, databaseKey: DB_URL, bootSecret: lithium-ditto-boot, bootClientIdKey: SEED_M2M_CLIENT_ID, bootClientSecretKey: SEED_M2M_CLIENT_SECRET}

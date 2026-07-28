@@ -1,0 +1,26 @@
+{{- include "lithium.validate" . -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: lithium-public
+  namespace: {{ .Values.namespace.name }}
+  labels: {{- include "lithium.labels" . | nindent 4 }}
+  annotations: {{- include "lithium.annotations" . | nindent 4 }}
+spec:
+  type: {{ if eq .Values.distributionMode "FLEET" }}{{ .Values.fleet.publicService.type }}{{ else }}ClusterIP{{ end }}
+  selector: {{- include "lithium.selectorLabels" . | nindent 4 }}
+  ports: [{name: public, port: 80, targetPort: {{ if eq .Values.distributionMode "FLEET" }}management{{ else }}public{{ end }}, protocol: TCP}]
+{{- if eq .Values.distributionMode "GARDEN-LOCAL" }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lithium-management
+  namespace: {{ .Values.namespace.name }}
+  labels: {{- include "lithium.labels" . | nindent 4 }}
+  annotations: {{- include "lithium.annotations" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector: {{- include "lithium.selectorLabels" . | nindent 4 }}
+  ports: [{name: management, port: 80, targetPort: management, protocol: TCP}]
+{{- end }}

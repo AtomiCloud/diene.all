@@ -1,58 +1,100 @@
-{{- include "diene-helm-wrapper.validateServiceTree" . -}}
+{{- include "lithium.validate" . -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "diene-helm-wrapper.primaryName" . }}
+  name: {{ include "lithium.name" . }}
+  namespace: {{ required "namespace.name is required" .Values.namespace.name }}
   labels:
-    {{- include "diene-helm-wrapper.labels" . | nindent 4 }}
+    {{- include "lithium.labels" . | nindent 4 }}
   annotations:
-    {{- include "diene-helm-wrapper.annotations" . | nindent 4 }}
-    {{- include "diene-helm-wrapper.reloaderAnnotations" (dict "enabled" .Values.workload.reloader.enabled) | nindent 4 }}
+    {{- include "lithium.annotations" . | nindent 4 }}
 spec:
   replicas: {{ .Values.workload.replicas }}
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 0
-      maxSurge: 1
   selector:
     matchLabels:
-      {{- include "diene-helm-wrapper.selectorLabels" . | nindent 6 }}
+      {{- include "lithium.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "diene-helm-wrapper.labels" . | nindent 8 }}
+        {{- include "lithium.labels" . | nindent 8 }}
       annotations:
-        {{- include "diene-helm-wrapper.annotations" . | nindent 8 }}
-        {{- include "diene-helm-wrapper.reloaderAnnotations" (dict "enabled" .Values.workload.reloader.enabled) | nindent 8 }}
+        {{- include "lithium.annotations" . | nindent 8 }}
     spec:
-      securityContext:
-        {{- toYaml .Values.workload.podSecurityContext | nindent 8 }}
+      securityContext: {runAsNonRoot: true, runAsUser: {{ .Values.imageSecurity.runAsUser }}, runAsGroup: {{ .Values.imageSecurity.runAsGroup }}, fsGroup: {{ .Values.imageSecurity.runAsGroup }}}
+      initContainers:
+        - name: credential-gate
+          image: {{ printf "%s:%s" .Values.credentialGateImage.repository .Values.credentialGateImage.tag | quote }}
+          command: ["/bin/sh", "-ec", "test -n \"$DB_URL\" && test -n \"$SEED_M2M_CLIENT_ID\" && test -n \"$SEED_M2M_CLIENT_SECRET\""]
+          env:
+            {{- include "lithium.secretEnv" . | nindent 12 }}
+          securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, runAsUser: {{ .Values.credentialGateImage.runAsUser }}, capabilities: {drop: [ALL]}}
+        - name: database-bootstrap
+          image: {{ include "lithium.imageRef" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # This is deliberately separate from credential-gate: Logto needs its
+          # schema and seed rows before core can read configuration at startup.
+          command: ["npm", "run", "cli", "db", "seed", "--", "--swe", "--dapc"]
+          env:
+            {{- include "lithium.databaseEnv" . | nindent 12 }}
+          volumeMounts: [{name: alteration-scripts-runtime, mountPath: /etc/logto/packages/cli/alteration-scripts}]
+          securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, capabilities: {drop: [ALL]}}
       containers:
-        - name: api
-          image: '{{ .Values.workload.image.repository }}:{{ .Values.workload.image.tag }}'
-          imagePullPolicy: {{ .Values.workload.image.pullPolicy }}
-          securityContext:
-            {{- toYaml .Values.workload.securityContext | nindent 12 }}
-          ports:
-            - name: http
-              containerPort: {{ .Values.workload.port }}
-              protocol: TCP
-          livenessProbe:
-            httpGet:
-              path: {{ .Values.contracts.health.path }}
-              port: http
-          readinessProbe:
-            httpGet:
-              path: {{ .Values.contracts.health.path }}
-              port: http
+        - name: logto
+          image: {{ include "lithium.imageRef" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports: [{name: management, containerPort: {{ .Values.workload.port }}, protocol: TCP}]
+          env:
+            - name: ENDPOINT
+              value: {{ include "lithium.issuer" . | quote }}
+            - name: LOGTO_ENDPOINT
+              value: {{ include "lithium.issuer" . | quote }}
+            {{- include "lithium.secretEnv" . | nindent 12 }}
+          volumeMounts: [{name: alteration-scripts-runtime, mountPath: /etc/logto/packages/cli/alteration-scripts}]
+          livenessProbe: {httpGet: {path: /, port: management}}
+          readinessProbe: {httpGet: {path: /, port: management}}
+          securityContext: {allowPrivilegeEscalation: false, runAsNonRoot: true, capabilities: {drop: [ALL]}}
           resources:
             {{- toYaml .Values.workload.resources | nindent 12 }}
-          volumeMounts:
-            - name: config
-              mountPath: /config
-              readOnly: true
+        {{- if eq .Values.distributionMode "GARDEN-LOCAL" }}
+        - name: public-filter
+          image: nginxinc/nginx-unprivileged@sha256:65e3e85dbaed8ba248841d9d58a899b6197106c23cb0ff1a132b7bfe0547e4c0
+          ports: [{name: public, containerPort: 8080, protocol: TCP}]
+          volumeMounts: [{name: public-filter, mountPath: /etc/nginx/conf.d, readOnly: true}, {name: filter-runtime, mountPath: /tmp}]
+          livenessProbe: {httpGet: {path: /healthz, port: public}}
+          readinessProbe: {httpGet: {path: /healthz, port: public}}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, runAsNonRoot: true, capabilities: {drop: [ALL]}}
+        {{- end }}
       volumes:
-        - name: config
-          configMap:
-            name: {{ include "diene-helm-wrapper.resourceName" (dict "root" . "token" "config") }}
+        # Both the database CLI and core's startup precondition rewrite generated
+        # alteration scripts here; fsGroup makes this emptyDir writable by 10001.
+        - name: alteration-scripts-runtime
+          emptyDir: {}
+        {{- if eq .Values.distributionMode "GARDEN-LOCAL" }}
+        - name: public-filter
+          configMap: {name: lithium-public-filter}
+        - name: filter-runtime
+          emptyDir: {}
+        {{- end }}
+{{- define "lithium.secretEnv" -}}
+{{ include "lithium.databaseEnv" . }}
+{{- if eq .Values.distributionMode "FLEET" }}
+- name: SEED_M2M_CLIENT_ID
+  valueFrom: {secretKeyRef: {name: {{ .Values.fleet.externalSecrets.bootSecretName }}, key: SEED_M2M_CLIENT_ID}}
+- name: SEED_M2M_CLIENT_SECRET
+  valueFrom: {secretKeyRef: {name: {{ .Values.fleet.externalSecrets.bootSecretName }}, key: SEED_M2M_CLIENT_SECRET}}
+{{- else }}
+- name: SEED_M2M_CLIENT_ID
+  valueFrom: {secretKeyRef: {name: {{ .Values.garden.bootSecret }}, key: {{ .Values.garden.bootClientIdKey }}}}
+- name: SEED_M2M_CLIENT_SECRET
+  valueFrom: {secretKeyRef: {name: {{ .Values.garden.bootSecret }}, key: {{ .Values.garden.bootClientSecretKey }}}}
+{{- end }}
+{{- end -}}
+{{- define "lithium.databaseEnv" -}}
+{{- if eq .Values.distributionMode "FLEET" }}
+- name: DB_URL
+  valueFrom: {secretKeyRef: {name: {{ .Values.fleet.externalSecrets.databaseSecretName }}, key: DB_URL}}
+{{- else }}
+- name: DB_URL
+  valueFrom: {secretKeyRef: {name: {{ .Values.garden.databaseSecret }}, key: {{ .Values.garden.databaseKey }}}}
+{{- end }}
+{{- end -}}

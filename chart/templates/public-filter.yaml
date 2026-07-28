@@ -1,0 +1,27 @@
+{{- if eq .Values.distributionMode "GARDEN-LOCAL" -}}
+{{- include "lithium.validate" . -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lithium-public-filter
+  namespace: {{ .Values.namespace.name }}
+  labels: {{- include "lithium.labels" . | nindent 4 }}
+  annotations:
+    {{- include "lithium.annotations" . | nindent 4 }}
+    atomi.cloud/public-filter-version: v1
+    atomi.cloud/aldehyde-image: {{ include "lithium.imageRef" . | quote }}
+data:
+  default.conf: |
+    server {
+      listen 8080;
+      location = /healthz { return 200; }
+      # Logto v1.41.0 public route inventory. Keep this versioned and explicit:
+      # the Management API is /api/* but only /api/experience/* is end-user-facing.
+      location ~ ^/oidc/(?:\.well-known/openid-configuration|jwks|auth|token(?:/(?:introspection|revocation))?|me|session/end|device(?:/auth)?)$ { proxy_pass http://127.0.0.1:{{ .Values.workload.port }}; }
+      location ~ ^/api/experience(?:/|$) { proxy_pass http://127.0.0.1:{{ .Values.workload.port }}; }
+      location ~ ^/(?:callback/[^/]+|account/callback/social/[^/]+)$ { proxy_pass http://127.0.0.1:{{ .Values.workload.port }}; }
+      location ~ ^/(?:sign-in|register|single-sign-on|consent|device(?:/success)?|reset-password|identifier-sign-in|identifier-register|switch-account|one-time-token)(?:/|$) { proxy_pass http://127.0.0.1:{{ .Values.workload.port }}; }
+      location ~ ^/(?:assets/|favicon\.ico$|apple-touch-icon-[A-Za-z0-9_-]+\.png$) { proxy_pass http://127.0.0.1:{{ .Values.workload.port }}; }
+      location / { return 404; }
+    }
+{{- end }}
