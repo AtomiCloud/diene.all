@@ -1,83 +1,60 @@
-import 'package:http/http.dart' as http;
-import 'package:logto_dart_sdk/logto_dart_sdk.dart';
+import 'package:diene_auth_engine/diene_auth_engine.dart' as diene_auth;
+import 'package:logto_dart_sdk/logto_dart_sdk.dart' show LogtoClient;
 
 import '../config/app_config.dart';
 import 'session_controller.dart';
 
+/// Compatibility facade over diene_auth_engine's Logto provider.
 final class LogtoAuthGateway implements AuthGateway {
   LogtoAuthGateway({
     required AppConfig config,
     LogtoClient? client,
     DateTime Function()? now,
-  }) : _config = config,
-       _client =
-           client ??
-           LogtoClient(
-             config: LogtoConfig(
-               endpoint: config.auth.endpoint.toString(),
-               appId: config.auth.clientId,
-               scopes: config.auth.scopes,
-               resources: <String>[config.auth.resource.toString()],
-             ),
-             httpClient: http.Client(),
-           ),
-       _now = now ?? DateTime.now;
+  }) : _provider = diene_auth.LogtoAuthProvider(
+         config: _engineConfig(config),
+         primaryResource: _primaryResource(config),
+         client: client,
+         now: now,
+       );
 
-  final AppConfig _config;
-  final LogtoClient _client;
-  final DateTime Function() _now;
-  int _rotation = 0;
+  final diene_auth.LogtoAuthProvider _provider;
 
   @override
-  Future<SessionTokens> signIn() async {
-    await _client.signIn(_config.auth.redirectUri.toString());
-    return _tokens(
-      await _accessToken(),
-      refreshToken: 'sdk-refresh-${++_rotation}',
-      refreshFamily: 'logto-sdk',
+  Future<diene_auth.SessionTokens> signIn() => _provider.signIn();
+
+  @override
+  Future<diene_auth.SessionTokens> refresh(diene_auth.SessionTokens current) =>
+      _provider.refresh(current);
+
+  @override
+  Future<diene_auth.SessionTokens> reMintOnOpen(
+    diene_auth.SessionTokens current,
+  ) => _provider.reMintOnOpen(current);
+
+  @override
+  Future<void> signOut() => _provider.signOut();
+}
+
+diene_auth.AuthEngineConfig _engineConfig(AppConfig config) =>
+    diene_auth.AuthEngineConfig(
+      // The compatibility config predates the separate issuer field. Logto's
+      // endpoint is its issuer here, as it was for the former SDK transport.
+      issuer: config.auth.endpoint,
+      endpoint: config.auth.endpoint,
+      appId: config.auth.clientId,
+      redirectUri: config.auth.redirectUri,
+      scopes: config.auth.scopes,
     );
-  }
 
-  @override
-  Future<SessionTokens> refresh(SessionTokens current) async => _tokens(
-    await _accessToken(),
-    refreshToken: 'sdk-refresh-${++_rotation}',
-    refreshFamily: current.refreshFamily,
+diene_auth.ResourceKey _primaryResource(AppConfig config) {
+  // The legacy audience URI supplies the resource/M-slot name. The engine
+  // owns construction of the canonical LPSM audience from that name and the
+  // app's baked identity.
+  final String resourceName = config.auth.resource.host.split('.').first;
+  return diene_auth.ResourceKey(
+    platform: config.identity.platform,
+    landscape: config.identity.landscape,
+    service: config.identity.service,
+    resourceName: resourceName,
   );
-
-  @override
-  Future<SessionTokens> reMintOnOpen(SessionTokens current) async => _tokens(
-    await _accessToken(),
-    refreshToken: current.refreshToken,
-    refreshFamily: current.refreshFamily,
-  );
-
-  @override
-  Future<void> signOut() =>
-      _client.signOut(_config.auth.redirectUri.toString());
-
-  Future<String> _accessToken() async {
-    final token = await _client.getAccessToken(
-      resource: _config.auth.resource.toString(),
-    );
-    if (token == null) {
-      throw StateError('Logto did not return an access token');
-    }
-    return token.token;
-  }
-
-  SessionTokens _tokens(
-    String accessToken, {
-    required String refreshToken,
-    required String refreshFamily,
-  }) {
-    final DateTime now = _now().toUtc();
-    return SessionTokens(
-      accessToken: accessToken,
-      refreshToken: refreshToken,
-      refreshFamily: refreshFamily,
-      accessExpiresAt: now.add(_config.session.accessLifetime),
-      refreshExpiresAt: now.add(_config.session.refreshLifetime),
-    );
-  }
 }
