@@ -8,8 +8,8 @@ includes:
   example:lapras:
     taskfile: tasks/Taskfile.cluster.yaml
     vars:
-      RELEASE_NAME: helm-wrapper
-      NAMESPACE: sample
+      RELEASE_NAME: sulfur
+      NAMESPACE: cert-manager
       LANDSCAPE: example
       CLUSTER: lapras
 
@@ -30,15 +30,14 @@ tasks:
       - ./scripts/local/skills-sync.sh
 
   build:
-    desc: Vendor config and build chart dependencies
+    desc: Vendor and build the pinned cert-manager dependency
     cmds:
-      - ./scripts/local/vendor-chart-config.sh
-      - helm dependency build chart
+      - ./scripts/local/vendor-cert-manager.sh build
 
   update:
     desc: Refresh the pinned upstream chart dependency
     cmds:
-      - helm dependency update chart
+      - ./scripts/local/vendor-cert-manager.sh update
 
   latest:
     desc: Resolve the latest real upstream chart and image tags
@@ -46,19 +45,19 @@ tasks:
       - ./scripts/local/latest-chart-upstreams.sh
 
   test:
-    desc: Run the Helm wrapper unit/static tier
+    desc: Run the sulfur unit/static tier
     cmds:
-      - ./scripts/ci/helm-wrapper.sh
+      - ./scripts/ci/sulfur.sh
 
   test:unit:
-    desc: Run schema, lint, render, policy, and contract validation
+    desc: Run schema, lint, render, policy, gateway, boundary, and upgrade validation
     cmds:
-      - ./scripts/ci/helm-wrapper.sh
+      - ./scripts/ci/sulfur.sh
 
   test:int:
-    desc: Run the local k3d installation proof
+    desc: Run the k3d integration tier (engine health + self-signed Certificate)
     cmds:
-      - ./scripts/validate/helm-wrapper-k3d.sh
+      - ./scripts/validate/sulfur-k3d.sh
 
   start:cluster:
     desc: Start the local k3d lapras proof cluster

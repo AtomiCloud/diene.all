@@ -1,0 +1,30 @@
+# Machine-checkable upstream selection evidence for the vendored cert-manager engine.
+observedAtUtc: '2026-07-24T14:56:00Z'
+chart:
+  name: cert-manager
+  repository: https://charts.jetstack.io
+  index: https://charts.jetstack.io/index.yaml
+  version: v1.20.3
+  appVersion: v1.20.3
+  sourceArchiveSha256: ef5d707f5afbb2c3ce9892f5ff3fca0dec6864db8830a1c454b3d4822c485843
+image:
+  registry: quay.io/jetstack
+  controllerRepository: quay.io/jetstack/cert-manager-controller
+  selectedTag: v1.20.3
+  observedLatestChartVersion: v1.21.0
+  observedLatestImageTag: v1.21.0
+  observedLatestRelease: https://github.com/cert-manager/cert-manager/releases/tag/v1.21.0
+upgrade:
+  # Sequential-minor upgrade policy (Q-G22). The pinned minor may only advance by
+  # one minor at a time; the CRD upgrade path follows the same sequential-minor
+  # rule. The observed latest (v1.21.0) is exactly one minor ahead, so it is the
+  # only next allowed bump.
+  pinnedMinor: '1.20'
+  previousMinor: '1.19'
+  crdUpgradePath: sequential-minor
+decision: >-
+  cert-manager chart v1.20.3 / app v1.20.3 is pinned pure-passthrough. The
+  official latest is v1.21.0 (one sequential minor ahead); it is not adopted here
+  because the wrapper advances one minor at a time under the Q-G22 sequential-minor
+  policy, and v1.20.3 is the current supported line. Images are pulled from
+  quay.io/jetstack and pinned to the chart appVersion.

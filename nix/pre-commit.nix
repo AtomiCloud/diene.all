@@ -215,21 +215,21 @@ pre-commit-lib.run {
       language = "system";
     };
 
-    # ### helm-wrapper-hooks
-    # #### source: helm-wrapper
-    a-wrapper-helm-docs = {
+    # ### sulfur-hooks
+    # #### source: sulfur
+    a-sulfur-helm-docs = {
       enable = true;
-      name = "Helm wrapper docs";
+      name = "Sulfur helm docs";
       entry = "${packages.infralint}/bin/helm-docs --chart-search-root chart";
       files = "^chart/.*";
       pass_filenames = false;
       language = "system";
     };
 
-    a-wrapper-helm-lint = {
+    a-sulfur-helm-lint = {
       enable = true;
-      name = "Helm wrapper lint";
-      entry = validator "scripts/validate/helm-wrapper.sh lint";
+      name = "Sulfur helm lint";
+      entry = validator "scripts/validate/sulfur.sh lint";
       files = "^(chart/.*|config/.*|scripts/(local|validate)/.*)$";
       pass_filenames = false;
       language = "system";
