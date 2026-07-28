@@ -1,0 +1,12 @@
+{
+  "eevee": {
+    "aluminium": { "images": [] },
+    "carbon": { "images": [] },
+    "chlorine": { "images": ["sha256:0530cf462fa3ba530fab887372e3b79caf608d0093ffc2fded9fa33bac8b74cd"] },
+    "cobalt": { "images": ["sha256:6615aaea8ff44924d9d7dbc99982a130c82913f7583e212fa3aeebc6dc21fbf9"] },
+    "dragonfly-operator": { "images": [] },
+    "fleet-operator": { "images": [] },
+    "lithium": { "images": ["sha256:d0006f5e3b39fecb0039c5aab821bcb0cc9ed5d4e4f0ee97605d41140cd08d2f"] },
+    "vanadium": { "images": [] }
+  }
+}

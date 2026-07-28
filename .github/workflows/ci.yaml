@@ -32,3 +32,10 @@ jobs:
       contents: read
     uses: ./.github/workflows/⚡reusable-helm-wrapper.yaml
     secrets: inherit
+
+  garden-parity:
+    name: Garden Parity
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-garden-parity.yaml
+    secrets: inherit

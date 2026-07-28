@@ -1,0 +1,19 @@
+# Same id as the sulfoxide-home cobalt definition: the union must reject it.
+id: cobalt
+home: primordial
+owner: primordial/baseline
+role: duplicate authorship of a member that already has a home
+chartRef:
+  repository: oci://ghcr.io/atomicloud/primordial/charts/cobalt
+  version: 0.1.0
+  digest: null
+  promotion: { state: pending, owner: charts/cobalt, reason: chart-not-yet-promoted }
+imageRefs: []
+profiles:
+  lapras: { state: include }
+  ditto: { state: include }
+  rotom: { state: include }
+  absol: { state: include }
+  eevee: { state: include }
+  plusle: { state: include }
+  minun: { state: include }

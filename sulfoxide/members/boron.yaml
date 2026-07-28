@@ -1,0 +1,21 @@
+id: boron
+home: sulfoxide
+owner: boron
+role: Cloudflare exposure rail for connected laptop profiles
+chartRef:
+  repository: oci://ghcr.io/atomicloud/diene.all/charts/diene-boron
+  version: 0.1.0
+  digest: null
+  promotion: { state: pending, owner: boron, reason: owning-chart-node-incomplete }
+imageRefs:
+  - ref: ghcr.io/atomicloud/diene.boron:0.1.0
+    digest: null
+    pending: owning-node-incomplete
+profiles:
+  lapras: { state: include }
+  ditto: { state: include, mode: explicitly-inspectable-runs-only }
+  rotom: { state: omit, reason: connected-laptop-profiles-only }
+  absol: { state: omit, reason: connected-laptop-profiles-only }
+  eevee: { state: omit, reason: entei-owns-shared-edge }
+  plusle: { state: omit, reason: entei-owns-shared-edge }
+  minun: { state: omit, reason: entei-owns-shared-edge }

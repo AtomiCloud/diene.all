@@ -69,3 +69,23 @@ tasks:
     desc: Delete the local k3d lapras proof cluster
     cmds:
       - ./scripts/local/delete-k3d-cluster.sh
+
+  garden:render:
+    desc: Render the profile-filtered sulfoxide baseline from the owning definitions
+    cmds:
+      - ./scripts/local/garden-render.sh {{.CLI_ARGS | default "all"}}
+
+  garden:doctor:
+    desc: Report included members, pins, and every omission reason
+    cmds:
+      - ./scripts/local/garden-doctor.sh definition {{.CLI_ARGS | default "all"}}
+
+  garden:doctor:installed:
+    desc: Compare an installed tuple against the owning definitions
+    cmds:
+      - ./scripts/local/garden-doctor.sh installed {{.CLI_ARGS | default "all"}}
+
+  test:parity:
+    desc: Run the Garden parity unit tier
+    cmds:
+      - ./scripts/ci/garden-parity.sh

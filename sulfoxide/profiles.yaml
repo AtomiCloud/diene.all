@@ -1,0 +1,39 @@
+# Workload landscape registry for baseline filtering. Seven identities, fixed by
+# final Q-ENV47; ENTEI is a host landscape and never appears here.
+schema: diene-sulfoxide-profiles/v1
+profiles:
+  - id: lapras
+    substrate: k3d
+    hosted: false
+    keyed: true
+  - id: ditto
+    substrate: k3d
+    hosted: false
+    keyed: true
+  - id: rotom
+    substrate: k3d
+    hosted: false
+    keyed: false
+  - id: absol
+    substrate: k3d
+    hosted: false
+    keyed: false
+  - id: eevee
+    substrate: entei-vcluster
+    hosted: true
+    keyed: true
+  - id: plusle
+    substrate: entei-vcluster
+    hosted: true
+    keyed: true
+  - id: minun
+    substrate: entei-vcluster
+    hosted: true
+    keyed: true
+
+# The hosted filter is fixed law, not a per-profile choice: a hosted vcluster is a
+# truncated LAPRAS environment that drops only the public edge ENTEI already owns.
+hostedFilter:
+  excludes: [platinum, sulfur, zinc, boron]
+  reason: entei-owns-shared-edge
+  retains: [cobalt, dragonfly-operator, fleet-operator, lithium, chlorine, vanadium, aluminium, carbon]

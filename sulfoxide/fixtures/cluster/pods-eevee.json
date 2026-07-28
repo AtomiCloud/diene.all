@@ -1,0 +1,74 @@
+{
+  "apiVersion": "v1",
+  "kind": "List",
+  "items": [
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "name": "cobalt-eso-7d9f8c6b4-xk2lm",
+        "namespace": "external-secrets",
+        "labels": { "atomi.cloud/service": "cobalt", "atomi.cloud/module": "eso" }
+      },
+      "spec": {
+        "containers": [{ "name": "external-secrets", "image": "ghcr.io/external-secrets/external-secrets:v2.7.0" }]
+      },
+      "status": {
+        "phase": "Running",
+        "containerStatuses": [
+          {
+            "name": "external-secrets",
+            "image": "ghcr.io/external-secrets/external-secrets:v2.7.0",
+            "imageID": "ghcr.io/external-secrets/external-secrets@sha256:6615aaea8ff44924d9d7dbc99982a130c82913f7583e212fa3aeebc6dc21fbf9",
+            "ready": true,
+            "restartCount": 0
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "name": "chlorine-reloader-5b8d9f7c6-pq4wz",
+        "namespace": "reloader",
+        "labels": { "atomi.cloud/service": "chlorine", "atomi.cloud/module": "reloader" }
+      },
+      "spec": { "containers": [{ "name": "reloader", "image": "ghcr.io/stakater/reloader:v1.4.19" }] },
+      "status": {
+        "phase": "Running",
+        "containerStatuses": [
+          {
+            "name": "reloader",
+            "image": "ghcr.io/stakater/reloader:v1.4.19",
+            "imageID": "ghcr.io/stakater/reloader@sha256:0530cf462fa3ba530fab887372e3b79caf608d0093ffc2fded9fa33bac8b74cd",
+            "ready": true,
+            "restartCount": 0
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "name": "lithium-core-6c7d8e9f5-mn3rt",
+        "namespace": "lithium",
+        "labels": { "atomi.cloud/service": "lithium", "atomi.cloud/module": "core" }
+      },
+      "spec": { "containers": [{ "name": "logto", "image": "ghcr.io/atomicloud/aldehyde.logto:1.41.0" }] },
+      "status": {
+        "phase": "Running",
+        "containerStatuses": [
+          {
+            "name": "logto",
+            "image": "ghcr.io/atomicloud/aldehyde.logto:1.41.0",
+            "imageID": "ghcr.io/atomicloud/aldehyde.logto@sha256:d0006f5e3b39fecb0039c5aab821bcb0cc9ed5d4e4f0ee97605d41140cd08d2f",
+            "ready": true,
+            "restartCount": 0
+          }
+        ]
+      }
+    }
+  ]
+}

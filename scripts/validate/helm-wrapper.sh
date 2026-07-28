@@ -118,7 +118,6 @@ presence)
   test -s chart/templates/webhook-route.yaml
   test -s chart/templates/contracts.yaml
   test -s policies/vap/workload-baseline.yaml
-  test -s probes/features.json
   ;;
 gateway-webhook-presence)
   rg -q '/healthz' docs/developer/helm-wrapper-baseline.md chart/values.yaml

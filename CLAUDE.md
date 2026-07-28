@@ -82,3 +82,10 @@ reserved for the separately owned C0 contracts standard.
 ## Helm wrapper sample
 
 Read [docs/developer/helm-wrapper-baseline.md](docs/developer/helm-wrapper-baseline.md) before changing `chart/`, the stacked values, CR/LPSM helpers, provider LoadBalancer annotations, config vendoring, or chart publishing.
+
+<!-- ### sulfoxide-parity -->
+<!-- #### source: sulfoxide-parity -->
+
+## Sulfoxide parity and the Garden doctor
+
+Read [docs/developer/sulfoxide-parity.md](docs/developer/sulfoxide-parity.md) before changing `sulfoxide/`, the profile filter, the parity doctor, or the pinned vcluster lock. Members are authored once in their declared home; Garden consumes those definitions and never owns a duplicate roster.
