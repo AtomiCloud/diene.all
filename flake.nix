@@ -1,4 +1,6 @@
 {
+  # ### workspace-flake
+  # #### source: workspace
   inputs = {
     # util
     flake-utils.url = "github:numtide/flake-utils";
@@ -9,6 +11,13 @@
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     nixpkgs-2605.url = "github:NixOS/nixpkgs/4382ed2b7a6839d4280a9b386db49cbc5907414d";
     atomipkgs.url = "github:AtomiCloud/nix-registry/v3";
+    releaser-src.url = "github:AtomiCloud/releaser/v1.0.0";
+    releaser-src.inputs.atomipkgs.follows = "atomipkgs";
+    releaser-src.inputs.flake-utils.follows = "flake-utils";
+    releaser-src.inputs.nixpkgs-2605.follows = "nixpkgs-2605";
+    releaser-src.inputs.nixpkgs-unstable.follows = "nixpkgs-unstable";
+    releaser-src.inputs.pre-commit-hooks.follows = "pre-commit-hooks";
+    releaser-src.inputs.treefmt-nix.follows = "treefmt-nix";
   };
   outputs =
     {
@@ -23,6 +32,7 @@
       atomipkgs,
       nixpkgs-2605,
       nixpkgs-unstable,
+      releaser-src,
 
     }@inputs:
     (flake-utils.lib.eachDefaultSystem (
@@ -54,6 +64,7 @@
             pkgs-2605
             pkgs-unstable
             atomi
+            releaser-src
             ;
         };
         env = import ./nix/env.nix {

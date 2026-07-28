@@ -45,8 +45,7 @@ Each project generates `CommitConventions.md` from its `atomi_release.yaml` conf
 3. Release behavior (major/minor/patch/no-release)
 4. VAE examples for applicable types
 
-To view or regenerate the conventions after `tools/releaser` lands at C2 step
-2p:
+To view or regenerate the conventions:
 
 ```bash
 # View the generated file
@@ -56,9 +55,8 @@ cat docs/developer/CommitConventions.md
 releaser conventions
 ```
 
-Before step 2p, treat `atomi_release.yaml` as authoritative. The checked-in
-generated document carries an explicit bootstrap notice, and the repository
-does not claim that the `releaser` command is available yet.
+`atomi_release.yaml` remains the machine-readable source of truth; the
+immutable releaser v1.0.0 flake input makes the command available locally.
 
 ## Release Behavior
 

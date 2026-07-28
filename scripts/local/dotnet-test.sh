@@ -60,6 +60,15 @@ mkdir -p "${coverage}"
 accumulator="${coverage}/coverage.json"
 last_index=$((${#projects[@]} - 1))
 
+# Build every registered project before measuring. Coverlet instruments assemblies after
+# the build that `dotnet test` performs implicitly; on a clean tree that ordering can hand
+# the test host an uninstrumented copy and report a fully exercised assembly as 0 covered
+# lines. Building first makes the instrumented output deterministic.
+for project_rel in "${projects[@]}"; do
+  echo "🏗️ Building ${kind} coverage project: ${project_rel}"
+  dotnet build "${root}/${project_rel}" -c Release
+done
+
 for index in "${!projects[@]}"; do
   project_rel="${projects[${index}]}"
   project_name="$(basename "${project_rel}" .csproj)"
@@ -97,9 +106,13 @@ valid="$(xmlstarlet sel -t -v '/coverage/@lines-valid' "${report}")"
 packages="$(xmlstarlet sel -t -m '/coverage/packages/package' -v '@name' -o $'\t' -v '@line-rate' -n "${report}")"
 [ -z "${packages}" ] && echo "❌ ${kind} coverage contains no packages" >&2 && exit 1
 
+# The unit ledger is read from the library projects themselves: the inherited [Lib*]*
+# wildcard plus whatever assembly names those projects declare, never a literal package name.
+unit_ledger="$(find "${root}" -mindepth 2 -maxdepth 2 -type f -name '*.csproj' -path "${root}/Lib*/*" -exec xmlstarlet sel -t -m '/Project/PropertyGroup/AssemblyName' -v . -n {} +)"
+
 while IFS=$'\t' read -r assembly line_rate; do
   if [ "${kind}" = "unit" ]; then
-    [[ ${assembly} =~ ^Lib.*$ || ${assembly} == "AtomiCloud.Diene.Note" ]] || {
+    [[ ${assembly} =~ ^Lib.*$ ]] || echo "${unit_ledger}" | rg -Fxq "${assembly}" || {
       echo "❌ unit coverage escaped its [Lib*]* ledger: ${assembly}" >&2
       exit 1
     }

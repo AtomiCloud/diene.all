@@ -8,19 +8,33 @@ version="${3:-$(xmlstarlet sel -t -v '/Project/PropertyGroup/Version' Version.pr
 [ "${mode}" != "inventory" ] && [ "${mode}" != "metadata" ] && [ "${mode}" != "symbols" ] && echo "❌ Usage: dotnet-package.sh <inventory|metadata|symbols> [artifacts] [version]" >&2 && exit 1
 [ ! -d "${artifacts}" ] && echo "❌ Package artifact directory '${artifacts}' not found" >&2 && exit 1
 
-package_ids=(AtomiCloud.Diene.Note AtomiCloud.Diene.Note.TestHelper)
+# Package identity is read from the solution's packable projects, never asserted as a literal.
+solution="$(find . -maxdepth 1 -type f -name '*.slnx' | sort | head -n 1)"
+[ -z "${solution}" ] && echo "❌ No .slnx solution found at the repository root" >&2 && exit 1
+mapfile -t package_ids < <(xmlstarlet sel -t -m '/Solution/Project' -v '@Path' -n "${solution}" | xargs -r -I{} xmlstarlet sel -t -m "/Project[PropertyGroup/IsPackable='true']/PropertyGroup/PackageId" -v . -n {})
+[ "${#package_ids[@]}" -eq 0 ] && echo "❌ No packable project in ${solution} declares a PackageId" >&2 && exit 1
 
 if [ "${mode}" = "inventory" ]; then
+  expected="$((${#package_ids[@]} * 2))"
   for package_id in "${package_ids[@]}"; do
     [ ! -f "${artifacts}/${package_id}.${version}.nupkg" ] && echo "❌ Missing ${package_id}.${version}.nupkg" >&2 && exit 1
     [ ! -f "${artifacts}/${package_id}.${version}.snupkg" ] && echo "❌ Missing ${package_id}.${version}.snupkg" >&2 && exit 1
   done
-  [ "$(find "${artifacts}" -maxdepth 1 -type f \( -name '*.nupkg' -o -name '*.snupkg' \) | wc -l)" -ne 4 ] && echo "❌ Package inventory must contain exactly four artifacts" >&2 && exit 1
-  echo "✅ Dual-package artifact inventory is complete at ${version}"
+  [ "$(find "${artifacts}" -maxdepth 1 -type f \( -name '*.nupkg' -o -name '*.snupkg' \) | wc -l)" -ne "${expected}" ] && echo "❌ Package inventory must contain exactly ${expected} artifacts" >&2 && exit 1
+  echo "✅ Artifact inventory is complete at ${version} across ${#package_ids[@]} packable project(s)"
   exit 0
 fi
 
 if [ "${mode}" = "metadata" ]; then
+  # Shipped URLs and shipped skills are read from the repository, never asserted as literals.
+  project_url="$(xmlstarlet sel -t -v '/Project/PropertyGroup/PackageProjectUrl' Directory.Build.props)"
+  repository_url="$(xmlstarlet sel -t -v '/Project/PropertyGroup/RepositoryUrl' Directory.Build.props)"
+  mapfile -t skill_assets < <(find skills -type f -name 'SKILL.md' | sort)
+  [ -z "${project_url}" ] && echo "❌ Directory.Build.props declares no PackageProjectUrl" >&2 && exit 1
+  [ -z "${repository_url}" ] && echo "❌ Directory.Build.props declares no RepositoryUrl" >&2 && exit 1
+  [ "${#skill_assets[@]}" -eq 0 ] && echo "❌ No skills/*/SKILL.md is available to ship with the packages" >&2 && exit 1
+  required_assets=(README.md logo.png LICENSE "${skill_assets[@]}")
+
   for package_id in "${package_ids[@]}"; do
     package="${artifacts}/${package_id}.${version}.nupkg"
     nuspec="$(mktemp)"
@@ -34,10 +48,10 @@ if [ "${mode}" = "metadata" ]; then
     [ "$(xmlstarlet sel -N n="${namespace}" -t -v '/n:package/n:metadata/n:readme' "${nuspec}")" != "README.md" ] && echo "❌ ${package_id} package README metadata missing" >&2 && exit 1
     [ "$(xmlstarlet sel -N n="${namespace}" -t -v '/n:package/n:metadata/n:icon' "${nuspec}")" != "logo.png" ] && echo "❌ ${package_id} package icon metadata missing" >&2 && exit 1
     [ -z "$(xmlstarlet sel -N n="${namespace}" -t -v '/n:package/n:metadata/n:description' "${nuspec}")" ] && echo "❌ ${package_id} description metadata missing" >&2 && exit 1
-    [ "$(xmlstarlet sel -N n="${namespace}" -t -v '/n:package/n:metadata/n:projectUrl' "${nuspec}")" != "https://github.com/AtomiCloud/diene.dotnet-lib" ] && echo "❌ ${package_id} project URL metadata missing" >&2 && exit 1
-    [ "$(xmlstarlet sel -N n="${namespace}" -t -v '/n:package/n:metadata/n:repository/@url' "${nuspec}")" != "https://github.com/AtomiCloud/diene.dotnet-lib" ] && echo "❌ ${package_id} repository metadata missing" >&2 && exit 1
+    [ "$(xmlstarlet sel -N n="${namespace}" -t -v '/n:package/n:metadata/n:projectUrl' "${nuspec}")" != "${project_url}" ] && echo "❌ ${package_id} project URL metadata missing" >&2 && exit 1
+    [ "$(xmlstarlet sel -N n="${namespace}" -t -v '/n:package/n:metadata/n:repository/@url' "${nuspec}")" != "${repository_url}" ] && echo "❌ ${package_id} repository metadata missing" >&2 && exit 1
     contents="$(unzip -Z1 "${package}")"
-    for required in README.md logo.png LICENSE skills/diene-dotnet-note-usage/SKILL.md; do
+    for required in "${required_assets[@]}"; do
       ! echo "${contents}" | rg -Fxq "${required}" && echo "❌ ${package_id} package is missing ${required}" >&2 && exit 1
     done
     rm -f "${nuspec}"
