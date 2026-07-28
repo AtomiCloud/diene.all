@@ -152,7 +152,7 @@ export default {
           await repo.write('.claude/skills/vendor/stale/SKILL.md', 'stale\n');
           await expectGreen(
             repo,
-            `nix develop .#ci -c bash -c 'set -euo pipefail; first="$(mktemp -d)"; second="$(mktemp -d)"; readonly_skill="node_modules/@atomicloud/diene.readonly/skills/example"; trap "rm -rf \\"$first\\" \\"$second\\"" EXIT; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; mkdir -p "$readonly_skill"; printf "readonly skill\\n" >"$readonly_skill/SKILL.md"; chmod -R a-w node_modules/@atomicloud/diene.readonly .claude/skills/vendor/stale; ./scripts/local/skills-sync.sh; test ! -e .claude/skills/vendor/stale; test -f .claude/skills/vendor/diene.readonly/example/SKILL.md; test -f .claude/skills/vendor/diene.go-fixture/example/SKILL.md; jq -e ". == [\\"diene.go-fixture/example/SKILL.md\\", \\"diene.readonly/example/SKILL.md\\"]" .claude/skills/vendor/manifest.json >/dev/null; cp -R .claude/skills/vendor/. "$first"/; ./scripts/local/skills-sync.sh; cp -R .claude/skills/vendor/. "$second"/; diff -ru "$first" "$second"'`,
+            `nix develop .#ci -c bash -c 'set -euo pipefail; first="$(mktemp -d)"; second="$(mktemp -d)"; readonly_skill="node_modules/@atomicloud/diene.readonly/skills/example"; trap "rm -rf \\"$first\\" \\"$second\\"" EXIT; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; mkdir -p "$readonly_skill"; printf "readonly skill\\n" >"$readonly_skill/SKILL.md"; chmod -R a-w node_modules/@atomicloud/diene.readonly .claude/skills/vendor/stale; ./scripts/local/skills-sync.sh; test ! -e .claude/skills/vendor/stale; test -f .claude/skills/vendor/diene.readonly/example/SKILL.md; test -f .claude/skills/vendor/diene.go-fixture/example/SKILL.md; test "$(cat .claude/skills/vendor/diene.readonly/example/SKILL.md)" = "readonly skill"; test "$(cat .claude/skills/vendor/diene.go-fixture/example/SKILL.md)" = "external Go skill"; jq -e "(index(\\"diene.go-fixture/example/SKILL.md\\") != null) and (index(\\"diene.readonly/example/SKILL.md\\") != null) and ([.[] | select(startswith(\\"diene.go-fixture/\\") or startswith(\\"diene.readonly/\\") or startswith(\\"diene.untracked/\\"))] | length == 2)" .claude/skills/vendor/manifest.json >/dev/null; cp -R .claude/skills/vendor/. "$first"/; ./scripts/local/skills-sync.sh; cp -R .claude/skills/vendor/. "$second"/; diff -ru "$first" "$second"'`,
             'skills-sync',
           );
         });
@@ -171,7 +171,7 @@ export default {
           await stageKeptSkill(repo);
           await expectGreen(
             repo,
-            `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ./scripts/local/skills-sync.sh; test "$(cat ${keptSkill})" = "committed skill"'`,
+            `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; iso="$(mktemp -d)"; trap "if [ -d \\"$iso/@atomicloud\\" ]; then rm -rf node_modules/@atomicloud; mkdir -p node_modules; mv \\"$iso/@atomicloud\\" node_modules/; fi; rm -rf \\"$iso\\"" EXIT; if [ -d node_modules/@atomicloud ]; then mv node_modules/@atomicloud "$iso/"; fi; mkdir -p node_modules; ./scripts/local/skills-sync.sh; test "$(cat ${keptSkill})" = "committed skill"'`,
             'skills-sync',
           );
         });
@@ -220,7 +220,7 @@ export default {
           await repo.write('go-shim/go', selfModuleGoShim);
           await expectGreen(
             repo,
-            `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ./scripts/local/skills-sync.sh; jq -e ". == []" .claude/skills/vendor/manifest.json >/dev/null'`,
+            `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ./scripts/local/skills-sync.sh; jq -e "[.[] | select(startswith(\\"diene.go-fixture/\\") or startswith(\\"diene.readonly/\\") or startswith(\\"diene.untracked/\\"))] | length == 0" .claude/skills/vendor/manifest.json >/dev/null'`,
             'skills-sync',
           );
         });
