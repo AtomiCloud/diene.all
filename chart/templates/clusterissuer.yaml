@@ -1,0 +1,45 @@
+{{- include "diene-zinc.validateServiceTree" . -}}
+{{- $root := . -}}
+{{- $issuer := required "issuer is required" .Values.issuer -}}
+{{- $directories := required "issuer.acme.directories is required" $issuer.acme.directories -}}
+{{- $cloudflare := required "issuer.solver.cloudflare is required" $issuer.solver.cloudflare -}}
+{{- $tokenRef := required "issuer.solver.cloudflare.apiTokenSecretRef is required" $cloudflare.apiTokenSecretRef -}}
+{{- $refs := required "issuer.refs is required" $issuer.refs -}}
+{{- range $ref := $refs -}}
+{{- $name := required "issuer.refs[].name is required" $ref.name -}}
+{{- $directory := required "issuer.refs[].directory is required" $ref.directory -}}
+{{- $server := index $directories $directory -}}
+{{- if not $server -}}
+{{- fail (printf "issuer.refs[%q].directory %q is not a defined ACME directory" $name $directory) -}}
+{{- end }}
+---
+# Reusable Let's Encrypt ACME DNS-01 (Cloudflare) ClusterIssuer. Cluster-scoped,
+# so it is instantiated once per cluster. The Cloudflare API token is referenced
+# from the ExternalSecret-materialized Secret only; nothing is inlined.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "diene-zinc.labels" $root | nindent 4 }}
+    {{ include "diene-zinc.labelPrefix" $root }}/acme-directory: {{ $directory | quote }}
+  annotations:
+    {{- include "diene-zinc.annotations" $root | nindent 4 }}
+spec:
+  acme:
+    server: {{ $server | quote }}
+    email: {{ required "issuer.email is required" $issuer.email | quote }}
+    privateKeySecretRef:
+      name: {{ printf "%s-account" $name | quote }}
+    solvers:
+      - dns01:
+          cloudflare:
+            apiTokenSecretRef:
+              name: {{ required "cloudflare apiTokenSecretRef.name is required" $tokenRef.name | quote }}
+              key: {{ required "cloudflare apiTokenSecretRef.key is required" $tokenRef.key | quote }}
+        {{- with $issuer.solver.dnsZones }}
+        selector:
+          dnsZones:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+{{- end }}

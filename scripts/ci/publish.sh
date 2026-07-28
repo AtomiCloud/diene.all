@@ -21,9 +21,8 @@ manifest_version="$(yq -r '.version' chart/Chart.yaml)"
 bash ./scripts/ci/setup.sh
 helm-docs --chart-search-root chart
 mkdir -p "${output_dir}"
-helm dependency build chart
 helm package chart --destination "${output_dir}" --version "${version}"
-package="${output_dir}/diene-helm-wrapper-${version}.tgz"
+package="${output_dir}/diene-zinc-${version}.tgz"
 [ ! -s "${package}" ] && echo "❌ chart package was not created" >&2 && exit 1
 
 if [ "${mode}" = "git" ]; then

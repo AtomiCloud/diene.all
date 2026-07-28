@@ -1,133 +1,91 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "title": "Diene Helm Wrapper Values",
-    "description": "Generated schema for the diene Helm wrapper sample.",
+    "title": "Diene Zinc Values",
+    "description": "Generated schema for the diene zinc cert-manager issuer chart.",
     "type": "object",
-    "required": [
-        "fullnameOverride"
-    ],
     "properties": {
-        "contracts": {
-            "description": "Current health and webhook delivery conventions.",
-            "type": "object",
-            "properties": {
-                "health": {
-                    "type": "object",
-                    "properties": {
-                        "expectedStatus": {
-                            "type": "string"
-                        },
-                        "path": {
-                            "type": "string",
-                            "pattern": "^/.*"
-                        }
-                    }
-                },
-                "lpsm": {
-                    "type": "object",
-                    "properties": {
-                        "instance": {
-                            "type": "string",
-                            "pattern": "^[a-z0-9-]+$"
-                        },
-                        "instanceZone": {
-                            "type": "string"
-                        },
-                        "landscape": {
-                            "type": "string",
-                            "pattern": "^[a-z0-9-]+$"
-                        },
-                        "module": {
-                            "type": "string",
-                            "pattern": "^[a-z0-9-]+$"
-                        },
-                        "ordinaryZone": {
-                            "type": "string"
-                        },
-                        "parseHostname": {
-                            "type": "string"
-                        },
-                        "service": {
-                            "type": "string",
-                            "pattern": "^[a-z0-9-]+$"
-                        }
-                    }
-                },
-                "webhook": {
-                    "type": "object",
-                    "properties": {
-                        "pathPrefix": {
-                            "type": "string",
-                            "pattern": "^/.*"
-                        },
-                        "provider": {
-                            "type": "string",
-                            "pattern": "^[a-z0-9-]+$"
-                        }
-                    }
-                }
-            }
-        },
-        "fullnameOverride": {
-            "description": "Primary workload fullname. It must be `\u003cservice\u003e-\u003cdashless-token\u003e`.",
-            "type": "string",
-            "pattern": "^[a-z0-9]+-[a-z0-9]+$"
-        },
-        "gateway": {
-            "description": "Provider-managed LoadBalancer service for the gateway.",
-            "type": "object",
-            "properties": {
-                "aws": {
-                    "type": "object",
-                    "properties": {
-                        "eipAllocationIds": {
-                            "type": "array",
-                            "uniqueItems": true,
-                            "items": {
-                                "type": "string"
-                            }
-                        },
-                        "subnetIds": {
-                            "type": "array",
-                            "uniqueItems": true,
-                            "items": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                },
-                "enabled": {
-                    "type": "boolean"
-                },
-                "oci": {
-                    "type": "object",
-                    "properties": {
-                        "reservedPublicIp": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "port": {
-                    "type": "integer",
-                    "maximum": 65535,
-                    "minimum": 1
-                },
-                "provider": {
-                    "type": "string",
-                    "enum": [
-                        "aws",
-                        "oci",
-                        "digitalocean"
-                    ]
-                }
-            }
-        },
         "instance": {
             "description": "Optional physical-instance metadata. The instance remains outside LPSM.",
             "type": "object",
             "properties": {
                 "physicalId": {
+                    "description": "Repository-qualified physical instance id.",
+                    "type": "string",
+                    "pattern": "^[a-z0-9._:/-]+$",
+                    "minLength": 1
+                }
+            }
+        },
+        "issuer": {
+            "description": "The reusable Let's Encrypt ACME DNS-01 (Cloudflare) ClusterIssuer definition. Zinc owns NO Certificate: certificate owners reference a stable ClusterIssuer name. ONE definition is rendered once per `refs` entry (cluster-scoped, so it is instantiated per cluster); there are no per-landscape/zone issuer variants beyond the LE-directory selection carried by the overlays.",
+            "type": "object",
+            "properties": {
+                "acme": {
+                    "type": "object",
+                    "properties": {
+                        "directories": {
+                            "description": "Named Let's Encrypt ACME directory endpoints. A `refs` entry selects one by name; the five-landscape LE-directory map (Q-I33) is expressed by the landscape overlays choosing production or staging.",
+                            "type": "object",
+                            "properties": {
+                                "production": {
+                                    "type": "string"
+                                },
+                                "staging": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                },
+                "email": {
+                    "description": "ACME registration contact address.",
                     "type": "string"
+                },
+                "refs": {
+                    "description": "ClusterIssuer instances to materialize from the one definition. Registered clusters instantiate a single stable ref; the ENTEI host-role overlay instantiates the staging+production pair concurrently on the shared host.",
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "directory": {
+                                "type": "string"
+                            },
+                            "name": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                },
+                "solver": {
+                    "type": "object",
+                    "properties": {
+                        "cloudflare": {
+                            "type": "object",
+                            "properties": {
+                                "apiTokenSecretRef": {
+                                    "type": "object",
+                                    "properties": {
+                                        "key": {
+                                            "description": "Key inside that Secret (folder-prefixed by the ExternalSecret rewrite).",
+                                            "type": "string"
+                                        },
+                                        "name": {
+                                            "description": "The ExternalSecret-materialized Secret carrying the Cloudflare token.",
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "dnsZones": {
+                            "description": "DNS-01 solver zone restriction. Empty = unrestricted (registered fleet); the ENTEI overlay pins the hosted-development authority zones.",
+                            "type": "array",
+                            "uniqueItems": true,
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
                 }
             }
         },
@@ -137,402 +95,31 @@
             "pattern": "^[a-z0-9.-]+$",
             "minLength": 1
         },
-        "migration": {
-            "description": "Separate pre-sync migration hook. It never owns or recreates the Deployment.",
-            "type": "object",
-            "properties": {
-                "command": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "enabled": {
-                    "type": "boolean"
-                },
-                "image": {
-                    "type": "object",
-                    "properties": {
-                        "pullPolicy": {
-                            "type": "string",
-                            "enum": [
-                                "Always",
-                                "IfNotPresent",
-                                "Never"
-                            ]
-                        },
-                        "repository": {
-                            "type": "string"
-                        },
-                        "tag": {
-                            "type": "string",
-                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
-                        }
-                    }
-                },
-                "reloader": {
-                    "type": "object",
-                    "properties": {
-                        "enabled": {
-                            "type": "boolean"
-                        }
-                    }
-                },
-                "resources": {
-                    "type": "object",
-                    "properties": {
-                        "limits": {
-                            "type": "object",
-                            "properties": {
-                                "cpu": {
-                                    "type": "string"
-                                },
-                                "memory": {
-                                    "type": "string"
-                                }
-                            }
-                        },
-                        "requests": {
-                            "type": "object",
-                            "properties": {
-                                "cpu": {
-                                    "type": "string"
-                                },
-                                "memory": {
-                                    "type": "string"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "primordial": {
-            "description": "Reusable primordial-chart CR helper inputs against the frozen T3 shapes.",
-            "type": "object",
-            "properties": {
-                "apiVersions": {
-                    "type": "object",
-                    "properties": {
-                        "edge": {
-                            "type": "string"
-                        },
-                        "fleet": {
-                            "type": "string"
-                        },
-                        "identity": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "cloudflareDeploy": {
-                    "type": "object",
-                    "properties": {
-                        "enabled": {
-                            "type": "boolean"
-                        },
-                        "pin": {
-                            "type": "boolean"
-                        },
-                        "scriptName": {
-                            "type": "string"
-                        },
-                        "tag": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "enabled": {
-                    "type": "boolean"
-                },
-                "logtoApp": {
-                    "type": "object",
-                    "properties": {
-                        "enabled": {
-                            "type": "boolean"
-                        },
-                        "extraRedirectUris": {
-                            "type": "array",
-                            "uniqueItems": true,
-                            "items": {
-                                "type": "string"
-                            }
-                        },
-                        "paths": {
-                            "type": "array",
-                            "items": {
-                                "type": "string"
-                            }
-                        },
-                        "resourceRefs": {
-                            "type": "array",
-                            "uniqueItems": true,
-                            "items": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                },
-                "placement": {
-                    "type": "object",
-                    "properties": {
-                        "preferredHost": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "platformDependency": {
-                    "type": "object",
-                    "properties": {
-                        "modules": {
-                            "type": "object",
-                            "properties": {
-                                "cache": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "object",
-                                        "properties": {
-                                            "credentialMode": {
-                                                "type": "string"
-                                            },
-                                            "delivery": {
-                                                "type": "string"
-                                            },
-                                            "engine": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "dragonfly": {
-                                                        "type": "object"
-                                                    }
-                                                }
-                                            },
-                                            "ram": {
-                                                "type": "string"
-                                            },
-                                            "rotation": {
-                                                "type": "string"
-                                            },
-                                            "type": {
-                                                "type": "string"
-                                            }
-                                        }
-                                    }
-                                },
-                                "database": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "object",
-                                        "properties": {
-                                            "backup": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "crossVendor": {
-                                                        "type": "boolean"
-                                                    }
-                                                }
-                                            },
-                                            "cpu": {
-                                                "type": "integer"
-                                            },
-                                            "credentialMode": {
-                                                "type": "string"
-                                            },
-                                            "delivery": {
-                                                "type": "string"
-                                            },
-                                            "engine": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "neon": {
-                                                        "type": "object",
-                                                        "properties": {
-                                                            "tier": {
-                                                                "type": "string"
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            },
-                                            "providerAccountRef": {
-                                                "type": "string"
-                                            },
-                                            "ram": {
-                                                "type": "string"
-                                            },
-                                            "rotation": {
-                                                "type": "string"
-                                            },
-                                            "storage": {
-                                                "type": "string"
-                                            },
-                                            "type": {
-                                                "type": "string"
-                                            },
-                                            "version": {
-                                                "type": "string"
-                                            }
-                                        }
-                                    }
-                                },
-                                "kv": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "object",
-                                        "properties": {
-                                            "credentialMode": {
-                                                "type": "string"
-                                            },
-                                            "delivery": {
-                                                "type": "string"
-                                            },
-                                            "engine": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "upstash": {
-                                                        "type": "object"
-                                                    }
-                                                }
-                                            },
-                                            "providerAccountRef": {
-                                                "type": "string"
-                                            },
-                                            "ram": {
-                                                "type": "string"
-                                            },
-                                            "rotation": {
-                                                "type": "string"
-                                            },
-                                            "type": {
-                                                "type": "string"
-                                            }
-                                        }
-                                    }
-                                },
-                                "store": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "object",
-                                        "properties": {
-                                            "credentialMode": {
-                                                "type": "string"
-                                            },
-                                            "delivery": {
-                                                "type": "string"
-                                            },
-                                            "engine": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "tigris": {
-                                                        "type": "object"
-                                                    }
-                                                }
-                                            },
-                                            "providerAccountRef": {
-                                                "type": "string"
-                                            },
-                                            "rotation": {
-                                                "type": "string"
-                                            },
-                                            "type": {
-                                                "type": "string"
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                },
-                "problem": {
-                    "type": "object",
-                    "properties": {
-                        "enabled": {
-                            "type": "boolean"
-                        },
-                        "entries": {
-                            "type": "array",
-                            "items": {
-                                "type": "object",
-                                "properties": {
-                                    "endpoints": {
-                                        "type": "array",
-                                        "items": {
-                                            "type": "object",
-                                            "properties": {
-                                                "method": {
-                                                    "type": "string"
-                                                },
-                                                "path": {
-                                                    "type": "string"
-                                                }
-                                            }
-                                        }
-                                    },
-                                    "id": {
-                                        "type": "string"
-                                    },
-                                    "recoverable": {
-                                        "type": "boolean"
-                                    },
-                                    "schema": {
-                                        "type": "object"
-                                    },
-                                    "status": {
-                                        "type": "integer"
-                                    },
-                                    "title": {
-                                        "type": "string"
-                                    },
-                                    "type": {
-                                        "type": "string"
-                                    }
-                                }
-                            }
-                        },
-                        "version": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "targetLandscape": {
-                    "type": "string"
-                },
-                "virtualLandscapeService": {
-                    "type": "object",
-                    "properties": {
-                        "enabled": {
-                            "type": "boolean"
-                        },
-                        "serve": {
-                            "type": "boolean"
-                        }
-                    }
-                },
-                "vlandscape": {
-                    "type": "string"
-                }
-            }
-        },
         "secret": {
-            "description": "One service-scoped ExternalSecret with folder-prefix rewrites.",
+            "description": "One service-scoped ExternalSecret that materializes the Cloudflare API token from the platform SecretStore created by carbon via the SoS chain. The DNS-01 solver references this Secret only; a token is never inlined.",
             "type": "object",
             "properties": {
                 "enabled": {
+                    "description": "Render the ExternalSecret.",
                     "type": "boolean"
                 },
                 "refreshInterval": {
+                    "description": "ESO refresh cadence.",
                     "type": "string"
                 },
                 "serviceFolder": {
+                    "description": "Service-folder path fanned in with a ZINC_ prefix (holds the CF token).",
                     "type": "string"
                 },
                 "sharedFolder": {
+                    "description": "Shared-folder path fanned in with a SHARED_ prefix.",
                     "type": "string"
                 },
                 "store": {
                     "type": "object",
                     "properties": {
                         "kind": {
+                            "description": "The platform SecretStore is namespace-scoped (created by carbon).",
                             "type": "string",
                             "enum": [
                                 "SecretStore",
@@ -540,6 +127,7 @@
                             ]
                         },
                         "name": {
+                            "description": "Platform SecretStore name.",
                             "type": "string"
                         }
                     }
@@ -547,267 +135,28 @@
             }
         },
         "serviceTree": {
-            "description": "Stable four-slot service-tree projection. Landscape and cluster are added by independent overlays.",
+            "description": "Stable service-tree projection. Platform is always the release namespace (never a value); landscape is added by independent overlays.",
             "type": "object",
             "required": [
-                "platform",
                 "service",
                 "module",
                 "layer"
             ],
             "properties": {
                 "layer": {
+                    "description": "Architecture layer.",
                     "type": "string",
                     "pattern": "^[0-9]+$"
                 },
                 "module": {
-                    "type": "string",
-                    "pattern": "^[a-z0-9]+$"
-                },
-                "platform": {
+                    "description": "Module name.",
                     "type": "string",
                     "pattern": "^[a-z0-9]+$"
                 },
                 "service": {
+                    "description": "Service name.",
                     "type": "string",
                     "pattern": "^[a-z0-9]+$"
-                }
-            }
-        },
-        "upstream": {
-            "description": "Pinned optional upstream chart. Every instantiated dependency must receive a conforming override.",
-            "type": "object",
-            "properties": {
-                "enabled": {
-                    "type": "boolean"
-                },
-                "fullnameOverride": {
-                    "type": "string",
-                    "pattern": "^[a-z0-9]+-[a-z0-9]+$"
-                },
-                "image": {
-                    "type": "object",
-                    "properties": {
-                        "repository": {
-                            "type": "string"
-                        },
-                        "tag": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "podAnnotations": {
-                    "type": "object",
-                    "properties": {
-                        "reloader.stakater.com/auto": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "podSecurityContext": {
-                    "type": "object",
-                    "properties": {
-                        "runAsGroup": {
-                            "type": "integer"
-                        },
-                        "runAsNonRoot": {
-                            "type": "boolean"
-                        },
-                        "runAsUser": {
-                            "type": "integer"
-                        }
-                    }
-                },
-                "resources": {
-                    "type": "object",
-                    "properties": {
-                        "limits": {
-                            "type": "object",
-                            "properties": {
-                                "cpu": {
-                                    "type": "string"
-                                },
-                                "memory": {
-                                    "type": "string"
-                                }
-                            }
-                        },
-                        "requests": {
-                            "type": "object",
-                            "properties": {
-                                "cpu": {
-                                    "type": "string"
-                                },
-                                "memory": {
-                                    "type": "string"
-                                }
-                            }
-                        }
-                    }
-                },
-                "securityContext": {
-                    "type": "object",
-                    "properties": {
-                        "allowPrivilegeEscalation": {
-                            "type": "boolean"
-                        },
-                        "capabilities": {
-                            "type": "object",
-                            "properties": {
-                                "drop": {
-                                    "type": "array",
-                                    "items": {
-                                        "type": "string"
-                                    }
-                                }
-                            }
-                        },
-                        "readOnlyRootFilesystem": {
-                            "type": "boolean"
-                        },
-                        "runAsGroup": {
-                            "type": "integer"
-                        },
-                        "runAsNonRoot": {
-                            "type": "boolean"
-                        },
-                        "runAsUser": {
-                            "type": "integer"
-                        }
-                    }
-                }
-            }
-        },
-        "webhookRoute": {
-            "description": "Optional Gateway API route scaffold for a webhook receiver.",
-            "type": "object",
-            "properties": {
-                "enabled": {
-                    "type": "boolean"
-                },
-                "parentGateway": {
-                    "type": "string"
-                },
-                "parentNamespace": {
-                    "type": "string"
-                }
-            }
-        },
-        "workload": {
-            "description": "Wrapper-owned sample workload.",
-            "type": "object",
-            "properties": {
-                "image": {
-                    "type": "object",
-                    "properties": {
-                        "pullPolicy": {
-                            "type": "string",
-                            "enum": [
-                                "Always",
-                                "IfNotPresent",
-                                "Never"
-                            ]
-                        },
-                        "repository": {
-                            "type": "string"
-                        },
-                        "tag": {
-                            "type": "string",
-                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
-                        }
-                    }
-                },
-                "podSecurityContext": {
-                    "type": "object",
-                    "properties": {
-                        "fsGroup": {
-                            "type": "integer"
-                        },
-                        "runAsGroup": {
-                            "type": "integer"
-                        },
-                        "runAsNonRoot": {
-                            "type": "boolean"
-                        },
-                        "runAsUser": {
-                            "type": "integer"
-                        }
-                    }
-                },
-                "port": {
-                    "type": "integer",
-                    "maximum": 65535,
-                    "minimum": 1
-                },
-                "reloader": {
-                    "type": "object",
-                    "properties": {
-                        "enabled": {
-                            "type": "boolean"
-                        }
-                    }
-                },
-                "replicas": {
-                    "type": "integer",
-                    "minimum": 1
-                },
-                "resources": {
-                    "type": "object",
-                    "properties": {
-                        "limits": {
-                            "type": "object",
-                            "properties": {
-                                "cpu": {
-                                    "type": "string"
-                                },
-                                "memory": {
-                                    "type": "string"
-                                }
-                            }
-                        },
-                        "requests": {
-                            "type": "object",
-                            "properties": {
-                                "cpu": {
-                                    "type": "string"
-                                },
-                                "memory": {
-                                    "type": "string"
-                                }
-                            }
-                        }
-                    }
-                },
-                "securityContext": {
-                    "type": "object",
-                    "properties": {
-                        "allowPrivilegeEscalation": {
-                            "type": "boolean"
-                        },
-                        "capabilities": {
-                            "type": "object",
-                            "properties": {
-                                "drop": {
-                                    "type": "array",
-                                    "items": {
-                                        "type": "string"
-                                    }
-                                }
-                            }
-                        },
-                        "readOnlyRootFilesystem": {
-                            "type": "boolean"
-                        },
-                        "runAsGroup": {
-                            "type": "integer"
-                        },
-                        "runAsNonRoot": {
-                            "type": "boolean"
-                        },
-                        "runAsUser": {
-                            "type": "integer"
-                        }
-                    }
                 }
             }
         }
