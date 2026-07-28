@@ -24,33 +24,38 @@ export default {
     {
       name: 'mutation-otel-export-sit-caught',
       description:
-        'Broken exporter configuration turns the otel-export journey red while the app itself stays healthy.',
+        'Pointing the exporter endpoint the SIT actually honours at an address that accepts no OTLP turns the otel-export journey red — telemetry never reaches the backends — while the app itself stays healthy.',
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        // ONE fault: point the OTLP exporter endpoints at an address that accepts no
-        // OTLP, so telemetry never reaches the backends while the worker keeps
-        // running and its dependency-blind health probe stays green — that asymmetry
-        // is precisely the regression this row exists for (a broken exporter must NOT
-        // be masked by a healthy k8s probe). The target is the landscape overlay's
-        // exporter endpoints, matched by PATTERN under the otel block rather than by
-        // a named sample file, and the address is a reserved-for-documentation host
-        // (RFC 5737 TEST-NET-1) rather than a hardcoded loopback literal.
-        const paths = (await repo.glob('config/*.settings.yaml')).sort();
-        for (const path of paths) {
-          const source = await repo.read(path);
-          if (!/^otel:$/m.test(source) || !/^\s+endpoint:\s*\S+\s*$/m.test(source)) {
-            continue;
-          }
-          const patched = source.replace(/^(\s+)endpoint:\s*\S+\s*$/gm, '$1endpoint: http://192.0.2.1:4318');
-          if (patched === source) {
-            continue;
-          }
-          await repo.write(path, patched);
-          await runSitJourney(repo, JOURNEY, 'otel-export-sit', true);
-          return;
+        // ONE fault: point the OTLP exporter endpoint the SIT ACTUALLY USES at an
+        // address that accepts no OTLP, so telemetry never reaches the backends while
+        // the worker keeps running and its dependency-blind health probe stays green —
+        // that asymmetry is precisely the regression this row exists for.
+        //
+        // The load-bearing endpoint is NOT the landscape overlay (config/*.settings.yaml).
+        // scripts/local/test-sit.sh reads config/dev.yaml, and scripts/local/with-dev-env.sh
+        // exports ATOMI_OTEL__{LOGS,METRICS,TRACES}__EXPORTER__OTLP__ENDPOINT from its
+        // `.otel.endpoint` — and an ATOMI_ env var OVERRIDES the overlay, so patching the
+        // overlay is a SUCCESSFUL NO-OP (the original miss on this row). The one endpoint
+        // whose change the worker honours in SIT is config/dev.yaml `.otel.endpoint`.
+        // Target ONLY the otel block: the clickhouse/victoriaMetrics endpoints in the same
+        // file feed the journey's own read-back queries, and clobbering them would fail the
+        // journey for the WRONG reason. The address is a reserved-for-documentation host
+        // (RFC 5737 TEST-NET-1). The patch MUST change the file or it is refused — a
+        // no-op sabotage reads as a gate hole rather than as the broken probe it is.
+        const devConfig = 'config/dev.yaml';
+        const source = await repo.read(devConfig);
+        const otelEndpoint = source.match(/(^otel:\n[ \t]+endpoint:[ \t]*)\S+[ \t]*$/m);
+        if (!otelEndpoint) {
+          throw new Error('no structural otel endpoint found in the SIT dev config config/dev.yaml');
         }
-        throw new Error('no structural otel exporter endpoint found in a landscape overlay');
+        const patched = source.replace(otelEndpoint[0], `${otelEndpoint[1]}http://192.0.2.1:4318`);
+        if (patched === source) {
+          throw new Error('otel endpoint sabotage did not change config/dev.yaml; refusing to run a no-op mutation');
+        }
+        await repo.write(devConfig, patched);
+        await runSitJourney(repo, JOURNEY, 'otel-export-sit', true);
       },
     },
   ],

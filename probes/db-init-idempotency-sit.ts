@@ -23,17 +23,30 @@ export default {
     {
       name: 'mutation-db-init-idempotency-sit-caught',
       description:
-        'Replacing the seed-if-not-exists selection with an unconditional insert turns the re-run journey red.',
+        'Second-run idempotency is defended IN PARALLEL by the loader skip-guard and the ' +
+        'seed_records ON CONFLICT; either alone prevents duplicates, so the minimal ' +
+        'property-defeating sabotage removes BOTH and the re-run journey then hits a ' +
+        'primary-key violation.',
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        // ONE fault: remove the "already present" short-circuit so every seed record
-        // is inserted UNCONDITIONALLY on every run. The target is found by PATTERN —
-        // the existence-set membership guard inside whichever `lib/` package owns the
-        // seed loader — selected by glob, never by sample filename. This is the one
-        // fault that makes a second run duplicate; deleting the seed file would not
-        // qualify.
-        const paths = (await repo.glob('lib/**/*.go')).filter(path => !path.endsWith('_test.go')).sort();
+        // TWO coordinated faults, because the property "a second seed run creates no
+        // duplicate" is defended IN PARALLEL, not in series:
+        //   1. the loader skip-guard `if _, exists := seen[id]; exists { continue }`,
+        //      whose `seen` set is seeded from ExistingSeedIDs() — a DB-INFORMED
+        //      pre-filter — so InsertSeed is never reached for an already-present id;
+        //   2. the seed_records `ON CONFLICT (id) DO NOTHING` backstop, which dedups
+        //      if InsertSeed IS reached.
+        // Removing EITHER alone leaves the property intact and the gate CORRECTLY green
+        // (a one-point sabotage MISSES: guard-only is masked by ON CONFLICT, ON
+        // CONFLICT-only is masked by the guard never calling InsertSeed). Both targets
+        // are selected by STRUCTURAL PATTERN across the repo, never by sample filename.
+        // BOTH patches MUST land — a partially-applied two-point sabotage silently
+        // degrades to a one-point one that misses and reads as a gate hole, so a target
+        // that fails to match is a HARD ERROR, not a skipped fault.
+        const paths = (await repo.glob('**/*.go')).filter(path => !path.endsWith('_test.go')).sort();
+
+        let removedGuard = false;
         for (const path of paths) {
           const source = await repo.read(path);
           const guard = source.match(/\n(\t+)if _, exists := seen\[id\]; exists \{\n\t+continue\n\t+\}\n/);
@@ -41,10 +54,33 @@ export default {
             continue;
           }
           await repo.write(path, source.replace(guard[0], '\n'));
-          await runSitJourney(repo, JOURNEY, 'db-init-idempotency-sit', true);
-          return;
+          removedGuard = true;
+          break;
         }
-        throw new Error('no structural seed-if-not-exists selection found under lib/');
+        if (!removedGuard) {
+          throw new Error('two-point sabotage incomplete: no structural seed skip-guard found to remove');
+        }
+
+        let removedConflict = false;
+        for (const path of paths) {
+          const source = await repo.read(path);
+          const conflict = source.match(
+            /(INSERT INTO seed_records \(id, value\)\nVALUES \(\$1, \$2\))\nON CONFLICT \(id\) DO NOTHING/,
+          );
+          if (!conflict) {
+            continue;
+          }
+          await repo.write(path, source.replace(conflict[0], conflict[1]));
+          removedConflict = true;
+          break;
+        }
+        if (!removedConflict) {
+          throw new Error(
+            'two-point sabotage incomplete: no structural seed_records ON CONFLICT backstop found to remove',
+          );
+        }
+
+        await runSitJourney(repo, JOURNEY, 'db-init-idempotency-sit', true);
       },
     },
   ],
