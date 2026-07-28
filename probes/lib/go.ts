@@ -24,8 +24,9 @@ export async function flipGoAssertion(repo: ProbeRepo): Promise<void> {
   const paths = (await repo.glob('tests/unit/**/*_test.go')).sort();
   for (const path of paths) {
     const source = await repo.read(path);
-    if (source.includes('; got != ')) {
-      await repo.write(path, source.replace('; got != ', '; got == '));
+    const assertion = source.match(/if [^\n{]* != [^\n{]* \{\n\s*t\.(?:Fatal|Error)f?\(/);
+    if (assertion) {
+      await repo.write(path, source.replace(assertion[0], assertion[0].replace(' != ', ' == ')));
       return;
     }
   }
