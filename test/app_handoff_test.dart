@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:diene_auth_engine/diene_auth_engine.dart' as engine;
 import 'package:diene_flutter_base/auth/app_handoff.dart';
 import 'package:diene_flutter_base/auth/deferred_login.dart';
 import 'package:diene_flutter_base/auth/session_controller.dart';
@@ -34,21 +35,42 @@ final class _Carrier implements CarrierSource {
   Future<void> markProcessed(String value) async => raw = null;
 }
 
-final class _SignIn implements ExtraParamsSignIn {
+final class _SignIn implements AuthProvider {
   _SignIn(this.now);
 
   final DateTime now;
 
   @override
-  Future<SessionTokens> signInWithExtraParams(
-    Map<String, String> extraParams,
-  ) async => SessionTokens(
+  Future<SessionTokens> signIn({
+    Map<String, String> extraParams = const <String, String>{},
+  }) async => SessionTokens(
     accessToken: 'access-handoff',
     refreshToken: 'refresh-handoff',
     refreshFamily: 'handoff',
     accessExpiresAt: now.add(const Duration(minutes: 10)),
     refreshExpiresAt: now.add(const Duration(days: 14)),
   );
+
+  @override
+  Future<SessionTokens> refresh(SessionTokens current) =>
+      throw UnsupportedError('unused by handoff tests');
+
+  @override
+  Future<SessionTokens> reMintOnOpen(SessionTokens current) =>
+      throw UnsupportedError('unused by handoff tests');
+
+  @override
+  Future<void> signOut() async {}
+
+  @override
+  Future<engine.ResourceToken> resourceToken(engine.ResourceKey key) =>
+      throw UnsupportedError('unused by handoff tests');
+
+  @override
+  Future<String?> idToken() async => null;
+
+  @override
+  Future<String?> freshClaimToken() async => null;
 }
 
 final class _Tokens implements TokenProvider {
@@ -314,52 +336,43 @@ void main() {
 
     test('an onboarding-before-legal sequence is rejected', () {
       expect(
-        () => AppHandoffFlow.assertLegalPrecedesOnboarding(
-          <HandoffStage>[
-            HandoffStage.identity,
-            HandoffStage.onboarding,
-            HandoffStage.legal,
-          ],
-          consent,
-        ),
+        () => AppHandoffFlow.assertLegalPrecedesOnboarding(<HandoffStage>[
+          HandoffStage.identity,
+          HandoffStage.onboarding,
+          HandoffStage.legal,
+        ], consent),
         throwsA(isA<LegalStepBypassed>()),
       );
     });
 
     test('onboarding with no legal stage at all is rejected', () {
       expect(
-        () => AppHandoffFlow.assertLegalPrecedesOnboarding(
-          <HandoffStage>[HandoffStage.identity, HandoffStage.onboarding],
-          consent,
-        ),
+        () => AppHandoffFlow.assertLegalPrecedesOnboarding(<HandoffStage>[
+          HandoffStage.identity,
+          HandoffStage.onboarding,
+        ], consent),
         throwsA(isA<LegalStepBypassed>()),
       );
     });
 
     test('a missing consent is rejected even in the right order', () {
       expect(
-        () => AppHandoffFlow.assertLegalPrecedesOnboarding(
-          <HandoffStage>[
-            HandoffStage.identity,
-            HandoffStage.legal,
-            HandoffStage.onboarding,
-          ],
-          null,
-        ),
+        () => AppHandoffFlow.assertLegalPrecedesOnboarding(<HandoffStage>[
+          HandoffStage.identity,
+          HandoffStage.legal,
+          HandoffStage.onboarding,
+        ], null),
         throwsA(isA<LegalStepBypassed>()),
       );
     });
 
     test('the correct order with a consent passes', () {
       expect(
-        () => AppHandoffFlow.assertLegalPrecedesOnboarding(
-          <HandoffStage>[
-            HandoffStage.identity,
-            HandoffStage.legal,
-            HandoffStage.onboarding,
-          ],
-          consent,
-        ),
+        () => AppHandoffFlow.assertLegalPrecedesOnboarding(<HandoffStage>[
+          HandoffStage.identity,
+          HandoffStage.legal,
+          HandoffStage.onboarding,
+        ], consent),
         returnsNormally,
       );
     });

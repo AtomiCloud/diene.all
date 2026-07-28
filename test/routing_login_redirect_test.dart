@@ -1,3 +1,4 @@
+import 'package:diene_auth_engine/diene_auth_engine.dart' as engine;
 import 'package:diene_flutter_base/app.dart';
 import 'package:diene_flutter_base/auth/session_controller.dart';
 import 'package:diene_flutter_base/config/app_config.dart';
@@ -691,7 +692,7 @@ Future<_Shell> _pumpShell(
 SessionController _session() {
   final AppConfig config = testConfig();
   return SessionController(
-    gateway: _MemoryAuthGateway(),
+    provider: _MemoryAuthProvider(),
     onboarding: OnboardingCoordinator(
       homePicker: SingleRegionHomePicker(
         gateway: MemoryHomeClaimGateway(),
@@ -705,11 +706,13 @@ SessionController _session() {
   );
 }
 
-final class _MemoryAuthGateway implements AuthGateway {
+final class _MemoryAuthProvider implements AuthProvider {
   int _rotation = 0;
 
   @override
-  Future<SessionTokens> signIn() async => _tokens();
+  Future<SessionTokens> signIn({
+    Map<String, String> extraParams = const <String, String>{},
+  }) async => _tokens();
 
   @override
   Future<SessionTokens> refresh(SessionTokens current) async => _tokens();
@@ -719,6 +722,16 @@ final class _MemoryAuthGateway implements AuthGateway {
 
   @override
   Future<void> signOut() async {}
+
+  @override
+  Future<engine.ResourceToken> resourceToken(engine.ResourceKey key) =>
+      throw UnsupportedError('unused by routing tests');
+
+  @override
+  Future<String?> idToken() async => null;
+
+  @override
+  Future<String?> freshClaimToken() async => null;
 
   SessionTokens _tokens() {
     _rotation += 1;

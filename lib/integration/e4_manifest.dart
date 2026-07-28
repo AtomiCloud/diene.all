@@ -99,24 +99,24 @@ const List<E4IntegrationPoint> e4IntegrationMap = <E4IntegrationPoint>[
     dienePackage: 'diene_config 1.0.0 + diene_core_utils 1.0.1 (pub.dev)',
     held: false,
     note:
-        'PARTIAL: core_utils.deepMerge (the C0 §3 layered merge) replaces the '
-        'hand-rolled merge. FOLLOW-ON OWED, NOT DONE: full diene_config '
-        'typed-loader adoption (ConfigLoader/ConfigBlock/ConfigSchema) is not '
-        'yet wired — the existing AppConfigLoader public surface is retained '
-        '(its consumers, including config_test, depend on it), so that swap is '
-        'separate work recorded on the node for assignment.',
+        'DONE: full diene_config typed-loader adoption. The local '
+        'AppConfigLoader seam is deleted; loadAppConfig/loadAppConfigResult '
+        'compose the published ConfigLoader/ConfigBlock/ConfigSchema directly '
+        'and every consumer (main and config_test) calls those functions. Only '
+        "the app's own typed AppConfig model — which diene_config cannot "
+        'provide — remains app-owned.',
   ),
   E4IntegrationPoint(
     localBridge: 'lib/auth/*_auth_gateway.dart + session_controller.dart',
     dienePackage: 'diene_auth_engine 1.0.2 (pub.dev)',
     held: false,
     note:
-        'CONTRACT-ALIGNED: session_controller and the auth callers now speak '
-        'the published Result/Problem contract diene_auth_engine returns. '
-        'FOLLOW-ON OWED, NOT DONE: driving session/refresh THROUGH '
-        'diene_auth_engine — replacing the local AuthGateway seam and '
-        'logto_auth_gateway.dart transport — is separate work needing those '
-        'ungranted files, recorded on the node for assignment.',
+        'DONE: the local AuthGateway and ExtraParamsSignIn seams are deleted. '
+        'SessionController and DeferredLoginReceiver drive the published '
+        "diene_auth_engine AuthProvider directly (signIn's extraParams "
+        'signature included); the demo and Logto providers implement / '
+        'construct the published AuthProvider, so no compatibility facade '
+        'remains in the auth transport.',
   ),
   E4IntegrationPoint(
     localBridge: 'lib/generated/service/** (retrofit fallback client)',

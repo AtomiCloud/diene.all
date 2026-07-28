@@ -13,7 +13,7 @@ import 'onboarding/onboarding.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final AppConfig config = await AppConfigLoader().load();
+  final AppConfig config = await loadAppConfig();
   final SharedPreferences preferences = await SharedPreferences.getInstance();
   LocaleSettings.setLocaleRawSync(config.locale.defaultLocale);
   final AppSettingsController settings = AppSettingsController(
@@ -29,14 +29,14 @@ Future<void> main() async {
     gateway: DemoOnboardingGateway(),
     backendId: config.onboarding.backendId,
   );
-  final AuthGateway auth = config.auth.demoMode
-      ? DemoAuthGateway(
+  final AuthProvider auth = config.auth.demoMode
+      ? DemoAuthProvider(
           accessLifetime: config.session.accessLifetime,
           refreshLifetime: config.session.refreshLifetime,
         )
-      : LogtoAuthGateway(config: config);
+      : logtoAuthProvider(config);
   final SessionController session = SessionController(
-    gateway: auth,
+    provider: auth,
     onboarding: onboarding,
     accessLifetime: config.session.accessLifetime,
     refreshLifetime: config.session.refreshLifetime,

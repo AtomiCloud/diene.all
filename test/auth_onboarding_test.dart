@@ -1,3 +1,4 @@
+import 'package:diene_auth_engine/diene_auth_engine.dart' as engine;
 import 'package:diene_flutter_base/auth/session_controller.dart';
 import 'package:diene_flutter_base/onboarding/onboarding.dart';
 import 'package:diene_result/diene_result.dart';
@@ -39,8 +40,8 @@ final class _OnboardingGateway implements OnboardingGateway {
   }
 }
 
-final class _AuthGateway implements AuthGateway {
-  _AuthGateway(this.now);
+final class _FakeAuthProvider implements AuthProvider {
+  _FakeAuthProvider(this.now);
 
   final DateTime now;
   int signIns = 0;
@@ -50,7 +51,9 @@ final class _AuthGateway implements AuthGateway {
   bool reuseRefreshToken = false;
 
   @override
-  Future<SessionTokens> signIn() async {
+  Future<SessionTokens> signIn({
+    Map<String, String> extraParams = const <String, String>{},
+  }) async {
     signIns += 1;
     return _tokens(rotation: signIns);
   }
@@ -83,6 +86,16 @@ final class _AuthGateway implements AuthGateway {
 
   @override
   Future<void> signOut() async => signOuts += 1;
+
+  @override
+  Future<engine.ResourceToken> resourceToken(engine.ResourceKey key) =>
+      throw UnsupportedError('unused by session tests');
+
+  @override
+  Future<String?> idToken() async => null;
+
+  @override
+  Future<String?> freshClaimToken() async => null;
 
   SessionTokens _tokens({required int rotation}) => SessionTokens(
     accessToken: 'access-$rotation',
@@ -139,7 +152,7 @@ void main() {
   test(
     'session enforces lifetimes, rotates refresh, and re-mints on open',
     () async {
-      final _AuthGateway auth = _AuthGateway(now);
+      final _FakeAuthProvider auth = _FakeAuthProvider(now);
       final _CountingHomeGateway home = _CountingHomeGateway();
       final SessionController session = _session(
         auth: auth,
@@ -167,7 +180,8 @@ void main() {
   );
 
   test('refresh token reuse signs out the whole session', () async {
-    final _AuthGateway auth = _AuthGateway(now)..reuseRefreshToken = true;
+    final _FakeAuthProvider auth = _FakeAuthProvider(now)
+      ..reuseRefreshToken = true;
     final SessionController session = _session(
       auth: auth,
       home: _CountingHomeGateway(),
@@ -184,7 +198,7 @@ void main() {
   });
 
   test('home claim is checked on every sign-in', () async {
-    final _AuthGateway auth = _AuthGateway(now);
+    final _FakeAuthProvider auth = _FakeAuthProvider(now);
     final _CountingHomeGateway home = _CountingHomeGateway();
     final SessionController session = _session(
       auth: auth,
@@ -202,11 +216,11 @@ void main() {
 }
 
 SessionController _session({
-  required _AuthGateway auth,
+  required _FakeAuthProvider auth,
   required _CountingHomeGateway home,
   required DateTime now,
 }) => SessionController(
-  gateway: auth,
+  provider: auth,
   onboarding: OnboardingCoordinator(
     homePicker: SingleRegionHomePicker(gateway: home, landscape: 'lapras'),
     gateway: _OnboardingGateway()..result = UserProbeResult.present,

@@ -39,15 +39,12 @@ void main() {
   test(
     'loader composes base then overlay then canonical nested defines',
     () async {
-      final AppConfigLoader loader = AppConfigLoader.forTesting(
-        landscape: 'pichu',
+      final Result<AppConfig> result = await loadAppConfigResult(
+        landscapeName: 'pichu',
         bundle: _MemoryAssetBundle(<String, String>{
           'config/base.yaml': _baseYaml,
           'config/pichu.yaml': _pichuYaml,
         }),
-      );
-
-      final Result<AppConfig> result = await loader.loadResult(
         defines: const <String, String>{
           'FLUTTER_BASE_BRANDING__APPNAME': 'CI Brand',
           'FLUTTER_BASE_API__BASEURL': 'https://override.example.invalid',
@@ -75,15 +72,13 @@ void main() {
   test(
     'loader reports sourceUnreadable for an unknown runtime landscape',
     () async {
-      final AppConfigLoader loader = AppConfigLoader.forTesting(
-        landscape: 'hostname-derived',
+      final Result<AppConfig> result = await loadAppConfigResult(
+        landscapeName: 'hostname-derived',
         bundle: _MemoryAssetBundle(<String, String>{
           'config/base.yaml': _baseYaml,
           // No config/hostname-derived.yaml: the selected overlay is absent.
         }),
       );
-
-      final Result<AppConfig> result = await loader.loadResult();
 
       expect(result, isA<Err<AppConfig>>());
       expect(
@@ -94,15 +89,12 @@ void main() {
   );
 
   test('compatibility load translates legacy injected define names', () async {
-    final AppConfigLoader loader = AppConfigLoader.forTesting(
-      landscape: 'pichu',
+    final AppConfig config = await loadAppConfig(
+      landscapeName: 'pichu',
       bundle: _MemoryAssetBundle(<String, String>{
         'config/base.yaml': _baseYaml,
         'config/pichu.yaml': _pichuYaml,
       }),
-    );
-
-    final AppConfig config = await loader.load(
       defines: const <String, String>{
         'appName': 'Legacy Brand',
         'apiBaseUrl': 'https://legacy.example.invalid',
@@ -116,12 +108,10 @@ void main() {
   });
 
   test('loader reports landscapeMissing for a blank selector', () async {
-    final AppConfigLoader loader = AppConfigLoader.forTesting(
-      landscape: '',
+    final Result<AppConfig> result = await loadAppConfigResult(
+      landscapeName: '',
       bundle: _MemoryAssetBundle(const <String, String>{}),
     );
-
-    final Result<AppConfig> result = await loader.loadResult();
 
     expect(result, isA<Err<AppConfig>>());
     expect(
@@ -133,15 +123,13 @@ void main() {
   test(
     'loader reports schemaInvalid for an unknown configuration root',
     () async {
-      final AppConfigLoader loader = AppConfigLoader.forTesting(
-        landscape: 'lapras',
+      final Result<AppConfig> result = await loadAppConfigResult(
+        landscapeName: 'lapras',
         bundle: _MemoryAssetBundle(<String, String>{
           'config/base.yaml': _baseYamlWithUnknownRoot,
           'config/lapras.yaml': '',
         }),
       );
-
-      final Result<AppConfig> result = await loader.loadResult();
 
       expect(result, isA<Err<AppConfig>>());
       expect(_problemCode(result.unwrapErr()), ConfigProblemCode.schemaInvalid);

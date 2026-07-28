@@ -6,41 +6,29 @@ import 'package:flutter/foundation.dart';
 import '../onboarding/onboarding.dart';
 
 export 'package:diene_auth_engine/diene_auth_engine.dart'
-    show SessionStatus, SessionTokens;
+    show AuthProvider, SessionStatus, SessionTokens;
 
-/// Compatibility seam for the app's existing providers and test doubles.
-///
-/// Session lifecycle policy does not live here: [SessionController] adapts
-/// every implementation to the published diene_auth_engine controller.
-abstract interface class AuthGateway {
-  Future<diene_auth.SessionTokens> signIn();
-  Future<diene_auth.SessionTokens> refresh(diene_auth.SessionTokens current);
-  Future<diene_auth.SessionTokens> reMintOnOpen(
-    diene_auth.SessionTokens current,
-  );
-  Future<void> signOut();
-}
-
-/// Compatibility facade over diene_auth_engine's session controller.
+/// App-specific session wrapper over diene_auth_engine's session controller.
 ///
 /// The app-specific onboarding step remains outside the engine. Token
 /// issuance, lifetime enforcement, refresh rotation/reuse detection, app-open
-/// re-minting, and sign-out are all performed by the published controller.
+/// re-minting, and sign-out are all performed by the published controller,
+/// driven directly by the published [AuthProvider] the app supplies.
 final class SessionController extends ChangeNotifier {
   SessionController({
-    required this.gateway,
+    required this.provider,
     required this.onboarding,
     required this.accessLifetime,
     required this.refreshLifetime,
     DateTime Function()? now,
   }) : _engine = diene_auth.SessionController(
-         provider: _AuthProviderFacade(gateway),
+         provider: provider,
          accessLifetime: accessLifetime,
          refreshLifetime: refreshLifetime,
          now: now,
        );
 
-  final AuthGateway gateway;
+  final diene_auth.AuthProvider provider;
   final OnboardingCoordinator onboarding;
   final Duration accessLifetime;
   final Duration refreshLifetime;
@@ -131,49 +119,4 @@ final class SessionController extends ChangeNotifier {
     _engine.dispose();
     super.dispose();
   }
-}
-
-/// Adapts the app's intentionally small compatibility seam to the complete
-/// engine provider interface. The extra provider capabilities are not used by
-/// diene_auth_engine's session controller and fail closed if that changes.
-final class _AuthProviderFacade implements diene_auth.AuthProvider {
-  const _AuthProviderFacade(this._gateway);
-
-  final AuthGateway _gateway;
-
-  @override
-  Future<diene_auth.SessionTokens> signIn({
-    Map<String, String> extraParams = const <String, String>{},
-  }) {
-    if (extraParams.isNotEmpty) {
-      throw UnsupportedError(
-        'The compatibility AuthGateway does not accept extra sign-in params',
-      );
-    }
-    return _gateway.signIn();
-  }
-
-  @override
-  Future<diene_auth.SessionTokens> refresh(diene_auth.SessionTokens current) =>
-      _gateway.refresh(current);
-
-  @override
-  Future<diene_auth.SessionTokens> reMintOnOpen(
-    diene_auth.SessionTokens current,
-  ) => _gateway.reMintOnOpen(current);
-
-  @override
-  Future<void> signOut() => _gateway.signOut();
-
-  @override
-  Future<diene_auth.ResourceToken> resourceToken(diene_auth.ResourceKey key) =>
-      throw UnsupportedError(
-        'Session-only AuthGateway cannot mint ${key.mapKey}',
-      );
-
-  @override
-  Future<String?> idToken() async => null;
-
-  @override
-  Future<String?> freshClaimToken() async => null;
 }

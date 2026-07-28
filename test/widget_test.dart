@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:diene_auth_engine/diene_auth_engine.dart' as engine;
 import 'package:diene_flutter_base/app.dart';
 import 'package:diene_flutter_base/auth/session_controller.dart';
 import 'package:diene_flutter_base/config/app_settings_controller.dart';
@@ -18,9 +19,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'test_support.dart';
 
-final class _IdleAuthGateway implements AuthGateway {
+final class _IdleAuthProvider implements AuthProvider {
   @override
-  Future<SessionTokens> signIn() => throw UnimplementedError();
+  Future<SessionTokens> signIn({
+    Map<String, String> extraParams = const <String, String>{},
+  }) => throw UnimplementedError();
 
   @override
   Future<SessionTokens> refresh(SessionTokens current) =>
@@ -32,13 +35,25 @@ final class _IdleAuthGateway implements AuthGateway {
 
   @override
   Future<void> signOut() async {}
+
+  @override
+  Future<engine.ResourceToken> resourceToken(engine.ResourceKey key) =>
+      throw UnimplementedError();
+
+  @override
+  Future<String?> idToken() async => null;
+
+  @override
+  Future<String?> freshClaimToken() async => null;
 }
 
-final class _LifecycleAuthGateway implements AuthGateway {
+final class _LifecycleAuthProvider implements AuthProvider {
   int reMints = 0;
 
   @override
-  Future<SessionTokens> signIn() async => _tokens('signed-in');
+  Future<SessionTokens> signIn({
+    Map<String, String> extraParams = const <String, String>{},
+  }) async => _tokens('signed-in');
 
   @override
   Future<SessionTokens> refresh(SessionTokens current) async =>
@@ -52,6 +67,16 @@ final class _LifecycleAuthGateway implements AuthGateway {
 
   @override
   Future<void> signOut() async {}
+
+  @override
+  Future<engine.ResourceToken> resourceToken(engine.ResourceKey key) =>
+      throw UnimplementedError();
+
+  @override
+  Future<String?> idToken() async => null;
+
+  @override
+  Future<String?> freshClaimToken() async => null;
 
   SessionTokens _tokens(String suffix) {
     final DateTime now = DateTime.now().toUtc();
@@ -304,9 +329,9 @@ void main() {
   ) async {
     final SharedPreferences preferences = await SharedPreferences.getInstance();
     final config = testConfig();
-    final _LifecycleAuthGateway gateway = _LifecycleAuthGateway();
+    final _LifecycleAuthProvider provider = _LifecycleAuthProvider();
     final SessionController session = SessionController(
-      gateway: gateway,
+      provider: provider,
       onboarding: OnboardingCoordinator(
         homePicker: SingleRegionHomePicker(
           gateway: MemoryHomeClaimGateway(),
@@ -333,7 +358,7 @@ void main() {
     );
     await tester.pump();
 
-    expect(gateway.reMints, 1);
+    expect(provider.reMints, 1);
   });
 
   for (final String locale in <String>['en', 'es']) {
@@ -369,7 +394,7 @@ Future<_AppHarness> _pumpApp(WidgetTester tester) async {
     preferences: preferences,
   );
   final SessionController session = SessionController(
-    gateway: _IdleAuthGateway(),
+    provider: _IdleAuthProvider(),
     onboarding: OnboardingCoordinator(
       homePicker: SingleRegionHomePicker(
         gateway: MemoryHomeClaimGateway(),

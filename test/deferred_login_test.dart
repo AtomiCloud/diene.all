@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:diene_auth_engine/diene_auth_engine.dart' as engine;
 import 'package:diene_flutter_base/auth/deferred_login.dart';
 import 'package:diene_flutter_base/auth/session_controller.dart';
 import 'package:diene_result/diene_result.dart';
@@ -35,7 +36,7 @@ final class _FakeCarrierSource implements CarrierSource {
   }
 }
 
-final class _RecordingSignIn implements ExtraParamsSignIn {
+final class _RecordingSignIn implements AuthProvider {
   _RecordingSignIn(this.now, {this.throws = false});
 
   final DateTime now;
@@ -43,9 +44,9 @@ final class _RecordingSignIn implements ExtraParamsSignIn {
   final List<Map<String, String>> calls = <Map<String, String>>[];
 
   @override
-  Future<SessionTokens> signInWithExtraParams(
-    Map<String, String> extraParams,
-  ) async {
+  Future<SessionTokens> signIn({
+    Map<String, String> extraParams = const <String, String>{},
+  }) async {
     calls.add(extraParams);
     if (throws) {
       throw StateError('hosted sign-in failed');
@@ -58,6 +59,27 @@ final class _RecordingSignIn implements ExtraParamsSignIn {
       refreshExpiresAt: now.add(const Duration(days: 14)),
     );
   }
+
+  @override
+  Future<SessionTokens> refresh(SessionTokens current) =>
+      throw UnsupportedError('unused by deferred-login tests');
+
+  @override
+  Future<SessionTokens> reMintOnOpen(SessionTokens current) =>
+      throw UnsupportedError('unused by deferred-login tests');
+
+  @override
+  Future<void> signOut() async {}
+
+  @override
+  Future<engine.ResourceToken> resourceToken(engine.ResourceKey key) =>
+      throw UnsupportedError('unused by deferred-login tests');
+
+  @override
+  Future<String?> idToken() async => null;
+
+  @override
+  Future<String?> freshClaimToken() async => null;
 }
 
 final class _RedeemLog {
@@ -106,7 +128,7 @@ DeferredLoginReceiver _receiver({
   required List<CarrierSource> sources,
   required NonceLedger ledger,
   required AppHandoffRedeemClient redeem,
-  required ExtraParamsSignIn signIn,
+  required AuthProvider signIn,
   required DateTime now,
 }) => DeferredLoginReceiver(
   sources: sources,
@@ -131,10 +153,7 @@ void main() {
       final String referrer =
           'utm_source=web&app_handoff=${Uri.encodeQueryComponent(_carrier)}'
           '&utm_campaign=launch';
-      expect(
-        parser.parse(referrer, CarrierChannel.installReferrer),
-        _nonce,
-      );
+      expect(parser.parse(referrer, CarrierChannel.installReferrer), _nonce);
     });
 
     test('duplicate app_handoff fields are treated as absent', () {
@@ -224,10 +243,9 @@ void main() {
   test('an expired nonce is never redeemed', () async {
     final MemoryNonceLedgerStore store = MemoryNonceLedgerStore();
     // The carrier was first seen 16 minutes ago; the TTL is 15.
-    await NonceLedger(store: store).claim(
-      _nonce,
-      now.subtract(const Duration(minutes: 16)),
-    );
+    await NonceLedger(
+      store: store,
+    ).claim(_nonce, now.subtract(const Duration(minutes: 16)));
     final _RedeemLog log = _RedeemLog();
     final _RecordingSignIn signIn = _RecordingSignIn(now);
     final DeferredLoginReceiver receiver = _receiver(
@@ -255,10 +273,7 @@ void main() {
 
     expect(await ledger.claim(_nonce, now), NonceClaim.fresh);
     expect(
-      await ledger.claim(
-        _nonce,
-        now.add(const Duration(milliseconds: 1)),
-      ),
+      await ledger.claim(_nonce, now.add(const Duration(milliseconds: 1))),
       NonceClaim.expired,
     );
   });
@@ -324,10 +339,7 @@ void main() {
     ).attempt();
 
     expect(report.outcome, DeferredLoginOutcome.interactiveFallback);
-    expect(
-      report.fallbackReason,
-      'urn:diene:problem:$appHandoffExpiredWireId',
-    );
+    expect(report.fallbackReason, 'urn:diene:problem:$appHandoffExpiredWireId');
     expect(log.calls, 1);
     expect(signIn.calls, isEmpty);
   });

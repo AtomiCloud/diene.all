@@ -1,7 +1,12 @@
-import 'session_controller.dart';
+import 'package:diene_auth_engine/diene_auth_engine.dart';
 
-final class DemoAuthGateway implements AuthGateway {
-  DemoAuthGateway({
+/// Demo-mode implementation of the published [AuthProvider].
+///
+/// Issues deterministic in-memory tokens so the app runs end-to-end without a
+/// real IdP. The resource-token / id-token / claim-token members are not part
+/// of the demo session path and fail closed if a caller reaches for them.
+final class DemoAuthProvider implements AuthProvider {
+  DemoAuthProvider({
     required this.accessLifetime,
     required this.refreshLifetime,
     DateTime Function()? now,
@@ -13,7 +18,9 @@ final class DemoAuthGateway implements AuthGateway {
   int _rotation = 0;
 
   @override
-  Future<SessionTokens> signIn() async => _issue(family: 'demo-family');
+  Future<SessionTokens> signIn({
+    Map<String, String> extraParams = const <String, String>{},
+  }) async => _issue(family: 'demo-family');
 
   @override
   Future<SessionTokens> refresh(SessionTokens current) async =>
@@ -33,6 +40,16 @@ final class DemoAuthGateway implements AuthGateway {
 
   @override
   Future<void> signOut() async {}
+
+  @override
+  Future<ResourceToken> resourceToken(ResourceKey key) =>
+      throw UnsupportedError('Demo mode cannot mint ${key.mapKey}');
+
+  @override
+  Future<String?> idToken() async => null;
+
+  @override
+  Future<String?> freshClaimToken() async => null;
 
   SessionTokens _issue({required String family}) {
     final DateTime now = _now().toUtc();

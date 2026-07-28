@@ -129,21 +129,23 @@ void main() {
       );
     });
 
-    test('auth and api engine points name the transport swap as follow-on owed',
-        () {
-      final Iterable<E4IntegrationPoint> transportOwed = e4IntegrationMap.where(
-        (E4IntegrationPoint p) =>
-            p.dienePackage.contains('diene_auth_engine') ||
-            p.dienePackage.contains('diene_api_engine'),
+    test('the auth transport swap is DONE; only the api swap remains owed', () {
+      // The public-surface migration the user ruled in is complete: the local
+      // AuthGateway / ExtraParamsSignIn seams are deleted and session/refresh
+      // now drive the published diene_auth_engine AuthProvider directly, so the
+      // auth-engine point no longer records an owed follow-on.
+      final E4IntegrationPoint auth = e4IntegrationMap.singleWhere(
+        (E4IntegrationPoint p) => p.dienePackage.contains('diene_auth_engine'),
       );
-      expect(transportOwed, hasLength(2));
-      // Condition 2 (noel's ruling): the residual transport work must be RECORDED
-      // as owed, not merely omitted — omitting a claim is not recording it.
-      expect(
-        transportOwed
-            .every((E4IntegrationPoint p) => p.note.contains('FOLLOW-ON OWED')),
-        isTrue,
+      expect(auth.note.contains('FOLLOW-ON OWED'), isFalse);
+      expect(auth.note.contains('DONE'), isTrue);
+
+      // The api-engine (retrofit fallback) swap is a separate node and is still
+      // genuinely owed — it must stay RECORDED as owed, not merely omitted.
+      final E4IntegrationPoint api = e4IntegrationMap.singleWhere(
+        (E4IntegrationPoint p) => p.dienePackage.contains('diene_api_engine'),
       );
+      expect(api.note.contains('FOLLOW-ON OWED'), isTrue);
     });
   });
 }

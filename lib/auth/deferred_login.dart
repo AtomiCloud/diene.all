@@ -155,10 +155,7 @@ final class MemoryNonceLedgerStore implements NonceLedgerStore {
 /// The nonce itself is never persisted (C0 §7) — only a non-reversible
 /// fingerprint of it, which is enough to recognise a replay across launches.
 final class NonceLedger {
-  const NonceLedger({
-    required this.store,
-    this.ttl = appHandoffNonceTtl,
-  });
+  const NonceLedger({required this.store, this.ttl = appHandoffNonceTtl});
 
   final NonceLedgerStore store;
   final Duration ttl;
@@ -228,8 +225,9 @@ final class AppHandoffRedeemClient {
   final Uri mount;
   final http.Client httpClient;
 
-  Uri get redeemUri =>
-      mount.replace(path: '${mount.path.replaceAll(RegExp(r'/+$'), '')}/redeem');
+  Uri get redeemUri => mount.replace(
+    path: '${mount.path.replaceAll(RegExp(r'/+$'), '')}/redeem',
+  );
 
   Future<Result<RedeemedHandoff>> redeem({
     required String nonce,
@@ -278,12 +276,6 @@ final class AppHandoffRedeemClient {
   );
 }
 
-/// The `signIn(extraParams:)` seam. Narrow on purpose: the shared
-/// [AuthGateway] keeps its parameterless contract.
-abstract interface class ExtraParamsSignIn {
-  Future<SessionTokens> signInWithExtraParams(Map<String, String> extraParams);
-}
-
 /// What the receiver did on this launch.
 enum DeferredLoginOutcome { signedIn, interactiveFallback }
 
@@ -323,7 +315,7 @@ final class DeferredLoginReceiver {
   final List<CarrierSource> sources;
   final NonceLedger ledger;
   final AppHandoffRedeemClient redeemClient;
-  final ExtraParamsSignIn signIn;
+  final AuthProvider signIn;
   final HandoffDevice device;
   final CarrierParser parser;
   final DateTime Function() _now;
@@ -371,12 +363,11 @@ final class DeferredLoginReceiver {
       }
       steps.add('redeemed');
 
-      final RedeemedHandoff handoff = (redeemed as Ok<RedeemedHandoff>)
-          .value;
+      final RedeemedHandoff handoff = (redeemed as Ok<RedeemedHandoff>).value;
       await ledger.markConsumed(nonce, now);
       try {
-        final SessionTokens tokens = await signIn.signInWithExtraParams(
-          <String, String>{
+        final SessionTokens tokens = await signIn.signIn(
+          extraParams: <String, String>{
             'one_time_token': handoff.token,
             'login_hint': handoff.email,
           },
