@@ -2,6 +2,7 @@ using System.Text.Json;
 using AtomiCloud.Diene.ApiEngine.Calls;
 using AtomiCloud.Diene.ApiEngine.Client;
 using AtomiCloud.Diene.ApiEngine.TestHelper.Assertions;
+using AtomiCloud.Diene.ApiEngine.Transport;
 using AtomiCloud.Diene.ApiEngine.Upstreams;
 using AtomiCloud.Diene.CoreUtils.Json;
 using AtomiCloud.Diene.Problems;
@@ -159,7 +160,12 @@ public sealed class ApiEngineDemo_Composition : IAsyncLifetime
 
         // Two attempts, as a number: "it retried" is unfalsifiable, and a profile that retried twice
         // or not at all would satisfy any looser assertion.
-        described.Should().Contain("after 2 attempt(s)");
+        //
+        // The ceiling is interpolated from the same constant the demo formats with, rather than
+        // spelled out. An earlier version of this line hard-coded the whole phrase and went stale the
+        // moment the demo's wording changed — the behaviour was still correct and the test still went
+        // red, which is what an assertion coupled to prose rather than to a value buys you.
+        described.Should().Contain($"after 2 of at most {RetryOnceHandler.MaxAttempts} attempt(s)");
         described.Should().Contain("rescuable True");
         described.Should().Contain($"problem {ApiEngineProblems.UpstreamTransportFailureStatus}");
     }
