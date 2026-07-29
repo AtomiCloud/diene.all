@@ -1,5 +1,6 @@
 using AtomiCloud.Diene.AuthEngine.Config;
 using AtomiCloud.Diene.AuthEngine.Module;
+using AtomiCloud.Diene.AuthEngine.Tokens;
 using AtomiCloud.Diene.Config;
 using AtomiCloud.Diene.Otel;
 using AtomiCloud.Diene.Problems;
@@ -8,6 +9,7 @@ using AtomiCloud.Diene.ServerEngine.Module;
 using AtomiCloud.DotnetBase.App.Error;
 using AtomiCloud.DotnetBase.App.Options;
 using AtomiCloud.DotnetBase.App.StartUp.Registration;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace AtomiCloud.DotnetBase.App.StartUp;
 
@@ -53,6 +55,17 @@ public static class Server
             new ProblemIdentity(app.Landscape, app.Platform, app.Service, app.Module),
             portal,
             catalog => catalog.AddServiceProblems());
+
+        // ServerEngine ships SystemController and HmacWebhookSignatureVerifier, and BOTH take
+        // IAuthClock — while AddAtomiServerEngine is UNCONDITIONAL and AddAtomiAuthEngine is
+        // gated on auth.enabled, which ships FALSE. Without this, /system/health, /system/version
+        // and the whole /internal/webhooks/{provider} receiver cannot be constructed under the
+        // shipped default. Development DI validation catches it at boot; in production it stays
+        // hidden until the first request touches one of those routes, so the service looks
+        // healthy and then 500s a mercury delivery that mercury will retry for its full window.
+        // Registered with TryAdd and BEFORE the auth engine, which is how the library documents a
+        // caller-supplied clock winning over its own TryAdd.
+        builder.Services.TryAddSingleton<IAuthClock>(SystemAuthClock.Instance);
 
         builder.Services.AddAtomiServerEngine(BuildServerEngineConfig(app, server));
         builder.Services.AddAtomiWebhookSecrets([.. server.WebhookSigningKeys]);

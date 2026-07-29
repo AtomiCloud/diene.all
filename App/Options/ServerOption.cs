@@ -42,6 +42,15 @@ public sealed class ServerOptionValidator : AbstractValidator<ServerOption>
             .WithMessage(
                 $"server_engine:webhook_tolerance must be positive and at most {WebhookConfig.MaximumTolerance}");
 
+        // The engine refuses an empty key set at construction with an opaque
+        // ArgumentException out of a library ctor. Failing HERE instead names the block and
+        // the landscape that forgot to inject a key.
+        this.RuleFor(x => x.WebhookSigningKeys)
+            .NotEmpty()
+            .WithMessage(
+                "server_engine:webhook_signing_keys must list at least one key; " +
+                "the webhook receiver cannot verify a signature without one");
+
         this.RuleForEach(x => x.WebhookSigningKeys)
             .NotEmpty()
             .WithMessage("server_engine:webhook_signing_keys entries must not be blank");

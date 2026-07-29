@@ -42,7 +42,12 @@ http:
 
 server_engine:
   webhook_tolerance: PT5M
-  webhook_signing_keys: []
+  # Live mercury signing keys. LOCAL-ONLY placeholder so the base layer is a complete,
+  # bootable local release; every deployed landscape MUST override it through
+  # ATOMI_SERVER_ENGINE__WEBHOOK_SIGNING_KEYS__0. During a rotation BOTH the outgoing and
+  # the incoming key must be listed, or in-flight deliveries are rejected.
+  webhook_signing_keys:
+    - local-development-only-not-a-secret
 
 auth:
   enabled: false
