@@ -1,14 +1,14 @@
-# Diene Go library template
+# Diene Go api-engine library
 
 <!-- ### go-base-badges -->
 <!-- #### source: go-base -->
 
-[![CI](https://github.com/AtomiCloud/diene.go-lib/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.go-lib/actions/workflows/ci.yaml)
-[![Unit coverage](https://codecov.io/gh/AtomiCloud/diene.go-lib/branch/main/graph/badge.svg?flag=unit)](https://codecov.io/gh/AtomiCloud/diene.go-lib)
-[![Integration coverage](https://codecov.io/gh/AtomiCloud/diene.go-lib/branch/main/graph/badge.svg?flag=int)](https://codecov.io/gh/AtomiCloud/diene.go-lib)
-[![Meta coverage](https://codecov.io/gh/AtomiCloud/diene.go-lib/branch/main/graph/badge.svg?flag=meta)](https://codecov.io/gh/AtomiCloud/diene.go-lib)
-[![Go Reference](https://pkg.go.dev/badge/github.com/AtomiCloud/diene.go-lib.svg)](https://pkg.go.dev/github.com/AtomiCloud/diene.go-lib)
-[![Commit activity](https://img.shields.io/github/commit-activity/m/AtomiCloud/diene.go-lib)](https://github.com/AtomiCloud/diene.go-lib/commits/main)
+[![CI](https://github.com/AtomiCloud/diene.go-api-engine/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.go-api-engine/actions/workflows/ci.yaml)
+[![Unit coverage](https://codecov.io/gh/AtomiCloud/diene.go-api-engine/branch/main/graph/badge.svg?flag=unit)](https://codecov.io/gh/AtomiCloud/diene.go-api-engine)
+[![Integration coverage](https://codecov.io/gh/AtomiCloud/diene.go-api-engine/branch/main/graph/badge.svg?flag=int)](https://codecov.io/gh/AtomiCloud/diene.go-api-engine)
+[![Meta coverage](https://codecov.io/gh/AtomiCloud/diene.go-api-engine/branch/main/graph/badge.svg?flag=meta)](https://codecov.io/gh/AtomiCloud/diene.go-api-engine)
+[![Go Reference](https://pkg.go.dev/badge/github.com/AtomiCloud/diene.go-api-engine.svg)](https://pkg.go.dev/github.com/AtomiCloud/diene.go-api-engine)
+[![Commit activity](https://img.shields.io/github/commit-activity/m/AtomiCloud/diene.go-api-engine)](https://github.com/AtomiCloud/diene.go-api-engine/commits/main)
 
 <!-- ### nix-root -->
 <!-- #### source: main -->
@@ -34,18 +34,38 @@ synchronization.
 
 ## Publishable Go module
 
-`github.com/AtomiCloud/diene.go-lib` is the reusable parent for the
-`github.com/AtomiCloud/diene.go-*` module family. It demonstrates small public
-packages, a consumer-facing `testhelper` package, strict black-box tests, and
-tag-based publication through the Go proxy.
+`github.com/AtomiCloud/diene.go-api-engine` is the Go family's outbound API
+client engine: a multi-backend client tree, 3-case response classification
+mapped onto `(T, error)` with problem-typed errors through
+`github.com/AtomiCloud/diene.go-errors-problems`, per-backend credentials
+resolved through the `github.com/AtomiCloud/diene.go-auth-engine` retriever
+seam, an engine-owned config block, and a retry-once-on-network-error
+resilience profile — shipped with a consumer-facing `testhelper` package.
+
+It is **client only**. It hosts nothing: middleware, controllers, health and
+readiness endpoints, and error-info publishing belong to the base template's
+hosting layer or to the error portal, never here.
 
 ```bash
-go get github.com/AtomiCloud/diene.go-lib@latest
+go get github.com/AtomiCloud/diene.go-api-engine@latest
 ```
 
 ```go
-value := note.New("Living Documentation", "pkg.go.dev examples stay executable")
+users, err := apiengine.Execute[[]User](ctx, client, apiengine.Request{Path: "/v1/users"})
 ```
+
+Packages:
+
+- `lib/apiengine` — the client tree, the per-backend client, the 3-case
+  classifier, the engine-owned config block, and the problem catalog.
+- `lib/wire` — the C0 §1 wire codecs: ISO 8601 durations, RFC 3339 UTC
+  instants, and IANA timezone identifiers.
+- `testhelper` — fake backends for the client tree, canned Problem-envelope
+  responses, and outcome assertions.
+
+The three cases, the multi-backend model, and the resilience profile are
+documented on the packages themselves and in the shipped usage skill
+`skills/diene-go-api-engine-usage/SKILL.md`.
 
 <!-- ### go-base-commands -->
 <!-- #### source: go-base -->
@@ -56,7 +76,7 @@ value := note.New("Living Documentation", "pkg.go.dev examples stay executable")
 - `pls typecheck` — compile every source package without running tests.
 - `pls test` / `pls test:coverage` — run unit, integration, and active meta tiers.
 - `pls deadcode` — run strict whole-repository and production passes plus the LLM-lax report.
-- `pls up` / `pls down` — start or stop local Redis.
+- `pls up` / `pls down` — start or stop local infrastructure (this library binds none).
 - `./scripts/ci/pkg-validate.sh all` — run module-path, vet, API, docs, and example validators.
 
 See the [Go baseline](docs/developer/go-baseline.md) for the language contract and
