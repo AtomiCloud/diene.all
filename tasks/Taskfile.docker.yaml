@@ -3,20 +3,75 @@
 version: '3'
 
 vars:
-  IMAGE: diene-dotnet-base:local
+  IMAGE: diene-dotnet-api:local
+  SMOKE_CONTAINER: diene-dotnet-api-smoke
 
 tasks:
   build:
-    desc: Build the local .NET base image
+    desc: Build the local .NET API image
     cmds:
       - docker build -f infra/Dockerfile -t {{.IMAGE}}{{if .CLI_ARGS}}-{{.CLI_ARGS}}{{end}} .
 
   run:
-    desc: Run the local .NET base image
+    desc: Run the local image and smoke GET / (the info endpoint)
+    # The smoke asserts the PAYLOAD, not that a container started. It compares the served
+    # document against the identity the base settings layer declares, so a container that
+    # boots into the wrong service — or answers 200 with an empty body — fails here. The
+    # expected values are read out of the YAML rather than hardcoded, and each is looked up
+    # among the JSON leaves, so the check survives a change of serializer casing or of the
+    # envelope the server engine wraps a view in.
     cmds:
-      - docker run --rm {{.IMAGE}}{{if .CLI_ARGS}}-{{.CLI_ARGS}}{{end}}
+      - |
+        set -euo pipefail
+        image='{{.IMAGE}}{{if .CLI_ARGS}}-{{.CLI_ARGS}}{{end}}'
+        name='{{.SMOKE_CONTAINER}}'
+        body="$(mktemp)"
+        docker rm -f "$name" >/dev/null 2>&1 || true
+        trap 'docker rm -f "$name" >/dev/null 2>&1 || true; rm -f "$body"' EXIT
+        echo "🔨 starting $image"
+        docker run -d --name "$name" -p 127.0.0.1::8080 "$image" >/dev/null
+        port="$(docker port "$name" 8080/tcp | head -n 1 | sed 's/.*://')"
+        url="http://127.0.0.1:${port}/"
+        echo "📝 probing $url"
+        status=000
+        attempt=0
+        while [ "$attempt" -lt 60 ]; do
+          status="$(curl -s -o "$body" -w '%{http_code}' --max-time 5 "$url" || echo 000)"
+          if [ "$status" = "200" ]; then break; fi
+          attempt=$((attempt + 1))
+          sleep 1
+        done
+        echo "📝 GET / → HTTP ${status} after ${attempt}s"
+        echo "📝 body:"
+        cat "$body"
+        echo
+        if [ "$status" != "200" ]; then
+          echo "❌ GET / did not answer 200"
+          docker logs "$name"
+          exit 1
+        fi
+        jq -e . "$body" >/dev/null
+        expected="$(yq -r '.app.landscape, .app.platform, .app.service, .app.module, .app.version' App/Config/settings.yaml)"
+        total=0
+        found=0
+        while IFS= read -r value; do
+          total=$((total + 1))
+          if jq -e --arg v "$value" '[.. | scalars | tostring] | index($v) != null' "$body" >/dev/null; then
+            found=$((found + 1))
+          else
+            echo "❌ info payload is missing '${value}'"
+          fi
+        done <<EXPECTED
+        $expected
+        EXPECTED
+        echo "📝 info fields matched: ${found}/${total}"
+        if [ "$found" != "$total" ]; then
+          echo "❌ GET / did not return the info payload"
+          exit 1
+        fi
+        echo "✅ image serves the info endpoint (${found}/${total} identity fields)"
 
   clean:
-    desc: Remove the local .NET base image
+    desc: Remove the local .NET API image
     cmds:
       - docker image rm {{.IMAGE}}{{if .CLI_ARGS}}-{{.CLI_ARGS}}{{end}} || true

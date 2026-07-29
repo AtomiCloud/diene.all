@@ -26,3 +26,19 @@ result-*
 **/bin
 **/obj
 TestResults
+
+### dotnet-api-context
+#### source: dotnet-api
+# The image build copies only global.json, the two props files, App/ and Lib/. Everything
+# below is repository tooling that would otherwise be uploaded to the daemon on every
+# build and invalidate the cache whenever a chart or a task file changed.
+IntTest
+UnitTest
+config
+flake.lock
+flake.nix
+infra
+nix
+scripts
+tasks
+tests
