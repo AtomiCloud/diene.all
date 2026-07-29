@@ -4,6 +4,19 @@ version: '3'
 
 vars:
   CHART: infra/root_chart
+  # ### dotnet-api-helm-vars
+  # #### source: dotnet-api
+  # R20 ships TWO charts. `CHART` stays the app chart so the inherited task names keep meaning
+  # what they meant; the primordial chart gets its own namespaced tasks.
+  PRIMORDIAL: infra/primordial_chart
+  # The release name is the service's REAL identity (R4), not the base template's name.
+  RELEASE: dotnet-api
+  # Build-phase vendoring targets. Both are GITIGNORED and regenerated per build — helm cannot
+  # read files outside a chart directory, so the sources are copied IN rather than referenced.
+  CONFIG_SRC: App/Config
+  CONFIG_DST: infra/root_chart/files/config
+  OBSERVABILITY_SRC: observability
+  OBSERVABILITY_DST: infra/primordial_chart/files/observability
 
 tasks:
   deps:
@@ -13,15 +26,118 @@ tasks:
 
   lint:
     desc: Lint the root chart
+    deps: [vendor]
     cmds:
       - helm lint {{.CHART}}
 
   template:
     desc: Render the root chart
+    deps: [vendor]
     cmds:
-      - helm template dotnet-base {{.CHART}} {{.CLI_ARGS}}
+      - helm template {{.RELEASE}} {{.CHART}} {{.CLI_ARGS}}
 
   debug:
     desc: Render the root chart with debug output
+    deps: [vendor]
     cmds:
-      - helm template dotnet-base {{.CHART}} --debug {{.CLI_ARGS}}
+      - helm template {{.RELEASE}} {{.CHART}} --debug {{.CLI_ARGS}}
+
+  # ### dotnet-api-helm
+  # #### source: dotnet-api
+  vendor:
+    desc: Copy the out-of-chart config and observability sources into both charts (gitignored)
+    cmds:
+      # Helm resolves `.Files.Get`/`.Files.Glob` relative to the chart directory and refuses to
+      # look outside it, so the app's config YAMLs and the repository's observability tree are
+      # COPIED in at build time. Both destinations are gitignored and never committed: they are
+      # regenerated here on every lint, render, package, and publish.
+      - rm -rf {{.CONFIG_DST}} {{.OBSERVABILITY_DST}}
+      - mkdir -p {{.CONFIG_DST}} {{.OBSERVABILITY_DST}}
+      - cp -R {{.CONFIG_SRC}}/. {{.CONFIG_DST}}/
+      - cp -R {{.OBSERVABILITY_SRC}}/. {{.OBSERVABILITY_DST}}/
+      # Assert on the VALUES, not on `cp` exiting 0: a silent copy of zero files would leave
+      # both charts rendering their tolerate-absent branch and looking perfectly green.
+      - |
+        config_count=$(find {{.CONFIG_DST}} -type f -name '*.yaml' | wc -l | tr -d ' ')
+        obs_count=$(find {{.OBSERVABILITY_DST}} -type f | wc -l | tr -d ' ')
+        echo "📦 vendored ${config_count} config YAML(s) into {{.CONFIG_DST}}"
+        echo "📦 vendored ${obs_count} observability file(s) into {{.OBSERVABILITY_DST}}"
+        [ "${config_count}" -eq 0 ] && echo "❌ no config YAML reached {{.CONFIG_DST}}" >&2 && exit 1
+        exit 0
+
+  clean:
+    desc: Remove the build-phase vendored copies from both charts
+    cmds:
+      - rm -rf {{.CONFIG_DST}} {{.OBSERVABILITY_DST}} {{.CHART}}/uploads {{.PRIMORDIAL}}/uploads
+
+  primordial:deps:
+    desc: Build primordial chart dependencies
+    cmds:
+      - helm dependency build {{.PRIMORDIAL}}
+
+  primordial:lint:
+    desc: Lint the primordial chart
+    deps: [vendor]
+    cmds:
+      - helm lint {{.PRIMORDIAL}}
+
+  primordial:template:
+    desc: Render the primordial chart
+    deps: [vendor]
+    cmds:
+      - helm template {{.RELEASE}} {{.PRIMORDIAL}} {{.CLI_ARGS}}
+
+  primordial:debug:
+    desc: Render the primordial chart with debug output
+    deps: [vendor]
+    cmds:
+      - helm template {{.RELEASE}} {{.PRIMORDIAL}} --debug {{.CLI_ARGS}}
+
+  lint:all:
+    desc: Lint both charts against every landscape values file
+    deps: [vendor]
+    cmds:
+      # `helm lint` is what validates values against `values.schema.json` (R17), so every
+      # landscape overlay is linted EXPLICITLY with `-f`. Linting the chart alone would only
+      # ever prove the base layer.
+      - |
+        failed=0
+        checked=0
+        for chart in {{.CHART}} {{.PRIMORDIAL}}; do
+          helm lint "${chart}" || failed=$((failed + 1))
+          checked=$((checked + 1))
+          for values in "${chart}"/values.*.yaml; do
+            [ -f "${values}" ] || continue
+            case "${values}" in *values.schema.json) continue ;; esac
+            echo "🔍 linting ${chart} with ${values}"
+            helm lint "${chart}" -f "${values}" || failed=$((failed + 1))
+            checked=$((checked + 1))
+          done
+        done
+        echo "📝 ${checked} lint invocation(s), ${failed} failed"
+        [ "${failed}" -ne 0 ] && exit 1
+        exit 0
+
+  template:all:
+    desc: Render both charts against every landscape values file
+    deps: [vendor]
+    cmds:
+      - |
+        failed=0
+        rendered=0
+        for chart in {{.CHART}} {{.PRIMORDIAL}}; do
+          for values in "${chart}"/values.*.yaml; do
+            [ -f "${values}" ] || continue
+            echo "🔍 rendering ${chart} with ${values}"
+            helm template {{.RELEASE}} "${chart}" -f "${values}" >/dev/null || failed=$((failed + 1))
+            rendered=$((rendered + 1))
+          done
+        done
+        echo "📝 ${rendered} render(s), ${failed} failed"
+        [ "${failed}" -ne 0 ] && exit 1
+        exit 0
+
+  versions:
+    desc: Assert one semver spans the image tag and both chart version fields
+    cmds:
+      - ./scripts/validate/chart-versions.sh
