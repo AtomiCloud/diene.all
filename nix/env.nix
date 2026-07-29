@@ -56,6 +56,10 @@ with packages;
     # #### source: dotnet-base
     dotnet-sdk_10
     xmlstarlet
+
+    # ### dotnet-api-main
+    # #### source: dotnet-api
+    bruno-cli
   ];
 
   # ### workspace-releaser-bootstrap

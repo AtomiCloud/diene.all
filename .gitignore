@@ -29,3 +29,10 @@ infra/root_chart/uploads/
 **/bin/
 **/obj/
 TestResults/
+
+### dotnet-api-vendored-chart-config
+#### source: dotnet-api
+# Helm cannot reference files outside a chart directory, so the helm build step COPIES
+# App/Config into each chart to bundle as ConfigMaps. Regenerated per build, never
+# committed: a committed copy would let the chart ship config the app no longer reads.
+infra/*/files/

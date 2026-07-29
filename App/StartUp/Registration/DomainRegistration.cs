@@ -44,6 +44,8 @@ public static class DomainRegistration
         services.AddSingleton<INoteSummariser, NoteSummariser>();
         services.AddScoped<PostgresNoteRepository>();
         services.AddScoped<INoteRepository>(provider => provider.GetRequiredService<PostgresNoteRepository>());
+        services.AddScoped<INoteCatalogue>(provider => provider.GetRequiredService<PostgresNoteRepository>());
+        services.AddScoped<INotes, Notes>();
         services.AddScoped<RedisNoteRepository>();
         // ── End domain wiring ──
 

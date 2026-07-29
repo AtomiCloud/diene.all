@@ -1,0 +1,222 @@
+{
+  "apiVersion": "atomi.cloud/v1alpha1",
+  "kind": "Problem",
+  "metadata": { "name": "dotnet-api-lapras-v1", "namespace": "sulfoxide" },
+  "spec": {
+    "platform": "sulfoxide",
+    "service": "dotnet-api",
+    "landscape": "lapras",
+    "version": "v1",
+    "problems": [
+      {
+        "id": "entity_conflict",
+        "type": "https://errors.atomi.cloud/docs/lapras/sulfoxide/dotnet-api/api/v1/entity_conflict",
+        "title": "Entity Conflict",
+        "status": 409,
+        "recoverable": true,
+        "schema": {
+          "type": "object",
+          "properties": {
+            "typeName": { "type": ["string", "null"], "description": "The full name of the conflicting entity type." },
+            "assemblyQualifiedName": {
+              "type": ["string", "null"],
+              "description": "The assembly-qualified name of the conflicting entity type."
+            }
+          },
+          "description": "An entity conflicts with an existing unique value or state."
+        },
+        "endpoints": []
+      },
+      {
+        "id": "entity_not_found",
+        "type": "https://errors.atomi.cloud/docs/lapras/sulfoxide/dotnet-api/api/v1/entity_not_found",
+        "title": "Entity Not Found",
+        "status": 404,
+        "recoverable": false,
+        "schema": {
+          "type": "object",
+          "properties": {
+            "requestIdentifier": {
+              "type": ["string", "null"],
+              "description": "The identifier of the requested entity."
+            },
+            "typeName": { "type": ["string", "null"], "description": "The full name of the requested entity type." },
+            "assemblyQualifiedName": {
+              "type": ["string", "null"],
+              "description": "The assembly-qualified name of the requested entity type."
+            }
+          },
+          "description": "The requested entity could not be found by its identifier."
+        },
+        "endpoints": []
+      },
+      {
+        "id": "invalid_json",
+        "type": "https://errors.atomi.cloud/docs/lapras/sulfoxide/dotnet-api/api/v1/invalid_json",
+        "title": "Invalid JSON",
+        "status": 400,
+        "recoverable": true,
+        "schema": {
+          "type": "object",
+          "properties": {
+            "invalidString": {
+              "type": ["string", "null"],
+              "description": "The original value that failed JSON parsing."
+            }
+          },
+          "description": "The supplied value could not be parsed as JSON."
+        },
+        "endpoints": []
+      },
+      {
+        "id": "multiple_entity_not_found",
+        "type": "https://errors.atomi.cloud/docs/lapras/sulfoxide/dotnet-api/api/v1/multiple_entity_not_found",
+        "title": "Multiple Entity Not Found",
+        "status": 404,
+        "recoverable": false,
+        "schema": {
+          "type": "object",
+          "properties": {
+            "requestIdentifiers": {
+              "type": ["array", "null"],
+              "items": { "type": "string" },
+              "description": "Identifiers of requested entities that were not found."
+            },
+            "foundRequestIdentifiers": {
+              "type": ["array", "null"],
+              "items": { "type": "string" },
+              "description": "Identifiers of requested entities that were found."
+            },
+            "typeName": { "type": ["string", "null"], "description": "The full name of the requested entity type." },
+            "assemblyQualifiedName": {
+              "type": ["string", "null"],
+              "description": "The assembly-qualified name of the requested entity type."
+            }
+          },
+          "description": "Some requested entities could not be found during a batch request."
+        },
+        "endpoints": []
+      },
+      {
+        "id": "note_title_conflict",
+        "type": "https://errors.atomi.cloud/docs/lapras/sulfoxide/dotnet-api/api/v1/note_title_conflict",
+        "title": "Note title already used",
+        "status": 409,
+        "recoverable": true,
+        "schema": { "type": "object", "properties": { "requestedTitle": { "type": ["string", "null"] } } },
+        "endpoints": [
+          { "method": "POST", "path": "/api/v1/notes" },
+          { "method": "PUT", "path": "/api/v1/notes/{id}" }
+        ]
+      },
+      {
+        "id": "unauthenticated",
+        "type": "https://errors.atomi.cloud/docs/lapras/sulfoxide/dotnet-api/api/v1/unauthenticated",
+        "title": "Unauthenticated",
+        "status": 401,
+        "recoverable": true,
+        "schema": { "type": "object", "description": "The caller is not authenticated to access the resource." },
+        "endpoints": []
+      },
+      {
+        "id": "unauthorized",
+        "type": "https://errors.atomi.cloud/docs/lapras/sulfoxide/dotnet-api/api/v1/unauthorized",
+        "title": "Unauthorized",
+        "status": 403,
+        "recoverable": false,
+        "schema": {
+          "type": "object",
+          "properties": {
+            "granted": {
+              "type": ["array", "null"],
+              "items": { "type": "string" },
+              "description": "Permissions granted to the caller."
+            },
+            "required": {
+              "type": ["array", "null"],
+              "items": { "type": "string" },
+              "description": "Permissions required to access the resource."
+            }
+          },
+          "description": "The authenticated caller is not authorized to access the resource."
+        },
+        "endpoints": []
+      },
+      {
+        "id": "upstream_rejected",
+        "type": "https://errors.atomi.cloud/docs/lapras/sulfoxide/dotnet-api/api/v1/upstream_rejected",
+        "title": "Upstream Rejected",
+        "status": 502,
+        "recoverable": false,
+        "schema": {
+          "type": "object",
+          "properties": {
+            "upstream": {
+              "type": "string",
+              "description": "The LPSM address of the upstream that returned the failure."
+            },
+            "upstreamStatus": { "type": "integer", "description": "The HTTP status code the upstream returned." },
+            "contentType": { "type": "string", "description": "The media type of the upstream response body." },
+            "body": { "type": "string", "description": "The upstream response body, carried verbatim." }
+          },
+          "description": "An upstream returned a JSON failure body that is not a problem envelope."
+        },
+        "endpoints": []
+      },
+      {
+        "id": "upstream_transport_failure",
+        "type": "https://errors.atomi.cloud/docs/lapras/sulfoxide/dotnet-api/api/v1/upstream_transport_failure",
+        "title": "Upstream Transport Failure",
+        "status": 504,
+        "recoverable": true,
+        "schema": {
+          "type": "object",
+          "properties": {
+            "upstream": { "type": "string", "description": "The LPSM address of the upstream that was called." },
+            "upstreamStatus": {
+              "type": ["integer", "null"],
+              "description": "The HTTP status code, when a response was received at all."
+            },
+            "contentType": {
+              "type": "string",
+              "description": "The media type of the response body, when one arrived."
+            },
+            "bodySnippet": {
+              "type": "string",
+              "description": "A bounded prefix of the response body that could not be interpreted."
+            },
+            "attempts": {
+              "type": "integer",
+              "description": "How many transport attempts were made, including the single retry."
+            },
+            "rescuable": {
+              "type": "boolean",
+              "description": "Whether the dormant rescue-routing trip point is armed for this upstream."
+            }
+          },
+          "description": "An upstream call produced no interpretable response."
+        },
+        "endpoints": []
+      },
+      {
+        "id": "validation_error",
+        "type": "https://errors.atomi.cloud/docs/lapras/sulfoxide/dotnet-api/api/v1/validation_error",
+        "title": "Validation Error",
+        "status": 400,
+        "recoverable": true,
+        "schema": {
+          "type": "object",
+          "properties": {
+            "errors": {
+              "type": ["object", "null"],
+              "additionalProperties": { "type": "array", "items": { "type": "string" } },
+              "description": "Validation messages grouped by the field that failed validation."
+            }
+          },
+          "description": "The request contains one or more validation errors."
+        },
+        "endpoints": []
+      }
+    ]
+  }
+}

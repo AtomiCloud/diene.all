@@ -1,3 +1,4 @@
+using AtomiCloud.DotnetBase.App.Maintenance;
 using AtomiCloud.DotnetBase.App.StartUp;
 
 namespace AtomiCloud.DotnetBase.App;
@@ -13,6 +14,13 @@ public static class Program
     /// <returns>The process exit code.</returns>
     public static Task<int> Main(string[] args)
     {
+        ArgumentNullException.ThrowIfNull(args);
+
+        // Build-time maintenance verbs are answered before the run mode is resolved. They are
+        // NOT deployment modes: a deployment only ever runs 'server' or 'db-init'.
+        var verb = args.FirstOrDefault(argument => MaintenanceCommands.Verbs.Contains(argument));
+        if (verb is not null) return MaintenanceCommands.RunAsync(verb);
+
         if (!RunModeSelection.TryResolve(args, out var mode, out var rejected))
         {
             Console.Error.WriteLine(

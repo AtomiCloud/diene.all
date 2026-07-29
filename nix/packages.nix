@@ -53,6 +53,13 @@ let
       inherit (pkgs-2605) dotnet-sdk_10 gitlint xmlstarlet;
     };
 
+    # ### dotnet-api
+    # #### source: dotnet-api
+    # bruno-cli runs the API SIT collection headless (`bru run --env sit`).
+    dotnet-api = {
+      inherit (pkgs-2605) bruno-cli;
+    };
+
     # ### nix-root
     # #### source: main
     atomipkgs = (
@@ -108,4 +115,4 @@ let
   };
 in
 with all;
-atomipkgs // nix-2605 // nix-unstable // root // dotnet-base
+atomipkgs // nix-2605 // nix-unstable // root // dotnet-base // dotnet-api

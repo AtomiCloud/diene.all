@@ -1,0 +1,560 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "title": "Service configuration",
+  "type": "object",
+  "description": "Composed from every option block the service registers.",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Pointer to this schema."
+    },
+    "App": {
+      "$ref": "#/definitions/AppOption"
+    },
+    "Auth": {
+      "$ref": "#/definitions/AuthOption"
+    },
+    "Cache": {
+      "$ref": "#/definitions/CacheBlock"
+    },
+    "DbInit": {
+      "$ref": "#/definitions/DbInitOption"
+    },
+    "ErrorPortal": {
+      "$ref": "#/definitions/ErrorPortalOption"
+    },
+    "Http": {
+      "$ref": "#/definitions/HttpOption"
+    },
+    "Kv": {
+      "$ref": "#/definitions/KvBlock"
+    },
+    "Otel": {
+      "$ref": "#/definitions/OtelOption"
+    },
+    "Postgres": {
+      "$ref": "#/definitions/PostgresBlock"
+    },
+    "ServerEngine": {
+      "$ref": "#/definitions/ServerOption"
+    },
+    "Storage": {
+      "$ref": "#/definitions/StorageBlock"
+    }
+  },
+  "definitions": {
+    "AppOption": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["Landscape", "Platform", "Service", "Module", "Version"],
+      "properties": {
+        "Landscape": {
+          "type": "string",
+          "minLength": 2
+        },
+        "Platform": {
+          "type": "string",
+          "minLength": 2
+        },
+        "Service": {
+          "type": "string",
+          "minLength": 2
+        },
+        "Module": {
+          "type": "string",
+          "minLength": 2
+        },
+        "Version": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\d+\\.\\d+\\.\\d+"
+        }
+      }
+    },
+    "AuthOption": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "Enabled": {
+          "type": "boolean"
+        },
+        "Logto": {
+          "$ref": "#/definitions/LogtoOption"
+        },
+        "Handoff": {
+          "$ref": "#/definitions/HandoffOption"
+        },
+        "Tokens": {
+          "$ref": "#/definitions/TokenOption"
+        },
+        "HomeLandscapeClaim": {
+          "type": "string"
+        },
+        "Audience": {
+          "type": "string"
+        }
+      }
+    },
+    "LogtoOption": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "Endpoint": {
+          "type": "string"
+        },
+        "Issuer": {
+          "type": "string"
+        },
+        "AppId": {
+          "type": "string"
+        },
+        "AppSecret": {
+          "type": "string"
+        },
+        "Management": {
+          "$ref": "#/definitions/LogtoManagementOption"
+        }
+      }
+    },
+    "LogtoManagementOption": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "Endpoint": {
+          "type": "string"
+        },
+        "Resource": {
+          "type": "string"
+        },
+        "ClientId": {
+          "type": "string"
+        },
+        "ClientSecret": {
+          "type": "string"
+        }
+      }
+    },
+    "HandoffOption": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "Mount": {
+          "type": "string"
+        }
+      }
+    },
+    "TokenOption": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "Access": {
+          "type": "string"
+        },
+        "Refresh": {
+          "type": "string"
+        },
+        "ExpirySkew": {
+          "type": "string"
+        },
+        "RotateRefreshTokens": {
+          "type": "boolean"
+        }
+      }
+    },
+    "CacheBlock": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/CacheOption"
+      }
+    },
+    "CacheOption": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/RedisConnectionOption"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false
+        }
+      ]
+    },
+    "RedisConnectionOption": {
+      "type": "object",
+      "x-abstract": true,
+      "additionalProperties": false,
+      "properties": {
+        "Host": {
+          "type": "string"
+        },
+        "Port": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "Password": {
+          "type": "string"
+        },
+        "Db": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "Tls": {
+          "type": "boolean"
+        }
+      }
+    },
+    "DbInitOption": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "CheckReachability": {
+          "type": "boolean"
+        },
+        "CreateBucket": {
+          "type": "boolean"
+        },
+        "Migrate": {
+          "type": "boolean"
+        },
+        "Seed": {
+          "type": "boolean"
+        },
+        "ReachabilityTimeout": {
+          "type": "string"
+        },
+        "ReachabilityWindow": {
+          "type": "string"
+        }
+      }
+    },
+    "ErrorPortalOption": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["Scheme", "Host"],
+      "properties": {
+        "Enabled": {
+          "type": "boolean"
+        },
+        "Scheme": {
+          "type": "string",
+          "minLength": 1
+        },
+        "Host": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "HttpOption": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "Cors": {
+          "$ref": "#/definitions/CorsOption"
+        },
+        "OpenApi": {
+          "$ref": "#/definitions/OpenApiOption"
+        },
+        "ForwardedHeaders": {
+          "type": "boolean"
+        }
+      }
+    },
+    "CorsOption": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "Enabled": {
+          "type": "boolean"
+        },
+        "AllowedOrigins": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "AllowedMethods": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "AllowedHeaders": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "AllowCredentials": {
+          "type": "boolean"
+        }
+      }
+    },
+    "OpenApiOption": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "Enabled": {
+          "type": "boolean"
+        },
+        "Title": {
+          "type": "string"
+        },
+        "Description": {
+          "type": "string"
+        },
+        "Ui": {
+          "type": "boolean"
+        }
+      }
+    },
+    "KvBlock": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/KvOption"
+      }
+    },
+    "KvOption": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/RedisConnectionOption"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false
+        }
+      ]
+    },
+    "OtelOption": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "Logs": {
+          "$ref": "#/definitions/LogsOption"
+        },
+        "Metrics": {
+          "$ref": "#/definitions/MetricsOption"
+        },
+        "Traces": {
+          "$ref": "#/definitions/TracesOption"
+        }
+      }
+    },
+    "LogsOption": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/SignalOption"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false
+        }
+      ]
+    },
+    "SignalOption": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["Enabled"],
+      "properties": {
+        "Enabled": {
+          "type": "boolean"
+        },
+        "Exporter": {
+          "$ref": "#/definitions/ExporterOption"
+        }
+      }
+    },
+    "ExporterOption": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "Console": {
+          "$ref": "#/definitions/ConsoleExporterOption"
+        },
+        "Otlp": {
+          "$ref": "#/definitions/OtlpExporterOption"
+        }
+      }
+    },
+    "ConsoleExporterOption": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["Enabled"],
+      "properties": {
+        "Enabled": {
+          "type": "boolean"
+        }
+      }
+    },
+    "OtlpExporterOption": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["Enabled", "Protocol", "Timeout"],
+      "properties": {
+        "Enabled": {
+          "type": "boolean"
+        },
+        "Endpoint": {
+          "type": "string"
+        },
+        "Protocol": {
+          "type": "string",
+          "minLength": 1
+        },
+        "Headers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "Timeout": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "MetricsOption": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/SignalOption"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["Interval"],
+          "properties": {
+            "Interval": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      ]
+    },
+    "TracesOption": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/SignalOption"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "Sampler": {
+              "$ref": "#/definitions/SamplerOption"
+            }
+          }
+        }
+      ]
+    },
+    "SamplerOption": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["Type"],
+      "properties": {
+        "Type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "Ratio": {
+          "type": "number",
+          "format": "double",
+          "maximum": 1.0,
+          "minimum": 0.0
+        }
+      }
+    },
+    "PostgresBlock": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/PostgresOption"
+      }
+    },
+    "PostgresOption": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "Host": {
+          "type": "string"
+        },
+        "Port": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "Database": {
+          "type": "string"
+        },
+        "Username": {
+          "type": "string"
+        },
+        "Password": {
+          "type": "string"
+        },
+        "Ssl": {
+          "type": "boolean"
+        },
+        "Pool": {
+          "$ref": "#/definitions/PostgresPoolOption"
+        }
+      }
+    },
+    "PostgresPoolOption": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "Min": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "Max": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
+    "ServerOption": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "WebhookTolerance": {
+          "type": "string"
+        },
+        "WebhookSigningKeys": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "StorageBlock": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/StorageOption"
+      }
+    },
+    "StorageOption": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "Endpoint": {
+          "type": "string"
+        },
+        "Region": {
+          "type": "string"
+        },
+        "Bucket": {
+          "type": "string"
+        },
+        "AccessKeyId": {
+          "type": "string"
+        },
+        "SecretAccessKey": {
+          "type": "string"
+        },
+        "ForcePathStyle": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

@@ -18,6 +18,13 @@ includes:
     vars:
       MODE: int
 
+  # ### dotnet-api-sit-include
+  # #### source: dotnet-api
+  sit:
+    taskfile: tasks/Taskfile.test.yaml
+    vars:
+      MODE: sit
+
 tasks:
   setup:
     desc: Set up generated workspace assets
@@ -117,3 +124,44 @@ tasks:
     desc: Watch the fast unit suite
     cmds:
       - task: unit:watch
+
+  # ### dotnet-api-sit-task
+  # #### source: dotnet-api
+  test:sit:
+    desc: Run the Bruno SIT collection against the castform preview
+    cmds:
+      - task: sit:sit
+
+  # ### dotnet-api-maintenance-tasks
+  # #### source: dotnet-api
+  # Build-time commands, not deployment run modes. A deployment only ever runs
+  # `server` or `db-init`.
+  config:schema:
+    desc: Regenerate the configuration schema from the registered option blocks
+    cmds:
+      - dotnet run --project App/App.csproj -- config:schema
+
+  config:schema:verify:
+    desc: Fail when the generated configuration schema has drifted
+    cmds:
+      - dotnet run --project App/App.csproj -- config:schema:verify
+
+  config:validate:
+    desc: Bind and validate every config block against the final merged layer
+    cmds:
+      - dotnet run --project App/App.csproj -- config:validate
+
+  problems:export:
+    desc: Export the Problem catalog resources into the primordial chart
+    cmds:
+      - dotnet run --project App/App.csproj -- problems:export
+
+  problems:verify:
+    desc: Fail when the exported Problem catalog has drifted
+    cmds:
+      - dotnet run --project App/App.csproj -- problems:verify
+
+  db:init:
+    desc: Run the one-shot db-init path against the local dependencies
+    cmds:
+      - dotnet run --project App/App.csproj -- db-init

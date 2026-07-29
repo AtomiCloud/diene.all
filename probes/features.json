@@ -329,5 +329,40 @@
     "template": "diene/observability",
     "name": "observability-standards-present",
     "class": "presence"
+  },
+  {
+    "template": "diene/dotnet-api",
+    "name": "dotnet-api-config-validate",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-api",
+    "name": "dotnet-api-config-schema",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-api",
+    "name": "dotnet-api-problem-catalog",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-api",
+    "name": "dotnet-api-rebrand-guard",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-api",
+    "name": "dotnet-api-app-chart-lint",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-api",
+    "name": "dotnet-api-app-chart-schema",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-api",
+    "name": "dotnet-api-app-chart-template",
+    "class": "smoke"
   }
 ]

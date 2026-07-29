@@ -25,8 +25,12 @@ public sealed class AuthOption
     /// <summary>Token lifetime and rotation settings.</summary>
     public TokenOption Tokens { get; set; } = new();
 
-    /// <summary>The claim carrying a principal's home landscape.</summary>
-    public string HomeLandscapeClaim { get; set; } = "home_landscape";
+    /// <summary>
+    /// The claim carrying a principal's home landscape. Deliberately NOT defaulted in code:
+    /// the base settings layer supplies it, and a C# default would be a second source of
+    /// truth that survives the key being renamed or removed (R21).
+    /// </summary>
+    public string HomeLandscapeClaim { get; set; } = string.Empty;
 
     /// <summary>The audience this service accepts machine tokens for.</summary>
     public string Audience { get; set; } = string.Empty;

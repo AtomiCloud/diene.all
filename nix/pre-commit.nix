@@ -127,17 +127,21 @@ pre-commit-lib.run {
     a-helm-docs = {
       enable = true;
       name = "Helm docs";
-      entry = "${packages.infralint}/bin/helm-docs --chart-search-root infra/root_chart";
-      files = "^infra/root_chart/.*";
+      entry = "${packages.infralint}/bin/helm-docs --chart-search-root infra";
+      files = "^infra/(root_chart|primordial_chart)/.*";
       pass_filenames = false;
       language = "system";
     };
 
+    # ### dotnet-api-helm-lint
+    # #### source: dotnet-api
+    # BOTH charts (R20). Scoping this to root_chart left the primordial chart linted by
+    # nobody, which is a gate that cannot see half its subject.
     a-helm-lint = {
       enable = true;
       name = "Helm lint";
-      entry = "${packages.kubernetes-helm}/bin/helm lint infra/root_chart";
-      files = "^infra/root_chart/.*";
+      entry = "${packages.kubernetes-helm}/bin/helm lint infra/root_chart infra/primordial_chart";
+      files = "^infra/(root_chart|primordial_chart)/.*";
       pass_filenames = false;
       language = "system";
     };
