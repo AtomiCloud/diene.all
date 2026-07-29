@@ -67,6 +67,20 @@ public static class Server
         // caller-supplied clock winning over its own TryAdd.
         builder.Services.TryAddSingleton<IAuthClock>(SystemAuthClock.Instance);
 
+        // UseExceptionHandler alone is not enough: it needs a registered IExceptionHandler and
+        // an IProblemDetailsService to hand it. Without both, a RAW exception falls through to
+        // ASP.NET built-in ProblemDetails - an rfc9110 type URI and no data extension - which
+        // puts a SECOND error contract on the wire beside RFC 9457. That is exactly what the
+        // no-[ApiController] rule, the single-filter rule and the ResolveAsync-only rule all
+        // exist to prevent, and a client written against the Diene envelope would parse every
+        // typed problem correctly and then hit a differently-shaped 500.
+        builder.Services.AddProblemDetails();
+        builder.Services.AddExceptionHandler<DomainProblemExceptionHandler>();
+        // Registration order is the priority order: the typed path first, then the fallback
+        // that renders whatever it declined as the SAME envelope rather than letting ASP.NET
+        // put a second error contract on the wire.
+        builder.Services.AddExceptionHandler<ProtocolExceptionHandler>();
+
         builder.Services.AddAtomiServerEngine(BuildServerEngineConfig(app, server));
         builder.Services.AddAtomiWebhookSecrets([.. server.WebhookSigningKeys]);
         builder.Services.AddServiceWebhookHandlers();

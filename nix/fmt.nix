@@ -15,7 +15,7 @@ let
           "Changelog.md"
           "docs/developer/CommitConventions.md"
           "infra/root_chart/**"
-          "infra/primordial_chart/templates/**"
+          "infra/primordial_chart/**"
         ];
       };
       shfmt.enable = true;
