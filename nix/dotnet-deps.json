@@ -25,9 +25,19 @@
     "hash": "sha256-EtT/6Io4EB0/w2HdXrdXBnXhxbQfCvs7GovY/cvDu1I="
   },
   {
+    "pname": "AtomiCloud.Diene.ApiEngine.TestHelper",
+    "version": "1.0.0",
+    "hash": "sha256-PxwwoZ4Q7nx/15oc0hCgRRrI5+pVhQNgNSEHfTWz+to="
+  },
+  {
     "pname": "AtomiCloud.Diene.AuthEngine",
     "version": "1.0.0",
     "hash": "sha256-JTAQ1//3P3GcfTtRDQBM6tEZYoqOA8Hjs01flU7hJ20="
+  },
+  {
+    "pname": "AtomiCloud.Diene.AuthEngine.TestHelper",
+    "version": "1.0.0",
+    "hash": "sha256-gTW9181AhkM5w1gTDMsCB7ItHR3IWBUA6MJrpB9jh/A="
   },
   {
     "pname": "AtomiCloud.Diene.Config",
@@ -35,9 +45,24 @@
     "hash": "sha256-psVFGW0p6D35TS6bCcYz46tGPbcPgSle7xZafT3spTs="
   },
   {
+    "pname": "AtomiCloud.Diene.Config.TestHelper",
+    "version": "1.0.0",
+    "hash": "sha256-dDVTrk0Lp82FC1/UQXhQitZMz7BF+BZZF/BG8P3iYS8="
+  },
+  {
     "pname": "AtomiCloud.Diene.CoreUtils",
     "version": "1.0.0",
     "hash": "sha256-gc+7c7/QsMA2I/F94aQdF5spHoLwqEOIbYCf9t4SavY="
+  },
+  {
+    "pname": "AtomiCloud.Diene.E2e",
+    "version": "1.0.0",
+    "hash": "sha256-9w+rDyOlA2y+HY5K/zS2NqjPEiIOHibzjBwWw5L5Ymg="
+  },
+  {
+    "pname": "AtomiCloud.Diene.E2e.TestHelper",
+    "version": "1.0.0",
+    "hash": "sha256-FZOw02aWTa9e8MdbnG6NT6hE6tbzdP1n7mF3QjoSRyw="
   },
   {
     "pname": "AtomiCloud.Diene.Interfaces",
@@ -45,9 +70,19 @@
     "hash": "sha256-hjQKi+HKCGDDwfiYT9Gwrl5GDvaEPo47sQzMiza49Kg="
   },
   {
+    "pname": "AtomiCloud.Diene.Interfaces.TestHelper",
+    "version": "1.0.0",
+    "hash": "sha256-rwOAKrM5TeOVcEwml6Ki4hWjqq+NIHpDgjWcgTHXOXY="
+  },
+  {
     "pname": "AtomiCloud.Diene.Otel",
     "version": "1.0.0",
     "hash": "sha256-tRAtGUCgyOPZt9j3Rpg3ecUE9769DJNpMHGxw+vXpQ0="
+  },
+  {
+    "pname": "AtomiCloud.Diene.Otel.TestHelper",
+    "version": "1.0.0",
+    "hash": "sha256-64g2A584cSqjX2DyeEBkAVYZ9eR+Ng1uc8bOkGUosgk="
   },
   {
     "pname": "AtomiCloud.Diene.Problems",
@@ -55,9 +90,19 @@
     "hash": "sha256-x/LIiqSygczRYU/3xrjS7TUHcUmrHp09E6VUD12Gpvk="
   },
   {
+    "pname": "AtomiCloud.Diene.Problems.TestHelper",
+    "version": "1.0.0",
+    "hash": "sha256-t+KVjk5uZsf+nSnwQnnL43leHKqjXmW1/S10au4sQug="
+  },
+  {
     "pname": "AtomiCloud.Diene.Result",
     "version": "1.0.0",
     "hash": "sha256-Z4xpdABb5MUIGD/N/GlfTeAW946Y1zgXGEqq8xLwrL0="
+  },
+  {
+    "pname": "AtomiCloud.Diene.Result.TestHelper",
+    "version": "1.0.0",
+    "hash": "sha256-1dbYC5yib+h60Zzeam4Yvda9yZufTB+zOk5k98X42/Q="
   },
   {
     "pname": "AtomiCloud.Diene.ServerEngine",
@@ -65,9 +110,19 @@
     "hash": "sha256-Ht1N6pGTfqtycYh6WotOlaHYsrzvwtxQ9Ax3lxKbkRg="
   },
   {
+    "pname": "AtomiCloud.Diene.ServerEngine.TestHelper",
+    "version": "1.0.0",
+    "hash": "sha256-F1tVe4vxzXyJuTC6Y+DQY4PpHt60EtZZ3Bm/5Gxn1RM="
+  },
+  {
     "pname": "AtomiCloud.Diene.StandardConfig",
     "version": "1.0.0",
     "hash": "sha256-DlislM7zVqGvEvUixNH3zuttKkjE1tI5YkUQZ8EDun4="
+  },
+  {
+    "pname": "AtomiCloud.Diene.StandardConfig.TestHelper",
+    "version": "1.0.0",
+    "hash": "sha256-Vdq4XZ4UXn72NjwQGd+9t98dZg4lblre79CLufljDmY="
   },
   {
     "pname": "AWSSDK.Core",
@@ -160,9 +215,19 @@
     "hash": "sha256-5sf3bg7CZZjHseK+F3foOchEhmVeioePxMZVvS6Rjb0="
   },
   {
+    "pname": "Microsoft.AspNetCore.Mvc.Testing",
+    "version": "10.0.10",
+    "hash": "sha256-jeZE+QsGc9LCUgXXYro73gejBcOk8rKqhcgC6lcoOrY="
+  },
+  {
     "pname": "Microsoft.AspNetCore.OpenApi",
     "version": "10.0.10",
     "hash": "sha256-Mbr8+mzZKu3iq5R4TbNY8r39bZI34SWWd7DfUHg2ETk="
+  },
+  {
+    "pname": "Microsoft.AspNetCore.TestHost",
+    "version": "10.0.10",
+    "hash": "sha256-sz57D8LAtw9mwQOXv+Rf587pLu+oy63v5IKRYAXhDEA="
   },
   {
     "pname": "Microsoft.Bcl.AsyncInterfaces",
@@ -328,11 +393,6 @@
     "pname": "Microsoft.Extensions.DependencyInjection.Abstractions",
     "version": "10.0.10",
     "hash": "sha256-2r+Qvd0u3zODfQ1NAL+qu+W5XGaqJjm31bG6SGJKZn0="
-  },
-  {
-    "pname": "Microsoft.Extensions.DependencyInjection.Abstractions",
-    "version": "10.0.5",
-    "hash": "sha256-KrP+hE3gk7pATbJYZsJ1LHiXjzLA+ntHW7G/VGgHk2g="
   },
   {
     "pname": "Microsoft.Extensions.DependencyInjection.Abstractions",
@@ -778,6 +838,16 @@
     "pname": "Testcontainers",
     "version": "4.12.0",
     "hash": "sha256-NM+zFlgQIo0BP5V/WW8gLJ/tcSTZelbbklOZ3llzZ4g="
+  },
+  {
+    "pname": "Testcontainers.Minio",
+    "version": "4.12.0",
+    "hash": "sha256-3JnXncNg9UGXsE7BLb2VzoxeQZqU7MR29aMB7SjlbzI="
+  },
+  {
+    "pname": "Testcontainers.PostgreSql",
+    "version": "4.12.0",
+    "hash": "sha256-wdDy5ygEoSNqrtpaRzXjeZjFZVs8F3z4B7jv7VR5tsI="
   },
   {
     "pname": "Testcontainers.Redis",

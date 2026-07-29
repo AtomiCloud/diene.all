@@ -16,6 +16,15 @@
     <PackageReference Include="xunit.runner.visualstudio" />
   </ItemGroup>
 
+  <!-- ### dotnet-api-unit-test-references -->
+  <!-- #### source: dotnet-api -->
+  <!-- E2e.TestHelper bundles Result, Interfaces, Config, Problems, Otel, AuthEngine,
+       StandardConfig, ApiEngine and ServerEngine TestHelpers. CoreUtils ships none by design.
+       PUBLISHED nuget.org package (R-E12). -->
+  <ItemGroup>
+    <PackageReference Include="AtomiCloud.Diene.E2e.TestHelper" />
+  </ItemGroup>
+
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>

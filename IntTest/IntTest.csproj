@@ -17,6 +17,17 @@
     <PackageReference Include="xunit.runner.visualstudio" />
   </ItemGroup>
 
+  <!-- ### dotnet-api-int-test-references -->
+  <!-- #### source: dotnet-api -->
+  <!-- E2e supplies the SIT drivers and pulls every runtime library; E2e.TestHelper bundles
+       every published TestHelper, including StandardConfig's Testcontainers helpers. Both are
+       PUBLISHED nuget.org packages (R-E12). -->
+  <ItemGroup>
+    <PackageReference Include="AtomiCloud.Diene.E2e" />
+    <PackageReference Include="AtomiCloud.Diene.E2e.TestHelper" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+  </ItemGroup>
+
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
