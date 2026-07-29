@@ -19,7 +19,7 @@ export default {
       name: 'mutation-bun-deadcode-production-caught',
       description: 'A source file used only by tests turns the production Knip hook red.',
       kind: 'mutation',
-      expectedImpact: [],
+      expectedImpact: ['bun-unit-coverage'],
       async run(repo: any) {
         const testPath = (await repo.glob('tests/unit/**/*.test.ts')).sort()[0];
         if (!testPath) throw new Error('no unit test found for the test-only-use mutation');
