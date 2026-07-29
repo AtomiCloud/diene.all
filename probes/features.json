@@ -357,6 +357,11 @@
   },
   {
     "template": "diene/dotnet-api",
+    "name": "dotnet-api-primordial-chart-lint",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-api",
     "name": "dotnet-api-app-chart-schema",
     "class": "gate"
   },
