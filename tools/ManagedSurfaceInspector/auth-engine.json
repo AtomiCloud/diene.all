@@ -1,0 +1,122 @@
+{
+  "name": "AtomiCloud.Diene.AuthEngine",
+  "positiveControls": [
+    "T:AtomiCloud.Diene.AuthEngine.Config.AuthEngineConfig",
+    "M:AtomiCloud.Diene.AuthEngine.Config.AuthEngineConfig::Create",
+    "T:AtomiCloud.Diene.AuthEngine.Tokens.JwtTokenValidator",
+    "M:AtomiCloud.Diene.AuthEngine.Tokens.JwtTokenValidator::ValidateAsync"
+  ],
+  "semanticMappings": [
+    {
+      "goal": "AuthOption",
+      "satisfiedBy": [
+        "T:AtomiCloud.Diene.AuthEngine.Config.AuthEngineConfig",
+        "P:AtomiCloud.Diene.AuthEngine.Config.AuthEngineConfig::Logto",
+        "P:AtomiCloud.Diene.AuthEngine.Config.AuthEngineConfig::Handoff"
+      ]
+    },
+    {
+      "goal": "AuthSettingsOption",
+      "satisfiedBy": [
+        "T:AtomiCloud.Diene.AuthEngine.Config.LogtoConfig",
+        "P:AtomiCloud.Diene.AuthEngine.Config.LogtoConfig::Issuer"
+      ]
+    },
+    {
+      "goal": "AuthPolicyOption",
+      "satisfiedBy": ["T:AtomiCloud.Diene.AuthEngine.Policy.IAuthorizationPolicy"]
+    },
+    {
+      "goal": "AuthEngineExtensions.AddAtomiAuthEngine",
+      "satisfiedBy": ["M:AtomiCloud.Diene.AuthEngine.Module.AuthEngineServiceCollectionExtensions::AddAtomiAuthEngine"]
+    },
+    {
+      "goal": "IScopeChecker.HasAny",
+      "satisfiedBy": ["M:AtomiCloud.Diene.AuthEngine.Policy.RequireAnyScope::Evaluate"]
+    },
+    {
+      "goal": "IScopeChecker.HasAll",
+      "satisfiedBy": ["M:AtomiCloud.Diene.AuthEngine.Policy.RequireAllScopes::Evaluate"]
+    },
+    {
+      "goal": "IScopeChecker.FieldScopes",
+      "satisfiedBy": ["P:AtomiCloud.Diene.AuthEngine.Tokens.AuthClaims::Scopes"]
+    },
+    {
+      "goal": "AuthGuard.Sub",
+      "satisfiedBy": [
+        "M:AtomiCloud.Diene.AuthEngine.Policy.AuthGuard::GuardAsync",
+        "P:AtomiCloud.Diene.AuthEngine.Tokens.AuthClaims::Subject"
+      ]
+    },
+    {
+      "goal": "AuthGuard.SubOrAny",
+      "satisfiedBy": ["M:AtomiCloud.Diene.AuthEngine.Policy.AuthGuard::GuardOrAnyAsync"]
+    },
+    {
+      "goal": "AuthGuard.SubOrAll",
+      "satisfiedBy": [
+        "M:AtomiCloud.Diene.AuthEngine.Policy.AuthGuard::GuardAsync",
+        "T:AtomiCloud.Diene.AuthEngine.Policy.RequireAllScopes"
+      ]
+    },
+    {
+      "goal": "ITokenRetriever.Get",
+      "satisfiedBy": ["M:AtomiCloud.Diene.AuthEngine.Client.TokenCache::GetAsync"]
+    },
+    {
+      "goal": "AccessToken",
+      "satisfiedBy": [
+        "T:AtomiCloud.Diene.AuthEngine.Client.TokenResponse",
+        "P:AtomiCloud.Diene.AuthEngine.Client.TokenResponse::Token",
+        "P:AtomiCloud.Diene.AuthEngine.Client.TokenResponse::ExpiresAt"
+      ]
+    },
+    {
+      "goal": "CachedTokenRetriever",
+      "satisfiedBy": ["T:AtomiCloud.Diene.AuthEngine.Client.TokenCache"]
+    },
+    {
+      "goal": "IIdpProvider.ClientCredentials",
+      "satisfiedBy": ["M:AtomiCloud.Diene.AuthEngine.Client.ICredentialClient::AcquireAsync"]
+    },
+    {
+      "goal": "LogtoProvider",
+      "satisfiedBy": ["T:AtomiCloud.Diene.AuthEngine.Client.LogtoCredentialClient"]
+    },
+    {
+      "goal": "AuthEngine endpoint module",
+      "satisfiedBy": ["M:AtomiCloud.Diene.AuthEngine.Module.AuthEngineEndpoints::MapAtomiAuthEngine"]
+    },
+    {
+      "goal": "zinc claim-sync onboarding seam",
+      "satisfiedBy": ["M:AtomiCloud.Diene.AuthEngine.IAuthManagement::SetClaim"]
+    }
+  ],
+  "required": [
+    "T:AtomiCloud.Diene.AuthEngine.DeferredPayload",
+    "T:AtomiCloud.Diene.AuthEngine.IDeferredTokenStore",
+    "M:AtomiCloud.Diene.AuthEngine.IDeferredTokenStore::Put",
+    "M:AtomiCloud.Diene.AuthEngine.IDeferredTokenStore::Consume",
+    "M:AtomiCloud.Diene.AuthEngine.IDeferredTokenStore::Settle",
+    "T:AtomiCloud.Diene.AuthEngine.IDeferredTokenMinter",
+    "M:AtomiCloud.Diene.AuthEngine.IDeferredTokenMinter::Mint",
+    "M:AtomiCloud.Diene.AuthEngine.IDeferredTokenMinter::Exchange",
+    "T:AtomiCloud.Diene.AuthEngine.DeferredTokenMinter",
+    "M:AtomiCloud.Diene.AuthEngine.DeferredTokenMinter::Mint",
+    "M:AtomiCloud.Diene.AuthEngine.DeferredTokenMinter::Exchange",
+    "T:AtomiCloud.Diene.AuthEngine.IAuthManagement",
+    "M:AtomiCloud.Diene.AuthEngine.IAuthManagement::GetUser",
+    "M:AtomiCloud.Diene.AuthEngine.IAuthManagement::MintOneTimeToken",
+    "M:AtomiCloud.Diene.AuthEngine.IAuthManagement::SetClaim",
+    "M:AtomiCloud.Diene.AuthEngine.IAuthManagement::RemoveClaim",
+    "M:AtomiCloud.Diene.AuthEngine.IAuthManagement::AssignRole",
+    "M:AtomiCloud.Diene.AuthEngine.IAuthManagement::RemoveRole",
+    "M:AtomiCloud.Diene.AuthEngine.IAuthManagement::DeleteUser",
+    "T:AtomiCloud.Diene.AuthEngine.Client.LogtoAuthManagement",
+    "T:AtomiCloud.Diene.AuthEngine.AppHandoffExpired",
+    "T:AtomiCloud.Diene.AuthEngine.DeferredMintRequest",
+    "T:AtomiCloud.Diene.AuthEngine.DeferredRedeemRequest",
+    "T:AtomiCloud.Diene.AuthEngine.DeferredDevice"
+  ]
+}

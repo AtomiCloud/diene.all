@@ -1,7 +1,11 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using AtomiCloud.Diene.AuthEngine;
 using AtomiCloud.Diene.AuthEngine.Config;
 using AtomiCloud.Diene.AuthEngine.Policy;
 using AtomiCloud.Diene.AuthEngine.Tokens;
 using AtomiCloud.Diene.Problems;
+using AtomiCloud.Diene.Problems.Catalog;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -15,6 +19,12 @@ namespace AtomiCloud.Diene.AuthEngine.Module;
 /// </summary>
 public static class AuthEngineEndpoints
 {
+    private static readonly JsonSerializerOptions StrictJson = new()
+    {
+        PropertyNameCaseInsensitive = false,
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+    };
+
     /// <summary>
     /// Maps the handoff endpoints beneath <see cref="HandoffConfig.Mount" />.
     /// </summary>
@@ -34,17 +44,106 @@ public static class AuthEngineEndpoints
         ArgumentNullException.ThrowIfNull(endpoints);
         ArgumentNullException.ThrowIfNull(config);
 
-        var group = endpoints.MapGroup(config.Handoff.Mount);
+        var mount = config.Handoff.Mount;
 
-        // AuthGuard and the config are marked [FromServices] explicitly. Minimal APIs
-        // otherwise infer a complex parameter as a request BODY, which throws at map time
-        // on a GET — the route would never even be registered.
-        group.MapGet(
-            "/session",
+        // Service parameters are marked explicitly. Minimal APIs otherwise infer a
+        // complex parameter as a request body and the route fails while it is mapped.
+        endpoints.MapPost(
+            mount,
+            ([FromServices] AuthGuard guard,
+                [FromServices] AuthEngineConfig settings,
+                [FromServices] IDeferredTokenMinter minter,
+                HttpContext context) => HandleMintAsync(context, guard, settings, minter));
+
+        endpoints.MapPost(
+            $"{mount}/redeem",
+            ([FromServices] IDeferredTokenMinter minter, HttpContext context) =>
+                HandleRedeemAsync(context, minter));
+
+        endpoints.MapGet(
+            $"{mount}/session",
             ([FromServices] AuthGuard guard, [FromServices] AuthEngineConfig settings, HttpContext context) =>
                 HandleSessionAsync(context, guard, settings));
 
         return endpoints;
+    }
+
+    /// <summary>Validates the web session and mints its digest-backed handoff nonce.</summary>
+    internal static async Task<DeferredHandoff> HandleMintAsync(
+        HttpContext context,
+        AuthGuard guard,
+        AuthEngineConfig settings,
+        IDeferredTokenMinter minter)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(guard);
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(minter);
+
+        SetNoStore(context.Response);
+
+        var token = ReadBearer(context.Request) ?? throw AuthProblems.MalformedToken().ToException();
+        var guarded = await guard
+            .GuardAsync(token, settings.Logto.Issuer, [], context.RequestAborted)
+            .ConfigureAwait(false);
+        if (guarded.IsFailure(out var guardFailure)) throw guardFailure.ToException();
+
+        try
+        {
+            _ = await ReadStrictJson<DeferredMintRequest>(context.Request, context.RequestAborted)
+                .ConfigureAwait(false);
+        }
+        catch (JsonException)
+        {
+            throw new InvalidJson(
+                "The app handoff mint request must be an empty JSON object.",
+                "request body").ToException();
+        }
+
+        var claims = guarded.Get();
+        if (!claims.FindString("email").IsSome(out var email))
+        {
+            throw AuthProblems.MalformedToken().ToException();
+        }
+
+        var minted = await minter
+            .Mint(new DeferredPayload(claims.Subject, email), context.RequestAborted)
+            .ConfigureAwait(false);
+        if (minted.IsFailure(out var failure)) throw failure.ToException();
+        return minted.Get();
+    }
+
+    /// <summary>Strict-parses a mobile redeem request and exchanges its nonce.</summary>
+    internal static async Task<DeferredExchange> HandleRedeemAsync(
+        HttpContext context,
+        IDeferredTokenMinter minter)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(minter);
+
+        SetNoStore(context.Response);
+
+        DeferredRedeemRequest request;
+        try
+        {
+            request = await ReadStrictJson<DeferredRedeemRequest>(
+                    context.Request,
+                    context.RequestAborted)
+                .ConfigureAwait(false);
+        }
+        catch (JsonException)
+        {
+            throw new AppHandoffExpired().ToException();
+        }
+
+        if (request.Device is null || request.Device.Platform is not ("android" or "ios"))
+        {
+            throw new AppHandoffExpired().ToException();
+        }
+
+        var exchanged = await minter.Exchange(request.Nonce, context.RequestAborted).ConfigureAwait(false);
+        if (exchanged.IsFailure(out _)) throw new AppHandoffExpired().ToException();
+        return exchanged.Get();
     }
 
     /// <summary>
@@ -89,6 +188,28 @@ public static class AuthEngineEndpoints
 
         var token = header[prefix.Length..].Trim();
         return string.IsNullOrEmpty(token) ? null : token;
+    }
+
+    private static async Task<T> ReadStrictJson<T>(HttpRequest request, CancellationToken cancellationToken)
+    {
+        if (!request.HasJsonContentType()) throw new JsonException("Content-Type must be application/json.");
+
+        var value = await JsonSerializer
+            .DeserializeAsync<T>(request.Body, StrictJson, cancellationToken)
+            .ConfigureAwait(false);
+        return value ?? throw new JsonException("A JSON object is required.");
+    }
+
+    private static void SetNoStore(HttpResponse response)
+    {
+        response.Headers.CacheControl = "no-store";
+        response.OnStarting(
+            static state =>
+            {
+                ((HttpResponse)state).Headers.CacheControl = "no-store";
+                return Task.CompletedTask;
+            },
+            response);
     }
 }
 

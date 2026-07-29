@@ -85,8 +85,10 @@ Production observability is intentionally absent until the observability add-bac
 `AtomiCloud.Diene.AuthEngine` covers both directions of a Logto-compatible auth
 boundary: server-side token validation with scope and home-landscape policies,
 and client-side credential acquisition with rotating refresh and session
-revocation. `AtomiCloud.Diene.AuthEngine.TestHelper` provides the identity
-provider, token, and per-backend onboarding fakes consumers must stand in for.
+revocation. It also ships the deferred app-handoff mint/redeem module and the
+full Logto management seam. `AtomiCloud.Diene.AuthEngine.TestHelper` provides
+the identity-provider, token, management, deferred-store, and per-backend
+onboarding fakes consumers must stand in for.
 
 ```bash
 dotnet add package AtomiCloud.Diene.AuthEngine
@@ -99,6 +101,7 @@ The engine is enable-able, not implicit. Register it once and map its endpoints
 under the configured mount:
 
 ```csharp
+using AtomiCloud.Diene.AuthEngine;
 using AtomiCloud.Diene.AuthEngine.Config;
 using AtomiCloud.Diene.AuthEngine.Module;
 
@@ -114,6 +117,9 @@ var config = AuthEngineConfig
     .Create(logto, HandoffConfig.Default, TokenLifetimeConfig.Default, "home_landscape")
     .Get();
 
+// The library deliberately installs no production store. This implementation
+// must be persistent and Consume must claim one nonce atomically.
+builder.Services.AddSingleton<IDeferredTokenStore>(persistentDeferredStore);
 builder.Services.AddAtomiAuthEngine(config);
 
 var app = builder.Build();
@@ -123,6 +129,34 @@ app.MapAtomiAuthEngine(config);
 The OIDC issuer is baked in at build time and compared against directly, so a
 compromised discovery document cannot move trust to another issuer. Only the
 signing keys come from discovery.
+
+Register `AppHandoffExpired` with the Problems pipeline through
+`AddAtomiAuthEngineProblems(config)` and enable its exception handler. Every
+malformed, missing, expired, replayed, rebound, deleted, suspended, or
+upstream-failed redeem then produces the same RFC 9457 `410` response without
+revealing account state.
+
+### Use deferred app handoff
+
+One `MapAtomiAuthEngine(config)` call exposes exactly three routes beneath the
+configured mount:
+
+| Route                 | Contract                                                                                                    |
+| --------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `POST {mount}`        | Authenticated empty JSON object; returns a 43-character nonce and its 15-minute expiry.                     |
+| `POST {mount}/redeem` | Strict `{nonce, device}` JSON; returns the Logto one-time token, current email, and fixed `expiresIn: 120`. |
+| `GET {mount}/session` | Returns the validated bearer-token session view.                                                            |
+
+The store receives only the lowercase SHA-256 digest, never the raw nonce.
+`Consume` must perform one atomic `Active` → `Claimed` transition, and `Settle`
+must make `Consumed` and `Revoked` terminal. Redeem re-resolves the stored OIDC
+subject once, refuses a missing/suspended/email-rebound user, and mints the
+provider token only after that check. A claimed record is never made active
+again, including after a process crash or provider failure.
+
+The redeem request is case-sensitive and rejects unknown top-level or device
+keys. Its device object requires `platform` (`android` or `ios`) and may carry
+`appVersion`, `osVersion`, and `model` telemetry.
 
 ### Guard a request
 
@@ -172,7 +206,22 @@ var token = issuer.MintValidFor("user-1", "https://api.example.com", now, TimeSp
 so a validator with its signature check disabled cannot pass a suite built on it.
 Advance `FakeAuthClock` to exercise expiry without waiting.
 
+The TestHelper also provides a genuinely atomic deferred-store fake and a
+stateful management fake:
+
+```csharp
+var store = new InMemoryDeferredTokenStore(clock);
+var management = new FakeAuthManagement();
+management.SetUser(new AuthManagementUser("user-1", "owner@example.test", false));
+
+var minter = new DeferredTokenMinter(store, management, clock);
+var handoff = (await minter.Mint(
+    new DeferredPayload("user-1", "owner@example.test"))).Get();
+var exchange = (await minter.Exchange(handoff.Nonce)).Get();
+```
+
 Run `nix develop .#ci -c ./scripts/ci/pkg-validate.sh` to pack both packages,
-validate metadata and symbols, and restore them into a scratch consumer. See
-[the library baseline](docs/developer/dotnet-lib-baseline.md) for release and
-promotion guidance.
+positive-control their managed public surfaces, prove one mapping call exposes
+all three routes, validate metadata and symbols, and restore them into a scratch
+consumer. See [the library baseline](docs/developer/dotnet-lib-baseline.md) for
+release and promotion guidance.

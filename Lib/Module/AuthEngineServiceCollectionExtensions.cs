@@ -1,8 +1,10 @@
+using AtomiCloud.Diene.AuthEngine;
 using AtomiCloud.Diene.AuthEngine.Client;
 using AtomiCloud.Diene.AuthEngine.Config;
 using AtomiCloud.Diene.AuthEngine.Policy;
 using AtomiCloud.Diene.AuthEngine.Tokens;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace AtomiCloud.Diene.AuthEngine.Module;
 
@@ -13,8 +15,8 @@ namespace AtomiCloud.Diene.AuthEngine.Module;
 public static class AuthEngineServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers configuration, the clock, key resolution, token validation, the guard,
-    /// and the client-side credential surface.
+    /// Registers configuration, token validation, the Logto adapters, the guard, and
+    /// the deferred minter. The persistent deferred store remains consumer-owned.
     /// </summary>
     /// <remarks>
     /// The clock and key resolver are registered with <c>TryAdd</c> so a consumer that has
@@ -38,6 +40,11 @@ public static class AuthEngineServiceCollectionExtensions
 
         services.AddHttpClient<ISigningKeyResolver, OpenIdSigningKeyResolver>();
         services.AddHttpClient<ICredentialClient, LogtoCredentialClient>();
+        services.AddHttpClient<LogtoAuthManagement>();
+
+        services.TryAddTransient<IAuthManagement>(serviceProvider =>
+            serviceProvider.GetRequiredService<LogtoAuthManagement>());
+        services.TryAddTransient<IDeferredTokenMinter, DeferredTokenMinter>();
 
         services.AddSingleton<ITokenValidator, JwtTokenValidator>();
         services.AddSingleton<AuthGuard>();

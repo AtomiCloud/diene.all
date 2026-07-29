@@ -21,13 +21,15 @@ public class AuthEngineEndpoints_Mapping
     }
 
     [Fact]
-    public void Mounts_the_session_route_beneath_the_configured_mount()
+    public void One_mapping_call_mounts_mint_redeem_and_session_at_the_default_path()
     {
         using var app = Host();
 
         app.MapAtomiAuthEngine(AuthEngineFixture.Config()).Should().NotBeNull();
 
-        RoutePatterns(app).Should().ContainSingle().Which.Should().Be("/app-handoff/session");
+        RoutePatterns(app).Should().BeEquivalentTo(
+            ["/app-handoff", "/app-handoff/redeem", "/app-handoff/session"],
+            options => options.WithStrictOrdering());
     }
 
     [Fact]
@@ -56,7 +58,9 @@ public class AuthEngineEndpoints_Mapping
 
         app.MapAtomiAuthEngine(config);
 
-        RoutePatterns(app).Should().ContainSingle().Which.Should().Be("/auth/handoff/session");
+        RoutePatterns(app).Should().BeEquivalentTo(
+            ["/auth/handoff", "/auth/handoff/redeem", "/auth/handoff/session"],
+            options => options.WithStrictOrdering());
     }
 
     /// <summary>

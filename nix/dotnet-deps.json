@@ -1,5 +1,15 @@
 [
   {
+    "pname": "AtomiCloud.Diene.AuthEngine",
+    "version": "1.0.0",
+    "hash": "sha256-JTAQ1//3P3GcfTtRDQBM6tEZYoqOA8Hjs01flU7hJ20="
+  },
+  {
+    "pname": "AtomiCloud.Diene.AuthEngine.TestHelper",
+    "version": "1.0.0",
+    "hash": "sha256-gTW9181AhkM5w1gTDMsCB7ItHR3IWBUA6MJrpB9jh/A="
+  },
+  {
     "pname": "AtomiCloud.Diene.CoreUtils",
     "version": "1.0.0",
     "hash": "sha256-gc+7c7/QsMA2I/F94aQdF5spHoLwqEOIbYCf9t4SavY="

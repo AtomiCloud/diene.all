@@ -15,6 +15,7 @@ mkdir -p "${artifacts}"
 echo "📦 Packing release ${version}..."
 dotnet pack dotnet-base.slnx -c Release --output "${artifacts}"
 ./scripts/validate/dotnet-package.sh inventory "${artifacts}" "${version}"
+./scripts/validate/auth-engine-package-surface.sh "${artifacts}" "${version}"
 
 echo "🚀 Publishing packages and symbols with skip-duplicate..."
 for package in "${artifacts}"/*.nupkg; do

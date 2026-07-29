@@ -73,6 +73,42 @@ Every expiry decision reads the instant through `IAuthClock`. No wall clock is
 consulted implicitly, which is what makes lifetime behaviour testable without
 waiting.
 
+## Deferred app handoff fails closed
+
+The enable-able endpoint module maps its entire HTTP surface through one
+`MapAtomiAuthEngine(config)` call. The configured mount defaults to
+`/app-handoff`; it is not hardcoded:
+
+| Route                 | Purpose                                                             |
+| --------------------- | ------------------------------------------------------------------- |
+| `POST {mount}`        | Validate the web bearer token and mint a handoff nonce.             |
+| `POST {mount}/redeem` | Atomically claim the nonce and mint a Logto one-time sign-in token. |
+| `GET {mount}/session` | Return the validated session projection.                            |
+
+The web route stores the validated OIDC subject and email behind a cryptographic
+32-byte nonce. Only its lowercase SHA-256 digest reaches storage. The nonce
+lives exactly 15 minutes; the Logto token is deliberately not minted until
+redeem and lives exactly 120 seconds.
+
+`IDeferredTokenStore.Consume` owns the atomic `Active` → `Claimed` transition.
+It cannot be implemented as a read followed by a write: two devices may redeem
+the same install carrier concurrently. `Settle` records `Consumed` or `Revoked`
+as a terminal state. A crash after claim therefore refuses replay instead of
+making the nonce active again.
+
+After claim, redeem performs one Management API lookup for the stored subject.
+A missing or suspended user, a missing primary email, or an ASCII-case-
+insensitive mismatch from the mint-time email revokes the nonce. Only a matching
+identity can mint the Logto token. Every malformed, missing, expired, replayed,
+rebound, account-state, storage, or provider failure is deliberately rendered
+as the same `AppHandoffExpired` RFC 9457 `410` response with no-store caching;
+the endpoint must not become an account-state oracle.
+
+The library registers the real Logto `IAuthManagement` adapter but no production
+deferred store. The service must provide a persistent implementation; the
+TestHelper's in-memory store exists for tests and implements the same atomic
+claim and terminal-state invariants.
+
 ## Onboarding is claims-first
 
 `OnboardingCoordinator` consults the home-landscape claim on the validated token
@@ -95,3 +131,8 @@ what the next request's token actually says.
 Instants are ISO 8601 / RFC 3339 in UTC, per the C0 serialization contract, and
 the shipped surface reuses `AtomiCloud.Diene.CoreUtils` codecs rather than
 re-deriving them.
+
+Deferred mint accepts only an empty JSON object. Redeem requires a `nonce` and a
+`device` with a lowercase `android` or `ios` platform; optional `appVersion`,
+`osVersion`, and `model` telemetry is accepted. Property names are
+case-sensitive, and unknown top-level or device properties are rejected.

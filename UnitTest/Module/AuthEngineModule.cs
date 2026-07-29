@@ -1,3 +1,4 @@
+using AtomiCloud.Diene.AuthEngine;
 using AtomiCloud.Diene.AuthEngine.Client;
 using AtomiCloud.Diene.AuthEngine.Config;
 using AtomiCloud.Diene.AuthEngine.Module;
@@ -18,6 +19,7 @@ public class AuthEngineModule
     {
         var services = new ServiceCollection();
         services.AddLogging();
+        services.AddSingleton<IDeferredTokenStore>(new InMemoryDeferredTokenStore());
 
         services.AddAtomiAuthEngine(AuthEngineFixture.Config());
 
@@ -28,8 +30,30 @@ public class AuthEngineModule
         provider.GetRequiredService<ITokenValidator>().Should().BeOfType<JwtTokenValidator>();
         provider.GetRequiredService<ISigningKeyResolver>().Should().BeOfType<OpenIdSigningKeyResolver>();
         provider.GetRequiredService<ICredentialClient>().Should().BeOfType<LogtoCredentialClient>();
+        provider.GetRequiredService<IAuthManagement>().Should().BeOfType<LogtoAuthManagement>();
+        provider.GetRequiredService<IDeferredTokenMinter>().Should().BeOfType<DeferredTokenMinter>();
         provider.GetRequiredService<AuthGuard>().Should().NotBeNull();
         provider.GetRequiredService<TokenCache>().Should().NotBeNull();
+    }
+
+    [Fact]
+    public void Keeps_consumer_management_and_minter_overrides_without_installing_a_store()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        var clock = AuthEngineFixture.Clock();
+        var store = new InMemoryDeferredTokenStore(clock);
+        var management = new FakeAuthManagement();
+        var minter = new DeferredTokenMinter(store, management, clock);
+        services.AddSingleton<IAuthManagement>(management);
+        services.AddSingleton<IDeferredTokenMinter>(minter);
+
+        services.AddAtomiAuthEngine(AuthEngineFixture.Config());
+
+        services.Should().NotContain(descriptor => descriptor.ServiceType == typeof(IDeferredTokenStore));
+        using var provider = services.BuildServiceProvider();
+        provider.GetRequiredService<IAuthManagement>().Should().BeSameAs(management);
+        provider.GetRequiredService<IDeferredTokenMinter>().Should().BeSameAs(minter);
     }
 
     [Fact]

@@ -4,7 +4,7 @@
     <RootNamespace>AtomiCloud.Diene.AuthEngine.TestHelper</RootNamespace>
     <AssemblyName>AtomiCloud.Diene.AuthEngine.TestHelper</AssemblyName>
     <PackageId>AtomiCloud.Diene.AuthEngine.TestHelper</PackageId>
-    <Description>IdP, token, and per-backend onboarding fakes plus assertions for AtomiCloud.Diene.AuthEngine.</Description>
+    <Description>IdP, token, management, deferred-store, and onboarding fakes plus assertions for AtomiCloud.Diene.AuthEngine.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IsPackable>true</IsPackable>
   </PropertyGroup>

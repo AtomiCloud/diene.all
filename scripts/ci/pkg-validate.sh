@@ -13,6 +13,7 @@ echo "📦 Packing library and TestHelper at ${version}..."
 dotnet pack dotnet-base.slnx -c Release --output "${artifacts}"
 
 ./scripts/validate/dotnet-package.sh inventory "${artifacts}" "${version}"
+./scripts/validate/auth-engine-package-surface.sh "${artifacts}" "${version}"
 ./scripts/validate/dotnet-package.sh metadata "${artifacts}" "${version}"
 ./scripts/validate/dotnet-package.sh symbols "${artifacts}" "${version}"
 

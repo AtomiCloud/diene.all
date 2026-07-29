@@ -4,7 +4,7 @@
     <RootNamespace>AtomiCloud.Diene.AuthEngine</RootNamespace>
     <AssemblyName>AtomiCloud.Diene.AuthEngine</AssemblyName>
     <PackageId>AtomiCloud.Diene.AuthEngine</PackageId>
-    <Description>Logto-compatible token validation, scope policy checks, and client-credentials acquisition for Diene services.</Description>
+    <Description>Logto-compatible token validation, policy checks, credential acquisition, management, and deferred app handoff for Diene services.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IsPackable>true</IsPackable>
   </PropertyGroup>
