@@ -17,3 +17,22 @@ coverage:
     exclude:
       - '[Lib*]*'
       - '[*]*.Program'
+      # Microsoft's OpenApi XML-comment SOURCE GENERATOR emits into the App assembly, so
+      # `[App*]*` sweeps its output into the denominator. It is 434 coverable lines at 1.38%
+      # covered — 428 of the 1086 uncovered lines, 39% of the whole gap — and it is Microsoft's
+      # code, not this service's. Writing tests against it would be testing their generator.
+      #
+      # An exclusion changes what this gate MEANS, so the reason lives here where the gate is
+      # read, not only in a commit message.
+      #
+      # THIS IS NOT A ROUTE TO 80. Measured: 54.06% with no exclusion, 65.91% with this one and
+      # the tests that existed when it was proposed. It removes a denominator that was never
+      # ours; it does not remove the work. 272 lines of real tests were still required after it.
+      - '[App*]Microsoft.AspNetCore.OpenApi.Generated.*'
+      - '[App*]System.Runtime.CompilerServices.*OpenApiXmlCommentSupport*'
+      # EF-generated migration code is DELIBERATELY NOT EXCLUDED. The obvious move is "exclude
+      # generated code", and it would make this gate HARDER: EF generated is 86.02% covered
+      # because the migrations actually RUN in these tests, so excluding it drops the figure
+      # from 65.91% to 63.76%. An exclusion is not automatically subtractive in your favour —
+      # removing a region better covered than the average LOWERS the percentage. Measured, not
+      # assumed; do not "tidy" this by generalising the rule above.
