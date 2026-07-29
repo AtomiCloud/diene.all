@@ -2,25 +2,283 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"time"
 
-	"github.com/AtomiCloud/diene.go-lib/adapters/kv"
-	"github.com/AtomiCloud/diene.go-lib/lib/note"
-	"github.com/AtomiCloud/diene.go-lib/testhelper"
+	"github.com/AtomiCloud/diene.go-auth-engine/lib/authengine"
+	"github.com/AtomiCloud/diene.go-auth-engine/lib/deferred"
+	"github.com/AtomiCloud/diene.go-auth-engine/lib/logto"
+	"github.com/AtomiCloud/diene.go-auth-engine/lib/onboard"
+	"github.com/AtomiCloud/diene.go-auth-engine/testhelper"
+	"github.com/AtomiCloud/diene.go-errors-problems/lib/problem"
 )
 
 func main() {
 	ctx := context.Background()
-	memory := testhelper.NewMemoryStore()
-	value := note.New("Deadcode Consumer", "public surface")
-	service := note.NewService(memory)
-	_ = note.Slug(value.Slug)
-	_ = note.NamespacedKey("notes", value.Slug)
-	_ = service.Save(ctx, value)
-	_, _ = service.Load(ctx, value.Slug)
-	_ = memory.Save(ctx, value.Slug, value.Body)
-	_, _ = memory.Load(ctx, value.Slug)
-	redis := kv.NewRedisStore("127.0.0.1:6379")
-	_ = redis.Save
-	_ = redis.Load
-	_ = redis.Close
+
+	idp, _ := testhelper.NewFakeIDP(testhelper.FakeIDPOptions{
+		Issuer:        testhelper.DefaultIssuer,
+		Audience:      testhelper.DefaultAudience,
+		KeyID:         testhelper.DefaultKeyID,
+		KeyBits:       testhelper.DefaultKeyBits,
+		Now:           testhelper.FixedNow(),
+		ExtraProblems: nil,
+	})
+	problems := idp.Problems()
+	_ = idp.Issuer()
+	_ = idp.Audience()
+	_ = idp.Keys()
+	_ = idp.Clock()
+	idp.Advance(0)
+	access, _ := idp.MintAccessToken(testhelper.TokenRequest{Subject: testhelper.DefaultSubject})
+	identity, _ := idp.MintIDToken(testhelper.TokenRequest{})
+
+	validator, _ := idp.Validator()
+	principal, _ := validator.Validate(ctx, access)
+	_, _ = validator.ValidateIDToken(ctx, identity)
+	_ = validator.Issuer()
+	_, _ = validator.ExtractOnboarding(ctx, authengine.OnboardingTokens{
+		Access: access, ID: identity, Authorization: principal.Subject,
+	})
+
+	claims := principal.Claims
+	_, _ = claims.Text(authengine.ClaimSubject)
+	_, _ = claims.Flag(authengine.ClaimEmailVerified)
+	_, _ = claims.List(authengine.ClaimRoles)
+	_, _ = claims.Space(authengine.ClaimScope)
+	_, _ = claims.Instant(authengine.ClaimExpiry)
+	_ = claims.Clone()
+	_ = principal.HasRole("admin")
+	_ = principal.HasScope("read:booking")
+	_ = principal.Registered("alcohol-zinc")
+	_ = authengine.RegistrationClaim("alcohol-zinc")
+	_ = authengine.NewClaimMapper().Map(claims)
+
+	_ = authengine.ProblemTypes()
+	_ = problems.Registry()
+	_, _ = problems.Catalog()
+	_ = problems.Raise(authengine.ProblemTokenMalformed, "", nil)
+	_ = problems.RaiseFrom(authengine.ProblemTokenExpired, nil, "", nil)
+	fmt.Println(
+		authengine.ProblemVersion,
+		authengine.ProblemTokenSignatureInvalid,
+		authengine.ProblemTokenIssuerMismatch,
+		authengine.ProblemTokenAudienceMismatch,
+		authengine.ProblemTokenClaimMissing,
+		authengine.ProblemTokenSubjectMismatch,
+		authengine.ProblemSigningKeyUnknown,
+		authengine.ProblemResourceUnregistered,
+		authengine.ProblemOwnershipDenied,
+		authengine.ProblemPolicyUnknown,
+		authengine.ProblemRegistrationMissing,
+		authengine.ProblemDeferredTokenUnknown,
+		authengine.ProblemDeferredTokenExpired,
+		authengine.ProblemDeferredTokenConsumed,
+		authengine.ProblemRefreshTokenReused,
+		authengine.ProblemRefreshTokenUnknown,
+		authengine.ProblemOnboardingStalled,
+		authengine.ProblemHomeLandscapeUnresolved,
+		authengine.ProblemProviderUnavailable,
+		authengine.ProblemConfigInvalid,
+		authengine.ClaimIssuer,
+		authengine.ClaimAudience,
+		authengine.ClaimUsername,
+		authengine.ClaimEmail,
+		authengine.ClaimHomeLandscape,
+		authengine.AccessTokenLifetime,
+		authengine.RefreshTokenLifetime,
+		authengine.DeferredTokenLifetime,
+		authengine.OneTimeTokenLifetime,
+		authengine.DefaultRefreshSkew,
+		authengine.DefaultClockSkew,
+		authengine.DefaultAlgorithms,
+		authengine.DefaultTokenNamespace,
+		authengine.DefaultTokenConcurrency,
+		authengine.DefaultHandoffPath,
+		authengine.ConfigBlockKey,
+	)
+
+	config := authengine.Config{
+		IDP: authengine.IDPConfig{
+			Issuer:  idp.Issuer(),
+			JWKSURI: "https://idp.invalid/jwks",
+			Management: authengine.ManagementConfig{
+				Endpoint: "https://idp.invalid",
+				Resource: "https://management.invalid",
+				ClientID: "management",
+			},
+		},
+		Minting: authengine.MintingConfig{
+			TokenEndpoint: "https://idp.invalid/token",
+			ClientID:      "zinc",
+		},
+		Resources: []authengine.ResourceConfig{
+			{Name: "alcohol-zinc", Indicator: "https://api.zinc.invalid", Scopes: nil},
+		},
+		Policies: authengine.PolicySet{
+			"OnlyAdmin": {Kind: authengine.PolicyAll, Field: authengine.ClaimRoles, Target: []string{"admin"}},
+		},
+	}
+	_ = config.IDP.Leeway()
+	_ = config.Minting.Skew()
+	_ = config.Minting.Mount()
+	_ = authengine.ConfigBlockSchema()
+	tree, _ := config.Tree(problems)
+	_ = tree.Resources()
+	_ = tree.Names()
+	_, _ = tree.Lookup("alcohol-zinc")
+	resource, _ := tree.Require("alcohol-zinc")
+
+	provider := testhelper.NewFakeProvider(testhelper.FakeProviderOptions{Now: testhelper.FixedNow()})
+	provider.EnqueueResourceTokenError(nil)
+	provider.EnqueueRefreshError(nil)
+	provider.EnqueueClientCredentialsError(nil)
+	provider.EnqueueOneTimeTokenError(nil)
+	provider.EnqueueClaimError(nil)
+	_ = provider.Minted()
+	_ = provider.ResourceTokenCalls()
+	_ = provider.RefreshCalls()
+	_ = provider.ClientCredentialsCalls()
+	_ = provider.OneTimeTokenCalls()
+	_ = provider.ClaimCalls()
+	_ = testhelper.ErrFakeProvider
+
+	session := authengine.Session{Subject: principal.Subject, RefreshToken: "refresh-1"}
+	source := authengine.NewSessionSource(provider, session)
+	_ = source.Session()
+	_, _ = source.Mint(ctx, resource)
+	machine := authengine.NewClientCredentialsSource(provider)
+	_, _ = machine.Mint(ctx, resource)
+
+	store := testhelper.NewMemoryTokenStore()
+	store.EnqueueError(nil)
+	_ = store.Keys()
+	cache, _ := authengine.NewTokenCache(authengine.TokenCacheOptions{
+		Tree: tree, Store: store, Source: machine, Problems: problems, Clock: idp.Clock(),
+	})
+	token, _ := cache.Token(ctx, "alcohol-zinc")
+	_, _ = cache.All(ctx)
+	_ = cache.Invalidate(ctx, "alcohol-zinc")
+	_, _ = cache.Key("alcohol-zinc")
+	_ = token.Expired(testhelper.FixedNow(), 0)
+	_ = token.TTL(testhelper.FixedNow())
+
+	refreshStore := testhelper.NewMemoryRefreshStore()
+	refreshStore.EnqueueError(nil)
+	_ = refreshStore.Records()
+	rotator, _ := authengine.NewRotator(authengine.RotatorOptions{
+		Provider: provider, Store: refreshStore, Problems: problems,
+		Clock: idp.Clock(), Lifetime: authengine.RefreshTokenLifetime,
+	})
+	_ = rotator.Issue(ctx, session)
+	_, _ = rotator.Rotate(ctx, "refresh-1")
+	_, _ = rotator.Fingerprint("refresh-1")
+
+	checker := authengine.ClaimScopeChecker{}
+	_ = checker.Scope(principal, authengine.ClaimRoles)
+	_ = checker.HasAny(principal, authengine.ClaimRoles, []string{"admin"})
+	_ = checker.HasAll(principal, authengine.ClaimRoles, []string{"admin"})
+	guard, _ := idp.Guard()
+	_, _ = authengine.NewGuard(authengine.GuardOptions{
+		Problems: problems, Checker: checker, Logs: nil, Clock: idp.Clock(),
+	})
+	target := principal.Subject
+	_ = guard.Sub(principal, &target)
+	_ = guard.SubOrAny(principal, &target, authengine.ClaimRoles, "admin")
+	_ = guard.SubOrAll(principal, &target, authengine.ClaimRoles, "admin")
+	_ = guard.Registered(principal, "alcohol-zinc")
+	_ = guard.Policy(principal, config.Policies, "OnlyAdmin")
+	_ = config.Policies.Names()
+	_ = authengine.PolicyAny
+
+	deferredStore := testhelper.NewMemoryDeferredStore()
+	deferredStore.EnqueueError(nil)
+	_ = deferredStore.Digests()
+	minter, _ := deferred.NewMinter(deferred.MinterOptions{
+		Store: deferredStore, Provider: provider, Problems: problems,
+		Clock: idp.Clock(), Lifetime: authengine.DeferredTokenLifetime,
+	})
+	handoff, _ := minter.Mint(ctx, session, nil)
+	_, _ = minter.Exchange(ctx, handoff.Token)
+	_ = deferred.Digest(handoff.Token)
+	_ = deferred.Nonce()
+	referrer, _ := deferred.AndroidReferrer(handoff, "")
+	_, _, _ = deferred.ParseAndroidReferrer(referrer)
+	payload, _ := deferred.ClipboardPayload(handoff, "")
+	_, _, _ = deferred.ParseClipboardPayload(payload)
+	carrier := &deferred.CarrierError{Field: deferred.CarrierTokenField}
+	fmt.Println(carrier.Error(), deferred.CarrierExpiryField, deferred.CarrierMountField, deferred.ClipboardMarker)
+	_ = deferred.Record{
+		Digest: "d", Subject: "s", Email: nil,
+		IssuedAt: testhelper.FixedNow(), ExpiresAt: testhelper.FixedNow(), Consumed: false,
+	}
+
+	backend := testhelper.NewFakeBackend(testhelper.FakeBackendOptions{
+		Name: "alcohol-zinc", Exists: false, NeedsConfiguration: false,
+	})
+	backend.EnqueueExistsError(nil)
+	backend.EnqueueCreateError(nil)
+	backend.EnqueueConfiguredError(nil)
+	_ = backend.Registrations()
+	_ = backend.Tokens()
+	refresher := testhelper.NewFakeRefresher(principal)
+	refresher.Enqueue(principal)
+	refresher.EnqueueError(nil)
+	_ = refresher.Calls()
+	round, _ := onboard.NewSync(onboard.SyncOptions{
+		Backends: []onboard.Backend{backend}, Claims: provider,
+		Refresher: refresher, Tokens: cache, Problems: problems,
+	})
+	states, _ := round.Run(ctx, principal)
+	_ = states["alcohol-zinc"].Ready()
+	_ = onboard.ErrNoBackends
+	_ = onboard.RawIDTokenClaim
+	fmt.Println(
+		onboard.PhasePreOnboarding, onboard.PhaseBootstrapping,
+		onboard.PhaseNeedsOnboarding, onboard.PhaseReady, onboard.PhaseError,
+	)
+
+	pinger := testhelper.NewFakePinger()
+	pinger.SetLatency("lapras", 1)
+	pinger.SetError("mew", nil)
+	_ = pinger.Calls()
+	_, _ = pinger.Ping(ctx, onboard.Landscape{Name: "lapras", Healthy: true})
+	_ = testhelper.ErrLandscapeUnreachable
+	selector, _ := onboard.NewSelector(onboard.SelectorOptions{Pinger: pinger, Problems: problems})
+	document := []onboard.Landscape{{Name: "lapras", Display: "SG", Region: "apac", Healthy: true}}
+	home, _ := selector.Home(ctx, principal, document)
+	_, _ = selector.Pick(ctx, document)
+	_ = selector.Claim(ctx, provider, principal.Subject, home)
+
+	client, _ := logto.NewClient(logto.ClientOptions{
+		Config: config, HTTP: nil, Problems: problems, Clock: idp.Clock(),
+	})
+	_, _ = client.ResourceToken(ctx, authengine.ResourceTokenRequest{
+		Subject: principal.Subject, RefreshToken: "refresh-1", Resource: resource,
+	})
+	_, _ = client.ClientCredentials(ctx, authengine.ClientCredentialsRequest{Resource: resource})
+	_, _ = client.Refresh(ctx, "refresh-1")
+	_, _ = client.MintOneTimeToken(ctx, authengine.OneTimeTokenRequest{Subject: principal.Subject})
+	_ = client.SetClaim(ctx, principal.Subject, "alcohol_zinc", "true")
+	keys, _ := logto.NewRemoteJWKS(ctx, config.IDP.JWKSURI, problems)
+	_, _ = keys.Key(ctx, testhelper.DefaultKeyID)
+	_, _ = logto.NewJWKS(nil, problems)
+
+	_ = testhelper.SampleErrorPortal()
+	_ = testhelper.HeaderKeyID
+	_ = testhelper.ProblemID(problem.Problem{Type: "about:blank"})
+	testhelper.AssertAuthProblem(reporter{}, nil, authengine.ProblemTokenExpired)
+	testhelper.AssertNoAuthProblem(reporter{}, nil)
+	testhelper.AssertOwnershipDenied(reporter{}, nil)
+	testhelper.AssertPhase(reporter{}, states, "alcohol-zinc", onboard.PhaseReady)
+	_, _ = testhelper.CheckAuthProblem(nil, "")
+	_ = testhelper.CheckPhase(states, "alcohol-zinc", onboard.PhaseReady)
+	_ = time.Second
 }
+
+// reporter satisfies testhelper.TestingT outside a test binary.
+type reporter struct{}
+
+func (reporter) Helper() {}
+
+func (reporter) Fatalf(string, ...any) {}
