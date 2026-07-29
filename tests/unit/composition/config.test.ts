@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { ConfigValidationError } from '@atomicloud/diene.config';
 import { InMemoryConfigSource } from '@atomicloud/diene.config/test-helper';
 import { createMercuryConfigLoader, loadMercuryConfig } from '../../../src/composition/config';
+import { initializeMercuryTelemetry } from '../../../src/composition/telemetry';
 
 const shippedConfigDirectory = new URL('../../../config/', import.meta.url).pathname;
 
@@ -130,6 +131,34 @@ describe('Mercury configuration composition', () => {
     expect(config('app').previewDeliveryVisible).toBe(true);
     expect(config('app').platform).toBe('mercury');
     expect(config('topology').services['zinc/checkout']?.module).toBe('checkout');
+  });
+
+  test('projects the typed application identity into the telemetry runtime', async () => {
+    const source = new InMemoryConfigSource({
+      base: {
+        ...validBase,
+        otel: {
+          logs: { ...validBase.otel.logs, enabled: false },
+          metrics: { ...validBase.otel.metrics, enabled: false },
+          traces: { ...validBase.otel.traces, enabled: false },
+        },
+      },
+    });
+    const config = await createMercuryConfigLoader({ source, landscape: 'serving' }).load();
+    const telemetry = initializeMercuryTelemetry(config);
+
+    try {
+      expect(telemetry.identity).toEqual({
+        landscape: 'serving',
+        platform: 'mercury',
+        service: 'webhook',
+        module: 'hooks',
+        version: '1.0.0',
+      });
+      expect(telemetry.active).toEqual({ logs: false, metrics: false, traces: false });
+    } finally {
+      await telemetry.shutdown();
+    }
   });
 
   test('ships a valid production provider-operation contract with secret references only', async () => {
