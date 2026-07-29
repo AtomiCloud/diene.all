@@ -32,7 +32,13 @@ export default {
       name: 'mutation-worker-mode-sit-caught',
       description: 'Broken worker-mode dispatch turns the worker journey red.',
       kind: 'mutation',
-      expectedImpact: [],
+      // Same-template collateral (R-E18), empirically observed live against the SIT
+      // stack: disabling worker dispatch reddens exactly the sibling rows that drive
+      // `worker --once` — message-journey-sit and otel-export-sit. db-init-mode-sit and
+      // db-init-idempotency-sit run only `db-init` and stay GREEN, so this row keeps two
+      // clean controls and its `caught` is FULLY proven (not half-proven). Cross-template
+      // impact is out of scope here (KNOWN-INSUFFICIENT via expectedImpact, R-E18a).
+      expectedImpact: ['message-journey-sit', 'otel-export-sit'],
       async run(repo: any) {
         // ONE fault: neuter the composition root's WORKER dispatch specifically, so
         // the `worker` subcommand refuses to enter the consume loop while `db-init`

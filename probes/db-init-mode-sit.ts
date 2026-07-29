@@ -25,7 +25,15 @@ export default {
       name: 'mutation-db-init-mode-sit-caught',
       description: 'Broken db-init dispatch turns the one-shot journey red.',
       kind: 'mutation',
-      expectedImpact: [],
+      // Same-template collateral (R-E18), empirically observed live: `db-init` is the
+      // FIRST step of every sibling journey, so disabling its dispatch reddens ALL four
+      // other SIT rows. This ONE fault (S26) has total blast radius because db-init is the
+      // shared bootstrap, not because the sabotage is multi-fault — R-E18 guard (b) is not
+      // triggered (it cannot be narrowed: this is already the minimal db-init fault).
+      // Because expectedImpact declares away EVERY co-selected control, NO clean control
+      // survives, so this row's `caught` is only HALF-PROVEN (read-verdict.ts flags it).
+      // The durable disposition is an R-E7 partition; that is not in this scope.
+      expectedImpact: ['worker-mode-sit', 'db-init-idempotency-sit', 'message-journey-sit', 'otel-export-sit'],
       async run(repo: any) {
         // ONE fault: neuter the DB-INIT dispatch specifically, leaving worker and
         // health intact — this is a different mechanism from worker-mode dispatch and

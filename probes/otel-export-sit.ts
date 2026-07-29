@@ -26,7 +26,15 @@ export default {
       description:
         'Pointing the exporter endpoint the SIT actually honours at an address that accepts no OTLP turns the otel-export journey red — telemetry never reaches the backends — while the app itself stays healthy.',
       kind: 'mutation',
-      expectedImpact: [],
+      // Same-template collateral (R-E18), empirically observed live — and NOT the "app
+      // stays healthy" this row's prose assumes. EVERY command (worker AND db-init) builds
+      // the telemetry runtime, and `runtime.Close` flushes the OTLP exporter to the
+      // black-holed endpoint, blocking ~65s and then erroring, so the command exits
+      // non-zero. Every one of the four sibling rows therefore reddens. Because
+      // expectedImpact declares away EVERY co-selected control, NO clean control survives
+      // and this row's `caught` is only HALF-PROVEN (read-verdict.ts flags it). The durable
+      // disposition is a non-fatal exporter shutdown and/or an R-E7 partition; not my scope.
+      expectedImpact: ['worker-mode-sit', 'db-init-mode-sit', 'db-init-idempotency-sit', 'message-journey-sit'],
       async run(repo: any) {
         // ONE fault: point the OTLP exporter endpoint the SIT ACTUALLY USES at an
         // address that accepts no OTLP, so telemetry never reaches the backends while
