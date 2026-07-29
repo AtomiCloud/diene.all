@@ -142,21 +142,23 @@ journeys are documented in
 One command runs it:
 
 ```bash
-./scripts/ci/sit.sh
+pls test:sit
 ```
 
-`tasks/Taskfile.test.yaml` carries a `sit` task delegating to that same script, so
-the tier gains a `pls test:sit` entry as soon as the root `Taskfile.yaml` exposes
-it. Both routes run one script on purpose: two definitions of the same run drift,
-and a local green would then be free to describe a different run from a CI green.
+It delegates to `scripts/ci/sit.sh`, which is also exactly what CI runs. One
+definition of the run on purpose: two would drift, and a local green would then be
+free to describe a different run from a CI green.
 
-`bru` comes from `bruno-cli`, which is in the development shell. `bru --version`
-reports `1.16.0`.
+`bru` comes from `bruno-cli` and has to be on `PATH` for the tier to run at all:
 
-The recursive flag is `-r`. There is no `--recursive` alias on this version: the
-journeys live in numbered folders, and without `-r` the runner picks up only the
-requests at the collection root and reports a green tier that asserted almost
-nothing.
+```bash
+bru --version
+```
+
+The recursive flag is `-r`, and `bru` 1.16.0 has no `--recursive` alias — it
+rejects it outright. That distinction is worth knowing rather than discovering:
+the journeys all live in numbered folders, so a run that lost `-r` would pick up
+nothing and still report a tier.
 
 ## Promotion knobs
 

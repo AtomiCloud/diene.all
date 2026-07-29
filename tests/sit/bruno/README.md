@@ -19,13 +19,16 @@ runs too, so a local green and a CI green describe the same run. The script writ
 a JUnit report to `TestResults/sit/sit.junit.xml` and passes `--bail`, so the first
 failing request stops the run instead of producing a cascade.
 
-`bru` comes from `bruno-cli`, which is in the development shell; `bru --version`
-reports `1.16.0`.
+`bru` comes from `bruno-cli` and has to be on `PATH` for any of this to run:
 
-The recursive flag on that version is `-r`, and there is no `--recursive` alias.
-The journeys live in numbered folders, so a run without `-r` picks up only the
-requests at the collection root — which is none of them — and reports a green tier
-that asserted nothing.
+```bash
+bru --version
+```
+
+The recursive flag is `-r`, and `bru` 1.16.0 has no `--recursive` alias — it
+rejects it outright. The journeys all live in numbered folders, so a run that lost
+`-r` would pick up only the requests at the collection root, which is none of
+them, and still report a tier.
 
 ## Environment contract
 
