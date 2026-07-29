@@ -46,7 +46,13 @@
     "AppOption": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["Landscape", "Platform", "Service", "Module", "Version"],
+      "required": [
+        "Landscape",
+        "Platform",
+        "Service",
+        "Module",
+        "Version"
+      ],
       "properties": {
         "Landscape": {
           "type": "string",
@@ -229,7 +235,10 @@
     "ErrorPortalOption": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["Scheme", "Host"],
+      "required": [
+        "Scheme",
+        "Host"
+      ],
       "properties": {
         "Enabled": {
           "type": "boolean"
@@ -353,7 +362,9 @@
     "SignalOption": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["Enabled"],
+      "required": [
+        "Enabled"
+      ],
       "properties": {
         "Enabled": {
           "type": "boolean"
@@ -378,7 +389,9 @@
     "ConsoleExporterOption": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["Enabled"],
+      "required": [
+        "Enabled"
+      ],
       "properties": {
         "Enabled": {
           "type": "boolean"
@@ -388,7 +401,11 @@
     "OtlpExporterOption": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["Enabled", "Protocol", "Timeout"],
+      "required": [
+        "Enabled",
+        "Protocol",
+        "Timeout"
+      ],
       "properties": {
         "Enabled": {
           "type": "boolean"
@@ -420,7 +437,9 @@
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["Interval"],
+          "required": [
+            "Interval"
+          ],
           "properties": {
             "Interval": {
               "type": "string",
@@ -449,7 +468,9 @@
     "SamplerOption": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["Type"],
+      "required": [
+        "Type"
+      ],
       "properties": {
         "Type": {
           "type": "string",
