@@ -6,5 +6,3 @@ flags:
     carryforward: true
   int:
     carryforward: true
-  meta:
-    carryforward: true

@@ -9,8 +9,12 @@ let
     pname = "diene-go-base-dependencies";
     version = "0";
     src = ../.;
-    vendorHash = "sha256-NbeafHrobDMronPIB3abd5J/8dPfNtGNuQsI6vcj820=";
-    proxyVendor = true;
+    # errors-problems is a zero-dependency module: `go mod download` yields no
+    # modules, so buildGoModule's vendored-deps derivation must be null. A
+    # non-null hash over an empty vendor fails the fresh clean-closure build
+    # ("vendor folder is empty, please set 'vendorHash = null;'") — the T5 RED
+    # bake 20260722t145529z-7ba1be. No deps ⇒ no proxy vendoring needed.
+    vendorHash = null;
   };
   go-lint-runtime = pkgs.buildEnv {
     name = "go-base-lint-runtime";
@@ -22,7 +26,7 @@ let
       pkgs.coreutils
     ];
   };
-  go-lint = "${packages.bash}/bin/bash -c 'export PATH=${go-lint-runtime}/bin; export CGO_ENABLED=0; export GOPROXY=file://${go-deps.goModules}; export GOSUMDB=off; export GOMODCACHE=\"\${TMPDIR:-/tmp}/go-base-mod-cache\"; exec ${packages.golangci-lint}/bin/golangci-lint run --timeout 5m ./...'";
+  go-lint = "${packages.bash}/bin/bash -c 'export PATH=${go-lint-runtime}/bin; export CGO_ENABLED=0; export GOMODCACHE=\"\${TMPDIR:-/tmp}/go-base-mod-cache\"; exec ${packages.golangci-lint}/bin/golangci-lint run --timeout 5m ./...'";
   validator-runtime = pkgs.buildEnv {
     name = "workspace-validator-runtime";
     paths = [

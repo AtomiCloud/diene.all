@@ -1,7 +1,7 @@
 # Go library baseline
 
 This template publishes the module
-`github.com/AtomiCloud/diene.go-lib`. A materialized child changes the final
+`github.com/AtomiCloud/diene.go-core-utils`. A materialized child changes the final
 `go-lib` token to its library name in `.config/go-lib.yaml`, `go.mod`, mirror
 URLs, badges, documentation, and its usage-skill namespace. The mirror remains
 a single-module repository unless a concrete library proves otherwise.
@@ -20,10 +20,14 @@ All tests use external `_test` packages, and `export_test.go` is forbidden;
 `scripts/validate/go-black-box-tests.sh` (pre-commit hook `a-go-black-box`)
 enforces both by rejecting any `export_test.go` or non-`_test` test package.
 
-The sample `note` package and Redis adapter are fenced by their directories for
-wholesale replacement in materialized children. The module has no `main` or
-`cmd` package. `go build ./...`, `go vet ./...`, golangci-lint, govulncheck,
-strict deadcode, examples, and `gorelease` protect the resulting library shape.
+The public surface lives in `lib/coreutils`: deterministic slug/key,
+configuration-value, timing, and C0 temporal helpers. It depends on the family
+errors-problems and interfaces modules, has no adapters, no `testhelper`, and
+leaves the integration and meta tiers empty and no-op. The module has no `main`
+or `cmd` package.
+`go build ./...`, `go vet ./...`,
+golangci-lint, govulncheck, strict deadcode, examples, and `gorelease` protect
+the resulting library shape.
 
 ## Test pyramid and TestHelper
 
@@ -34,11 +38,11 @@ and `pls test:meta:coverage` run its black-box contract, failure, assertion, and
 fixture tests; when it does not exist, they succeed without uploading an empty
 Codecov flag. TestHelper code is excluded from the unit ledger.
 
-Choose a TestHelper only when consumers would otherwise repeat fakes,
-assertions, nondeterminism seams, or complex construction. Ship it as the
-`testhelper` subpackage and document its use in the module's single usage skill.
-For a NO verdict, keep the same skill but explain how to add a future helper
-without privileged test exports.
+This library's TestHelper verdict is NO: it exposes pure deterministic values,
+not seams, and stock equality assertions suffice. If future evidence introduces
+a real consumer seam or repeated nontrivial assertion, add a dependency-light
+`testhelper` package, black-box meta tests for it, activate its coverage flag,
+and document its use in the existing usage skill—never add test-only exports.
 
 ## Compatibility and major versions
 
