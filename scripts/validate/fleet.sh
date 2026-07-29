@@ -1264,9 +1264,17 @@ docker() {
         echo "Error response from daemon: No such image: ${ref}" >&2
         return 1
       }
-      # Only the fields the production assertions read are modeled.
+      # Only the fields the production assertions read are modeled. On the
+      # containerd image store .Id is the image's ROOT DESCRIPTOR digest, so it
+      # equals the pin; on the classic graph-driver store it is the config blob
+      # digest and cannot. SHIM_INSPECT_ID models that second daemon.
       jq -n --arg ref "${key}" --arg repoDigest "${repo_digest}" \
-        '[{Id: ($repoDigest | split("@")[1]), RepoTags: [$ref], RepoDigests: [$repoDigest]}]'
+        --arg id "${SHIM_INSPECT_ID:-}" \
+        '[{
+          Id: (if $id == "" then ($repoDigest | split("@")[1]) else $id end),
+          RepoTags: [$ref],
+          RepoDigests: [$repoDigest]
+        }]'
       ;;
     tag)
       local src="$1" dst="$2" repo_digest
@@ -1401,6 +1409,492 @@ HOSTIMAGEDRIVER
   grep -qxF "${hia_tag_ref}"$'\t'"${hia_digest_ref}" "${tmp}/r3/state" &&
     fail "R3 pulled bytes without the pin: the export tag was bound even though the digest guard failed"
   echo "  R3 an image whose RepoDigests omit the pin is still rejected by the immutable-digest guard ✓"
+
+  # R4 — the store-type assertion. The L9 save->import chain preserves the
+  # pinned INDEX digest only because this daemon runs the containerd image
+  # store. A classic graph-driver daemon reports a config blob digest as .Id,
+  # where the chain silently cannot hold; that must fail here, precisely, and
+  # not three steps later as an ambiguous node-digest mismatch.
+  mkdir -p "${tmp}/r4"
+  : >"${tmp}/r4/state"
+  SHIM_INSPECT_ID="sha256:$(printf 'd%.0s' {1..64})"
+  export SHIM_INSPECT_ID
+  hia_run "${tmp}/r4"
+  unset SHIM_INSPECT_ID
+  hia_expect 'R4 classic image store' 1 'not running the containerd image store' "${tmp}/r4"
+  echo "  R4 a classic-store daemon, whose .Id can never equal the pinned index digest, is rejected at the source ✓"
+  ;;
+sit-node-image-import | sit-node-image)
+  # Deterministic offline model of the L9 node-image IMPORT step, the leg that
+  # follows the host-image binding above. No docker daemon, no network, no
+  # cluster, no k3d — the gate runs anywhere `bash`, `jq`, `awk` and `sed` run.
+  #
+  # WHY THIS EXISTS. The recorded L9 abort in
+  # exec/nodes/fleet/evidence/failed-sit-c064c9c-run1 stacked TWO defects.
+  # (a) `k3d image import` runs `ctr image import --all-platforms` inside the
+  # node (k3d v5.8.3, pkg/client/tools.go:143). On a containerd-image-store
+  # daemon a digest-qualified pull fetches ONLY the linux/amd64 child while
+  # recording the whole multi-platform index as the image root, so the archive
+  # `docker save` emits is partial and an all-platforms walk aborts on the
+  # first absent child with `ctr: content digest sha256:…: not found`.
+  # (b) k3d's tools-mode importer never RETURNS that per-node error: it logs
+  # ERRO, returns nil, prints "Successfully imported image(s)" and exits 0. The
+  # preserved transcript carries exactly that shape three times, and the SIT —
+  # under `set -Eeuo pipefail` — walked straight past all three, only failing
+  # later at the honest node-inventory assertion.
+  #
+  # WHY IT RUNS PRODUCTION BYTES. Every function under test is EXTRACTED from
+  # scripts/ci/fleet-sit.sh and sourced, never transcribed here. A copy would
+  # drift and could go green while the SIT stayed red.
+  #
+  # WHAT THE SHIM IS ALLOWED TO MODEL. Only semantics the evidence bundle and
+  # the k3d/containerd sources establish: an unfiltered `docker image save`
+  # streams an archive whose root is the pinned index digest; walking every
+  # child of that index fails on the child the partial pull never fetched;
+  # `--platform linux/amd64` scopes the walk to content that is present. M0
+  # asserts the shim reproduces the RECORDED failure text, so a shim that
+  # trivially accepts everything cannot pass.
+  sit_source="scripts/ci/fleet-sit.sh"
+  sit_assert="${PWD}/scripts/validate/fleet-sit/assert.sh"
+  test -s "${sit_assert}" || fail "the SIT assertion library is missing: ${sit_assert}"
+  # The image coordinates come from the SIT's own pin file, so these fixtures
+  # can never drift away from the images the SIT actually imports.
+  # shellcheck source=scripts/validate/fleet-sit/pins.env disable=SC1091
+  source ./scripts/validate/fleet-sit/pins.env
+
+  nii_fns="${tmp}/node-image-fns.sh"
+  : >"${nii_fns}"
+  for nii_fn in \
+    kargo_runtime_canonical_image_tag \
+    kargo_runtime_import_node_image \
+    kargo_runtime_assert_import_transcript \
+    kargo_runtime_verify_node_image; do
+    sed -n "/^${nii_fn}() {\$/,/^}\$/p" "${sit_source}" >"${tmp}/nii-fn.sh"
+    test -s "${tmp}/nii-fn.sh" ||
+      fail "could not extract ${nii_fn}() from ${sit_source}; this gate must run production bytes, never a copy"
+    [ "$(tail -n 1 "${tmp}/nii-fn.sh")" = '}' ] ||
+      fail "the extracted ${nii_fn}() body is unterminated; refusing to assert on a truncated function"
+    cat "${tmp}/nii-fn.sh" >>"${nii_fns}"
+  done
+  grep -q 'docker image save' "${nii_fns}" ||
+    fail "the extracted import function does not stream a docker image save; the extraction is not the production function"
+  grep -q -- '--platform linux/amd64' "${nii_fns}" ||
+    fail "the extracted import function does not scope the node-side import to linux/amd64"
+  grep -q -- '--namespace k8s.io' "${nii_fns}" ||
+    fail "the extracted import function does not target the k8s.io containerd namespace the CRI reads"
+
+  # The offline driver. Generated, not committed, so nothing here can become a
+  # second copy of the production logic: it supplies the real sit_fail, sources
+  # the extracted functions, and shims `docker` (and the node-side `ctr` it
+  # execs) as shell functions over plain state files.
+  cat >"${tmp}/node-image-driver.sh" <<'NODEIMAGEDRIVER'
+#!/usr/bin/env bash
+# Generated by scripts/validate/fleet.sh (sit-node-image-import). Runs the
+# EXTRACTED production node-import bytes under the same `set -Eeuo pipefail`
+# regime the SIT uses, against docker/ctr shell-function shims. Never contacts
+# a daemon, a registry, or a cluster.
+set -Eeuo pipefail
+
+assert_lib="$1" # scripts/validate/fleet-sit/assert.sh, for the real sit_fail
+fn_file="$2"    # the extracted production functions
+state_dir="$3"  # the daemon-side and node-side model state
+report="$4"     # the production import function appends its transcript here
+case_name="$5"
+shift 5
+
+# shellcheck source=/dev/null
+source "${assert_lib}"
+# shellcheck source=/dev/null
+source "${fn_file}"
+
+node='k3d-fleet-sit-93320-server-0'
+host_state="${state_dir}/host-images.tsv" # <tag> <pinned index digest> <absent child>
+node_state="${state_dir}/node-images.tsv" # what the node's containerd now holds
+images="${state_dir}/images.tsv"          # <tag> <pinned index digest>
+
+shim_host_field() {
+  awk -F '\t' -v ref="$1" -v col="$2" \
+    '$1 == ref { print $col; hit = 1 } END { exit hit ? 0 : 1 }' "${host_state}"
+}
+
+shim_save() {
+  local ref="$1" digest
+  digest="$(shim_host_field "${ref}" 2)" || {
+    echo "Error response from daemon: No such image: ${ref}" >&2
+    return 1
+  }
+  # An UNFILTERED save keeps the archive root at the original pinned
+  # multi-platform index — that is what makes the node record's target digest
+  # equal the immutable pin — so the marker stream carries exactly that root.
+  printf 'FLEETSIT-ARCHIVE\t%s\t%s\n' "${ref}" "${digest}"
+}
+
+shim_ctr_list() {
+  cat "${state_dir}/inventory-header.txt"
+  [ ! -s "${state_dir}/inventory-base.txt" ] || cat "${state_dir}/inventory-base.txt"
+  local ref digest
+  while IFS=$'\t' read -r ref digest; do
+    [ -n "${ref}" ] || continue
+    printf '%s application/vnd.oci.image.index.v1+json %s 42.0 MiB linux/amd64 io.cri-containerd.image=managed\n' \
+      "${ref}" "${digest}"
+  done <"${node_state}"
+}
+
+shim_ctr() {
+  local namespace='' platform='' all_platforms=0
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+    --namespace | -n)
+      namespace="$2"
+      shift 2
+      ;;
+    --namespace=*)
+      namespace="${1#*=}"
+      shift
+      ;;
+    *) break ;;
+    esac
+  done
+  local group="${1:-}" verb="${2:-}"
+  case "${group}" in
+  image | images) ;;
+  *)
+    echo "shim: unmodeled ctr group: ${group}" >&2
+    return 1
+    ;;
+  esac
+  # The node inventory and the crictl assertion both read k8s.io; an import
+  # into any other namespace would be invisible to them.
+  [ "${namespace}" = 'k8s.io' ] ||
+    {
+      echo "shim: the node inventory requires namespace k8s.io, got '${namespace}'" >&2
+      return 1
+    }
+  shift 2 2>/dev/null || true
+  case "${verb}" in
+  list | ls)
+    shim_ctr_list
+    return 0
+    ;;
+  import) ;;
+  *)
+    echo "shim: unmodeled ctr verb: ${verb}" >&2
+    return 1
+    ;;
+  esac
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+    --all-platforms)
+      all_platforms=1
+      shift
+      ;;
+    --platform)
+      platform="$2"
+      shift 2
+      ;;
+    --platform=*)
+      platform="${1#*=}"
+      shift
+      ;;
+    *) shift ;; # the archive operand ('-' or a tarball path)
+    esac
+  done
+  local marker ref digest missing
+  IFS=$'\t' read -r marker ref digest || marker=''
+  [ "${marker}" = 'FLEETSIT-ARCHIVE' ] ||
+    {
+      echo "shim: the import stream is not a modeled docker save archive" >&2
+      return 1
+    }
+  missing="$(shim_host_field "${ref}" 3)"
+  if [ "${all_platforms}" -eq 1 ] || [ "${platform}" != 'linux/amd64' ]; then
+    # The recorded failure, reproduced: walking every child of the pinned index
+    # reaches a child the digest-qualified pull never fetched. The byte shape is
+    # taken from failed-sit-c064c9c-run1/kargo-runtime-image-imports.txt.
+    printf 'ctr: content digest %s: not found\n' "${missing}" >&2
+    return 1
+  fi
+  # containerd 1.7 ctr prints one line per image binding the stored name to the
+  # archive root descriptor — here the pinned index digest.
+  printf 'unpacking %s (%s)...done\n' "${ref}" "${digest}"
+  printf '%s\t%s\n' "${ref}" "${digest}" >>"${node_state}"
+}
+
+docker() {
+  local sub="$1"
+  shift
+  case "${sub}" in
+  image | images)
+    case "${1:-}" in
+    save)
+      shift
+      shim_save "$@"
+      ;;
+    *)
+      echo "shim: unmodeled docker image subcommand: ${1:-}" >&2
+      return 1
+      ;;
+    esac
+    ;;
+  save) shim_save "$@" ;;
+  exec)
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+      -i | -t | -it | --interactive | --tty) shift ;;
+      *) break ;;
+      esac
+    done
+    [ "${1:-}" = "${node}" ] ||
+      {
+        echo "shim: unmodeled exec target: ${1:-}" >&2
+        return 1
+      }
+    shift
+    [ "${1:-}" = 'ctr' ] ||
+      {
+        echo "shim: unmodeled exec command: ${1:-}" >&2
+        return 1
+      }
+    shift
+    shim_ctr "$@"
+    ;;
+  *)
+    echo "shim: unmodeled docker subcommand: ${sub}" >&2
+    return 1
+    ;;
+  esac
+}
+
+pairs=()
+while IFS=$'\t' read -r nii_tag nii_pin; do
+  [ -n "${nii_tag}" ] || continue
+  pairs+=("${nii_tag}" "${nii_pin}")
+done <"${images}"
+
+transcript="${report}/kargo-runtime-image-imports.txt"
+inventory="${report}/kargo-runtime-node-ctr-images.txt"
+
+case "${case_name}" in
+m0-k3d-argv)
+  # k3d v5.8.3 pkg/client/tools.go:143 argv, replayed through the shim over the
+  # same unfiltered save stream. Nothing production is involved: this asserts
+  # the MODEL, not the fix.
+  docker image save "${pairs[0]}" |
+    docker exec -i "${node}" ctr --namespace k8s.io image import --all-platforms -
+  ;;
+import-verify)
+  : >"${transcript}"
+  for ((i = 0; i < ${#pairs[@]}; i += 2)); do
+    kargo_runtime_import_node_image "${node}" "${pairs[i]}" "${pairs[i + 1]}"
+  done
+  kargo_runtime_assert_import_transcript "${transcript}" "${pairs[@]}"
+  docker exec "${node}" ctr --namespace k8s.io images list >"${inventory}"
+  for ((i = 0; i < ${#pairs[@]}; i += 2)); do
+    kargo_runtime_verify_node_image "${inventory}" "${pairs[i]}" "${pairs[i + 1]}"
+  done
+  ;;
+transcript)
+  kargo_runtime_assert_import_transcript "$1" "${pairs[@]}"
+  ;;
+verify-node)
+  kargo_runtime_verify_node_image "$1" "$2" "$3"
+  ;;
+*)
+  echo "driver: unknown case ${case_name}" >&2
+  exit 2
+  ;;
+esac
+NODEIMAGEDRIVER
+
+  # --- recorded fixtures -----------------------------------------------------
+  # The three index children the partial archives lacked, verbatim from
+  # failed-sit-c064c9c-run1/kargo-runtime-image-imports.txt. They are historical
+  # facts of that run, so they stay literal while the pins above come from
+  # pins.env.
+  nii_kargo_missing='sha256:a5e2a943cd2b43d87dbebb1d351581fbc5c7bff30d3b5aa4ee3c145dca6fd839'
+  nii_rollouts_missing='sha256:864d749d420021ad185cdea878d98b1d3b6be5b337acdb5258708919d5adc926'
+  nii_analysis_missing='sha256:71b0cbca78cef3413c843ed16136b822b6deefc6dea540f0f77b0e39eb991dc5'
+  nii_other="sha256:$(printf 'c%.0s' {1..64})"
+  nii_kargo_tag="${KARGO_IMAGE_REPOSITORY}:${KARGO_IMAGE_TAG}"
+  nii_rollouts_tag="${ROLLOUTS_IMAGE_REPOSITORY}:${ROLLOUTS_IMAGE_TAG}"
+  nii_analysis_tag="${ANALYSIS_IMAGE_REPOSITORY}:${ANALYSIS_IMAGE_TAG}"
+  nii_cr=$'\r'
+
+  # k3d's logrus renders `<colour>LEVEL<reset>[<elapsed>] %-44s ` — reproducing
+  # that format (rather than pasting escape bytes) keeps the fixture readable
+  # while staying byte-identical to the preserved transcript.
+  nii_info() { printf '\033[36mINFO\033[0m[%s] %-44s \n' "$1" "$2"; }
+
+  nii_k3d_block() {
+    local t_import="$1" t_erro="$2" t_tail="$3" tarball="$4" missing="$5"
+    local cluster='fleet-sit-93320'
+    local k3d_node="k3d-${cluster}-server-0"
+    nii_info '0000' "Importing image(s) into cluster '${cluster}'"
+    nii_info '0000' 'Starting new tools node...'
+    nii_info '0000' "Starting node 'k3d-${cluster}-tools'"
+    nii_info '0000' 'Saving 1 image(s) from runtime...'
+    nii_info "${t_import}" 'Importing images into nodes...'
+    nii_info "${t_import}" "Importing images from tarball '/k3d/images/k3d-${cluster}-images-${tarball}.tar' into node '${k3d_node}'..."
+    # The ERRO record embeds the container's own CR-terminated ctr line; logrus
+    # appends its single trailing space after that embedded newline.
+    printf '\033[31mERRO\033[0m[%s] %-44s \n' "${t_erro}" \
+      "failed to import images in node '${k3d_node}': Exec process in node '${k3d_node}' failed with exit code '1': Logs from failed access process:
+ctr: content digest ${missing}: not found${nii_cr}"
+    nii_info "${t_erro}" 'Removing the tarball(s) from image volume...'
+    nii_info "${t_tail}" 'Removing k3d-tools node...'
+    nii_info "${t_tail}" 'Successfully imported image(s)'
+    nii_info "${t_tail}" 'Successfully imported 1 image(s) into 1 cluster(s)'
+  }
+
+  # The preserved failed transcript, regenerated byte-for-byte.
+  {
+    nii_k3d_block '0003' '0005' '0006' '20260729130749' "${nii_kargo_missing}"
+    nii_k3d_block '0002' '0003' '0004' '20260729130756' "${nii_rollouts_missing}"
+    nii_k3d_block '0001' '0002' '0003' '20260729130801' "${nii_analysis_missing}"
+  } >"${tmp}/recorded-imports.txt"
+  # The preserved evidence bundle is not carried in this repository, so the
+  # fixture is bound to it by CHECKSUM instead: this is the sha256 of
+  # failed-sit-c064c9c-run1/kargo-runtime-image-imports.txt (39 lines). If the
+  # regeneration above ever stops reproducing those exact bytes — padding,
+  # escape sequences, the embedded CR and all — R2 stops being a test of the
+  # real recorded transcript and this gate says so instead of quietly drifting.
+  nii_recorded_sha256='52b00369f07dc964ef4bbfa152a6eebf40421b7169b40e73c7bf4a31087ce62f'
+  printf '%s  %s\n' "${nii_recorded_sha256}" "${tmp}/recorded-imports.txt" |
+    sha256sum --check --status ||
+    fail 'the regenerated fixture is not byte-identical to the preserved failed-run import transcript'
+  grep -qF "ctr: content digest ${nii_kargo_missing}: not found" "${tmp}/recorded-imports.txt" ||
+    fail 'the regenerated failed transcript lost the recorded ctr error line'
+  [ "$(grep -cF 'Successfully imported image(s)' "${tmp}/recorded-imports.txt")" -eq 3 ] ||
+    fail "the regenerated failed transcript lost k3d's false-success lines"
+
+  # The recorded node inventory, from the same bundle: the real header and real
+  # k3s/Argo rows that WERE present, with the column padding (which the
+  # production parser never reads) trimmed. No Kargo/Rollouts/BusyBox row —
+  # that absence is what the honest gate reported.
+  cat >"${tmp}/inventory-header.txt" <<'NIIHEADER'
+REF                                                                                                                TYPE                                                      DIGEST                                                                  SIZE      PLATFORMS                                                                                              LABELS
+NIIHEADER
+  cat >"${tmp}/inventory-base.txt" <<'NIIBASE'
+docker.io/rancher/klipper-helm:v0.9.3-build20241008                                                                application/vnd.docker.distribution.manifest.list.v2+json sha256:73ff7ef399717ba8339559054557bd427bdafb47db112165a8c0c358d1ca0283 67.2 MiB  linux/amd64,linux/arm,linux/arm64/v8                                                                   io.cri-containerd.image=managed
+docker.io/rancher/klipper-helm@sha256:73ff7ef399717ba8339559054557bd427bdafb47db112165a8c0c358d1ca0283             application/vnd.docker.distribution.manifest.list.v2+json sha256:73ff7ef399717ba8339559054557bd427bdafb47db112165a8c0c358d1ca0283 67.2 MiB  linux/amd64,linux/arm,linux/arm64/v8                                                                   io.cri-containerd.image=managed
+quay.io/argoproj/argocd:v3.4.5                                                                                     application/vnd.docker.distribution.manifest.list.v2+json sha256:224e454cfd8c1818fec3ed17b72b2034c9a3915fa819e1dcccafc753776d446a 184.8 MiB linux/amd64,linux/arm64,linux/ppc64le,linux/s390x                                                      io.cri-containerd.image=managed
+quay.io/argoproj/argocd@sha256:224e454cfd8c1818fec3ed17b72b2034c9a3915fa819e1dcccafc753776d446a                    application/vnd.docker.distribution.manifest.list.v2+json sha256:224e454cfd8c1818fec3ed17b72b2034c9a3915fa819e1dcccafc753776d446a 184.8 MiB linux/amd64,linux/arm64,linux/ppc64le,linux/s390x                                                      io.cri-containerd.image=managed
+NIIBASE
+
+  nii_status=0
+  nii_case() {
+    local dir="${tmp}/$1" case_name="$2" fns="${3:-${nii_fns}}"
+    shift 3 2>/dev/null || shift "$#"
+    mkdir -p "${dir}/report"
+    printf '%s\t%s\t%s\n' \
+      "${nii_kargo_tag}" "${KARGO_IMAGE_DIGEST}" "${nii_kargo_missing}" \
+      "${nii_rollouts_tag}" "${ROLLOUTS_IMAGE_DIGEST}" "${nii_rollouts_missing}" \
+      "${nii_analysis_tag}" "${ANALYSIS_IMAGE_DIGEST}" "${nii_analysis_missing}" \
+      >"${dir}/host-images.tsv"
+    printf '%s\t%s\n' \
+      "${nii_kargo_tag}" "${KARGO_IMAGE_DIGEST}" \
+      "${nii_rollouts_tag}" "${ROLLOUTS_IMAGE_DIGEST}" \
+      "${nii_analysis_tag}" "${ANALYSIS_IMAGE_DIGEST}" \
+      >"${dir}/images.tsv"
+    : >"${dir}/node-images.tsv"
+    cp "${tmp}/inventory-header.txt" "${dir}/inventory-header.txt"
+    cp "${tmp}/inventory-base.txt" "${dir}/inventory-base.txt"
+    nii_status=0
+    bash "${tmp}/node-image-driver.sh" \
+      "${sit_assert}" "${fns}" "${dir}" "${dir}/report" "${case_name}" "$@" \
+      >"${dir}/stdout.txt" 2>"${dir}/stderr.txt" || nii_status=$?
+  }
+
+  nii_expect() {
+    local label="$1" expected="$2" needle="$3" dir="${tmp}/$4"
+    [ "${nii_status}" -eq "${expected}" ] ||
+      fail "${label}: expected exit ${expected}, got ${nii_status} — $(tr '\n' ' ' <"${dir}/stderr.txt")"
+    [ -z "${needle}" ] || grep -qF -- "${needle}" "${dir}/stderr.txt" ||
+      fail "${label}: production failure text did not contain '${needle}' — $(tr '\n' ' ' <"${dir}/stderr.txt")"
+  }
+
+  # M0 — the shim reproduces the RECORDED failure when replayed with k3d's own
+  # argv. Without this every case below would be asserting against a fiction.
+  nii_case m0 m0-k3d-argv
+  nii_expect 'M0 shim fidelity' 1 "ctr: content digest ${nii_kargo_missing}: not found" m0
+  nii_m0_line="$(grep -m 1 '^ctr: ' "${tmp}/m0/stderr.txt")"
+  grep -qF -- "${nii_m0_line}" "${tmp}/recorded-imports.txt" ||
+    fail 'M0 shim fidelity: the modeled ctr error is not the line the preserved transcript recorded'
+  echo "  M0 replaying k3d's own ctr image import --all-platforms argv reproduces the recorded content-digest failure ✓"
+
+  # R1 — the fixed path. Production import bytes + transcript acceptance +
+  # extracted node verifier must all pass, and the node model must gain a
+  # tag+pin row per image.
+  nii_case r1 import-verify
+  nii_expect 'R1 platform-scoped import' 0 '' r1
+  nii_r1_rows="$(wc -l <"${tmp}/r1/node-images.tsv" | tr -d ' ')"
+  [ "${nii_r1_rows}" -eq 3 ] ||
+    fail "R1 platform-scoped import: expected 3 imported node rows, got ${nii_r1_rows}"
+  grep -qxF "${nii_kargo_tag}"$'\t'"${KARGO_IMAGE_DIGEST}" "${tmp}/r1/node-images.tsv" ||
+    fail "R1 platform-scoped import: ${nii_kargo_tag} is not bound to the pinned digest in the node model"
+  grep -q '^unpacking ' "${tmp}/r1/report/kargo-runtime-image-imports.txt" ||
+    fail 'R1 platform-scoped import: the retained transcript carries no ctr unpack marker'
+  echo "  R1 the unfiltered save stream imports platform-scoped and binds every canonical tag to its pin ✓"
+
+  # R2 — the acceptance step over the ACTUAL preserved failed-run transcript.
+  # This is the exact hidden-error shape k3d exited 0 on.
+  nii_case r2 transcript "${nii_fns}" "${tmp}/recorded-imports.txt"
+  nii_expect 'R2 preserved failed transcript' 1 'carries an error marker' r2
+  echo "  R2 the preserved k3d transcript — ERRO plus 'Successfully imported' — is rejected, not accepted ✓"
+
+  # R3 — the platform scope is load-bearing. Strip it from the PRODUCTION bytes
+  # and the shim reproduces the recorded partial-archive failure.
+  sed 's/--platform linux\/amd64 //' "${nii_fns}" >"${tmp}/node-image-fns-noplatform.sh"
+  cmp -s "${nii_fns}" "${tmp}/node-image-fns-noplatform.sh" &&
+    fail 'R3 platform-scope mutation: stripping --platform linux/amd64 changed nothing, so the flag is not where the gate thinks it is'
+  nii_case r3 import-verify "${tmp}/node-image-fns-noplatform.sh"
+  nii_expect 'R3 platform-scope mutation' 1 'streaming the pinned image into the k3d node failed' r3
+  grep -qF "ctr: content digest ${nii_kargo_missing}: not found" \
+    "${tmp}/r3/report/kargo-runtime-image-imports.txt" ||
+    fail 'R3 platform-scope mutation: the retained transcript did not capture the node-side failure'
+  echo "  R3 removing --platform linux/amd64 reproduces the recorded failure and fails the leg closed ✓"
+
+  # R4 — the node verifier is neither absence-blind nor existence-only.
+  nii_case r4a verify-node "${nii_fns}" "${tmp}/inventory-header.txt" \
+    "${nii_kargo_tag}" "${KARGO_IMAGE_DIGEST}"
+  nii_expect 'R4a absent from the recorded inventory' 1 'does not bind' r4a
+  cat "${tmp}/inventory-header.txt" "${tmp}/inventory-base.txt" >"${tmp}/inventory-recorded.txt"
+  nii_case r4b verify-node "${nii_fns}" "${tmp}/inventory-recorded.txt" \
+    "${nii_kargo_tag}" "${KARGO_IMAGE_DIGEST}"
+  nii_expect 'R4b recorded failed inventory' 1 'does not bind' r4b
+  nii_inv_row() {
+    printf '%s application/vnd.oci.image.index.v1+json %s 42.0 MiB linux/amd64 io.cri-containerd.image=managed\n' \
+      "$1" "$2"
+  }
+  {
+    cat "${tmp}/inventory-recorded.txt"
+    nii_inv_row "${nii_kargo_tag}" "${KARGO_IMAGE_DIGEST}"
+  } >"${tmp}/inventory-bound.txt"
+  nii_case r4c verify-node "${nii_fns}" "${tmp}/inventory-bound.txt" \
+    "${nii_kargo_tag}" "${KARGO_IMAGE_DIGEST}"
+  nii_expect 'R4c tag bound to the pin' 0 '' r4c
+  {
+    cat "${tmp}/inventory-recorded.txt"
+    nii_inv_row "${nii_kargo_tag}" "${nii_other}"
+  } >"${tmp}/inventory-wrong-pin.txt"
+  nii_case r4d verify-node "${nii_fns}" "${tmp}/inventory-wrong-pin.txt" \
+    "${nii_kargo_tag}" "${KARGO_IMAGE_DIGEST}"
+  nii_expect 'R4d tag bound to other content' 1 'does not bind' r4d
+  echo "  R4 the node verifier rejects absence and a tag carrying other content, and accepts only tag+pin ✓"
+
+  # R5 — the positive marker must bind the PIN, not merely say 'done'. A
+  # success-shaped transcript whose unpack digest is other content is red.
+  {
+    printf '== import %s (%s)\n' "${nii_kargo_tag}" "${KARGO_IMAGE_DIGEST}"
+    printf 'unpacking %s (%s)...done\n' "${nii_kargo_tag}" "${nii_other}"
+    printf '== import %s (%s)\n' "${nii_rollouts_tag}" "${ROLLOUTS_IMAGE_DIGEST}"
+    printf 'unpacking %s (%s)...done\n' "${nii_rollouts_tag}" "${ROLLOUTS_IMAGE_DIGEST}"
+    printf '== import %s (%s)\n' "${nii_analysis_tag}" "${ANALYSIS_IMAGE_DIGEST}"
+    printf 'unpacking %s (%s)...done\n' "${nii_analysis_tag}" "${ANALYSIS_IMAGE_DIGEST}"
+  } >"${tmp}/transcript-wrong-pin.txt"
+  nii_case r5 transcript "${nii_fns}" "${tmp}/transcript-wrong-pin.txt"
+  nii_expect 'R5 unpack marker with the wrong digest' 1 'does not bind' r5
+  echo "  R5 an unpack marker that completes on other content is rejected, so acceptance is not 'contains done' ✓"
   ;;
 guard)
   bash ./scripts/validate/registry-guard.sh

@@ -1576,6 +1576,15 @@ kargo_runtime_verify_host_image() {
     any(.[0].RepoDigests[]?; endswith("@" + $digest))
   ' "${output}" >/dev/null ||
     sit_fail "host image does not carry the pinned digest: ${image_ref}"
+  # The save->import digest chain below depends on this daemon running the
+  # CONTAINERD image store, where .Id is the image's root descriptor digest -
+  # here the pinned multi-platform index. Under the classic graph-driver store
+  # .Id is the config blob digest and can never equal the pin. Asserting it at
+  # the source turns a store-type mismatch into an immediate, precise failure
+  # instead of a late, ambiguous node-digest mismatch three steps later. All
+  # six inspection objects the SIT retains satisfy this today.
+  jq -e --arg digest "${digest}" '.[0].Id == $digest' "${output}" >/dev/null ||
+    sit_fail "the daemon does not expose the pinned index digest as the image id, so it is not running the containerd image store: ${image_ref}"
   # A digest-qualified pull stores the image under its digest ONLY and never
   # creates name:tag (classic and containerd stores alike), so the export tag
   # k3d needs has to be bound explicitly - and bound FROM the verified digest
@@ -1600,6 +1609,71 @@ kargo_runtime_canonical_image_tag() {
   ref="${ref#docker.io/}"
   ref="${ref#library/}"
   printf '%s' "${ref}"
+}
+
+kargo_runtime_import_node_image() {
+  local node="$1"
+  local tag_ref="$2"
+  local digest="$3"
+  # `k3d image import` cannot be used here, for two independent reasons.
+  # (1) It runs `ctr image import --all-platforms` inside the node (k3d v5.8.3,
+  # pkg/client/tools.go:143). A digest-qualified pull on a containerd-image-
+  # store daemon fetches ONLY the linux/amd64 child while recording the whole
+  # multi-platform index as the image root, so the exported archive is partial
+  # and the all-platforms walk aborts on the first absent child.
+  # (2) Its tools-mode importer never returns that per-node error: it logs and
+  # returns nil, so the CLI prints "Successfully imported image(s)" and exits 0.
+  #
+  # Streaming the save directly into the node's containerd removes both. The
+  # save stays UNFILTERED so the archive root remains the original pinned index
+  # digest - that is what keeps the node record's target digest equal to the
+  # immutable pin, so the tag+digest assertion below is unchanged. The platform
+  # scope belongs on the IMPORT side, where it confines containerd's traversal
+  # and unpack to the one child this host actually holds. Under the global
+  # pipefail either half failing fails the leg immediately.
+  {
+    printf '== import %s (%s)\n' "${tag_ref}" "${digest}"
+    docker image save "${tag_ref}" |
+      docker exec -i "${node}" ctr --namespace k8s.io images import \
+        --platform linux/amd64 -
+  } >>"${report}/kargo-runtime-image-imports.txt" 2>&1 ||
+    sit_fail "streaming the pinned image into the k3d node failed: ${tag_ref}"
+}
+
+kargo_runtime_assert_import_transcript() {
+  local transcript="$1"
+  shift
+  [ -s "${transcript}" ] ||
+    sit_fail "the node image import transcript is missing or empty: ${transcript}"
+  # The transcript is now ours, so it is gated on BOTH sides. First: no
+  # error-shaped line may appear at all. The recorded k3d failure hid exactly
+  # such a line - `ctr: content digest sha256:...: not found` - inside an
+  # exit-0 run, and that shape can never be accepted again.
+  if grep -nEi 'ctr:|ERRO|error|failed|not found' "${transcript}" >&2; then
+    sit_fail "the node image import transcript carries an error marker: ${transcript}"
+  fi
+  # Second: absence of errors is not presence of imports. Each image must carry
+  # ctr's positive unpack marker binding its canonical tag to the PINNED
+  # digest, so an empty, truncated, or silently short transcript is red too.
+  local expected_tag digest ref actual_digest bound
+  while [ "$#" -ge 2 ]; do
+    expected_tag="$(kargo_runtime_canonical_image_tag "$1")"
+    digest="$2"
+    shift 2
+    bound=0
+    while read -r ref actual_digest; do
+      [ -n "${actual_digest}" ] || continue
+      if [ "$(kargo_runtime_canonical_image_tag "${ref}")" = "${expected_tag}" ] &&
+        [ "${actual_digest}" = "${digest}" ]; then
+        bound=1
+        break
+      fi
+    done < <(sed -n 's/^unpacking \(.*\) (\(sha256:[0-9a-f]\{64\}\))\.*done.*$/\1 \2/p' "${transcript}")
+    [ "${bound}" -eq 1 ] ||
+      sit_fail "the node import transcript does not bind ${expected_tag} to pinned digest ${digest}"
+  done
+  [ "$#" -eq 0 ] ||
+    sit_fail 'kargo_runtime_assert_import_transcript takes <tag> <digest> pairs'
 }
 
 kargo_runtime_verify_node_image() {
@@ -1672,19 +1746,23 @@ kargo_runtime_prepare_artifacts() {
     "${KARGO_RUNTIME_DIR}/images/analysis-tag.json" \
     >"${report}/kargo-runtime-host-images.json"
 
-  local image_ref tag_ref
-  for image_ref in \
-    "${KARGO_RUNTIME_IMAGE_REF}" \
-    "${ROLLOUTS_RUNTIME_IMAGE_REF}" \
-    "${ANALYSIS_RUNTIME_IMAGE_REF}"; do
-    # k3d v5.8 discovers daemon images from RepoTags (not RepoDigests), so the
-    # export input must be the tag established by the verified digest pull.
-    # The imported content is checked against the digest again inside the node.
-    tag_ref="${image_ref%@*}"
-    k3d image import --cluster "${cluster_name}" "${tag_ref}" \
-      >>"${report}/kargo-runtime-image-imports.txt" 2>&1
-  done
   local node="k3d-${cluster_name}-server-0"
+  # The export input is the tag established by the verified digest pull: the
+  # daemon exports by name, and the imported content is checked against the
+  # digest again inside the node.
+  kargo_runtime_import_node_image "${node}" \
+    "${KARGO_RUNTIME_IMAGE_REF%@*}" "${KARGO_IMAGE_DIGEST}"
+  kargo_runtime_import_node_image "${node}" \
+    "${ROLLOUTS_RUNTIME_IMAGE_REF%@*}" "${ROLLOUTS_IMAGE_DIGEST}"
+  kargo_runtime_import_node_image "${node}" \
+    "${ANALYSIS_RUNTIME_IMAGE_REF%@*}" "${ANALYSIS_IMAGE_DIGEST}"
+  # Accept the transcript BEFORE reading the node inventory, so a hidden
+  # import-side error is reported at its own step rather than surfacing later
+  # as an ambiguous absence.
+  kargo_runtime_assert_import_transcript "${report}/kargo-runtime-image-imports.txt" \
+    "${KARGO_RUNTIME_IMAGE_REF%@*}" "${KARGO_IMAGE_DIGEST}" \
+    "${ROLLOUTS_RUNTIME_IMAGE_REF%@*}" "${ROLLOUTS_IMAGE_DIGEST}" \
+    "${ANALYSIS_RUNTIME_IMAGE_REF%@*}" "${ANALYSIS_IMAGE_DIGEST}"
   docker exec "${node}" ctr --namespace k8s.io images list \
     >"${report}/kargo-runtime-node-ctr-images.txt"
   kargo_runtime_verify_node_image "${report}/kargo-runtime-node-ctr-images.txt" \

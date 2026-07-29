@@ -39,6 +39,12 @@ bash ./scripts/validate/fleet.sh machinery-pin
 # bytes against a docker shim. Daemon-free, so the SIT's export-tag binding is
 # regression-guarded in ordinary CI instead of only in a live SIT venue.
 bash ./scripts/validate/fleet.sh sit-host-image-binding
+# Offline model of the L9 node-image import step, running the production SIT
+# function bytes against docker/ctr shims. Daemon-free, so the platform-scoped
+# stream import, its fail-closed transcript acceptance, and the node tag+digest
+# binding are regression-guarded in ordinary CI instead of only in a live SIT
+# venue — and k3d's recorded false-success shape can never be accepted again.
+bash ./scripts/validate/fleet.sh sit-node-image-import
 bash ./scripts/validate/fleet.sh guard
 bash ./scripts/validate/fleet.sh presence
 
