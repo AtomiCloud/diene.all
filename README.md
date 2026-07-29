@@ -1,4 +1,4 @@
-# Diene .NET base template
+# Diene .NET API sample
 
 <!-- ### nix-root -->
 <!-- #### source: main -->
@@ -14,7 +14,7 @@ This branch is the all-features workspace baseline inherited by every downstream
 
 - `pls setup` — synchronize installed diene package skills.
 - `pls lint` — run every pre-commit gate.
-- `pls docker:build` — build the local stub image.
+- `pls docker:build` — build the local service image.
 - `pls helm:lint` / `pls helm:template` — validate or render the root chart.
 - `pls secret:scan` — scan tracked content for secrets.
 - `pls skills:sync` — rebuild `.claude/skills/vendor/` from installed packages.
@@ -60,11 +60,6 @@ contracts standard.
 
 ## .NET 10 foundation
 
-[![CI](https://github.com/AtomiCloud/diene.dotnet-base/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.dotnet-base/actions/workflows/ci.yaml)
-[![Unit coverage](https://codecov.io/gh/AtomiCloud/diene.dotnet-base/graph/badge.svg?flag=unit)](https://codecov.io/gh/AtomiCloud/diene.dotnet-base)
-[![Integration coverage](https://codecov.io/gh/AtomiCloud/diene.dotnet-base/graph/badge.svg?flag=int)](https://codecov.io/gh/AtomiCloud/diene.dotnet-base)
-[![Commit activity](https://img.shields.io/github/commit-activity/m/AtomiCloud/diene.dotnet-base)](https://github.com/AtomiCloud/diene.dotnet-base/commits/main)
-
 This branch adds the .NET 10 toolchain, the `App`/`Lib`/`UnitTest`/`IntTest`
 sample, merged multi-project coverage, strict and LLM dead-code modes, and the
 complete Docker and Helm axes. See [the .NET baseline](docs/developer/dotnet-baseline.md).
@@ -77,4 +72,40 @@ Common commands:
 - `pls docker:build` and `pls helm:lint` / `pls helm:template`
 
 The illustrative Note domain is documented in [docs/domain/note.md](docs/domain/note.md).
+
+<!-- ### dotnet-api -->
+<!-- #### source: dotnet-api -->
+
+## The service sample
+
+[![CI](https://github.com/AtomiCloud/diene.dotnet-api/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.dotnet-api/actions/workflows/ci.yaml)
+[![Unit coverage](https://codecov.io/gh/AtomiCloud/diene.dotnet-api/graph/badge.svg?flag=unit)](https://codecov.io/gh/AtomiCloud/diene.dotnet-api)
+[![Integration coverage](https://codecov.io/gh/AtomiCloud/diene.dotnet-api/graph/badge.svg?flag=int)](https://codecov.io/gh/AtomiCloud/diene.dotnet-api)
+[![Commit activity](https://img.shields.io/github/commit-activity/m/AtomiCloud/diene.dotnet-api)](https://github.com/AtomiCloud/diene.dotnet-api/commits/main)
+
+This repository is a runnable, deployable ASP.NET Core service — not a template.
+It is the living consumer of the `AtomiCloud.Diene.*` libraries, every one of which
+it takes as a published nuget.org package.
+
+The compiled artifact is two things: `server`, which serves HTTP and is the
+default, and `db-init`, the one-shot path that checks dependency reachability,
+creates the bucket, applies real EF Core migrations, and seeds preset data. The
+chart runs `db-init` as a hook-scoped Job before the rollout, so a migration never
+recreates the app.
+
+`GET /` is the info endpoint and the target of both the liveness and the readiness
+probe. It is dependency-blind on purpose: it reports that this process is serving
+and nothing more.
+
+All behaviour is configuration. `App/Config/settings.yaml` is the full base layer,
+and every value is overridable per landscape and at CI as `ATOMI_<BLOCK>__<KEY>`;
+lists use indexed keys such as `ATOMI_HTTP__CORS__ALLOWED_ORIGINS__0`.
+
+Beyond the inherited task surface, this repository adds the Bruno SIT tier in
+[`tests/sit/bruno/`](tests/sit/bruno/README.md), which runs headless against a
+Garden-managed `castform` preview.
+
+Read [the .NET API baseline](docs/developer/dotnet-api-baseline.md) for the run
+modes, the task surface, and the knobs a downstream service turns.
+
 Production observability is intentionally absent until the observability add-back.
