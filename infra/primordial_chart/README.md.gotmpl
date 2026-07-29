@@ -1,0 +1,106 @@
+{{ template "chart.header" . }}
+
+{{ template "chart.versionBadge" . }}{{ template "chart.typeBadge" . }}{{ template "chart.appVersionBadge" . }}
+
+{{ template "chart.description" . }}
+
+## What this chart owns
+
+This is the **primordial chart** half of the two-chart model (R20). It is deployed to the
+Primordial cluster; locally both charts land in one cluster.
+
+| Resource                       | Rendered when                                    |
+| ------------------------------ | ------------------------------------------------ |
+| `PlatformDependency`           | always — one union-set CR per landscape          |
+| `Problem`                      | the exported catalog file exists                 |
+| `LogtoApp`                     | this chart is the app's placement owner (it is)  |
+| `GrafanaFolder`                | always                                           |
+| `GrafanaDashboard`             | one per `observability/dashboards/*.json`        |
+| `GrafanaAlertRuleGroup`        | one per `observability/alerts/{slug}/{sev}.yaml` |
+| `CloudflareDeploy`             | edge assets ship — they do not here              |
+| `VirtualLandscapeService`      | this row serves a v-landscape — it does not      |
+
+There is **no Kargo configuration here at all**: Kargo is centralized on Primordial and out of
+scope for this repository.
+
+## One union CR, not four
+
+`PlatformDependency` spans the `database` / `kv` / `cache` / `store` modules this service
+needs. It **replaces** the old per-kind postgres/redis/S3 CRs, and the redis-streams transport
+rides the kv/cache module rather than getting a CR of its own.
+
+Each module block is a **map of named connections**, matching `App/Config/settings.yaml` —
+a second pool is data, never code. Dependencies are requested through CRs in **every**
+landscape: the operator realizes CNPG/Dragonfly/MinIO in-cluster locally and the managed
+classes from Primordial. There is no local-subchart-vs-cloud-CR toggle.
+
+The chart enforces ONE writer per landscape: a duplicate landscape is a loud render-time
+`Conflict`, never a silent last-write-wins.
+
+## The Problem catalog, and the landscape rewrite
+
+`problems/catalog-v1.json` is the **committed** output of `pls problems:export`. Each entry's
+`type` is the fully minted RFC 9457 URI as of export time; this chart never reconstructs one
+from parts.
+
+The exporter mints those URIs from the app's own config, so the committed catalog is stamped
+with whichever landscape was configured when it ran. A primordial chart is installed **per
+landscape**, so materializing that file verbatim into a `raichu` row would publish a row whose
+every `type` URI points at the lapras error portal — wrong data that no lint would catch. The
+template therefore substitutes exactly one path triple,
+`/<exportLandscape>/<platform>/<service>/` → `/<chartLandscape>/<platform>/<service>/`, and
+**fails** on any entry whose `type` does not contain the triple it claims to, so the
+substitution can never silently no-op. When a rewrite happens the rendered CR is annotated
+with the landscape it was exported for.
+
+The clean long-term fix belongs to `problems:export` — emit landscape-neutral URIs, or one
+file per landscape — and is reported upward rather than papered over here.
+
+A missing catalog file renders nothing (a fresh checkout may not have exported yet). A file
+that exists but is malformed, empty, stale, or names a different platform/service is a **hard
+failure**: "no output" is never allowed to read as "validated".
+
+## Grafana resources
+
+The repository root `observability/` is authoritative. Helm cannot read outside the chart
+directory, so `pls helm:vendor` copies it into the gitignored `files/observability/` before
+lint, render, package, or publish.
+
+Mappings are mechanical and deterministic:
+
+- service identity → one `GrafanaFolder`, uid `<platform>-<service>-folder`
+- `dashboards/{purpose}.json` → one `GrafanaDashboard`, uid `<platform>-<service>-<purpose>`
+- `alerts/{slug}/{severity}.yaml` → one `GrafanaAlertRuleGroup` holding exactly one rule
+
+The filename **is** the severity, so severity and emoji cannot disagree. LPSM labels are
+injected by the renderer, never hand-authored in the source files. The six-gate method
+legitimately yields ZERO dashboards and ZERO alerts, so every template renders cleanly with
+none present — no placeholder is ever added just to populate a directory. A file that exists
+but violates the contract fails the render.
+
+## Identity is explicit, never inferred
+
+`LogtoApp.spec.identityRef` is `{platform, vlandscape}` and the platform is **required and
+explicit**: the operator rejects an omitted platform and a namespace/platform mismatch rather
+than inferring one from the CR's namespace. The Logto endpoint is derived from that pair.
+
+Redirect URIs are **derived** by the operator from the live serve-set, so this chart declares
+**paths** only; every non-HTTPS / local / vendor exception is explicit through the `extra*`
+lists and nothing branches on environment. The service is a confidential machine-to-machine
+client with no browser flow, so both declared paths are empty.
+
+## Values overlays
+
+Landscape is the ONLY axis (R16). The base `values.yaml` is a complete **local** release, so a
+forgotten overlay degrades to in-cluster classes rather than declaring managed cloud resources
+by accident. `castform` (preview) deliberately keeps the local classes: a preview proves
+behavior, not capacity, and pointing throwaway environments at managed projects would spend
+real money and orphan resources on every closed PR.
+
+`values.schema.json` (R17) validates the base values and every overlay, including the rule
+that `delivery: external` requires a `providerAccountRef` and local/replicated modules must
+not name one.
+
+{{ template "chart.requirementsSection" . }}
+
+{{ template "chart.valuesSection" . }}

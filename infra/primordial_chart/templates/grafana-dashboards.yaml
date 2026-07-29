@@ -1,0 +1,50 @@
+{{- /* ### dotnet-api-primordial-grafana-dashboards */ -}}
+{{- /* #### source: dotnet-api */ -}}
+{{- if .Values.observability.enabled -}}
+{{- include "dotnetapiPrimordial.validateServiceTree" . -}}
+{{- /* `dashboards/{purpose}.json` -> one GrafanaDashboard with the deterministic uid
+       `<platform>-<service>-<purpose>`.
+
+       The repository root `observability/` is authoritative. Helm cannot read outside the
+       chart directory, so the chart BUILD copies it into the gitignored `files/observability/`
+       before lint/template/package/publish. The copy is never hand-edited or committed.
+
+       Gate 4 of the six-gate method may legitimately answer "generic tier sufficient", in
+       which case there are ZERO dashboard files. `.Files.Glob` then yields nothing and this
+       renders cleanly — no placeholder dashboard is ever added just to populate a directory.
+       A file that EXISTS but is invalid JSON or carries a non-deterministic uid is a hard
+       failure, so "nothing rendered" can only ever mean "nothing authored". */ -}}
+{{- $root := . -}}
+{{- $prefix := include "dotnetapiPrimordial.grafanaPrefix" . -}}
+{{- $folderUid := include "dotnetapiPrimordial.grafanaFolderUid" . -}}
+{{- $base := trimSuffix "/" .Values.observability.path -}}
+{{- range $path, $_ := .Files.Glob (printf "%s/dashboards/*.json" $base) }}
+{{- $purpose := base $path | trimSuffix ".json" -}}
+{{- $raw := trim ($root.Files.Get $path) -}}
+{{- if not (hasPrefix "{" $raw) -}}
+{{- fail (printf "%s is not a JSON object: a dashboard file must be valid dashboard JSON" $path) -}}
+{{- end -}}
+{{- $dashboard := fromJson $raw -}}
+{{- $uid := printf "%s-%s" $prefix $purpose -}}
+{{- if ne ($dashboard.uid | toString) $uid -}}
+{{- fail (printf "%s declares uid %q but the deterministic uid is %q (<platform>-<service>-<purpose>)" $path ($dashboard.uid | toString) $uid) -}}
+{{- end -}}
+---
+apiVersion: {{ $root.Values.observability.apiVersion }}
+kind: GrafanaDashboard
+metadata:
+  name: {{ printf "%s-%s" $root.Values.serviceTree.service $purpose }}
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "dotnetapiPrimordial.labels" $root | nindent 4 }}
+  annotations:
+    {{- include "dotnetapiPrimordial.annotations" $root | nindent 4 }}
+spec:
+  folderRef: {{ $folderUid }}
+  instanceSelector:
+    {{- toYaml $root.Values.observability.instanceSelector | nindent 4 }}
+  resyncPeriod: {{ $root.Values.observability.resyncPeriod }}
+  json: |
+    {{- $raw | nindent 4 }}
+{{- end }}
+{{- end }}

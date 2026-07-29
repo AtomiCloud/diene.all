@@ -1,0 +1,58 @@
+# ### dotnet-api-primordial-values-pikachu
+# #### source: dotnet-api
+# pikachu — STAGING/UAT (second evolution). Production's SHAPE at a smaller size, still on the
+# non-production provider accounts, so a dependency-topology mistake surfaces here.
+serviceTree:
+  landscape: pikachu
+
+platformDependencies:
+  - landscape: pikachu
+    placement:
+      preferredHost: pikachu
+    deletionPolicy:
+      retainSecret: 72h
+    database:
+      main:
+        type: neon
+        delivery: external
+        providerAccountRef: nonprod-neon
+        credentialMode: standard
+        rotation: 'on'
+        cpu: 1
+        ram: 2Gi
+        storage: 10Gi
+        version: '16'
+        engine:
+          neon:
+            tier: launch
+    kv:
+      main:
+        type: upstash
+        delivery: external
+        providerAccountRef: nonprod-upstash
+        credentialMode: standard
+        rotation: 'on'
+        engine:
+          upstash: {}
+    cache:
+      main:
+        type: dragonfly
+        delivery: replicated
+        credentialMode: standard
+        rotation: 'on'
+        cpu: 1
+        ram: 512Mi
+        engine:
+          dragonfly: {}
+    store:
+      main:
+        type: tigris
+        delivery: external
+        providerAccountRef: nonprod-tigris
+        credentialMode: standard
+        rotation: 'on'
+        engine:
+          tigris: {}
+
+logtoApp:
+  vlandscape: celebi

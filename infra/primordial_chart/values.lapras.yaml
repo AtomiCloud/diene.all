@@ -1,0 +1,9 @@
+# ### dotnet-api-primordial-values-lapras
+# #### source: dotnet-api
+# lapras — LOCAL development (k3d). Landscape is the ONLY overlay axis (R16).
+#
+# Dependencies are STILL declared as CRs here: the dependency operator runs locally too and
+# realizes the in-cluster classes. The base layer already IS this shape, so this overlay only
+# pins the landscape — a forgotten overlay must degrade to local, never to production.
+serviceTree:
+  landscape: lapras

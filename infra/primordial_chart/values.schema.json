@@ -1,0 +1,224 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Diene .NET API primordial chart values",
+  "description": "The T3 CR set for the diene .NET API — PlatformDependency, Problem catalog, LogtoApp, optional CloudflareDeploy and VirtualLandscapeService, plus Grafana Operator resources. Validated against the base values and every landscape overlay (R17). No Kargo configuration exists here: Kargo is centralized on Primordial (R20).",
+  "type": "object",
+  "required": [
+    "labelPrefix",
+    "serviceTree",
+    "dependencyApiVersion",
+    "platformDependencies",
+    "problems",
+    "logtoApp",
+    "cloudflareDeploy",
+    "virtualLandscapeService",
+    "observability"
+  ],
+  "properties": {
+    "labelPrefix": { "type": "string", "pattern": "^[a-z0-9.-]+$", "minLength": 1 },
+    "serviceTree": {
+      "type": "object",
+      "required": ["platform", "service", "module", "layer", "landscape"],
+      "properties": {
+        "platform": { "$ref": "#/$defs/dnsLabel" },
+        "service": { "$ref": "#/$defs/dnsLabel" },
+        "module": { "$ref": "#/$defs/dnsLabel" },
+        "layer": { "type": "string", "pattern": "^[0-9]+$" },
+        "landscape": { "$ref": "#/$defs/dnsLabel" }
+      },
+      "additionalProperties": false
+    },
+    "dependencyApiVersion": { "const": "fleet.atomi.cloud/v1alpha1" },
+    "platformDependencies": {
+      "type": "array",
+      "description": "ONE union-set row per landscape. Each module block is a MAP of named connections, matching App/Config/settings.yaml.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["landscape", "placement", "deletionPolicy"],
+        "properties": {
+          "landscape": { "$ref": "#/$defs/dnsLabel" },
+          "placement": {
+            "type": "object",
+            "required": ["preferredHost"],
+            "properties": { "preferredHost": { "$ref": "#/$defs/dnsLabel" } },
+            "additionalProperties": false
+          },
+          "deletionPolicy": {
+            "type": "object",
+            "required": ["retainSecret"],
+            "properties": { "retainSecret": { "type": "string", "pattern": "^[0-9]+(s|m|h)$" } },
+            "additionalProperties": false
+          },
+          "database": { "$ref": "#/$defs/moduleMap" },
+          "kv": { "$ref": "#/$defs/moduleMap" },
+          "cache": { "$ref": "#/$defs/moduleMap" },
+          "store": { "$ref": "#/$defs/moduleMap" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "problems": {
+      "type": "object",
+      "required": ["enabled", "apiVersion", "path", "version"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "apiVersion": { "const": "atomi.cloud/v1alpha1" },
+        "path": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "pattern": "^v[0-9]+$" }
+      },
+      "additionalProperties": false
+    },
+    "logtoApp": {
+      "type": "object",
+      "required": ["enabled", "apiVersion", "vlandscape", "type", "paths"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "apiVersion": { "const": "fleet.atomi.cloud/v1alpha1" },
+        "vlandscape": { "$ref": "#/$defs/dnsLabel" },
+        "type": { "type": "string", "enum": ["MachineToMachine", "Traditional", "SPA", "Native"] },
+        "paths": {
+          "type": "object",
+          "description": "DECLARED PATHS ONLY — the operator derives every redirect URI from the live serve-set.",
+          "required": ["redirectPath", "postLogoutPath"],
+          "properties": {
+            "redirectPath": { "$ref": "#/$defs/declaredPath" },
+            "postLogoutPath": { "$ref": "#/$defs/declaredPath" }
+          },
+          "additionalProperties": false
+        },
+        "resourceRefs": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "extraRedirectUris": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "extraPostLogoutRedirectUris": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
+        "extraCorsOrigins": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true }
+      },
+      "additionalProperties": false
+    },
+    "cloudflareDeploy": {
+      "type": "object",
+      "description": "Off unless the repository ships edge assets. It does not.",
+      "required": ["enabled", "apiVersion", "pin"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "apiVersion": { "const": "fleet.atomi.cloud/v1alpha1" },
+        "scriptName": { "type": "string" },
+        "tag": { "type": "string" },
+        "pin": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "virtualLandscapeService": {
+      "type": "object",
+      "description": "Off unless this row serves a v-landscape. It does not.",
+      "required": ["enabled", "apiVersion", "vlandscape", "serve"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "apiVersion": { "const": "fleet.atomi.cloud/v1alpha1" },
+        "vlandscape": { "$ref": "#/$defs/dnsLabel" },
+        "serve": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "observability": {
+      "type": "object",
+      "required": [
+        "enabled",
+        "apiVersion",
+        "path",
+        "instanceSelector",
+        "resyncPeriod",
+        "alertInterval",
+        "relativeTimeRangeFrom",
+        "datasourceUids",
+        "repositoryUrl",
+        "genericDashboardUid"
+      ],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "apiVersion": { "const": "grafana.integreatly.org/v1beta1" },
+        "path": { "type": "string", "minLength": 1 },
+        "instanceSelector": { "type": "object" },
+        "resyncPeriod": { "type": "string", "pattern": "^[0-9]+(s|m|h)$" },
+        "alertInterval": { "type": "string", "pattern": "^[0-9]+(s|m|h)$" },
+        "relativeTimeRangeFrom": { "type": "integer", "minimum": 1 },
+        "datasourceUids": {
+          "type": "object",
+          "required": ["metrics", "logs"],
+          "properties": {
+            "metrics": { "type": "string", "minLength": 1 },
+            "logs": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": { "type": "string", "minLength": 1 }
+        },
+        "repositoryUrl": { "type": "string", "pattern": "^https://" },
+        "genericDashboardUid": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "dnsLabel": {
+      "type": "string",
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+      "maxLength": 63
+    },
+    "declaredPath": {
+      "type": "string",
+      "description": "Empty, or an absolute path with no authority, query, fragment, dot segment, or percent-encoded separator.",
+      "pattern": "^$|^/[^/?#][^?#]*$|^/$"
+    },
+    "moduleMap": {
+      "type": "object",
+      "description": "Named connections. The key is the connection name; the value is the realization-independent module core plus the typed engine union.",
+      "minProperties": 1,
+      "propertyNames": { "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" },
+      "additionalProperties": {
+        "type": "object",
+        "required": ["type", "delivery", "credentialMode", "rotation", "engine"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "neon",
+              "neon-fork",
+              "cnpg",
+              "upstash",
+              "upstash-fork",
+              "dragonfly",
+              "tigris",
+              "tigris-fork",
+              "r2",
+              "s3",
+              "minio"
+            ]
+          },
+          "delivery": { "type": "string", "enum": ["external", "local", "replicated"] },
+          "credentialMode": { "type": "string", "enum": ["standard", "none"] },
+          "rotation": { "type": "string", "enum": ["on", "off"] },
+          "providerAccountRef": { "$ref": "#/$defs/dnsLabel" },
+          "adopt": { "type": "boolean" },
+          "backup": { "type": "object" },
+          "cpu": { "type": ["integer", "string"] },
+          "ram": { "type": "string" },
+          "storage": { "type": "string" },
+          "version": { "type": "string" },
+          "engine": { "type": "object", "minProperties": 1, "maxProperties": 1 }
+        },
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "description": "external modules require providerAccountRef; local and replicated modules must not name one.",
+            "if": { "properties": { "delivery": { "const": "external" } }, "required": ["delivery"] },
+            "then": { "required": ["providerAccountRef"] },
+            "else": { "not": { "required": ["providerAccountRef"] } }
+          }
+        ]
+      }
+    }
+  }
+}

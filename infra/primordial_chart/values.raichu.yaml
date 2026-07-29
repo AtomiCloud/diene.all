@@ -1,0 +1,64 @@
+# ### dotnet-api-primordial-values-raichu
+# #### source: dotnet-api
+# raichu — PRODUCTION (final evolution). The only landscape on the production provider
+# accounts, and the only one that declares a cross-vendor backup obligation.
+serviceTree:
+  landscape: raichu
+
+platformDependencies:
+  - landscape: raichu
+    placement:
+      preferredHost: raichu
+    deletionPolicy:
+      # A week: long enough that an accidental CR deletion is recoverable by hand, short
+      # enough that a decommission actually completes.
+      retainSecret: 168h
+    database:
+      main:
+        type: neon
+        delivery: external
+        providerAccountRef: prod-neon
+        credentialMode: standard
+        rotation: 'on'
+        cpu: 1
+        ram: 4Gi
+        storage: 20Gi
+        version: '16'
+        backup:
+          # The recovery copy must leave the primary vendor: a backup that dies with the
+          # vendor is not a backup.
+          crossVendor: true
+        engine:
+          neon:
+            tier: scale
+    kv:
+      main:
+        type: upstash
+        delivery: external
+        providerAccountRef: prod-upstash
+        credentialMode: standard
+        rotation: 'on'
+        engine:
+          upstash: {}
+    cache:
+      main:
+        type: dragonfly
+        delivery: replicated
+        credentialMode: standard
+        rotation: 'on'
+        cpu: 1
+        ram: 1Gi
+        engine:
+          dragonfly: {}
+    store:
+      main:
+        type: tigris
+        delivery: external
+        providerAccountRef: prod-tigris
+        credentialMode: standard
+        rotation: 'on'
+        engine:
+          tigris: {}
+
+logtoApp:
+  vlandscape: mew

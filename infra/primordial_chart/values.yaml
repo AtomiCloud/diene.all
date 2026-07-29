@@ -1,0 +1,230 @@
+# ### dotnet-api-primordial-values
+# #### source: dotnet-api
+#
+# The base layer is a COMPLETE, installable LOCAL release: `landscape` is `lapras` and every
+# dependency selects an in-cluster class. A forgotten landscape overlay therefore degrades to
+# the local shape rather than declaring managed cloud resources by accident.
+#
+# This chart is deployed to the Primordial cluster. Locally both charts land in one cluster.
+# There is NO Kargo configuration here at all — Kargo is centralized on Primordial and out of
+# diene scope (R20).
+
+# -- Prefix used by every service-tree label and annotation helper. One configurable key
+# (R16/B26) — never hard-coded inside a helper.
+labelPrefix: atomi.cloud
+
+# -- Stable service-tree projection (LPSM). Must match the app chart's, and must match
+# `App/Config/settings.yaml`: the exported Problem catalog mints its type URIs from those same
+# four values.
+serviceTree:
+  # -- Platform name. Also the Primordial namespace and the parent Grafana folder uid.
+  platform: sulfoxide
+  # -- Service name — the REAL identity (R4).
+  service: dotnet-api
+  # -- Module name for the workload these dependencies serve.
+  module: api
+  # -- Architecture layer (application tier).
+  layer: '2'
+  # -- Landscape. The ONLY overlay axis (R16).
+  landscape: lapras
+
+# @schema const:fleet.atomi.cloud/v1alpha1
+# -- API group/version of the dependency-operator CRs.
+dependencyApiVersion: fleet.atomi.cloud/v1alpha1
+
+# -- Dependency declarations. ONE union-set `PlatformDependency` CR per landscape spanning the
+# `database` / `kv` / `cache` / `store` modules this service needs — it REPLACES the old
+# per-kind postgres/redis/S3 CRs. Every module block is a MAP of named connections, matching
+# `App/Config/settings.yaml`, where `MAIN` is the connection the app resolves.
+#
+# Dependencies are requested through CRs in EVERY landscape, lapras included: the operator
+# realizes CNPG/Dragonfly/MinIO in-cluster locally and the managed classes from Primordial.
+# There is no local-subchart-vs-cloud-CR toggle and app charts never bundle dependency
+# subcharts. A duplicate landscape is a loud render-time Conflict, never last-write-wins.
+platformDependencies:
+  - # -- Target landscape. One CR per landscape, single writer.
+    landscape: lapras
+    placement:
+      # -- Required host preference.
+      preferredHost: lapras
+    deletionPolicy:
+      # -- How long a materialized secret is retained after the CR is deleted.
+      retainSecret: 1h
+    # -- Postgres. The system of record for long-lived truth; `cnpg` is the in-cluster class
+    # and its delivery is `local` (the CRD rejects any other pairing).
+    database:
+      main:
+        type: cnpg
+        delivery: local
+        credentialMode: standard
+        rotation: 'off'
+        cpu: 1
+        ram: 512Mi
+        storage: 1Gi
+        version: '16'
+        engine:
+          cnpg: {}
+    # -- KV. PERSISTENT — snapshot durability is on, because losing this is losing data, not
+    # losing a cache.
+    kv:
+      main:
+        type: dragonfly
+        delivery: local
+        credentialMode: standard
+        rotation: 'off'
+        cpu: 1
+        ram: 256Mi
+        engine:
+          dragonfly:
+            snapshot: true
+    # -- Cache. EPHEMERAL by contract — no snapshot, safe to lose. Same protocol as kv,
+    # opposite durability contract; never point one at the other's instance.
+    cache:
+      main:
+        type: dragonfly
+        delivery: local
+        credentialMode: standard
+        rotation: 'off'
+        cpu: 1
+        ram: 256Mi
+        engine:
+          dragonfly:
+            snapshot: false
+    # -- S3-compatible object storage. db-init creates the bucket MinIO will not.
+    store:
+      main:
+        type: minio
+        delivery: local
+        credentialMode: standard
+        rotation: 'off'
+        storage: 1Gi
+        engine:
+          minio: {}
+
+# -- The Problem catalog row, rendered from the committed `pls problems:export` output.
+problems:
+  # -- Render the Problem CR.
+  enabled: true
+  # @schema const:atomi.cloud/v1alpha1
+  # -- API group/version of the Problem CRD (owned by T3).
+  apiVersion: atomi.cloud/v1alpha1
+  # -- Exporter output, relative to the chart directory. COMMITTED, not vendored: it is a real
+  # generated artifact and `problems:verify` gates its freshness. Rendering tolerates the file
+  # being absent so a fresh checkout stays green before the first export.
+  path: problems/catalog-v1.json
+  # @schema pattern:^v[0-9]+$
+  # -- Catalog version. One CR = one version snapshot; a bump is a NEW CR, never an in-place
+  # mutation (D8). Must agree with the version segment of the exported file's own `spec`.
+  version: v1
+
+# -- One vlandscape-targeted LogtoApp for this app. This chart IS the selected placement owner
+# — it is the only primordial chart for this service and the service declares its own
+# serve-set — so it is ON.
+#
+# The app is a confidential machine-to-machine client: it mints and validates machine tokens
+# and calls the Logto Management API for onboarding and session revocation. It has no browser
+# login of its own, so both declared paths are empty. Redirect, post-logout, and CORS values
+# are DERIVED by the operator from the live serve-set — a chart declares PATHS, never per-row
+# URIs.
+logtoApp:
+  # -- Render the LogtoApp CR.
+  enabled: true
+  # @schema const:fleet.atomi.cloud/v1alpha1
+  # -- API group/version of the LogtoApp CRD.
+  apiVersion: fleet.atomi.cloud/v1alpha1
+  # -- Virtual landscape this app resolves its Logto endpoint from (`mew` for production rows,
+  # `celebi` for staging). The endpoint itself is DERIVED from `identityRef` plus the
+  # platform — never configured per CR.
+  vlandscape: mew
+  # @schema enum:[MachineToMachine, Traditional, SPA, Native]
+  # -- Logto application type.
+  type: MachineToMachine
+  # -- DECLARED PATHS ONLY. Each must be an absolute path beginning with one `/`, with no
+  # authority, query, fragment, dot segment, or percent-encoded `/`. Empty means the app has
+  # no browser flow of that kind.
+  paths:
+    # -- Login callback path. Empty for a machine-to-machine app.
+    redirectPath: ''
+    # -- Post-logout path. Empty for a machine-to-machine app.
+    postLogoutPath: ''
+  # @schema item:string;uniqueItems:true
+  # -- Explicit `LogtoResource` CR names this app takes tokens for. A missing ref is a hard
+  # `ResourceRefMissing` error, never inferred, so this stays empty until the resource rows for
+  # this landscape exist.
+  resourceRefs: []
+  # @schema item:string;uniqueItems:true
+  # -- Non-HTTPS / local / vendor redirect exceptions. The ONLY escape from the derived set.
+  extraRedirectUris: []
+  # @schema item:string;uniqueItems:true
+  # -- Post-logout exceptions, same rule.
+  extraPostLogoutRedirectUris: []
+  # @schema item:string;uniqueItems:true
+  # -- CORS origin exceptions (scheme + host + optional non-default port only).
+  extraCorsOrigins: []
+
+# -- Cloudflare edge deployment. This service ships NO edge assets — it is an origin API
+# behind the platform gateway — so the surface exists but is gated OFF. A consumer that does
+# ship a Worker only flips `enabled` and names its script.
+cloudflareDeploy:
+  # -- Render the CloudflareDeploy CR. OFF: no edge assets ship from this repository.
+  enabled: false
+  # @schema const:fleet.atomi.cloud/v1alpha1
+  # -- API group/version of the CloudflareDeploy CRD.
+  apiVersion: fleet.atomi.cloud/v1alpha1
+  # -- Worker script name. Required once enabled.
+  scriptName: ''
+  # -- Tag the desired version is read from.
+  tag: ''
+  # -- Whether the deployed version is pinned rather than tracking the tag.
+  pin: true
+
+# -- Virtual-landscape serve-set membership. Only a row that SERVES a v-landscape declares
+# one, which is rare; this service is reached through its own landscape's gateway, so the
+# surface exists but is gated OFF.
+virtualLandscapeService:
+  # -- Render the VirtualLandscapeService CR. OFF: this row does not serve a v-landscape.
+  enabled: false
+  # @schema const:fleet.atomi.cloud/v1alpha1
+  # -- API group/version of the VirtualLandscapeService CRD.
+  apiVersion: fleet.atomi.cloud/v1alpha1
+  # -- Virtual landscape this row would join.
+  vlandscape: mew
+  # -- Whether this row serves traffic for the v-landscape.
+  serve: false
+
+# -- Grafana Operator rendering of the repository's `observability/` source
+# (docs/standards/observability/primordial-chart.md). The root directory is authoritative; the
+# chart build copies it into the gitignored `files/observability/` before
+# lint/template/package/publish.
+#
+# The six-gate method legitimately yields ZERO dashboards and ZERO alerts, so every template
+# renders cleanly with none present. No placeholder is ever added just to populate a directory.
+observability:
+  # -- Render the GrafanaFolder and any dashboards/alerts found.
+  enabled: true
+  # @schema const:grafana.integreatly.org/v1beta1
+  # -- API group/version of the Grafana Operator CRDs.
+  apiVersion: grafana.integreatly.org/v1beta1
+  # -- Glob root, relative to the chart directory, for the copied `observability/`.
+  path: files/observability
+  # -- Which Grafana instances on Primordial pick these resources up.
+  instanceSelector:
+    matchLabels:
+      dashboards: grafana
+  # -- Dashboard resync cadence.
+  resyncPeriod: 10m
+  # -- Alert-group evaluation interval.
+  alertInterval: 1m
+  # -- Lookback window, in seconds, for each rule's instant query.
+  relativeTimeRangeFrom: 600
+  # -- Platform-pinned datasource UIDs. An alert file's `datasource:` selects one by name; an
+  # unknown name is a render-time failure.
+  datasourceUids:
+    # -- PromQL datasource.
+    metrics: mimir
+    # -- LogQL datasource.
+    logs: loki
+  # -- Repository base URL that every `runbook_url` annotation is built from.
+  repositoryUrl: https://github.com/AtomiCloud/diene.dotnet-api/blob/main
+  # -- Generic LPSM dashboard an alert links when it declares no `panel`.
+  genericDashboardUid: atomi-generic-lpsm

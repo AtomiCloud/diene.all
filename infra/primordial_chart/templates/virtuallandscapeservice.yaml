@@ -1,0 +1,30 @@
+{{- /* ### dotnet-api-primordial-vls */ -}}
+{{- /* #### source: dotnet-api */ -}}
+{{- if .Values.virtualLandscapeService.enabled -}}
+{{- include "dotnetapiPrimordial.validateServiceTree" . -}}
+{{- /* Serve-set membership for a virtual landscape. Only a row that actually SERVES a
+       v-landscape declares one, which is rare — this service is reached through its own
+       landscape's gateway, so `enabled` is false and NO VirtualLandscapeService exists in any
+       rendered output.
+
+       It matters that this surface exists rather than being simply omitted: the LogtoApp's
+       redirect URIs are DERIVED from the live serve-set, which is exactly the set these rows
+       define. A consumer that needs one flips `enabled` here instead of discovering that the
+       derivation has nothing to read. */ -}}
+apiVersion: {{ .Values.virtualLandscapeService.apiVersion }}
+kind: VirtualLandscapeService
+metadata:
+  name: {{ printf "%s-%s-%s" .Values.serviceTree.service .Values.virtualLandscapeService.vlandscape .Values.serviceTree.landscape }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "dotnetapiPrimordial.labels" . | nindent 4 }}
+  annotations:
+    {{- include "dotnetapiPrimordial.annotations" . | nindent 4 }}
+spec:
+  platform: {{ .Values.serviceTree.platform }}
+  vlandscape: {{ required "virtualLandscapeService.vlandscape is required when enabled" .Values.virtualLandscapeService.vlandscape }}
+  service: {{ .Values.serviceTree.service }}
+  module: {{ .Values.serviceTree.module }}
+  landscape: {{ .Values.serviceTree.landscape }}
+  serve: {{ .Values.virtualLandscapeService.serve }}
+{{- end }}

@@ -1,0 +1,65 @@
+# ### dotnet-api-primordial-values-castform
+# #### source: dotnet-api
+# castform — the PREVIEW landscape. Garden manages an immutable per-PR preview.
+#
+# The preview keeps the LOCAL dependency classes: a preview exists to prove behavior, not
+# capacity, and pointing throwaway environments at managed cloud projects would spend real
+# money and leave orphaned resources behind every closed PR. `retainSecret` is short for the
+# same reason — a torn-down preview should not leave credentials lying around.
+serviceTree:
+  landscape: castform
+
+platformDependencies:
+  - landscape: castform
+    placement:
+      preferredHost: castform
+    deletionPolicy:
+      retainSecret: 1h
+    database:
+      main:
+        type: cnpg
+        delivery: local
+        credentialMode: standard
+        rotation: 'off'
+        cpu: 1
+        ram: 512Mi
+        storage: 1Gi
+        version: '16'
+        engine:
+          cnpg: {}
+    kv:
+      main:
+        type: dragonfly
+        delivery: local
+        credentialMode: standard
+        rotation: 'off'
+        cpu: 1
+        ram: 256Mi
+        engine:
+          dragonfly:
+            snapshot: true
+    cache:
+      main:
+        type: dragonfly
+        delivery: local
+        credentialMode: standard
+        rotation: 'off'
+        cpu: 1
+        ram: 256Mi
+        engine:
+          dragonfly:
+            snapshot: false
+    store:
+      main:
+        type: minio
+        delivery: local
+        credentialMode: standard
+        rotation: 'off'
+        storage: 1Gi
+        engine:
+          minio: {}
+
+# The preview resolves its Logto endpoint from the staging virtual landscape: a preview must
+# never mint or validate tokens against the production identity tenant.
+logtoApp:
+  vlandscape: celebi

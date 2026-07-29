@@ -1,0 +1,30 @@
+{{- /* ### dotnet-api-primordial-grafana-folder */ -}}
+{{- /* #### source: dotnet-api */ -}}
+{{- if .Values.observability.enabled -}}
+{{- include "dotnetapiPrimordial.validateServiceTree" . -}}
+{{- /* One GrafanaFolder per service identity, with the deterministic uid
+       `<platform>-<service>-folder`; the `-folder` suffix keeps it out of the shared
+       dashboard/alert-group uid pool. The parent platform folder (uid `<platform>`) is the
+       platform's, created once — deterministic uids mean no ordering coordination is needed
+       and the operator simply retries until the parent exists. Nobody hand-creates folders in
+       the Grafana UI.
+
+       The folder is emitted even with zero dashboards and zero alerts: the observability
+       six-gate method legitimately yields none, and the folder is the service's stable home
+       either way. */ -}}
+apiVersion: {{ .Values.observability.apiVersion }}
+kind: GrafanaFolder
+metadata:
+  name: {{ include "dotnetapiPrimordial.resourceName" (dict "root" . "token" "obsfolder") }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "dotnetapiPrimordial.labels" . | nindent 4 }}
+  annotations:
+    {{- include "dotnetapiPrimordial.annotations" . | nindent 4 }}
+spec:
+  uid: {{ include "dotnetapiPrimordial.grafanaFolderUid" . }}
+  title: {{ printf "%s / %s" .Values.serviceTree.platform .Values.serviceTree.service | quote }}
+  parentFolderUID: {{ .Values.serviceTree.platform | quote }}
+  instanceSelector:
+    {{- toYaml .Values.observability.instanceSelector | nindent 4 }}
+{{- end }}

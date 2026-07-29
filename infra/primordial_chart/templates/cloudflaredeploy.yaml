@@ -1,0 +1,28 @@
+{{- /* ### dotnet-api-primordial-cloudflaredeploy */ -}}
+{{- /* #### source: dotnet-api */ -}}
+{{- if .Values.cloudflareDeploy.enabled -}}
+{{- include "dotnetapiPrimordial.validateServiceTree" . -}}
+{{- /* Edge deployment, rendered ONLY when this repository actually ships edge assets. It does
+       not: this service is an origin API behind the platform gateway, so `enabled` is false
+       and NO CloudflareDeploy resource exists in any rendered output.
+
+       The surface ships anyway so a consumer built from this template that DOES publish a
+       Worker only flips `enabled` and names its script — and so that "we ship no edge assets"
+       is a values decision anyone can read, rather than an absence they have to infer. */ -}}
+{{- $scriptName := required "cloudflareDeploy.scriptName is required when cloudflareDeploy.enabled" .Values.cloudflareDeploy.scriptName -}}
+{{- $tag := required "cloudflareDeploy.tag is required when cloudflareDeploy.enabled" .Values.cloudflareDeploy.tag -}}
+apiVersion: {{ .Values.cloudflareDeploy.apiVersion }}
+kind: CloudflareDeploy
+metadata:
+  name: {{ include "dotnetapiPrimordial.resourceName" (dict "root" . "token" "edge") }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "dotnetapiPrimordial.labels" . | nindent 4 }}
+  annotations:
+    {{- include "dotnetapiPrimordial.annotations" . | nindent 4 }}
+spec:
+  scriptName: {{ $scriptName | quote }}
+  desiredVersionFrom:
+    tag: {{ $tag | quote }}
+  pin: {{ .Values.cloudflareDeploy.pin }}
+{{- end }}

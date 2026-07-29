@@ -1,0 +1,61 @@
+{{- /* ### dotnet-api-primordial-logtoapp */ -}}
+{{- /* #### source: dotnet-api */ -}}
+{{- if .Values.logtoApp.enabled -}}
+{{- include "dotnetapiPrimordial.validateServiceTree" . -}}
+{{- /* Exactly ONE LogtoApp CR per (app x vlandscape) — the single home of all app-level truth;
+       the old per-row fragment CRs are abolished.
+
+       PLACEMENT-OWNER CONDITION: this renders only when THIS chart is the selected placement
+       owner for the app, which it is — it is the only primordial chart for this service and
+       the service declares its own serve-set.
+
+       `identityRef` is `{platform, vlandscape}` and the platform is REQUIRED and EXPLICIT: the
+       operator rejects an omitted platform and a namespace/platform mismatch rather than
+       inferring one from the CR's namespace. The Logto endpoint itself is DERIVED from that
+       pair and never configured per CR.
+
+       Redirect URIs are DERIVED, never declared per row: the operator resolves the live
+       serve-set and builds `origin(L) + declaredPath`. This chart therefore declares PATHS
+       only, and every non-HTTPS / local / vendor exception is explicit through the `extra*`
+       lists. Nothing here branches on environment. */ -}}
+{{- $paths := .Values.logtoApp.paths -}}
+{{- range $key := (list "redirectPath" "postLogoutPath") -}}
+{{- include "dotnetapiPrimordial.validatePath" (dict "key" $key "value" (get $paths $key)) -}}
+{{- end -}}
+apiVersion: {{ .Values.logtoApp.apiVersion }}
+kind: LogtoApp
+metadata:
+  name: {{ include "dotnetapiPrimordial.resourceName" (dict "root" . "token" "identity") }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "dotnetapiPrimordial.labels" . | nindent 4 }}
+  annotations:
+    {{- include "dotnetapiPrimordial.annotations" . | nindent 4 }}
+spec:
+  identityRef:
+    platform: {{ .Values.serviceTree.platform }}
+    vlandscape: {{ required "logtoApp.vlandscape is required when logtoApp.enabled" .Values.logtoApp.vlandscape }}
+  service: {{ .Values.serviceTree.service }}
+  module: {{ .Values.serviceTree.module }}
+  type: {{ .Values.logtoApp.type }}
+  paths:
+    {{- toYaml $paths | nindent 4 }}
+  {{- with .Values.logtoApp.resourceRefs }}
+  {{- /* Explicit LogtoResource CR names; a missing ref is a hard ResourceRefMissing error,
+         never inferred. */}}
+  resourceRefs:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.logtoApp.extraRedirectUris }}
+  extraRedirectUris:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.logtoApp.extraPostLogoutRedirectUris }}
+  extraPostLogoutRedirectUris:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.logtoApp.extraCorsOrigins }}
+  extraCorsOrigins:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}

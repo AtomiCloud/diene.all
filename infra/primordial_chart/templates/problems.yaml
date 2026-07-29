@@ -1,0 +1,122 @@
+{{- /* ### dotnet-api-primordial-problems */ -}}
+{{- /* #### source: dotnet-api */ -}}
+{{- if .Values.problems.enabled -}}
+{{- include "dotnetapiPrimordial.validateServiceTree" . -}}
+{{- /* The Problem catalog row. `problems/catalog-v1.json` is the COMMITTED output of
+       `pls problems:export`, which serializes the registered catalog through the published
+       problems package. Each entry's `type` is the fully minted RFC 9457 URI as of export
+       time — this template never reconstructs one from parts.
+
+       ONE CR per (platform, service, landscape, version): a release re-materializes the whole
+       row in one write, and a version bump is a NEW CR, never an in-place `spec.version`
+       mutation (D8).
+
+       THE LANDSCAPE REWRITE, and why it is here. The exporter mints type URIs from the app's
+       OWN config, so the committed catalog is stamped with the landscape that was configured
+       when it ran (`lapras`). A primordial chart is installed per landscape, so materializing
+       that file verbatim into a `raichu` row would publish a row whose every `type` URI points
+       at the lapras error portal — a silent, wrong-data outcome that no lint would catch.
+       This template therefore substitutes exactly one path triple,
+       `/<exportLandscape>/<platform>/<service>/` -> `/<chartLandscape>/<platform>/<service>/`,
+       and FAILS on any entry whose `type` does not contain the triple it claims to. The
+       substitution can never silently no-op. The clean long-term fix belongs to
+       `problems:export` (emit landscape-neutral URIs, or one file per landscape) and is
+       reported upward rather than papered over here.
+
+       Tolerate-absent: a fresh checkout may not have run the export yet, so a missing or
+       empty file renders nothing. A file that EXISTS but is malformed, stale, or names a
+       different service is a hard failure — "no output" is never allowed to read as
+       "validated". */ -}}
+{{- $root := . -}}
+{{- $path := required "problems.path is required" .Values.problems.path -}}
+{{- $version := required "problems.version is required" .Values.problems.version -}}
+{{- if not (regexMatch "^v[0-9]+$" $version) -}}
+{{- fail (printf "problems.version %q must match ^v[0-9]+$ (D8)" $version) -}}
+{{- end -}}
+{{- $platform := $root.Values.serviceTree.platform -}}
+{{- $service := $root.Values.serviceTree.service -}}
+{{- $landscape := $root.Values.serviceTree.landscape -}}
+{{- $raw := trim ($root.Files.Get $path) -}}
+{{- if $raw -}}
+{{- /* The exporter emits a full Problem resource with entries at `spec.problems`. The bare
+       array and the top-level `problems` envelope stay accepted so a previously generated
+       catalog remains renderable. */ -}}
+{{- $entries := list -}}
+{{- $exportLandscape := "" -}}
+{{- if hasPrefix "[" $raw -}}
+{{- $entries = fromJsonArray $raw -}}
+{{- else if hasPrefix "{" $raw -}}
+{{- $object := fromJson $raw -}}
+{{- if hasKey $object "spec" -}}
+{{- $spec := $object.spec -}}
+{{- if not (and (kindIs "map" $spec) (hasKey $spec "problems")) -}}
+{{- fail (printf "%s is not a Problem catalog: expected `spec.problems`" $path) -}}
+{{- end -}}
+{{- $entries = $spec.problems | default list -}}
+{{- $exportLandscape = $spec.landscape | default "" -}}
+{{- if and $spec.platform (ne (toString $spec.platform) $platform) -}}
+{{- fail (printf "%s was exported for platform %q but this chart is %q; re-run `pls problems:export`" $path (toString $spec.platform) $platform) -}}
+{{- end -}}
+{{- if and $spec.service (ne (toString $spec.service) $service) -}}
+{{- fail (printf "%s was exported for service %q but this chart is %q; re-run `pls problems:export`" $path (toString $spec.service) $service) -}}
+{{- end -}}
+{{- if and $spec.version (ne (toString $spec.version) $version) -}}
+{{- fail (printf "%s declares catalog version %q but problems.version is %q; a bump is a NEW CR, never an in-place mutation (D8)" $path (toString $spec.version) $version) -}}
+{{- end -}}
+{{- else if hasKey $object "problems" -}}
+{{- $entries = $object.problems | default list -}}
+{{- else -}}
+{{- fail (printf "%s is not a Problem catalog: expected `problems` or `spec.problems`" $path) -}}
+{{- end -}}
+{{- else -}}
+{{- fail (printf "%s is not valid JSON: expected an array or an object carrying `problems` or `spec.problems`" $path) -}}
+{{- end -}}
+{{- if not $entries -}}
+{{- fail (printf "%s carries an EMPTY problem set; the registered catalog is never empty, so this is a stale or truncated export" $path) -}}
+{{- end -}}
+{{- $rewrite := and $exportLandscape (ne $exportLandscape $landscape) -}}
+{{- $from := printf "/%s/%s/%s/" $exportLandscape $platform $service -}}
+{{- $to := printf "/%s/%s/%s/" $landscape $platform $service -}}
+{{- $materialized := list -}}
+{{- range $entry := $entries }}
+{{- $_ := required (printf "%s: every problem entry needs an `id`" $path) $entry.id -}}
+{{- $type := required (printf "%s: problem %s needs a pre-minted `type` URI" $path $entry.id) $entry.type -}}
+{{- $_ = required (printf "%s: problem %s needs a `title`" $path $entry.id) $entry.title -}}
+{{- $_ = required (printf "%s: problem %s needs a `status`" $path $entry.id) $entry.status -}}
+{{- if not (regexMatch "^[a-z][a-z0-9_]*$" $entry.id) -}}
+{{- fail (printf "%s: problem id %q must be snake_case matching ^[a-z][a-z0-9_]*$" $path $entry.id) -}}
+{{- end -}}
+{{- if $rewrite -}}
+{{- if not (contains $from (toString $type)) -}}
+{{- fail (printf "%s: problem %s has type %q, which does not carry the exported coordinate %q — the catalog cannot be re-pointed at landscape %q without silently publishing a wrong URI" $path $entry.id (toString $type) $from $landscape) -}}
+{{- end -}}
+{{- $copy := deepCopy $entry -}}
+{{- $_ = set $copy "type" (replace $from $to (toString $type)) -}}
+{{- $materialized = append $materialized $copy -}}
+{{- else -}}
+{{- $materialized = append $materialized $entry -}}
+{{- end -}}
+{{- end }}
+apiVersion: {{ $root.Values.problems.apiVersion }}
+kind: Problem
+metadata:
+  name: {{ printf "%s-%s-%s" $service $landscape $version }}
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "dotnetapiPrimordial.labels" $root | nindent 4 }}
+  annotations:
+    {{- include "dotnetapiPrimordial.annotations" $root | nindent 4 }}
+    {{- if $rewrite }}
+    {{- /* Stated on the object, not just in a comment: whoever reads the rendered CR can see
+           that the URIs were re-pointed and from where. */}}
+    {{ include "dotnetapiPrimordial.labelPrefix" $root }}/problem-catalog-exported-for: {{ $exportLandscape | quote }}
+    {{- end }}
+spec:
+  platform: {{ $platform }}
+  service: {{ $service }}
+  landscape: {{ $landscape }}
+  version: {{ $version }}
+  problems:
+    {{- toYaml $materialized | nindent 4 }}
+{{- end }}
+{{- end }}

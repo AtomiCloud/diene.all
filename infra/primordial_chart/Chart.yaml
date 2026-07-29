@@ -1,0 +1,9 @@
+# ### dotnet-api-primordial-chart
+# #### source: dotnet-api
+apiVersion: v2
+name: dotnet-api-primordial
+description: Primordial chart for the diene .NET API — the T3 CR set (PlatformDependency, Problem catalog, LogtoApp) plus this service's Grafana Operator folder, dashboards, and alerts
+type: application
+version: 0.0.0
+appVersion: '0.0.0'
+kubeVersion: '>=1.27.0-0'
