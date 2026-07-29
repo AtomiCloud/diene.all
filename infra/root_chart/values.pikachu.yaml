@@ -1,0 +1,23 @@
+# ### dotnet-api-values-pikachu
+# #### source: dotnet-api
+# pikachu — STAGING/UAT (second evolution). Production's shape at a smaller size, so a
+# rollout problem surfaces here and not in raichu.
+serviceTree:
+  landscape: pikachu
+
+httpRoute:
+  hostnames:
+    - dotnet-api.pikachu.atomi.cloud
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 4
+
+app:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi

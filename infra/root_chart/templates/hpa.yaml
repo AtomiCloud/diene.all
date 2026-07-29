@@ -1,0 +1,54 @@
+{{- /* ### dotnet-api-hpa */ -}}
+{{- /* #### source: dotnet-api */ -}}
+{{- if .Values.autoscaling.enabled -}}
+{{- include "dotnetapi.validateServiceTree" . -}}
+{{- /* The Deployment omits `replicas` while this is enabled, so the HPA owns the scale and a
+       helm upgrade cannot quietly reset a scaled-out service back to the chart default.
+
+       A metric set to `null` is omitted rather than rendered as an empty target — an HPA with
+       a metric block it cannot evaluate reports ScalingActive=False and stops scaling at all,
+       which looks identical to "load is fine". */ -}}
+{{- if lt (int .Values.autoscaling.maxReplicas) (int .Values.autoscaling.minReplicas) -}}
+{{- fail (printf "autoscaling.maxReplicas (%v) must be >= autoscaling.minReplicas (%v)" .Values.autoscaling.maxReplicas .Values.autoscaling.minReplicas) -}}
+{{- end -}}
+{{- if and (not .Values.autoscaling.targetCPUUtilizationPercentage) (not .Values.autoscaling.targetMemoryUtilizationPercentage) -}}
+{{- fail "autoscaling.enabled needs at least one of targetCPUUtilizationPercentage or targetMemoryUtilizationPercentage; an HPA with no metric never scales" -}}
+{{- end -}}
+apiVersion: {{ .Values.autoscaling.apiVersion }}
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "dotnetapi.resourceName" (dict "root" . "token" .Values.serviceTree.module) }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "dotnetapi.labels" . | nindent 4 }}
+  annotations:
+    {{- include "dotnetapi.annotations" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "dotnetapi.resourceName" (dict "root" . "token" .Values.serviceTree.module) }}
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  metrics:
+    {{- with .Values.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ . }}
+    {{- end }}
+    {{- with .Values.autoscaling.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ . }}
+    {{- end }}
+  {{- with .Values.autoscaling.behavior }}
+  behavior:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}

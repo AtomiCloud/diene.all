@@ -1,0 +1,23 @@
+# ### dotnet-api-values-pichu
+# #### source: dotnet-api
+# pichu — DEVELOPMENT (first evolution). The first landscape with a real gateway hostname and
+# a real platform SecretStore behind it.
+serviceTree:
+  landscape: pichu
+
+httpRoute:
+  hostnames:
+    - dotnet-api.pichu.atomi.cloud
+
+autoscaling:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 2
+
+app:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 192Mi
+    limits:
+      memory: 512Mi

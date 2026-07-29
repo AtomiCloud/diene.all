@@ -1,0 +1,30 @@
+{{- /* ### dotnet-api-service */ -}}
+{{- /* #### source: dotnet-api */ -}}
+{{- if .Values.service.enabled -}}
+{{- include "dotnetapi.validateServiceTree" . -}}
+{{- /* The stable in-cluster address. Exposure at the edge belongs to the HTTPRoute and the
+       platform's Gateway, so this stays ClusterIP and this chart never creates a Gateway. */ -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "dotnetapi.resourceName" (dict "root" . "token" .Values.serviceTree.module) }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "dotnetapi.labels" . | nindent 4 }}
+  annotations:
+    {{- include "dotnetapi.annotations" . | nindent 4 }}
+    {{- with .Values.service.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    {{- include "dotnetapi.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: {{ .Values.service.portName }}
+      port: {{ .Values.service.port }}
+      {{- /* Targeting the NAMED container port means `app.port` is stated once and the
+             Service can never point at a socket nothing is listening on. */}}
+      targetPort: {{ .Values.service.portName }}
+      protocol: TCP
+{{- end }}

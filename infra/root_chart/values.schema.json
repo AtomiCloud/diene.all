@@ -1,0 +1,246 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Diene .NET API app chart values",
+  "description": "Runtime app chart for the diene .NET API service. Validated against the base values and every landscape overlay (R17). Landscape is the ONLY overlay axis — a service repository has no cluster axis (R16).",
+  "type": "object",
+  "required": [
+    "labelPrefix",
+    "serviceTree",
+    "image",
+    "app",
+    "shutdown",
+    "health",
+    "service",
+    "httpRoute",
+    "autoscaling",
+    "dbInit",
+    "secret",
+    "config",
+    "podSecurityContext",
+    "containerSecurityContext"
+  ],
+  "properties": {
+    "labelPrefix": { "type": "string", "pattern": "^[a-z0-9.-]+$", "minLength": 1 },
+    "serviceTree": {
+      "type": "object",
+      "description": "LPSM projection. Every slot is a DNS-1123 label because all of them are pasted into resource names, label values, and the minted error-portal type URI.",
+      "required": ["platform", "service", "module", "layer", "landscape"],
+      "properties": {
+        "platform": { "$ref": "#/$defs/dnsLabel" },
+        "service": { "$ref": "#/$defs/dnsLabel" },
+        "module": { "$ref": "#/$defs/dnsLabel" },
+        "layer": { "type": "string", "pattern": "^[0-9]+$" },
+        "landscape": { "$ref": "#/$defs/dnsLabel" }
+      },
+      "additionalProperties": false
+    },
+    "image": {
+      "type": "object",
+      "required": ["repository", "pullPolicy"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "tag": { "type": "string", "not": { "const": "latest" } },
+        "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] },
+        "pullSecrets": { "type": "array", "items": { "type": "object" } }
+      },
+      "additionalProperties": false
+    },
+    "app": {
+      "type": "object",
+      "required": ["replicas", "args", "port", "rollingUpdate", "resources"],
+      "properties": {
+        "replicas": { "type": "integer", "minimum": 0 },
+        "args": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "rollingUpdate": {
+          "type": "object",
+          "required": ["maxUnavailable", "maxSurge"],
+          "properties": {
+            "maxUnavailable": { "type": ["integer", "string"] },
+            "maxSurge": { "type": ["integer", "string"] }
+          },
+          "additionalProperties": false
+        },
+        "resources": { "type": "object" },
+        "env": { "type": "array", "items": { "type": "object" } }
+      },
+      "additionalProperties": false
+    },
+    "shutdown": {
+      "type": "object",
+      "description": "The kubelet grace period must exceed the ASP.NET Core drain budget; the chart also fails the render when it does not.",
+      "required": ["timeoutSeconds", "terminationGracePeriodSeconds"],
+      "properties": {
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "terminationGracePeriodSeconds": { "type": "integer", "minimum": 2 }
+      },
+      "additionalProperties": false
+    },
+    "health": {
+      "type": "object",
+      "description": "Liveness and readiness both target the dependency-blind GET / info endpoint (R20).",
+      "required": ["path", "liveness", "readiness", "startup"],
+      "properties": {
+        "path": { "type": "string", "pattern": "^/" },
+        "liveness": { "$ref": "#/$defs/probeTiming" },
+        "readiness": { "$ref": "#/$defs/probeTiming" },
+        "startup": {
+          "type": "object",
+          "required": ["enabled", "periodSeconds", "timeoutSeconds", "failureThreshold"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "periodSeconds": { "type": "integer", "minimum": 1 },
+            "timeoutSeconds": { "type": "integer", "minimum": 1 },
+            "failureThreshold": { "type": "integer", "minimum": 1 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "service": {
+      "type": "object",
+      "required": ["enabled", "type", "port", "portName"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "type": { "type": "string", "enum": ["ClusterIP", "NodePort", "LoadBalancer"] },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "portName": { "type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$", "maxLength": 15 },
+        "annotations": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "httpRoute": {
+      "type": "object",
+      "required": ["enabled", "apiVersion", "parentRefs", "pathPrefix"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "apiVersion": { "const": "gateway.networking.k8s.io/v1" },
+        "parentRefs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "properties": {
+              "name": { "$ref": "#/$defs/dnsLabel" },
+              "namespace": { "$ref": "#/$defs/dnsLabel" },
+              "sectionName": { "type": "string" },
+              "kind": { "type": "string" },
+              "group": { "type": "string" },
+              "port": { "type": "integer" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "hostnames": { "type": "array", "items": { "type": "string", "format": "hostname", "minLength": 1 } },
+        "pathPrefix": { "type": "string", "pattern": "^/" },
+        "annotations": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "autoscaling": {
+      "type": "object",
+      "required": ["enabled", "apiVersion", "minReplicas", "maxReplicas"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "apiVersion": { "const": "autoscaling/v2" },
+        "minReplicas": { "type": "integer", "minimum": 1 },
+        "maxReplicas": { "type": "integer", "minimum": 1 },
+        "targetCPUUtilizationPercentage": { "type": ["integer", "null"], "minimum": 1, "maximum": 100 },
+        "targetMemoryUtilizationPercentage": { "type": ["integer", "null"], "minimum": 1, "maximum": 100 },
+        "behavior": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "dbInit": {
+      "type": "object",
+      "description": "Hook-scoped one-shot migration Job. Helm pre-install/pre-upgrade AND ArgoCD PreSync; never part of the release's ordinary resource set.",
+      "required": ["enabled", "args", "syncWave", "backoffLimit", "ttlSecondsAfterFinished", "activeDeadlineSeconds", "resources"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "args": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "syncWave": { "type": "string", "pattern": "^-?[0-9]+$" },
+        "backoffLimit": { "type": "integer", "minimum": 0 },
+        "ttlSecondsAfterFinished": { "type": "integer", "minimum": 0 },
+        "activeDeadlineSeconds": { "type": "integer", "minimum": 1 },
+        "resources": { "type": "object" },
+        "env": { "type": "array", "items": { "type": "object" } }
+      },
+      "additionalProperties": false
+    },
+    "secret": {
+      "type": "object",
+      "required": ["enabled", "apiVersion", "refreshInterval", "syncWave", "store", "sharedFolder", "serviceFolder"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "apiVersion": { "const": "external-secrets.io/v1" },
+        "refreshInterval": { "type": "string", "minLength": 1 },
+        "syncWave": { "type": "string", "pattern": "^-?[0-9]+$" },
+        "store": {
+          "type": "object",
+          "required": ["kind", "name"],
+          "properties": {
+            "kind": { "type": "string", "enum": ["SecretStore", "ClusterSecretStore"] },
+            "name": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        },
+        "sharedFolder": { "type": "string", "pattern": "^/" },
+        "serviceFolder": { "type": "string", "pattern": "^/" }
+      },
+      "additionalProperties": false
+    },
+    "config": {
+      "type": "object",
+      "description": "Build-phase vendored config. The directory is gitignored and regenerated per build; rendering tolerates it being absent.",
+      "required": ["enabled", "path", "mountPath", "syncWave"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "path": { "type": "string", "minLength": 1 },
+        "mountPath": { "type": "string", "pattern": "^/" },
+        "syncWave": { "type": "string", "pattern": "^-?[0-9]+$" }
+      },
+      "additionalProperties": false
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "required": ["runAsNonRoot"],
+      "properties": {
+        "runAsNonRoot": { "const": true },
+        "runAsUser": { "type": "integer", "minimum": 1 },
+        "runAsGroup": { "type": "integer", "minimum": 1 },
+        "fsGroup": { "type": "integer", "minimum": 1 },
+        "seccompProfile": { "type": "object" }
+      }
+    },
+    "containerSecurityContext": {
+      "type": "object",
+      "required": ["allowPrivilegeEscalation", "readOnlyRootFilesystem"],
+      "properties": {
+        "allowPrivilegeEscalation": { "const": false },
+        "readOnlyRootFilesystem": { "type": "boolean" },
+        "capabilities": { "type": "object" }
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "dnsLabel": {
+      "type": "string",
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+      "maxLength": 63
+    },
+    "probeTiming": {
+      "type": "object",
+      "required": ["initialDelaySeconds", "periodSeconds", "timeoutSeconds", "failureThreshold"],
+      "properties": {
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    }
+  }
+}

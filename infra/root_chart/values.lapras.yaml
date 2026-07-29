@@ -1,0 +1,30 @@
+# ### dotnet-api-values-lapras
+# #### source: dotnet-api
+# lapras — LOCAL development (k3d). Landscape is the ONLY overlay axis (R16); a service
+# repository has no cluster dimension. This overlay is deliberately near-empty because the
+# base layer already IS the local shape: a forgotten overlay must degrade to local, never to
+# production.
+serviceTree:
+  landscape: lapras
+
+app:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 384Mi
+
+# One node, no headroom to autoscale into, and an HPA with no metrics-server is a permanently
+# unhealthy object that hides real ones.
+autoscaling:
+  enabled: false
+
+dbInit:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 384Mi

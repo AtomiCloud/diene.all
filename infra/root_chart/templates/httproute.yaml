@@ -1,0 +1,42 @@
+{{- /* ### dotnet-api-httproute */ -}}
+{{- /* #### source: dotnet-api */ -}}
+{{- if .Values.httpRoute.enabled -}}
+{{- include "dotnetapi.validateServiceTree" . -}}
+{{- /* Gateway API attachment. The Gateway itself is the platform's — this chart only ATTACHES
+       to one, so a service release can never take the shared edge down by rewriting listener
+       config.
+
+       `hostnames` is legitimately EMPTY in the local landscape: an empty list means "every
+       hostname the parent listener already accepts", which is exactly right for a k3d gateway
+       with no DNS. Landscape overlays name the real host. */ -}}
+{{- if not .Values.httpRoute.parentRefs -}}
+{{- fail "httpRoute.parentRefs must name at least one Gateway; a route with no parent is silently inert" -}}
+{{- end -}}
+apiVersion: {{ .Values.httpRoute.apiVersion }}
+kind: HTTPRoute
+metadata:
+  name: {{ include "dotnetapi.resourceName" (dict "root" . "token" .Values.serviceTree.module) }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "dotnetapi.labels" . | nindent 4 }}
+  annotations:
+    {{- include "dotnetapi.annotations" . | nindent 4 }}
+    {{- with .Values.httpRoute.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  parentRefs:
+    {{- toYaml .Values.httpRoute.parentRefs | nindent 4 }}
+  {{- with .Values.httpRoute.hostnames }}
+  hostnames:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: {{ .Values.httpRoute.pathPrefix | quote }}
+      backendRefs:
+        - name: {{ include "dotnetapi.resourceName" (dict "root" . "token" .Values.serviceTree.module) }}
+          port: {{ .Values.service.port }}
+{{- end }}

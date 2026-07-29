@@ -1,3 +1,270 @@
-# ### workspace-values
-# #### source: workspace
-replicaCount: 1
+# ### dotnet-api-values
+# #### source: dotnet-api
+#
+# The base layer is a COMPLETE, installable local release: every key the chart ever reads
+# exists here and `landscape` is `lapras`. A landscape overlay is sparse and names only what
+# differs, so a forgotten overlay degrades to the LOCAL shape rather than to production.
+
+# -- Prefix used by every service-tree label and annotation helper. One configurable key
+# (R16/B26) — never hard-coded inside a helper.
+labelPrefix: atomi.cloud
+
+# -- Stable service-tree projection (LPSM, docs/standards/service-tree). Also projected into
+# both workloads as `ATOMI_APP__*` so the Kubernetes labels and the telemetry resource
+# attributes cannot disagree — alert routing matches on these exact values.
+serviceTree:
+  # -- Platform name (functional group). Matches `app.platform` in `App/Config/settings.yaml`.
+  platform: sulfoxide
+  # -- Service name. The REAL identity (R4): it is what `App/Config/settings.yaml` declares,
+  # what `problems:export` stamps into every minted type URI, and what alert routing matches
+  # on. Every resource this chart owns is named `<service>-<token>`.
+  service: dotnet-api
+  # -- Module name for this workload.
+  module: api
+  # -- Architecture layer (application tier).
+  layer: '2'
+  # -- Landscape. The ONLY overlay axis (R16 — there is no cluster axis in a service repo).
+  # Also projected as the `LANDSCAPE` variable, which is what selects
+  # `Config/settings.<landscape>.yaml` inside the container.
+  landscape: lapras
+
+# -- The one artifact this service ships. `server` and `db-init` are the same image with
+# different args (App/StartUp/RunMode.cs).
+image:
+  # -- Image repository. Never `:latest` — the tag is a pin (M25).
+  repository: ghcr.io/atomicloud/diene.dotnet-api/diene-dotnet-api
+  # -- Image tag. EMPTY falls back to the chart `appVersion`, which is the one semver the
+  # `chart-versions` gate holds equal across the image and both charts.
+  tag: ''
+  # -- Image pull policy.
+  pullPolicy: IfNotPresent
+  # @schema item:object
+  # -- Optional image pull secrets.
+  pullSecrets: []
+
+# -- The long-running ASP.NET Core host.
+app:
+  # -- Replica count. Ignored once `autoscaling.enabled` is on and the HPA owns the field.
+  replicas: 1
+  # @schema item:string
+  # -- Arguments appended to the image ENTRYPOINT. `server` is also the no-argument default;
+  # naming it makes the workload's mode explicit next to the db-init Job's.
+  args:
+    - server
+  # -- Container port. Projected as `ASPNETCORE_URLS` so the declared port and the port Kestrel
+  # actually binds cannot drift apart.
+  port: 8080
+  # -- Rolling-update knobs. The db-init hook Job must never force a recreation, so
+  # `RollingUpdate` is the only strategy this chart renders (R20).
+  rollingUpdate:
+    # -- Maximum unavailable pods during a rollout.
+    maxUnavailable: 0
+    # -- Maximum surge pods during a rollout.
+    maxSurge: 1
+  # -- Resource requests and limits.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 192Mi
+    limits:
+      memory: 512Mi
+  # @schema item:object
+  # -- Extra environment variables (`ATOMI_X__Y` overrides, R14/R21).
+  env: []
+
+# -- Graceful shutdown, aligned end to end. `timeoutSeconds` is projected as
+# `ASPNETCORE_SHUTDOWNTIMEOUTSECONDS`, so the host's own drain budget and the kubelet's grace
+# period come from ONE number instead of two that quietly disagree. `_helpers.tpl` FAILS the
+# render when the grace period is not strictly greater than the shutdown timeout — a pod that
+# is SIGKILLed while still draining is a dropped in-flight request.
+shutdown:
+  # -- Seconds ASP.NET Core waits for in-flight requests before completing shutdown.
+  timeoutSeconds: 30
+  # -- Seconds the kubelet waits after SIGTERM before SIGKILL. Must exceed `timeoutSeconds`.
+  terminationGracePeriodSeconds: 45
+
+# -- Liveness AND readiness both target the `GET /` info endpoint and are deliberately
+# DEPENDENCY-BLIND (R20): the endpoint reports the process, never postgres/kv/cache/storage
+# reachability. A database blip must degrade the service, never roll every serving pod.
+# Dependency reachability belongs to db-init and to alerting.
+health:
+  # -- HTTP path both probes call. `GET /` is the info endpoint (App/Modules/Info).
+  path: /
+  liveness:
+    # -- Seconds before the first liveness probe.
+    initialDelaySeconds: 15
+    # -- Liveness probe interval.
+    periodSeconds: 30
+    # -- Liveness probe timeout.
+    timeoutSeconds: 5
+    # -- Consecutive failures before the kubelet restarts the container.
+    failureThreshold: 3
+  readiness:
+    # -- Seconds before the first readiness probe.
+    initialDelaySeconds: 5
+    # -- Readiness probe interval.
+    periodSeconds: 10
+    # -- Readiness probe timeout.
+    timeoutSeconds: 3
+    # -- Consecutive failures before the pod is taken out of the Service.
+    failureThreshold: 3
+  startup:
+    # -- Render a startup probe so a slow first boot does not trip liveness.
+    enabled: true
+    # -- Startup probe interval.
+    periodSeconds: 5
+    # -- Startup probe timeout.
+    timeoutSeconds: 3
+    # -- Attempts before the container is declared failed to start.
+    failureThreshold: 30
+
+# -- ClusterIP Service fronting the Deployment. The HTTPRoute is what exposes it.
+service:
+  # -- Render the Service.
+  enabled: true
+  # @schema enum:[ClusterIP, NodePort, LoadBalancer]
+  # -- Service type. Edge exposure is the gateway's job, so ClusterIP is the only shape this
+  # chart is designed around.
+  type: ClusterIP
+  # -- Port the Service listens on.
+  port: 80
+  # -- Named port the HTTPRoute and the Service target.
+  portName: http
+  # @schema item:object
+  # -- Extra annotations for the Service.
+  annotations: {}
+
+# -- Gateway API HTTPRoute. Ingress is a gateway concern; this chart only attaches to a
+# Gateway the platform already runs, and never creates one.
+httpRoute:
+  # -- Render the HTTPRoute.
+  enabled: true
+  # @schema const:gateway.networking.k8s.io/v1
+  # -- API group/version of the Gateway API HTTPRoute.
+  apiVersion: gateway.networking.k8s.io/v1
+  # @schema item:object;minItems:1
+  # -- Gateways this route attaches to. At least one parent, or the route is inert.
+  parentRefs:
+    - name: kgateway
+      namespace: kgateway-system
+  # @schema item:string
+  # -- Hostnames. EMPTY means "every hostname the parent listener accepts", which is the
+  # correct local shape; landscape overlays name the real host.
+  hostnames: []
+  # -- Path prefix this route matches. The service owns its whole prefix; per-endpoint routing
+  # is the application's business, not the gateway's.
+  pathPrefix: /
+  # @schema item:object
+  # -- Extra annotations for the HTTPRoute.
+  annotations: {}
+
+# -- Horizontal Pod Autoscaler. When enabled the Deployment's `replicas` field is omitted so
+# the HPA owns the scale and a helm upgrade cannot reset it.
+autoscaling:
+  # -- Render the HPA.
+  enabled: true
+  # @schema const:autoscaling/v2
+  # -- API group/version of the HPA.
+  apiVersion: autoscaling/v2
+  # -- Lower bound.
+  minReplicas: 1
+  # -- Upper bound.
+  maxReplicas: 3
+  # -- Target average CPU utilization, in percent. Null removes the CPU metric.
+  targetCPUUtilizationPercentage: 80
+  # -- Target average memory utilization, in percent. Null removes the memory metric.
+  targetMemoryUtilizationPercentage: null
+  # -- Scaling behavior, passed through verbatim. Empty renders no `behavior` block.
+  behavior: {}
+
+# -- One-shot db-init entry point. Runs as a helm `pre-install,pre-upgrade` hook AND an ArgoCD
+# `PreSync` hook, ordered ahead of the Deployment. Its checksum is deliberately NOT coupled
+# into the Deployment's pod template: a migration must never trigger app recreation.
+dbInit:
+  # -- Render the db-init hook Job.
+  enabled: true
+  # @schema item:string
+  # -- Arguments appended to the image ENTRYPOINT. `db-init` is the mode
+  # `App/StartUp/RunMode.cs` accepts.
+  args:
+    - db-init
+  # -- Sync wave. Greater than `secret.syncWave` and less than the Deployment's implicit 0.
+  syncWave: '-1'
+  # -- Job retry budget before the pre-sync hook is declared failed.
+  backoffLimit: 3
+  # -- Seconds the completed Job is retained for inspection.
+  ttlSecondsAfterFinished: 300
+  # -- Hard wall-clock ceiling for one db-init run.
+  activeDeadlineSeconds: 600
+  # -- db-init resource requests and limits.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 192Mi
+    limits:
+      memory: 512Mi
+  # @schema item:object
+  # -- Extra environment variables for the db-init pod only.
+  env: []
+
+# -- One service-scoped ExternalSecret materializing this service's secret from the platform
+# SecretStore. The service ASSUMES the store already exists — carbon creates exactly one per
+# platform through the SoS chain. There is no `sulfoxide-bromine:` values key and no
+# PushSecret (B12): this chart only ever READS.
+secret:
+  # -- Render the ExternalSecret.
+  enabled: true
+  # @schema const:external-secrets.io/v1
+  # -- API group/version of the External Secrets Operator CRs.
+  apiVersion: external-secrets.io/v1
+  # -- ESO refresh cadence.
+  refreshInterval: 1h
+  # -- Sync wave. Secrets land before db-init and before the rollout.
+  syncWave: '-2'
+  store:
+    # @schema enum:[SecretStore, ClusterSecretStore]
+    # -- The platform SecretStore is namespace-scoped (created by carbon).
+    kind: SecretStore
+    # -- Platform SecretStore name.
+    name: platform-store
+  # -- Shared platform folder, fanned in with a `SHARED_` key prefix (B9d).
+  sharedFolder: /shared
+  # -- This service's own folder, fanned in with a `DOTNET_API_` key prefix (B9d) — the service
+  # name upper-cased with every non-alphanumeric run folded to `_`, so the result is always a
+  # legal environment-variable name.
+  serviceFolder: /dotnet-api
+
+# -- Application config YAMLs bundled as a ConfigMap. In local dev they live OUTSIDE the chart
+# (`App/Config/`) and the app reads them directly; helm cannot reference files outside the
+# chart directory, so the helm BUILD step (`pls helm:vendor`) copies them into
+# `infra/root_chart/files/config/`. That directory is GITIGNORED and never committed —
+# regenerated per build. Rendering tolerates it being absent so lint and template stay green
+# before the copy runs.
+config:
+  # -- Render the config ConfigMap and mount it into both workloads.
+  enabled: true
+  # -- Glob root, relative to the chart directory, for the vendored YAMLs.
+  path: files/config
+  # -- Mount path inside the container. The layered YAML is read relative to the content root,
+  # which the Dockerfile sets to `/app`, and the loader looks for `Config/settings.yaml`.
+  mountPath: /app/Config
+  # -- Sync wave. Config lands with the secret, before db-init.
+  syncWave: '-2'
+
+# -- Pod-level security context. The chiseled base runs as uid/gid 1654 (`$APP_UID`), so a
+# different uid here would fail to read the published assets.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1654
+  runAsGroup: 1654
+  fsGroup: 1654
+  seccompProfile:
+    type: RuntimeDefault
+
+# -- Container-level security context shared by the app and db-init containers (M26).
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL

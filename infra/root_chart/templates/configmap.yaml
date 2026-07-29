@@ -1,0 +1,27 @@
+{{- /* ### dotnet-api-configmap */ -}}
+{{- /* #### source: dotnet-api */ -}}
+{{- if include "dotnetapi.hasConfig" . -}}
+{{- include "dotnetapi.validateServiceTree" . -}}
+{{- /* Build-phase config vendoring: the app's config YAMLs live outside the chart in
+       `App/Config/` and the helm build step (`pls helm:vendor`) copies them into
+       `files/config/`. That directory is gitignored and never committed, so this renders
+       nothing — and stays green — before the copy step runs.
+
+       Rendering nothing is the CORRECT fallback, not a degraded one: the image bakes
+       `Config/` in at this same mount path, so an empty ConfigMap would shadow those defaults
+       with an empty directory and the host would fail to find `Config/settings.yaml` at all.
+       No files copied means no ConfigMap and no mount, and the image's own config stays
+       visible. */ -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "dotnetapi.resourceName" (dict "root" . "token" "config") }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "dotnetapi.labels" . | nindent 4 }}
+  annotations:
+    {{- include "dotnetapi.annotations" . | nindent 4 }}
+    argocd.argoproj.io/sync-wave: {{ .Values.config.syncWave | quote }}
+data:
+  {{- include "dotnetapi.configData" . | trim | nindent 2 }}
+{{- end }}

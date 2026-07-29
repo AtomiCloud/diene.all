@@ -1,0 +1,105 @@
+{{- /* ### dotnet-api-deployment */ -}}
+{{- /* #### source: dotnet-api */ -}}
+{{- include "dotnetapi.validateServiceTree" . -}}
+{{- include "dotnetapi.validateShutdown" . -}}
+{{- /* The serving workload.
+
+       Liveness AND readiness both hit `GET /` — the info endpoint — and are deliberately
+       DEPENDENCY-BLIND (R20). The endpoint reports the process, never postgres/kv/cache/store
+       reachability, so a database blip degrades requests instead of evicting every pod and
+       turning a dependency incident into an outage. Dependency reachability is db-init's job
+       and alerting's job.
+
+       The db-init hook Job is deliberately NOT checksummed into this pod template: a
+       migration must never force app recreation. This is always an ordinary rolling update.
+
+       `replicas` is omitted entirely while the HPA is enabled, so a `helm upgrade` cannot
+       reset a scaled-out Deployment back to the chart default. */ -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "dotnetapi.resourceName" (dict "root" . "token" .Values.serviceTree.module) }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "dotnetapi.labels" . | nindent 4 }}
+  annotations:
+    {{- include "dotnetapi.annotations" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.app.replicas }}
+  {{- end }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: {{ .Values.app.rollingUpdate.maxUnavailable }}
+      maxSurge: {{ .Values.app.rollingUpdate.maxSurge }}
+  selector:
+    matchLabels:
+      {{- include "dotnetapi.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "dotnetapi.labels" . | nindent 8 }}
+      annotations:
+        {{- include "dotnetapi.annotations" . | nindent 8 }}
+    spec:
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.shutdown.terminationGracePeriodSeconds }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Values.serviceTree.module }}
+          image: {{ include "dotnetapi.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            {{- toYaml .Values.app.args | nindent 12 }}
+          ports:
+            - name: {{ .Values.service.portName }}
+              containerPort: {{ .Values.app.port }}
+              protocol: TCP
+          env:
+            {{- include "dotnetapi.commonEnv" . | trim | nindent 12 }}
+            {{- include "dotnetapi.serverEnv" . | trim | nindent 12 }}
+            {{- with .Values.app.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with (include "dotnetapi.envFrom" . | trim) }}
+          envFrom:
+            {{- . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.health.startup.enabled }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.health.path }}
+              port: {{ .Values.service.portName }}
+            periodSeconds: {{ .Values.health.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.health.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.health.startup.failureThreshold }}
+          {{- end }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.health.path }}
+              port: {{ .Values.service.portName }}
+            initialDelaySeconds: {{ .Values.health.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.health.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.health.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.health.liveness.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.health.path }}
+              port: {{ .Values.service.portName }}
+            initialDelaySeconds: {{ .Values.health.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.health.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.health.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.health.readiness.failureThreshold }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.app.resources | nindent 12 }}
+          volumeMounts:
+            {{- include "dotnetapi.volumeMounts" (dict "root" .) | nindent 12 }}
+      volumes:
+        {{- include "dotnetapi.volumes" (dict "root" . "configMapName" (include "dotnetapi.resourceName" (dict "root" . "token" "config"))) | nindent 8 }}

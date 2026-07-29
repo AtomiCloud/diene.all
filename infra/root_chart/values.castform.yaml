@@ -1,0 +1,29 @@
+# ### dotnet-api-values-castform
+# #### source: dotnet-api
+# castform — the PREVIEW landscape. Garden manages an immutable per-PR preview; the Bruno SIT
+# suite and the E2e journeys run against it. Sized like local because a preview is a
+# short-lived correctness environment, not a capacity environment.
+serviceTree:
+  landscape: castform
+
+app:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 384Mi
+
+# A preview is torn down before load could ever matter, and one replica keeps a SIT run
+# reading one pod's logs instead of guessing which of three served the request.
+autoscaling:
+  enabled: false
+
+dbInit:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 384Mi

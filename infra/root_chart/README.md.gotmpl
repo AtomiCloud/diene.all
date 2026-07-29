@@ -1,0 +1,119 @@
+{{ template "chart.header" . }}
+
+{{ template "chart.versionBadge" . }}{{ template "chart.typeBadge" . }}{{ template "chart.appVersionBadge" . }}
+
+{{ template "chart.description" . }}
+
+## What this chart owns (and does not)
+
+This is the **app chart** half of the two-chart model (R20). It is PURE RUNTIME and deploys to
+application/landscape clusters:
+
+| Resource                               | Why                                                          |
+| -------------------------------------- | ------------------------------------------------------------ |
+| `Deployment` `dotnet-api-api`          | the ASP.NET Core host                                        |
+| `Service` `dotnet-api-api`             | the stable in-cluster address                                |
+| `HTTPRoute` `dotnet-api-api`           | attachment to the platform's Gateway                         |
+| `HorizontalPodAutoscaler`              | owns the replica count while enabled                         |
+| `Job` `dotnet-api-dbinit`              | the one-shot, hook-scoped migration/seed entry point         |
+| `ConfigMap` `-config` / `-dbinitconfig`| the build-time vendored application config YAMLs             |
+| `ExternalSecret` `dotnet-api-secrets`  | materializes the service secret from the platform SecretStore |
+
+It owns **no Grafana resources** — dashboards and alerts live in the sibling
+[primordial chart](../primordial_chart/README.md), which also declares every dependency.
+It owns **no dependency sub-charts** and **no cron surface**: postgres, KV, cache, and object
+storage are requested through the primordial chart's `PlatformDependency` CR in **every**
+landscape, lapras included.
+
+## Dependency-blind probes (R20)
+
+Liveness **and** readiness both `GET /` — the info endpoint. That endpoint reports the
+process, never postgres/kv/cache/store reachability, and it stays that way deliberately: if
+the probes consulted dependencies, a database blip would fail every probe at once and the
+kubelet would roll the whole serving Deployment, turning a degraded dependency into a total
+outage. Dependency reachability belongs to `db-init` and to alerting.
+
+A startup probe covers a slow first boot so that slowness never reaches the liveness probe.
+
+## Graceful shutdown is one number, not two
+
+`shutdown.timeoutSeconds` is projected into the container as
+`ASPNETCORE_SHUTDOWNTIMEOUTSECONDS`, and `shutdown.terminationGracePeriodSeconds` becomes the
+pod's grace period. `_helpers.tpl` **fails the render** when the grace period does not exceed
+the drain budget — otherwise the kubelet would SIGKILL a host that is still finishing
+in-flight requests, and nothing would report it.
+
+`app.port` is stated once and becomes the container port, the Service `targetPort` (by NAME),
+and the address Kestrel binds via `ASPNETCORE_URLS`. A changed port cannot leave a probe
+pointing at a closed socket.
+
+## db-init is hook-scoped, and the rollout stays a rolling update
+
+`dotnet-api-dbinit` runs the SAME image with the `db-init` argument
+(`App/StartUp/RunMode.cs`) and carries **both** hook systems — helm
+`pre-install,pre-upgrade` and ArgoCD `PreSync` — plus
+`hook-delete-policy: before-hook-creation` so a re-run is not an immutable-field conflict.
+Sync waves order it after the secret/config and ahead of the Deployment's implicit wave 0.
+
+Because it is a **hook**, helm keeps it out of the release's ordinary resource set entirely:
+`helm template --no-hooks` renders zero Jobs. Nothing about the Job is checksummed into the
+Deployment's pod template either. The Deployment therefore always performs an ordinary
+`RollingUpdate`, with the migration having already run as a separate hook-scoped Job.
+
+Helm hooks and ArgoCD PreSync both run before the release's ordinary resources, so the Job
+mounts its **own** hook-scoped copy of the config ConfigMap — the Deployment's copy does not
+exist yet on a first install. For the same reason the secret `envFrom` is `optional` and
+db-init must be re-runnable: the migration is idempotent and the seed is seed-if-not-exists.
+
+## Build-phase config vendoring
+
+The application config YAMLs live **outside** the chart in `App/Config/` — the app reads them
+directly in local dev. Helm cannot reference files outside the chart directory, so the helm
+**build** step copies them in:
+
+```sh
+pls helm:vendor    # -> infra/root_chart/files/config/
+```
+
+That directory is **gitignored and never committed**; it is regenerated on every lint,
+render, package, and publish. Every template guards it with `.Files.Glob`, so `helm lint`,
+`helm template`, and `helm install` all stay green with zero files present.
+
+When the copy has **not** run the chart renders **no ConfigMap and no mount at all** —
+deliberately, not as a degraded fallback. The image bakes `Config/` in at this same mount
+path, so an empty ConfigMap would shadow those defaults with an empty directory and the host
+would find no `settings.yaml` at all.
+
+## Values overlays
+
+Landscape is the ONLY axis (R16) — a service repository has no cluster dimension:
+
+```sh
+helm upgrade --install dotnet-api infra/root_chart -f infra/root_chart/values.raichu.yaml
+```
+
+Landscapes are `lapras` (local), `castform` (preview), `pichu` (dev), `pikachu` (staging),
+`raichu` (production). The base `values.yaml` is a complete, installable **local** release, so
+a forgotten overlay degrades to the local shape rather than to production.
+
+`values.schema.json` (R17) validates the base values and every overlay; `pls helm:lint:all`
+lints each overlay explicitly with `-f`, because linting the chart alone would only ever prove
+the base layer.
+
+## Secrets
+
+One `ExternalSecret` reads the platform SecretStore that carbon creates through the SoS chain
+— 1 platform = 1 SecretStore. The service **assumes** the store exists; it never provisions
+one, there is no `sulfoxide-bromine:` values key, and there is no PushSecret. Shared and
+service folders are fanned in with disjoint key prefixes (`SHARED_` and `DOTNET_API_`) so a
+platform-wide key cannot silently shadow a service key of the same name.
+
+## Version alignment
+
+ONE semver spans the image tag and **both** charts' `version` and `appVersion` fields — chart
+`version` == image `Tag` is what Kargo aligns on. `scripts/validate/chart-versions.sh` is the
+gate; run it with `pls helm:versions`.
+
+{{ template "chart.requirementsSection" . }}
+
+{{ template "chart.valuesSection" . }}
