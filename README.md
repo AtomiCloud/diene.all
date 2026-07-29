@@ -1,14 +1,14 @@
-# Diene Go library template
+# Diene Go interfaces library
 
 <!-- ### go-base-badges -->
 <!-- #### source: go-base -->
 
-[![CI](https://github.com/AtomiCloud/diene.go-lib/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.go-lib/actions/workflows/ci.yaml)
-[![Unit coverage](https://codecov.io/gh/AtomiCloud/diene.go-lib/branch/main/graph/badge.svg?flag=unit)](https://codecov.io/gh/AtomiCloud/diene.go-lib)
-[![Integration coverage](https://codecov.io/gh/AtomiCloud/diene.go-lib/branch/main/graph/badge.svg?flag=int)](https://codecov.io/gh/AtomiCloud/diene.go-lib)
-[![Meta coverage](https://codecov.io/gh/AtomiCloud/diene.go-lib/branch/main/graph/badge.svg?flag=meta)](https://codecov.io/gh/AtomiCloud/diene.go-lib)
-[![Go Reference](https://pkg.go.dev/badge/github.com/AtomiCloud/diene.go-lib.svg)](https://pkg.go.dev/github.com/AtomiCloud/diene.go-lib)
-[![Commit activity](https://img.shields.io/github/commit-activity/m/AtomiCloud/diene.go-lib)](https://github.com/AtomiCloud/diene.go-lib/commits/main)
+[![CI](https://github.com/AtomiCloud/diene.go-interfaces/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.go-interfaces/actions/workflows/ci.yaml)
+[![Unit coverage](https://codecov.io/gh/AtomiCloud/diene.go-interfaces/branch/main/graph/badge.svg?flag=unit)](https://codecov.io/gh/AtomiCloud/diene.go-interfaces)
+[![Integration coverage](https://codecov.io/gh/AtomiCloud/diene.go-interfaces/branch/main/graph/badge.svg?flag=int)](https://codecov.io/gh/AtomiCloud/diene.go-interfaces)
+[![Meta coverage](https://codecov.io/gh/AtomiCloud/diene.go-interfaces/branch/main/graph/badge.svg?flag=meta)](https://codecov.io/gh/AtomiCloud/diene.go-interfaces)
+[![Go Reference](https://pkg.go.dev/badge/github.com/AtomiCloud/diene.go-interfaces.svg)](https://pkg.go.dev/github.com/AtomiCloud/diene.go-interfaces)
+[![Commit activity](https://img.shields.io/github/commit-activity/m/AtomiCloud/diene.go-interfaces)](https://github.com/AtomiCloud/diene.go-interfaces/commits/main)
 
 <!-- ### nix-root -->
 <!-- #### source: main -->
@@ -34,17 +34,44 @@ synchronization.
 
 ## Publishable Go module
 
-`github.com/AtomiCloud/diene.go-lib` is the reusable parent for the
-`github.com/AtomiCloud/diene.go-*` module family. It demonstrates small public
-packages, a consumer-facing `testhelper` package, strict black-box tests, and
-tag-based publication through the Go proxy.
+`github.com/AtomiCloud/diene.go-interfaces` is the Go family's
+implementation-free seam library. It defines portable system, virtual
+filesystem, terminal, logging, and metrics contracts, with ordinary `(T, error)`
+failure slots. Every non-nil seam error carries a problem-typed error from
+`diene.go-errors-problems`; this module ships deterministic in-memory mocks in
+its consumer-facing `testhelper` package.
 
 ```bash
-go get github.com/AtomiCloud/diene.go-lib@latest
+go get github.com/AtomiCloud/diene.go-interfaces@latest
 ```
 
 ```go
-value := note.New("Living Documentation", "pkg.go.dev examples stay executable")
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/AtomiCloud/diene.go-interfaces/testhelper"
+)
+
+func main() {
+	ctx := context.Background()
+	system := testhelper.NewInMemorySystem(testhelper.InMemorySystemOptions{})
+	vfs := testhelper.NewInMemoryVfs(testhelper.InMemoryVfsOptions{})
+
+	now, err := system.NowUTC()
+	if err != nil {
+		panic(err)
+	}
+
+	exists, err := vfs.Exists(ctx, "/")
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(now, exists)
+}
 ```
 
 <!-- ### go-base-commands -->

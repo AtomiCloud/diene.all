@@ -1,6 +1,6 @@
-module: github.com/AtomiCloud/diene.go-lib
-proxyModule: github.com/!atomi!cloud/diene.go-lib
-mirror: AtomiCloud/diene.go-lib
+module: github.com/AtomiCloud/diene.go-interfaces
+proxyModule: github.com/!atomi!cloud/diene.go-interfaces
+mirror: AtomiCloud/diene.go-interfaces
 apiBaseline: v1.0.0
 apiCandidate: v1.1.0
 proxy: https://proxy.golang.org

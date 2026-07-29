@@ -6,10 +6,10 @@
 }:
 let
   go-deps = pkgs.buildGoModule {
-    pname = "diene-go-base-dependencies";
+    pname = "diene-go-interfaces-dependencies";
     version = "0";
     src = ../.;
-    vendorHash = "sha256-NbeafHrobDMronPIB3abd5J/8dPfNtGNuQsI6vcj820=";
+    vendorHash = "sha256-PzoYXRMJbfOE+qyKXwNU9CyKktxNHWku0KKWF/L8Eng=";
     proxyVendor = true;
   };
   go-lint-runtime = pkgs.buildEnv {
