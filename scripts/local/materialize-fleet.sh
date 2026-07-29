@@ -82,6 +82,10 @@ filters=(
   --include=/docs/
   --include=/docs/domain/
   --include=/docs/domain/fleet-repo.md
+  # Guard-lane companion doc; inert until that lane lands it.
+  # (registry/machinery-stable.yaml needs no entry — the /registry/*** include
+  # above already carries it, fixtures included.)
+  --include=/docs/domain/fleet-guard.md
   # --- fleet CI + validators (product pyramid + fleet precommit runtime) ---
   # scripts/ci/pre-commit.sh and config/action-trust.json are NOT copied here:
   # the overlay ships fleet-only variants (the inherited ones reference excluded
@@ -107,19 +111,30 @@ filters=(
   --include=/scripts/validate/kargo-yaml-update/***
   --include=/scripts/local/
   --include=/scripts/local/registry-guard-apply.sh
+  # guard-lane scripts invoked by the tag-move / guard-e2e workflows
+  --include=/scripts/local/machinery-stable-tag-move.sh
+  --include=/scripts/local/registry-guard-e2e.sh
   --include=/scripts/local/generate-platform-schema.sh
   --include=/scripts/local/materialize-fleet.sh
   --include=/scripts/local/materialize-fleet/***
-  # --- guard posture: CODEOWNERS + ruleset payload + fleet-owned workflows ---
+  # Optional wrapped-SIT proof entry point (owned by the SIT lane). Included
+  # unconditionally: rsync simply copies nothing when the source lacks it, so
+  # this wiring is inert until that lane lands the file.
+  --include=/scripts/ci/fleet-sit-proof.sh
+  # --- guard posture: CODEOWNERS + ruleset payloads + fleet-owned workflows ---
+  # The A33 / machinery-stable guard surfaces are owned by the guard lane. They
+  # are allowlisted here so the product receives them the moment they land; the
+  # self-test derives its expectations from SOURCE PRESENCE (below), so this
+  # never fails on a file that has not been written yet.
   --include=/.github/
   --include=/.github/CODEOWNERS
   --include=/.github/actionlint.yaml
-  --include=/.github/rulesets/
-  --include=/.github/rulesets/registry-guard-main.json
+  --include=/.github/rulesets/***
   --include=/.github/workflows/
   '--include=/.github/workflows/⚡reusable-fleet.yaml'
   '--include=/.github/workflows/⚡reusable-precommit.yaml'
   --include=/.github/workflows/registry-guard-e2e.yaml
+  --include=/.github/workflows/machinery-stable-tag-move.yaml
   # deny everything not explicitly allowed above
   --exclude=*
 )
@@ -190,9 +205,30 @@ if [ "${self_test}" -eq 1 ]; then
     registry/charts/diene-platform/Chart.yaml
     registry/charts/diene-platform/values.schema.json
     registry/charts/diene-platform/tests/golden/canary.prod.yaml
+    # ratified live topology (canonical spelling)
+    registry/landscapes/ampharos.yaml
+    registry/virtual-landscapes/mew.yaml
+    registry/virtual-landscapes/celebi.yaml
+    # topology FIXTURES for the two unratified classes — the product needs them
+    # because the registry-manifest / registry-exclusion gates run in product CI
+    registry/fixtures/README.md
+    registry/fixtures/clusters/pichu-mark.yaml
+    registry/fixtures/clusters/pikachu-mark.yaml
+    registry/fixtures/clusters/raichu-mark.yaml
+    registry/fixtures/clusters/ampharos-mark.yaml
+    registry/fixtures/clusters/entei-mark.yaml
+    registry/fixtures/landscapes/entei.yaml
+    registry/fixtures/negative/entei-traffic-true.yaml
+    registry/fixtures/negative/platform-declares-entei.yaml
+    registry/fixtures/negative/second-infrastructure-landscape.yaml
+    registry/fixtures/negative/second-infrastructure-cluster.yaml
     platforms/canary/services.yaml
+    platforms/canary/landscapes/pichu/dummy.yaml
+    platforms/canary/landscapes/pikachu/dummy.yaml
     platforms/canary/landscapes/raichu/dummy.yaml
+    platforms/canary/landscapes/ampharos/dummy.yaml
     schemas/platform.json
+    schemas/projectconfig.json
     schemas/warehouse.json
     scripts/ci/fleet.sh
     scripts/ci/fleet-sit.sh
@@ -204,6 +240,7 @@ if [ "${self_test}" -eq 1 ]; then
     scripts/validate/fleet-sit/derive-appset.sh
     scripts/validate/fleet-sit/git-server.ts
     scripts/validate/fleet-sit/github-webhook.ts
+    scripts/validate/fleet-sit/kargo-contract.ts
     scripts/validate/fleet-sit/pins.env
     scripts/validate/fleet-sit/fixtures/sitother-row.yaml
     scripts/validate/fleet-sit/fixtures/sitother.services.yaml
@@ -231,10 +268,55 @@ if [ "${self_test}" -eq 1 ]; then
     Taskfile.yaml
     .github/workflows/ci.yaml
   )
+  # --- cross-lane surfaces: expectation DERIVED FROM SOURCE PRESENCE ---------
+  # The guard lane (A33 / machinery-stable) and the SIT lane own these files.
+  # Hard-coding them as required would make this self-test fail on work that has
+  # not landed yet; omitting them entirely would let a landed file silently miss
+  # the product. Deriving the expectation from the SOURCE tree gives the right
+  # behaviour in both states: absent upstream → not expected; present upstream →
+  # MUST be materialized. The list itself is the interface contract, so a typo
+  # in a filename shows up as a permanently-unchecked entry rather than silence.
+  cross_lane=(
+    docs/domain/fleet-guard.md
+    registry/machinery-stable.yaml
+    .github/workflows/machinery-stable-tag-move.yaml
+    scripts/local/machinery-stable-tag-move.sh
+    scripts/local/registry-guard-e2e.sh
+    # all four machinery-stable/other-tag ruleset payloads + the branch ruleset.
+    # The allowlist carries these via /.github/rulesets/*** (name-independent);
+    # these entries only pin the EXPECTED SET so a renamed or dropped payload is
+    # visible here instead of silently vanishing from the product.
+    .github/rulesets/registry-guard-main.json
+    .github/rulesets/machinery-stable-update.json
+    .github/rulesets/machinery-stable-delete.json
+    .github/rulesets/machinery-stable-forward-only.json
+    .github/rulesets/other-tags-protected.json
+    scripts/ci/fleet-sit-proof.sh
+  )
+  pending=()
+  for path in "${cross_lane[@]}"; do
+    if [ -e "${here}/${path}" ]; then
+      required+=("${path}")
+    else
+      pending+=("${path}")
+    fi
+  done
+
   fail=0
   for path in "${required[@]}"; do
     [ -e "${scratch}/${path}" ] || { echo "❌ required inclusion missing: ${path}" >&2 && fail=1; }
   done
+  if [ "${#pending[@]}" -gt 0 ]; then
+    echo "ℹ️  cross-lane surfaces not yet in this worktree (wired, not required):" >&2
+    printf '   - %s\n' "${pending[@]}" >&2
+  fi
+
+  # fixtures must reach the product, but must NEVER be synced by fleet-root:
+  # ArgoCD would apply the negative fixtures as real cluster objects.
+  grep -q 'fixtures' "${scratch}/registry/fleet-root.yaml" &&
+    { echo "❌ fleet-root include glob references fixtures — ArgoCD would apply the negatives" >&2 && fail=1; }
+  [ -d "${scratch}/registry/fixtures" ] ||
+    { echo "❌ topology fixtures did not reach the product (registry-manifest gate would have nothing to validate)" >&2 && fail=1; }
   for path in "${forbidden[@]}"; do
     [ -e "${scratch}/${path}" ] && { echo "❌ forbidden surface materialized: ${path}" >&2 && fail=1; }
   done

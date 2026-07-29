@@ -48,6 +48,11 @@ spec:
               selector:
                 matchLabels:
                   atomi.cloud/landscape: '{{ .landscape }}'
+                matchExpressions:
+                  - key: atomi.cloud/cluster-role
+                    operator: NotIn
+                    values:
+                      - infrastructure-only
         template:
           metadata:
             name: '{{ .platform }}-{{ .landscape }}-{{ .service }}-{{ .name }}'
@@ -145,14 +150,18 @@ spec:
     # Stages live in kargo.yaml; this is the DAG of record.
     stages:
       - pichu
-      - - pikachu
-        - gate: manual
-          landscape: raichu
-          soak: 1h
+      - - gate: manual
+          landscape: pikachu
           verification:
             analysisTemplates:
-            - name: canary-smoke
-      - amphoros
+            - canary-smoke
+        - raichu
+      - gate: auto
+        landscape: ampharos
+        soak: 15m
+        verification:
+          analysisTemplates:
+          - canary-analysis
 ---
 # Source: diene-platform/templates/platform-dependency.yaml
 apiVersion: fleet.atomi.cloud/v1alpha1
@@ -262,6 +271,29 @@ metadata:
 ---
 # Source: diene-platform/templates/kargo.yaml
 apiVersion: kargo.akuity.io/v1alpha1
+kind: ProjectConfig
+metadata:
+  name: canary
+  namespace: canary
+  labels:
+    helm.sh/chart: diene-platform-0.1.0
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: diene-fleet
+    atomi.cloud/platform: "canary"
+spec:
+  promotionPolicies:
+    - autoPromotionEnabled: true
+      stageSelector:
+        name: canary-dummy-pichu
+    - autoPromotionEnabled: true
+      stageSelector:
+        name: canary-dummy-raichu
+    - autoPromotionEnabled: true
+      stageSelector:
+        name: canary-dummy-ampharos
+---
+# Source: diene-platform/templates/kargo.yaml
+apiVersion: kargo.akuity.io/v1alpha1
 kind: Stage
 metadata:
   name: canary-dummy-pichu
@@ -299,7 +331,7 @@ spec:
             path: ./repo/platforms/canary/landscapes/pichu/dummy.yaml
             updates:
               - key: pin.tag
-                value: ${{ imageFrom "registry.atomi.cloud/canary/dummy" | .Tag }}
+                value: ${{ imageFrom("registry.atomi.cloud/canary/dummy").Tag }}
         - uses: git-commit
           config:
             path: ./repo
@@ -324,7 +356,7 @@ metadata:
     atomi.cloud/platform: "canary"
     atomi.cloud/landscape: "pikachu"
   annotations:
-    atomi.cloud/promotion-gate: "auto"
+    atomi.cloud/promotion-gate: "manual"
 spec:
   requestedFreight:
     - origin:
@@ -335,6 +367,9 @@ spec:
         # a parallel set therefore lists ALL of that set's members (rendezvous)
         stages:
           - canary-dummy-pichu
+  verification:
+    analysisTemplates:
+      - name: "canary-smoke"
   promotionTemplate:
     spec:
       # Fixed git-update promotion template (identical for auto and manual
@@ -352,7 +387,7 @@ spec:
             path: ./repo/platforms/canary/landscapes/pikachu/dummy.yaml
             updates:
               - key: pin.tag
-                value: ${{ imageFrom "registry.atomi.cloud/canary/dummy" | .Tag }}
+                value: ${{ imageFrom("registry.atomi.cloud/canary/dummy").Tag }}
         - uses: git-commit
           config:
             path: ./repo
@@ -377,8 +412,7 @@ metadata:
     atomi.cloud/platform: "canary"
     atomi.cloud/landscape: "raichu"
   annotations:
-    atomi.cloud/promotion-gate: "manual"
-    atomi.cloud/soak: "1h"
+    atomi.cloud/promotion-gate: "auto"
 spec:
   requestedFreight:
     - origin:
@@ -389,9 +423,6 @@ spec:
         # a parallel set therefore lists ALL of that set's members (rendezvous)
         stages:
           - canary-dummy-pichu
-  verification:
-    analysisTemplates:
-    - name: canary-smoke
   promotionTemplate:
     spec:
       # Fixed git-update promotion template (identical for auto and manual
@@ -409,7 +440,7 @@ spec:
             path: ./repo/platforms/canary/landscapes/raichu/dummy.yaml
             updates:
               - key: pin.tag
-                value: ${{ imageFrom "registry.atomi.cloud/canary/dummy" | .Tag }}
+                value: ${{ imageFrom("registry.atomi.cloud/canary/dummy").Tag }}
         - uses: git-commit
           config:
             path: ./repo
@@ -425,16 +456,17 @@ spec:
 apiVersion: kargo.akuity.io/v1alpha1
 kind: Stage
 metadata:
-  name: canary-dummy-amphoros
+  name: canary-dummy-ampharos
   namespace: canary
   labels:
     helm.sh/chart: diene-platform-0.1.0
     app.kubernetes.io/managed-by: Helm
     app.kubernetes.io/part-of: diene-fleet
     atomi.cloud/platform: "canary"
-    atomi.cloud/landscape: "amphoros"
+    atomi.cloud/landscape: "ampharos"
   annotations:
     atomi.cloud/promotion-gate: "auto"
+    atomi.cloud/soak: "15m"
 spec:
   requestedFreight:
     - origin:
@@ -446,6 +478,19 @@ spec:
         stages:
           - canary-dummy-pikachu
           - canary-dummy-raichu
+        # RENDEZVOUS: freight must be available from EVERY member of the
+        # preceding parallel set, not just the first to arrive.
+        availabilityStrategy: All
+        # Residency clock (Kargo's documented soak contract): the interval starts
+        # at SUCCESSFUL PROMOTION of the freight into the upstream Stage and runs
+        # on occupancy alone. Upstream verification gates downstream availability
+        # as an INDEPENDENT condition but never starts, pauses, or resets this
+        # interval — freight that clears verification after already occupying the
+        # upstream for the required time is immediately soak-eligible.
+        requiredSoakTime: "15m"
+  verification:
+    analysisTemplates:
+      - name: "canary-analysis"
   promotionTemplate:
     spec:
       # Fixed git-update promotion template (identical for auto and manual
@@ -460,17 +505,17 @@ spec:
                 path: ./repo
         - uses: yaml-update
           config:
-            path: ./repo/platforms/canary/landscapes/amphoros/dummy.yaml
+            path: ./repo/platforms/canary/landscapes/ampharos/dummy.yaml
             updates:
               - key: pin.tag
-                value: ${{ imageFrom "registry.atomi.cloud/canary/dummy" | .Tag }}
+                value: ${{ imageFrom("registry.atomi.cloud/canary/dummy").Tag }}
         - uses: git-commit
           config:
             path: ./repo
             author:
               name: kargo-bot
               email: kargo-bot@atomi.cloud
-            message: "chore(canary): promote dummy to amphoros"
+            message: "chore(canary): promote dummy to ampharos"
         - uses: git-push
           config:
             path: ./repo

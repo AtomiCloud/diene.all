@@ -16,29 +16,40 @@ infisical:
 sos:
   register: true
 
-# Full registered-fleet SERVING landscape set. lapras remains a Landscape
-# secrets-side anchor, but WAL Q-L8(c)/Q-L9 forbid fleet rows, Kargo stages,
-# ClusterRegistration, or Primordial dependency CRs for its anonymous Garden
-# clusters.
+# The registered WORKLOAD landscape set — exactly the four serving rows.
+# `entei` is infrastructure-only and is NEVER declared here (exclusion law,
+# ENV-SPEC §0.3); Garden-managed landscapes (lapras/ditto/rotom/absol) and
+# hosted/retired identities have no registry row at all, so they cannot appear.
 landscapes:
   - pichu
   - pikachu
   - raichu
-  - amphoros
+  - ampharos
 
-# Pipeline DAG across the serving set: a bare first step, then a [parallel,set]
-# mixing a bare name with the full object form, then a rendezvous step. This
-# exercises every DAG shape without centrally materializing lapras.
+# The ratified v1 pipeline DAG. It deliberately combines a bare first step, a
+# parallel set mixing an OBJECT member with a BARE member, both gate values,
+# soak, analysisTemplates, and — decisively — a post-parallel RENDEZVOUS step:
+# `ampharos` immediately follows the parallel set, so its rendered Stage must
+# list BOTH `pikachu` and `raichu` under sources.stages with
+# sources.availabilityStrategy: All.
+#
+# With exactly four workload landscapes and `entei` excluded, a rendezvous is
+# only coverable by placing the parallel set MID-DAG — a terminal parallel set
+# is the strictly weaker fan-out-only shape.
 stages:
   - pichu
-  - - pikachu
-    - landscape: raichu
+  - - landscape: pikachu
       gate: manual
-      soak: 1h
       verification:
         analysisTemplates:
-          - name: canary-smoke
-  - amphoros
+          - canary-smoke
+    - raichu
+  - landscape: ampharos
+    gate: auto
+    soak: 15m
+    verification:
+      analysisTemplates:
+        - canary-analysis
 
 # ≥1 registered-fleet PlatformDependency module per class family. External
 # modules reconcile from Primordial; replicated Dragonfly rides every eligible

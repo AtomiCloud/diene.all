@@ -34,10 +34,28 @@ cd "${root}"
 # worker's evidence and cleanup traps.
 if [ "${mode}" = 'full' ] && [ "${FLEET_SIT_UNDER_TIMEOUT:-0}" != '1' ]; then
   export FLEET_SIT_UNDER_TIMEOUT=1
-  exec timeout --signal=TERM --kill-after=30s 1500 "${script_path}" --full
+  exec timeout --signal=TERM --kill-after=30s 4200 "${script_path}" --full
 fi
 
+# The direct inputs this SIT reads or copies, as fixed pathspec ROOTS. The
+# inventory is derived from the recorded git tree under these roots - never
+# from live `find` output and never as a hand-maintained file list, so an input
+# added under a root is bound automatically.
+SIT_DIRECT_INPUT_ROOTS=(
+  'platforms/canary'
+  'registry/argocd-webhook-secret.yaml'
+  'registry/charts/diene-platform'
+  'registry/fixtures/clusters'
+  'registry/fixtures/negative'
+  'registry/machinery-stable.yaml'
+  'registry/platforms-appset.yaml'
+  'scripts/ci/fleet-sit-proof.sh'
+  'scripts/ci/fleet-sit.sh'
+  'scripts/validate/fleet-sit'
+)
+
 work=''
+sit_tmp_root="${TMPDIR:-/tmp}"
 report=''
 cluster_name=''
 cluster_created=0
@@ -58,13 +76,51 @@ FLEET_SOURCE=''
 FLEET_BARE=''
 FLEET_LAST_COMMIT=''
 COMMIT_SEQUENCE=1
-IMPLEMENTATION_SHA256=''
-IMPLEMENTATION_FILE_COUNT=''
+HARNESS_SHA256=''
+HARNESS_FILE_COUNT=''
+DIRECT_INPUT_SHA256=''
+DIRECT_INPUT_FILE_COUNT=''
 SIT_SOURCE_HEAD=''
+SIT_CHECKOUT=''
+SIT_SNAPSHOT_TREE=''
+KARGO_CRD_DIR=''
+KARGO_RUNTIME_IMAGE_REF="${KARGO_IMAGE_REPOSITORY}:${KARGO_IMAGE_TAG}@${KARGO_IMAGE_DIGEST}"
+ROLLOUTS_RUNTIME_IMAGE_REF="${ROLLOUTS_IMAGE_REPOSITORY}:${ROLLOUTS_IMAGE_TAG}@${ROLLOUTS_IMAGE_DIGEST}"
+ANALYSIS_RUNTIME_IMAGE_REF="${ANALYSIS_IMAGE_REPOSITORY}:${ANALYSIS_IMAGE_TAG}@${ANALYSIS_IMAGE_DIGEST}"
+KARGO_RUNTIME_DIR=''
+KARGO_RUNTIME_IMAGE_REPO='registry.sit.invalid/canary/dummy'
+KARGO_RUNTIME_CHART_REPO='oci://registry.sit.invalid/canary-dummy'
+KARGO_RUNTIME_GIT_BASELINE=''
+
+make_sit_scratch() {
+  case "${sit_tmp_root}" in
+  /*) ;;
+  *)
+    sit_fail "TMPDIR must be absolute: ${sit_tmp_root}"
+    return 1
+    ;;
+  esac
+  [ -d "${sit_tmp_root}" ] && [ -w "${sit_tmp_root}" ] || {
+    sit_fail "TMPDIR is not a writable directory: ${sit_tmp_root}"
+    return 1
+  }
+  mktemp -d "${sit_tmp_root%/}/fleet-sit.XXXXXX"
+}
+
+remove_sit_scratch() {
+  local target="${1:-}"
+  [ -n "${target}" ] && [ -d "${target}" ] || return 0
+  if [[ ${target} == "${sit_tmp_root%/}"/fleet-sit.* ]]; then
+    rm -rf -- "${target}"
+    return 0
+  fi
+  echo "warning: declining to remove unrecognized fleet SIT scratch path: ${target}" >&2
+  return 1
+}
 
 validate_inputs() {
   local command
-  for command in bash bun curl git helm jq k3d kubectl rg sha256sum timeout yq; do
+  for command in bash bun curl docker git go helm jq k3d kubectl openssl rg sha256sum timeout yq; do
     sit_require_command "${command}"
   done
 
@@ -72,51 +128,153 @@ validate_inputs() {
   [[ ${ARGOCD_SOURCE_COMMIT} =~ ^[0-9a-f]{40}$ ]] || sit_fail 'invalid Argo CD source commit pin'
   [[ ${ARGOCD_MANIFEST_SHA256} =~ ^[0-9a-f]{64}$ ]] || sit_fail 'invalid Argo CD install-manifest checksum'
   [[ ${K3S_IMAGE} =~ @sha256:[0-9a-f]{64}$ ]] || sit_fail 'k3s image must use an immutable digest'
+  [ "${KARGO_CHART_VERSION}" = '1.9.10' ] || sit_fail 'Kargo chart version must remain 1.9.10'
+  [[ ${KARGO_CHART_DIGEST} =~ ^sha256:[0-9a-f]{64}$ ]] || sit_fail 'invalid Kargo chart OCI digest'
+  [[ ${KARGO_CHART_ARCHIVE_SHA256} =~ ^[0-9a-f]{64}$ ]] || sit_fail 'invalid Kargo chart archive checksum'
+  [[ ${KARGO_RUNTIME_IMAGE_REF} =~ @sha256:[0-9a-f]{64}$ ]] || sit_fail 'invalid Kargo runtime image reference'
+  [[ ${ROLLOUTS_RUNTIME_IMAGE_REF} =~ @sha256:[0-9a-f]{64}$ ]] || sit_fail 'invalid Rollouts runtime image reference'
+  [[ ${ANALYSIS_RUNTIME_IMAGE_REF} =~ @sha256:[0-9a-f]{64}$ ]] || sit_fail 'invalid analysis runtime image reference'
+  [[ ${ROLLOUTS_MANIFEST_SHA256} =~ ^[0-9a-f]{64}$ ]] || sit_fail 'invalid Rollouts manifest checksum'
   [[ ${ARGOCD_MANIFEST_URL} == *"/${ARGOCD_VERSION}/manifests/install.yaml" ]] ||
     sit_fail 'Argo CD manifest URL and version pin disagree'
   [ -f registry/platforms-appset.yaml ] || sit_fail 'registry/platforms-appset.yaml is missing'
   [ -f registry/argocd-webhook-secret.yaml ] || sit_fail 'registry/argocd-webhook-secret.yaml is missing'
   [ -d registry/charts/diene-platform ] || sit_fail 'diene-platform compiler chart is missing'
+  [ -d registry/fixtures/clusters ] || sit_fail 'registry/fixtures/clusters is missing'
+  [ -f registry/machinery-stable.yaml ] || sit_fail 'registry/machinery-stable.yaml pointer file is missing'
 }
 
-write_implementation_inventory() {
+# The harness digest. It pins ONLY this script plus scripts/validate/fleet-sit,
+# and is retained as narrow provenance. It is NOT the direct-input inventory and
+# the report says so at the field.
+write_harness_inventory() {
   local output="$1"
   local paths="${output}.paths.$$"
   {
     printf '%s\n' 'scripts/ci/fleet-sit.sh'
+    printf '%s\n' 'scripts/ci/fleet-sit-proof.sh'
     find scripts/validate/fleet-sit -type f -print
   } | LC_ALL=C sort >"${paths}"
   : >"${output}"
   local path
   while IFS= read -r path; do
-    [ -f "${path}" ] || sit_fail "implementation inventory contains a non-regular file: ${path}"
+    [ -f "${path}" ] || sit_fail "harness inventory contains a non-regular file: ${path}"
     sha256sum -- "${path}" >>"${output}"
   done <"${paths}"
   rm -f "${paths}"
-  IMPLEMENTATION_SHA256="$(sha256sum -- "${output}" | awk '{print $1}')"
-  IMPLEMENTATION_FILE_COUNT="$(wc -l <"${output}" | tr -d ' ')"
-  [[ ${IMPLEMENTATION_SHA256} =~ ^[0-9a-f]{64}$ ]] || sit_fail 'could not digest implementation inventory'
-  [ "${IMPLEMENTATION_FILE_COUNT}" -gt 1 ] || sit_fail 'implementation inventory is unexpectedly small'
+  HARNESS_SHA256="$(sha256sum -- "${output}" | awk '{print $1}')"
+  HARNESS_FILE_COUNT="$(wc -l <"${output}" | tr -d ' ')"
+  [[ ${HARNESS_SHA256} =~ ^[0-9a-f]{64}$ ]] || sit_fail 'could not digest harness inventory'
+  [ "${HARNESS_FILE_COUNT}" -gt 1 ] || sit_fail 'harness inventory is unexpectedly small'
 }
 
-implementation_uncommitted() {
-  if [ -n "$(git status --porcelain --untracked-files=all)" ]; then
-    printf 'true\n'
-  else
+# The direct-input inventory: every tracked blob under the fixed roots, taken
+# from the RECORDED GIT TREE. Each record is
+#   <mode>,<type>,<git-blob-sha>,<content-sha256>,<path>
+# sorted bytewise by path. Every entry is additionally re-hashed from the bytes
+# on disk, so an inventory can only agree with the tree it is actually running
+# against.
+# mode 'strict' (the default, and the only mode a full run uses) additionally
+# requires the bytes on disk to equal the recorded blobs and the roots to carry
+# no untracked or modified file. Mode 'advisory' derives the same inventory from
+# the recorded tree without those two checks, so --prepare-only stays runnable
+# during development on a dirty checkout.
+write_direct_input_inventory() {
+  local output="$1"
+  local commit="$2"
+  local strictness="${3:-strict}"
+  local records="${output}.records.$$"
+  : >"${records}"
+
+  local mode type object path blob_sha content_sha disk_sha record
+  while IFS= read -r -d '' record; do
+    mode="${record%% *}"
+    type="$(printf '%s' "${record}" | cut -d' ' -f2)"
+    object="$(printf '%s' "${record}" | cut -d' ' -f3 | cut -f1)"
+    path="${record#*$'\t'}"
+    [ "${type}" = 'blob' ] || sit_fail "direct input is not a regular blob: ${path} (${type})"
+    case "${mode}" in
+    100644 | 100755) ;;
+    *) sit_fail "direct input has an unexpected git mode: ${path} (${mode})" ;;
+    esac
+    blob_sha="${object}"
+    content_sha="$(git cat-file blob "${blob_sha}" | sha256sum | awk '{print $1}')"
+    if [ "${strictness}" = 'strict' ]; then
+      [ -f "${path}" ] ||
+        sit_fail "direct input recorded at ${commit} is absent from the execution root: ${path}"
+      disk_sha="$(git hash-object -- "${path}")"
+      [ "${disk_sha}" = "${blob_sha}" ] ||
+        sit_fail "direct input on disk differs from the recorded commit: ${path}"
+    fi
+    printf '%s,%s,%s,%s,%s\n' "${mode}" "${type}" "${blob_sha}" "${content_sha}" "${path}" >>"${records}"
+  done < <(git ls-tree -r -z "${commit}" -- "${SIT_DIRECT_INPUT_ROOTS[@]}")
+
+  LC_ALL=C sort -t, -k5 "${records}" >"${output}"
+  rm -f "${records}"
+
+  # Every declared root must resolve, so a renamed or deleted input fails closed
+  # instead of silently shrinking the inventory.
+  local root
+  for root in "${SIT_DIRECT_INPUT_ROOTS[@]}"; do
+    if ! grep -q -- ",${root}\(/\|$\)" "${output}"; then
+      [ "${strictness}" = 'advisory' ] ||
+        sit_fail "direct-input root resolved to no tracked entry at ${commit}: ${root}"
+      # Advisory: the root may be present but not yet committed on a
+      # work-in-progress checkout. It must still exist, so a typo still fails.
+      [ -e "${root}" ] || sit_fail "direct-input root does not exist: ${root}"
+      echo "note: direct-input root is not tracked at ${commit} yet: ${root}"
+    fi
+  done
+  # No untracked or modified byte may exist under any root in the execution
+  # root: the snapshot must contain exactly the recorded tree.
+  if [ "${strictness}" = 'strict' ]; then
+    [ -z "$(git status --porcelain --untracked-files=all -- "${SIT_DIRECT_INPUT_ROOTS[@]}")" ] ||
+      sit_fail 'the execution root carries untracked or modified bytes under a direct-input root'
+  fi
+
+  DIRECT_INPUT_SHA256="$(sha256sum -- "${output}" | awk '{print $1}')"
+  DIRECT_INPUT_FILE_COUNT="$(wc -l <"${output}" | tr -d ' ')"
+  [[ ${DIRECT_INPUT_SHA256} =~ ^[0-9a-f]{64}$ ]] || sit_fail 'could not digest the direct-input inventory'
+  [ "${DIRECT_INPUT_FILE_COUNT}" -gt "${HARNESS_FILE_COUNT:-0}" ] ||
+    sit_fail 'the direct-input inventory must be strictly larger than the harness inventory'
+}
+
+checkout_clean() {
+  local checkout="$1"
+  if [ -n "$(git -C "${checkout}" status --porcelain --untracked-files=all)" ]; then
     printf 'false\n'
+  else
+    printf 'true\n'
   fi
 }
 
-assert_clean_unchanged_source() {
-  local expected_head="$1"
+# Checks the ORIGINAL checkout the wrapper validated, not the snapshot the SIT
+# executes from. Both halves are recorded; neither is inferred from the other.
+assert_clean_unchanged_checkout() {
+  local checkout="$1"
+  local expected_head="$2"
   local actual_head
+  actual_head="$(git -C "${checkout}" rev-parse HEAD)"
+  [ "${actual_head}" = "${expected_head}" ] ||
+    sit_fail "checkout HEAD changed during SIT: expected ${expected_head}, found ${actual_head}"
+  if [ "$(checkout_clean "${checkout}")" != 'true' ]; then
+    git -C "${checkout}" status --short >&2
+    sit_fail 'full SIT requires a clean checkout so every consumed byte belongs to the recorded commit'
+  fi
+}
+
+# The snapshot the SIT executes from must be the recorded commit, byte for byte.
+assert_verified_snapshot() {
+  local expected_head="$1"
+  local actual_head actual_tree
   actual_head="$(git rev-parse HEAD)"
   [ "${actual_head}" = "${expected_head}" ] ||
-    sit_fail "source HEAD changed during SIT: expected ${expected_head}, found ${actual_head}"
-  if [ -n "$(git status --porcelain --untracked-files=all)" ]; then
-    git status --short >&2
-    sit_fail 'full SIT requires a clean worktree so every consumed byte belongs to the recorded commit'
-  fi
+    sit_fail "input snapshot is at ${actual_head}, not the recorded commit ${expected_head}"
+  [ -z "$(git status --porcelain --untracked-files=all)" ] ||
+    sit_fail 'input snapshot is not clean; it must be a pristine checkout of the recorded commit'
+  actual_tree="$(git rev-parse "${expected_head}^{tree}")"
+  [[ ${actual_tree} =~ ^[0-9a-f]{40}$ ]] || sit_fail 'could not resolve the input snapshot tree'
+  SIT_SNAPSHOT_TREE="${actual_tree}"
 }
 
 require_empty_report_directory() {
@@ -182,6 +340,13 @@ prepare_repositories() {
   [ "$(rg -c '^[+-] *"pattern"' "${work}/runtime-chart-schema-relaxation.diff")" -eq 2 ] ||
     sit_fail 'runtime chart schema correction changed more than the fleet.repoURL pattern'
   cp -R platforms/canary "${FLEET_SOURCE}/platforms/canary"
+  local soak_landscape soak_row
+  for soak_landscape in pichu pikachu raichu ampharos; do
+    soak_row="${FLEET_SOURCE}/platforms/canary-sitsoak/landscapes/${soak_landscape}/dummy.yaml"
+    mkdir -p "$(dirname "${soak_row}")"
+    LANDSCAPE="${soak_landscape}" yq '.landscape = strenv(LANDSCAPE)' \
+      "${validation_dir}/fixtures/kargo-runtime/soak-row.yaml" >"${soak_row}"
+  done
   cp "${validation_dir}/fixtures/sitother.services.yaml" "${FLEET_SOURCE}/platforms/sitother/services.yaml"
   cp "${validation_dir}/fixtures/sitother-row.yaml" "${FLEET_SOURCE}/platforms/sitother/landscapes/pichu/dummy.yaml"
 
@@ -192,6 +357,11 @@ prepare_repositories() {
   git_commit_at "${FLEET_SOURCE}" 'C1 deterministic fleet fixture' 1
   C1_SHA="$(git -C "${FLEET_SOURCE}" rev-parse HEAD)"
   git -C "${FLEET_SOURCE}" tag machinery-stable "${C1_SHA}"
+  # The reviewed pointer file, in the committed product format, naming the
+  # commit the tag already points at. Every later move is a pointer edit.
+  write_machinery_pointer "${FLEET_SOURCE}/registry/machinery-stable.yaml" "${C1_SHA}"
+  git -C "${FLEET_SOURCE}" add registry/machinery-stable.yaml
+  git_commit_at "${FLEET_SOURCE}" 'C1b machinery-stable pointer at C1' 1
   make_bare_remote "${FLEET_SOURCE}" "${FLEET_BARE}"
   ln -s 'fleet.git' "${repos_root}/fleet-services.git"
   [ "$(readlink "${repos_root}/fleet-services.git")" = 'fleet.git' ] ||
@@ -268,6 +438,20 @@ fleet_commit() {
   FLEET_LAST_COMMIT="$(git -C "${FLEET_SOURCE}" rev-parse HEAD)"
 }
 
+fleet_revert() {
+  local commit="$1"
+  local message="$2"
+  local evidence="$3"
+  COMMIT_SEQUENCE=$((COMMIT_SEQUENCE + 1))
+  {
+    git -C "${FLEET_SOURCE}" revert --no-edit --no-commit "${commit}"
+    git_commit_at "${FLEET_SOURCE}" "${message}" "${COMMIT_SEQUENCE}"
+    git -C "${FLEET_SOURCE}" push --quiet sit main
+    git -C "${FLEET_SOURCE}" show --stat --oneline --decorate=short HEAD
+  } >"${evidence}" 2>&1
+  FLEET_LAST_COMMIT="$(git -C "${FLEET_SOURCE}" rev-parse HEAD)"
+}
+
 check_port_forward() {
   local pid="$1"
   local log="$2"
@@ -336,37 +520,381 @@ configure_clocks() {
   wait_argo_rollouts
 }
 
+# SIT-local synthetic coordinates. The committed fixtures carry `<mark>` /
+# `<provider>` placeholders because the v1 serving roster is UNRATIFIED and
+# guessing provider coordinates is forbidden; the substitution below happens
+# only inside the throwaway proof, never in the repository, and is recorded so
+# the report shows the SIT consumed fixtures rather than live rows.
+SIT_SYNTHETIC_MARK='sit'
+SIT_SYNTHETIC_PROVIDER='sit-provider'
+
+substitute_fixture_placeholder() {
+  local value="$1"
+  value="${value//<mark>/${SIT_SYNTHETIC_MARK}}"
+  value="${value//<provider>/${SIT_SYNTHETIC_PROVIDER}}"
+  printf '%s' "${value}"
+}
+
+seed_one_cluster_secret() {
+  local name="$1"
+  local landscape="$2"
+  local server="$3"
+  local role="$4"
+  kubectl -n argocd create secret generic "${name}" \
+    --from-literal="name=${name}" \
+    --from-literal="server=${server}" \
+    --from-literal='config={"tlsClientConfig":{"insecure":true}}' \
+    --dry-run=client -o yaml |
+    LANDSCAPE="${landscape}" ROLE="${role}" yq '
+      .metadata.labels."argocd.argoproj.io/secret-type" = "cluster" |
+      .metadata.labels."atomi.cloud/landscape" = strenv(LANDSCAPE) |
+      .metadata.labels."atomi.cloud/cluster-role" = strenv(ROLE)
+    ' |
+    kubectl apply -f -
+}
+
 seed_cluster_secrets() {
+  # The live serving path must be EMPTY at the recorded commit: the encoded
+  # refusal is what forces this seeding onto fixtures.
+  local live_rows
+  live_rows="$(git ls-tree -r --name-only "${SIT_SOURCE_HEAD}" -- registry/clusters | wc -l | tr -d ' ')"
+  [ "${live_rows}" -eq 0 ] ||
+    sit_fail "registry/clusters carries ${live_rows} live serving row(s); the v1 roster is unratified and the SIT must seed from fixtures"
+
   local tsv="${work}/cluster-inputs.tsv"
+  local substitutions="${work}/cluster-substitutions.tsv"
   : >"${tsv}"
-  local record name landscape label server
-  local count=0
-  for record in registry/clusters/*.yaml; do
+  : >"${substitutions}"
+
+  local record name landscape label mark provider host_role traffic role server
+  local serving=0
+  local infrastructure=0
+  for record in \
+    registry/fixtures/clusters/*.yaml \
+    registry/fixtures/negative/second-infrastructure-cluster.yaml \
+    "${validation_dir}/fixtures/infrastructure-only-serving-landscape.yaml"; do
+    [ -f "${record}" ] || sit_fail "expected cluster fixture is missing: ${record}"
+    [ "$(yq -r '.kind' "${record}")" = 'ClusterRegistration' ] ||
+      sit_fail "cluster fixture is not a ClusterRegistration: ${record}"
     name="$(yq -r '.metadata.name' "${record}")"
     landscape="$(yq -r '.spec.landscape' "${record}")"
     label="$(yq -r '.metadata.labels["atomi.cloud/landscape"]' "${record}")"
-    [ -n "${name}" ] && [ "${name}" != 'null' ] || sit_fail "cluster record has no metadata.name: ${record}"
-    [ -n "${landscape}" ] && [ "${landscape}" != 'null' ] || sit_fail "cluster record has no spec.landscape: ${record}"
-    [ "${label}" = "${landscape}" ] || sit_fail "cluster record label/spec landscape mismatch: ${record}"
+    mark="$(yq -r '.spec.mark' "${record}")"
+    provider="$(yq -r '.spec.provider' "${record}")"
+    host_role="$(yq -r '.spec.hostRole // ""' "${record}")"
+    traffic="$(yq -r '.spec.traffic' "${record}")"
+    [ -n "${name}" ] && [ "${name}" != 'null' ] || sit_fail "cluster fixture has no metadata.name: ${record}"
+    [ -n "${landscape}" ] && [ "${landscape}" != 'null' ] || sit_fail "cluster fixture has no spec.landscape: ${record}"
+    [ "${label}" = "${landscape}" ] || sit_fail "cluster fixture label/spec landscape mismatch: ${record}"
+
+    if [ -n "${host_role}" ]; then
+      role='infrastructure-only'
+      [ "${traffic}" = 'false' ] ||
+        sit_fail "infrastructure-only fixture must keep traffic:false: ${record}"
+      infrastructure=$((infrastructure + 1))
+    else
+      role='serving'
+      [ "${traffic}" = 'true' ] || sit_fail "serving fixture must declare traffic:true: ${record}"
+      serving=$((serving + 1))
+    fi
+
+    printf '%s\t%s\t%s\t%s\t%s\n' "${record}" "${name}" "${mark}" "${provider}" "${role}" >>"${substitutions}"
+    name="$(substitute_fixture_placeholder "${name}")"
+    mark="$(substitute_fixture_placeholder "${mark}")"
+    provider="$(substitute_fixture_placeholder "${provider}")"
+    case "${name}${mark}${provider}" in
+    *'<'* | *'>'*) sit_fail "unsubstituted placeholder token survived seeding: ${record}" ;;
+    esac
+
     server="https://${name}.sit.invalid:6443"
-    kubectl -n argocd create secret generic "${name}" \
-      --from-literal="name=${name}" \
-      --from-literal="server=${server}" \
-      --from-literal='config={"tlsClientConfig":{"insecure":true}}' \
-      --dry-run=client -o yaml |
-      LANDSCAPE="${landscape}" yq '
-        .metadata.labels."argocd.argoproj.io/secret-type" = "cluster" |
-        .metadata.labels."atomi.cloud/landscape" = strenv(LANDSCAPE)
-      ' |
-      kubectl apply -f -
-    printf '%s\t%s\t%s\t%s\n' "${record}" "${name}" "${landscape}" "${server}" >>"${tsv}"
-    count=$((count + 1))
+    seed_one_cluster_secret "${name}" "${landscape}" "${server}" "${role}"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+      "${record}" "${name}" "${landscape}" "${server}" "${role}" "${mark}" "${provider}" >>"${tsv}"
   done
-  [ "${count}" -eq 4 ] || sit_fail "expected four checked-in cluster records, found ${count}"
+
+  # Derived, never hard-coded: the serving count IS the serving fixture count.
+  [ "${serving}" -gt 0 ] || sit_fail 'no serving cluster fixture was seeded'
+  [ "${infrastructure}" -ge 2 ] ||
+    sit_fail 'the exclusion proof needs at least two differently named infrastructure-only fixtures'
+
   jq -Rn '
-    [inputs | split("\t") | {record:.[0],name:.[1],landscape:.[2],server:.[3]}] |
+    [inputs | split("\t") |
+      {fixture:.[0],name:.[1],landscape:.[2],server:.[3],role:.[4],mark:.[5],provider:.[6]}] |
     sort_by(.name)
   ' <"${tsv}" >"${report}/cluster-secret-inputs.json"
+  jq -Rn \
+    --arg mark "${SIT_SYNTHETIC_MARK}" \
+    --arg provider "${SIT_SYNTHETIC_PROVIDER}" \
+    --argjson serving "${serving}" \
+    --argjson infrastructure "${infrastructure}" '
+    {
+      source: "registry cluster fixtures plus the committed SIT-only discriminating infrastructure fixture",
+      liveServingRowsAtCommit: 0,
+      servingCount: $serving,
+      infrastructureOnlyCount: $infrastructure,
+      substitution: {
+        scope: "throwaway SIT cluster Secrets only; the repository keeps the placeholders",
+        mark: {from: "<mark>", to: $mark},
+        provider: {from: "<provider>", to: $provider}
+      },
+      fixtures: [inputs | split("\t") |
+        {fixture:.[0],committedName:.[1],committedMark:.[2],committedProvider:.[3],role:.[4]}]
+    }
+  ' <"${substitutions}" >"${report}/cluster-fixture-substitution.json"
+
+  jq -e --argjson serving "${serving}" '
+    ([.[] | select(.role == "serving")] | length) == $serving and
+    all(.[]; (.name | test("[<>]")) | not)
+  ' "${report}/cluster-secret-inputs.json" >/dev/null
+}
+
+# The exclusion law at the LIVE generator: infrastructure-only cluster Secrets
+# are seeded, labelled, and selectable, yet no canary Application destination
+# lands on their servers. The oracle reads the actual Secret role labels and
+# decoded server fields; landscape/name text is evidence only, never a veto.
+assert_infrastructure_only_excluded() {
+  local applications_snapshot="$1"
+  local secrets_snapshot="$2"
+  local output="$3"
+  local seeded_clusters="${4:-${report}/cluster-secret-inputs.json}"
+  local synthetic_fixture="${validation_dir}/fixtures/infrastructure-only-serving-landscape.yaml"
+  jq -n \
+    --arg syntheticFixture "${synthetic_fixture}" \
+    --slurpfile seeded "${seeded_clusters}" \
+    --slurpfile secrets "${secrets_snapshot}" \
+    --slurpfile apps "${applications_snapshot}" '
+    ($seeded[0] | map(select(.role == "infrastructure-only"))) as $seededInfra |
+    ($secrets[0].items // [] |
+      map(
+        select(.metadata.labels["argocd.argoproj.io/secret-type"] == "cluster") |
+        {
+          name: .metadata.name,
+          landscapeLabel: .metadata.labels["atomi.cloud/landscape"],
+          clusterRoleLabel: .metadata.labels["atomi.cloud/cluster-role"],
+          secretTypeLabel: .metadata.labels["argocd.argoproj.io/secret-type"],
+          server: (try (.data.server | @base64d) catch null)
+        }
+      )
+    ) as $actualClusters |
+    ($actualClusters | map(select(.clusterRoleLabel == "infrastructure-only"))) as $actualInfra |
+    ($actualClusters |
+      map(select(.clusterRoleLabel == "serving" and .landscapeLabel == "ampharos"))) as $servingAmpharos |
+    ($seededInfra | map(select(.fixture == $syntheticFixture))) as $syntheticSeed |
+    ([$seededInfra[] as $expected |
+      $actualInfra[] |
+      select(
+        .name == $expected.name and
+        .landscapeLabel == $expected.landscape and
+        .server == $expected.server
+      ) |
+      . + {fixture: $expected.fixture, recordedRole: $expected.role}
+    ]) as $observedSeededInfra |
+    ([$syntheticSeed[] as $expected |
+      $actualInfra[] |
+      select(
+        .name == $expected.name and
+        .landscapeLabel == $expected.landscape and
+        .server == $expected.server
+      ) |
+      . + {fixture: $expected.fixture, recordedRole: $expected.role}
+    ]) as $syntheticActual |
+    ($apps[0].items // []) as $items |
+    {
+      seededInfrastructureOnlyFixtures: ($seededInfra | map({fixture,name,landscape,server,recordedRole:.role})),
+      observedSeededInfrastructureOnlySecrets: $observedSeededInfra,
+      distinctInfrastructureNames: ($seededInfra | map(.name) | unique),
+      distinctInfrastructureLandscapes: ($seededInfra | map(.landscape) | unique),
+      syntheticAmpharosInfrastructureSecret: {
+        seedRecord: ($syntheticSeed[0] // null),
+        actualSecret: ($syntheticActual[0] // null)
+      },
+      applicationDestinations: ($items | map(.spec.destination.server) | unique),
+      applicationsOnInfrastructureOnly: [
+        $items[] as $app |
+        $actualInfra[] as $secret |
+        select($app.spec.destination.server == $secret.server) |
+        {
+          application: $app.metadata.name,
+          destinationServer: $app.spec.destination.server,
+          secretName: $secret.name,
+          secretRole: $secret.clusterRoleLabel,
+          secretLandscape: $secret.landscapeLabel
+        }
+      ],
+      applicationsOnServingAmpharos: [
+        $items[] as $app |
+        $servingAmpharos[] as $secret |
+        select($app.spec.destination.server == $secret.server) |
+        {
+          application: $app.metadata.name,
+          destinationServer: $app.spec.destination.server,
+          secretName: $secret.name,
+          secretRole: $secret.clusterRoleLabel,
+          secretLandscape: $secret.landscapeLabel
+        }
+      ],
+      exclusionKeyedOn: "actual Application spec.destination.server matched against actual cluster Secret atomi.cloud/cluster-role labels"
+    }
+  ' >"${output}"
+  if ! jq -e '
+    (.seededInfrastructureOnlyFixtures | length) >= 2 and
+    (.distinctInfrastructureNames | length) >= 2 and
+    (.observedSeededInfrastructureOnlySecrets | length) == (.seededInfrastructureOnlyFixtures | length) and
+    .syntheticAmpharosInfrastructureSecret.seedRecord.landscape == "ampharos" and
+    .syntheticAmpharosInfrastructureSecret.seedRecord.role == "infrastructure-only" and
+    .syntheticAmpharosInfrastructureSecret.actualSecret.landscapeLabel == "ampharos" and
+    .syntheticAmpharosInfrastructureSecret.actualSecret.clusterRoleLabel == "infrastructure-only" and
+    .syntheticAmpharosInfrastructureSecret.actualSecret.secretTypeLabel == "cluster" and
+    (.applicationsOnServingAmpharos | length) >= 1
+  ' "${output}" >/dev/null; then
+    sit_fail 'infrastructure exclusion oracle prerequisites did not prove the seeded and labelled Secret roles'
+    return 1
+  fi
+  if ! jq -e '(.applicationsOnInfrastructureOnly | length) == 0' "${output}" >/dev/null; then
+    sit_fail 'an Application targeted an infrastructure-only cluster Secret destination'
+    return 1
+  fi
+}
+
+# Cheap construction test for the same destination/Secret-role oracle used by
+# L1. It deliberately keeps a serving-Ampharos Application present in both red
+# cases, so each negative can fail only because its added destination is an
+# infrastructure-only Secret server.
+infrastructure_exclusion_self_test() {
+  local lab="$1"
+  local output="$2"
+  local seeded="${lab}/cluster-secret-inputs.json"
+  local secrets="${lab}/cluster-secrets.json"
+  local positive_apps="${lab}/apps-serving-ampharos.json"
+  local ampharos_negative_apps="${lab}/apps-ampharos-infrastructure.json"
+  local second_negative_apps="${lab}/apps-second-infrastructure.json"
+  local positive_result="${lab}/positive.json"
+  local ampharos_negative_result="${lab}/ampharos-negative.json"
+  local second_negative_result="${lab}/second-negative.json"
+  local ampharos_negative_log="${lab}/ampharos-negative.log"
+  local second_negative_log="${lab}/second-negative.log"
+  local serving_server='https://ampharos-serving.sit.invalid:6443'
+  local ampharos_infra_server='https://ampharos-infrastructure-sit.sit.invalid:6443'
+  local second_infra_server='https://suicune-sit.sit.invalid:6443'
+  local synthetic_fixture="${validation_dir}/fixtures/infrastructure-only-serving-landscape.yaml"
+  mkdir -p "${lab}"
+
+  jq -n \
+    --arg syntheticFixture "${synthetic_fixture}" \
+    --arg servingServer "${serving_server}" \
+    --arg ampharosInfraServer "${ampharos_infra_server}" \
+    --arg secondInfraServer "${second_infra_server}" '[
+      {fixture:"registry/fixtures/clusters/ampharos-mark.yaml",name:"ampharos-serving",landscape:"ampharos",server:$servingServer,role:"serving"},
+      {fixture:$syntheticFixture,name:"ampharos-infrastructure-sit",landscape:"ampharos",server:$ampharosInfraServer,role:"infrastructure-only"},
+      {fixture:"registry/fixtures/negative/second-infrastructure-cluster.yaml",name:"suicune-sit",landscape:"suicune",server:$secondInfraServer,role:"infrastructure-only"}
+    ]' >"${seeded}"
+  jq -n \
+    --arg servingServer "${serving_server}" \
+    --arg ampharosInfraServer "${ampharos_infra_server}" \
+    --arg secondInfraServer "${second_infra_server}" '{items:[
+      {
+        metadata:{name:"ampharos-serving",labels:{
+          "argocd.argoproj.io/secret-type":"cluster",
+          "atomi.cloud/landscape":"ampharos",
+          "atomi.cloud/cluster-role":"serving"
+        }},
+        data:{server:($servingServer | @base64)}
+      },
+      {
+        metadata:{name:"ampharos-infrastructure-sit",labels:{
+          "argocd.argoproj.io/secret-type":"cluster",
+          "atomi.cloud/landscape":"ampharos",
+          "atomi.cloud/cluster-role":"infrastructure-only"
+        }},
+        data:{server:($ampharosInfraServer | @base64)}
+      },
+      {
+        metadata:{name:"suicune-sit",labels:{
+          "argocd.argoproj.io/secret-type":"cluster",
+          "atomi.cloud/landscape":"suicune",
+          "atomi.cloud/cluster-role":"infrastructure-only"
+        }},
+        data:{server:($secondInfraServer | @base64)}
+      }
+    ]}' >"${secrets}"
+  jq -n --arg servingServer "${serving_server}" '{items:[{
+    metadata:{name:"canary-ampharos-dummy-ampharos-serving"},
+    spec:{destination:{server:$servingServer}}
+  }]}' >"${positive_apps}"
+
+  assert_infrastructure_only_excluded \
+    "${positive_apps}" "${secrets}" "${positive_result}" "${seeded}" || {
+    sit_fail 'the destination oracle rejected a legitimate serving-Ampharos Application'
+    return 1
+  }
+  jq -e '
+    (.applicationsOnServingAmpharos | length) == 1 and
+    (.applicationsOnInfrastructureOnly | length) == 0 and
+    .syntheticAmpharosInfrastructureSecret.actualSecret.clusterRoleLabel == "infrastructure-only"
+  ' "${positive_result}" >/dev/null ||
+    sit_fail 'the positive infrastructure exclusion construction was not discriminating'
+
+  jq --arg server "${ampharos_infra_server}" '.items += [{
+    metadata:{name:"canary-ampharos-dummy-illegal-infrastructure"},
+    spec:{destination:{server:$server}}
+  }]' "${positive_apps}" >"${ampharos_negative_apps}"
+  if assert_infrastructure_only_excluded \
+    "${ampharos_negative_apps}" "${secrets}" "${ampharos_negative_result}" "${seeded}" \
+    2>"${ampharos_negative_log}"; then
+    sit_fail 'the destination oracle accepted an Application on the Ampharos infrastructure-only server'
+    return 1
+  fi
+  rg -F 'an Application targeted an infrastructure-only cluster Secret destination' \
+    "${ampharos_negative_log}" >/dev/null ||
+    sit_fail 'the Ampharos infrastructure-only negative failed for the wrong cause'
+  jq -e --arg server "${ampharos_infra_server}" '
+    (.applicationsOnServingAmpharos | length) == 1 and
+    .applicationsOnInfrastructureOnly == [{
+      application:"canary-ampharos-dummy-illegal-infrastructure",
+      destinationServer:$server,
+      secretName:"ampharos-infrastructure-sit",
+      secretRole:"infrastructure-only",
+      secretLandscape:"ampharos"
+    }]
+  ' "${ampharos_negative_result}" >/dev/null ||
+    sit_fail 'the Ampharos negative did not isolate its infrastructure-only destination'
+
+  jq --arg server "${second_infra_server}" '.items += [{
+    metadata:{name:"canary-suicune-dummy-illegal-infrastructure"},
+    spec:{destination:{server:$server}}
+  }]' "${positive_apps}" >"${second_negative_apps}"
+  if assert_infrastructure_only_excluded \
+    "${second_negative_apps}" "${secrets}" "${second_negative_result}" "${seeded}" \
+    2>"${second_negative_log}"; then
+    sit_fail 'the destination oracle accepted an Application on the second infrastructure-only server'
+    return 1
+  fi
+  rg -F 'an Application targeted an infrastructure-only cluster Secret destination' \
+    "${second_negative_log}" >/dev/null ||
+    sit_fail 'the second infrastructure-only negative failed for the wrong cause'
+  jq -e --arg server "${second_infra_server}" '
+    (.applicationsOnServingAmpharos | length) == 1 and
+    .applicationsOnInfrastructureOnly == [{
+      application:"canary-suicune-dummy-illegal-infrastructure",
+      destinationServer:$server,
+      secretName:"suicune-sit",
+      secretRole:"infrastructure-only",
+      secretLandscape:"suicune"
+    }]
+  ' "${second_negative_result}" >/dev/null ||
+    sit_fail 'the second negative did not isolate its infrastructure-only destination'
+
+  jq -n \
+    --slurpfile positive "${positive_result}" \
+    --slurpfile ampharosNegative "${ampharos_negative_result}" \
+    --slurpfile secondNegative "${second_negative_result}" '{
+      status:"pass",
+      oracle:"actual Application destination server matched to actual Secret role label",
+      servingAmpharosAccepted:$positive[0],
+      ampharosInfrastructureRejected:$ampharosNegative[0].applicationsOnInfrastructureOnly,
+      differentlyNamedInfrastructureRejected:$secondNegative[0].applicationsOnInfrastructureOnly,
+      liveRunClaimed:false
+    }' >"${output}"
 }
 
 render_and_apply_appsets() {
@@ -407,12 +935,15 @@ build_expected_child_apps() {
     printf '%s\t%s\t%s\t%s\n' \
       "${platform}-${landscape}-${service}-primordial" \
       'https://kubernetes.default.svc' "${tag}" "${landscape}" >>"${tsv}"
-    matches="$(jq --arg landscape "${landscape}" '[.[] | select(.landscape == $landscape)] | length' \
+    matches="$(jq --arg landscape "${landscape}" \
+      '[.[] | select(.role == "serving" and .landscape == $landscape)] | length' \
       "${report}/cluster-secret-inputs.json")"
-    [ "${matches}" -eq 1 ] || sit_fail "row ${row} must match exactly one ephemeral cluster Secret"
-    cluster_name_value="$(jq -r --arg landscape "${landscape}" '.[] | select(.landscape == $landscape) | .name' \
+    [ "${matches}" -eq 1 ] || sit_fail "row ${row} must match exactly one ephemeral serving cluster Secret"
+    cluster_name_value="$(jq -r --arg landscape "${landscape}" \
+      '.[] | select(.role == "serving" and .landscape == $landscape) | .name' \
       "${report}/cluster-secret-inputs.json")"
-    server="$(jq -r --arg landscape "${landscape}" '.[] | select(.landscape == $landscape) | .server' \
+    server="$(jq -r --arg landscape "${landscape}" \
+      '.[] | select(.role == "serving" and .landscape == $landscape) | .server' \
       "${report}/cluster-secret-inputs.json")"
     printf '%s\t%s\t%s\t%s\n' \
       "${platform}-${landscape}-${service}-${cluster_name_value}" \
@@ -589,7 +1120,7 @@ check_sitother_recreated_without_operation() {
     ' >/dev/null 2>&1
 }
 
-check_sitother_c4_automation_live() {
+check_sitother_automation_live() {
   local expected_revision="$1"
   local expected_uid="$2"
   local not_before="$3"
@@ -611,6 +1142,1683 @@ check_sitother_c4_automation_live() {
     ' >/dev/null 2>&1
 }
 
+# --- machinery-stable pointer: forward-only semantics -----------------------
+#
+# The product path is a reviewed pointer file on main plus a protected workflow
+# that PATCHes refs/tags/machinery-stable with force:false after a descendant
+# precheck. This venue has no GitHub API, so the write is modelled by an
+# explicit old->new compare-and-swap on the serving repository. Nothing here
+# ever force-pushes, and the backward case is refused twice: by the descendant
+# precheck and by the transport's own refusal to update an existing tag without
+# force.
+
+read_machinery_pointer_target() {
+  local pointer="$1"
+  [ -s "${pointer}" ] || sit_fail "machinery-stable pointer file is missing: ${pointer}"
+  local line
+  line="$(sed -e '/^[[:space:]]*#/d' -e '/^[[:space:]]*$/d' "${pointer}")"
+  [[ ${line} =~ ^target:[[:space:]]([0-9a-f]{40})$ ]] ||
+    sit_fail "pointer must contain exactly: target: <40-lowercase-hex-main-commit> (${pointer})"
+  printf '%s\n' "${BASH_REMATCH[1]}"
+}
+
+write_machinery_pointer() {
+  local pointer="$1"
+  local target="$2"
+  printf '%s\n' \
+    '# Reviewed pointer consumed only by the protected machinery-stable workflow.' \
+    '# Promotion and rollback both select a descendant commit on main.' \
+    "target: ${target}" >"${pointer}"
+}
+
+machinery_pointer_ref() {
+  git -C "${FLEET_BARE}" rev-parse 'refs/tags/machinery-stable'
+}
+
+sync_local_machinery_tag() {
+  git -C "${FLEET_SOURCE}" tag -d machinery-stable >/dev/null 2>&1 || true
+  git -C "${FLEET_SOURCE}" fetch --quiet sit 'refs/tags/machinery-stable:refs/tags/machinery-stable'
+}
+
+# Advance the pointer to a commit on main and move the tag forward only.
+advance_machinery_pointer() {
+  local target="$1"
+  local reason="$2"
+  local commit_evidence="$3"
+  local advance_evidence="$4"
+  local current pointer_target main_tip verified
+  current="$(machinery_pointer_ref)"
+
+  write_machinery_pointer "${FLEET_SOURCE}/registry/machinery-stable.yaml" "${target}"
+  fleet_commit "pointer PR: ${reason}" "${commit_evidence}" 'registry/machinery-stable.yaml'
+  pointer_target="$(read_machinery_pointer_target "${FLEET_SOURCE}/registry/machinery-stable.yaml")"
+  [ "${pointer_target}" = "${target}" ] || sit_fail 'pointer file does not name the requested target'
+
+  # These three guards stand immediately before a destructive ref write, so they
+  # return explicitly instead of relying on errexit being active at the call
+  # site: a caller that suppresses errexit must still never reach the write.
+  main_tip="$(git -C "${FLEET_SOURCE}" rev-parse main)"
+  if ! git -C "${FLEET_SOURCE}" merge-base --is-ancestor "${pointer_target}" "${main_tip}"; then
+    sit_fail "pointer ${pointer_target} is not on main"
+    return 1
+  fi
+  if [ "${current}" = "${pointer_target}" ]; then
+    sit_fail 'pointer advance requested no movement'
+    return 1
+  fi
+  if ! git -C "${FLEET_SOURCE}" merge-base --is-ancestor "${current}" "${pointer_target}"; then
+    sit_fail "pointer ${pointer_target} would backtrack machinery-stable from ${current}"
+    return 1
+  fi
+
+  # force:false, expressed as an explicit old->new compare-and-swap.
+  git -C "${FLEET_BARE}" update-ref 'refs/tags/machinery-stable' "${pointer_target}" "${current}"
+  verified="$(machinery_pointer_ref)"
+  [ "${verified}" = "${pointer_target}" ] ||
+    sit_fail "post-write machinery-stable target ${verified} differs from ${pointer_target}"
+  sync_local_machinery_tag
+
+  jq -n \
+    --arg reason "${reason}" \
+    --arg old "${current}" \
+    --arg new "${pointer_target}" \
+    --arg verified "${verified}" \
+    --arg pointerCommit "${FLEET_LAST_COMMIT}" \
+    --arg mainTip "${main_tip}" \
+    '{
+      reason:$reason,
+      mechanism:"pointer file on main + descendant precheck + explicit old->new compare-and-swap",
+      force:false,
+      forcePushUsed:false,
+      oldRef:$old,
+      newRef:$new,
+      verifiedRef:$verified,
+      descendantOfOld:true,
+      pointerCommitOnMain:$pointerCommit,
+      mainTip:$mainTip
+    }' >"${advance_evidence}"
+}
+
+# The backward case, refused twice and proven not to have moved the ref.
+reject_backward_machinery_pointer() {
+  local backward="$1"
+  local evidence="$2"
+  local push_log="$3"
+  local current precheck push_status after
+  current="$(machinery_pointer_ref)"
+
+  precheck='rejected'
+  if git -C "${FLEET_SOURCE}" merge-base --is-ancestor "${current}" "${backward}"; then
+    precheck='accepted'
+  fi
+  if [ "${precheck}" != 'rejected' ]; then
+    sit_fail 'the descendant precheck accepted a backward machinery-stable pointer'
+    return 1
+  fi
+
+  git -C "${FLEET_SOURCE}" tag -d machinery-stable >/dev/null 2>&1 || true
+  git -C "${FLEET_SOURCE}" tag machinery-stable "${backward}"
+  push_status=0
+  git -C "${FLEET_SOURCE}" push sit 'refs/tags/machinery-stable' >"${push_log}" 2>&1 || push_status=$?
+  sync_local_machinery_tag
+  [ "${push_status}" -ne 0 ] ||
+    sit_fail 'the transport accepted a non-forced backward update of an existing tag'
+
+  after="$(machinery_pointer_ref)"
+  [ "${after}" = "${current}" ] ||
+    sit_fail "machinery-stable moved during the rejected backward attempt: ${current} -> ${after}"
+
+  jq -n \
+    --arg current "${current}" \
+    --arg backward "${backward}" \
+    --arg after "${after}" \
+    --argjson pushStatus "${push_status}" \
+    --rawfile pushOutput "${push_log}" \
+    '{
+      attemptedTarget:$backward,
+      refBefore:$current,
+      refAfter:$after,
+      descendantPrecheck:"rejected",
+      nonForcedPushExitStatus:$pushStatus,
+      nonForcedPushOutput:($pushOutput | .[0:2048]),
+      tagMovedBackward:false
+    }' >"${evidence}"
+}
+
+# Deterministic self-test of the forward-only pointer semantics, on throwaway
+# repositories, with no cluster and no network. It runs the SAME functions L5
+# runs, so the L5 leg is never the first place they execute.
+machinery_pointer_self_test() {
+  local lab="$1"
+  local output="$2"
+  local saved_source="${FLEET_SOURCE}"
+  local saved_bare="${FLEET_BARE}"
+  local saved_sequence="${COMMIT_SEQUENCE}"
+  local c1 c4 revert status
+
+  mkdir -p "${lab}"
+  FLEET_SOURCE="${lab}/fleet"
+  FLEET_BARE="${lab}/fleet.git"
+  COMMIT_SEQUENCE=1
+  mkdir -p "${FLEET_SOURCE}/registry"
+  printf 'seed\n' >"${FLEET_SOURCE}/registry/seed.txt"
+  git init --quiet --initial-branch=main "${FLEET_SOURCE}"
+  git -C "${FLEET_SOURCE}" add registry
+  git_commit_at "${FLEET_SOURCE}" 'C1 pointer self-test seed' 1
+  c1="$(git -C "${FLEET_SOURCE}" rev-parse HEAD)"
+  git -C "${FLEET_SOURCE}" tag machinery-stable "${c1}"
+  write_machinery_pointer "${FLEET_SOURCE}/registry/machinery-stable.yaml" "${c1}"
+  git -C "${FLEET_SOURCE}" add registry/machinery-stable.yaml
+  git_commit_at "${FLEET_SOURCE}" 'C1b pointer self-test pointer' 1
+  make_bare_remote "${FLEET_SOURCE}" "${FLEET_BARE}"
+
+  printf 'marker\n' >"${FLEET_SOURCE}/registry/marker.txt"
+  fleet_commit 'C4 pointer self-test marker' "${lab}/git-C4.txt" 'registry/marker.txt'
+  c4="${FLEET_LAST_COMMIT}"
+  advance_machinery_pointer "${c4}" 'self-test forward advance' \
+    "${lab}/git-C5-pointer.txt" "${lab}/advance-forward.json"
+  [ "$(machinery_pointer_ref)" = "${c4}" ] || sit_fail 'self-test forward advance did not move the ref'
+
+  reject_backward_machinery_pointer "${c1}" "${lab}/backward.json" "${lab}/backward-push.log"
+
+  fleet_revert "${c4}" 'C8 pointer self-test revert' "${lab}/git-C8-revert.txt"
+  revert="${FLEET_LAST_COMMIT}"
+  [ ! -f "${FLEET_SOURCE}/registry/marker.txt" ] || sit_fail 'the self-test revert did not undo its change'
+  advance_machinery_pointer "${revert}" 'self-test rollback advance' \
+    "${lab}/git-C8-pointer.txt" "${lab}/advance-rollback.json"
+
+  status=0
+  (advance_machinery_pointer "${c1}" 'self-test illegal backward advance' \
+    "${lab}/git-bad-pointer.txt" "${lab}/advance-bad.json") >/dev/null 2>&1 || status=$?
+  [ "${status}" -ne 0 ] || sit_fail 'the pointer advance accepted a backward target'
+  [ "$(machinery_pointer_ref)" = "${revert}" ] ||
+    sit_fail 'the rejected backward advance still moved the ref'
+
+  status=0
+  printf 'target: not-a-sha\n' >"${lab}/bad-pointer.yaml"
+  (read_machinery_pointer_target "${lab}/bad-pointer.yaml") >/dev/null 2>&1 || status=$?
+  [ "${status}" -ne 0 ] || sit_fail 'a malformed pointer file was accepted'
+  status=0
+  printf 'target: %s\ntarget: %s\n' "${c1}" "${c4}" >"${lab}/two-pointer.yaml"
+  (read_machinery_pointer_target "${lab}/two-pointer.yaml") >/dev/null 2>&1 || status=$?
+  [ "${status}" -ne 0 ] || sit_fail 'a pointer file with a second target line was accepted'
+
+  jq -n \
+    --arg c1 "${c1}" \
+    --arg c4 "${c4}" \
+    --arg revert "${revert}" \
+    --slurpfile forward "${lab}/advance-forward.json" \
+    --slurpfile backward "${lab}/backward.json" \
+    --slurpfile rollback "${lab}/advance-rollback.json" \
+    '{
+      status:"pass",
+      check:"machinery-pointer-forward-only",
+      seed:$c1,promoted:$c4,revert:$revert,
+      forwardAdvance:$forward[0],
+      backwardRejected:$backward[0],
+      rollbackAdvance:$rollback[0]
+    }' >"${output}"
+
+  FLEET_SOURCE="${saved_source}"
+  FLEET_BARE="${saved_bare}"
+  COMMIT_SEQUENCE="${saved_sequence}"
+}
+
+# --- L8: the exact v1 Kargo mapping against the pinned Kargo CRDs -----------
+#
+# What this leg proves: the committed compiler chart renders the ratified
+# fields; a live API server carrying the REAL pinned Kargo v1.9.10 CRDs admits
+# them; the persisted objects still carry every asserted field (so none was
+# pruned as unknown); and the pinned CRDs reject the enum/pattern negatives.
+# What it does NOT prove: any Kargo CONTROLLER behaviour. See kargo-residuals.
+
+fetch_kargo_crds() {
+  KARGO_CRD_DIR="${work}/kargo-crds"
+  mkdir -p "${KARGO_CRD_DIR}"
+  local entry file digest
+  : >"${work}/kargo-crds.sha256"
+  for entry in \
+    "kargo.akuity.io_projects.yaml ${KARGO_CRD_PROJECTS_SHA256}" \
+    "kargo.akuity.io_projectconfigs.yaml ${KARGO_CRD_PROJECTCONFIGS_SHA256}" \
+    "kargo.akuity.io_stages.yaml ${KARGO_CRD_STAGES_SHA256}" \
+    "kargo.akuity.io_warehouses.yaml ${KARGO_CRD_WAREHOUSES_SHA256}"; do
+    file="${entry%% *}"
+    digest="${entry##* }"
+    [[ ${digest} =~ ^[0-9a-f]{64}$ ]] || sit_fail "invalid Kargo CRD checksum pin for ${file}"
+    curl --fail --location --retry 3 --connect-timeout 15 --max-time 120 \
+      "${KARGO_CRD_BASE_URL}/${file}" --output "${KARGO_CRD_DIR}/${file}"
+    printf '%s  %s\n' "${digest}" "${KARGO_CRD_DIR}/${file}" >>"${work}/kargo-crds.sha256"
+  done
+  sha256sum --check "${work}/kargo-crds.sha256" | tee "${report}/kargo-crds-verified.txt"
+}
+
+kargo_negative_rejected() {
+  local label="$1"
+  local manifest="$2"
+  local log="$3"
+  local status=0
+  kubectl apply --dry-run=server -f "${manifest}" >"${log}" 2>&1 || status=$?
+  [ "${status}" -ne 0 ] ||
+    sit_fail "the pinned Kargo CRDs accepted the ${label} negative"
+  jq -n \
+    --arg label "${label}" \
+    --argjson exitStatus "${status}" \
+    --rawfile output "${log}" \
+    '{negative:$label,rejected:true,exitStatus:$exitStatus,apiServerMessage:($output | .[0:1024])}'
+}
+
+run_kargo_contract_leg() {
+  fetch_kargo_crds
+  kubectl apply --server-side --force-conflicts --field-manager=fleet-sit -f "${KARGO_CRD_DIR}"
+  local crd
+  for crd in projects projectconfigs stages warehouses; do
+    kubectl wait --for=condition=Established "crd/${crd}.kargo.akuity.io" --timeout=120s
+  done
+  yq ea -o=json '[.]' "${KARGO_CRD_DIR}"/*.yaml >"${work}/kargo-crds.json"
+
+  helm template canary registry/charts/diene-platform \
+    --namespace canary \
+    --values platforms/canary/services.yaml \
+    --values registry/charts/diene-platform/tests/fixtures/canary.platform.yaml |
+    yq 'select(.apiVersion == "kargo.akuity.io/v1alpha1")' >"${report}/kargo-rendered.yaml"
+  yq ea -o=json '[.] | map(select(.apiVersion == "kargo.akuity.io/v1alpha1"))' \
+    "${report}/kargo-rendered.yaml" >"${work}/kargo-rendered.json"
+  bun "${validation_dir}/kargo-contract.ts" \
+    --objects "${work}/kargo-rendered.json" \
+    --crds "${work}/kargo-crds.json" \
+    --out "${report}/kargo-rendered-contract.json" \
+    --source 'rendered from the committed compiler chart at the recorded commit'
+  local rendered_expression
+  rendered_expression="$(yq -r '
+    select(.kind == "Stage" and .metadata.name == "canary-dummy-pichu") |
+    .spec.promotionTemplate.spec.steps[] | select(.uses == "yaml-update") |
+    .config.updates[0].value
+  ' "${report}/kargo-rendered.yaml")"
+  # The dollar braces are literal Kargo expr-lang input, not shell expansion.
+  # shellcheck disable=SC2016
+  local expected_expression='${{ imageFrom("registry.atomi.cloud/canary/dummy").Tag }}'
+  [ "${rendered_expression}" = "${expected_expression}" ] ||
+    sit_fail 'the rendered yaml-update expression is not the exact pinned expr-lang call form'
+  (
+    cd "${validation_dir}/fixtures/kargo-expression"
+    KARGO_EXPRESSION_UNDER_TEST="${rendered_expression}" go test ./...
+  ) >"${report}/kargo-expression-engine.txt" 2>&1
+
+  kubectl create namespace canary
+  kubectl apply --server-side --field-manager=fleet-sit -f "${report}/kargo-rendered.yaml"
+  kubectl get projects.kargo.akuity.io canary -o json >"${work}/kargo-project.json"
+  kubectl -n canary get projectconfigs.kargo.akuity.io,warehouses.kargo.akuity.io,stages.kargo.akuity.io \
+    -o json >"${work}/kargo-namespaced.json"
+  jq -n \
+    --slurpfile project "${work}/kargo-project.json" \
+    --slurpfile namespaced "${work}/kargo-namespaced.json" \
+    '[$project[0]] + $namespaced[0].items' >"${report}/kargo-persisted.json"
+  # The pruning oracle: the SAME field-exact contract, re-run over what the API
+  # server actually stored. A field the CRD does not declare is gone by now.
+  bun "${validation_dir}/kargo-contract.ts" \
+    --objects "${report}/kargo-persisted.json" \
+    --crds "${work}/kargo-crds.json" \
+    --out "${report}/kargo-persisted-contract.json" \
+    --source 'read back from an API server carrying the pinned Kargo v1.9.10 CRDs'
+  jq -e '.ok == true and .crdSemantics != null' "${report}/kargo-persisted-contract.json" >/dev/null
+  jq '.crdSemantics' "${report}/kargo-persisted-contract.json" >"${report}/kargo-crd-semantics.json"
+  jq '.preserveUnknownFieldsBlindSpots' "${report}/kargo-persisted-contract.json" \
+    >"${report}/kargo-crd-preserve-unknown-blind-spots.json"
+  jq -e '
+    type == "array" and length > 0 and
+    any(.[]; .path | test("promotionTemplate.*steps.*config")) and
+    all(.[]; .qualification | test("persistence, not field-level schema declaration or expression validity"))
+  ' "${report}/kargo-crd-preserve-unknown-blind-spots.json" >/dev/null
+  jq -e '
+    (to_entries | length) >= 5 and
+    all(.[]; .present == true) and
+    (."Stage.availabilityStrategy".enum | index("All")) != null and
+    (."Stage.availabilityStrategy".enum | index("OneOf")) != null and
+    (."Stage.requiredSoakTime".pattern | length) > 0
+  ' "${report}/kargo-crd-semantics.json" >/dev/null
+
+  # Negatives at the real API server: the ratified values are constrained by the
+  # pinned CRDs, so `All` and `15m` are checked vocabulary rather than free text.
+  yq '(select(.kind == "Stage" and .metadata.name == "canary-dummy-ampharos") |
+       .spec.requestedFreight[0].sources.availabilityStrategy) = "Sometimes"' \
+    "${report}/kargo-rendered.yaml" |
+    yq 'select(.kind == "Stage" and .metadata.name == "canary-dummy-ampharos")' \
+      >"${work}/kargo-negative-strategy.yaml"
+  yq '(select(.kind == "Stage" and .metadata.name == "canary-dummy-ampharos") |
+       .spec.requestedFreight[0].sources.requiredSoakTime) = "15minutes"' \
+    "${report}/kargo-rendered.yaml" |
+    yq 'select(.kind == "Stage" and .metadata.name == "canary-dummy-ampharos")' \
+      >"${work}/kargo-negative-soak.yaml"
+  local strategy_negative soak_negative
+  strategy_negative="$(kargo_negative_rejected 'availabilityStrategy outside the pinned CRD enum' \
+    "${work}/kargo-negative-strategy.yaml" "${work}/kargo-negative-strategy.log")"
+  soak_negative="$(kargo_negative_rejected 'requiredSoakTime outside the pinned CRD duration pattern' \
+    "${work}/kargo-negative-soak.yaml" "${work}/kargo-negative-soak.log")"
+
+  # And the offline oracle must be non-vacuous: dropping the rendezvous
+  # strategy is admitted by the CRD (it is merely optional) yet must fail the
+  # ratified contract, because the omission silently means OneOf.
+  jq 'map(if .kind == "Stage" and .metadata.name == "canary-dummy-ampharos"
+          then del(.spec.requestedFreight[0].sources.availabilityStrategy) else . end)' \
+    "${work}/kargo-rendered.json" >"${work}/kargo-rendezvous-mutation.json"
+  local mutation_status=0
+  bun "${validation_dir}/kargo-contract.ts" \
+    --objects "${work}/kargo-rendezvous-mutation.json" \
+    --crds "${work}/kargo-crds.json" \
+    --out "${work}/kargo-rendezvous-mutation-contract.json" \
+    --source 'rendezvous mutation' >/dev/null 2>&1 || mutation_status=$?
+  [ "${mutation_status}" -ne 0 ] ||
+    sit_fail 'the Kargo field oracle accepted a rendezvous with no availabilityStrategy'
+
+  jq -n \
+    --argjson strategy "${strategy_negative}" \
+    --argjson soak "${soak_negative}" \
+    --slurpfile mutation "${work}/kargo-rendezvous-mutation-contract.json" \
+    '{
+      apiServerNegatives: [$strategy, $soak],
+      renderMutationNegative: {
+        negative: "rendezvous loses availabilityStrategy: All",
+        crdAdmits: true,
+        ratifiedContractRejects: true,
+        failedChecks: ($mutation[0].failed | map(.name))
+      }
+    }' >"${report}/kargo-negatives.json"
+
+  jq -n \
+    --arg version "${KARGO_VERSION}" \
+    --arg commit "${KARGO_SOURCE_COMMIT}" \
+    '{
+      pinnedKargo: {version:$version, sourceCommit:$commit, artefact:"upstream CRDs, applied to a live API server"},
+      proven: [
+        "the committed compiler chart renders the exact ratified v1 fields for all four canary Stages",
+        "a live API server carrying the pinned Kargo CRDs admits every rendered object",
+        "every asserted field survives admission unpruned, so each is a real field of the pinned Kargo API",
+        "ProjectConfig enables auto-promotion for exactly pichu/raichu/ampharos and carries NO policy for the manual pikachu Stage",
+        "the ampharos rendezvous requests freight from BOTH pikachu and raichu with availabilityStrategy All and requiredSoakTime 15m",
+        "canary-smoke verifies pikachu and canary-analysis verifies the ampharos rendezvous",
+        "the pinned CRDs reject an availabilityStrategy outside their enum and a requiredSoakTime outside their duration pattern",
+        "the pinned CRD text itself states that All requires all upstream Stages, that omission means OneOf, and that requiredSoakTime measures continuous occupancy of the upstream Stage in ADDITION to upstream verification"
+      ],
+      notProven: [
+        "L8 alone does not execute any Kargo controller, Freight, Promotion, AnalysisRun, gate, or soak decision; those are proved separately and explicitly in L9",
+        "read-back is not a field-schema oracle below x-kubernetes-preserve-unknown-fields; the emitted blind-spot list identifies those paths and the yaml-update expression is instead bound by the exact contract check, pinned evaluator test, and L9 execution"
+      ],
+      residual: "this artifact is deliberately the static contract layer. Runtime behavior is neither claimed nor inferred here; the ordered L9 artifact carries that proof."
+    }' >"${report}/kargo-residuals.json"
+}
+
+# --- L9: real pinned Kargo controller runtime ------------------------------
+
+kargo_runtime_verify_host_image() {
+  local image_ref="$1"
+  local digest_ref="$2"
+  local output="$3"
+  local digest="${digest_ref#*@}"
+  local tag_ref="${image_ref%@*}"
+  docker pull "${image_ref}" >>"${report}/kargo-runtime-image-pulls.txt" 2>&1
+  docker image inspect "${image_ref}" >"${output}"
+  # Docker may abbreviate docker.io/library repositories in RepoDigests. The
+  # inspected reference itself is digest-qualified, so match the immutable
+  # digest here and separately require the tag that k3d will export to resolve.
+  jq -e --arg digest "${digest}" '
+    length == 1 and
+    any(.[0].RepoDigests[]?; endswith("@" + $digest))
+  ' "${output}" >/dev/null ||
+    sit_fail "host image does not carry the pinned digest: ${image_ref}"
+  docker image inspect "${tag_ref}" >/dev/null 2>&1 ||
+    sit_fail "the digest-qualified pull did not bind its export tag: ${tag_ref}"
+}
+
+kargo_runtime_canonical_image_tag() {
+  local ref="$1"
+  ref="${ref#docker.io/library/}"
+  ref="${ref#docker.io/}"
+  ref="${ref#library/}"
+  printf '%s' "${ref}"
+}
+
+kargo_runtime_verify_node_image() {
+  local inventory="$1"
+  local tag_ref="$2"
+  local digest="$3"
+  local expected_tag ref media_type actual_digest _remainder
+  expected_tag="$(kargo_runtime_canonical_image_tag "${tag_ref}")"
+  while read -r ref media_type actual_digest _remainder; do
+    [ -n "${media_type}" ] || continue
+    if [ "$(kargo_runtime_canonical_image_tag "${ref}")" = "${expected_tag}" ] &&
+      [ "${actual_digest}" = "${digest}" ]; then
+      return 0
+    fi
+  done < <(sed '1d' "${inventory}")
+  sit_fail "the k3d node does not bind ${tag_ref} to pinned digest ${digest}"
+}
+
+kargo_runtime_prepare_artifacts() {
+  KARGO_RUNTIME_DIR="${work}/kargo-runtime"
+  mkdir -p "${KARGO_RUNTIME_DIR}/chart" "${KARGO_RUNTIME_DIR}/images"
+  : >"${report}/kargo-runtime-image-pulls.txt"
+  : >"${report}/kargo-runtime-image-imports.txt"
+
+  local chart_log="${report}/kargo-runtime-chart-pull.txt"
+  helm pull "${KARGO_CHART_REF}" \
+    --version "${KARGO_CHART_VERSION}" \
+    --destination "${KARGO_RUNTIME_DIR}" >"${chart_log}" 2>&1
+  rg -F "Digest: ${KARGO_CHART_DIGEST}" "${chart_log}" >/dev/null ||
+    sit_fail 'Helm did not report the pinned Kargo OCI chart digest'
+  local chart_archive="${KARGO_RUNTIME_DIR}/kargo-${KARGO_CHART_VERSION}.tgz"
+  [ -s "${chart_archive}" ] || sit_fail 'the pinned Kargo chart archive was not downloaded'
+  printf '%s  %s\n' "${KARGO_CHART_ARCHIVE_SHA256}" "${chart_archive}" \
+    >"${KARGO_RUNTIME_DIR}/kargo-chart.sha256"
+  sha256sum --check "${KARGO_RUNTIME_DIR}/kargo-chart.sha256" \
+    >"${report}/kargo-runtime-chart-sha256.txt"
+  tar -xzf "${chart_archive}" -C "${KARGO_RUNTIME_DIR}/chart"
+  helm show chart "${chart_archive}" >"${report}/kargo-runtime-chart-metadata.yaml"
+  CHART_VERSION="${KARGO_CHART_VERSION}" yq -e \
+    '.version == strenv(CHART_VERSION) and .appVersion == "v1.9.10"' \
+    "${report}/kargo-runtime-chart-metadata.yaml" >/dev/null
+
+  curl --fail --location --retry 3 --connect-timeout 15 --max-time 180 \
+    "${ROLLOUTS_MANIFEST_URL}" --output "${KARGO_RUNTIME_DIR}/argo-rollouts-install.source.yaml"
+  printf '%s  %s\n' "${ROLLOUTS_MANIFEST_SHA256}" \
+    "${KARGO_RUNTIME_DIR}/argo-rollouts-install.source.yaml" \
+    >"${KARGO_RUNTIME_DIR}/argo-rollouts.sha256"
+  sha256sum --check "${KARGO_RUNTIME_DIR}/argo-rollouts.sha256" \
+    >"${report}/kargo-runtime-rollouts-sha256.txt"
+
+  local kargo_digest_ref="${KARGO_IMAGE_REPOSITORY}@${KARGO_IMAGE_DIGEST}"
+  local rollouts_digest_ref="${ROLLOUTS_IMAGE_REPOSITORY}@${ROLLOUTS_IMAGE_DIGEST}"
+  local analysis_digest_ref="${ANALYSIS_IMAGE_REPOSITORY}@${ANALYSIS_IMAGE_DIGEST}"
+  kargo_runtime_verify_host_image "${KARGO_RUNTIME_IMAGE_REF}" "${kargo_digest_ref}" \
+    "${KARGO_RUNTIME_DIR}/images/kargo.json"
+  kargo_runtime_verify_host_image "${ROLLOUTS_RUNTIME_IMAGE_REF}" "${rollouts_digest_ref}" \
+    "${KARGO_RUNTIME_DIR}/images/rollouts.json"
+  kargo_runtime_verify_host_image "${ANALYSIS_RUNTIME_IMAGE_REF}" "${analysis_digest_ref}" \
+    "${KARGO_RUNTIME_DIR}/images/analysis.json"
+  jq -s 'add' "${KARGO_RUNTIME_DIR}/images/kargo.json" \
+    "${KARGO_RUNTIME_DIR}/images/rollouts.json" \
+    "${KARGO_RUNTIME_DIR}/images/analysis.json" \
+    >"${report}/kargo-runtime-host-images.json"
+
+  local image_ref tag_ref
+  for image_ref in \
+    "${KARGO_RUNTIME_IMAGE_REF}" \
+    "${ROLLOUTS_RUNTIME_IMAGE_REF}" \
+    "${ANALYSIS_RUNTIME_IMAGE_REF}"; do
+    # k3d v5.8 discovers daemon images from RepoTags (not RepoDigests), so the
+    # export input must be the tag established by the verified digest pull.
+    # The imported content is checked against the digest again inside the node.
+    tag_ref="${image_ref%@*}"
+    k3d image import --cluster "${cluster_name}" "${tag_ref}" \
+      >>"${report}/kargo-runtime-image-imports.txt" 2>&1
+  done
+  local node="k3d-${cluster_name}-server-0"
+  docker exec "${node}" ctr --namespace k8s.io images list \
+    >"${report}/kargo-runtime-node-ctr-images.txt"
+  kargo_runtime_verify_node_image "${report}/kargo-runtime-node-ctr-images.txt" \
+    "${KARGO_RUNTIME_IMAGE_REF%@*}" "${KARGO_IMAGE_DIGEST}"
+  kargo_runtime_verify_node_image "${report}/kargo-runtime-node-ctr-images.txt" \
+    "${ROLLOUTS_RUNTIME_IMAGE_REF%@*}" "${ROLLOUTS_IMAGE_DIGEST}"
+  kargo_runtime_verify_node_image "${report}/kargo-runtime-node-ctr-images.txt" \
+    "${ANALYSIS_RUNTIME_IMAGE_REF%@*}" "${ANALYSIS_IMAGE_DIGEST}"
+  docker exec "${node}" crictl images -o json >"${report}/kargo-runtime-node-images.json"
+  jq -e \
+    --arg kargo "${KARGO_RUNTIME_IMAGE_REF%@*}" \
+    --arg rollouts "${ROLLOUTS_RUNTIME_IMAGE_REF%@*}" \
+    --arg analysis "${ANALYSIS_RUNTIME_IMAGE_REF%@*}" '
+      def canonical_tag:
+        sub("^docker.io/library/"; "") |
+        sub("^docker.io/"; "") |
+        sub("^library/"; "");
+      def has_tag($wanted):
+        any(.images[]?.repoTags[]?; canonical_tag == ($wanted | canonical_tag));
+      has_tag($kargo) and has_tag($rollouts) and has_tag($analysis)
+    ' "${report}/kargo-runtime-node-images.json" >/dev/null ||
+    sit_fail 'one or more digest-verified runtime image tags are absent from the k3d CRI'
+}
+
+kargo_runtime_install_rollouts() {
+  ROLLOUTS_RUNTIME_IMAGE_REF="${ROLLOUTS_RUNTIME_IMAGE_REF}" yq '
+    (select(.kind == "Deployment" and .metadata.name == "argo-rollouts") |
+      .spec.template.spec.containers[] | select(.name == "argo-rollouts") | .image) =
+      strenv(ROLLOUTS_RUNTIME_IMAGE_REF) |
+    (select(.kind == "Deployment" and .metadata.name == "argo-rollouts") |
+      .spec.template.spec.containers[] | select(.name == "argo-rollouts") | .imagePullPolicy) = "Never"
+  ' "${KARGO_RUNTIME_DIR}/argo-rollouts-install.source.yaml" \
+    >"${report}/kargo-runtime-rollouts-install.yaml"
+  yq ea -o=json '[.]' "${report}/kargo-runtime-rollouts-install.yaml" \
+    >"${KARGO_RUNTIME_DIR}/argo-rollouts-install.json"
+  jq -e --arg image "${ROLLOUTS_RUNTIME_IMAGE_REF}" '
+    [ .[] | select(.kind == "Deployment" and .metadata.name == "argo-rollouts") ] as $deployments |
+    ($deployments | length) == 1 and
+    ($deployments[0].spec.template.spec.containers | length) == 1 and
+    $deployments[0].spec.template.spec.containers[0].image == $image and
+    $deployments[0].spec.template.spec.containers[0].imagePullPolicy == "Never"
+  ' "${KARGO_RUNTIME_DIR}/argo-rollouts-install.json" >/dev/null
+
+  kubectl create namespace argo-rollouts --dry-run=client -o yaml | kubectl apply -f -
+  kubectl apply --server-side --force-conflicts --field-manager=fleet-sit \
+    -n argo-rollouts -f "${report}/kargo-runtime-rollouts-install.yaml"
+  kubectl wait --for=condition=Established crd/analysisruns.argoproj.io --timeout=180s
+  kubectl wait --for=condition=Established crd/analysistemplates.argoproj.io --timeout=180s
+  kubectl -n argo-rollouts rollout status deployment/argo-rollouts --timeout=300s
+  kubectl -n argo-rollouts get deployment argo-rollouts -o json \
+    >"${report}/kargo-runtime-rollouts-deployment.json"
+  jq -e --arg image "${ROLLOUTS_RUNTIME_IMAGE_REF}" '
+    .spec.template.spec.containers[0].image == $image and
+    .spec.template.spec.containers[0].imagePullPolicy == "Never" and
+    .status.availableReplicas == 1
+  ' "${report}/kargo-runtime-rollouts-deployment.json" >/dev/null
+}
+
+kargo_runtime_install_kargo() {
+  local cert_dir="${KARGO_RUNTIME_DIR}/cert"
+  mkdir -p "${cert_dir}"
+  openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 1 \
+    -subj '/CN=fleet-sit-kargo-ca' \
+    -keyout "${cert_dir}/ca.key" -out "${cert_dir}/ca.crt" >/dev/null 2>&1
+  openssl req -new -newkey rsa:2048 -nodes -sha256 \
+    -subj '/CN=kargo-webhooks-server.kargo.svc' \
+    -addext 'subjectAltName=DNS:kargo-webhooks-server.kargo.svc,DNS:kargo-webhooks-server.kargo.svc.cluster.local' \
+    -keyout "${cert_dir}/tls.key" -out "${cert_dir}/tls.csr" >/dev/null 2>&1
+  printf '%s\n' \
+    'basicConstraints=CA:FALSE' \
+    'keyUsage=digitalSignature,keyEncipherment' \
+    'extendedKeyUsage=serverAuth' \
+    'subjectAltName=DNS:kargo-webhooks-server.kargo.svc,DNS:kargo-webhooks-server.kargo.svc.cluster.local' \
+    >"${cert_dir}/server.ext"
+  openssl x509 -req -sha256 -days 1 \
+    -in "${cert_dir}/tls.csr" \
+    -CA "${cert_dir}/ca.crt" -CAkey "${cert_dir}/ca.key" -CAcreateserial \
+    -extfile "${cert_dir}/server.ext" -out "${cert_dir}/tls.crt" >/dev/null 2>&1
+  openssl verify -CAfile "${cert_dir}/ca.crt" "${cert_dir}/tls.crt" \
+    >"${report}/kargo-runtime-webhook-cert-verify.txt"
+
+  kubectl create namespace kargo --dry-run=client -o yaml | kubectl apply -f -
+  kubectl -n kargo create secret tls kargo-webhooks-server-cert \
+    --cert "${cert_dir}/tls.crt" --key "${cert_dir}/tls.key" \
+    --dry-run=client -o yaml | kubectl apply -f -
+
+  kubectl apply --server-side --force-conflicts --field-manager=fleet-sit \
+    -f "${KARGO_RUNTIME_DIR}/chart/kargo/resources/crds"
+  local crd
+  for crd in \
+    clusterconfigs clusterpromotiontasks freights projectconfigs projects \
+    promotions promotiontasks stages warehouses; do
+    kubectl wait --for=condition=Established "crd/${crd}.kargo.akuity.io" --timeout=180s
+  done
+
+  local chart_archive="${KARGO_RUNTIME_DIR}/kargo-${KARGO_CHART_VERSION}.tgz"
+  helm upgrade --install kargo "${chart_archive}" \
+    --namespace kargo \
+    --set crds.install=false \
+    --set api.enabled=false \
+    --set externalWebhooksServer.enabled=false \
+    --set garbageCollector.enabled=false \
+    --set controller.enabled=true \
+    --set controller.argocd.integrationEnabled=false \
+    --set controller.rollouts.integrationEnabled=true \
+    --set managementController.enabled=true \
+    --set webhooksServer.enabled=true \
+    --set webhooksServer.tls.selfSignedCert=false \
+    --set-string webhooksServer.tls.secretName=kargo-webhooks-server-cert \
+    --set-file webhooksServer.tls.caBundle="${cert_dir}/ca.crt" \
+    --set-string image.repository="${KARGO_IMAGE_REPOSITORY}" \
+    --set-string image.tag="${KARGO_IMAGE_TAG}@${KARGO_IMAGE_DIGEST}" \
+    --set image.pullPolicy=Never \
+    --wait --timeout 5m >"${report}/kargo-runtime-helm-install.txt"
+  helm get manifest kargo -n kargo >"${report}/kargo-runtime-kargo-manifest.yaml"
+  helm get values kargo -n kargo -o json >"${report}/kargo-runtime-kargo-values.json"
+  kubectl -n kargo get deployments -o json >"${report}/kargo-runtime-kargo-deployments.json"
+  jq -e --arg image "${KARGO_RUNTIME_IMAGE_REF}" '
+    [.items[].metadata.name] | sort == [
+      "kargo-controller", "kargo-management-controller", "kargo-webhooks-server"
+    ]
+  ' "${report}/kargo-runtime-kargo-deployments.json" >/dev/null
+  jq -e --arg image "${KARGO_RUNTIME_IMAGE_REF}" '
+    all(.items[];
+      (.spec.template.spec.containers | length) == 1 and
+      .spec.template.spec.containers[0].image == $image and
+      .spec.template.spec.containers[0].imagePullPolicy == "Never"
+    )
+  ' "${report}/kargo-runtime-kargo-deployments.json" >/dev/null
+  local deployment
+  for deployment in kargo-controller kargo-management-controller kargo-webhooks-server; do
+    kubectl -n kargo rollout status "deployment/${deployment}" --timeout=300s
+  done
+  kubectl get mutatingwebhookconfiguration/kargo validatingwebhookconfiguration/kargo -o json \
+    >"${report}/kargo-runtime-webhooks.json"
+  jq -e '
+    .items | length == 2 and
+    all(.[]; all(.webhooks[]; (.clientConfig.caBundle | length) > 0))
+  ' "${report}/kargo-runtime-webhooks.json" >/dev/null
+}
+
+kargo_canonicalize_objects() {
+  local source="$1"
+  local output="$2"
+  yq ea -o=json '[.] | map(select(type == "!!map"))' "${source}" |
+    jq 'sort_by([.kind, (.metadata.namespace // ""), .metadata.name])' >"${output}"
+}
+
+kargo_render_analysis_fixture() {
+  local namespace="$1"
+  local output="$2"
+  NAMESPACE="${namespace}" ANALYSIS_IMAGE="${ANALYSIS_RUNTIME_IMAGE_REF}" yq '
+    (select(.metadata.namespace == "<namespace>") | .metadata.namespace) = strenv(NAMESPACE) |
+    (.. | select(tag == "!!str" and . == "<analysis-image>")) = strenv(ANALYSIS_IMAGE)
+  ' "${validation_dir}/fixtures/kargo-runtime/analysis.yaml" >"${output}"
+}
+
+kargo_runtime_render_and_apply_primary() {
+  git -C "${FLEET_BARE}" config http.receivepack true
+  [ "$(git -C "${FLEET_BARE}" config --bool http.receivepack)" = 'true' ] ||
+    sit_fail 'HTTP receive-pack was not enabled on the throwaway fleet bare repository'
+  jq -n --arg repository "${FLEET_BARE}" \
+    '{repository:$repository,httpReceivePack:true,scope:"throwaway bare repository only"}' \
+    >"${report}/kargo-runtime-git-receive-pack.json"
+
+  local chart="${FLEET_SOURCE}/registry/charts/diene-platform"
+  helm template canary "${chart}" \
+    --namespace canary \
+    --values "${FLEET_SOURCE}/platforms/canary/services.yaml" \
+    --values registry/charts/diene-platform/tests/fixtures/canary.platform.yaml |
+    yq 'select(.apiVersion == "kargo.akuity.io/v1alpha1")' \
+      >"${KARGO_RUNTIME_DIR}/kargo-runtime-reversed.yaml"
+  kargo_canonicalize_objects "${report}/kargo-rendered.yaml" \
+    "${KARGO_RUNTIME_DIR}/kargo-static-canonical.json"
+  kargo_canonicalize_objects "${KARGO_RUNTIME_DIR}/kargo-runtime-reversed.yaml" \
+    "${KARGO_RUNTIME_DIR}/kargo-reversed-canonical.json"
+  cmp -s "${KARGO_RUNTIME_DIR}/kargo-static-canonical.json" \
+    "${KARGO_RUNTIME_DIR}/kargo-reversed-canonical.json" || {
+    diff -u "${KARGO_RUNTIME_DIR}/kargo-static-canonical.json" \
+      "${KARGO_RUNTIME_DIR}/kargo-reversed-canonical.json" >&2 || true
+    sit_fail 'the runtime chart mirror does not reverse to the committed static Kargo render'
+  }
+
+  helm template canary "${chart}" \
+    --namespace canary \
+    --values "${FLEET_SOURCE}/platforms/canary/services.yaml" \
+    --values registry/charts/diene-platform/tests/fixtures/canary.platform.yaml \
+    --set-string "fleet.repoURL=${FLEET_REPO_URL}" \
+    --set-string 'oci.registry=registry.sit.invalid' |
+    yq 'select(.apiVersion == "kargo.akuity.io/v1alpha1")' \
+      >"${report}/kargo-runtime-rendered.yaml"
+  kargo_canonicalize_objects "${report}/kargo-runtime-rendered.yaml" \
+    "${KARGO_RUNTIME_DIR}/kargo-runtime-canonical.json"
+  jq \
+    --arg runtimeFleet "${FLEET_REPO_URL}" \
+    --arg productionFleet 'https://github.com/AtomiCloud/fleet' \
+    --arg runtimeRegistry 'registry.sit.invalid' \
+    --arg productionRegistry 'registry.atomi.cloud' '
+      def literal_replace($from; $to): split($from) | join($to);
+      walk(
+        if type == "string" then
+          literal_replace($runtimeFleet; $productionFleet) |
+          literal_replace($runtimeRegistry; $productionRegistry)
+        else . end
+      ) |
+      sort_by([.kind, (.metadata.namespace // ""), .metadata.name])
+    ' "${KARGO_RUNTIME_DIR}/kargo-runtime-canonical.json" \
+    >"${KARGO_RUNTIME_DIR}/kargo-runtime-normalized.json"
+  cmp -s "${KARGO_RUNTIME_DIR}/kargo-static-canonical.json" \
+    "${KARGO_RUNTIME_DIR}/kargo-runtime-normalized.json" || {
+    diff -u "${KARGO_RUNTIME_DIR}/kargo-static-canonical.json" \
+      "${KARGO_RUNTIME_DIR}/kargo-runtime-normalized.json" >&2 || true
+    sit_fail 'runtime Kargo render differs by more than the two consumer repository coordinates'
+  }
+  jq \
+    --arg runtimeFleet "${FLEET_REPO_URL}" \
+    --arg runtimeRegistry 'registry.sit.invalid' '
+      [ .[] as $object |
+        ($object | paths(type == "string")) as $path |
+        ($object | getpath($path)) as $value |
+        select(($value | contains($runtimeFleet)) or ($value | contains($runtimeRegistry))) |
+        {
+          object: ($object.kind + "/" + $object.metadata.name),
+          path: ($path | map(tostring) | join(".")),
+          value: $value
+        }
+      ]
+    ' "${KARGO_RUNTIME_DIR}/kargo-runtime-canonical.json" \
+    >"${KARGO_RUNTIME_DIR}/kargo-runtime-coordinate-paths.json"
+  jq -n \
+    --arg productionFleet 'https://github.com/AtomiCloud/fleet' \
+    --arg runtimeFleet "${FLEET_REPO_URL}" \
+    --arg productionRegistry 'registry.atomi.cloud' \
+    --arg runtimeRegistry 'registry.sit.invalid' \
+    --slurpfile paths "${KARGO_RUNTIME_DIR}/kargo-runtime-coordinate-paths.json" '
+      {
+        status:"pass",
+        canonicalReverseEqual:true,
+        onlyConsumerCoordinatesChanged:true,
+        coordinates:{
+          fleet:{production:$productionFleet,runtime:$runtimeFleet},
+          ociRegistry:{production:$productionRegistry,runtime:$runtimeRegistry}
+        },
+        changedStringPaths:$paths[0]
+      }
+    ' >"${report}/kargo-runtime-delta-oracle.json"
+  jq -e '.onlyConsumerCoordinatesChanged == true and (.changedStringPaths | length) > 0' \
+    "${report}/kargo-runtime-delta-oracle.json" >/dev/null
+
+  yq ea -o=json '[.]' "${report}/kargo-runtime-rendered.yaml" \
+    >"${KARGO_RUNTIME_DIR}/kargo-runtime-rendered.json"
+  bun "${validation_dir}/kargo-contract.ts" \
+    --objects "${KARGO_RUNTIME_DIR}/kargo-runtime-rendered.json" \
+    --crds "${work}/kargo-crds.json" \
+    --out "${report}/kargo-runtime-rendered-contract.json" \
+    --source 'runtime render with exactly two consumer repository-coordinate overrides' \
+    --image-repo "${KARGO_RUNTIME_IMAGE_REPO}" \
+    --chart-repo "${KARGO_RUNTIME_CHART_REPO}" \
+    --fleet-repo "${FLEET_REPO_URL}"
+
+  yq 'select(.kind == "Project")' "${report}/kargo-runtime-rendered.yaml" \
+    >"${KARGO_RUNTIME_DIR}/canary-project.yaml"
+  yq 'select(.kind != "Project")' "${report}/kargo-runtime-rendered.yaml" \
+    >"${KARGO_RUNTIME_DIR}/canary-namespaced.yaml"
+  kubectl apply -f "${KARGO_RUNTIME_DIR}/canary-project.yaml"
+  kubectl wait --for=condition=Ready project.kargo.akuity.io/canary --timeout=180s
+  kubectl wait --for=jsonpath='{.status.phase}'=Active namespace/canary --timeout=180s
+  kargo_render_analysis_fixture canary "${report}/kargo-runtime-analysis-canary.yaml"
+  kubectl apply -f "${report}/kargo-runtime-analysis-canary.yaml"
+  kubectl apply -f "${KARGO_RUNTIME_DIR}/canary-namespaced.yaml"
+
+  kubectl get projects.kargo.akuity.io canary -o json >"${KARGO_RUNTIME_DIR}/runtime-project.json"
+  kubectl -n canary get projectconfigs.kargo.akuity.io,warehouses.kargo.akuity.io,stages.kargo.akuity.io \
+    -o json >"${KARGO_RUNTIME_DIR}/runtime-namespaced.json"
+  jq -n \
+    --slurpfile project "${KARGO_RUNTIME_DIR}/runtime-project.json" \
+    --slurpfile namespaced "${KARGO_RUNTIME_DIR}/runtime-namespaced.json" \
+    '[$project[0]] + $namespaced[0].items' >"${report}/kargo-runtime-persisted.json"
+  bun "${validation_dir}/kargo-contract.ts" \
+    --objects "${report}/kargo-runtime-persisted.json" \
+    --crds "${work}/kargo-crds.json" \
+    --out "${report}/kargo-runtime-persisted-contract.json" \
+    --source 'objects admitted through the live pinned Kargo webhooks and read back' \
+    --image-repo "${KARGO_RUNTIME_IMAGE_REPO}" \
+    --chart-repo "${KARGO_RUNTIME_CHART_REPO}" \
+    --fleet-repo "${FLEET_REPO_URL}"
+  jq -e '
+    .ok == true and
+    .expectedRepositories == {
+      image:"registry.sit.invalid/canary/dummy",
+      chart:"oci://registry.sit.invalid/canary-dummy",
+      fleet:.expectedRepositories.fleet
+    } and
+    (.preserveUnknownFieldsBlindSpots | length) > 0
+  ' "${report}/kargo-runtime-persisted-contract.json" >/dev/null
+
+  KARGO_RUNTIME_GIT_BASELINE="$(git -C "${FLEET_BARE}" rev-parse refs/heads/main)"
+  git -C "${FLEET_BARE}" show \
+    "${KARGO_RUNTIME_GIT_BASELINE}:platforms/canary/landscapes/raichu/dummy.yaml" |
+    sed -n '/^values:/,$p' >"${report}/kargo-runtime-raichu-values-before.yaml"
+}
+
+kargo_stage_name() {
+  printf '%s-dummy-%s' "$1" "$2"
+}
+
+kargo_check_refresh_handled() {
+  local project="$1"
+  local stage="$2"
+  local token="$3"
+  [ "$(kubectl -n "${project}" get stage "${stage}" -o jsonpath='{.status.lastHandledRefresh}' 2>/dev/null)" = "${token}" ]
+}
+
+kargo_refresh_stage() {
+  local project="$1"
+  local stage="$2"
+  local token
+  token="fleet-sit-$(sit_epoch)-$$-${RANDOM}"
+  kubectl -n "${project}" annotate stage "${stage}" \
+    "kargo.akuity.io/refresh=${token}" --overwrite >/dev/null
+  sit_wait_for 90 "Kargo Stage ${project}/${stage} to handle refresh ${token}" \
+    kargo_check_refresh_handled "${project}" "${stage}" "${token}"
+}
+
+kargo_check_promotion_succeeded() {
+  local project="$1"
+  local stage="$2"
+  local freight="$3"
+  kubectl -n "${project}" get promotions.kargo.akuity.io -o json 2>/dev/null |
+    jq -e --arg stage "${stage}" --arg freight "${freight}" '
+      any(.items[]?;
+        .spec.stage == $stage and
+        .spec.freight == $freight and
+        .status.phase == "Succeeded")
+    ' >/dev/null
+}
+
+kargo_wait_promotion_succeeded() {
+  local project="$1"
+  local stage="$2"
+  local freight="$3"
+  local output="$4"
+  sit_wait_for 240 "Promotion of ${freight} to ${project}/${stage} to succeed" \
+    kargo_check_promotion_succeeded "${project}" "${stage}" "${freight}"
+  kubectl -n "${project}" get promotions.kargo.akuity.io -o json |
+    jq --arg stage "${stage}" --arg freight "${freight}" '
+      [.items[] |
+        select(.spec.stage == $stage and .spec.freight == $freight)] |
+      sort_by(.metadata.creationTimestamp)
+    ' >"${output}"
+  jq -e 'length >= 1 and .[-1].status.phase == "Succeeded"' "${output}" >/dev/null
+}
+
+kargo_check_freight_verified() {
+  local project="$1"
+  local freight="$2"
+  local stage="$3"
+  kubectl -n "${project}" get freight "${freight}" -o json 2>/dev/null |
+    jq -e --arg stage "${stage}" '.status.verifiedIn[$stage].verifiedAt != null' >/dev/null
+}
+
+kargo_check_stage_verification() {
+  local project="$1"
+  local stage="$2"
+  local freight="$3"
+  local phase="$4"
+  kubectl -n "${project}" get stage "${stage}" -o json 2>/dev/null |
+    jq -e --arg freight "${freight}" --arg phase "${phase}" '
+      .status.freightHistory[0].items["Warehouse/dummy"].name == $freight and
+      .status.freightHistory[0].verificationHistory[0].phase == $phase
+    ' >/dev/null
+}
+
+kargo_wait_verified() {
+  local project="$1"
+  local stage="$2"
+  local freight="$3"
+  local output="$4"
+  sit_wait_for 180 "Freight ${freight} verification in ${project}/${stage}" \
+    kargo_check_freight_verified "${project}" "${freight}" "${stage}"
+  sit_wait_for 60 "Stage ${project}/${stage} successful verification history" \
+    kargo_check_stage_verification "${project}" "${stage}" "${freight}" Successful
+  kubectl -n "${project}" get stage "${stage}" -o json >"${output}"
+}
+
+kargo_check_auto_enabled() {
+  local project="$1"
+  local stage="$2"
+  local expected="$3"
+  kubectl -n "${project}" get stage "${stage}" -o json 2>/dev/null |
+    jq -e --argjson expected "${expected}" \
+      '(.status.autoPromotionEnabled // false) == $expected' >/dev/null
+}
+
+kargo_promotion_count() {
+  local project="$1"
+  local stage="$2"
+  local freight="$3"
+  kubectl -n "${project}" get promotions.kargo.akuity.io -o json |
+    jq --arg stage "${stage}" --arg freight "${freight}" '
+      [.items[]? | select(.spec.stage == $stage and .spec.freight == $freight)] | length
+    '
+}
+
+kargo_assert_no_promotion_for() {
+  local duration_s="$1"
+  local project="$2"
+  local stage="$3"
+  local freight="$4"
+  local reason="$5"
+  local output="$6"
+  local started_at started_epoch deadline count
+  started_at="$(sit_now)"
+  started_epoch="$(sit_epoch)"
+  deadline=$((SECONDS + duration_s))
+  while [ "${SECONDS}" -lt "${deadline}" ]; do
+    count="$(kargo_promotion_count "${project}" "${stage}" "${freight}")"
+    if [ "${count}" -ne 0 ]; then
+      kubectl -n "${project}" get promotions.kargo.akuity.io -o json >"${output}"
+      sit_fail "unexpected Promotion of ${freight} to ${project}/${stage}: ${reason}"
+      return 1
+    fi
+    sleep 2
+  done
+  jq -n \
+    --arg project "${project}" \
+    --arg stage "${stage}" \
+    --arg freight "${freight}" \
+    --arg reason "${reason}" \
+    --arg startedAt "${started_at}" \
+    --arg finishedAt "$(sit_now)" \
+    --argjson duration "$(($(sit_epoch) - started_epoch))" '
+      {
+        project:$project,stage:$stage,freight:$freight,reason:$reason,
+        startedAt:$startedAt,finishedAt:$finishedAt,duration_s:$duration,
+        promotionCount:0
+      }
+    ' >"${output}"
+}
+
+kargo_write_promotion_manifest() {
+  local project="$1"
+  local stage="$2"
+  local freight="$3"
+  local output="$4"
+  NAMESPACE="${project}" STAGE="${stage}" FREIGHT="${freight}" yq '
+    .metadata.namespace = strenv(NAMESPACE) |
+    .spec.stage = strenv(STAGE) |
+    .spec.freight = strenv(FREIGHT)
+  ' "${validation_dir}/fixtures/kargo-runtime/promotion.yaml" >"${output}"
+}
+
+kargo_create_manual_promotion() {
+  local project="$1"
+  local stage="$2"
+  local freight="$3"
+  local output="$4"
+  local manifest="${KARGO_RUNTIME_DIR}/promotion-${project}-${stage}-${freight}.yaml"
+  kargo_write_promotion_manifest "${project}" "${stage}" "${freight}" "${manifest}"
+  kubectl create -f "${manifest}" -o json >"${output}"
+  jq -e --arg stage "${stage}" --arg freight "${freight}" '
+    .spec.stage == $stage and .spec.freight == $freight and
+    (.spec.steps | length) == 4
+  ' "${output}" >/dev/null
+}
+
+kargo_capture_promotion_denial() {
+  local project="$1"
+  local stage="$2"
+  local freight="$3"
+  local reason="$4"
+  local output="$5"
+  local manifest="${KARGO_RUNTIME_DIR}/denied-${project}-${stage}-${freight}-${RANDOM}.yaml"
+  local log="${output}.response.txt"
+  local status=0
+  kargo_write_promotion_manifest "${project}" "${stage}" "${freight}" "${manifest}"
+  kubectl create -f "${manifest}" -o json >"${log}" 2>&1 || status=$?
+  [ "${status}" -ne 0 ] ||
+    sit_fail "the live Kargo webhook admitted an unavailable Promotion: ${reason}"
+  rg -F 'Freight is not available to this Stage' "${log}" >/dev/null ||
+    sit_fail "the unavailable Promotion denial did not carry the pinned webhook text: ${reason}"
+  jq -n \
+    --arg project "${project}" \
+    --arg stage "${stage}" \
+    --arg freight "${freight}" \
+    --arg reason "${reason}" \
+    --argjson exitStatus "${status}" \
+    --rawfile response "${log}" '
+      {
+        project:$project,stage:$stage,freight:$freight,reason:$reason,
+        admitted:false,exitStatus:$exitStatus,
+        expectedText:"Freight is not available to this Stage",
+        response:($response | .[0:4096])
+      }
+    ' >"${output}"
+}
+
+kargo_capture_promotion_dry_run_acceptance() {
+  local project="$1"
+  local stage="$2"
+  local freight="$3"
+  local output="$4"
+  local manifest="${KARGO_RUNTIME_DIR}/available-${project}-${stage}-${freight}.yaml"
+  kargo_write_promotion_manifest "${project}" "${stage}" "${freight}" "${manifest}"
+  kubectl create --dry-run=server -f "${manifest}" -o json >"${output}"
+  jq -e --arg stage "${stage}" --arg freight "${freight}" '
+    .spec.stage == $stage and .spec.freight == $freight and
+    (.spec.steps | length) == 4
+  ' "${output}" >/dev/null
+}
+
+kargo_seed_freight() {
+  local project="$1"
+  local alias="$2"
+  local tag="$3"
+  local output="$4"
+  NAMESPACE="${project}" ALIAS="${alias}" TAG="${tag}" \
+    IMAGE_REPO="registry.sit.invalid/${project}/dummy" \
+    CHART_REPO="oci://registry.sit.invalid/${project}-dummy" yq '
+      .metadata.namespace = strenv(NAMESPACE) |
+      .alias = strenv(ALIAS) |
+      .images[0].repoURL = strenv(IMAGE_REPO) |
+      .images[0].tag = strenv(TAG) |
+      .charts[0].repoURL = strenv(CHART_REPO) |
+      .charts[0].version = strenv(TAG)
+    ' "${validation_dir}/fixtures/kargo-runtime/freight.yaml" |
+    kubectl create -f - -o json >"${output}"
+  local freight
+  freight="$(jq -r '.metadata.name' "${output}")"
+  [ -n "${freight}" ] && [ "${freight}" != 'seed' ] ||
+    sit_fail 'the pinned Freight mutating webhook did not calculate the content-derived name'
+  kubectl -n "${project}" get freight \
+    --selector "kargo.akuity.io/alias=${alias}" -o json \
+    >"${output%.json}-alias-discovery.json"
+  jq -e --arg freight "${freight}" --arg alias "${alias}" '
+    (.items | length) == 1 and
+    .items[0].metadata.name == $freight and
+    .items[0].alias == $alias and
+    .items[0].metadata.labels["kargo.akuity.io/alias"] == $alias
+  ' "${output%.json}-alias-discovery.json" >/dev/null
+}
+
+kargo_set_analysis_outcome() {
+  local project="$1"
+  local key="$2"
+  local value="$3"
+  kubectl -n "${project}" patch configmap kargo-analysis-outcomes --type merge \
+    -p "$(jq -cn --arg key "${key}" --arg value "${value}" '{data:{($key):$value}}')" >/dev/null
+}
+
+kargo_backdate_freight_stage() {
+  local project="$1"
+  local freight="$2"
+  local stage="$3"
+  local seconds="$4"
+  local output="$5"
+  local before target body after
+  before="$(kubectl -n "${project}" get freight "${freight}" -o json |
+    jq -r --arg stage "${stage}" '.status.currentlyIn[$stage].since // empty')"
+  [ -n "${before}" ] || sit_fail "Freight ${freight} is not currently in ${project}/${stage}"
+  target="$(date -u -d "@$(($(sit_epoch) - seconds))" +%Y-%m-%dT%H:%M:%SZ)"
+  body="$(jq -cn --arg stage "${stage}" --arg since "${target}" \
+    '{status:{currentlyIn:{($stage):{since:$since}}}}')"
+  kubectl -n "${project}" patch freight "${freight}" --subresource=status \
+    --type merge -p "${body}" -o json >"${KARGO_RUNTIME_DIR}/freight-backdate.json"
+  after="$(kubectl -n "${project}" get freight "${freight}" -o json |
+    jq -r --arg stage "${stage}" '.status.currentlyIn[$stage].since // empty')"
+  [ "${after}" = "${target}" ] ||
+    sit_fail "backdated since did not persist for ${project}/${stage}"
+  jq -n \
+    --arg project "${project}" \
+    --arg freight "${freight}" \
+    --arg stage "${stage}" \
+    --arg before "${before}" \
+    --arg after "${after}" \
+    --argjson seconds "${seconds}" '
+      {project:$project,freight:$freight,stage:$stage,before:$before,after:$after,
+       injectedAgeSeconds:$seconds,persisted:true}
+    ' >"${output}"
+}
+
+kargo_capture_current_analysis_run() {
+  local project="$1"
+  local stage="$2"
+  local expected_phase="$3"
+  local output="$4"
+  local analysis_run
+  analysis_run="$(kubectl -n "${project}" get stage "${stage}" -o json |
+    jq -r '.status.freightHistory[0].verificationHistory[0].analysisRun.name // empty')"
+  [ -n "${analysis_run}" ] || sit_fail "Stage ${project}/${stage} has no current AnalysisRun"
+  kubectl -n "${project}" get analysisrun "${analysis_run}" -o json >"${output}"
+  jq -e --arg phase "${expected_phase}" '.status.phase == $phase' "${output}" >/dev/null
+}
+
+kargo_check_git_tag() {
+  local project="$1"
+  local landscape="$2"
+  local expected_tag="$3"
+  local path="platforms/${project}/landscapes/${landscape}/dummy.yaml"
+  [ "$(git -C "${FLEET_BARE}" show "refs/heads/main:${path}" | yq -r '.pin.tag')" = "${expected_tag}" ]
+}
+
+kargo_wait_git_tag() {
+  local project="$1"
+  local landscape="$2"
+  local expected_tag="$3"
+  sit_wait_for 60 "Kargo git push to set ${project}/${landscape} pin.tag=${expected_tag}" \
+    kargo_check_git_tag "${project}" "${landscape}" "${expected_tag}"
+}
+
+kargo_auto_promote_and_verify() {
+  local project="$1"
+  local landscape="$2"
+  local freight="$3"
+  local tag="$4"
+  local prefix="$5"
+  local stage
+  stage="$(kargo_stage_name "${project}" "${landscape}")"
+  kargo_refresh_stage "${project}" "${stage}"
+  kargo_wait_promotion_succeeded "${project}" "${stage}" "${freight}" \
+    "${report}/${prefix}-promotion.json"
+  kargo_wait_git_tag "${project}" "${landscape}" "${tag}"
+  kargo_wait_verified "${project}" "${stage}" "${freight}" \
+    "${report}/${prefix}-stage.json"
+}
+
+kargo_wait_verification_phase() {
+  local project="$1"
+  local stage="$2"
+  local freight="$3"
+  local phase="$4"
+  local output="$5"
+  sit_wait_for 180 "${phase} verification for ${freight} in ${project}/${stage}" \
+    kargo_check_stage_verification "${project}" "${stage}" "${freight}" "${phase}"
+  kubectl -n "${project}" get stage "${stage}" -o json >"${output}"
+}
+
+kargo_runtime_trace_f1() {
+  local project='canary'
+  local tag='1.1.1'
+  local pichu pikachu raichu ampharos freight
+  pichu="$(kargo_stage_name "${project}" pichu)"
+  pikachu="$(kargo_stage_name "${project}" pikachu)"
+  raichu="$(kargo_stage_name "${project}" raichu)"
+  ampharos="$(kargo_stage_name "${project}" ampharos)"
+
+  kargo_seed_freight "${project}" fleet-sit-f1 "${tag}" \
+    "${report}/kargo-runtime-f1-freight-created.json"
+  freight="$(jq -r '.metadata.name' "${report}/kargo-runtime-f1-freight-created.json")"
+
+  kargo_auto_promote_and_verify "${project}" pichu "${freight}" "${tag}" kargo-runtime-f1-pichu
+  jq -e '
+    .status.freightHistory[0].verificationHistory[0].phase == "Successful" and
+    .status.freightHistory[0].verificationHistory[0].analysisRun == null
+  ' "${report}/kargo-runtime-f1-pichu-stage.json" >/dev/null
+  kargo_auto_promote_and_verify "${project}" raichu "${freight}" "${tag}" kargo-runtime-f1-raichu
+  jq -e '
+    .status.freightHistory[0].verificationHistory[0].phase == "Successful" and
+    .status.freightHistory[0].verificationHistory[0].analysisRun == null
+  ' "${report}/kargo-runtime-f1-raichu-stage.json" >/dev/null
+
+  kargo_refresh_stage "${project}" "${pikachu}"
+  sit_wait_for 60 'manual pikachu Stage to report auto-promotion disabled' \
+    kargo_check_auto_enabled "${project}" "${pikachu}" false
+  kargo_assert_no_promotion_for 15 "${project}" "${pikachu}" "${freight}" \
+    'manual gate has no ProjectConfig policy' \
+    "${report}/kargo-runtime-f1-pikachu-manual-hold.json"
+  kargo_create_manual_promotion "${project}" "${pikachu}" "${freight}" \
+    "${report}/kargo-runtime-f1-pikachu-manual-promotion-created.json"
+  kargo_wait_promotion_succeeded "${project}" "${pikachu}" "${freight}" \
+    "${report}/kargo-runtime-f1-pikachu-promotion.json"
+  kargo_wait_git_tag "${project}" pikachu "${tag}"
+  kargo_wait_verified "${project}" "${pikachu}" "${freight}" \
+    "${report}/kargo-runtime-f1-pikachu-stage.json"
+  kargo_capture_current_analysis_run "${project}" "${pikachu}" Successful \
+    "${report}/kargo-runtime-f1-canary-smoke-analysisrun.json"
+
+  kargo_refresh_stage "${project}" "${ampharos}"
+  kargo_assert_no_promotion_for 12 "${project}" "${ampharos}" "${freight}" \
+    'verification succeeded but the 15m upstream soak is not satisfied' \
+    "${report}/kargo-runtime-f1-early-hold.json"
+  kargo_capture_promotion_denial "${project}" "${ampharos}" "${freight}" \
+    'early ampharos request before upstream soak' \
+    "${report}/kargo-runtime-f1-early-denial.json"
+
+  kargo_backdate_freight_stage "${project}" "${freight}" "${pikachu}" 960 \
+    "${report}/kargo-runtime-f1-pikachu-backdate.json"
+  kargo_refresh_stage "${project}" "${ampharos}"
+  kargo_assert_no_promotion_for 12 "${project}" "${ampharos}" "${freight}" \
+    'availabilityStrategy All still lacks raichu soak' \
+    "${report}/kargo-runtime-f1-one-member-hold.json"
+  kargo_capture_promotion_denial "${project}" "${ampharos}" "${freight}" \
+    'only pikachu has satisfied the per-upstream soak under All' \
+    "${report}/kargo-runtime-f1-one-member-denial.json"
+
+  kargo_backdate_freight_stage "${project}" "${freight}" "${raichu}" 960 \
+    "${report}/kargo-runtime-f1-raichu-backdate.json"
+  kargo_refresh_stage "${project}" "${ampharos}"
+  kargo_wait_promotion_succeeded "${project}" "${ampharos}" "${freight}" \
+    "${report}/kargo-runtime-f1-ampharos-promotion.json"
+  kargo_wait_git_tag "${project}" ampharos "${tag}"
+  kargo_wait_verified "${project}" "${ampharos}" "${freight}" \
+    "${report}/kargo-runtime-f1-ampharos-stage.json"
+  kargo_capture_current_analysis_run "${project}" "${ampharos}" Successful \
+    "${report}/kargo-runtime-f1-canary-analysis-analysisrun.json"
+  kubectl -n "${project}" get freight "${freight}" -o json \
+    >"${report}/kargo-runtime-f1-freight-final.json"
+  jq -e \
+    --arg pichu "${pichu}" --arg pikachu "${pikachu}" \
+    --arg raichu "${raichu}" --arg ampharos "${ampharos}" '
+      .status.verifiedIn[$pichu].verifiedAt != null and
+      .status.verifiedIn[$pikachu].verifiedAt != null and
+      .status.verifiedIn[$raichu].verifiedAt != null and
+      .status.verifiedIn[$ampharos].verifiedAt != null
+    ' "${report}/kargo-runtime-f1-freight-final.json" >/dev/null
+
+  jq -n \
+    --arg freight "${freight}" --arg tag "${tag}" \
+    --slurpfile hold "${report}/kargo-runtime-f1-pikachu-manual-hold.json" \
+    --slurpfile early "${report}/kargo-runtime-f1-early-denial.json" \
+    --slurpfile oneMember "${report}/kargo-runtime-f1-one-member-denial.json" \
+    --slurpfile pikachuBackdate "${report}/kargo-runtime-f1-pikachu-backdate.json" \
+    --slurpfile raichuBackdate "${report}/kargo-runtime-f1-raichu-backdate.json" \
+    --slurpfile final "${report}/kargo-runtime-f1-freight-final.json" '
+      {
+        trace:"f1-verification-before-soak",freight:$freight,tag:$tag,
+        pichuAuto:true,raichuAuto:true,pikachuManualHold:$hold[0],
+        explicitPikachuPromotion:true,canarySmoke:"Successful",
+        earlyDenial:$early[0],singleBackdateDenial:$oneMember[0],
+        backdates:[$pikachuBackdate[0],$raichuBackdate[0]],
+        ampharosAutoAfterBothUpstreams:true,canaryAnalysis:"Successful",
+        finalFreightStatus:$final[0].status
+      }
+    ' >"${report}/kargo-runtime-f1-trace.json"
+}
+
+kargo_runtime_trace_f2() {
+  local project='canary'
+  local tag='2.2.2'
+  local pikachu raichu ampharos freight old_verification_id since_after_backdate since_after_reverify
+  local reverify_started_epoch ampharos_created_epoch immediate_elapsed
+  pikachu="$(kargo_stage_name "${project}" pikachu)"
+  raichu="$(kargo_stage_name "${project}" raichu)"
+  ampharos="$(kargo_stage_name "${project}" ampharos)"
+
+  kargo_seed_freight "${project}" fleet-sit-f2 "${tag}" \
+    "${report}/kargo-runtime-f2-freight-created.json"
+  freight="$(jq -r '.metadata.name' "${report}/kargo-runtime-f2-freight-created.json")"
+  kargo_auto_promote_and_verify "${project}" pichu "${freight}" "${tag}" kargo-runtime-f2-pichu
+  kargo_auto_promote_and_verify "${project}" raichu "${freight}" "${tag}" kargo-runtime-f2-raichu
+
+  kargo_set_analysis_outcome "${project}" canary-smoke fail
+  kargo_create_manual_promotion "${project}" "${pikachu}" "${freight}" \
+    "${report}/kargo-runtime-f2-pikachu-manual-promotion-created.json"
+  kargo_wait_promotion_succeeded "${project}" "${pikachu}" "${freight}" \
+    "${report}/kargo-runtime-f2-pikachu-promotion.json"
+  kargo_wait_git_tag "${project}" pikachu "${tag}"
+  kargo_wait_verification_phase "${project}" "${pikachu}" "${freight}" Failed \
+    "${report}/kargo-runtime-f2-pikachu-failed-stage.json"
+  kargo_capture_current_analysis_run "${project}" "${pikachu}" Failed \
+    "${report}/kargo-runtime-f2-canary-smoke-failed-analysisrun.json"
+  kubectl -n "${project}" get freight "${freight}" -o json \
+    >"${report}/kargo-runtime-f2-freight-after-failure.json"
+  jq -e --arg stage "${pikachu}" '.status.verifiedIn[$stage] == null' \
+    "${report}/kargo-runtime-f2-freight-after-failure.json" >/dev/null
+
+  kargo_backdate_freight_stage "${project}" "${freight}" "${pikachu}" 1200 \
+    "${report}/kargo-runtime-f2-pikachu-backdate.json"
+  kargo_backdate_freight_stage "${project}" "${freight}" "${raichu}" 1200 \
+    "${report}/kargo-runtime-f2-raichu-backdate.json"
+  since_after_backdate="$(jq -r '.after' "${report}/kargo-runtime-f2-pikachu-backdate.json")"
+  kargo_refresh_stage "${project}" "${ampharos}"
+  kargo_assert_no_promotion_for 12 "${project}" "${ampharos}" "${freight}" \
+    'full residency cannot substitute for failed canary-smoke verification' \
+    "${report}/kargo-runtime-f2-failed-analysis-hold.json"
+  kargo_capture_promotion_denial "${project}" "${ampharos}" "${freight}" \
+    'failed analysis remains an independent availability gate after full residency' \
+    "${report}/kargo-runtime-f2-failed-analysis-denial.json"
+
+  kargo_set_analysis_outcome "${project}" canary-smoke pass
+  old_verification_id="$(jq -r \
+    '.status.freightHistory[0].verificationHistory[0].id' \
+    "${report}/kargo-runtime-f2-pikachu-failed-stage.json")"
+  [ -n "${old_verification_id}" ] && [ "${old_verification_id}" != 'null' ] ||
+    sit_fail 'failed f2 verification has no ID for reverify'
+  reverify_started_epoch="$(sit_epoch)"
+  kubectl -n "${project}" annotate stage "${pikachu}" \
+    "kargo.akuity.io/reverify=${old_verification_id}" --overwrite \
+    >"${report}/kargo-runtime-f2-reverify-request.txt"
+  kargo_wait_verified "${project}" "${pikachu}" "${freight}" \
+    "${report}/kargo-runtime-f2-pikachu-reverified-stage.json"
+  kargo_capture_current_analysis_run "${project}" "${pikachu}" Successful \
+    "${report}/kargo-runtime-f2-canary-smoke-reverified-analysisrun.json"
+  since_after_reverify="$(kubectl -n "${project}" get freight "${freight}" -o json |
+    jq -r --arg stage "${pikachu}" '.status.currentlyIn[$stage].since')"
+  [ "${since_after_reverify}" = "${since_after_backdate}" ] ||
+    sit_fail 'successful re-verification reset the persisted promotion-time soak clock'
+
+  kargo_refresh_stage "${project}" "${ampharos}"
+  kargo_wait_promotion_succeeded "${project}" "${ampharos}" "${freight}" \
+    "${report}/kargo-runtime-f2-ampharos-promotion.json"
+  ampharos_created_epoch="$(date -u -d \
+    "$(jq -r '.[-1].metadata.creationTimestamp' "${report}/kargo-runtime-f2-ampharos-promotion.json")" +%s)"
+  immediate_elapsed=$((ampharos_created_epoch - reverify_started_epoch))
+  [ "${immediate_elapsed}" -ge 0 ] && [ "${immediate_elapsed}" -le 90 ] ||
+    sit_fail "ampharos did not become immediately eligible after re-verification (${immediate_elapsed}s)"
+  kargo_wait_git_tag "${project}" ampharos "${tag}"
+  kargo_wait_verified "${project}" "${ampharos}" "${freight}" \
+    "${report}/kargo-runtime-f2-ampharos-stage.json"
+  kargo_capture_current_analysis_run "${project}" "${ampharos}" Successful \
+    "${report}/kargo-runtime-f2-canary-analysis-analysisrun.json"
+  kubectl -n "${project}" get freight "${freight}" -o json \
+    >"${report}/kargo-runtime-f2-freight-final.json"
+
+  jq -n \
+    --arg freight "${freight}" --arg tag "${tag}" \
+    --arg failedVerificationID "${old_verification_id}" \
+    --arg sinceBeforeReverify "${since_after_backdate}" \
+    --arg sinceAfterReverify "${since_after_reverify}" \
+    --argjson immediateEligibilitySeconds "${immediate_elapsed}" \
+    --slurpfile denial "${report}/kargo-runtime-f2-failed-analysis-denial.json" \
+    --slurpfile final "${report}/kargo-runtime-f2-freight-final.json" '
+      {
+        trace:"f2-verification-after-soak",freight:$freight,tag:$tag,
+        canarySmokeInitialPhase:"Failed",failedVerificationID:$failedVerificationID,
+        residencySatisfiedBeforeVerification:true,failedAnalysisDenial:$denial[0],
+        canarySmokeReverifiedPhase:"Successful",
+        sinceBeforeReverify:$sinceBeforeReverify,
+        sinceAfterReverify:$sinceAfterReverify,
+        soakClockUnchanged:($sinceBeforeReverify == $sinceAfterReverify),
+        immediateAmpharosEligibilitySeconds:$immediateEligibilitySeconds,
+        canaryAnalysis:"Successful",finalFreightStatus:$final[0].status
+      }
+    ' >"${report}/kargo-runtime-f2-trace.json"
+}
+
+kargo_runtime_trace_f3() {
+  local project='canary'
+  local tag='3.3.3'
+  local pikachu raichu ampharos freight policy_patch
+  pikachu="$(kargo_stage_name "${project}" pikachu)"
+  raichu="$(kargo_stage_name "${project}" raichu)"
+  ampharos="$(kargo_stage_name "${project}" ampharos)"
+
+  kargo_seed_freight "${project}" fleet-sit-f3 "${tag}" \
+    "${report}/kargo-runtime-f3-freight-created.json"
+  freight="$(jq -r '.metadata.name' "${report}/kargo-runtime-f3-freight-created.json")"
+  kargo_auto_promote_and_verify "${project}" pichu "${freight}" "${tag}" kargo-runtime-f3-pichu
+  kargo_auto_promote_and_verify "${project}" raichu "${freight}" "${tag}" kargo-runtime-f3-raichu
+  kargo_backdate_freight_stage "${project}" "${freight}" "${raichu}" 1200 \
+    "${report}/kargo-runtime-f3-raichu-backdate.json"
+  kargo_refresh_stage "${project}" "${ampharos}"
+  kargo_assert_no_promotion_for 12 "${project}" "${ampharos}" "${freight}" \
+    'only the raichu rendezvous member carries the Freight' \
+    "${report}/kargo-runtime-f3-single-member-hold.json"
+  kargo_capture_promotion_denial "${project}" "${ampharos}" "${freight}" \
+    'availabilityStrategy All rejects Freight present in only raichu' \
+    "${report}/kargo-runtime-f3-single-member-denial.json"
+
+  policy_patch="$(jq -cn \
+    --arg pichu "$(kargo_stage_name "${project}" pichu)" \
+    --arg raichu "${raichu}" \
+    --arg pikachu "${pikachu}" '
+      {spec:{promotionPolicies:[
+        {autoPromotionEnabled:true,stageSelector:{name:$pichu}},
+        {autoPromotionEnabled:true,stageSelector:{name:$raichu}},
+        {autoPromotionEnabled:true,stageSelector:{name:$pikachu}}
+      ]}}
+    ')"
+  kubectl -n "${project}" patch projectconfig "${project}" --type merge \
+    -p "${policy_patch}" -o json >"${report}/kargo-runtime-f3-policy-flip.json"
+  jq -e --arg pikachu "${pikachu}" --arg ampharos "${ampharos}" '
+    [.spec.promotionPolicies[] | select(.autoPromotionEnabled == true) | .stageSelector.name] as $enabled |
+    ($enabled | index($pikachu)) != null and ($enabled | index($ampharos)) == null
+  ' "${report}/kargo-runtime-f3-policy-flip.json" >/dev/null
+
+  kargo_refresh_stage "${project}" "${pikachu}"
+  kargo_refresh_stage "${project}" "${ampharos}"
+  sit_wait_for 60 'flipped pikachu policy to become active' \
+    kargo_check_auto_enabled "${project}" "${pikachu}" true
+  sit_wait_for 60 'removed ampharos policy to become inactive' \
+    kargo_check_auto_enabled "${project}" "${ampharos}" false
+  kargo_wait_promotion_succeeded "${project}" "${pikachu}" "${freight}" \
+    "${report}/kargo-runtime-f3-pikachu-auto-promotion.json"
+  kargo_wait_git_tag "${project}" pikachu "${tag}"
+  kargo_wait_verified "${project}" "${pikachu}" "${freight}" \
+    "${report}/kargo-runtime-f3-pikachu-stage.json"
+  kargo_capture_current_analysis_run "${project}" "${pikachu}" Successful \
+    "${report}/kargo-runtime-f3-canary-smoke-analysisrun.json"
+  kargo_backdate_freight_stage "${project}" "${freight}" "${pikachu}" 1200 \
+    "${report}/kargo-runtime-f3-pikachu-backdate.json"
+  kargo_refresh_stage "${project}" "${ampharos}"
+  kargo_assert_no_promotion_for 15 "${project}" "${ampharos}" "${freight}" \
+    'Freight is available but the ampharos auto-promotion policy was removed' \
+    "${report}/kargo-runtime-f3-ampharos-policy-hold.json"
+  kargo_capture_promotion_dry_run_acceptance "${project}" "${ampharos}" "${freight}" \
+    "${report}/kargo-runtime-f3-ampharos-available-dry-run.json"
+  [ "$(kargo_promotion_count "${project}" "${ampharos}" "${freight}")" -eq 0 ] ||
+    sit_fail 'ampharos auto-promoted after its policy was removed'
+  kubectl -n "${project}" get freight "${freight}" -o json \
+    >"${report}/kargo-runtime-f3-freight-final.json"
+
+  jq -n \
+    --arg freight "${freight}" --arg tag "${tag}" \
+    --slurpfile denial "${report}/kargo-runtime-f3-single-member-denial.json" \
+    --slurpfile policy "${report}/kargo-runtime-f3-policy-flip.json" \
+    --slurpfile hold "${report}/kargo-runtime-f3-ampharos-policy-hold.json" \
+    --slurpfile available "${report}/kargo-runtime-f3-ampharos-available-dry-run.json" '
+      {
+        trace:"f3-single-member-and-policy-flip",freight:$freight,tag:$tag,
+        singleMemberDenial:$denial[0],
+        atomicPolicyMutation:$policy[0].spec.promotionPolicies,
+        pikachuAutoAfterPolicyAddition:true,
+        ampharosAvailableByLiveWebhook:true,
+        ampharosDryRunPromotion:$available[0],
+        ampharosHeldAfterPolicyRemoval:$hold[0]
+      }
+    ' >"${report}/kargo-runtime-f3-trace.json"
+}
+
+kargo_runtime_install_soak_project() {
+  local project='canary-sitsoak'
+  local chart="${FLEET_SOURCE}/registry/charts/diene-platform"
+  helm template "${project}" "${chart}" \
+    --namespace "${project}" \
+    --values "${validation_dir}/fixtures/kargo-runtime/soak.platform.yaml" \
+    --set-string "fleet.repoURL=${FLEET_REPO_URL}" \
+    --set-string 'oci.registry=registry.sit.invalid' |
+    yq 'select(.apiVersion == "kargo.akuity.io/v1alpha1")' \
+      >"${report}/kargo-runtime-soak-rendered.yaml"
+  yq ea -o=json '[.]' "${report}/kargo-runtime-soak-rendered.yaml" \
+    >"${KARGO_RUNTIME_DIR}/kargo-runtime-soak-rendered.json"
+  jq -e '
+    ([.[] | select(.kind == "Stage")] | length) == 4 and
+    ([.[] | select(.kind == "Stage" and .metadata.name == "canary-sitsoak-dummy-ampharos")][0] |
+      .spec.requestedFreight[0].sources.stages == [
+        "canary-sitsoak-dummy-pikachu", "canary-sitsoak-dummy-raichu"
+      ] and
+      .spec.requestedFreight[0].sources.availabilityStrategy == "All" and
+      .spec.requestedFreight[0].sources.requiredSoakTime == "90s" and
+      .spec.verification.analysisTemplates == [{name:"canary-analysis"}]) and
+    ([.[] | select(.kind == "ProjectConfig")][0].spec.promotionPolicies |
+      map(select(.autoPromotionEnabled == true).stageSelector.name) | sort) == [
+        "canary-sitsoak-dummy-ampharos",
+        "canary-sitsoak-dummy-pichu",
+        "canary-sitsoak-dummy-raichu"
+      ]
+  ' "${KARGO_RUNTIME_DIR}/kargo-runtime-soak-rendered.json" >/dev/null
+
+  yq 'select(.kind == "Project")' "${report}/kargo-runtime-soak-rendered.yaml" \
+    >"${KARGO_RUNTIME_DIR}/soak-project.yaml"
+  yq 'select(.kind != "Project")' "${report}/kargo-runtime-soak-rendered.yaml" \
+    >"${KARGO_RUNTIME_DIR}/soak-namespaced.yaml"
+  kubectl apply -f "${KARGO_RUNTIME_DIR}/soak-project.yaml"
+  kubectl wait --for=condition=Ready \
+    project.kargo.akuity.io/${project} --timeout=180s
+  kubectl wait --for=jsonpath='{.status.phase}'=Active namespace/${project} --timeout=180s
+  kargo_render_analysis_fixture "${project}" "${report}/kargo-runtime-analysis-soak.yaml"
+  kubectl apply -f "${report}/kargo-runtime-analysis-soak.yaml"
+  kubectl apply -f "${KARGO_RUNTIME_DIR}/soak-namespaced.yaml"
+}
+
+kargo_runtime_trace_wall_clock_soak() {
+  local project='canary-sitsoak'
+  local tag='4.4.4'
+  local pikachu ampharos freight since since_epoch promotion_epoch lower_bound elapsed
+  pikachu="$(kargo_stage_name "${project}" pikachu)"
+  ampharos="$(kargo_stage_name "${project}" ampharos)"
+  kargo_seed_freight "${project}" fleet-sit-f4 "${tag}" \
+    "${report}/kargo-runtime-soak-freight-created.json"
+  freight="$(jq -r '.metadata.name' "${report}/kargo-runtime-soak-freight-created.json")"
+  kargo_auto_promote_and_verify "${project}" pichu "${freight}" "${tag}" kargo-runtime-soak-pichu
+  kargo_auto_promote_and_verify "${project}" raichu "${freight}" "${tag}" kargo-runtime-soak-raichu
+  kargo_refresh_stage "${project}" "${pikachu}"
+  sit_wait_for 60 '90s fixture pikachu Stage to remain manual' \
+    kargo_check_auto_enabled "${project}" "${pikachu}" false
+  kargo_create_manual_promotion "${project}" "${pikachu}" "${freight}" \
+    "${report}/kargo-runtime-soak-pikachu-manual-promotion-created.json"
+  kargo_wait_promotion_succeeded "${project}" "${pikachu}" "${freight}" \
+    "${report}/kargo-runtime-soak-pikachu-promotion.json"
+  kargo_wait_git_tag "${project}" pikachu "${tag}"
+  kargo_wait_verified "${project}" "${pikachu}" "${freight}" \
+    "${report}/kargo-runtime-soak-pikachu-stage.json"
+  kargo_capture_current_analysis_run "${project}" "${pikachu}" Successful \
+    "${report}/kargo-runtime-soak-canary-smoke-analysisrun.json"
+  since="$(kubectl -n "${project}" get freight "${freight}" -o json |
+    jq -r --arg stage "${pikachu}" '.status.currentlyIn[$stage].since')"
+  since_epoch="$(date -u -d "${since}" +%s)"
+  lower_bound=$((since_epoch + 90))
+  kargo_refresh_stage "${project}" "${ampharos}"
+  kargo_assert_no_promotion_for 12 "${project}" "${ampharos}" "${freight}" \
+    'real 90s wall-clock soak has not elapsed from promotion-time since' \
+    "${report}/kargo-runtime-soak-early-hold.json"
+  kargo_capture_promotion_denial "${project}" "${ampharos}" "${freight}" \
+    'real wall-clock lower bound before 90s' \
+    "${report}/kargo-runtime-soak-early-denial.json"
+
+  # No further refresh is issued here. The released controller must schedule
+  # and make the Stage eligible from its own real wall clock.
+  kargo_wait_promotion_succeeded "${project}" "${ampharos}" "${freight}" \
+    "${report}/kargo-runtime-soak-ampharos-promotion.json"
+  promotion_epoch="$(date -u -d \
+    "$(jq -r '.[-1].metadata.creationTimestamp' "${report}/kargo-runtime-soak-ampharos-promotion.json")" +%s)"
+  elapsed=$((promotion_epoch - since_epoch))
+  [ "${promotion_epoch}" -ge "${lower_bound}" ] ||
+    sit_fail "the real controller promoted before the 90s promotion-time lower bound (${elapsed}s)"
+  [ "${elapsed}" -le 180 ] ||
+    sit_fail "the 90s wall-clock strengthener exceeded its bounded 180s upper window (${elapsed}s)"
+  kargo_wait_git_tag "${project}" ampharos "${tag}"
+  kargo_wait_verified "${project}" "${ampharos}" "${freight}" \
+    "${report}/kargo-runtime-soak-ampharos-stage.json"
+  kargo_capture_current_analysis_run "${project}" "${ampharos}" Successful \
+    "${report}/kargo-runtime-soak-canary-analysis-analysisrun.json"
+
+  jq -n \
+    --arg freight "${freight}" --arg tag "${tag}" \
+    --arg promotionTimeSince "${since}" \
+    --argjson requiredSoakSeconds 90 \
+    --argjson observedPromotionAfterSeconds "${elapsed}" \
+    --slurpfile early "${report}/kargo-runtime-soak-early-denial.json" '
+      {
+        trace:"real-wall-clock-90s-strengthener",freight:$freight,tag:$tag,
+        promotionTimeSince:$promotionTimeSince,
+        requiredSoakSeconds:$requiredSoakSeconds,
+        observedPromotionAfterSeconds:$observedPromotionAfterSeconds,
+        earlyWebhookDenial:$early[0],
+        lowerBoundSatisfied:($observedPromotionAfterSeconds >= $requiredSoakSeconds),
+        controllerClockWasNotPatched:true
+      }
+    ' >"${report}/kargo-runtime-soak-trace.json"
+}
+
+kargo_runtime_finalize_git_oracle() {
+  local final_sha
+  final_sha="$(git -C "${FLEET_BARE}" rev-parse refs/heads/main)"
+  git -C "${FLEET_BARE}" diff --no-ext-diff --unified=0 \
+    "${KARGO_RUNTIME_GIT_BASELINE}" "${final_sha}" -- \
+    platforms/canary/landscapes \
+    platforms/canary-sitsoak/landscapes \
+    >"${report}/kargo-runtime-git.diff"
+  [ -s "${report}/kargo-runtime-git.diff" ] || sit_fail 'Kargo runtime produced no git row delta'
+  if rg '^[+-]' "${report}/kargo-runtime-git.diff" |
+    rg -v '^(---|\+\+\+|[-+]  tag: )' >"${KARGO_RUNTIME_DIR}/unexpected-git-delta.txt"; then
+    sed -n '1,200p' "${KARGO_RUNTIME_DIR}/unexpected-git-delta.txt" >&2
+    sit_fail 'Kargo promotion changed row bytes outside pin.tag'
+  fi
+  git -C "${FLEET_BARE}" diff --name-only \
+    "${KARGO_RUNTIME_GIT_BASELINE}" "${final_sha}" -- \
+    platforms/canary/landscapes platforms/canary-sitsoak/landscapes |
+    LC_ALL=C sort >"${KARGO_RUNTIME_DIR}/kargo-runtime-changed-paths.txt"
+  printf '%s\n' \
+    platforms/canary/landscapes/ampharos/dummy.yaml \
+    platforms/canary/landscapes/pichu/dummy.yaml \
+    platforms/canary/landscapes/pikachu/dummy.yaml \
+    platforms/canary/landscapes/raichu/dummy.yaml \
+    platforms/canary-sitsoak/landscapes/ampharos/dummy.yaml \
+    platforms/canary-sitsoak/landscapes/pichu/dummy.yaml \
+    platforms/canary-sitsoak/landscapes/pikachu/dummy.yaml \
+    platforms/canary-sitsoak/landscapes/raichu/dummy.yaml |
+    LC_ALL=C sort >"${KARGO_RUNTIME_DIR}/kargo-runtime-expected-paths.txt"
+  cmp -s "${KARGO_RUNTIME_DIR}/kargo-runtime-expected-paths.txt" \
+    "${KARGO_RUNTIME_DIR}/kargo-runtime-changed-paths.txt" ||
+    sit_fail 'Kargo runtime did not change exactly the eight expected row files'
+  git -C "${FLEET_BARE}" show \
+    "${final_sha}:platforms/canary/landscapes/raichu/dummy.yaml" |
+    sed -n '/^values:/,$p' >"${report}/kargo-runtime-raichu-values-after.yaml"
+  cmp -s "${report}/kargo-runtime-raichu-values-before.yaml" \
+    "${report}/kargo-runtime-raichu-values-after.yaml" ||
+    sit_fail 'the human raichu values block changed during real Kargo promotions'
+  git -C "${FLEET_BARE}" log --reverse --format='%H%x09%an%x09%ae%x09%s' \
+    "${KARGO_RUNTIME_GIT_BASELINE}..${final_sha}" >"${report}/kargo-runtime-git-log.tsv"
+  jq -n \
+    --arg baseline "${KARGO_RUNTIME_GIT_BASELINE}" \
+    --arg final "${final_sha}" \
+    --rawfile paths "${KARGO_RUNTIME_DIR}/kargo-runtime-changed-paths.txt" \
+    --rawfile diff "${report}/kargo-runtime-git.diff" '
+      {
+        baseline:$baseline,final:$final,
+        changedPaths:($paths | split("\n") | map(select(length > 0))),
+        onlyPinTagLinesChanged:true,
+        raichuValuesBlockByteIdentical:true,
+        diff:$diff
+      }
+    ' >"${report}/kargo-runtime-git-oracle.json"
+}
+
+kargo_runtime_collect_logs() {
+  kubectl -n kargo get pods -o wide >"${report}/kargo-runtime-kargo-pods.txt"
+  kubectl -n argo-rollouts get pods -o wide >"${report}/kargo-runtime-rollouts-pods.txt"
+  kubectl -n canary get \
+    freight,promotions,stages,warehouses,analysistemplates,analysisruns -o json \
+    >"${report}/kargo-runtime-canary-objects.json"
+  kubectl -n canary-sitsoak get \
+    freight,promotions,stages,warehouses,analysistemplates,analysisruns -o json \
+    >"${report}/kargo-runtime-soak-objects.json"
+  kubectl -n kargo logs deployment/kargo-controller --all-containers --tail=-1 \
+    >"${report}/kargo-runtime-controller.log" 2>&1
+  kubectl -n kargo logs deployment/kargo-management-controller --all-containers --tail=-1 \
+    >"${report}/kargo-runtime-management-controller.log" 2>&1
+  kubectl -n kargo logs deployment/kargo-webhooks-server --all-containers --tail=-1 \
+    >"${report}/kargo-runtime-webhooks-server.log" 2>&1
+  kubectl -n argo-rollouts logs deployment/argo-rollouts --all-containers --tail=-1 \
+    >"${report}/kargo-runtime-rollouts-controller.log" 2>&1
+}
+
+run_kargo_runtime_leg() {
+  # L8 intentionally owns static objects only. Remove its Project and namespace
+  # before installing the management controller so ownership is deterministic.
+  kubectl delete project.kargo.akuity.io canary --ignore-not-found --wait=true --timeout=120s
+  kubectl delete namespace canary --ignore-not-found --wait=true --timeout=180s
+  kargo_runtime_prepare_artifacts
+  kargo_runtime_install_rollouts
+  kargo_runtime_install_kargo
+  kargo_runtime_render_and_apply_primary
+  kargo_runtime_trace_f1
+  kargo_runtime_trace_f2
+  kargo_runtime_trace_f3
+  kargo_runtime_install_soak_project
+  kargo_runtime_trace_wall_clock_soak
+  kargo_runtime_finalize_git_oracle
+  kargo_runtime_collect_logs
+
+  jq -n \
+    --arg kargoVersion "${KARGO_VERSION}" \
+    --arg kargoImage "${KARGO_RUNTIME_IMAGE_REF}" \
+    --arg chartDigest "${KARGO_CHART_DIGEST}" \
+    --arg rolloutsVersion "${ROLLOUTS_VERSION}" \
+    --arg rolloutsImage "${ROLLOUTS_RUNTIME_IMAGE_REF}" \
+    --arg analysisImage "${ANALYSIS_RUNTIME_IMAGE_REF}" \
+    --slurpfile f1 "${report}/kargo-runtime-f1-trace.json" \
+    --slurpfile f2 "${report}/kargo-runtime-f2-trace.json" \
+    --slurpfile f3 "${report}/kargo-runtime-f3-trace.json" \
+    --slurpfile soak "${report}/kargo-runtime-soak-trace.json" \
+    --slurpfile gitOracle "${report}/kargo-runtime-git-oracle.json" '
+      {
+        pinnedRuntime:{
+          kargoVersion:$kargoVersion,kargoImage:$kargoImage,chartDigest:$chartDigest,
+          rolloutsVersion:$rolloutsVersion,rolloutsImage:$rolloutsImage,
+          analysisJobImage:$analysisImage
+        },
+        controllerClasses:[
+          "Kargo controller","Kargo management-controller",
+          "Kargo kubernetes-webhooks-server","Argo Rollouts controller"
+        ],
+        traces:{f1:$f1[0],f2:$f2[0],f3:$f3[0],wallClock:$soak[0]},
+        gitPromotionOracle:$gitOracle[0],
+        proven:[
+          "pichu and raichu auto-promote under matching ProjectConfig policies",
+          "pikachu holds with no policy and promotes only after an explicit webhook-admitted Promotion CR",
+          "real git-clone/yaml-update/git-commit/git-push steps change only pin.tag and preserve the human values block byte-for-byte",
+          "canary-smoke and canary-analysis execute as real Argo Rollouts Job-provider AnalysisRuns",
+          "ampharos availabilityStrategy All rejects early and single-member Freight and admits only after pikachu plus raichu are verified and soaked",
+          "failed analysis remains an independent gate after residency is satisfied",
+          "verification does not reset Freight.status.currentlyIn[stage].since and eligibility is immediate when late verification succeeds",
+          "adding the pikachu auto policy and removing the ampharos policy in one ProjectConfig patch flips their real runtime behavior",
+          "the otherwise-identical 90s project respects a genuine promotion-time wall-clock lower bound"
+        ],
+        residuals:[
+          "literal passage of the production 15m duration remains unrun; persisted 15m-clock backdating proves both orderings and per-upstream comparison, and the same released controller code is wall-clock-strengthened at 90s",
+          "the Kargo API/UI approval surface is disabled; explicit Promotion CR creation exercises the Kubernetes admission and SubjectAccessReview surface",
+          "Warehouse discovery against a reachable registry is unrun; Freight is seeded through the real webhook against subscriptions whose consumer-only runtime host is registry.sit.invalid"
+        ],
+        fallbackUsed:false
+      }
+    ' >"${report}/kargo-runtime-proof.json"
+}
+
 collect_final_evidence() {
   [ "${cluster_created}" -eq 1 ] || return 0
   [ -n "${report}" ] || return 0
@@ -627,6 +2835,14 @@ collect_final_evidence() {
     kubectl -n argocd logs "${workload}" --all-containers --tail=-1 \
       >"${report}/$(tr '/' '-' <<<"${workload}").log" 2>&1 || true
   done
+  kubectl -n kargo logs deployment/kargo-controller --all-containers --tail=-1 \
+    >"${report}/kargo-runtime-controller.log" 2>&1 || true
+  kubectl -n kargo logs deployment/kargo-management-controller --all-containers --tail=-1 \
+    >"${report}/kargo-runtime-management-controller.log" 2>&1 || true
+  kubectl -n kargo logs deployment/kargo-webhooks-server --all-containers --tail=-1 \
+    >"${report}/kargo-runtime-webhooks-server.log" 2>&1 || true
+  kubectl -n argo-rollouts logs deployment/argo-rollouts --all-containers --tail=-1 \
+    >"${report}/kargo-runtime-rollouts-controller.log" 2>&1 || true
 }
 
 stop_pid() {
@@ -655,9 +2871,7 @@ cleanup() {
       sit_report_finish fail || true
     fi
   fi
-  if [[ ${work} == /tmp/* ]] && [ -d "${work}" ]; then
-    rm -rf "${work}"
-  fi
+  remove_sit_scratch "${work}" || rc=1
   exit "${rc}"
 }
 
@@ -677,23 +2891,149 @@ on_error() {
   exit "${rc}"
 }
 
+sit_pins_json() {
+  jq -n \
+    --arg argocd "${ARGOCD_VERSION}" \
+    --arg argocdSourceCommit "${ARGOCD_SOURCE_COMMIT}" \
+    --arg manifestSha256 "${ARGOCD_MANIFEST_SHA256}" \
+    --arg k3s "${K3S_IMAGE}" \
+    --arg kargoVersion "${KARGO_VERSION}" \
+    --arg kargoSourceCommit "${KARGO_SOURCE_COMMIT}" \
+    --arg kargoCrdBaseURL "${KARGO_CRD_BASE_URL}" \
+    --arg projects "${KARGO_CRD_PROJECTS_SHA256}" \
+    --arg projectConfigs "${KARGO_CRD_PROJECTCONFIGS_SHA256}" \
+    --arg stages "${KARGO_CRD_STAGES_SHA256}" \
+    --arg warehouses "${KARGO_CRD_WAREHOUSES_SHA256}" \
+    --arg chartRef "${KARGO_CHART_REF}" \
+    --arg chartVersion "${KARGO_CHART_VERSION}" \
+    --arg chartDigest "${KARGO_CHART_DIGEST}" \
+    --arg chartArchiveSha256 "${KARGO_CHART_ARCHIVE_SHA256}" \
+    --arg kargoImage "${KARGO_RUNTIME_IMAGE_REF}" \
+    --arg rolloutsVersion "${ROLLOUTS_VERSION}" \
+    --arg rolloutsManifestUrl "${ROLLOUTS_MANIFEST_URL}" \
+    --arg rolloutsManifestSha256 "${ROLLOUTS_MANIFEST_SHA256}" \
+    --arg rolloutsImage "${ROLLOUTS_RUNTIME_IMAGE_REF}" \
+    --arg analysisImage "${ANALYSIS_RUNTIME_IMAGE_REF}" \
+    '{
+      argocd:$argocd,
+      argocdSourceCommit:$argocdSourceCommit,
+      argocdManifestSha256:$manifestSha256,
+      k3s:$k3s,
+      kargo:{
+        version:$kargoVersion,
+        sourceCommit:$kargoSourceCommit,
+        crdBaseURL:$kargoCrdBaseURL,
+        crdSha256:{
+          projects:$projects,
+          projectconfigs:$projectConfigs,
+          stages:$stages,
+          warehouses:$warehouses
+        },
+        chart:{ref:$chartRef,version:$chartVersion,digest:$chartDigest,archiveSha256:$chartArchiveSha256},
+        image:$kargoImage
+      },
+      rollouts:{
+        version:$rolloutsVersion,
+        manifestURL:$rolloutsManifestUrl,
+        manifestSha256:$rolloutsManifestSha256,
+        image:$rolloutsImage
+      },
+      analysisImage:$analysisImage
+    }'
+}
+
+sit_provenance_json() {
+  local checkout_clean_at_start="$1"
+  jq -n \
+    --arg commit "${SIT_SOURCE_HEAD}" \
+    --arg tree "${SIT_SNAPSHOT_TREE}" \
+    --argjson checkoutCleanAtStart "${checkout_clean_at_start}" \
+    --argjson roots "$(printf '%s\n' "${SIT_DIRECT_INPUT_ROOTS[@]}" | jq -Rsc 'split("\n")[:-1]')" \
+    --arg directInputSha256 "${DIRECT_INPUT_SHA256}" \
+    --argjson directInputFileCount "${DIRECT_INPUT_FILE_COUNT}" \
+    --arg harnessSha256 "${HARNESS_SHA256}" \
+    --argjson harnessFileCount "${HARNESS_FILE_COUNT}" \
+    '{
+      commit:$commit,
+      checkoutHeadAtStart:$commit,
+      checkoutCleanAtStart:$checkoutCleanAtStart,
+      checkoutHeadAtFinish:null,
+      checkoutCleanAtFinish:null,
+      inputSnapshotCommit:$commit,
+      inputSnapshotTree:$tree,
+      inputSnapshotVerified:true,
+      executionRoot:"a verified throwaway snapshot of the recorded commit; the live checkout is never read during execution",
+      directInputRoots:$roots,
+      directInputInventory:"direct-input-inventory.sha256",
+      directInputInventoryFormat:"LF-delimited mode,type,git-blob-sha,content-sha256,path records sorted bytewise by path, derived from git ls-tree at the recorded commit",
+      directInputSha256:$directInputSha256,
+      directInputFileCount:$directInputFileCount,
+      directInputRecheckedAtFinish:null,
+      directInputSha256AtFinish:null,
+      harnessInventory:"harness-inventory.sha256",
+      harnessInventoryFormat:"sha256 of LF-delimited <file-sha256><two spaces><relative-path> lines sorted bytewise by path",
+      harnessSha256:$harnessSha256,
+      harnessFileCount:$harnessFileCount,
+      harnessDigestScope:"the SIT harness only (scripts/ci/fleet-sit*.sh + scripts/validate/fleet-sit); it is NOT the direct-input inventory and binds none of the product inputs"
+    }'
+}
+
 prepare_only() {
   validate_inputs
   local prepare_work
-  prepare_work="$(mktemp -d)"
+  prepare_work="$(make_sit_scratch)"
   work="${prepare_work}"
+  SIT_SCRATCH_ROOT="${work}"
+  export SIT_SCRATCH_ROOT
   local prepare_report="${prepare_work}/evidence"
   mkdir -p "${prepare_report}"
-  trap 'stop_pid "${GIT_SERVER_PID}"; if [[ "${work}" == /tmp/* ]]; then rm -rf "${work}"; fi' EXIT
+  trap 'stop_pid "${GIT_SERVER_PID}"; remove_sit_scratch "${work}"' EXIT
 
-  write_implementation_inventory "${prepare_report}/implementation-inventory.sha256"
+  write_harness_inventory "${prepare_report}/harness-inventory.sha256"
 
   bun "${validation_dir}/git-server.ts" --root "${prepare_work}" --self-test \
     >"${prepare_report}/git-server-self-test.json"
   bun "${validation_dir}/github-webhook.ts" --self-test \
     >"${prepare_report}/github-webhook-self-test.json"
+  bun "${validation_dir}/kargo-contract.ts" --self-test \
+    >"${prepare_report}/kargo-contract-self-test.json"
+  (
+    cd "${validation_dir}/fixtures/kargo-expression"
+    go test ./...
+  ) >"${prepare_report}/kargo-expression-engine.txt" 2>&1
   bun build "${validation_dir}/git-server.ts" --target=bun --outfile="${prepare_work}/git-server.js" >/dev/null
   bun build "${validation_dir}/github-webhook.ts" --target=bun --outfile="${prepare_work}/github-webhook.js" >/dev/null
+  bun build "${validation_dir}/kargo-contract.ts" --target=bun --outfile="${prepare_work}/kargo-contract.js" >/dev/null
+
+  # The committed pointer file must carry the exact product contract the SIT
+  # models, and the live serving path must stay empty.
+  read_machinery_pointer_target registry/machinery-stable.yaml >/dev/null
+  machinery_pointer_self_test "${prepare_work}/pointer" \
+    "${prepare_report}/machinery-pointer-self-test.json"
+  [ ! -e registry/clusters ] || [ -z "$(find registry/clusters -name '*.yaml' -print -quit 2>/dev/null)" ] ||
+    sit_fail 'registry/clusters carries a live serving row while the v1 roster is unratified'
+
+  # The field-exact Kargo oracle over the committed chart, without a cluster.
+  helm template canary registry/charts/diene-platform \
+    --namespace canary \
+    --values platforms/canary/services.yaml \
+    --values registry/charts/diene-platform/tests/fixtures/canary.platform.yaml |
+    yq ea -o=json '[.] | map(select(.apiVersion == "kargo.akuity.io/v1alpha1"))' \
+      >"${prepare_work}/kargo-objects.json"
+  bun "${validation_dir}/kargo-contract.ts" \
+    --objects "${prepare_work}/kargo-objects.json" \
+    --out "${prepare_report}/kargo-rendered-contract.json" \
+    --source 'prepare-only render of the committed compiler chart'
+  # The oracle must be non-vacuous: the rendezvous mutation has to fail it.
+  jq 'map(if .kind == "Stage" and .metadata.name == "canary-dummy-ampharos"
+          then del(.spec.requestedFreight[0].sources.availabilityStrategy) else . end)' \
+    "${prepare_work}/kargo-objects.json" >"${prepare_work}/kargo-objects-mutated.json"
+  if bun "${validation_dir}/kargo-contract.ts" \
+    --objects "${prepare_work}/kargo-objects-mutated.json" \
+    --out "${prepare_work}/kargo-mutated-contract.json" \
+    --source 'rendezvous mutation' >/dev/null 2>&1; then
+    sit_fail 'the Kargo field oracle accepted a render with no rendezvous availabilityStrategy'
+  fi
 
   prepare_repositories
   cp "${work}/runtime-chart-schema-relaxation.diff" "${prepare_report}/runtime-chart-schema-relaxation.diff"
@@ -712,53 +3052,143 @@ prepare_only() {
     --set-string "fleet.repoURL=${FLEET_REPO_URL}" \
     --set-string 'fleet.revision=main' |
     yq 'select(.kind == "ApplicationSet")' >"${prepare_work}/canary-appset.yaml"
-  yq -o=json '.' "${prepare_work}/canary-appset.yaml" |
-    jq -e '
+  yq -o=json '.' "${prepare_work}/canary-appset.yaml" >"${prepare_work}/canary-appset.json"
+  jq -e '
       .metadata.name == "canary" and
       .spec.generators[0].git.files[0].path == "platforms/canary/landscapes/*/*.yaml" and
       .spec.generators[1].matrix.generators[0].git.files[0].path == "platforms/canary/landscapes/*/*.yaml" and
-      .spec.generators[1].matrix.generators[1].clusters.selector.matchLabels["atomi.cloud/landscape"] == "{{ .landscape }}"
-    ' >/dev/null
+      .spec.generators[1].matrix.generators[1].clusters.selector.matchLabels["atomi.cloud/landscape"] == "{{ .landscape }}" and
+      .spec.generators[1].matrix.generators[1].clusters.selector.matchExpressions == [{
+        key:"atomi.cloud/cluster-role", operator:"NotIn", values:["infrastructure-only"]
+      }]
+    ' "${prepare_work}/canary-appset.json" >/dev/null
+  jq 'del(.spec.generators[1].matrix.generators[1].clusters.selector.matchExpressions)' \
+    "${prepare_work}/canary-appset.json" >"${prepare_work}/canary-appset-without-infrastructure-exclusion.json"
+  if jq -e '
+    .spec.generators[1].matrix.generators[1].clusters.selector.matchExpressions == [{
+      key:"atomi.cloud/cluster-role", operator:"NotIn", values:["infrastructure-only"]
+    }]
+  ' "${prepare_work}/canary-appset-without-infrastructure-exclusion.json" >/dev/null; then
+    sit_fail 'the ApplicationSet exclusion oracle accepted a render with no matchExpressions'
+  fi
+  infrastructure_exclusion_self_test \
+    "${prepare_work}/infrastructure-exclusion-self-test" \
+    "${prepare_report}/infrastructure-exclusion-self-test.json"
 
+  # Report self-test: the schema-v2 provenance block is exercised end to end,
+  # including the finish merge and every invariant the wrapper re-derives.
+  SIT_SOURCE_HEAD="$(git rev-parse HEAD)"
+  SIT_SNAPSHOT_TREE="$(git rev-parse 'HEAD^{tree}')"
+  # Advisory here: prepare-only must stay runnable on a work-in-progress
+  # checkout. Only the wrapped full run derives the inventory strictly, and only
+  # that run's inventory is proof of anything.
+  local inventory_strictness='strict'
+  if [ -n "$(git status --porcelain --untracked-files=all -- "${SIT_DIRECT_INPUT_ROOTS[@]}")" ]; then
+    inventory_strictness='advisory'
+    echo 'note: direct-input roots are dirty; deriving the inventory in advisory mode (prepare-only)'
+  fi
+  write_direct_input_inventory "${prepare_report}/direct-input-inventory.sha256" \
+    "${SIT_SOURCE_HEAD}" "${inventory_strictness}"
   sit_report_init "${prepare_work}/report-self-test" \
-    "${ARGOCD_VERSION}" "${ARGOCD_SOURCE_COMMIT}" "${ARGOCD_MANIFEST_SHA256}" "${K3S_IMAGE}" \
-    "$(git rev-parse HEAD)" "${IMPLEMENTATION_SHA256}" "$(implementation_uncommitted)" \
-    "${IMPLEMENTATION_FILE_COUNT}"
+    "$(sit_pins_json)" "$(sit_provenance_json true)"
   jq -n '{fixture:true}' >"${SIT_REPORT_DIR}/fixture.json"
   sit_leg_begin 'self-test' 'fixture.json'
   sit_leg_pass 'report append helper'
-  sit_report_finish pass
-  jq -e --arg digest "${IMPLEMENTATION_SHA256}" '
+  sit_report_finish pass "$(jq -n \
+    --arg commit "${SIT_SOURCE_HEAD}" \
+    --arg digest "${DIRECT_INPUT_SHA256}" \
+    '{checkoutHeadAtFinish:$commit,checkoutCleanAtFinish:true,
+      directInputRecheckedAtFinish:true,directInputSha256AtFinish:$digest}')"
+  jq -e \
+    --arg harness "${HARNESS_SHA256}" \
+    --arg direct "${DIRECT_INPUT_SHA256}" \
+    --arg commit "${SIT_SOURCE_HEAD}" '
     .status == "pass" and
-    .implementationSha256 == $digest and
-    (.implementationUncommittedAtProof | type) == "boolean" and
+    .schemaVersion == 2 and
+    .commit == $commit and
+    .inputSnapshotCommit == $commit and
+    .harnessSha256 == $harness and
+    .directInputSha256 == $direct and
+    .directInputSha256AtFinish == $direct and
+    .directInputFileCount > .harnessFileCount and
+    (.directInputRoots | length) > 0 and
+    (.legContract | length) == 10 and
     .legs == [{leg:"self-test",status:"pass",started:.legs[0].started,elapsed_s:.legs[0].elapsed_s,evidence:["fixture.json"],note:"report append helper"}]
   ' \
     "${SIT_REPORT_FILE}" >/dev/null
+  sit_assert_provenance_bound "${SIT_SOURCE_HEAD}"
+  # ... and the same assertion must refuse a report whose finish digest, head,
+  # or leg set disagrees, so it is not a vacuous green.
+  local tampered="${prepare_work}/report-tampered"
+  mkdir -p "${tampered}"
+  local mutation
+  for mutation in \
+    '.directInputSha256AtFinish = "0000000000000000000000000000000000000000000000000000000000000000"' \
+    '.checkoutCleanAtFinish = false' \
+    '.inputSnapshotVerified = false' \
+    '.harnessFileCount = (.directInputFileCount + 1)'; do
+    jq "${mutation}" "${SIT_REPORT_FILE}" >"${tampered}/sit-report.json"
+    if SIT_REPORT_FILE="${tampered}/sit-report.json" \
+      sit_assert_provenance_bound "${SIT_SOURCE_HEAD}" 2>/dev/null; then
+      sit_fail "the provenance assertion accepted a tampered report: ${mutation}"
+    fi
+  done
+  if (sit_assert_complete_pass_legs) 2>/dev/null; then
+    sit_fail 'the leg-set assertion accepted a report that is not the ordered L0-L9 pass set'
+  fi
 
   jq -n \
     --arg argocd "${ARGOCD_VERSION}" \
     --arg manifestSha256 "${ARGOCD_MANIFEST_SHA256}" \
     --arg k3s "${K3S_IMAGE}" \
+    --arg kargo "${KARGO_VERSION}" \
     --arg c1 "${C1_SHA}" \
-    '{status:"pass",argocd:$argocd,manifestSha256:$manifestSha256,k3s:$k3s,fixtureHead:$c1}' \
+    --arg commit "${SIT_SOURCE_HEAD}" \
+    --arg directInputSha256 "${DIRECT_INPUT_SHA256}" \
+    --argjson directInputFileCount "${DIRECT_INPUT_FILE_COUNT}" \
+    --arg harnessSha256 "${HARNESS_SHA256}" \
+    --argjson harnessFileCount "${HARNESS_FILE_COUNT}" \
+    '{status:"pass",argocd:$argocd,manifestSha256:$manifestSha256,k3s:$k3s,kargo:$kargo,
+      fixtureHead:$c1,commit:$commit,
+      directInputSha256:$directInputSha256,directInputFileCount:$directInputFileCount,
+      harnessSha256:$harnessSha256,harnessFileCount:$harnessFileCount}' \
     >"${prepare_report}/prepare-only.json"
   echo 'fleet SIT prepare-only checks passed'
 }
 
 run_full() {
   validate_inputs
-  SIT_SOURCE_HEAD="$(git rev-parse HEAD)"
-  assert_clean_unchanged_source "${SIT_SOURCE_HEAD}"
-  report="${FLEET_SIT_REPORT:-${root}/sit-report}"
+
+  # Fail closed unless the wrapper handed us a verified snapshot. Reading the
+  # live checkout would leave the transient-consumption route open: a direct
+  # input could change after the inventory and be restored before the final
+  # cleanliness check.
+  [ -n "${FLEET_SIT_CHECKOUT:-}" ] && [ -n "${FLEET_SIT_EXPECTED_HEAD:-}" ] ||
+    sit_fail 'run scripts/ci/fleet-sit-proof.sh; a full SIT must execute from a verified snapshot, never from a live checkout'
+  SIT_CHECKOUT="${FLEET_SIT_CHECKOUT}"
+  SIT_SOURCE_HEAD="${FLEET_SIT_EXPECTED_HEAD}"
+  [[ ${SIT_SOURCE_HEAD} =~ ^[0-9a-f]{40}$ ]] || sit_fail 'FLEET_SIT_EXPECTED_HEAD is not a 40-hex commit'
+  [ -d "${SIT_CHECKOUT}/.git" ] || [ -f "${SIT_CHECKOUT}/.git" ] ||
+    sit_fail "FLEET_SIT_CHECKOUT is not a git checkout: ${SIT_CHECKOUT}"
+  [ "${SIT_CHECKOUT}" != "${root}" ] ||
+    sit_fail 'the input snapshot must be a different directory from the original checkout'
+  assert_verified_snapshot "${SIT_SOURCE_HEAD}"
+  assert_clean_unchanged_checkout "${SIT_CHECKOUT}" "${SIT_SOURCE_HEAD}"
+
+  report="${FLEET_SIT_REPORT:-${SIT_CHECKOUT}/sit-report}"
+  case "${report}" in
+  "${root}" | "${root}"/*)
+    sit_fail 'the report directory must live outside the input snapshot'
+    ;;
+  esac
   require_empty_report_directory "${report}"
-  work="$(mktemp -d)"
+  work="$(make_sit_scratch)"
+  SIT_SCRATCH_ROOT="${work}"
+  export SIT_SCRATCH_ROOT
   mkdir -p "${report}"
-  write_implementation_inventory "${report}/implementation-inventory.sha256"
-  sit_report_init "${report}" \
-    "${ARGOCD_VERSION}" "${ARGOCD_SOURCE_COMMIT}" "${ARGOCD_MANIFEST_SHA256}" "${K3S_IMAGE}" \
-    "${SIT_SOURCE_HEAD}" "${IMPLEMENTATION_SHA256}" false \
-    "${IMPLEMENTATION_FILE_COUNT}"
+  write_harness_inventory "${report}/harness-inventory.sha256"
+  write_direct_input_inventory "${report}/direct-input-inventory.sha256" "${SIT_SOURCE_HEAD}"
+  sit_report_init "${report}" "$(sit_pins_json)" "$(sit_provenance_json true)"
   report_active=1
   exec > >(tee -a "${report}/harness.log") 2>&1
   trap cleanup EXIT
@@ -770,9 +3200,10 @@ run_full() {
     'pins-verified.txt' 'manifest-contract.json' 'git-ls-remote.txt' \
     'git-services-ls-remote.txt' 'git-services-alias.json' 'git-smart-http.headers' \
     'platforms-appset.authorized-diff.json' 'canary-appset.yaml' 'cluster-secret-inputs.json' \
+    'cluster-fixture-substitution.json' \
     'runtime-chart-schema-relaxation.diff' 'server-http-runtime.json' \
     'polling-clock-baseline.json' \
-    'implementation-inventory.sha256'
+    'harness-inventory.sha256' 'direct-input-inventory.sha256'
   prepare_repositories
   cp "${work}/runtime-chart-schema-relaxation.diff" "${report}/runtime-chart-schema-relaxation.diff"
   start_git_server "${report}"
@@ -859,13 +3290,20 @@ run_full() {
   sit_leg_pass 'pinned Argo CD and k3s are live; webhook clocks are isolated at 24h'
 
   sit_leg_begin 'L1-baseline-generation' \
-    'expected-child-apps.json' 'apps-S0.json' 'child-specs-S0.json' 'appsets-S0.yaml'
+    'expected-child-apps.json' 'apps-S0.json' 'child-specs-S0.json' 'appsets-S0.yaml' \
+    'infrastructure-exclusion.json'
   build_expected_child_apps "${report}/expected-child-apps.json"
   sit_wait_for 120 'eight canary row Applications and both platform Applications' check_baseline_apps
   capture_child_specs 'S0'
   kubectl -n argocd get applicationsets.argoproj.io -o yaml >"${report}/appsets-S0.yaml"
   jq -e 'length == 8' "${report}/child-specs-S0.json" >/dev/null
-  sit_leg_pass '4 rows x (Primordial + one label-matched cluster Secret), plus committed platform policies'
+  kubectl -n argocd get secrets \
+    -l 'argocd.argoproj.io/secret-type=cluster' -o json >"${work}/cluster-secrets-S0.json"
+  assert_infrastructure_only_excluded \
+    "${report}/apps-S0.json" \
+    "${work}/cluster-secrets-S0.json" \
+    "${report}/infrastructure-exclusion.json"
+  sit_leg_pass '4 rows x (Primordial + one label-matched serving cluster Secret) plus committed platform policies; every seeded infrastructure-only cluster, including one on a serving landscape, received no Application'
 
   local row before_sha
   row="${FLEET_SOURCE}/platforms/canary/landscapes/raichu/dummy.yaml"
@@ -964,8 +3402,12 @@ run_full() {
   ' "${report}/platform-sitother-after-L4.json" >/dev/null
   sit_leg_pass 'canary main moved to C4 and stayed manual/OutOfSync; sitother source A stayed at machinery-stable C1'
 
-  sit_leg_begin 'L5-machinery-tag-and-automated-policy' \
-    'webhook-L5-application.json' 'git-C5-tag.txt' 'l5-reset-and-tag.json' \
+  sit_leg_begin 'L5-machinery-pointer-forward-only-and-automated-policy' \
+    'webhook-L5-application.json' 'l5-reset-and-tag.json' \
+    'machinery-pointer-contract.json' 'git-C5-pointer.txt' 'machinery-pointer-advance-C4.json' \
+    'machinery-pointer-backward-rejected.json' 'machinery-pointer-backward-push.log' \
+    'git-C8-revert.txt' 'git-C8-pointer.txt' 'machinery-pointer-advance-revert.json' \
+    'webhook-L5-rollback.json' 'platform-sitother-after-rollback-L5.json' \
     'platform-sitother-before-L5.json' 'platform-sitother-finalizer-reset-L5.json' \
     'controllers-stopped-L5.json' 'platform-sitother-absence-check-L5.txt' \
     'applicationset-reset-trigger-L5.txt' 'platform-sitother-reset-L5.json' \
@@ -1062,11 +3504,25 @@ run_full() {
     .operation == null and
     .status.operationState == null
   ' "${report}/platform-sitother-reset-L5.json" >/dev/null
-  {
-    git -C "${FLEET_SOURCE}" tag --force machinery-stable "${C4_SHA}"
-    git -C "${FLEET_SOURCE}" push --quiet --force sit refs/tags/machinery-stable
-    git -C "${FLEET_SOURCE}" show-ref --tags machinery-stable
-  } >"${report}/git-C5-tag.txt" 2>&1
+  # The committed product pointer contract, read from the direct input, is what
+  # the throwaway pointer file models: exactly one `target: <40-hex>` line.
+  local committed_pointer_target
+  committed_pointer_target="$(read_machinery_pointer_target registry/machinery-stable.yaml)"
+  jq -n \
+    --arg committedTarget "${committed_pointer_target}" \
+    --arg fixtureTarget "$(read_machinery_pointer_target "${FLEET_SOURCE}/registry/machinery-stable.yaml")" \
+    --arg c1 "${C1_SHA}" \
+    '{
+      pointerFile:"registry/machinery-stable.yaml",
+      format:"exactly one non-comment line: target: <40-lowercase-hex-main-commit>",
+      committedTargetAtRecordedCommit:$committedTarget,
+      throwawayPointerBeforeAdvance:$fixtureTarget,
+      throwawayTagBeforeAdvance:$c1,
+      productWriteMechanism:"protected workflow PATCH of refs/tags/machinery-stable with force:false after a descendant precheck",
+      sitWriteMechanism:"explicit old->new compare-and-swap on the serving repository after the same descendant precheck"
+    }' >"${report}/machinery-pointer-contract.json"
+  advance_machinery_pointer "${C4_SHA}" 'promote machinery-stable to C4' \
+    "${report}/git-C5-pointer.txt" "${report}/machinery-pointer-advance-C4.json"
   tag_moved_at="$(sit_now)"
   jq -n \
     --arg previousUid "${previous_uid}" \
@@ -1091,7 +3547,7 @@ run_full() {
   sit_assert_http_success "${report}/webhook-L5-application.json"
   scale_application_controller 1
   sit_wait_for 120 'new post-tag C4 automatic operation on recreated platform-sitother' \
-    check_sitother_c4_automation_live "${C4_SHA}" "${recreated_uid}" "${tag_moved_at}"
+    check_sitother_automation_live "${C4_SHA}" "${recreated_uid}" "${tag_moved_at}"
   kubectl -n argocd get application.argoproj.io platform-sitother -o json \
     >"${report}/platform-sitother-after-L5.json"
   kubectl -n argocd get application.argoproj.io platform-canary -o json \
@@ -1113,7 +3569,46 @@ run_full() {
   ' "${report}/platform-sitother-after-L5.json" >/dev/null
   jq -e '.operation == null and .status.operationState == null and .spec.syncPolicy.automated == null' \
     "${report}/platform-canary-after-L5.json" >/dev/null
-  sit_leg_pass 'after both owning controllers stopped for an operation-free UID reset, machinery-stable moved to C4 and the restored Application controller launched a new automatic C4 operation; canary still had no operation'
+
+  # Backward pointer: refused by the descendant precheck AND by the transport,
+  # with the serving ref proven unmoved.
+  reject_backward_machinery_pointer "${C1_SHA}" \
+    "${report}/machinery-pointer-backward-rejected.json" \
+    "${report}/machinery-pointer-backward-push.log"
+  jq -e --arg c4 "${C4_SHA}" '.refBefore == $c4 and .refAfter == $c4 and .tagMovedBackward == false' \
+    "${report}/machinery-pointer-backward-rejected.json" >/dev/null
+
+  # Rollback the hardened way: revert the bad compiler-chart change onto a NEW
+  # descendant commit on main, then advance the pointer FORWARD onto it.
+  local revert_sha rollback_moved_at
+  fleet_revert "${C4_SHA}" 'C8 revert the C4 compiler chart change' "${report}/git-C8-revert.txt"
+  revert_sha="${FLEET_LAST_COMMIT}"
+  git -C "${FLEET_SOURCE}" merge-base --is-ancestor "${C4_SHA}" "${revert_sha}" ||
+    sit_fail 'the rollback revert is not a descendant of the commit it reverts'
+  advance_machinery_pointer "${revert_sha}" 'rollback: advance machinery-stable onto the revert commit' \
+    "${report}/git-C8-pointer.txt" "${report}/machinery-pointer-advance-revert.json"
+  rollback_moved_at="$(sit_now)"
+  send_webhook "http://127.0.0.1:${PF_SERVER_PORT}/api/webhook" correct \
+    "${report}/webhook-L5-rollback.json" 'refs/tags/machinery-stable' "${C4_SHA}" "${revert_sha}"
+  sit_assert_http_success "${report}/webhook-L5-rollback.json"
+  sit_wait_for 150 'automatic operation on the rolled-back machinery-stable revision' \
+    check_sitother_automation_live "${revert_sha}" "${recreated_uid}" "${rollback_moved_at}"
+  kubectl -n argocd get application.argoproj.io platform-sitother -o json \
+    >"${report}/platform-sitother-after-rollback-L5.json"
+  jq -e \
+    --arg revert "${revert_sha}" \
+    --arg uid "${recreated_uid}" \
+    --arg rollbackMovedAt "${rollback_moved_at}" '
+    .metadata.uid == $uid and
+    .spec.sources[0].targetRevision == "machinery-stable" and
+    .status.sync.revisions[0] == $revert and
+    .operation.initiatedBy.automated == true and
+    .status.operationState.startedAt >= $rollbackMovedAt and
+    .status.operationState.operation.sync.revisions[0] == $revert
+  ' "${report}/platform-sitother-after-rollback-L5.json" >/dev/null
+  [ "$(machinery_pointer_ref)" = "${revert_sha}" ] ||
+    sit_fail 'machinery-stable does not point at the revert commit after rollback'
+  sit_leg_pass 'after an operation-free UID reset, the pointer advanced machinery-stable to C4 with force:false and the restored controller launched a new automatic C4 operation; a backward pointer was refused twice without moving the ref; rollback advanced the tag FORWARD onto a new descendant revert commit; canary stayed manual with no operation'
 
   sit_leg_begin 'L6-two-row-union-and-no-row' \
     'webhook-L6-two-row.json' 'webhook-L6-no-row.json' 'git-C6-two-row.txt' 'git-C6-no-row.txt' \
@@ -1122,24 +3617,24 @@ run_full() {
   yq -i '.pin.tag = "0.1.3-sit-l6"' \
     "${FLEET_SOURCE}/platforms/canary/landscapes/pichu/dummy.yaml"
   yq -i '.pin.tag = "0.1.3-sit-l6"' \
-    "${FLEET_SOURCE}/platforms/canary/landscapes/amphoros/dummy.yaml"
+    "${FLEET_SOURCE}/platforms/canary/landscapes/ampharos/dummy.yaml"
   printf '\n# SIT C6 roster-only companion change\n' >>"${FLEET_SOURCE}/platforms/canary/services.yaml"
   fleet_commit 'C6 two rows plus roster comment' "${report}/git-C6-two-row.txt" \
     'platforms/canary/landscapes/pichu/dummy.yaml' \
-    'platforms/canary/landscapes/amphoros/dummy.yaml' \
+    'platforms/canary/landscapes/ampharos/dummy.yaml' \
     'platforms/canary/services.yaml'
   C6_SHA="${FLEET_LAST_COMMIT}"
   send_webhook "http://127.0.0.1:${PF_APPSET_PORT}/api/webhook" correct \
     "${report}/webhook-L6-two-row.json" 'refs/heads/main' "${before_sha}" "${C6_SHA}" \
     'platforms/canary/landscapes/pichu/dummy.yaml' \
-    'platforms/canary/landscapes/amphoros/dummy.yaml' \
+    'platforms/canary/landscapes/ampharos/dummy.yaml' \
     'platforms/canary/services.yaml'
   sit_assert_http_success "${report}/webhook-L6-two-row.json"
   sit_wait_for 90 'pichu half of the two-row union' check_child_revision pichu '0.1.3-sit-l6'
-  sit_wait_for 90 'amphoros half of the two-row union' check_child_revision amphoros '0.1.3-sit-l6'
+  sit_wait_for 90 'ampharos half of the two-row union' check_child_revision ampharos '0.1.3-sit-l6'
   capture_child_specs 'S6-two-row'
   assert_changed_landscapes "${report}/child-specs-S3.json" \
-    "${report}/child-specs-S6-two-row.json" L6 pichu amphoros
+    "${report}/child-specs-S6-two-row.json" L6 pichu ampharos
 
   before_sha="${C6_SHA}"
   printf '# SIT C6 non-row-only change\n' >>"${FLEET_SOURCE}/platforms/canary/services.yaml"
@@ -1206,9 +3701,54 @@ run_full() {
     "${report}/child-specs-S7.json" L7 raichu
   sit_leg_pass "polling fallback converged without a webhook in ${poll_elapsed}s"
 
-  assert_clean_unchanged_source "${SIT_SOURCE_HEAD}"
+  sit_leg_begin 'L8-kargo-v1-field-contract' \
+    'kargo-crds-verified.txt' 'kargo-rendered.yaml' 'kargo-rendered-contract.json' \
+    'kargo-persisted.json' 'kargo-persisted-contract.json' 'kargo-crd-semantics.json' \
+    'kargo-crd-preserve-unknown-blind-spots.json' 'kargo-expression-engine.txt' \
+    'kargo-negatives.json' 'kargo-residuals.json'
+  run_kargo_contract_leg
+  sit_leg_pass 'the committed compiler chart renders the exact v1 Kargo mapping, its yaml-update call runs in the pinned expression engine, declared CRD fields survive admission, preserved-unknown blind spots are emitted explicitly, and enum/pattern negatives are rejected; controller behavior is reserved for L9'
+
+  sit_leg_begin 'L9-kargo-v1-runtime' \
+    'kargo-runtime-chart-pull.txt' 'kargo-runtime-chart-sha256.txt' \
+    'kargo-runtime-rollouts-sha256.txt' 'kargo-runtime-image-pulls.txt' \
+    'kargo-runtime-image-imports.txt' 'kargo-runtime-host-images.json' \
+    'kargo-runtime-node-images.json' 'kargo-runtime-node-ctr-images.txt' \
+    'kargo-runtime-webhook-cert-verify.txt' \
+    'kargo-runtime-rollouts-deployment.json' 'kargo-runtime-kargo-deployments.json' \
+    'kargo-runtime-webhooks.json' 'kargo-runtime-rendered.yaml' \
+    'kargo-runtime-delta-oracle.json' 'kargo-runtime-rendered-contract.json' \
+    'kargo-runtime-persisted.json' 'kargo-runtime-persisted-contract.json' \
+    'kargo-runtime-f1-trace.json' 'kargo-runtime-f2-trace.json' \
+    'kargo-runtime-f3-trace.json' 'kargo-runtime-soak-trace.json' \
+    'kargo-runtime-git.diff' 'kargo-runtime-git-oracle.json' \
+    'kargo-runtime-raichu-values-before.yaml' 'kargo-runtime-raichu-values-after.yaml' \
+    'kargo-runtime-controller.log' 'kargo-runtime-management-controller.log' \
+    'kargo-runtime-webhooks-server.log' 'kargo-runtime-rollouts-controller.log' \
+    'kargo-runtime-proof.json'
+  run_kargo_runtime_leg
+  sit_leg_pass 'the pinned Kargo v1.9.10 controllers and webhook execute real git promotions and Rollouts analyses across all gate, rendezvous, verification, soak-ordering, policy-flip, denial, and 90s wall-clock traces; the literal 15m and API/UI/discovery slivers remain explicit residuals'
+
+  local checkout_clean_at_finish direct_input_finish_digest
+  assert_clean_unchanged_checkout "${SIT_CHECKOUT}" "${SIT_SOURCE_HEAD}"
+  checkout_clean_at_finish="$(checkout_clean "${SIT_CHECKOUT}")"
+  assert_verified_snapshot "${SIT_SOURCE_HEAD}"
+  # Recompute the direct-input inventory from the recorded tree and require it
+  # to be byte-identical to the one taken before execution. Provenance is
+  # derived here, never asserted as a literal.
+  write_direct_input_inventory "${report}/direct-input-inventory.finish.sha256" "${SIT_SOURCE_HEAD}"
+  direct_input_finish_digest="${DIRECT_INPUT_SHA256}"
+  cmp -s "${report}/direct-input-inventory.sha256" "${report}/direct-input-inventory.finish.sha256" ||
+    sit_fail 'the direct-input inventory changed during the SIT'
+
   sit_assert_complete_pass_legs
-  sit_report_finish pass
+  sit_report_finish pass "$(jq -n \
+    --arg head "$(git -C "${SIT_CHECKOUT}" rev-parse HEAD)" \
+    --argjson clean "${checkout_clean_at_finish}" \
+    --arg digest "${direct_input_finish_digest}" \
+    '{checkoutHeadAtFinish:$head,checkoutCleanAtFinish:$clean,
+      directInputRecheckedAtFinish:true,directInputSha256AtFinish:$digest}')"
+  sit_assert_provenance_bound "${SIT_SOURCE_HEAD}"
   echo "fleet SIT passed; report: ${SIT_REPORT_FILE}"
 }
 

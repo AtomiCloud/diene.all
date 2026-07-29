@@ -35,16 +35,37 @@ sit_wait_for() {
   done
 }
 
+# The exact ordered leg set of report schema v2. L0-L7 are unchanged from
+# schema v1; L8 is the pinned API contract and L9 is the distinct controller
+# runtime proof. Keeping them separate prevents admission from being described
+# as execution (or vice versa).
+SIT_LEG_CONTRACT=(
+  'L0-runtime-setup'
+  'L1-baseline-generation'
+  'L2-signed-webhook-one-row'
+  'L3-invalid-signatures-no-refresh'
+  'L4-main-tag-and-manual-policy'
+  'L5-machinery-pointer-forward-only-and-automated-policy'
+  'L6-two-row-union-and-no-row'
+  'L7-polling-fallback'
+  'L8-kargo-v1-field-contract'
+  'L9-kargo-v1-runtime'
+)
+
+_sit_leg_contract_json() {
+  printf '%s\n' "${SIT_LEG_CONTRACT[@]}" | jq -Rsc 'split("\n")[:-1]'
+}
+
+# sit_report_init <report-dir> <pins-json> <provenance-json>
+#
+# `provenance-json` is the schema-v2 binding block: the recorded commit, the
+# original checkout's head/cleanliness at start, the verified input snapshot,
+# and the derived direct-input inventory. It is built by the caller from git,
+# never from the harness's own opinion of what it reads.
 sit_report_init() {
   local report_dir="$1"
-  local argocd_version="$2"
-  local argocd_source_commit="$3"
-  local manifest_sha256="$4"
-  local k3s_image="$5"
-  local source_head="$6"
-  local implementation_sha256="$7"
-  local implementation_uncommitted="$8"
-  local implementation_file_count="$9"
+  local pins_json="$2"
+  local provenance_json="$3"
 
   SIT_REPORT_DIR="${report_dir}"
   SIT_REPORT_FILE="${report_dir}/sit-report.json"
@@ -56,34 +77,29 @@ sit_report_init() {
   mkdir -p "${SIT_REPORT_DIR}"
 
   jq -n \
-    --arg argocd "${argocd_version}" \
-    --arg argocdSourceCommit "${argocd_source_commit}" \
-    --arg manifestSha256 "${manifest_sha256}" \
-    --arg k3s "${k3s_image}" \
-    --arg commit "${source_head}" \
-    --arg implementationSha256 "${implementation_sha256}" \
-    --argjson implementationUncommitted "${implementation_uncommitted}" \
-    --argjson implementationFileCount "${implementation_file_count}" \
+    --argjson pins "${pins_json}" \
+    --argjson provenance "${provenance_json}" \
+    --argjson legContract "$(_sit_leg_contract_json)" \
     --arg started "$(sit_now)" \
     '{
-      schemaVersion: 1,
+      schemaVersion: 2,
       status: "running",
-      argocd: $argocd,
-      argocdSourceCommit: $argocdSourceCommit,
-      argocdManifestSha256: $manifestSha256,
-      k3s: $k3s,
-      commit: $commit,
-      implementationSha256: $implementationSha256,
-      implementationInventory: "implementation-inventory.sha256",
-      implementationHashAlgorithm: "sha256 of LF-delimited <file-sha256><two spaces><relative-path> inventory lines sorted bytewise by path",
-      implementationFileCount: $implementationFileCount,
-      implementationUncommittedAtProof: $implementationUncommitted,
+      argocd: $pins.argocd,
+      argocdSourceCommit: $pins.argocdSourceCommit,
+      argocdManifestSha256: $pins.argocdManifestSha256,
+      k3s: $pins.k3s,
+      kargo: $pins.kargo,
+      bindingBasis: "the recorded commit binds every consumed byte: execution reads only a verified snapshot of that commit, the direct-input inventory is derived from its git tree, and the original checkout is proven clean and unchanged at start and finish. The harness digest is NARROWER - it pins only the SIT harness files and is retained as provenance, never as the direct-input inventory.",
       started: $started,
+      legContract: $legContract,
       legs: [],
       residuals: [
-        "seven-landscape manual DAG sync not executed (user-gated; the unavailable OCI workloads make the tail non-runnable)",
+        "Warehouse discovery against a reachable OCI registry is not exercised: runtime coordinates intentionally use registry.sit.invalid and Freight is seeded through the real validating webhook against the rendered Warehouse subscriptions",
         "real scmProvider/GitHub repository listing not exercised; a list-generator variant is reverse-diff-asserted against the committed ApplicationSet",
-        "per-row OCI workload sync not exercised because registry.atomi.cloud artifacts are unavailable; row assertions stop at generated Application specs"
+        "per-row OCI workload sync not exercised because registry.atomi.cloud artifacts are unavailable; row assertions stop at generated Application specs",
+        "literal passage of the production 15m soak is not bought: L9 backdates the persisted write-once Freight.status.currentlyIn[stage].since field and exercises the real pinned comparison in both verification orderings, while a separate otherwise-identical 90s project proves the same released controller code against real wall time",
+        "the Kargo API server and UI approval surface are disabled; manual approval is exercised by creating a real Promotion CR through the pinned Kubernetes validating webhook and SubjectAccessReview path",
+        "the L5 pointer advance models the protected GitHub Git Refs API PATCH with force:false by an equivalent server-side compare-and-swap on the throwaway serving repository, preceded by the same descendant precheck the product mover script performs; the venue has no GitHub API, and the raw non-forced git push of an existing tag is additionally proven to be rejected by the transport itself"
       ],
       deviations: [
         "the throwaway fleet mirror relaxes only values.schema.json fleet.repoURL from ^https:// to ^https?:// because its hermetic smart-HTTP endpoint is cluster-local HTTP without a TLS layer",
@@ -92,7 +108,9 @@ sit_report_init() {
         "before L5 the throwaway harness stops both the Application and ApplicationSet controllers, clears the resources finalizer only on platform-sitother, deletes it while neither controller can restore that finalizer, then restores and explicitly refreshes its owning ApplicationSet; this recreates an operation-free UID and clears the intentionally CRD-light initial retry before the tag moves",
         "the throwaway repo-server starts with its pinned revision-cache expiration at 30s before any ApplicationSet exists, while L7 also shortens the ApplicationSet generator requeue to 30s; matching these two real polling layers makes the no-webhook fallback runnable within the bounded test without flushing cache state",
         "the pinned Argo install uses server-side apply because its ApplicationSet CRD is larger than Kubernetes permits in a client-side last-applied annotation",
-        "the planned static dumb-HTTP fixture transport was replaced after source and runtime verification: Argo CD v3.4.5 go-git remote.List rejects its static info/refs response, so the Bun wrapper invokes git http-backend for smart HTTP"
+        "the planned static dumb-HTTP fixture transport was replaced after source and runtime verification: Argo CD v3.4.5 go-git remote.List rejects its static info/refs response, so the Bun wrapper invokes git http-backend for smart HTTP",
+        "L9 changes only the two ordinary consumer coordinates fleet.repoURL and oci.registry, disables the optional Kargo API/external-webhook/garbage-collector components, and supplies an operator-generated one-run TLS CA/certificate to the real kubernetes-webhooks-server",
+        "the literal 15m clock is strengthened with a separate SIT-only canary-sitsoak project whose otherwise-identical DAG uses 90s; this fixture is never a product render"
       ],
       feasibility: {
         applicationSetWebhookPort: 7000,
@@ -108,9 +126,15 @@ sit_report_init() {
         sameRepositoryDifferentRevisionConstraint: "Argo CD v3.4.5 rejects different revisions when source URLs normalize to one identity",
         fleetServicesAlias: "fleet-services.git symlink to fleet.git with identical advertised refs and a distinct URL identity",
         gitTransport: "smart HTTP via Bun CGI wrapper around git http-backend",
-        argocdRefDiscovery: "pinned util/git/client.go getRefs initializes go-git in-memory storage and calls remote.List through listRemote; it does not shell out to git"
+        argocdRefDiscovery: "pinned util/git/client.go getRefs initializes go-git in-memory storage and calls remote.List through listRemote; it does not shell out to git",
+        clusterSeedSource: "ephemeral Argo cluster Secrets are seeded from registry/fixtures/clusters/*.yaml with SIT-local synthetic mark/provider substituted for the committed placeholders; no live serving ClusterRegistration row exists to seed from, and none may be guessed",
+        infrastructureExclusionOracle: "multiple infrastructure-only cluster Secrets carrying hostRole and traffic:false are seeded and label-selectable; one deliberately names the real serving landscape ampharos, so deleting cluster-role NotIn infrastructure-only would generate an Application and turn the oracle red",
+        machineryPointerMechanism: "forward-only pointer file plus descendant precheck plus explicit old->new compare-and-swap with force:false; rollback is a NEW descendant revert commit the pointer then advances to, never a backward move",
+        kargoContractOracle: "the committed compiler chart is rendered, admitted by an API server carrying the pinned Kargo v1.9.10 CRDs, read back, and re-checked field-exactly. Read-back proves persistence for schema-declared fields; paths below x-kubernetes-preserve-unknown-fields (notably promotion step config) are emitted as blind spots and require the field-exact oracle plus the pinned expression-engine and runtime execution proofs",
+        kargoBehaviourSource: "L8 binds the pinned API/schema semantics; L9 runs the pinned Kargo controller, management-controller, kubernetes-webhooks-server, real git promotion steps, and Argo Rollouts Job-provider analyses",
+        kargoRuntimeCoordinates: "the runtime render changes exactly fleet.repoURL to the throwaway smart-HTTP repository and oci.registry to registry.sit.invalid; a reverse-coordinate and canonical-delta oracle proves every policy, DAG, verification, and soak byte remains equivalent"
       }
-    }' >"${SIT_REPORT_FILE}"
+    } + $provenance' >"${SIT_REPORT_FILE}"
 }
 
 _sit_evidence_json() {
@@ -192,15 +216,34 @@ sit_leg_fail() {
   SIT_LEG_EVIDENCE=()
 }
 
+# sit_report_finish <status> [finish-provenance-json]
+#
+# The finish provenance carries the SECOND half of the binding contract: the
+# original checkout's head/cleanliness after execution and the recomputed
+# direct-input inventory. It is merged verbatim, so a failing run still records
+# whatever provenance was established.
 sit_report_finish() {
   local status="$1"
+  local finish_provenance="${2:-{\}}"
+  jq -e '
+    ((keys - [
+      "checkoutHeadAtFinish",
+      "checkoutCleanAtFinish",
+      "directInputRecheckedAtFinish",
+      "directInputSha256AtFinish"
+    ]) | length) == 0
+  ' <<<"${finish_provenance}" >/dev/null || {
+    sit_fail 'finish provenance contains a key outside the four allowed finish fields'
+    return 1
+  }
   local elapsed=$(($(sit_epoch) - SIT_RUN_STARTED_EPOCH))
   local updated
   updated="$(jq \
     --arg status "${status}" \
     --arg completed "$(sit_now)" \
     --argjson elapsed "${elapsed}" \
-    '.status=$status | .completed=$completed | .elapsed_s=$elapsed' \
+    --argjson finish "${finish_provenance}" \
+    '.status=$status | .completed=$completed | .elapsed_s=$elapsed | . + $finish' \
     "${SIT_REPORT_FILE}")"
   _sit_report_replace "${updated}"
 }
@@ -259,29 +302,58 @@ sit_assert_http_rejected() {
 }
 
 sit_assert_complete_pass_legs() {
-  jq -e '
+  # The contract list comes from this file, never from the report, so a report
+  # that renames or drops a leg cannot define its own success criterion.
+  jq -e \
+    --argjson contract "$(_sit_leg_contract_json)" '
     .status == "running" and
-    [.legs[].leg] == [
-      "L0-runtime-setup",
-      "L1-baseline-generation",
-      "L2-signed-webhook-one-row",
-      "L3-invalid-signatures-no-refresh",
-      "L4-main-tag-and-manual-policy",
-      "L5-machinery-tag-and-automated-policy",
-      "L6-two-row-union-and-no-row",
-      "L7-polling-fallback"
-    ] and
+    .schemaVersion == 2 and
+    .legContract == $contract and
+    [.legs[].leg] == $contract and
     all(.legs[]; .status == "pass" and (.evidence | length) > 0)
   ' "${SIT_REPORT_FILE}" >/dev/null ||
-    sit_fail 'final SIT report does not contain the exact ordered L0-L7 pass set'
+    sit_fail 'final SIT report does not contain the exact ordered L0-L9 pass set'
+}
+
+# Every schema-v2 provenance invariant, asserted on the finished report itself.
+# The wrapper re-derives the same facts independently; this is the in-report
+# half so a bare `--full` run can never finish `pass` without them.
+sit_assert_provenance_bound() {
+  local expected_commit="$1"
+  jq -e --arg commit "${expected_commit}" '
+    .schemaVersion == 2 and
+    .commit == $commit and
+    .checkoutHeadAtStart == $commit and
+    .checkoutHeadAtFinish == $commit and
+    .checkoutCleanAtStart == true and
+    .checkoutCleanAtFinish == true and
+    .inputSnapshotCommit == $commit and
+    .inputSnapshotVerified == true and
+    (.inputSnapshotTree | test("^[0-9a-f]{40}$")) and
+    (.directInputRoots | length) > 0 and
+    .directInputInventory == "direct-input-inventory.sha256" and
+    (.directInputSha256 | test("^[0-9a-f]{64}$")) and
+    .directInputFileCount > 0 and
+    .directInputRecheckedAtFinish == true and
+    .directInputSha256AtFinish == .directInputSha256 and
+    (.harnessSha256 | test("^[0-9a-f]{64}$")) and
+    .harnessFileCount > 0 and
+    .harnessFileCount < .directInputFileCount
+  ' "${SIT_REPORT_FILE}" >/dev/null ||
+    sit_fail 'final SIT report does not bind the recorded commit, the verified snapshot, and the direct-input inventory'
 }
 
 sit_assert_child_specs_stable_for() {
   local duration_s="$1"
   local baseline="$2"
   local failure_evidence="$3"
-  local scratch
-  scratch="$(mktemp -d "${SIT_REPORT_DIR}/.stable.XXXXXX")"
+  local scratch scratch_root
+  scratch_root="${SIT_SCRATCH_ROOT:-${TMPDIR:-/tmp}}"
+  [ -d "${scratch_root}" ] && [ -w "${scratch_root}" ] || {
+    sit_fail "stability scratch root is not a writable directory: ${scratch_root}"
+    return 1
+  }
+  scratch="$(mktemp -d "${scratch_root%/}/fleet-sit-stable.XXXXXX")"
   local deadline=$((SECONDS + duration_s))
 
   while [ "${SECONDS}" -lt "${deadline}" ]; do

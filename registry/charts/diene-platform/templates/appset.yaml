@@ -68,6 +68,11 @@ spec:
               selector:
                 matchLabels:
                   {{ $prefix }}/landscape: '{{`{{ .landscape }}`}}'
+                matchExpressions:
+                  - key: {{ $prefix }}/cluster-role
+                    operator: NotIn
+                    values:
+                      - infrastructure-only
         template:
           metadata:
             name: '{{`{{ .platform }}`}}-{{`{{ .landscape }}`}}-{{`{{ .service }}`}}-{{`{{ .name }}`}}'

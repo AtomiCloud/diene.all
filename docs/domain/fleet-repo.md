@@ -155,9 +155,10 @@ The compiler chart is fleet-wide machinery, bumped for every platform at once �
 no per-platform drift, no N-version support burden. Every platform's Application
 pins source A to the **`machinery-stable` git tag**; a bad release breaks
 _rendering_ loudly (running workloads are untouched — nothing re-deploys until
-the next successful render) and rollback is moving the tag back one commit. This
-moving-tag mechanic is WHY the compiler chart is the S32 git-sourced exception:
-OCI digests cannot resolve a moving git tag; every other chart is OCI-default.
+the next successful render). The tag is advanced from the committed
+`registry/machinery-stable.yaml` pointer, so the moving-tag mechanic remains the
+S32 git-sourced exception: OCI digests cannot resolve a moving git tag; every
+other chart is OCI-default.
 
 **Canary-on-main split**: the canary platform pins source A to `main` instead of
 the tag, and runs with **auto-sync DISABLED**. Every compiler-chart merge to
@@ -165,35 +166,45 @@ the tag, and runs with **auto-sync DISABLED**. Every compiler-chart merge to
 render, for free) — syncing dummy workloads across the full declared landscape
 set is at the human's discretion. Promotion flow: merge to `main` → canary
 render diff reviewed (sync optional) → move `machinery-stable` (a `registry/**`
-PR, human + fleet-admin gated) → every other platform re-renders on its next
-AppSet refresh.
+pointer-file PR, human + fleet-admin gated) → the protected tag-move workflow
+verifies the pointer is a descendant on `main` and advances the tag with
+`force: false` → every other platform re-renders on its next AppSet refresh.
 
-**Who moves it**: fleet-admin, via a `registry/**` PR that fast-forwards the tag
-one commit. "Promote to everyone" = the tag moves; every non-canary platform
-re-renders on its next (webhook-driven) AppSet refresh.
+**Who moves it**: fleet-admin reviews the pointer-file PR; the private
+`fleet-machinery-tag-mover` GitHub App advances only
+`refs/tags/machinery-stable` after that PR merges. "Promote to everyone" = the
+forward-only tag advance; every non-canary platform re-renders on its next
+(webhook-driven) AppSet refresh.
+
+**Rollback is forward-only.** Revert the bad compiler-chart change onto a new
+descendant commit on `main`, review that new canary render diff, and promote the
+revert commit through the same pointer-file path. Pointing the pointer at an
+ancestor is rejected; rollback never force-moves the tag backward.
 
 ## The `mercury-stable` pin
 
 Mercury (the webhook engine — an ordinary in-cluster bun service owned by the
-products platform, Q-WH1/Q-WH5) is versioned by the **same idiom** as
-`machinery-stable`, but the mechanics differ: `mercury-stable` resolves as an
-**ordinary Kargo image+chart pin** on mercury's own service rows (chart
+products platform, Q-WH1/Q-WH5) uses a separate mechanism: `mercury-stable`
+resolves as an **ordinary Kargo image+chart pin** on mercury's own service rows
+under `platforms/mercury/**` (chart
 `Version` == image `Tag`). Every Warehouse uses Kargo ≥1.8's native
 `freightCreationCriteria.expression` to compare `imageFrom(...).Tag` with
 `chartFrom(...).Version`; skewed artifacts never become Freight. The dedicated
 mercury/webhook fixture exercises the identical rail and a mismatched-tag
-negative. CI publishes tagged image+chart artifacts; Kargo promotes. There is
-ONE fleet-wide mercury
-deployment (Q-MT1): no per-platform engines, no per-platform version override.
+negative. CI publishes tagged image+chart artifacts; Kargo promotes through
+mercury's own DAG. Those service rows are bot-written, never PR-gated, and do
+not live under `registry/**`. There is ONE fleet-wide mercury deployment
+(Q-MT1): no per-platform engines, no per-platform version override.
 Platforms own only their webhook _config_ — the `WebhookEngine` CR (rides
 carbon's primordial chart) carries retention/backoff/quotas/custom domains and
 **NO engine-version field**. The CF-era
 `CloudflareDeploy.desiredVersionFrom: {tag: mercury-stable}` render is DEAD.
 
-**Who moves it**: fleet-admin, via a `registry/**` PR bumping the pin.
-`mercury-stable` and `machinery-stable` promote on **independent cadence,
-identical mechanism** — each promotes on its own merge (canary green →
-fast-forward its OWN moving pointer). Same-PR coupling is rejected: a
+**Who moves it**: ordinary Kargo promotion walks mercury's own
+`pichu → pikachu → [raichu, ampharos]` DAG under its Argo-health gates.
+`mercury-stable` has no registry artifact and no moving git tag.
+`mercury-stable` and `machinery-stable` therefore promote on independent
+cadences with different mechanisms. Same-PR coupling is rejected: a
 compiler-chart fix must not force a webhook-engine redeploy, and vice versa.
 
 ## GitHub `registry/**` guard (Q-GH1 — PUBLIC repo + CODEOWNERS)
@@ -205,48 +216,48 @@ feature, and the AtomiCloud org is on the Free plan — so the fleet repo goes
 consequence: fleet topology and landscape names are world-readable (secrets
 never lived in the repo).
 
-The guard, applied as code:
+The guard is one apply-time policy set, not only a branch rule:
 
 1. **Branch ruleset on `main`** (`.github/rulesets/registry-guard-main.json`):
-   require a PR + required code-owner review before merge, deletion + non-fast-
-   forward protection, and **Kargo-bot bypass = Always** so its `platforms/**`
-   promotion commits push directly.
-   The provisioned Kargo automation identity is the organization-owned
-   **AtomiCloud Auth Bot** GitHub App (`contents: write` only); the ruleset
-   records that App's integration actor ID, never a human or organization-admin
-   bypass.
-2. **CODEOWNERS** (`.github/CODEOWNERS`): `registry/**` → the
-   `@AtomiCloud/fleet-admin` team; combined with the ruleset's
-   `require_code_owner_review`, this is a hard fleet-admin gate on registry
-   changes. `platforms/**` is deliberately ABSENT (break-glass rows stay
-   ungated).
+   require a PR and fresh code-owner approval before merge, protect deletion and
+   non-fast-forward updates, and grant the organization-owned AtomiCloud Auth Bot
+   the bypass needed for normal A19/A20 `platforms/**` writes.
+2. **CODEOWNERS** (`.github/CODEOWNERS`): protect `registry/**`, the guard
+   machinery, and the CI enforcement roots with the
+   `@AtomiCloud/fleet-admin` team.
+3. **Four tag rulesets plus A33**: three rulesets cover
+   `machinery-stable` creation/update, deletion, and force-push blocking; a
+   fourth catch-all protects every other tag. The dedicated
+   `fleet-machinery-tag-mover` GitHub App (A33) bypasses only the
+   creation/update rule. It has no bypass on deletion, force-push blocking,
+   other tags, or `main`, and its private key must be exposed only through the
+   fleet-admin-reviewed `machinery-stable-tag-move` environment. The fixed
+   workflow advances the fixed tag endpoint with `force: false` from the
+   committed pointer; the no-A33-bypass force-push rule is the hard
+   anti-backtrack boundary.
 
-Net: `registry/**` changes are human-PR + fleet-admin-review gated; the bot
-pushes `platforms/**` directly. **Accepted Free-plan gap**: a misbehaving bot
-could technically touch `registry/**` until a Team upgrade adds a path-restricted
-push ruleset (which is then addable with no redesign). The residual is covered by
-a periodic sandbox test asserting the bot tooling never writes outside
-`platforms/**`.
+Human `registry/**` changes therefore take the PR + fleet-admin-review lane,
+while A19/A20 normally write `platforms/**` directly. **There is no Free-plan
+path-level hard fence for A19/A20**: an extracted or misbehaving bot credential
+can technically write `registry/**` until a Team upgrade makes a path-restricted
+push ruleset available. Tooling assertions that normal promotion emits only
+`platforms/**` diffs detect contract drift; they do not turn that residual into
+a GitHub-enforced path boundary.
 
-The config is managed as code: `scripts/local/registry-guard-apply.sh` refuses
-a non-public/non-`main` target, applies the payload idempotently, then verifies
-the exact live policy and the remote CODEOWNERS bytes. It is human-run and
+`scripts/local/registry-guard-apply.sh` refuses a non-public/non-`main` target,
+applies all five rulesets idempotently, validates the A33 App/environment, and
+verifies the live policy and remote CODEOWNERS bytes. It is human-run and
 re-runnable for drift repair. `scripts/validate/registry-guard.sh` is the
-offline policy-validation gate (per-PR). This is orthogonal to the tag
-mechanism: the guard governs _who can write_ `registry/**`; the tag governs
-_when a write takes effect_.
+per-PR offline policy gate. The full provisioning contract, residual authority,
+and owner actions are recorded in `docs/domain/fleet-guard.md`.
 
-The periodic live tier is `.github/workflows/registry-guard-e2e.yaml` (weekly +
-manual). It mints the repository-scoped AtomiCloud Auth Bot token, proves that
-the bot can directly add and remove one exact file below `platforms/**`, asserts
-the staged diff never escapes that path, and has an always-run cleanup step. The
-2026-07-24 commissioning run is
-[`30106082233`](https://github.com/AtomiCloud/fleet/actions/runs/30106082233):
-both protected-`main` pushes reported the PR-rule bypass, creation commit
-`9813f990b02db40df864a9900559dffa50f48996` was removed by cleanup commit
-`752170d700411ae4393e5dd92e9871708561932b`, and the proof path was absent at the
-verified final tip. The commissioning PR was closed without merge and its branch
-deleted after evidence capture.
+The periodic `.github/workflows/registry-guard-e2e.yaml` is now a multi-job
+suite targeting the public `AtomiCloud/fleet-guard-sandbox`, not the product
+repository. It covers the ordinary-token, A19/A20, and raw-A33 authorization
+cases, including the accepted A33 scratch-branch capability and force-backtrack
+denial. Sandbox provisioning and a successful run are owner-only work; until
+that evidence exists, the live denial claims remain deferred/withdrawn exactly
+as `docs/domain/fleet-guard.md` records. No obsolete production run is credited.
 
 ## ArgoCD webhook wiring
 
@@ -279,12 +290,15 @@ dependency-operator.
 
 Fleet carries final ENV-SPEC/Q-ENV47 as an integration contract, including the
 dotted `module.service.platform.instance.landscape.zone` coordinate with
-`instance` outside LPSM. It does **not** synthesize missing topology: the seven
-workload Landscape records and ENTEI ClusterRegistration/Landscape remain
-user-gated while topology is under discussion, and no concrete or logical
-placeholder values are emitted. The related hosted-profile, vcluster allocation,
+`instance` outside LPSM. Fleet commits the four registered workload Landscape
+rows (`pichu`, `pikachu`, `raichu`, `ampharos`) and the `mew`/`celebi`
+envelopes. Serving-cluster provider coordinates remain unratified, so only
+schema-valid fixtures carry their explicit placeholders and live registry paths
+refuse them. Fleet likewise defines the ENTEI host-row shape and its
+infrastructure-only exclusion tests; `host-pool` owns the concrete ENTEI region,
+mark, provider, and live pair. The related hosted-profile, vcluster allocation,
 local-Logto, Infisical-write, sulfoxide-consumption, and durable-reaper proof tail
-stays dependency/site owned until that ruling lands.
+stays dependency/site owned.
 
 `⚠ S11 ASSUMED-GREEN`: fleet composes helm-wrapper's load-balancer Service and
 fixed-IP annotations and supplies topology to the Route53 backup-domain rail; it
@@ -319,12 +333,12 @@ takes every compiler-chart bump first and is the fleet's own golden-render smoke
 test, live in the actual ArgoCD instance. The dummy service carries ZERO business
 logic — any scope creep beyond feature-exercising rows is caught at review.
 
-Lapras is intentionally absent from canary rows and stages. Fleet retains only
-`registry/landscapes/lapras.yaml`, the secrets-side identity anchor required by
-WAL Q-L8(c); it carries no cluster registration or central dependency material.
-The deliberate input schema rejects `lapras` in the serving landscape list,
-pipeline stages, and every landscape-bearing dependency/VLS/Problem fragment,
-while the checked-in row validator independently rejects a lapras row.
+Lapras is intentionally absent from canary rows and stages and has no Landscape,
+ClusterRegistration, or VirtualLandscape row in this repository. Its
+secrets-side identity is Garden-managed outside the fleet registry. The input
+schema rejects `lapras` in the serving landscape list, pipeline stages, and every
+landscape-bearing dependency/VLS/Problem fragment; the registry-manifest gate
+also rejects any attempted lapras row.
 
 Golden renders are committed at `registry/charts/diene-platform/tests/golden/`
 (`canary.prod.yaml`) and diffed by
@@ -342,36 +356,57 @@ the `values:` >7d guardrail; registry/rendered CR validation (including
 CloudflareDeploy rollout and Warehouse); rollout and WebhookEngine negatives;
 AppSet scope; platforms AppSet; registry guard policy; and presence.
 
-`scripts/ci/fleet-sit.sh` is the serialized live-local SIT tier. It creates a
-throwaway k3d cluster, installs checksum-pinned Argo CD v3.4.5, derives Argo
-cluster Secrets from the checked-in registry records, and exercises the real
+`scripts/ci/fleet-sit-proof.sh` is the required serialized live-local SIT entry
+point. It verifies a clean exact HEAD, executes `fleet-sit.sh` from a detached
+throwaway snapshot, and independently rechecks the report and direct-input
+inventory. The harness creates a throwaway k3d cluster, installs
+checksum-pinned Argo CD v3.4.5, derives Argo cluster Secrets from the checked-in
+serving and infrastructure-only fixtures, and exercises the real
 ApplicationSet and Application controllers. Run it from the repository root:
 
 ```sh
-nix develop .#ci -c ./scripts/ci/fleet-sit.sh
+nix develop .#ci -c ./scripts/ci/fleet-sit-proof.sh
 ```
 
 The structured result is `sit-report/sit-report.json`, with raw snapshots and
-HTTP evidence beside it. Full mode refuses a dirty worktree before creating
-the report and requires the recorded starting HEAD to remain unchanged and
-clean before it can mark the report passed. Its bounded legs prove signed webhook refresh,
-wrong/missing-signature rejection while polling is suppressed, polling-only
-fallback after clocks are re-enabled, row-edit scoping with no cross-row bleed,
-and the `main`/`machinery-stable` canary-manual/non-canary-automated split.
+HTTP/controller evidence beside it. Full mode refuses a dirty worktree and
+requires the recorded starting HEAD to remain unchanged and clean before it can
+mark the report passed. L0–L7 cover the bounded Argo refresh, row-scoping, and
+`main`/`machinery-stable` journeys. L8 is deliberately the separate pinned
+Kargo schema/admission contract: it verifies the v1.9.10 CRDs and expression
+engine, applies the committed render, reads it back, and checks the exact
+policy/DAG/verification/soak fields while reporting preserved-unknown-field
+blind spots. L9 is the runtime proof: it installs the digest-pinned Kargo
+controller, management-controller, kubernetes-webhooks-server, Argo Rollouts,
+and Analysis Job image; admits Freight through the real webhook; executes the
+real git-clone/yaml-update/git-commit/git-push promotion steps; and proves the
+auto/manual policies, both analysis gates, all-members rendezvous, policy
+flips, denial cases, both soak orderings, and a separate 90-second wall-clock
+strengthener. Its runtime render changes only `fleet.repoURL` and
+`oci.registry`, with a canonical delta oracle protecting every policy byte.
 
-The SIT reports three residuals rather than overstating them:
+The report keeps the remaining boundaries explicit:
 
 - Real GitHub SCM-provider repository listing is replaced by a local list
-  generator; the derivation is reverse-diff-asserted against the committed
-  SCM-provider ApplicationSet so no other production behavior can drift.
-- OCI workload synchronization is not exercised; the live proof asserts the
-  generated Application specs and controller refresh behavior.
-- The seven-landscape canary manual DAG sync is not exercised while landscape
-  topology remains user-gated. No placeholder topology is synthesized.
+  generator whose derivation is reverse-diff-asserted against the committed
+  SCM-provider ApplicationSet.
+- Per-row OCI workload synchronization and Warehouse discovery against a
+  reachable registry are not exercised; the registry coordinate is deliberately
+  hermetic, and webhook-admitted Freight must exactly match the Warehouse
+  subscriptions.
+- The literal production `15m` is exercised by backdating Kargo's persisted,
+  write-once `Freight.status.currentlyIn[stage].since` reference and proving
+  both verification orderings. The same released controller receives a real
+  90-second wall-clock test; only literal passage of fifteen wall-clock minutes
+  remains unbought.
+- `api.enabled=false`, so manual approval is a real Promotion CR admitted by
+  Kargo's Kubernetes webhook, not the Kargo API/UI approval surface.
+- The L5 pointer move uses the throwaway repository's server-side
+  compare-and-swap plus descendant precheck as the local equivalent of GitHub's
+  `force:false` update-ref API; no GitHub API runs in this venue.
 
-Registry-guard real behavior and bot-tooling scope remain a periodic live e2e
-against the public product repo (`.github/workflows/registry-guard-e2e.yaml`),
-not a per-PR test; GitHub authorization is best proven against the real repo.
+Registry-guard authorization remains a periodic e2e against the public sandbox
+repository, not a per-PR test and not a claim about an unrun product-repo probe.
 
 The new-platform-registration, materializer stub/roster sync, and
 `OrphanedSource` deletion journeys are **dependency-operator/platform-controller

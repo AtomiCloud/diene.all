@@ -157,10 +157,8 @@
       "pattern": "^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?$"
     },
     "registeredLandscape": {
-      "allOf": [
-        { "$ref": "#/definitions/dnsLabel" },
-        { "not": { "const": "lapras" } }
-      ]
+      "$comment": "The registered WORKLOAD landscape set (goals/fleet.md exclusion law): exactly pichu, pikachu, raichu, ampharos. A CLOSED enum rather than a blocklist — that is what makes the exclusion STRUCTURAL. By construction it rejects, all at once: the infrastructure-only host landscape entei (registered for provisioning/inventory/upgrade/recovery only, never a workload target — ENV-SPEC 0.3), the Garden-managed local landscapes lapras/ditto/rotom/absol (no registry row exists for them), the hosted instance types eevee/castform (projection parameters, never registry identities), the retired identities plusle/minun (R-P6), and the stale spelling amphoros.",
+      "enum": ["pichu", "pikachu", "raichu", "ampharos"]
     },
     "duration": {
       "type": "string",
@@ -183,12 +181,8 @@
       "additionalProperties": false
     },
     "analysisTemplate": {
-      "type": "object",
-      "required": ["name"],
-      "properties": {
-        "name": { "$ref": "#/definitions/dnsLabel" }
-      },
-      "additionalProperties": false
+      "$comment": "A verification entry is the analysis template's NAME. goals/fleet.md fixes the v1 mapping: each verification.analysisTemplates name maps 1:1 to a {name: ...} entry in the rendered Stage's spec.verification.analysisTemplates. Declaring the input as a bare name keeps that mapping a real transformation the chart performs, rather than a passthrough of whatever shape the author wrote.",
+      "$ref": "#/definitions/dnsLabel"
     },
     "stageObject": {
       "type": "object",

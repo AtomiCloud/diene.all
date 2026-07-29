@@ -145,8 +145,16 @@ canary-features)
   json -e 'map(select(.kind=="Warehouse")) | length==1' >/dev/null || fail "Kargo Warehouse missing"
   # Full registered-fleet serving set present as Kargo Stages; lapras is a
   # secrets-side Landscape anchor and must not materialize centrally.
-  json -e '[.[] | select(.kind=="Stage") | .metadata.labels["'"${prefix}"'/landscape"]] | sort == ["amphoros","pichu","pikachu","raichu"]' >/dev/null ||
-    fail "Kargo stages do not cover exactly the registered-fleet serving set"
+  json -e '[.[] | select(.kind=="Stage") | .metadata.labels["'"${prefix}"'/landscape"]] | sort == ["ampharos","pichu","pikachu","raichu"]' >/dev/null ||
+    fail "Kargo stages do not cover exactly the registered WORKLOAD landscape set"
+  # ENTEI is infrastructure-only and must never receive a Stage, a row, or any
+  # rendered object — asserted on the rendered output, not only on the input.
+  json -e 'all(.[]; (.metadata.labels["'"${prefix}"'/landscape"] // "") != "entei")' >/dev/null ||
+    fail "an infrastructure-only landscape received a rendered object (exclusion law, ENV-SPEC §0.3)"
+  # Canary dummy-service guardrail: exactly ONE service, named dummy, so canary
+  # can never quietly become a second real platform to maintain.
+  json -e '[.[] | select(.kind=="Warehouse") | .metadata.name] == ["dummy"]' >/dev/null ||
+    fail "canary must expose exactly one service named 'dummy' (dummy-service guardrail)"
   # ≥1 dependency module per class family.
   json -e 'map(select(.kind=="PlatformDependency"))[0].spec | (.database|length>=1) and (.kv|length>=1) and (.cache|length>=1) and (.store|length>=1)' >/dev/null ||
     fail "PlatformDependency lacks a module in every class family"
@@ -158,19 +166,140 @@ canary-features)
 dag)
   render >"${tmp}/r.yaml"
   stage() { yq eval-all -o=json '.' "${tmp}/r.yaml" | jq -s '.[] | select(.kind=="Stage" and .metadata.name=="'"$1"'")'; }
-  # first step subscribes DIRECTLY to the Warehouse
+  policies() { yq eval-all -o=json '.' "${tmp}/r.yaml" | jq -s '.[] | select(.kind=="ProjectConfig") | .spec.promotionPolicies'; }
+  auto_enabled() { policies | jq -e --arg s "$1" 'map(select(.stageSelector.name==$s and .autoPromotionEnabled==true)) | length==1' >/dev/null; }
+  no_policy() { policies | jq -e --arg s "$1" 'map(select(.stageSelector.name==$s)) | length==0' >/dev/null; }
+
+  # ---------------------------------------------------------------------------
+  # FIELD-EXACT v1 Kargo mapping (goals/fleet.md: "exact, not an implementation
+  # choice"). Every assertion below reads a REAL Kargo field, never an
+  # annotation: an annotation cannot gate a promotion, so asserting one would be
+  # a green that answers a weaker question than the one being asked.
+  # Field shapes verified against the Kargo v1.9.10 CRDs
+  # (projectconfigs: stageSelector.name + autoPromotionEnabled;
+  #  stages: sources.{direct,stages,availabilityStrategy,requiredSoakTime}).
+  # ---------------------------------------------------------------------------
+
+  # pichu — bare first step: enabled auto-promotion policy, subscribes DIRECT to
+  # the Warehouse, no verification, no required-soak.
+  auto_enabled canary-dummy-pichu || fail "pichu must carry an enabled auto-promotion policy"
   stage canary-dummy-pichu | jq -e '.spec.requestedFreight[0].sources.direct==true' >/dev/null ||
     fail "first pipeline step must subscribe direct to the Warehouse"
-  # a parallel-set member takes the PRECEDING step as upstream
+  stage canary-dummy-pichu | jq -e '.spec.verification==null and (.spec.requestedFreight[0].sources|has("requiredSoakTime")|not)' >/dev/null ||
+    fail "bare first step must omit verification and required-soak fields"
+
+  # pikachu — object parallel member, gate: manual: NO enabling policy (absence
+  # is the mechanism), requests freight from pichu, carries canary-smoke.
+  no_policy canary-dummy-pikachu || fail "gate: manual must emit NO enabling promotion policy for pikachu"
   stage canary-dummy-pikachu | jq -e '.spec.requestedFreight[0].sources.stages==["canary-dummy-pichu"]' >/dev/null ||
     fail "parallel-set member must take the preceding step as upstream"
-  # the step AFTER a parallel set lists ALL of that set's members (rendezvous)
-  stage canary-dummy-amphoros | jq -e '.spec.requestedFreight[0].sources.stages | sort == ["canary-dummy-pikachu","canary-dummy-raichu"]' >/dev/null ||
-    fail "step after a parallel set must rendezvous on ALL members"
-  # object-form step opts into full Kargo semantics (manual gate + soak + verification)
-  stage canary-dummy-raichu | jq -e '.metadata.annotations["'"${prefix}"'/promotion-gate"]=="manual" and .metadata.annotations["'"${prefix}"'/soak"]=="1h" and (.spec.verification.analysisTemplates|length>=1)' >/dev/null ||
-    fail "object-form pipeline step must carry gate/soak/verification"
-  echo "  stages: → Kargo compilation rule (direct / preceding / rendezvous / opt-in gate) ✓"
+  stage canary-dummy-pikachu | jq -e '.spec.verification.analysisTemplates==[{"name":"canary-smoke"}]' >/dev/null ||
+    fail "pikachu must carry exactly analysisTemplates [{name: canary-smoke}]"
+
+  # raichu — BARE parallel member: enabled policy, upstream pichu, and no
+  # verification or required-soak fields at all.
+  auto_enabled canary-dummy-raichu || fail "bare parallel member raichu must carry an enabled auto-promotion policy"
+  stage canary-dummy-raichu | jq -e '.spec.requestedFreight[0].sources.stages==["canary-dummy-pichu"]' >/dev/null ||
+    fail "bare parallel member must take the preceding step as upstream"
+  stage canary-dummy-raichu | jq -e '.spec.verification==null and (.spec.requestedFreight[0].sources|has("requiredSoakTime")|not)' >/dev/null ||
+    fail "bare parallel member must omit verification and required-soak fields"
+
+  # ampharos — the post-parallel RENDEZVOUS: enabled policy, BOTH upstream
+  # members, availabilityStrategy All, 15m residency, canary-analysis.
+  auto_enabled canary-dummy-ampharos || fail "ampharos rendezvous must carry an enabled auto-promotion policy"
+  stage canary-dummy-ampharos | jq -e '.spec.requestedFreight[0].sources.stages==["canary-dummy-pikachu","canary-dummy-raichu"]' >/dev/null ||
+    fail "step after a parallel set must rendezvous on ALL members, in order"
+  stage canary-dummy-ampharos | jq -e '.spec.requestedFreight[0].sources.availabilityStrategy=="All"' >/dev/null ||
+    fail "rendezvous must set sources.availabilityStrategy: All (Kargo defaults to OneOf — omitting it silently weakens the gate)"
+  stage canary-dummy-ampharos | jq -e '.spec.requestedFreight[0].sources.requiredSoakTime=="15m"' >/dev/null ||
+    fail "rendezvous must map soak to sources.requiredSoakTime: 15m"
+  stage canary-dummy-ampharos | jq -e '.spec.verification.analysisTemplates==[{"name":"canary-analysis"}]' >/dev/null ||
+    fail "ampharos must carry exactly analysisTemplates [{name: canary-analysis}]"
+
+  # Every Stage retains the fixed git-update promotion template, identical for
+  # auto and manual gates, and updates ONLY the pin.
+  yq eval-all -o=json '.' "${tmp}/r.yaml" | jq -s -e '
+    [.[] | select(.kind=="Stage")] as $s
+    | ($s|length) == 4
+    and all($s[]; [.spec.promotionTemplate.spec.steps[].uses] == ["git-clone","yaml-update","git-commit","git-push"])
+    and all($s[]; [.spec.promotionTemplate.spec.steps[] | select(.uses=="yaml-update") | .config.updates[].key] == ["pin.tag"])
+    and all($s[]; [.spec.promotionTemplate.spec.steps[] | select(.uses=="yaml-update") | .config.updates[].value] == ["${{ imageFrom(\"registry.atomi.cloud/canary/dummy\").Tag }}"])
+  ' >/dev/null || fail "every Stage must retain the fixed pin-only git-update promotion template with the exact native Kargo imageFrom(...).Tag value"
+
+  echo "  stages: → Kargo v1 mapping (ProjectConfig policies / direct / preceding / rendezvous All+soak / verification / fixed pin-only template) ✓"
+  ;;
+dag-negative)
+  # Controlled negatives over the EXACT rendered fields. Each mutates one field
+  # of the ratified fixture and requires the shape assertion above to notice.
+  # These are golden-diff-class negatives expressed as targeted field checks so
+  # a failure names the field rather than dumping a whole-file diff.
+  neg() {
+    local desc="$1" expr="$2"
+    cp "${fixture}" "${tmp}/neg.yaml"
+    yq -i "${expr}" "${tmp}/neg.yaml"
+    helm template "${release}" "${chart}" --namespace "${namespace}" \
+      --values "${services}" --values "${tmp}/neg.yaml" >"${tmp}/neg-render.yaml" 2>/dev/null || {
+      echo "    ${desc} → rejected at render ✓"
+      return 0
+    }
+    cmp -s "${golden_dir}/canary.prod.yaml" "${tmp}/neg-render.yaml" &&
+      fail "negative '${desc}' produced a render IDENTICAL to the golden — the mutation is invisible"
+    echo "    ${desc} → golden diff detected ✓"
+  }
+  # remove the rendezvous soak
+  neg "rendezvous soak removed" 'del(.stages[2].soak)'
+  # flip the rendezvous gate to manual (drops its enabling policy)
+  neg "rendezvous gate flipped to manual" '.stages[2].gate = "manual"'
+  # flip the manual parallel member to auto (adds an enabling policy)
+  neg "manual member flipped to auto" '.stages[1][0].gate = "auto"'
+  # rename an analysis template
+  neg "analysis template renamed" '.stages[2].verification.analysisTemplates[0] = "not-canary-analysis"'
+  # drop verification from the manual member
+  neg "manual member verification removed" 'del(.stages[1][0].verification)'
+
+  # ---------------------------------------------------------------------------
+  # RENDER-TAMPER negatives — prove the `dag` field assertions are NON-VACUOUS.
+  # The two mutations the goal names by name (dropping `availabilityStrategy:
+  # All`, and dropping an upstream stage name from the rendezvous) cannot be
+  # reached from the INPUT: the parallel set's minItems:2 rejects the collapsed
+  # DAG at the schema, so an input mutation would only re-test the schema. These
+  # tamper the RENDERED output directly and require the exact assertion the
+  # `dag` mode runs to go red — i.e. they test the guard, not the input.
+  # ---------------------------------------------------------------------------
+  render >"${tmp}/t.yaml"
+  # Both dollar-brace forms are literal Kargo inputs, not shell expansions.
+  # shellcheck disable=SC2016
+  bad_pipe_value='${{ imageFrom "registry.atomi.cloud/canary/dummy" | .Tag }}'
+  # shellcheck disable=SC2016
+  exact_yaml_update_value='${{ imageFrom("registry.atomi.cloud/canary/dummy").Tag }}'
+  tamper() {
+    local desc="$1" mutate="$2" assert="$3"
+    yq eval-all -o=json '.' "${tmp}/t.yaml" |
+      jq -s --arg bad_pipe_value "$bad_pipe_value" --arg exact_yaml_update_value "$exact_yaml_update_value" "${mutate}" >"${tmp}/tampered.json"
+    if jq -e --arg exact_yaml_update_value "$exact_yaml_update_value" "${assert}" "${tmp}/tampered.json" >/dev/null 2>&1; then
+      fail "VACUOUS GUARD: '${desc}' still satisfied the dag assertion — that assertion proves nothing"
+    fi
+    echo "    ${desc} → dag assertion goes red ✓"
+  }
+  tamper "availabilityStrategy: All deleted from the rendezvous" \
+    'map(if .kind=="Stage" and .metadata.name=="canary-dummy-ampharos" then del(.spec.requestedFreight[0].sources.availabilityStrategy) else . end)' \
+    'any(.[]; .kind=="Stage" and .metadata.name=="canary-dummy-ampharos" and .spec.requestedFreight[0].sources.availabilityStrategy=="All")'
+  tamper "one upstream stage name dropped from the rendezvous" \
+    'map(if .kind=="Stage" and .metadata.name=="canary-dummy-ampharos" then .spec.requestedFreight[0].sources.stages = ["canary-dummy-raichu"] else . end)' \
+    'any(.[]; .kind=="Stage" and .metadata.name=="canary-dummy-ampharos" and .spec.requestedFreight[0].sources.stages==["canary-dummy-pikachu","canary-dummy-raichu"])'
+  tamper "requiredSoakTime deleted from the rendezvous" \
+    'map(if .kind=="Stage" and .metadata.name=="canary-dummy-ampharos" then del(.spec.requestedFreight[0].sources.requiredSoakTime) else . end)' \
+    'any(.[]; .kind=="Stage" and .metadata.name=="canary-dummy-ampharos" and .spec.requestedFreight[0].sources.requiredSoakTime=="15m")'
+  tamper "manual pikachu granted an enabling promotion policy" \
+    'map(if .kind=="ProjectConfig" then .spec.promotionPolicies += [{"stageSelector":{"name":"canary-dummy-pikachu"},"autoPromotionEnabled":true}] else . end)' \
+    '[.[] | select(.kind=="ProjectConfig") | .spec.promotionPolicies[] | select(.stageSelector.name=="canary-dummy-pikachu")] | length==0'
+  # The jq variables below are populated by --arg, not expanded by the shell.
+  # shellcheck disable=SC2016
+  tamper "yaml-update value uses the invalid Go-template pipe" \
+    'map(if .kind=="Stage" then (.spec.promotionTemplate.spec.steps[] | select(.uses=="yaml-update") | .config.updates[].value) = $bad_pipe_value else . end)' \
+    'all(.[]; (.kind != "Stage") or ([.spec.promotionTemplate.spec.steps[] | select(.uses=="yaml-update") | .config.updates[].value] == [$exact_yaml_update_value]))'
+
+  echo "  controlled DAG negatives visible in the render, and the dag assertions proven non-vacuous ✓"
   ;;
 delivery-mode)
   render >"${tmp}/prod.yaml"
@@ -263,12 +392,17 @@ row-values-persistence)
 registry-cr)
   # Registry CRs validate against frozen fleet-owned slices. Application and
   # ApplicationSet use hand-reduced, pinned Argo CD v3.4.5 schemas.
+  # registry/clusters is ABSENT while the v1 serving roster is unratified (its
+  # emptiness IS the encoded refusal), so it is included only when it exists —
+  # host-pool's live ENTEI row will populate it.
+  live_targets=(registry/landscapes registry/virtual-landscapes
+    registry/fleet-root.yaml registry/argocd-webhook-secret.yaml
+    registry/platforms-appset.yaml)
+  [ -d registry/clusters ] && live_targets+=(registry/clusters)
   kubeconform -strict -summary \
     -schema-location default \
     -schema-location 'schemas/{{ .ResourceKind }}.json' \
-    registry/landscapes registry/clusters registry/virtual-landscapes \
-    registry/fleet-root.yaml registry/argocd-webhook-secret.yaml \
-    registry/platforms-appset.yaml
+    "${live_targets[@]}"
 
   # Deterministic negative: Applications may not declare an empty source URL.
   cp registry/fleet-root.yaml "${tmp}/invalid-application.yaml"
@@ -279,13 +413,402 @@ registry-cr)
     "${tmp}/invalid-application.yaml" >/dev/null 2>&1; then
     fail "Application schema accepted an empty source repoURL"
   fi
-  yq -e '.kind == "Landscape" and .metadata.name == "lapras"' registry/landscapes/lapras.yaml >/dev/null ||
-    fail "lapras secrets-side Landscape anchor is missing"
-  while IFS= read -r cluster; do
-    [ "$(yq -r '.spec.landscape // ""' "${cluster}")" = "lapras" ] &&
-      fail "lapras ClusterRegistration is forbidden by WAL Q-L9: ${cluster}"
-  done < <(find registry/clusters -type f -name '*.yaml' | sort)
-  echo "  registry CRs validate against frozen schemas; invalid Application source is rejected ✓"
+  # Topology FIXTURES are schema-valid too — that is the whole point of proving
+  # a shape rather than a value. They are validated here and excluded from the
+  # live-set assertions in `registry-manifest`.
+  kubeconform -strict -summary \
+    -schema-location default \
+    -schema-location 'schemas/{{ .ResourceKind }}.json' \
+    registry/fixtures/landscapes registry/fixtures/clusters \
+    registry/fixtures/negative/entei-traffic-true.yaml \
+    registry/fixtures/negative/second-infrastructure-landscape.yaml \
+    registry/fixtures/negative/second-infrastructure-cluster.yaml
+
+  echo "  registry CRs + topology fixtures validate against frozen schemas; invalid Application source is rejected ✓"
+  ;;
+registry-manifest)
+  # ---------------------------------------------------------------------------
+  # The ratified registry roster, asserted mechanically (goals/fleet.md DoD:
+  # "asserted by a registry-manifest CI check, not review convention").
+  #
+  # SCOPE NOTE: canonical-spelling checks run over SEMANTIC FIELDS AND PATHS
+  # only — never over comment prose. Several files legitimately name the stale
+  # variant while explaining that it is stale; a gate that banned the string
+  # outright would forbid documenting its own rule.
+  # ---------------------------------------------------------------------------
+  workload=(pichu pikachu raichu ampharos)
+  live_landscapes="registry/landscapes"
+  live_clusters="registry/clusters"
+  live_vlandscapes="registry/virtual-landscapes"
+
+  live_rows_in() {
+    [ -d "$1" ] || return 0
+    find "$1" -type f -name '*.yaml' | sort
+  }
+
+  names_in() {
+    # semantic identity of every live CR in a directory: metadata.name
+    [ -d "$1" ] || return 0
+    find "$1" -type f -name '*.yaml' -print0 | sort -z |
+      xargs -0 -r -n1 yq -r '.metadata.name'
+  }
+
+  # --- (1) live Landscape set is EXACTLY the four workload rows (+ optional entei)
+  actual_landscapes="$(names_in "${live_landscapes}" | sort | tr '\n' ' ' | sed 's/ $//')"
+  expected_landscapes="$(printf '%s\n' "${workload[@]}" | sort | tr '\n' ' ' | sed 's/ $//')"
+  # NOTE: `printf '%s\nentei\n' ${workload}` would REUSE the format per argument
+  # and emit `entei` four times. Feed entei as a trailing argument instead.
+  expected_with_entei="$(printf '%s\n' "${workload[@]}" entei | sort | tr '\n' ' ' | sed 's/ $//')"
+  if [ "${actual_landscapes}" != "${expected_landscapes}" ] && [ "${actual_landscapes}" != "${expected_with_entei}" ]; then
+    fail "registry/landscapes must contain exactly [${expected_landscapes}] (plus the optional infrastructure-only 'entei' row landed by host-pool) — found [${actual_landscapes}]"
+  fi
+
+  # --- (2) the LIVE ENTEI pair is mutually exclusive: no ENTEI Landscape
+  # permits no cluster rows; one ENTEI Landscape permits exactly its one
+  # authoritative host row. This refuses every serving row until the owner
+  # publishes the serving-cluster roster, without guessing any coordinates.
+  mapfile -t entei_landscape_rows < <(
+    while IFS= read -r manifest; do
+      if yq -e '.kind == "Landscape" and .metadata.name == "entei"' "$manifest" >/dev/null 2>&1; then
+        printf '%s\n' "$manifest"
+      fi
+    done < <(live_rows_in "$live_landscapes")
+  )
+  mapfile -t live_cluster_rows < <(live_rows_in "$live_clusters")
+
+  case "${#entei_landscape_rows[@]}" in
+  0)
+    [ "${#live_cluster_rows[@]}" -eq 0 ] ||
+      fail "no live ENTEI Landscape requires registry/clusters to contain zero live ClusterRegistration rows"
+    ;;
+  1)
+    entei_landscape="${entei_landscape_rows[0]}"
+    yq -e '.spec.purpose == "infrastructure-only"' "$entei_landscape" >/dev/null ||
+      fail "a live ENTEI Landscape must carry spec.purpose: infrastructure-only"
+    [ "${#live_cluster_rows[@]}" -eq 1 ] ||
+      fail "one live ENTEI Landscape requires exactly one live ClusterRegistration row"
+
+    entei_cluster="${live_cluster_rows[0]}"
+    yq -e '.kind == "ClusterRegistration"' "$entei_cluster" >/dev/null ||
+      fail "the single live ENTEI row must be a ClusterRegistration"
+    entei_mark="$(yq -r '.spec.mark // ""' "$entei_cluster")"
+    [ -n "$entei_mark" ] ||
+      fail "the live ENTEI ClusterRegistration must carry a non-empty spec.mark"
+    entei_name="entei-$entei_mark"
+    # The diagnostic names the literal schema field `${spec.mark}`.
+    # shellcheck disable=SC2016
+    [ "$(yq -r '.metadata.name // ""' "$entei_cluster")" = "$entei_name" ] ||
+      fail 'the live ENTEI ClusterRegistration name must equal entei-${spec.mark}'
+    yq -e '.spec.landscape == "entei"' "$entei_cluster" >/dev/null ||
+      fail "the live ENTEI ClusterRegistration must set spec.landscape: entei"
+    yq -e '.metadata.labels["atomi.cloud/landscape"] == "entei"' "$entei_cluster" >/dev/null ||
+      fail "the live ENTEI ClusterRegistration must set label atomi.cloud/landscape: entei"
+    yq -e '.spec.hostRole == "anonymous-vcluster-host"' "$entei_cluster" >/dev/null ||
+      fail "the live ENTEI ClusterRegistration must set spec.hostRole: anonymous-vcluster-host"
+    yq -e '.spec.originMode == "loadbalancer"' "$entei_cluster" >/dev/null ||
+      fail "the live ENTEI ClusterRegistration must set spec.originMode: loadbalancer"
+    yq -e '.spec.traffic == false' "$entei_cluster" >/dev/null ||
+      fail "the live ENTEI ClusterRegistration must set spec.traffic: false"
+    ;;
+  *)
+    fail "registry/landscapes may contain at most one live ENTEI Landscape row"
+    ;;
+  esac
+
+  # --- (3) forbidden identities: Garden-managed, hosted instance types, retired
+  mapfile -t live_manifests < <(
+    {
+      live_rows_in "$live_landscapes"
+      live_rows_in "$live_clusters"
+      live_rows_in "$live_vlandscapes"
+    } | sort
+  )
+  live_identities=""
+  if [ "${#live_manifests[@]}" -gt 0 ]; then
+    live_identities="$(yq eval-all -o=json '.' "${live_manifests[@]}" |
+      jq -rs -r '.[] | [(.metadata.name // ""), (.spec.landscape // "")] + (.spec.hosts // []) | .[]')"
+  fi
+  for forbidden_name in primordial lapras ditto rotom absol eevee castform plusle minun; do
+    grep -Fxq "$forbidden_name" <<<"$live_identities" &&
+      fail "forbidden identity '$forbidden_name' appears in the live registry — Garden-managed, hosted-instance, and retired identities never get a registry row"
+  done
+
+  # --- (4) canonical spelling in SEMANTIC FIELDS and PATHS (never in prose)
+  # Compile the semantic fields once, rather than launching yq once per file:
+  # this gate runs inside every controlled-negative copy.
+  mapfile -d '' -t semantic_manifests < <(
+    find "${live_landscapes}" "${live_clusters}" "${live_vlandscapes}" registry/fixtures platforms -type f -name '*.yaml' -print0 2>/dev/null | sort -z
+  )
+  if [ "${#semantic_manifests[@]}" -gt 0 ] &&
+    yq eval-all -o=json '.' "${semantic_manifests[@]}" |
+    jq -s -e 'any(.[]; [(.metadata.name // ""), (.spec.landscape // ""), (.metadata.labels["atomi.cloud/landscape"] // "")] + (.spec.hosts // []) | any(. == "amphoros"))' >/dev/null; then
+    fail "stale spelling 'amphoros' in a semantic field — the canonical registry spelling is 'ampharos'"
+  fi
+
+  while IFS= read -r stale_path; do
+    [ -n "${stale_path}" ] && fail "stale spelling 'amphoros' in a committed PATH: ${stale_path}"
+  done < <(find registry platforms -depth -name '*amphoros*' 2>/dev/null)
+
+  # --- (5) virtual-landscape envelopes are EXACTLY mew + celebi with exact hosts
+  actual_vl="$(names_in "${live_vlandscapes}" | sort | tr '\n' ' ' | sed 's/ $//')"
+  [ "${actual_vl}" = "celebi mew" ] ||
+    fail "registry/virtual-landscapes must contain exactly [celebi mew] — found [${actual_vl}]"
+  # NOTE: mikefarah yq's `==` does not perform deep ARRAY equality (it returns
+  # false for equal arrays), so every ordered-list assertion in this file goes
+  # through jq. Using yq here would produce a permanently-false check that reads
+  # like a passing guard.
+  yq -o=json '.spec.hosts' "${live_vlandscapes}/mew.yaml" | jq -e '. == ["raichu","ampharos"]' >/dev/null ||
+    fail "mew envelope hosts must be exactly [raichu, ampharos]"
+  yq -o=json '.spec.hosts' "${live_vlandscapes}/celebi.yaml" | jq -e '. == ["pikachu"]' >/dev/null ||
+    fail "celebi envelope hosts must be exactly [pikachu]"
+
+  # --- (6) placeholder-live-path refusal
+  while IFS= read -r manifest; do
+    [ -z "${manifest}" ] && continue
+    placeholders="$(yq -r '[.. | select(tag == "!!str")] | map(select(test("<[A-Za-z-]+>"))) | join(",")' "${manifest}" 2>/dev/null || true)"
+    [ -z "${placeholders}" ] && continue
+    fail "placeholder ${placeholders} committed under a LIVE registry path: ${manifest} — placeholders belong in registry/fixtures/ only"
+  done < <(find "${live_landscapes}" "${live_clusters}" "${live_vlandscapes}" -type f -name '*.yaml' 2>/dev/null | sort)
+
+  # --- (7) fleet-root must NOT sync the fixtures tree
+  include_glob="$(yq -r '.spec.source.directory.include' registry/fleet-root.yaml)"
+  case "${include_glob}" in
+  *fixtures*) fail "registry/fleet-root.yaml's include glob covers fixtures/ — ArgoCD would APPLY the negative fixtures as real objects" ;;
+  esac
+  yq -e '.spec.source.directory.include | test("landscapes/\*\.yaml")' registry/fleet-root.yaml >/dev/null ||
+    fail "registry/fleet-root.yaml must keep its explicit include allowlist"
+
+  echo "  live roster exact · entei invariant · forbidden identities absent · canonical spelling · envelopes exact · no guessed serving rows · no live-path placeholders · fixtures unsynced ✓"
+  ;;
+registry-manifest-negative)
+  # ---------------------------------------------------------------------------
+  # Proves the registry-manifest gate is NON-VACUOUS. Each case copies the live
+  # registry into a throwaway tree, plants ONE violation, and requires the gate
+  # to reject it. Without this, every assertion above is an untested claim.
+  #
+  # The baseline is the ruled live registry. Each controlled negative must fail
+  # for its OWN mutation, and case 0 proves the unmodified baseline is green.
+  # ---------------------------------------------------------------------------
+  self="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/scripts/validate/fleet.sh"
+  base="${tmp}/base"
+  mkdir -p "${base}"
+  cp -r registry platforms "${base}/"
+
+  run_case() {
+    local desc="$1" expect="$2"
+    shift 2
+    local work="${tmp}/case-$$-${RANDOM}"
+    cp -r "${base}" "${work}"
+    (cd "${work}" && "$@")
+    if (cd "${work}" && bash "${self}" registry-manifest >/dev/null 2>&1); then
+      [ "${expect}" = "pass" ] && {
+        echo "    ${desc} → gate green ✓"
+        return 0
+      }
+      fail "VACUOUS GATE: '${desc}' was ACCEPTED by registry-manifest"
+    else
+      [ "${expect}" = "fail" ] && {
+        echo "    ${desc} → gate red ✓"
+        return 0
+      }
+      fail "gate rejected the baseline it should accept: ${desc}"
+    fi
+  }
+
+  # A controlled negative must fail for its own mutation. Requiring the expected
+  # diagnostic also proves the exact gate branch fired.
+  run_reject() {
+    local desc="$1" needle="$2"
+    shift 2
+    local work="$tmp/case-$$-$RANDOM"
+    cp -r "$base" "$work"
+    (cd "$work" && "$@")
+    local output
+    if output="$(cd "$work" && bash "$self" registry-manifest 2>&1)"; then
+      fail "VACUOUS GATE: '$desc' was ACCEPTED by registry-manifest"
+    fi
+    grep -Fq "$needle" <<<"$output" ||
+      fail "wrong rejection for '$desc' (expected '$needle'): $output"
+    echo "    $desc → expected gate branch red ✓"
+  }
+
+  live_entei_landscape() {
+    sed 's/<RATIFIED-HOST-REGION>/us-test-1/' registry/fixtures/landscapes/entei.yaml >registry/landscapes/entei.yaml
+  }
+  live_entei_cluster() {
+    mkdir -p registry/clusters
+    sed -e 's/<mark>/jade/g' -e 's/<provider>/ratified-provider/g' \
+      registry/fixtures/clusters/entei-mark.yaml >registry/clusters/entei-jade.yaml
+  }
+  live_entei_pair() {
+    live_entei_landscape
+    live_entei_cluster
+  }
+  non_entei_host_row() {
+    live_entei_cluster
+    yq -i '.metadata.name = "suicune-jade" | .metadata.labels["atomi.cloud/landscape"] = "suicune" | .spec.landscape = "suicune"' registry/clusters/entei-jade.yaml
+    mv registry/clusters/entei-jade.yaml registry/clusters/suicune-jade.yaml
+  }
+  wrong_entei_cluster_landscape() {
+    live_entei_pair
+    yq -i '.spec.landscape = "suicune"' registry/clusters/entei-jade.yaml
+  }
+  wrong_entei_cluster_label() {
+    live_entei_pair
+    yq -i '.metadata.labels["atomi.cloud/landscape"] = "suicune"' registry/clusters/entei-jade.yaml
+  }
+  entei_name_mark_mismatch() {
+    live_entei_pair
+    yq -i '.metadata.name = "entei-onyx"' registry/clusters/entei-jade.yaml
+  }
+  second_entei_host_row() {
+    live_entei_pair
+    cp registry/clusters/entei-jade.yaml registry/clusters/entei-onyx.yaml
+    yq -i '.metadata.name = "entei-onyx" | .spec.mark = "onyx"' registry/clusters/entei-onyx.yaml
+  }
+  entei_missing_origin_mode() {
+    live_entei_pair
+    yq -i 'del(.spec.originMode)' registry/clusters/entei-jade.yaml
+  }
+  entei_wrong_origin_mode() {
+    live_entei_pair
+    yq -i '.spec.originMode = "clusterip"' registry/clusters/entei-jade.yaml
+  }
+  entei_traffic_true() {
+    live_entei_landscape
+    mkdir -p registry/clusters
+    sed -e 's/<mark>/jade/g' -e 's/<provider>/ratified-provider/g' \
+      registry/fixtures/negative/entei-traffic-true.yaml >registry/clusters/entei-jade.yaml
+  }
+  entei_missing_purpose() {
+    live_entei_pair
+    yq -i 'del(.spec.purpose)' registry/landscapes/entei.yaml
+  }
+
+  run_case "ruled live-registry baseline" pass true
+  run_reject "extra live landscape (suicune)" \
+    "registry/landscapes must contain exactly" \
+    cp registry/fixtures/negative/second-infrastructure-landscape.yaml registry/landscapes/suicune.yaml
+  run_reject "Garden-managed lapras identity" \
+    "forbidden identity 'lapras'" \
+    yq -i '.spec.hosts = ["lapras","ampharos"]' registry/virtual-landscapes/mew.yaml
+  run_reject "retired plusle identity" \
+    "forbidden identity 'plusle'" \
+    yq -i '.spec.hosts = ["raichu","plusle"]' registry/virtual-landscapes/mew.yaml
+  run_reject "stale spelling in a semantic field" \
+    "stale spelling 'amphoros' in a semantic field" \
+    yq -i '.metadata.labels["atomi.cloud/landscape"] = "amphoros"' registry/landscapes/ampharos.yaml
+  run_reject "stale spelling in a committed PATH" \
+    "stale spelling 'amphoros' in a committed PATH" \
+    mv registry/landscapes/ampharos.yaml registry/landscapes/amphoros.yaml
+  run_reject "mew envelope host set altered" \
+    "mew envelope hosts must be exactly [raichu, ampharos]" \
+    yq -i '.spec.hosts = ["raichu"]' registry/virtual-landscapes/mew.yaml
+  run_reject "celebi envelope removed" \
+    "registry/virtual-landscapes must contain exactly [celebi mew]" \
+    rm registry/virtual-landscapes/celebi.yaml
+  run_reject "arbitrary non-ENTEI host-role/traffic row" \
+    "no live ENTEI Landscape requires registry/clusters to contain zero live ClusterRegistration rows" \
+    non_entei_host_row
+  run_reject "live ENTEI row with traffic: true" \
+    "the live ENTEI ClusterRegistration must set spec.traffic: false" \
+    entei_traffic_true
+  run_reject "live ENTEI Landscape missing its purpose" \
+    "a live ENTEI Landscape must carry spec.purpose: infrastructure-only" \
+    entei_missing_purpose
+  run_reject "placeholder promoted into a live path" \
+    "placeholder <UNRATIFIED-REGION> committed under a LIVE registry path" \
+    yq -i '.spec.region = "<UNRATIFIED-REGION>"' registry/landscapes/pichu.yaml
+  run_reject "fleet-root taught to sync fixtures" \
+    "registry/fleet-root.yaml's include glob covers fixtures/" \
+    yq -i '.spec.source.directory.include = "{landscapes/*.yaml,fixtures/**/*.yaml}"' registry/fleet-root.yaml
+
+  # the ONE shape the gate must accept: host-pool's live ENTEI pair under its invariant
+  run_case "host-pool lands the live ENTEI pair under its invariant" pass live_entei_pair
+
+  run_reject "ENTEI row with wrong spec.landscape" \
+    "the live ENTEI ClusterRegistration must set spec.landscape: entei" \
+    wrong_entei_cluster_landscape
+  run_reject "ENTEI row with wrong landscape label" \
+    "the live ENTEI ClusterRegistration must set label atomi.cloud/landscape: entei" \
+    wrong_entei_cluster_label
+  # The expected diagnostic names the literal schema field `${spec.mark}`.
+  # shellcheck disable=SC2016
+  run_reject "ENTEI name and mark mismatch" \
+    'the live ENTEI ClusterRegistration name must equal entei-${spec.mark}' \
+    entei_name_mark_mismatch
+  run_reject "second ENTEI host row" \
+    "one live ENTEI Landscape requires exactly one live ClusterRegistration row" \
+    second_entei_host_row
+  run_reject "Landscape-only ENTEI pair" \
+    "one live ENTEI Landscape requires exactly one live ClusterRegistration row" \
+    live_entei_landscape
+  run_reject "ClusterRegistration-only ENTEI pair" \
+    "no live ENTEI Landscape requires registry/clusters to contain zero live ClusterRegistration rows" \
+    live_entei_cluster
+  run_reject "ENTEI row missing originMode" \
+    "the live ENTEI ClusterRegistration must set spec.originMode: loadbalancer" \
+    entei_missing_origin_mode
+  run_reject "ENTEI row with wrong originMode" \
+    "the live ENTEI ClusterRegistration must set spec.originMode: loadbalancer" \
+    entei_wrong_origin_mode
+
+  echo "  registry-manifest gate proven non-vacuous across 20 violations + 2 accepted shapes ✓"
+  ;;
+registry-exclusion)
+  # ---------------------------------------------------------------------------
+  # The exclusion law keys on purpose/hostRole, NOT on the literal name `entei`.
+  # A second, differently named infrastructure-only pair must be excluded
+  # IDENTICALLY — this is the only assertion that catches a name-special-cased
+  # gate (host-pool §1).
+  # ---------------------------------------------------------------------------
+  entei_l=registry/fixtures/landscapes/entei.yaml
+  second_l=registry/fixtures/negative/second-infrastructure-landscape.yaml
+  second_c=registry/fixtures/negative/second-infrastructure-cluster.yaml
+
+  [ "$(yq -r '.metadata.name' "${second_l}")" != "entei" ] ||
+    fail "the second infrastructure-only fixture must NOT be named entei — it exists to prove the exclusion is not name-keyed"
+
+  # both infrastructure-only landscapes carry the same discriminator
+  for f in "${entei_l}" "${second_l}"; do
+    yq -e '.spec.purpose == "infrastructure-only"' "${f}" >/dev/null ||
+      fail "${f} must carry spec.purpose: infrastructure-only"
+  done
+  # both host clusters carry the same role + traffic invariant
+  for f in registry/fixtures/clusters/entei-mark.yaml "${second_c}"; do
+    yq -e '.spec.hostRole == "anonymous-vcluster-host" and .spec.traffic == false' "${f}" >/dev/null ||
+      fail "${f} must carry hostRole: anonymous-vcluster-host and traffic: false"
+  done
+
+  # traffic-true negative is schema-VALID but semantically rejected
+  kubeconform -strict -summary -schema-location default \
+    -schema-location 'schemas/{{ .ResourceKind }}.json' \
+    registry/fixtures/negative/entei-traffic-true.yaml >/dev/null ||
+    fail "the traffic-true negative must stay schema-valid, so the rejection proves the INVARIANT rather than the schema"
+  yq -e '.spec.traffic == true and .spec.hostRole == "anonymous-vcluster-host"' \
+    registry/fixtures/negative/entei-traffic-true.yaml >/dev/null ||
+    fail "the traffic-true negative no longer expresses the violation it exists to encode"
+
+  # a platform.yaml declaring an infrastructure-only landscape must be REJECTED
+  # by the closed registeredLandscape enum, before any object is rendered.
+  if helm template "${release}" "${chart}" --namespace "${namespace}" \
+    --values "${services}" --values registry/fixtures/negative/platform-declares-entei.yaml >/dev/null 2>&1; then
+    fail "a platform.yaml declaring 'entei' in landscapes:/stages: was RENDERED — the exclusion law is not enforced"
+  fi
+  # ...and so must one naming the SECOND infrastructure-only landscape, proving
+  # the rejection is structural rather than a special case for `entei`.
+  cp registry/fixtures/negative/platform-declares-entei.yaml "${tmp}/second-infra-platform.yaml"
+  yq -i '(.landscapes[] | select(. == "entei")) = "suicune" | (.stages[] | select(. == "entei")) = "suicune"' "${tmp}/second-infra-platform.yaml"
+  if helm template "${release}" "${chart}" --namespace "${namespace}" \
+    --values "${services}" --values "${tmp}/second-infra-platform.yaml" >/dev/null 2>&1; then
+    fail "a platform.yaml declaring the SECOND infrastructure-only landscape rendered — the exclusion is name-keyed, not purpose-keyed"
+  fi
+
+  # canary declares exactly the four workload landscapes, and never entei
+  yq -o=json '.landscapes' "${fixture}" | jq -e '. == ["pichu","pikachu","raichu","ampharos"]' >/dev/null ||
+    fail "canary must declare exactly the four registered WORKLOAD landscapes"
+
+  echo "  infrastructure-only exclusion keyed on purpose/hostRole (proven with a second, differently named pair) ✓"
   ;;
 webhook-secret)
   # Build-time semantic contract for the authenticated GitHub -> ArgoCD
@@ -336,15 +859,41 @@ webhook-secret)
 rendered-cr)
   # The compiler chart's own diene CRD kinds and rendered ArgoCD
   # ApplicationSets validate against frozen schemas. Project/Stage remain
-  # upstream Kargo kinds without a diene slice. Warehouse uses pinned Kargo
-  # v1.9.10 validation; CloudflareDeploy including optional rollout validates
-  # against the frozen T3 shape.
+  # upstream Kargo kinds without a diene slice. Warehouse and ProjectConfig use
+  # pinned Kargo v1.9.10 slices; CloudflareDeploy including optional rollout
+  # validates against the frozen T3 shape.
+  #
+  # ProjectConfig is deliberately NOT skipped: it is the CR that actually gates
+  # promotion, and `gate: manual` is realized as the ABSENCE of an enabling
+  # policy — a distinction an unvalidated render could lose silently.
   render >"${tmp}/r.yaml"
+  yq eval-all -o=json 'select(.kind == "ApplicationSet")' "${tmp}/r.yaml" >"${tmp}/applicationset.json"
+  jq -e '
+    .spec.generators[1].matrix.generators[1].clusters.selector.matchExpressions == [{
+      key:"atomi.cloud/cluster-role", operator:"NotIn", values:["infrastructure-only"]
+    }]
+  ' "${tmp}/applicationset.json" >/dev/null ||
+    fail "rendered ApplicationSet lost the exact infrastructure-only cluster-role exclusion"
   kubeconform -strict -summary \
     -schema-location default \
     -schema-location 'schemas/{{ .ResourceKind }}.json' \
     -skip Project,Stage \
     "${tmp}/r.yaml"
+  # Schema negative: keep the exact selector path but make `values` a scalar.
+  # Requiring the field-specific diagnostic proves this fails in the frozen
+  # matchExpressions slice, not in an unrelated part of the ApplicationSet.
+  jq '.spec.generators[1].matrix.generators[1].clusters.selector.matchExpressions[0].values = "infrastructure-only"' \
+    "${tmp}/applicationset.json" >"${tmp}/invalid-match-expressions.json"
+  if kubeconform -strict -summary \
+    -schema-location default \
+    -schema-location 'schemas/{{ .ResourceKind }}.json' \
+    "${tmp}/invalid-match-expressions.json" >"${tmp}/invalid-match-expressions.log" 2>&1; then
+    fail "ApplicationSet schema accepted scalar matchExpressions values"
+  fi
+  rg -q 'matchExpressions.*values|values.*matchExpressions' "${tmp}/invalid-match-expressions.log" ||
+    fail "malformed matchExpressions was rejected without its field-specific schema diagnostic"
+  rg -qi 'array' "${tmp}/invalid-match-expressions.log" ||
+    fail "malformed matchExpressions diagnostic did not require values to be an array"
   # Deterministic negative: fleet ApplicationSets require Go templating for
   # generator variables and the templatePatch row guard.
   yq eval-all 'select(.kind == "ApplicationSet")' "${tmp}/r.yaml" >"${tmp}/invalid-applicationset.yaml"
@@ -355,7 +904,7 @@ rendered-cr)
     "${tmp}/invalid-applicationset.yaml" >/dev/null 2>&1; then
     fail "ApplicationSet schema accepted goTemplate=false"
   fi
-  echo "  rendered ApplicationSets validate; goTemplate=false is rejected ✓"
+  echo "  rendered ApplicationSet selector validates exactly; malformed matchExpressions and goTemplate=false are rejected ✓"
   ;;
 cloudflare-rollout-negative)
   render >"${tmp}/r.yaml"
@@ -408,6 +957,8 @@ appset-scope)
     fail "g2 name must consume explicit row fields"
   as | jq -e '.spec.generators[1].matrix.generators[1].clusters.selector.matchLabels["'"${prefix}"'/landscape"] == "{{ .landscape }}"' >/dev/null ||
     fail "g2 selector must consume explicit row landscape"
+  as | jq -e '.spec.generators[1].matrix.generators[1].clusters.selector.matchExpressions == [{key:"'"${prefix}"'/cluster-role",operator:"NotIn",values:["infrastructure-only"]}]' >/dev/null ||
+    fail "g2 selector must exclude infrastructure-only cluster-role Secrets"
   as | jq -e '.spec.generators[1].matrix.template.spec.sources[0].repoURL == "oci://registry.atomi.cloud/{{ .platform }}-{{ .service }}"' >/dev/null ||
     fail "g2 OCI path must consume explicit row fields"
   expected_values='{{ get . "values" | default dict | toRawJson }}'
@@ -420,7 +971,7 @@ appset-scope)
     fail "AppSet templatePatch must validate row fields against roster/path/filename"
   as | jq -e '[.. | strings | select(test("path\\.segments|path\\.filename"))] | length == 1' >/dev/null ||
     fail "path-derived identity leaked outside the row-validation templatePatch"
-  echo "  AppSet g1/g2 uses explicit row identity with fail-before-render path/roster guards ✓"
+  echo "  AppSet g1/g2 uses explicit row identity, excludes infrastructure-only Secrets, and keeps fail-before-render path/roster guards ✓"
   ;;
 platforms-appset)
   # The committed platforms AppSet: SCM-provider generator over *.carbon,
@@ -468,7 +1019,7 @@ golden-mutation | golden-mutations)
   }
   mut "platform/Infisical identity (projectSlug)" '.infisical.projectSlug = "canary-alt"'
   mut "platform/Infisical identity (sos.register)" '.sos.register = false'
-  mut "stages (object-form soak)" '.stages[1][1].soak = "2h"'
+  mut "stages (rendezvous soak)" '.stages[2].soak = "30m"'
   mut "dependencies.database (neon representative)" '.dependencies.database.maindb.cpu = 2'
   mut "dependencies.kv (upstash representative)" '.dependencies.kv.sessions.ram = "256Mi"'
   mut "dependencies.cache (dragonfly representative)" '.dependencies.cache.hot.ram = "256Mi"'

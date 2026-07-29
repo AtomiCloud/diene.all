@@ -26,13 +26,9 @@ jobs:
     with:
       chart_path: ./infra/root_chart
 
-  helm-wrapper:
-    name: Helm Wrapper
-    permissions:
-      contents: read
-    uses: ./.github/workflows/⚡reusable-helm-wrapper.yaml
-    secrets: inherit
-
+  # Fleet is an S30 materialized product: its compiler chart is validated by
+  # the fleet job below, while the inherited wrapper job requires the probe
+  # matrix that this branch deliberately removes.
   fleet:
     name: Fleet
     permissions:
