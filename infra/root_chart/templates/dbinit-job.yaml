@@ -1,0 +1,105 @@
+{{- /* ### dotnet-api-dbinit */ -}}
+{{- /* #### source: dotnet-api */ -}}
+{{- if .Values.dbInit.enabled -}}
+{{- include "dotnetapi.validateServiceTree" . -}}
+{{- $configMapName := include "dotnetapi.resourceName" (dict "root" . "token" "dbinitconfig") -}}
+{{- if include "dotnetapi.hasConfig" . }}
+{{- /* Hook-scoped copy of the vendored config. Helm hooks and ArgoCD PreSync both run BEFORE
+       the release's ordinary resources, so the pre-sync Job cannot mount the Deployment's
+       release-scoped ConfigMap — on a first install it would block in ContainerCreating
+       forever. Same rendered content, same lifecycle as the Job that consumes it. */}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $configMapName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "dotnetapi.labelsFor" (dict "root" . "component" "dbinit") | nindent 4 }}
+  annotations:
+    {{- include "dotnetapi.annotations" . | nindent 4 }}
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: '-2'
+    helm.sh/hook-delete-policy: before-hook-creation
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: {{ .Values.config.syncWave | quote }}
+data:
+  {{- include "dotnetapi.configData" . | trim | nindent 2 }}
+{{ end }}
+{{- /* The one-shot db-init entry point: the SAME image with the `db-init` argument
+       (App/StartUp/RunMode.cs). It performs reachability checks, bucket creation, the real EF
+       Core migration, and the idempotent seed.
+
+       HOOK-SCOPED ONLY — this is the hard requirement. The Job carries BOTH hook systems:
+       helm `pre-install,pre-upgrade` for `helm install|upgrade`, and ArgoCD `PreSync` for
+       GitOps. `before-hook-creation` deletes the previous Job first, so a re-run is not an
+       immutable-field conflict. The sync wave orders it after the secret/config and before
+       the Deployment's implicit wave 0.
+
+       Because it is a HOOK, helm renders it into a separate lifecycle: it is never part of
+       the release's ordinary resource set, so it cannot participate in — let alone force —
+       the Deployment's update. Nothing about this Job is checksummed into the pod template
+       either. The Deployment therefore always performs an ordinary rolling update, with the
+       migration having already run as a separate hook-scoped Job before the rollout.
+
+       On a FIRST install the ExternalSecret has not materialized its target Secret yet when
+       this runs, which is why the secret `envFrom` is `optional` and why db-init must be
+       re-runnable: the migration is idempotent and the seed is seed-if-not-exists. */ -}}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "dotnetapi.resourceName" (dict "root" . "token" "dbinit") }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "dotnetapi.labelsFor" (dict "root" . "component" "dbinit") | nindent 4 }}
+  annotations:
+    {{- include "dotnetapi.annotations" . | nindent 4 }}
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: '-1'
+    helm.sh/hook-delete-policy: before-hook-creation
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: {{ .Values.dbInit.syncWave | quote }}
+spec:
+  backoffLimit: {{ .Values.dbInit.backoffLimit }}
+  ttlSecondsAfterFinished: {{ .Values.dbInit.ttlSecondsAfterFinished }}
+  activeDeadlineSeconds: {{ .Values.dbInit.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "dotnetapi.labelsFor" (dict "root" . "component" "dbinit") | nindent 8 }}
+      annotations:
+        {{- include "dotnetapi.annotations" . | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: dbinit
+          image: {{ include "dotnetapi.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            {{- toYaml .Values.dbInit.args | nindent 12 }}
+          env:
+            {{- include "dotnetapi.commonEnv" . | trim | nindent 12 }}
+            {{- with .Values.dbInit.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with (include "dotnetapi.envFrom" . | trim) }}
+          envFrom:
+            {{- . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.dbInit.resources | nindent 12 }}
+          volumeMounts:
+            {{- include "dotnetapi.volumeMounts" (dict "root" .) | nindent 12 }}
+      volumes:
+        {{- include "dotnetapi.volumes" (dict "root" . "configMapName" $configMapName) | nindent 8 }}
+{{- end }}
