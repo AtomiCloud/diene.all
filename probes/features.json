@@ -367,6 +367,11 @@
   },
   {
     "template": "diene/dotnet-api",
+    "name": "dotnet-api-primordial-chart-schema",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-api",
     "name": "dotnet-api-app-chart-template",
     "class": "smoke"
   }
