@@ -5,7 +5,7 @@ name: ⚡ Reusable Helm
 on:
   workflow_call:
     inputs:
-      chart_path:
+      chart_paths:
         required: true
         type: string
       version:
@@ -24,7 +24,7 @@ jobs:
       - uses: AtomiCloud/actions.setup-nix@v3
       - name: Build and push Helm
         env:
-          CHART_PATH: ${{ inputs.chart_path }}
+          CHART_PATHS: ${{ inputs.chart_paths }}
           CI_HELM_PUSH: 'true'
           DOMAIN: ghcr.io
           DOCKER_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
