@@ -1692,11 +1692,221 @@ kargo_runtime_verify_node_image() {
   sit_fail "the k3d node does not bind ${tag_ref} to pinned digest ${digest}"
 }
 
+# The name a `repo:tag@digest` reference actually resolves to inside the CRI.
+# kubelet passes the pod reference verbatim to CRI ImageStatus; containerd 1.7
+# normalizes it through distribution/reference.ParseDockerRef, which DROPS the
+# tag whenever a digest is present, and resolves the remainder by EXACT match
+# against stored containerd image names. So the lookup key is `repo@digest` -
+# never the combined string, and never the tag.
+kargo_runtime_alias_image_ref() {
+  local tag_ref="$1"
+  local digest="$2"
+  case "${tag_ref##*/}" in
+  *:*) ;;
+  *)
+    sit_fail "cannot derive a digest alias from an untagged reference: ${tag_ref}"
+    return 1
+    ;;
+  esac
+  [[ ${digest} =~ ^sha256:[0-9a-f]{64}$ ]] || {
+    sit_fail "cannot derive a digest alias from a non-immutable digest: ${digest}"
+    return 1
+  }
+  printf '%s@%s' "${tag_ref%:*}" "${digest}"
+}
+
+kargo_runtime_image_slug() {
+  local name="${1##*/}"
+  printf '%s' "${name%%:*}"
+}
+
+# Bind the digest-shaped NAME the CRI lookup above needs. The import creates
+# only the tag record, and CRI derives `repoDigests` from digest-shaped stored
+# NAMES - never from a record's target descriptor - so a pinned `Never` workload
+# whose reference carries a digest could not resolve at all (run
+# 20260729T135154Z-ade9451: ErrImageNeverPull on content that was present and
+# correct). This adds a second name to the already-verified content; it neither
+# pulls nor relaxes the pin.
+#
+# No `--force`. At the pin its semantics are delete-then-recreate the existing
+# target record, and this cluster is created fresh per run, so an already
+# present name is an anomaly that must fail loudly rather than be replaced.
+# `ctr images tag` output is never parsed - it only echoes the new name - so the
+# proof rests on the exit status plus the state re-read below.
+kargo_runtime_alias_node_image() {
+  local node="$1"
+  local tag_ref="$2"
+  local digest="$3"
+  local alias_ref
+  alias_ref="$(kargo_runtime_alias_image_ref "${tag_ref}" "${digest}")"
+  {
+    printf '== alias %s -> %s\n' "${tag_ref}" "${alias_ref}"
+    docker exec "${node}" ctr --namespace k8s.io images tag "${tag_ref}" "${alias_ref}"
+  } >>"${report}/kargo-runtime-image-aliases.txt" 2>&1 ||
+    sit_fail "could not bind the pinned digest alias inside the k3d node: ${alias_ref}"
+}
+
+# The CRI must hold the canonical tag and the canonical `repo@pin` name on ONE
+# entry. A tag-only predicate is exactly the false green the failed run passed;
+# and asserting the two names independently would accept split brain - a stale
+# tag adopted as one CRI image and a fresh alias as another - which is the shape
+# a wrong tag plus a correct alias produces.
+kargo_runtime_verify_cri_image() {
+  local inventory="$1"
+  local tag_ref="$2"
+  local alias_ref="$3"
+  # COUNTED, not merely existential. `any(...)` would accept a second entry that
+  # also carries the tag, or a repeated element inside one array, and either
+  # shape means the CRI store is not the unambiguous one a pinned `Never` lookup
+  # depends on. The rule is therefore: the canonical tag occurs EXACTLY ONCE
+  # across the whole inventory, the canonical repo@pin alias occurs EXACTLY
+  # ONCE, and both of those single occurrences are on the SAME entry.
+  jq -e --arg tag "${tag_ref}" --arg alias "${alias_ref}" '
+    def canonical:
+      sub("^docker.io/library/"; "") |
+      sub("^docker.io/"; "") |
+      sub("^library/"; "");
+    [ .images[]? |
+      {
+        tags: ([ .repoTags[]? | select(canonical == ($tag | canonical)) ] | length),
+        digests: ([ .repoDigests[]? | select(canonical == ($alias | canonical)) ] | length)
+      }
+    ] as $rows |
+    (([ $rows[].tags ] | add) // 0) == 1 and
+    (([ $rows[].digests ] | add) // 0) == 1 and
+    ([ $rows[] | select(.tags == 1 and .digests == 1) ] | length) == 1
+  ' "${inventory}" >/dev/null ||
+    sit_fail "the k3d CRI does not carry ${tag_ref} and ${alias_ref} exactly once each on one and the same image entry"
+}
+
+kargo_runtime_probe_cri_reference() {
+  local node="$1"
+  local combined_ref="$2"
+  local tag_ref="$3"
+  local alias_ref="$4"
+  local output="$5"
+  local stderr_log="$6"
+  # `crictl inspecti` reports not-found with a non-zero exit and version-varying
+  # text, so the gate is the exit status plus `jq -e` predicates - never the
+  # message bytes. Its stderr goes to a caller-owned TRANSIENT file outside the
+  # report: a per-probe log inside ${report} would be an undeclared retained
+  # artifact, and one that is empty whenever the first probe succeeds.
+  docker exec "${node}" crictl inspecti -o json "${combined_ref}" \
+    >"${output}" 2>>"${stderr_log}" || return 1
+  # Counted for the same reason the inventory join is: the status the pinned
+  # workload will be served must name its tag once and its pinned repoDigest
+  # once, not "at least once among repeats".
+  jq -e --arg tag "${tag_ref}" --arg alias "${alias_ref}" '
+    def canonical:
+      sub("^docker.io/library/"; "") |
+      sub("^docker.io/"; "") |
+      sub("^library/"; "");
+    ([ (.status.repoTags // [])[] | select(canonical == ($tag | canonical)) ] | length) == 1 and
+    ([ (.status.repoDigests // [])[] | select(canonical == ($alias | canonical)) ] | length) == 1
+  ' "${output}" >/dev/null || return 1
+}
+
+# Ask the CRI for the EXACT reference the pinned workloads carry. This runs the
+# same normalize-then-resolve path kubelet triggers, so success here is the
+# direct functional proof that an `imagePullPolicy: Never` pod will find its
+# image. CRI's in-memory store is updated by an asynchronous event monitor, so
+# the probe retries - bounded by a fixed attempt ceiling and fail-closed, never
+# open-ended.
+kargo_runtime_assert_cri_reference() {
+  local node="$1"
+  local combined_ref="$2"
+  local output="$3"
+  local tag_ref="${combined_ref%@*}"
+  local digest="${combined_ref##*@}"
+  local alias_ref
+  alias_ref="$(kargo_runtime_alias_image_ref "${tag_ref}" "${digest}")"
+  # Probe stderr is TRANSIENT and lives in the SIT scratch root, never in the
+  # report: on a clean first attempt it would otherwise retain an empty file
+  # nothing declares, and on a retry its bytes are diagnostics, not evidence.
+  # They are printed on the fail-closed path and the file is then removed, so no
+  # assertion can come to depend on them.
+  local stderr_log
+  stderr_log="$(mktemp "${sit_tmp_root%/}/fleet-sit-cri.XXXXXX")"
+  local attempt=1
+  while ! kargo_runtime_probe_cri_reference \
+    "${node}" "${combined_ref}" "${tag_ref}" "${alias_ref}" "${output}" "${stderr_log}"; do
+    if [ "${attempt}" -ge 30 ]; then
+      cat "${stderr_log}" >&2 || true
+      rm -f "${stderr_log}"
+      sit_fail "the k3d CRI did not resolve the exact pinned workload reference to its tag and pinned repoDigest after ${attempt} attempts: ${combined_ref}"
+      return 1
+    fi
+    attempt=$((attempt + 1))
+    sleep 1
+  done
+  rm -f "${stderr_log}"
+}
+
+# The whole node-image leg, orchestration included, so the offline regression
+# runs THESE bytes rather than a transcription of them: import each pinned
+# image, accept the transcript at its own step, bind the digest alias, then
+# re-read node and CRI state and assert every layer separately.
+#   ctr row (tag)   - kills a tag pointing at other content
+#   ctr row (alias) - kills a wrong digest alias; `ctr images tag` accepts any
+#                     name string and never checks that a digest-shaped name
+#                     matches the target, so this is the only place that lands
+#   CRI join        - kills adoption failure and split brain
+#   CRI resolution  - kills a regression of the actual pod lookup
+kargo_runtime_bind_node_images() {
+  local node="$1"
+  shift
+  local transcript="${report}/kargo-runtime-image-imports.txt"
+  local inventory="${report}/kargo-runtime-node-ctr-images.txt"
+  local cri_images="${report}/kargo-runtime-node-images.json"
+  local pairs=("$@")
+  { [ "${#pairs[@]}" -ge 2 ] && [ $((${#pairs[@]} % 2)) -eq 0 ]; } ||
+    sit_fail 'kargo_runtime_bind_node_images takes <tag> <digest> pairs'
+  : >"${transcript}"
+  : >"${report}/kargo-runtime-image-aliases.txt"
+  local i tag_ref digest alias_ref evidence
+  for ((i = 0; i < ${#pairs[@]}; i += 2)); do
+    kargo_runtime_import_node_image "${node}" "${pairs[i]}" "${pairs[i + 1]}"
+  done
+  # Accept the transcript BEFORE anything reads node state, so a hidden
+  # import-side error is reported at its own step rather than surfacing later as
+  # an ambiguous absence.
+  kargo_runtime_assert_import_transcript "${transcript}" "${pairs[@]}"
+  for ((i = 0; i < ${#pairs[@]}; i += 2)); do
+    kargo_runtime_alias_node_image "${node}" "${pairs[i]}" "${pairs[i + 1]}"
+  done
+  # containerd's own store is updated synchronously by `ctr images tag`, so the
+  # ctr inventory is race-free the moment the aliases exist.
+  docker exec "${node}" ctr --namespace k8s.io images list >"${inventory}"
+  for ((i = 0; i < ${#pairs[@]}; i += 2)); do
+    tag_ref="${pairs[i]}"
+    digest="${pairs[i + 1]}"
+    alias_ref="$(kargo_runtime_alias_image_ref "${tag_ref}" "${digest}")"
+    evidence="${report}/kargo-runtime-cri-$(kargo_runtime_image_slug "${tag_ref}").json"
+    kargo_runtime_verify_node_image "${inventory}" "${tag_ref}" "${digest}"
+    kargo_runtime_verify_node_image "${inventory}" "${alias_ref}" "${digest}"
+    kargo_runtime_assert_cri_reference "${node}" "${tag_ref}@${digest}" "${evidence}"
+  done
+  # The CRI store, by contrast, is populated by an asynchronous event monitor.
+  # Capturing and joining its inventory only AFTER every exact-reference
+  # resolution has succeeded removes that race in the only correct direction:
+  # the retained listing is then the verified final state, not a snapshot taken
+  # while adoption was still in flight. The join adds what a per-reference
+  # resolution cannot see - that the tag and the pinned repoDigest live on
+  # EXACTLY ONE entry, killing the split brain a stale tag plus a fresh alias
+  # would otherwise present.
+  docker exec "${node}" crictl images -o json >"${cri_images}"
+  for ((i = 0; i < ${#pairs[@]}; i += 2)); do
+    tag_ref="${pairs[i]}"
+    digest="${pairs[i + 1]}"
+    alias_ref="$(kargo_runtime_alias_image_ref "${tag_ref}" "${digest}")"
+    kargo_runtime_verify_cri_image "${cri_images}" "${tag_ref}" "${alias_ref}"
+  done
+}
+
 kargo_runtime_prepare_artifacts() {
   KARGO_RUNTIME_DIR="${work}/kargo-runtime"
   mkdir -p "${KARGO_RUNTIME_DIR}/chart" "${KARGO_RUNTIME_DIR}/images"
   : >"${report}/kargo-runtime-image-pulls.txt"
-  : >"${report}/kargo-runtime-image-imports.txt"
 
   local chart_log="${report}/kargo-runtime-chart-pull.txt"
   helm pull "${KARGO_CHART_REF}" \
@@ -1750,41 +1960,10 @@ kargo_runtime_prepare_artifacts() {
   # The export input is the tag established by the verified digest pull: the
   # daemon exports by name, and the imported content is checked against the
   # digest again inside the node.
-  kargo_runtime_import_node_image "${node}" \
-    "${KARGO_RUNTIME_IMAGE_REF%@*}" "${KARGO_IMAGE_DIGEST}"
-  kargo_runtime_import_node_image "${node}" \
-    "${ROLLOUTS_RUNTIME_IMAGE_REF%@*}" "${ROLLOUTS_IMAGE_DIGEST}"
-  kargo_runtime_import_node_image "${node}" \
-    "${ANALYSIS_RUNTIME_IMAGE_REF%@*}" "${ANALYSIS_IMAGE_DIGEST}"
-  # Accept the transcript BEFORE reading the node inventory, so a hidden
-  # import-side error is reported at its own step rather than surfacing later
-  # as an ambiguous absence.
-  kargo_runtime_assert_import_transcript "${report}/kargo-runtime-image-imports.txt" \
+  kargo_runtime_bind_node_images "${node}" \
     "${KARGO_RUNTIME_IMAGE_REF%@*}" "${KARGO_IMAGE_DIGEST}" \
     "${ROLLOUTS_RUNTIME_IMAGE_REF%@*}" "${ROLLOUTS_IMAGE_DIGEST}" \
     "${ANALYSIS_RUNTIME_IMAGE_REF%@*}" "${ANALYSIS_IMAGE_DIGEST}"
-  docker exec "${node}" ctr --namespace k8s.io images list \
-    >"${report}/kargo-runtime-node-ctr-images.txt"
-  kargo_runtime_verify_node_image "${report}/kargo-runtime-node-ctr-images.txt" \
-    "${KARGO_RUNTIME_IMAGE_REF%@*}" "${KARGO_IMAGE_DIGEST}"
-  kargo_runtime_verify_node_image "${report}/kargo-runtime-node-ctr-images.txt" \
-    "${ROLLOUTS_RUNTIME_IMAGE_REF%@*}" "${ROLLOUTS_IMAGE_DIGEST}"
-  kargo_runtime_verify_node_image "${report}/kargo-runtime-node-ctr-images.txt" \
-    "${ANALYSIS_RUNTIME_IMAGE_REF%@*}" "${ANALYSIS_IMAGE_DIGEST}"
-  docker exec "${node}" crictl images -o json >"${report}/kargo-runtime-node-images.json"
-  jq -e \
-    --arg kargo "${KARGO_RUNTIME_IMAGE_REF%@*}" \
-    --arg rollouts "${ROLLOUTS_RUNTIME_IMAGE_REF%@*}" \
-    --arg analysis "${ANALYSIS_RUNTIME_IMAGE_REF%@*}" '
-      def canonical_tag:
-        sub("^docker.io/library/"; "") |
-        sub("^docker.io/"; "") |
-        sub("^library/"; "");
-      def has_tag($wanted):
-        any(.images[]?.repoTags[]?; canonical_tag == ($wanted | canonical_tag));
-      has_tag($kargo) and has_tag($rollouts) and has_tag($analysis)
-    ' "${report}/kargo-runtime-node-images.json" >/dev/null ||
-    sit_fail 'one or more digest-verified runtime image tags are absent from the k3d CRI'
 }
 
 kargo_runtime_install_rollouts() {
@@ -3829,8 +4008,11 @@ run_full() {
   sit_leg_begin 'L9-kargo-v1-runtime' \
     'kargo-runtime-chart-pull.txt' 'kargo-runtime-chart-sha256.txt' \
     'kargo-runtime-rollouts-sha256.txt' 'kargo-runtime-image-pulls.txt' \
-    'kargo-runtime-image-imports.txt' 'kargo-runtime-host-images.json' \
+    'kargo-runtime-image-imports.txt' 'kargo-runtime-image-aliases.txt' \
+    'kargo-runtime-host-images.json' \
     'kargo-runtime-node-images.json' 'kargo-runtime-node-ctr-images.txt' \
+    'kargo-runtime-cri-kargo.json' 'kargo-runtime-cri-argo-rollouts.json' \
+    'kargo-runtime-cri-busybox.json' \
     'kargo-runtime-webhook-cert-verify.txt' \
     'kargo-runtime-rollouts-deployment.json' 'kargo-runtime-kargo-deployments.json' \
     'kargo-runtime-webhooks.json' 'kargo-runtime-rendered.yaml' \

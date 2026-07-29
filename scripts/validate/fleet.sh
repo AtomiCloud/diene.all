@@ -1468,7 +1468,14 @@ sit-node-image-import | sit-node-image)
     kargo_runtime_canonical_image_tag \
     kargo_runtime_import_node_image \
     kargo_runtime_assert_import_transcript \
-    kargo_runtime_verify_node_image; do
+    kargo_runtime_verify_node_image \
+    kargo_runtime_alias_image_ref \
+    kargo_runtime_image_slug \
+    kargo_runtime_alias_node_image \
+    kargo_runtime_verify_cri_image \
+    kargo_runtime_probe_cri_reference \
+    kargo_runtime_assert_cri_reference \
+    kargo_runtime_bind_node_images; do
     sed -n "/^${nii_fn}() {\$/,/^}\$/p" "${sit_source}" >"${tmp}/nii-fn.sh"
     test -s "${tmp}/nii-fn.sh" ||
       fail "could not extract ${nii_fn}() from ${sit_source}; this gate must run production bytes, never a copy"
@@ -1482,6 +1489,46 @@ sit-node-image-import | sit-node-image)
     fail "the extracted import function does not scope the node-side import to linux/amd64"
   grep -q -- '--namespace k8s.io' "${nii_fns}" ||
     fail "the extracted import function does not target the k8s.io containerd namespace the CRI reads"
+  # The repair's own bytes, guarded the same way. The ORCHESTRATION is extracted
+  # too (kargo_runtime_bind_node_images), so every case below drives the real
+  # call sites — a gate that only extracted the helpers could stay green while
+  # production never called them.
+  grep -q -- 'images tag' "${nii_fns}" ||
+    fail "the extracted functions never create a containerd image alias; the extraction is not the production repair"
+  grep -q -- 'crictl images -o json' "${nii_fns}" ||
+    fail "the extracted functions never read the CRI image inventory"
+  grep -q -- 'crictl inspecti -o json' "${nii_fns}" ||
+    fail "the extracted functions never resolve the exact combined workload reference through the CRI"
+  # The no-force rule, read off EXECUTABLE ARGV rather than prose: production
+  # explains at length why it omits --force, and a check that greps the whole
+  # extraction would red on those very comments. Both directions are then
+  # positive-controlled, so this can neither false-red on documentation nor
+  # stay silently green if it stops seeing the flag at all.
+  nii_tag_argv() {
+    grep -F 'ctr --namespace k8s.io images tag' "$1" | grep -v '^[[:space:]]*#'
+  }
+  nii_forces() {
+    [ "$(nii_tag_argv "$1" | grep -cF -- '--force')" -gt 0 ]
+  }
+  [ -n "$(nii_tag_argv "${nii_fns}")" ] ||
+    fail "the extracted alias step carries no ctr images tag argv at all"
+  ! nii_forces "${nii_fns}" ||
+    fail "the extracted alias step passes --force; a name collision on a fresh per-run cluster must fail closed, not be replaced"
+  sed 's/ctr --namespace k8s.io images tag/& --force/' "${nii_fns}" \
+    >"${tmp}/node-image-fns-force.sh"
+  nii_forces "${tmp}/node-image-fns-force.sh" ||
+    fail "the no-force check cannot see --force even when it is injected into the alias argv, so its silence proves nothing"
+  {
+    cat "${nii_fns}"
+    printf '  # a comment mentioning --force must never red this gate\n'
+  } >"${tmp}/node-image-fns-forceprose.sh"
+  ! nii_forces "${tmp}/node-image-fns-forceprose.sh" ||
+    fail "the no-force check reds on prose rather than on argv"
+  # The literal call-site bytes, deliberately unexpanded: this asserts what
+  # production SOURCE says, not what a shell would substitute.
+  # shellcheck disable=SC2016
+  grep -qF 'kargo_runtime_alias_node_image "${node}"' "${nii_fns}" ||
+    fail "the extracted orchestration never calls the alias step; the gate would be asserting on a call site production does not have"
 
   # The offline driver. Generated, not committed, so nothing here can become a
   # second copy of the production logic: it supplies the real sit_fail, sources
@@ -1509,8 +1556,21 @@ source "${fn_file}"
 
 node='k3d-fleet-sit-93320-server-0'
 host_state="${state_dir}/host-images.tsv" # <tag> <pinned index digest> <absent child>
-node_state="${state_dir}/node-images.tsv" # what the node's containerd now holds
+node_state="${state_dir}/node-images.tsv" # <stored name> <target digest>
 images="${state_dir}/images.tsv"          # <tag> <pinned index digest>
+cri_ids="${state_dir}/cri-ids.tsv"        # <target digest> <recorded CRI image id>
+cri_base="${state_dir}/cri-base.tsv"      # <target digest> <name>, normally pulled images
+attempts="${state_dir}/crictl-inspecti-attempts.txt"
+# The SIT scratch root the production resolver puts its TRANSIENT probe stderr
+# in. Modeling it here keeps that file out of the modeled report exactly as it
+# is out of the real one, so the gate would notice if it ever moved back.
+sit_tmp_root="${state_dir}"
+
+# Modeled time. The production resolver sleeps between attempts; offline the
+# bound that matters is its ATTEMPT CEILING, which the gate asserts by counting
+# the recorded inspecti attempts. Waiting real seconds would only slow the gate
+# down without testing anything.
+sleep() { :; }
 
 shim_host_field() {
   awk -F '\t' -v ref="$1" -v col="$2" \
@@ -1538,6 +1598,129 @@ shim_ctr_list() {
     printf '%s application/vnd.oci.image.index.v1+json %s 42.0 MiB linux/amd64 io.cri-containerd.image=managed\n' \
       "${ref}" "${digest}"
   done <"${node_state}"
+}
+
+shim_ctr_node_target() {
+  awk -F '\t' -v ref="$1" \
+    '$1 == ref { print $2; hit = 1 } END { exit hit ? 0 : 1 }' "${node_state}"
+}
+
+# containerd 1.7 `ctr images tag` in its default local mode retrieves the source
+# image OBJECT and rewrites only its Name, so the new name inherits the source's
+# target descriptor verbatim — and ctr never checks that a digest-shaped name
+# agrees with that target, which is exactly why a wrong digest alias is possible
+# and must be caught by re-reading state. Without --force an existing target
+# name is a hard error rather than a replacement.
+shim_ctr_tag() {
+  local source="${1:-}" target="${2:-}" digest
+  { [ -n "${source}" ] && [ -n "${target}" ]; } || {
+    echo "shim: ctr images tag takes <source> <target>" >&2
+    return 1
+  }
+  digest="$(shim_ctr_node_target "${source}")" || {
+    echo "ctr: image \"${source}\": not found" >&2
+    return 1
+  }
+  if shim_ctr_node_target "${target}" >/dev/null; then
+    echo "ctr: image \"${target}\": already exists" >&2
+    return 1
+  fi
+  printf '%s\t%s\n' "${target}" "${digest}" >>"${node_state}"
+  printf '%s\n' "${target}"
+}
+
+# The CRI projection. containerd's CRI groups stored NAMES by the image they
+# resolve to; repoTags come from tag-shaped names and repoDigests from
+# digest-shaped NAMES ONLY — never synthesized from a record's target
+# descriptor. `id` is the image's own config-level identity, which is NOT the
+# ctr target digest, so the model may not derive it: it comes from cri-ids.tsv,
+# recorded verbatim from the preserved run.
+cri_entries() {
+  {
+    awk -F '\t' 'NF >= 2 && $1 != "" { print $2 "\t" $1 }' "${node_state}"
+    [ ! -s "${cri_base}" ] || cat "${cri_base}"
+  } | LC_ALL=C sort | jq -R -s --rawfile ids "${cri_ids}" '
+    ($ids | split("\n") | map(select(length > 0) | split("\t"))) as $idmap |
+    split("\n") | map(select(length > 0) | split("\t")) |
+    group_by(.[0]) |
+    map(
+      (.[0][0]) as $target |
+      {
+        id: (($idmap | map(select(.[0] == $target)) | first | .[1]) // $target),
+        repoTags: [ .[] | .[1] | select(contains("@") | not) ],
+        repoDigests: [ .[] | .[1] | select(contains("@")) ]
+      }
+    ) | sort_by(.repoTags, .repoDigests)
+  '
+}
+
+# distribution/reference.ParseDockerRef: a reference carrying a digest resolves
+# by DROPPING its tag, and the remainder is matched against stored names
+# exactly. This one line is the whole reason the tag-only node state failed L9.
+cri_resolve_name() {
+  local ref="$1" name digest repo
+  case "${ref}" in
+  *@*)
+    digest="${ref##*@}"
+    name="${ref%@*}"
+    case "${name##*/}" in
+    *:*) repo="${name%:*}" ;;
+    *) repo="${name}" ;;
+    esac
+    printf '%s@%s' "${repo}" "${digest}"
+    ;;
+  *) printf '%s' "${ref}" ;;
+  esac
+}
+
+shim_crictl() {
+  local verb="${1:-}"
+  shift 2>/dev/null || true
+  local format='' ref=''
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+    -o | --output)
+      format="$2"
+      shift 2
+      ;;
+    -o=* | --output=*)
+      format="${1#*=}"
+      shift
+      ;;
+    -*) shift ;;
+    *)
+      ref="$1"
+      shift
+      ;;
+    esac
+  done
+  [ "${format}" = 'json' ] || {
+    echo "shim: unmodeled crictl output format: '${format}'" >&2
+    return 1
+  }
+  local lookup entry
+  case "${verb}" in
+  images | image)
+    cri_entries | jq '{images: .}'
+    ;;
+  inspecti)
+    printf '%s\n' "${ref}" >>"${attempts}"
+    lookup="$(cri_resolve_name "${ref}")"
+    entry="$(cri_entries | jq -c --arg name "${lookup}" '
+      [ .[] | select(any(.repoTags[], .repoDigests[]; . == $name)) ] | first // empty')"
+    [ -n "${entry}" ] || {
+      # Not-found text varies by version; production gates on the exit status
+      # and its own jq predicates, never on these bytes.
+      printf 'FATA[0000] no such image "%s"\n' "${ref}" >&2
+      return 1
+    }
+    jq -n --argjson status "${entry}" '{status: $status}'
+    ;;
+  *)
+    echo "shim: unmodeled crictl verb: ${verb}" >&2
+    return 1
+    ;;
+  esac
 }
 
 shim_ctr() {
@@ -1575,6 +1758,10 @@ shim_ctr() {
   list | ls)
     shim_ctr_list
     return 0
+    ;;
+  tag)
+    shim_ctr_tag "$@"
+    return
     ;;
   import) ;;
   *)
@@ -1650,13 +1837,20 @@ docker() {
         return 1
       }
     shift
-    [ "${1:-}" = 'ctr' ] ||
-      {
-        echo "shim: unmodeled exec command: ${1:-}" >&2
-        return 1
-      }
-    shift
-    shim_ctr "$@"
+    case "${1:-}" in
+    ctr)
+      shift
+      shim_ctr "$@"
+      ;;
+    crictl)
+      shift
+      shim_crictl "$@"
+      ;;
+    *)
+      echo "shim: unmodeled exec command: ${1:-}" >&2
+      return 1
+      ;;
+    esac
     ;;
   *)
     echo "shim: unmodeled docker subcommand: ${sub}" >&2
@@ -1673,6 +1867,22 @@ done <"${images}"
 
 transcript="${report}/kargo-runtime-image-imports.txt"
 inventory="${report}/kargo-runtime-node-ctr-images.txt"
+cri_images="${report}/kargo-runtime-node-images.json"
+
+# Put the node into a chosen state without running the production path, so the
+# CRI-side predicates can be aimed at states the fixed path can no longer
+# produce (a stale tag, a wrong alias, the recorded tag-only state).
+seed_node_state() {
+  : >"${node_state}"
+  while [ "$#" -ge 2 ]; do
+    printf '%s\t%s\n' "$1" "$2" >>"${node_state}"
+    shift 2
+  done
+  [ "$#" -eq 0 ] || {
+    echo "driver: seed takes <name> <digest> pairs" >&2
+    exit 2
+  }
+}
 
 case "${case_name}" in
 m0-k3d-argv)
@@ -1682,22 +1892,33 @@ m0-k3d-argv)
   docker image save "${pairs[0]}" |
     docker exec -i "${node}" ctr --namespace k8s.io image import --all-platforms -
   ;;
-import-verify)
-  : >"${transcript}"
-  for ((i = 0; i < ${#pairs[@]}; i += 2)); do
-    kargo_runtime_import_node_image "${node}" "${pairs[i]}" "${pairs[i + 1]}"
-  done
-  kargo_runtime_assert_import_transcript "${transcript}" "${pairs[@]}"
-  docker exec "${node}" ctr --namespace k8s.io images list >"${inventory}"
-  for ((i = 0; i < ${#pairs[@]}; i += 2)); do
-    kargo_runtime_verify_node_image "${inventory}" "${pairs[i]}" "${pairs[i + 1]}"
-  done
+fixed-path)
+  # The whole production leg, orchestration bytes included: import, transcript
+  # acceptance, alias creation, and every node/CRI assertion, driven by the
+  # extracted call sites rather than by this driver.
+  kargo_runtime_bind_node_images "${node}" "${pairs[@]}"
+  ;;
+project-cri)
+  seed_node_state "$@"
+  docker exec "${node}" crictl images -o json >"${cri_images}"
+  ;;
+seeded-cri)
+  seed_node_state "$@"
+  docker exec "${node}" crictl images -o json >"${cri_images}"
+  kargo_runtime_verify_cri_image "${cri_images}" "${pairs[0]}" \
+    "$(kargo_runtime_alias_image_ref "${pairs[0]}" "${pairs[1]}")"
   ;;
 transcript)
   kargo_runtime_assert_import_transcript "$1" "${pairs[@]}"
   ;;
 verify-node)
   kargo_runtime_verify_node_image "$1" "$2" "$3"
+  ;;
+verify-cri)
+  # The production same-entry predicate aimed at a caller-supplied CRI listing,
+  # so shapes a well-formed containerd store cannot produce (duplicate entries,
+  # duplicate array elements) can still be proven to fail closed.
+  kargo_runtime_verify_cri_image "$1" "$2" "$3"
   ;;
 *)
   echo "driver: unknown case ${case_name}" >&2
@@ -1781,11 +2002,51 @@ quay.io/argoproj/argocd:v3.4.5                                                  
 quay.io/argoproj/argocd@sha256:224e454cfd8c1818fec3ed17b72b2034c9a3915fa819e1dcccafc753776d446a                    application/vnd.docker.distribution.manifest.list.v2+json sha256:224e454cfd8c1818fec3ed17b72b2034c9a3915fa819e1dcccafc753776d446a 184.8 MiB linux/amd64,linux/arm64,linux/ppc64le,linux/s390x                                                      io.cri-containerd.image=managed
 NIIBASE
 
+  # The CRI-side fixtures, all verbatim from
+  # failed-sit-ade9451-run1/kargo-runtime-node-images.json (bundle manifest
+  # a5c8c034d0145b6fb6217520a4917024bdade47b215e181a1a1915822bd0f26f). CRI
+  # reports an image's own config-level identity as `id`, which is NOT the ctr
+  # target digest, so these are supplied as recorded facts rather than derived.
+  # klipper-helm and argocd are the decisive CONTROL GROUP: images the node
+  # pulled normally hold both a tag and a digest NAME, and therefore project a
+  # populated repoDigests, while the three imported ones projected none.
+  nii_klipper_digest='sha256:73ff7ef399717ba8339559054557bd427bdafb47db112165a8c0c358d1ca0283'
+  nii_klipper_id='sha256:4e0aed78b287d2b5e7fc96d81ccef135d5bd0feb2a4c27aeda3b03bcc4882e9d'
+  nii_argocd_digest='sha256:224e454cfd8c1818fec3ed17b72b2034c9a3915fa819e1dcccafc753776d446a'
+  nii_argocd_id='sha256:92bb8fd739f98162e03bc377ed9f19a49aa525973d6bfe011a7b426afc82a85a'
+  printf '%s\t%s\n' \
+    "${KARGO_IMAGE_DIGEST}" 'sha256:722c772753348aa5e71c029417e8a7c065b4a3cb5fe68b82762ab27ba8b1c0d6' \
+    "${ROLLOUTS_IMAGE_DIGEST}" 'sha256:265f91722eb29960a548712f8dca5be653a15bbd68fba969031a4f1623df0d73' \
+    "${ANALYSIS_IMAGE_DIGEST}" 'sha256:b116e155074440ffd9e449559433feb4cd2341eb3554b1da1c638c976e56451d' \
+    "${nii_klipper_digest}" "${nii_klipper_id}" \
+    "${nii_argocd_digest}" "${nii_argocd_id}" \
+    >"${tmp}/cri-ids.tsv"
+  printf '%s\t%s\n' \
+    "${nii_klipper_digest}" 'docker.io/rancher/klipper-helm:v0.9.3-build20241008' \
+    "${nii_klipper_digest}" "docker.io/rancher/klipper-helm@${nii_klipper_digest}" \
+    "${nii_argocd_digest}" 'quay.io/argoproj/argocd:v3.4.5' \
+    "${nii_argocd_digest}" "quay.io/argoproj/argocd@${nii_argocd_digest}" \
+    >"${tmp}/cri-base.tsv"
+
+  # The names the CRI lookup of each pinned `tag@digest` workload reference
+  # actually resolves to, spelled out here so the expectations below are the
+  # gate's own statement of the contract rather than a re-run of production's
+  # derivation.
+  nii_kargo_alias="${KARGO_IMAGE_REPOSITORY}@${KARGO_IMAGE_DIGEST}"
+  nii_rollouts_alias="${ROLLOUTS_IMAGE_REPOSITORY}@${ROLLOUTS_IMAGE_DIGEST}"
+  nii_analysis_alias="${ANALYSIS_IMAGE_REPOSITORY}@${ANALYSIS_IMAGE_DIGEST}"
+  # The only pinned image whose canonical spelling differs from its stored one,
+  # so it is the one that can prove the occurrence count is canonical.
+  nii_analysis_tag_short="${nii_analysis_tag#docker.io/library/}"
+
   nii_status=0
   nii_case() {
     local dir="${tmp}/$1" case_name="$2" fns="${3:-${nii_fns}}"
     shift 3 2>/dev/null || shift "$#"
     mkdir -p "${dir}/report"
+    cp "${tmp}/cri-ids.tsv" "${dir}/cri-ids.tsv"
+    cp "${tmp}/cri-base.tsv" "${dir}/cri-base.tsv"
+    : >"${dir}/crictl-inspecti-attempts.txt"
     printf '%s\t%s\t%s\n' \
       "${nii_kargo_tag}" "${KARGO_IMAGE_DIGEST}" "${nii_kargo_missing}" \
       "${nii_rollouts_tag}" "${ROLLOUTS_IMAGE_DIGEST}" "${nii_rollouts_missing}" \
@@ -1822,19 +2083,63 @@ NIIBASE
     fail 'M0 shim fidelity: the modeled ctr error is not the line the preserved transcript recorded'
   echo "  M0 replaying k3d's own ctr image import --all-platforms argv reproduces the recorded content-digest failure ✓"
 
-  # R1 — the fixed path. Production import bytes + transcript acceptance +
-  # extracted node verifier must all pass, and the node model must gain a
-  # tag+pin row per image.
-  nii_case r1 import-verify
-  nii_expect 'R1 platform-scoped import' 0 '' r1
+  # M1 — model fidelity for the CRI projection, the sibling of M0. Seeded with
+  # exactly the TAG-ONLY node state the preserved run left behind, the modeled
+  # projection must reproduce that run's own CRI view of the three imported
+  # images. The bundle is not carried in this repository, so the binding is a
+  # CHECKSUM of a documented derivation of its bytes — the same out-of-repo
+  # evidence binding R2 uses. The derivation, over
+  # failed-sit-ade9451-run1/kargo-runtime-node-images.json, is:
+  #   jq -S '[ .images[] | {id, repoTags, repoDigests} ]
+  #          | map(select(any(.repoTags[]?; . == <the three canonical tags>)))
+  #          | sort_by(.repoTags, .repoDigests)'
+  nii_cri_recorded_sha256='c682618d6d9ab3c09c55e8c14e35d0223dc31cc67f19cfd3f791cfcdee222959'
+  nii_case m1 project-cri "${nii_fns}" \
+    "${nii_kargo_tag}" "${KARGO_IMAGE_DIGEST}" \
+    "${nii_rollouts_tag}" "${ROLLOUTS_IMAGE_DIGEST}" \
+    "${nii_analysis_tag}" "${ANALYSIS_IMAGE_DIGEST}"
+  nii_expect 'M1 CRI projection fidelity' 0 '' m1
+  jq -S \
+    --arg kargo "${nii_kargo_tag}" \
+    --arg rollouts "${nii_rollouts_tag}" \
+    --arg analysis "${nii_analysis_tag}" '
+      [ .images[] | {id, repoTags, repoDigests} ] |
+      map(select(any(.repoTags[]?; . == $kargo or . == $rollouts or . == $analysis))) |
+      sort_by(.repoTags, .repoDigests)
+    ' "${tmp}/m1/report/kargo-runtime-node-images.json" >"${tmp}/m1-projection.json"
+  printf '%s  %s\n' "${nii_cri_recorded_sha256}" "${tmp}/m1-projection.json" |
+    sha256sum --check --status ||
+    fail 'M1 CRI projection fidelity: the modeled tag-only projection is not the CRI view the preserved failed run recorded'
+  jq -e '
+    [ .images[] | select(any(.repoTags[]?;
+      startswith("docker.io/rancher/klipper-helm:") or
+      startswith("quay.io/argoproj/argocd:"))) ] as $pulled |
+    ($pulled | length) == 2 and all($pulled[]; (.repoDigests | length) == 1)
+  ' "${tmp}/m1/report/kargo-runtime-node-images.json" >/dev/null ||
+    fail 'M1 CRI projection fidelity: the normally pulled control images did not project a populated repoDigests, so the empty repoDigests above would be a model artefact rather than the recorded state'
+  echo "  M1 the modeled CRI projection of the recorded tag-only node state reproduces the preserved run's own empty repoDigests, while normally pulled images keep theirs ✓"
+
+  # R1 — the fixed path. Production import bytes + transcript acceptance + the
+  # production alias step + the extracted node verifier must all pass, and the
+  # node model must end with BOTH names per image: the canonical tag and the
+  # canonical repo@pin the CRI lookup actually resolves.
+  nii_case r1 fixed-path
+  nii_expect 'R1 the fixed node-image path' 0 '' r1
   nii_r1_rows="$(wc -l <"${tmp}/r1/node-images.tsv" | tr -d ' ')"
-  [ "${nii_r1_rows}" -eq 3 ] ||
-    fail "R1 platform-scoped import: expected 3 imported node rows, got ${nii_r1_rows}"
+  [ "${nii_r1_rows}" -eq 6 ] ||
+    fail "R1 the fixed node-image path: expected 6 node rows (three tags plus three digest aliases), got ${nii_r1_rows}"
   grep -qxF "${nii_kargo_tag}"$'\t'"${KARGO_IMAGE_DIGEST}" "${tmp}/r1/node-images.tsv" ||
-    fail "R1 platform-scoped import: ${nii_kargo_tag} is not bound to the pinned digest in the node model"
+    fail "R1 the fixed node-image path: ${nii_kargo_tag} is not bound to the pinned digest in the node model"
+  grep -qxF "${nii_kargo_alias}"$'\t'"${KARGO_IMAGE_DIGEST}" "${tmp}/r1/node-images.tsv" ||
+    fail "R1 the fixed node-image path: ${nii_kargo_alias} is not bound to the pinned digest in the node model"
   grep -q '^unpacking ' "${tmp}/r1/report/kargo-runtime-image-imports.txt" ||
-    fail 'R1 platform-scoped import: the retained transcript carries no ctr unpack marker'
-  echo "  R1 the unfiltered save stream imports platform-scoped and binds every canonical tag to its pin ✓"
+    fail 'R1 the fixed node-image path: the retained transcript carries no ctr unpack marker'
+  grep -qF "== alias ${nii_kargo_tag} -> ${nii_kargo_alias}" \
+    "${tmp}/r1/report/kargo-runtime-image-aliases.txt" ||
+    fail 'R1 the fixed node-image path: the retained alias transcript does not record the alias it created'
+  [ "$(grep -c '^== alias ' "${tmp}/r1/report/kargo-runtime-image-aliases.txt")" -eq 3 ] ||
+    fail 'R1 the fixed node-image path: the retained alias transcript does not carry one record per image'
+  echo "  R1 the unfiltered save stream imports platform-scoped, binds every canonical tag to its pin, and adds the digest alias each pinned reference resolves to ✓"
 
   # R2 — the acceptance step over the ACTUAL preserved failed-run transcript.
   # This is the exact hidden-error shape k3d exited 0 on.
@@ -1847,7 +2152,7 @@ NIIBASE
   sed 's/--platform linux\/amd64 //' "${nii_fns}" >"${tmp}/node-image-fns-noplatform.sh"
   cmp -s "${nii_fns}" "${tmp}/node-image-fns-noplatform.sh" &&
     fail 'R3 platform-scope mutation: stripping --platform linux/amd64 changed nothing, so the flag is not where the gate thinks it is'
-  nii_case r3 import-verify "${tmp}/node-image-fns-noplatform.sh"
+  nii_case r3 fixed-path "${tmp}/node-image-fns-noplatform.sh"
   nii_expect 'R3 platform-scope mutation' 1 'streaming the pinned image into the k3d node failed' r3
   grep -qF "ctr: content digest ${nii_kargo_missing}: not found" \
     "${tmp}/r3/report/kargo-runtime-image-imports.txt" ||
@@ -1895,6 +2200,248 @@ NIIBASE
   nii_case r5 transcript "${nii_fns}" "${tmp}/transcript-wrong-pin.txt"
   nii_expect 'R5 unpack marker with the wrong digest' 1 'does not bind' r5
   echo "  R5 an unpack marker that completes on other content is rejected, so acceptance is not 'contains done' ✓"
+
+  # P1 — the positive control for the repair itself: unmutated production bytes
+  # end with the tag and the pinned digest name on ONE CRI entry per image, and
+  # the CRI resolves the exact combined reference the pinned workloads carry.
+  nii_case p1 fixed-path
+  nii_expect 'P1 the repaired CRI state' 0 '' p1
+  # Counted, exactly as production counts: one occurrence of the tag and one of
+  # the alias across the WHOLE inventory, both on the same entry. An existential
+  # form here would have re-stated the weakness the production predicate had.
+  jq -e \
+    --arg kargo "${nii_kargo_tag}" --arg kargoAlias "${nii_kargo_alias}" \
+    --arg rollouts "${nii_rollouts_tag}" --arg rolloutsAlias "${nii_rollouts_alias}" \
+    --arg analysis "${nii_analysis_tag}" --arg analysisAlias "${nii_analysis_alias}" '
+      def joined($tag; $alias):
+        [ .images[] |
+          {
+            tags: ([ .repoTags[]? | select(. == $tag) ] | length),
+            digests: ([ .repoDigests[]? | select(. == $alias) ] | length)
+          }
+        ] as $rows |
+        (([ $rows[].tags ] | add) // 0) == 1 and
+        (([ $rows[].digests ] | add) // 0) == 1 and
+        ([ $rows[] | select(.tags == 1 and .digests == 1) ] | length) == 1;
+      joined($kargo; $kargoAlias) and
+      joined($rollouts; $rolloutsAlias) and
+      joined($analysis; $analysisAlias)
+    ' "${tmp}/p1/report/kargo-runtime-node-images.json" >/dev/null ||
+    fail 'P1 the repaired CRI state: the canonical tag and the pinned repoDigest do not occur exactly once each on one and the same CRI entry per image'
+  nii_p1_evidence() {
+    local slug="$1" tag="$2" alias_ref="$3"
+    local file="${tmp}/p1/report/kargo-runtime-cri-${slug}.json"
+    test -s "${file}" ||
+      fail "P1 the repaired CRI state: the retained CRI resolution evidence is missing: ${file}"
+    jq -e --arg tag "${tag}" --arg alias "${alias_ref}" '
+      ([ .status.repoTags[]? | select(. == $tag) ] | length) == 1 and
+      ([ .status.repoDigests[]? | select(. == $alias) ] | length) == 1
+    ' "${file}" >/dev/null ||
+      fail "P1 the repaired CRI state: ${file} does not name the canonical tag and the pinned repoDigest exactly once each"
+  }
+  nii_p1_evidence kargo "${nii_kargo_tag}" "${nii_kargo_alias}"
+  nii_p1_evidence argo-rollouts "${nii_rollouts_tag}" "${nii_rollouts_alias}"
+  nii_p1_evidence busybox "${nii_analysis_tag}" "${nii_analysis_alias}"
+  nii_p1_attempts="$(wc -l <"${tmp}/p1/crictl-inspecti-attempts.txt" | tr -d ' ')"
+  [ "${nii_p1_attempts}" -eq 3 ] ||
+    fail "P1 the repaired CRI state: expected one CRI resolution per image, got ${nii_p1_attempts} attempts"
+  grep -qxF "${nii_kargo_tag}@${KARGO_IMAGE_DIGEST}" "${tmp}/p1/crictl-inspecti-attempts.txt" ||
+    fail 'P1 the repaired CRI state: the CRI was not queried with the exact combined tag@digest reference the pinned workloads carry'
+  # The retained report must contain exactly the artifacts the L9 evidence
+  # inventory declares. Probe stderr is transient by design, so neither an
+  # undeclared log inside the report nor a leftover scratch file may survive a
+  # successful run.
+  [ -z "$(find "${tmp}/p1/report" -name 'kargo-runtime-cri-*.log' -print -quit)" ] ||
+    fail 'P1 the repaired CRI state: the probe retained an undeclared stderr artifact inside the report'
+  [ -z "$(find "${tmp}/p1" -maxdepth 1 -name 'fleet-sit-cri.*' -print -quit)" ] ||
+    fail 'P1 the repaired CRI state: the transient probe stderr file outlived a successful resolution'
+  echo "  P1 the fixed path leaves six node rows, one canonical tag and one pinned repoDigest joined on a single CRI entry, a first-try resolution of the exact combined reference, and no undeclared probe residue ✓"
+
+  # C — the duplicate shapes Kyron's review proved the existential predicate
+  # accepted. A well-formed containerd store cannot produce them (names are
+  # unique), so they are fed to the PRODUCTION predicate directly as crafted
+  # inventories: the point is that it fails closed on a CRI listing that is not
+  # the unambiguous one a pinned `Never` lookup depends on.
+  nii_cri_control='[{"id":"'"${nii_argocd_id}"'","repoTags":["quay.io/argoproj/argocd:v3.4.5","quay.io/argoproj/argocd:latest"],"repoDigests":["quay.io/argoproj/argocd@'"${nii_argocd_digest}"'"]}]'
+  nii_cri_fixture() {
+    local out="$1" tags="$2" digests="$3" extra="${4:-[]}"
+    jq -n \
+      --arg id 'sha256:722c772753348aa5e71c029417e8a7c065b4a3cb5fe68b82762ab27ba8b1c0d6' \
+      --argjson tags "${tags}" \
+      --argjson digests "${digests}" \
+      --argjson extra "${extra}" \
+      --argjson control "${nii_cri_control}" '
+        {images: ([{id: $id, repoTags: $tags, repoDigests: $digests}] + $extra + $control)}
+      ' >"${out}"
+  }
+  nii_tag_json="[\"${nii_kargo_tag}\"]"
+  nii_alias_json="[\"${nii_kargo_alias}\"]"
+
+  # C0 — the ordinary joined state still passes, beside a control image that
+  # carries duplicate-ish names of its OWN. The rule is about the queried names,
+  # not about the inventory being duplicate-free everywhere.
+  nii_cri_fixture "${tmp}/cri-joined.json" "${nii_tag_json}" "${nii_alias_json}"
+  nii_case c0 verify-cri "${nii_fns}" "${tmp}/cri-joined.json" \
+    "${nii_kargo_tag}" "${nii_kargo_alias}"
+  nii_expect 'C0 the ordinary joined entry' 0 '' c0
+
+  # C1 — a valid joined entry PLUS a second tag-only entry: the exact shape the
+  # review executed against the old predicate and got `true`.
+  nii_cri_fixture "${tmp}/cri-dup-entry-tag.json" "${nii_tag_json}" "${nii_alias_json}" \
+    "[{\"id\":\"sha256:$(printf 'e%.0s' {1..64})\",\"repoTags\":[\"${nii_kargo_tag}\"],\"repoDigests\":[]}]"
+  nii_case c1 verify-cri "${nii_fns}" "${tmp}/cri-dup-entry-tag.json" \
+    "${nii_kargo_tag}" "${nii_kargo_alias}"
+  nii_expect 'C1 duplicate tag on a second entry' 1 'exactly once each on one and the same image entry' c1
+
+  # C2 — the mirror: a second entry carrying the pinned digest name.
+  nii_cri_fixture "${tmp}/cri-dup-entry-alias.json" "${nii_tag_json}" "${nii_alias_json}" \
+    "[{\"id\":\"sha256:$(printf 'f%.0s' {1..64})\",\"repoTags\":[],\"repoDigests\":[\"${nii_kargo_alias}\"]}]"
+  nii_case c2 verify-cri "${nii_fns}" "${tmp}/cri-dup-entry-alias.json" \
+    "${nii_kargo_tag}" "${nii_kargo_alias}"
+  nii_expect 'C2 duplicate alias on a second entry' 1 'exactly once each on one and the same image entry' c2
+
+  # C3/C4 — duplicates INSIDE one entry's arrays, which the old predicate also
+  # accepted because `any` stops at the first hit.
+  nii_cri_fixture "${tmp}/cri-dup-array-tag.json" \
+    "[\"${nii_kargo_tag}\",\"${nii_kargo_tag}\"]" "${nii_alias_json}"
+  nii_case c3 verify-cri "${nii_fns}" "${tmp}/cri-dup-array-tag.json" \
+    "${nii_kargo_tag}" "${nii_kargo_alias}"
+  nii_expect 'C3 duplicate tag inside one entry' 1 'exactly once each on one and the same image entry' c3
+  nii_cri_fixture "${tmp}/cri-dup-array-alias.json" \
+    "${nii_tag_json}" "[\"${nii_kargo_alias}\",\"${nii_kargo_alias}\"]"
+  nii_case c4 verify-cri "${nii_fns}" "${tmp}/cri-dup-array-alias.json" \
+    "${nii_kargo_tag}" "${nii_kargo_alias}"
+  nii_expect 'C4 duplicate alias inside one entry' 1 'exactly once each on one and the same image entry' c4
+
+  # C5 — the count is CANONICAL, so the same name spelled two ways is still two
+  # occurrences. Uses the docker.io/library image, the only one whose canonical
+  # form differs from its stored form.
+  nii_cri_fixture "${tmp}/cri-dup-canonical.json" \
+    "[\"${nii_analysis_tag}\",\"${nii_analysis_tag_short}\"]" \
+    "[\"${nii_analysis_alias}\"]"
+  nii_case c5 verify-cri "${nii_fns}" "${tmp}/cri-dup-canonical.json" \
+    "${nii_analysis_tag}" "${nii_analysis_alias}"
+  nii_expect 'C5 the same tag spelled two ways' 1 'exactly once each on one and the same image entry' c5
+  # ... and the same fixture minus the duplicate spelling still passes, so C5 is
+  # not merely rejecting the short spelling.
+  nii_cri_fixture "${tmp}/cri-canonical-ok.json" \
+    "[\"${nii_analysis_tag_short}\"]" "[\"${nii_analysis_alias}\"]"
+  nii_case c6 verify-cri "${nii_fns}" "${tmp}/cri-canonical-ok.json" \
+    "${nii_analysis_tag}" "${nii_analysis_alias}"
+  nii_expect 'C6 the short spelling alone still joins' 0 '' c6
+  echo "  C duplicate entries and duplicate array elements — for the tag and for the alias, canonical spelling included — are rejected, while the ordinary joined state beside a duplicate-carrying control image still passes ✓"
+
+  # The mutations below all strip PRODUCTION bytes — including the orchestration
+  # call sites — exactly as R3 does for --platform, so each proves a specific
+  # layer of the repair is load-bearing rather than decorative.
+  # Neuter exactly one production STATEMENT, keeping the surrounding structure
+  # intact: the statement is replaced in place by `:`, so a call that is the
+  # only body of a loop cannot turn the mutation into a syntax error and let a
+  # parse failure masquerade as the assertion firing. The helper refuses to
+  # proceed unless the call it was aimed at existed exactly once and is gone
+  # afterwards.
+  nii_neuter() {
+    local source="$1" target="$2" token="$3" label="$4" hits
+    hits="$(grep -cF -- "${token}" "${source}" || true)"
+    [ "${hits}" -eq 1 ] ||
+      fail "${label}: expected exactly one production call of '${token}' to neuter, found ${hits}"
+    awk -v token="${token}" \
+      'index($0, token) { sub(/[^[:space:]].*$/, ":") } { print }' \
+      "${source}" >"${target}"
+    [ "$(grep -cF -- "${token}" "${target}" || true)" -eq 0 ] ||
+      fail "${label}: the mutation left the production call in place"
+    [ "$(wc -l <"${source}")" -eq "$(wc -l <"${target}")" ] ||
+      fail "${label}: the mutation changed the line structure instead of neutering one statement"
+  }
+
+  # N1a — delete the production ALIAS CALL. The node then holds precisely the
+  # tag-only state the failed run left behind, and the ctr-side alias row
+  # assertion is the first thing that says so.
+  # The neuter tokens are production SOURCE text and must never expand here.
+  # shellcheck disable=SC2016
+  nii_neuter "${nii_fns}" "${tmp}/node-image-fns-noalias.sh" \
+    'kargo_runtime_alias_node_image "${node}"' 'N1a the alias call is load-bearing'
+  nii_case n1a fixed-path "${tmp}/node-image-fns-noalias.sh"
+  nii_expect 'N1a the alias call is load-bearing' 1 \
+    "does not bind ${nii_kargo_alias} to pinned digest ${KARGO_IMAGE_DIGEST}" n1a
+  nii_n1a_rows="$(wc -l <"${tmp}/n1a/node-images.tsv" | tr -d ' ')"
+  [ "${nii_n1a_rows}" -eq 3 ] ||
+    fail "N1a the alias call is load-bearing: the mutated path should leave the recorded tag-only state of 3 rows, got ${nii_n1a_rows}"
+  echo "  N1a removing the production alias call leaves the recorded tag-only node state and fails the leg closed ✓"
+
+  # N1b — additionally delete the ctr-side alias assertion, so the mutated run
+  # reaches the CRI layer against that same tag-only state. This is the exact
+  # production failure of run 20260729T135154Z-ade9451: the combined
+  # `tag@digest` reference cannot be resolved, and the former tag-only green is
+  # now an asserted RED.
+  # shellcheck disable=SC2016
+  nii_neuter "${tmp}/node-image-fns-noalias.sh" "${tmp}/node-image-fns-noalias-noctr.sh" \
+    'kargo_runtime_verify_node_image "${inventory}" "${alias_ref}"' \
+    'N1b the exact-reference resolution is load-bearing'
+  nii_case n1b fixed-path "${tmp}/node-image-fns-noalias-noctr.sh"
+  nii_expect 'N1b the exact-reference resolution is load-bearing' 1 \
+    "did not resolve the exact pinned workload reference" n1b
+  nii_n1b_attempts="$(wc -l <"${tmp}/n1b/crictl-inspecti-attempts.txt" | tr -d ' ')"
+  [ "${nii_n1b_attempts}" -eq 30 ] ||
+    fail "N1b the exact-reference resolution is load-bearing: expected the bounded retry to stop at 30 attempts, got ${nii_n1b_attempts}"
+  [ "$(sort -u "${tmp}/n1b/crictl-inspecti-attempts.txt" | wc -l | tr -d ' ')" -eq 1 ] ||
+    fail 'N1b the exact-reference resolution is load-bearing: the retry did not keep querying the same exact reference'
+  grep -qxF "${nii_kargo_tag}@${KARGO_IMAGE_DIGEST}" "${tmp}/n1b/crictl-inspecti-attempts.txt" ||
+    fail 'N1b the exact-reference resolution is load-bearing: the retried reference is not the combined tag@digest one the pinned workloads carry'
+  # The fail-closed path prints the transient probe stderr as diagnostics and
+  # then removes it, so even a red run leaves no undeclared artifact behind.
+  grep -qF 'no such image' "${tmp}/n1b/stderr.txt" ||
+    fail 'N1b the exact-reference resolution is load-bearing: the fail-closed path did not surface the probe diagnostics it collected'
+  [ -z "$(find "${tmp}/n1b" -maxdepth 1 -name 'fleet-sit-cri.*' -print -quit)" ] ||
+    fail 'N1b the exact-reference resolution is load-bearing: the transient probe stderr file survived the fail-closed path'
+  [ -z "$(find "${tmp}/n1b/report" -name 'kargo-runtime-cri-*.log' -print -quit)" ] ||
+    fail 'N1b the exact-reference resolution is load-bearing: the probe retained an undeclared stderr artifact inside the report'
+  echo "  N1b on the tag-only state the CRI cannot resolve the combined tag@digest reference, and the bounded retry fails closed at its ceiling ✓"
+
+  # N1c — additionally delete the resolution call, leaving only the CRI
+  # inventory join. It must catch the same tag-only state on its own, so no
+  # single CRI predicate is carrying the others.
+  # shellcheck disable=SC2016
+  nii_neuter "${tmp}/node-image-fns-noalias-noctr.sh" "${tmp}/node-image-fns-joinonly.sh" \
+    'kargo_runtime_assert_cri_reference "${node}"' \
+    'N1c the same-entry CRI join is load-bearing'
+  nii_case n1c fixed-path "${tmp}/node-image-fns-joinonly.sh"
+  nii_expect 'N1c the same-entry CRI join is load-bearing' 1 \
+    "does not carry ${nii_kargo_tag} and ${nii_kargo_alias} exactly once each on one and the same image entry" n1c
+  echo "  N1c the same-entry tag/repoDigest join independently rejects the tag-only state the old tag-only predicate accepted ✓"
+
+  # N2 — a WRONG DIGEST ALIAS: the name says the pin, the record serves other
+  # content. `ctr images tag` performs no such validation, and every crictl view
+  # would look perfect because CRI derives repoDigests from NAMES, so the
+  # name-suffix-equals-target predicate on the ctr inventory is the only place
+  # this is catchable.
+  {
+    cat "${tmp}/inventory-recorded.txt"
+    nii_inv_row "${nii_kargo_tag}" "${KARGO_IMAGE_DIGEST}"
+    nii_inv_row "${nii_kargo_alias}" "${nii_other}"
+  } >"${tmp}/inventory-wrong-alias.txt"
+  nii_case n2 verify-node "${nii_fns}" "${tmp}/inventory-wrong-alias.txt" \
+    "${nii_kargo_alias}" "${KARGO_IMAGE_DIGEST}"
+  nii_expect 'N2 wrong digest alias' 1 'does not bind' n2
+  echo "  N2 a digest-shaped alias whose record targets other content is rejected, though ctr itself would never have checked it ✓"
+
+  # N3 — a STALE TAG beside a correct alias. The ctr predicate rejects the tag,
+  # and the CRI join rejects the split brain two different targets produce: the
+  # tag and the pinned repoDigest land on two entries, not one.
+  {
+    cat "${tmp}/inventory-recorded.txt"
+    nii_inv_row "${nii_kargo_tag}" "${nii_other}"
+    nii_inv_row "${nii_kargo_alias}" "${KARGO_IMAGE_DIGEST}"
+  } >"${tmp}/inventory-stale-tag.txt"
+  nii_case n3a verify-node "${nii_fns}" "${tmp}/inventory-stale-tag.txt" \
+    "${nii_kargo_tag}" "${KARGO_IMAGE_DIGEST}"
+  nii_expect 'N3a stale tag on the ctr inventory' 1 'does not bind' n3a
+  nii_case n3b seeded-cri "${nii_fns}" \
+    "${nii_kargo_tag}" "${nii_other}" \
+    "${nii_kargo_alias}" "${KARGO_IMAGE_DIGEST}"
+  nii_expect 'N3b stale tag in the CRI' 1 \
+    "does not carry ${nii_kargo_tag} and ${nii_kargo_alias} exactly once each on one and the same image entry" n3b
+  echo "  N3 a stale tag beside a correct alias is rejected by the ctr predicate and by the same-entry join that kills split brain ✓"
   ;;
 guard)
   bash ./scripts/validate/registry-guard.sh
