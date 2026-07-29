@@ -2,7 +2,66 @@
 
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <!-- ### dotnet-api-transitive-pinning -->
+    <!-- #### source: dotnet-api -->
+    <!-- Lets a PackageVersion lift a TRANSITIVE dependency without inventing a direct
+         PackageReference the code never calls. Needed to carry a security fix that our own
+         direct dependency has not picked up yet. -->
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
+
+  <!-- ### dotnet-api-security-pins -->
+  <!-- #### source: dotnet-api -->
+  <!-- Microsoft.AspNetCore.OpenApi 10.0.10 still resolves Microsoft.OpenApi 2.0.0, which
+       carries GHSA-v5pm-xwqc-g5wc (high: a circular schema reference can terminate OpenAPI
+       parsing). Patched at 2.7.5; pinned to the newest 2.x so the staleness check and the
+       retraction check are the same check. Drop this pin once the framework package moves. -->
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.OpenApi" Version="2.11.0" />
+  </ItemGroup>
+
+  <!-- ### dotnet-api-diene-runtime-packages -->
+  <!-- #### source: dotnet-api -->
+  <!-- Every diene .NET library is consumed as a PUBLISHED nuget.org package (R-E12).
+       A ProjectReference, path reference, local folder source, or vendored .nupkg
+       would make this repository's whole dogfood proof vacuous. -->
+  <ItemGroup>
+    <PackageVersion Include="AtomiCloud.Diene.ApiEngine" Version="1.0.0" />
+    <PackageVersion Include="AtomiCloud.Diene.AuthEngine" Version="1.0.0" />
+    <PackageVersion Include="AtomiCloud.Diene.Config" Version="1.0.0" />
+    <PackageVersion Include="AtomiCloud.Diene.CoreUtils" Version="1.0.0" />
+    <PackageVersion Include="AtomiCloud.Diene.Interfaces" Version="1.0.0" />
+    <PackageVersion Include="AtomiCloud.Diene.Otel" Version="1.0.0" />
+    <PackageVersion Include="AtomiCloud.Diene.Problems" Version="1.0.0" />
+    <PackageVersion Include="AtomiCloud.Diene.Result" Version="1.0.0" />
+    <PackageVersion Include="AtomiCloud.Diene.ServerEngine" Version="1.0.0" />
+    <PackageVersion Include="AtomiCloud.Diene.StandardConfig" Version="1.0.0" />
+  </ItemGroup>
+
+  <!-- ### dotnet-api-diene-test-packages -->
+  <!-- #### source: dotnet-api -->
+  <!-- E2e already depends on every runtime library and E2e.TestHelper bundles every
+       published TestHelper, so test projects declare these two ids rather than twenty.
+       AtomiCloud.Diene.CoreUtils.TestHelper is not listed because it does not exist:
+       core-utils ships no TestHelper by design. -->
+  <ItemGroup>
+    <PackageVersion Include="AtomiCloud.Diene.E2e" Version="1.0.0" />
+    <PackageVersion Include="AtomiCloud.Diene.E2e.TestHelper" Version="1.0.0" />
+  </ItemGroup>
+
+  <!-- ### dotnet-api-host-packages -->
+  <!-- #### source: dotnet-api -->
+  <ItemGroup>
+    <PackageVersion Include="Asp.Versioning.Mvc" Version="10.0.0" />
+    <PackageVersion Include="Asp.Versioning.Mvc.ApiExplorer" Version="10.0.0" />
+    <PackageVersion Include="FluentValidation" Version="12.1.1" />
+    <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10" />
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+    <PackageVersion Include="Scalar.AspNetCore" Version="2.16.16" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageVersion Include="StackExchange.Redis" Version="3.0.11" />
@@ -12,6 +71,9 @@
     <PackageVersion Include="coverlet.msbuild" Version="6.0.4" />
     <PackageVersion Include="FluentAssertions" Version="7.2.2" />
     <PackageVersion Include="GitHubActionsTestLogger" Version="2.4.1" />
+    <!-- ### dotnet-api-int-test-packages -->
+    <!-- #### source: dotnet-api -->
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.10" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.7.0" />
     <PackageVersion Include="Testcontainers.Redis" Version="4.12.0" />
     <PackageVersion Include="xunit.v3" Version="3.2.2" />

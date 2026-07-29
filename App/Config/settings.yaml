@@ -1,0 +1,158 @@
+# yaml-language-server: $schema=./settings.schema.json
+# Base layer: FULL defaults. Every key the service ever reads exists here, including the
+# ones only an environment override ever fills — a key that exists nowhere binds to a
+# default and fails silently. Landscape overlays stay sparse and name only what differs.
+#
+# Secrets are declared BLANK here and injected through the ordinary env path
+# (ATOMI_<BLOCK>__<KEY>). Nothing special-cases them.
+# Lists use INDEXED keys in the environment: ATOMI_HTTP__CORS__ALLOWED_ORIGINS__0=...
+
+app:
+  landscape: lapras
+  platform: sulfoxide
+  service: dotnet-api
+  module: api
+  version: 0.0.0
+
+error_portal:
+  enabled: false
+  scheme: https
+  host: errors.atomi.cloud
+
+http:
+  forwarded_headers: false
+  cors:
+    enabled: false
+    allowed_origins: []
+    allowed_methods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+      - OPTIONS
+    allowed_headers:
+      - Authorization
+      - Content-Type
+    allow_credentials: false
+  open_api:
+    enabled: true
+    title: Diene .NET API
+    description: The runnable diene .NET service sample.
+    ui: true
+
+server_engine:
+  webhook_tolerance: PT5M
+  webhook_signing_keys: []
+
+auth:
+  enabled: false
+  audience:
+  home_landscape_claim: home_landscape
+  logto:
+    endpoint:
+    issuer:
+    app_id:
+    app_secret:
+    management:
+      endpoint:
+      resource:
+      client_id:
+      client_secret:
+  handoff:
+    mount: /app-handoff
+  tokens:
+    access: PT10M
+    refresh: P14D
+    expiry_skew: PT30S
+    rotate_refresh_tokens: true
+
+db_init:
+  check_reachability: true
+  create_bucket: false
+  migrate: true
+  seed: true
+  reachability_timeout: PT30S
+  reachability_window: PT2M
+
+# Everything is OFF unless a landscape overlay turns it on, so a service that forgets an
+# overlay emits nothing rather than spraying spans in production.
+otel:
+  logs:
+    enabled: true
+    exporter:
+      console:
+        enabled: false
+      otlp:
+        enabled: false
+        endpoint:
+        protocol: http/protobuf
+        headers: {}
+        timeout: PT10S
+  metrics:
+    enabled: true
+    interval: PT60S
+    exporter:
+      console:
+        enabled: false
+      otlp:
+        enabled: false
+        endpoint:
+        protocol: http/protobuf
+        headers: {}
+        timeout: PT10S
+  traces:
+    enabled: true
+    sampler:
+      type: parentbased_traceidratio
+      ratio: 1.0
+    exporter:
+      console:
+        enabled: false
+      otlp:
+        enabled: false
+        endpoint:
+        protocol: http/protobuf
+        headers: {}
+        timeout: PT10S
+
+# Connection names are UPPERCASE (R14). A preset is a map of NAMED connections, so a second
+# pool is data, never code.
+postgres:
+  MAIN:
+    host: localhost
+    port: 5432
+    database: dotnet_api
+    username: dotnet_api
+    password:
+    ssl: false
+    pool:
+      min: 0
+      max: 10
+
+# Dragonfly. RAM-backed, EPHEMERAL — safe to lose.
+cache:
+  MAIN:
+    host: localhost
+    port: 6379
+    password:
+    db: 0
+    tls: false
+
+# PERSISTENT. Same protocol as cache, opposite durability contract. Never point this at the
+# cache instance.
+kv:
+  MAIN:
+    host: localhost
+    port: 6380
+    password:
+    db: 0
+    tls: false
+
+storage:
+  MAIN:
+    endpoint: http://localhost:9000
+    region: auto
+    bucket: dotnet-api
+    access_key_id:
+    secret_access_key:
+    force_path_style: true

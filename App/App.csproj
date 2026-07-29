@@ -1,12 +1,49 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
     <RootNamespace>AtomiCloud.DotnetBase.App</RootNamespace>
   </PropertyGroup>
 
+  <!-- ### dotnet-api-diene-consumption -->
+  <!-- #### source: dotnet-api -->
+  <!-- PUBLISHED nuget.org packages only (R-E12). Never a ProjectReference. -->
+  <ItemGroup>
+    <PackageReference Include="AtomiCloud.Diene.ApiEngine" />
+    <PackageReference Include="AtomiCloud.Diene.AuthEngine" />
+    <PackageReference Include="AtomiCloud.Diene.Config" />
+    <PackageReference Include="AtomiCloud.Diene.CoreUtils" />
+    <PackageReference Include="AtomiCloud.Diene.Interfaces" />
+    <PackageReference Include="AtomiCloud.Diene.Otel" />
+    <PackageReference Include="AtomiCloud.Diene.Problems" />
+    <PackageReference Include="AtomiCloud.Diene.Result" />
+    <PackageReference Include="AtomiCloud.Diene.ServerEngine" />
+    <PackageReference Include="AtomiCloud.Diene.StandardConfig" />
+  </ItemGroup>
+
+  <!-- ### dotnet-api-host-references -->
+  <!-- #### source: dotnet-api -->
+  <ItemGroup>
+    <PackageReference Include="Asp.Versioning.Mvc" />
+    <PackageReference Include="Asp.Versioning.Mvc.ApiExplorer" />
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Scalar.AspNetCore" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="StackExchange.Redis" />
+  </ItemGroup>
+
+  <!-- ### dotnet-api-config-content -->
+  <!-- #### source: dotnet-api -->
+  <!-- The layered settings files are read from disk at boot, so they travel with
+       the published output rather than being embedded. -->
+  <ItemGroup>
+    <Content Include="Config/**/*.yaml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
