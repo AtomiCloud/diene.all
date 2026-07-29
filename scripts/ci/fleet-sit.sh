@@ -3591,7 +3591,13 @@ run_full() {
   send_webhook "http://127.0.0.1:${PF_SERVER_PORT}/api/webhook" correct \
     "${report}/webhook-L5-rollback.json" 'refs/tags/machinery-stable' "${C4_SHA}" "${revert_sha}"
   sit_assert_http_success "${report}/webhook-L5-rollback.json"
-  sit_wait_for 150 'automatic operation on the rolled-back machinery-stable revision' \
+  # The preceding C4 auto-sync intentionally fails in this CRD-light venue and
+  # enters a five-retry schedule. Pinned Argo v3.4.5 defaults to a 5s base,
+  # factor 2, and 3m cap; this venue's captured effective cadence was
+  # 10+20+40+80+160s, consuming 310s while Argo correctly refused another
+  # operation. Waiting through that ordinary path instead of terminating C4 out
+  # of band keeps this production-faithful; 110s remains for reconciliation.
+  sit_wait_for 420 'automatic operation on the rolled-back machinery-stable revision' \
     check_sitother_automation_live "${revert_sha}" "${recreated_uid}" "${rollback_moved_at}"
   kubectl -n argocd get application.argoproj.io platform-sitother -o json \
     >"${report}/platform-sitother-after-rollback-L5.json"
