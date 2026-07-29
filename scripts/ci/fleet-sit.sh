@@ -1576,8 +1576,22 @@ kargo_runtime_verify_host_image() {
     any(.[0].RepoDigests[]?; endswith("@" + $digest))
   ' "${output}" >/dev/null ||
     sit_fail "host image does not carry the pinned digest: ${image_ref}"
-  docker image inspect "${tag_ref}" >/dev/null 2>&1 ||
+  # A digest-qualified pull stores the image under its digest ONLY and never
+  # creates name:tag (classic and containerd stores alike), so the export tag
+  # k3d needs has to be bound explicitly - and bound FROM the verified digest
+  # reference, so the pin, not the registry tag, decides the content. `docker
+  # image tag` also overwrites any stale binding a warm daemon carried in.
+  docker image tag "${digest_ref}" "${tag_ref}" ||
+    sit_fail "could not bind the export tag to the pinned digest: ${tag_ref}"
+  docker image inspect "${tag_ref}" >"${output%.json}-tag.json" 2>/dev/null ||
     sit_fail "the digest-qualified pull did not bind its export tag: ${tag_ref}"
+  # Existence alone would be vacuous: a stale cached tag would satisfy it. The
+  # tag must resolve to the same immutable digest asserted above.
+  jq -e --arg digest "${digest}" '
+    length == 1 and
+    any(.[0].RepoDigests[]?; endswith("@" + $digest))
+  ' "${output%.json}-tag.json" >/dev/null ||
+    sit_fail "the export tag does not resolve to the pinned digest: ${tag_ref}"
 }
 
 kargo_runtime_canonical_image_tag() {
@@ -1645,9 +1659,17 @@ kargo_runtime_prepare_artifacts() {
     "${KARGO_RUNTIME_DIR}/images/rollouts.json"
   kargo_runtime_verify_host_image "${ANALYSIS_RUNTIME_IMAGE_REF}" "${analysis_digest_ref}" \
     "${KARGO_RUNTIME_DIR}/images/analysis.json"
+  # The retained artifact carries BOTH halves of the host-side proof: the three
+  # digest-qualified inspections first, then the three export-tag inspections
+  # that must resolve to the same pinned digests. Existing consumers only
+  # require this file to be present and non-empty, so the addition weakens
+  # nothing while making the tag<->digest binding visible in the evidence.
   jq -s 'add' "${KARGO_RUNTIME_DIR}/images/kargo.json" \
     "${KARGO_RUNTIME_DIR}/images/rollouts.json" \
     "${KARGO_RUNTIME_DIR}/images/analysis.json" \
+    "${KARGO_RUNTIME_DIR}/images/kargo-tag.json" \
+    "${KARGO_RUNTIME_DIR}/images/rollouts-tag.json" \
+    "${KARGO_RUNTIME_DIR}/images/analysis-tag.json" \
     >"${report}/kargo-runtime-host-images.json"
 
   local image_ref tag_ref

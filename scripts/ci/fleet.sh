@@ -35,6 +35,10 @@ bash ./scripts/validate/fleet.sh appset-scope
 bash ./scripts/validate/fleet.sh row-expansion
 bash ./scripts/validate/fleet.sh platforms-appset
 bash ./scripts/validate/fleet.sh machinery-pin
+# Offline model of the L9 host-image step, running the production SIT function
+# bytes against a docker shim. Daemon-free, so the SIT's export-tag binding is
+# regression-guarded in ordinary CI instead of only in a live SIT venue.
+bash ./scripts/validate/fleet.sh sit-host-image-binding
 bash ./scripts/validate/fleet.sh guard
 bash ./scripts/validate/fleet.sh presence
 
