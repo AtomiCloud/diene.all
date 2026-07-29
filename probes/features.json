@@ -384,5 +384,10 @@
     "template": "diene/dotnet-api",
     "name": "dotnet-api-primordial-chart-template",
     "class": "smoke"
+  },
+  {
+    "template": "diene/dotnet-api",
+    "name": "dotnet-api-two-chart-artifacts",
+    "class": "presence"
   }
 ]
