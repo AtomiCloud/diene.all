@@ -11,13 +11,18 @@ headers {
 }
 
 script:pre-request {
-  // A SIT run against an EMPTY host silently 404s or connection-refuses on every
-  // journey, which reads as "the service is broken" instead of "nobody told the run
-  // where castform is". Fail loudly, at the first request, naming the variable.
-  const baseUrl = bru.getEnvVar("baseUrl");
+  // A SIT run against an EMPTY host connection-refuses on every journey, which reads
+  // as "the service is broken" instead of "nobody told the run where castform is".
+  // Fail loudly, at the first request, naming the variable.
+  //
+  // Read the PROCESS variable, not the environment variable. An unset
+  // `{{process.env.X}}` is left as that literal placeholder rather than resolved to
+  // an empty string, so `bru.getEnvVar("baseUrl")` is truthy even when nothing was
+  // supplied — a guard on it passes exactly when it most needs to fail.
+  const baseUrl = bru.getProcessEnv("SIT_BASE_URL");
   if (!baseUrl) {
     throw new Error(
-      "SIT_BASE_URL is unset — the sit environment resolved baseUrl to an empty string. " +
+      "SIT_BASE_URL is unset, so the sit environment has no castform host to point at. " +
       "Export the castform preview host in the dotted form " +
       "module.service.platform.instance.landscape.zone, e.g. " +
       "https://api.dotnet-api.sulfoxide.<instance>.castform.dev.atomi.cloud"
@@ -39,7 +44,7 @@ docs {
   Run it headless from the repository root:
 
   ```
-  pls test:sit
+  ./scripts/ci/sit.sh
   ```
 
   See `README.md` beside this file for the environment contract, and `withheld/` for
