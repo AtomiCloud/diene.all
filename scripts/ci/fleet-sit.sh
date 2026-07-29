@@ -1469,12 +1469,23 @@ run_kargo_contract_leg() {
     any(.[]; .path | test("promotionTemplate.*steps.*config")) and
     all(.[]; .qualification | test("persistence, not field-level schema declaration or expression validity"))
   ' "${report}/kargo-crd-preserve-unknown-blind-spots.json" >/dev/null
+  # Exact key-set equality, not a count: a claim keyed only by kind.field would
+  # collide with its sibling claim on the same field and shrink the set, so
+  # missing, extra AND colliding records all fail here. The enum/pattern checks
+  # then apply to EVERY claim entry on that field, not just one of them.
   jq -e '
-    (to_entries | length) >= 5 and
+    (keys | sort) == [
+      "ProjectConfig.autoPromotionEnabled.defaults-to-false",
+      "Stage.availabilityStrategy.all-requires-every-upstream",
+      "Stage.availabilityStrategy.omitted-defaults-to-oneof",
+      "Stage.requiredSoakTime.soak-additional-to-verification",
+      "Stage.requiredSoakTime.soak-clock-is-upstream-residency"
+    ] and
     all(.[]; .present == true) and
-    (."Stage.availabilityStrategy".enum | index("All")) != null and
-    (."Stage.availabilityStrategy".enum | index("OneOf")) != null and
-    (."Stage.requiredSoakTime".pattern | length) > 0
+    all(to_entries[] | select(.key | startswith("Stage.availabilityStrategy.")) | .value;
+        (.enum | index("All")) != null and (.enum | index("OneOf")) != null) and
+    all(to_entries[] | select(.key | startswith("Stage.requiredSoakTime.")) | .value;
+        (.pattern | length) > 0)
   ' "${report}/kargo-crd-semantics.json" >/dev/null
 
   # Negatives at the real API server: the ratified values are constrained by the

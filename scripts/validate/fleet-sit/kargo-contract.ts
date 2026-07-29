@@ -103,22 +103,30 @@ const STAGE_CONTRACT: StageContract[] = [
 // Load-bearing upstream semantics, quoted from the pinned CRD descriptions.
 // Whitespace is collapsed before matching so a re-wrapped description still
 // matches, while a changed CLAIM does not.
+//
+// `id` is the stable per-claim slug. A field carries MORE than one claim, so
+// `kind.field` is not an identity: it is the check name and the report key that
+// must be `kind.field.id`, or two claims collapse onto one another and the
+// proof artifact silently loses records that were in fact checked.
 const CRD_SEMANTICS = [
   {
     kind: 'Stage',
     field: 'availabilityStrategy',
+    id: 'all-requires-every-upstream',
     claim: 'rendezvous All requires every upstream member, so a single-member promotion is not available',
     phrase: '- "All": Freight must be verified and, if applicable, soaked in all upstream Stages',
   },
   {
     kind: 'Stage',
     field: 'availabilityStrategy',
+    id: 'omitted-defaults-to-oneof',
     claim: 'omitting the field silently weakens the rendezvous to OneOf',
     phrase: 'the field is implicitly treated as if its value were "OneOf"',
   },
   {
     kind: 'Stage',
     field: 'requiredSoakTime',
+    id: 'soak-clock-is-upstream-residency',
     claim:
       'the soak clock is residency in the upstream Stage, i.e. it runs from promotion, not from verification success',
     phrase: 'must have continuously occupied ("soaked in") in an upstream Stage',
@@ -126,16 +134,23 @@ const CRD_SEMANTICS = [
   {
     kind: 'Stage',
     field: 'requiredSoakTime',
+    id: 'soak-additional-to-verification',
     claim: 'soak is an ADDITIONAL requirement on top of upstream verification, never a substitute for it',
     phrase: 'is in ADDITION to the requirement that Freight be verified in an upstream Stage',
   },
   {
     kind: 'ProjectConfig',
     field: 'autoPromotionEnabled',
+    id: 'defaults-to-false',
     claim: 'auto-promotion is off unless a policy enables it, so a manual Stage is manual by the ABSENCE of a policy',
     phrase: 'This field defaults to false',
   },
 ] as const;
+
+// The identity of a semantic claim, shared by its check name and its report
+// key so the artifact and the check set are the same five records.
+const semanticId = (entry: { kind: string; field: string; id: string }): string =>
+  `${entry.kind}.${entry.field}.${entry.id}`;
 
 const usage = (): never => {
   console.error(
@@ -518,11 +533,11 @@ const checkConformance = (
     const description = typeof property?.description === 'string' ? property.description : '';
     const ok = collapse(description).includes(collapse(entry.phrase));
     checker.assert(
-      `kargo.crd.semantics.${entry.kind}.${entry.field}.${ok ? 'documents' : 'missing'}`,
+      `kargo.crd.semantics.${semanticId(entry)}`,
       ok,
       ok ? entry.claim : `pinned ${entry.kind}.${entry.field} description does not contain: ${entry.phrase}`,
     );
-    semantics[`${entry.kind}.${entry.field}`] = {
+    semantics[semanticId(entry)] = {
       claim: entry.claim,
       phrase: entry.phrase,
       present: ok,
@@ -531,6 +546,13 @@ const checkConformance = (
       description,
     };
   }
+  // A colliding key would shrink the artifact while every claim still "passed",
+  // so the count is asserted in the oracle itself rather than only downstream.
+  checker.assert(
+    'kargo.crd.semantics.count',
+    Object.keys(semantics).length === CRD_SEMANTICS.length,
+    `${Object.keys(semantics).length} of ${CRD_SEMANTICS.length} distinct semantic claim entries`,
+  );
   return {
     semantics,
     preserveUnknownFieldsBlindSpots: [...preservedUnknownPaths].sort().map(path => ({
@@ -799,6 +821,92 @@ if (config.selfTest) {
     throw new Error('conformance self-test did not collect the preserve-unknown-fields blind spot');
   }
 
+  // Semantic-claim identity: the live path is the only one that reaches
+  // CRD_SEMANTICS, so it is replayed here against stub CRDs whose descriptions
+  // are built from the claim phrases themselves. It proves every claim gets its
+  // own record and its own check name; nothing is downloaded or vendored.
+  const semanticDescription = (kind: string, field: string): string =>
+    CRD_SEMANTICS.filter(entry => entry.kind === kind && entry.field === field)
+      .map(entry => entry.phrase)
+      .join('\n');
+
+  const semanticsStageCrd = JSON.parse(JSON.stringify(crdStub[0])) as JsonObject;
+  const semanticsStageSources = at(
+    schemaFor(semanticsStageCrd),
+    'properties.spec.properties.requestedFreight.items.properties.sources.properties',
+  ) as JsonObject;
+  for (const field of ['availabilityStrategy', 'requiredSoakTime']) {
+    (semanticsStageSources[field] as JsonObject).description = semanticDescription('Stage', field);
+  }
+
+  const emptyCrd = (kind: string): JsonObject => ({
+    spec: {
+      names: { kind },
+      versions: [{ name: 'v1alpha1', schema: { openAPIV3Schema: { properties: {} } } }],
+    },
+  });
+
+  const semanticsCrds: JsonObject[] = [
+    emptyCrd('Project'),
+    emptyCrd('Warehouse'),
+    {
+      spec: {
+        names: { kind: 'ProjectConfig' },
+        versions: [
+          {
+            name: 'v1alpha1',
+            schema: {
+              openAPIV3Schema: {
+                properties: {
+                  spec: {
+                    properties: {
+                      promotionPolicies: {
+                        items: {
+                          properties: {
+                            autoPromotionEnabled: {
+                              type: 'boolean',
+                              description: semanticDescription('ProjectConfig', 'autoPromotionEnabled'),
+                            },
+                            stageSelector: { properties: { name: { type: 'string' } } },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+    },
+    semanticsStageCrd,
+  ];
+
+  const semanticsChecker = new Checker();
+  const semanticsReport = checkConformance(semanticsChecker, [], semanticsCrds).semantics;
+  const expectedSemanticKeys = CRD_SEMANTICS.map(semanticId).sort();
+  const semanticKeys = Object.keys(semanticsReport).sort();
+  if (canonical(semanticKeys) !== canonical(expectedSemanticKeys)) {
+    throw new Error(
+      `semantics self-test emitted ${semanticKeys.length} of ${expectedSemanticKeys.length} distinct claim records: ${canonical(semanticKeys)}`,
+    );
+  }
+  const absent = semanticKeys.filter(key => at(semanticsReport[key], 'present') !== true);
+  if (absent.length !== 0) throw new Error(`semantics self-test claims not present: ${canonical(absent)}`);
+  const semanticCheckNames = semanticsChecker.checks
+    .filter(check => check.name.startsWith('kargo.crd.semantics.') && check.name !== 'kargo.crd.semantics.count')
+    .map(check => check.name)
+    .sort();
+  if (canonical(semanticCheckNames) !== canonical(expectedSemanticKeys.map(key => `kargo.crd.semantics.${key}`))) {
+    throw new Error(`semantics self-test check names are not stable and unique: ${canonical(semanticCheckNames)}`);
+  }
+  if (!semanticsChecker.ok) {
+    throw new Error(
+      `semantics self-test checker failed: ${canonical(semanticsChecker.checks.filter(check => !check.ok))}`,
+    );
+  }
+
   console.log(
     JSON.stringify({
       status: 'pass',
@@ -806,6 +914,7 @@ if (config.selfTest) {
       baselineChecks: (baseline.checks as unknown as Check[]).length,
       rejectedMutations: executedMutations.length,
       conformanceRejections: pruned.length + badEnum.length,
+      semanticClaims: semanticKeys.length,
       preserveUnknownFieldsBlindSpots: preserveBlindSpots,
     }),
   );
