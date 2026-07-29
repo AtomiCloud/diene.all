@@ -1,4 +1,4 @@
-import { runWithRedis } from './lib/dotnet.ts';
+import { runWithOutput } from './lib/dotnet.ts';
 import { expectGreen } from './lib/helpers.ts';
 
 export default {
@@ -16,9 +16,8 @@ export default {
           'dotnet-dev-build',
           480000,
         );
-        await runWithRedis(
+        await runWithOutput(
           repo,
-          'dotnet-base-probe-dev',
           `nix develop .#default -c sh -lc '
             set -eu
             log="$(mktemp)"

@@ -19,7 +19,6 @@ shared workspace, standards, secret, and release surfaces.
 | `pls dev`                        | Run the App through `dotnet watch`.                            |
 | `pls run -- <args>`              | Run the App in development mode.                               |
 | `pls preview -- <args>`          | Build and run the compiled Release artifact.                   |
-| `pls up` / `pls down`            | Start or stop the local Redis dependency.                      |
 | `pls test`                       | Run unit and integration tiers.                                |
 | `pls test:unit` / `pls test:int` | Run one tier.                                                  |
 | `pls test:coverage`              | Enforce both merged coverage ledgers.                          |
@@ -67,7 +66,7 @@ commit-type vocabulary.
 ## Template-maintenance boundary
 
 Downstream nodes may adapt package/artifact identity, coverage thresholds,
-badges, and the illustrative Note source/tests. Keep
+badges, and the illustrative source/tests. Keep
 `dotnet-base.slnx`, `.config/dotnet-base.test.yaml`, and the
 `AtomiCloud.DotnetBase.*` root namespaces base-named for merge stability.
 

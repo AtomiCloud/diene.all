@@ -1,1 +1,5 @@
-[]
+[
+  "AtomiCloud.Diene.CoreUtils/diene-dotnet-core-utils-usage/SKILL.md",
+  "AtomiCloud.Diene.Result.TestHelper/diene-dotnet-result-usage/SKILL.md",
+  "AtomiCloud.Diene.Result/diene-dotnet-result-usage/SKILL.md"
+]

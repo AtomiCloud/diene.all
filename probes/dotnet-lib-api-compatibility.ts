@@ -26,8 +26,8 @@ export default defineGate({
     description: 'Removing one public 1.0 interface member turns PackageValidation red.',
     expectedImpact: [],
     async run(repo: any) {
-      await repo.patch('Lib/INoteRepository.cs', {
-        find: '\n    Task<NotePrincipal?> Find(string id, CancellationToken cancellationToken = default);',
+      await repo.patch('Lib/IProblemExporter.cs', {
+        find: '\n    /// <summary>Exports every registered descriptor.</summary>\n    IReadOnlyList<ProblemExport> ExportAll();',
         replace: '',
       });
       await expectRed(

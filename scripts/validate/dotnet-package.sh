@@ -34,6 +34,11 @@ if [ "${mode}" = "metadata" ]; then
   [ -z "${repository_url}" ] && echo "❌ Directory.Build.props declares no RepositoryUrl" >&2 && exit 1
   [ "${#skill_assets[@]}" -eq 0 ] && echo "❌ No skills/*/SKILL.md is available to ship with the packages" >&2 && exit 1
   required_assets=(README.md logo.png LICENSE "${skill_assets[@]}")
+  if ! repository_root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+    echo "❌ Package commit metadata validation must run inside a git worktree" >&2
+    exit 1
+  fi
+  expected_commit="$(git -C "${repository_root}" rev-parse HEAD)"
 
   for package_id in "${package_ids[@]}"; do
     package="${artifacts}/${package_id}.${version}.nupkg"
@@ -50,6 +55,12 @@ if [ "${mode}" = "metadata" ]; then
     [ -z "$(xmlstarlet sel -N n="${namespace}" -t -v '/n:package/n:metadata/n:description' "${nuspec}")" ] && echo "❌ ${package_id} description metadata missing" >&2 && exit 1
     [ "$(xmlstarlet sel -N n="${namespace}" -t -v '/n:package/n:metadata/n:projectUrl' "${nuspec}")" != "${project_url}" ] && echo "❌ ${package_id} project URL metadata missing" >&2 && exit 1
     [ "$(xmlstarlet sel -N n="${namespace}" -t -v '/n:package/n:metadata/n:repository/@url' "${nuspec}")" != "${repository_url}" ] && echo "❌ ${package_id} repository metadata missing" >&2 && exit 1
+    actual_commit="$(xmlstarlet sel -N n="${namespace}" -t -v '/n:package/n:metadata/n:repository/@commit' "${nuspec}")"
+    if [ "${actual_commit}" != "${expected_commit}" ]; then
+      [ -z "${actual_commit}" ] && actual_commit="<missing>"
+      echo "❌ ${package_id} repository commit metadata mismatch: expected HEAD ${expected_commit}, found ${actual_commit}" >&2
+      exit 1
+    fi
     contents="$(unzip -Z1 "${package}")"
     for required in "${required_assets[@]}"; do
       ! echo "${contents}" | rg -Fxq "${required}" && echo "❌ ${package_id} package is missing ${required}" >&2 && exit 1
