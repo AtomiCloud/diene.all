@@ -1,16 +1,20 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <RootNamespace>AtomiCloud.Diene.Note.TestHelper</RootNamespace>
-    <AssemblyName>AtomiCloud.Diene.Note.TestHelper</AssemblyName>
-    <PackageId>AtomiCloud.Diene.Note.TestHelper</PackageId>
-    <Description>Consumer test assertions for AtomiCloud.Diene.Note.</Description>
+    <RootNamespace>AtomiCloud.Diene.AuthEngine.TestHelper</RootNamespace>
+    <AssemblyName>AtomiCloud.Diene.AuthEngine.TestHelper</AssemblyName>
+    <PackageId>AtomiCloud.Diene.AuthEngine.TestHelper</PackageId>
+    <Description>IdP, token, management, deferred-store, and onboarding fakes plus assertions for AtomiCloud.Diene.AuthEngine.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IsPackable>true</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="../Lib/Lib.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FluentAssertions" />
   </ItemGroup>
 
   <ItemGroup>
