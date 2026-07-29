@@ -23,7 +23,7 @@ export default defineGate({
     async run(repo: any) {
       await packPackages(repo, 'dotnet-lib-symbol-package-mutation-pack');
       await repo.exec(
-        'package="$(find artifacts/package -maxdepth 1 -name \'AtomiCloud.Diene.Note.TestHelper.*.nupkg\' -print -quit)"; symbols="${package%.nupkg}.snupkg"; cp "${package}" "${symbols}"',
+        'package="$(find artifacts/package -maxdepth 1 -name \'AtomiCloud.Diene.E2e.TestHelper.*.nupkg\' -print -quit)"; symbols="${package%.nupkg}.snupkg"; cp "${package}" "${symbols}"',
       );
       await expectRed(
         repo,

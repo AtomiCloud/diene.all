@@ -1,16 +1,28 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <RootNamespace>AtomiCloud.Diene.Note.TestHelper</RootNamespace>
-    <AssemblyName>AtomiCloud.Diene.Note.TestHelper</AssemblyName>
-    <PackageId>AtomiCloud.Diene.Note.TestHelper</PackageId>
-    <Description>Consumer test assertions for AtomiCloud.Diene.Note.</Description>
+    <RootNamespace>AtomiCloud.Diene.E2e.TestHelper</RootNamespace>
+    <AssemblyName>AtomiCloud.Diene.E2e.TestHelper</AssemblyName>
+    <PackageId>AtomiCloud.Diene.E2e.TestHelper</PackageId>
+    <Description>Diene family TestHelper bundle plus black-box response assertions.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IsPackable>true</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="../Lib/Lib.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AtomiCloud.Diene.ApiEngine.TestHelper" />
+    <PackageReference Include="AtomiCloud.Diene.AuthEngine.TestHelper" />
+    <PackageReference Include="AtomiCloud.Diene.Config.TestHelper" />
+    <PackageReference Include="AtomiCloud.Diene.Interfaces.TestHelper" />
+    <PackageReference Include="AtomiCloud.Diene.Otel.TestHelper" />
+    <PackageReference Include="AtomiCloud.Diene.Problems.TestHelper" />
+    <PackageReference Include="AtomiCloud.Diene.Result.TestHelper" />
+    <PackageReference Include="AtomiCloud.Diene.ServerEngine.TestHelper" />
+    <PackageReference Include="AtomiCloud.Diene.StandardConfig.TestHelper" />
   </ItemGroup>
 
   <ItemGroup>

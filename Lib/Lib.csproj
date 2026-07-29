@@ -1,13 +1,31 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <RootNamespace>AtomiCloud.Diene.Note</RootNamespace>
-    <AssemblyName>AtomiCloud.Diene.Note</AssemblyName>
-    <PackageId>AtomiCloud.Diene.Note</PackageId>
-    <Description>An illustrative note-domain library and the Diene .NET library template.</Description>
+    <RootNamespace>AtomiCloud.Diene.E2e</RootNamespace>
+    <AssemblyName>AtomiCloud.Diene.E2e</AssemblyName>
+    <PackageId>AtomiCloud.Diene.E2e</PackageId>
+    <Description>Black-box SIT drivers and Garden preview endpoint glue for Diene .NET services.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IsPackable>true</IsPackable>
   </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AtomiCloud.Diene.ApiEngine" />
+    <PackageReference Include="AtomiCloud.Diene.AuthEngine" />
+    <PackageReference Include="AtomiCloud.Diene.Config" />
+    <PackageReference Include="AtomiCloud.Diene.CoreUtils" />
+    <PackageReference Include="AtomiCloud.Diene.Interfaces" />
+    <PackageReference Include="AtomiCloud.Diene.Otel" />
+    <PackageReference Include="AtomiCloud.Diene.Problems" />
+    <PackageReference Include="AtomiCloud.Diene.Result" />
+    <PackageReference Include="AtomiCloud.Diene.ServerEngine" />
+    <PackageReference Include="AtomiCloud.Diene.StandardConfig" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+  </ItemGroup>
 
   <ItemGroup>
     <None Include="../LICENSE" Pack="true" PackagePath="/" />

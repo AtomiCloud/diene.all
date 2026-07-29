@@ -1,4 +1,4 @@
-import { runWithRedis } from './lib/dotnet.ts';
+import { runWebApp } from './lib/dotnet.ts';
 import { expectGreen } from './lib/helpers.ts';
 
 export default {
@@ -16,47 +16,7 @@ export default {
           'dotnet-dev-build',
           480000,
         );
-        await runWithRedis(
-          repo,
-          'dotnet-base-probe-dev',
-          `nix develop .#default -c sh -lc '
-            set -eu
-            log="$(mktemp)"
-            setsid pls dev >"$log" 2>&1 &
-            pid=$!
-            cleanup() {
-              kill -TERM -"$pid" 2>/dev/null || true
-              for attempt in $(seq 1 10); do
-                if ! kill -0 -"$pid" 2>/dev/null; then
-                  break
-                fi
-                sleep 1
-              done
-              kill -KILL -"$pid" 2>/dev/null || true
-              wait "$pid" 2>/dev/null || true
-              cat "$log"
-              rm -f "$log"
-            }
-            trap cleanup EXIT
-            for attempt in $(seq 1 240); do
-              if rg -q "dotnet watch .*\\] Exited$" "$log"; then
-                exit 0
-              fi
-              if rg -q "dotnet watch .*\\] Exited with error|Build FAILED|Unhandled exception" "$log"; then
-                exit 1
-              fi
-              if ! kill -0 "$pid" 2>/dev/null; then
-                set +e
-                wait "$pid"
-                code=$?
-                set -e
-                exit "$code"
-              fi
-              sleep 1
-            done
-            exit 124
-          '`,
-        );
+        await runWebApp(repo, 'dotnet-e2e-dev', 'nix develop .#default -c pls dev');
       },
     },
   ],

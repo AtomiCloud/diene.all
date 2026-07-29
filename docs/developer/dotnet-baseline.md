@@ -11,31 +11,32 @@ shared workspace, standards, secret, and release surfaces.
 
 ## Local commands
 
-| Command                          | Purpose                                                        |
-| -------------------------------- | -------------------------------------------------------------- |
-| `pls setup`                      | Synchronize vendored skills and restore repo-local .NET tools. |
-| `pls clean`                      | Remove build and test artifacts.                               |
-| `pls build`                      | Build every project in Release.                                |
-| `pls dev`                        | Run the App through `dotnet watch`.                            |
-| `pls run -- <args>`              | Run the App in development mode.                               |
-| `pls preview -- <args>`          | Build and run the compiled Release artifact.                   |
-| `pls up` / `pls down`            | Start or stop the local Redis dependency.                      |
-| `pls test`                       | Run unit and integration tiers.                                |
-| `pls test:unit` / `pls test:int` | Run one tier.                                                  |
-| `pls test:coverage`              | Enforce both merged coverage ledgers.                          |
-| `pls test:watch`                 | Watch the fast unit tier.                                      |
-| `pls deadcode`                   | Emit the broad, non-blocking LLM review.                       |
-| `pls lint`                       | Run every generated pre-commit hook.                           |
+| Command                            | Purpose                                                        |
+| ---------------------------------- | -------------------------------------------------------------- |
+| `pls setup`                        | Synchronize vendored skills and restore repo-local .NET tools. |
+| `pls clean`                        | Remove build and test artifacts.                               |
+| `pls build`                        | Build every project in Release.                                |
+| `pls dev`                          | Run the App through `dotnet watch`.                            |
+| `pls run -- <args>`                | Run the App in development mode.                               |
+| `pls preview -- <args>`            | Build and run the compiled Release artifact.                   |
+| `pls up` / `pls down`              | Confirm that the harness needs no local dependency process.    |
+| `pls test`                         | Run unit, integration, and TestHelper meta tiers.              |
+| `pls test:unit` / `:int` / `:meta` | Run one tier.                                                  |
+| `pls test:coverage`                | Enforce all three merged coverage ledgers.                     |
+| `pls test:watch`                   | Watch the fast unit tier.                                      |
+| `pls deadcode`                     | Emit the broad, non-blocking LLM review.                       |
+| `pls lint`                         | Run every generated pre-commit hook.                           |
 
 ## Projects and coverage
 
-`dotnet-base.slnx` contains `App`, `Lib`, `UnitTest`, and `IntTest`. Register test
-projects once in `.config/dotnet-base.test.yaml`. The coverage runner iterates the
+`dotnet-base.slnx` contains `App`, `Lib`, `TestHelper`, `UnitTest`, and
+`IntTest`. Register test projects once in `.config/dotnet-base.test.yaml`. The coverage runner iterates the
 registered projects, merges Coverlet JSON, and enforces one final threshold per
 tier:
 
 - unit: every `[Lib*]*` assembly at 100%;
 - integration: every `[App*]*` assembly at 80%.
+- meta: every `[*.TestHelper]*` assembly at 100%.
 
 The runner then parses the merged `coverage.cobertura.xml` with `xmlstarlet`: it
 rejects a report that measured zero lines, rejects any package whose assembly name
@@ -71,5 +72,5 @@ badges, and the illustrative Note source/tests. Keep
 `dotnet-base.slnx`, `.config/dotnet-base.test.yaml`, and the
 `AtomiCloud.DotnetBase.*` root namespaces base-named for merge stability.
 
-Observability is deliberately absent on this branch and arrives only through the
-separate observability add-back.
+The E2e materialization consumes the published observability family and rides the
+real environment's Alloy pipeline; it does not add a fake local collector.

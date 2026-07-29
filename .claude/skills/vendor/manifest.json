@@ -1,1 +1,21 @@
-[]
+[
+  "AtomiCloud.Diene.ApiEngine.TestHelper/diene-dotnet-api-engine-usage/SKILL.md",
+  "AtomiCloud.Diene.ApiEngine/diene-dotnet-api-engine-usage/SKILL.md",
+  "AtomiCloud.Diene.AuthEngine.TestHelper/diene-dotnet-auth-engine-usage/SKILL.md",
+  "AtomiCloud.Diene.AuthEngine/diene-dotnet-auth-engine-usage/SKILL.md",
+  "AtomiCloud.Diene.Config.TestHelper/diene-dotnet-config-usage/SKILL.md",
+  "AtomiCloud.Diene.Config/diene-dotnet-config-usage/SKILL.md",
+  "AtomiCloud.Diene.CoreUtils/diene-dotnet-core-utils-usage/SKILL.md",
+  "AtomiCloud.Diene.Interfaces.TestHelper/diene-dotnet-interfaces-usage/SKILL.md",
+  "AtomiCloud.Diene.Interfaces/diene-dotnet-interfaces-usage/SKILL.md",
+  "AtomiCloud.Diene.Otel.TestHelper/diene-dotnet-otel-usage/SKILL.md",
+  "AtomiCloud.Diene.Otel/diene-dotnet-otel-usage/SKILL.md",
+  "AtomiCloud.Diene.Problems.TestHelper/diene-dotnet-problems-usage/SKILL.md",
+  "AtomiCloud.Diene.Problems/diene-dotnet-problems-usage/SKILL.md",
+  "AtomiCloud.Diene.Result.TestHelper/diene-dotnet-result-usage/SKILL.md",
+  "AtomiCloud.Diene.Result/diene-dotnet-result-usage/SKILL.md",
+  "AtomiCloud.Diene.ServerEngine.TestHelper/diene-dotnet-server-engine-usage/SKILL.md",
+  "AtomiCloud.Diene.ServerEngine/diene-dotnet-server-engine-usage/SKILL.md",
+  "AtomiCloud.Diene.StandardConfig.TestHelper/diene-dotnet-standard-config-usage/SKILL.md",
+  "AtomiCloud.Diene.StandardConfig/diene-dotnet-standard-config-usage/SKILL.md"
+]

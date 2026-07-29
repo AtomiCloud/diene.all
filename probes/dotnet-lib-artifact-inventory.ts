@@ -23,7 +23,7 @@ export default defineGate({
     async run(repo: any) {
       await packPackages(repo, 'dotnet-lib-artifact-inventory-mutation-pack');
       await repo.exec(
-        'rm "$(find artifacts/package -maxdepth 1 -name \'AtomiCloud.Diene.Note.TestHelper.*.snupkg\' -print -quit)"',
+        'rm "$(find artifacts/package -maxdepth 1 -name \'AtomiCloud.Diene.E2e.TestHelper.*.snupkg\' -print -quit)"',
       );
       await expectRed(
         repo,

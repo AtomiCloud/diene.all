@@ -1,32 +1,63 @@
-using AtomiCloud.DotnetBase.App.Adapters.Redis;
-using AtomiCloud.Diene.Note;
-using StackExchange.Redis;
+using AtomiCloud.Diene.E2e;
+using AtomiCloud.Diene.E2e.Demo;
+using AtomiCloud.Diene.E2e.Drivers;
+using AtomiCloud.Diene.E2e.Garden;
 
-namespace AtomiCloud.DotnetBase.App;
-
-/// <summary>Composition root: explicit wiring of domain interfaces to concrete adapters.</summary>
-public static class Program
+if (args.Contains("--exercise-e2e-harness", StringComparer.Ordinal))
 {
-    public static async Task Main()
+    ExerciseHarness();
+    return;
+}
+
+var builder = WebApplication.CreateBuilder(args);
+var app = builder.Build();
+
+var endpoints = app.MapDemoEndpoint();
+endpoints.MapGet("/system/packages", () => new
+{
+    Runtime = PublishedPackageBundle.RuntimeAssemblyNames.Count,
+    TestHelpers = PublishedPackageBundle.TestHelperAssemblyNames.Count,
+});
+app.Run();
+
+static void ExerciseHarness()
+{
+    _ = new Program();
+
+    var fixture = new GardenNamespaceFixture(
+        "api",
+        "service",
+        "platform",
+        "preview",
+        "dev",
+        "example");
+    var endpoint = GardenPreviewEndpoint.Resolve(fixture.Hostname, fixture);
+    ISitDriver garden = new GardenSitDriver(endpoint);
+    try
     {
-        var connectionString = Environment.GetEnvironmentVariable("REDIS_CONNECTION");
-        if (string.IsNullOrWhiteSpace(connectionString)) connectionString = "localhost:6379";
+        _ = garden.Client;
+        _ = SitDriverSelection.Resolve("inprocess");
 
-        // ── Domain wiring (illustrative sample) — replace this block with your domain ──
-        INoteSummariser summariser = new NoteSummariser();
-        await using var redis = await ConnectionMultiplexer.ConnectAsync(connectionString);
-        INoteRepository notes = new RedisNoteRepository(redis);
-
-        var saved = await notes.Save(new NoteRecord
+        var inProcess = new InProcessSitDriver<Program>();
+        try
         {
-            Title = "Welcome",
-            Body = "The first note stored through the Redis adapter.",
-        });
-        var found = await notes.Find(saved.Id);
+            _ = inProcess.Client;
+            _ = inProcess.Services;
 
-        Console.WriteLine(found is null
-            ? $"Note {saved.Id} could not be read back."
-            : summariser.Summarise(found.Record, 80));
-        // ── End domain wiring ──
+            Console.WriteLine(
+                $"{endpoint} carries {PublishedPackageBundle.RuntimeAssemblyNames.Count} runtime " +
+                $"and {PublishedPackageBundle.TestHelperAssemblyNames.Count} TestHelper packages.");
+        }
+        finally
+        {
+            inProcess.DisposeAsync().GetAwaiter().GetResult();
+        }
+    }
+    finally
+    {
+        garden.DisposeAsync().GetAwaiter().GetResult();
     }
 }
+
+/// <summary>Public entry point used by WebApplicationFactory consumers.</summary>
+public partial class Program;

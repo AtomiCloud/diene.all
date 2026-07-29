@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <RootNamespace>AtomiCloud.DotnetBase.UnitTest</RootNamespace>
+    <RootNamespace>AtomiCloud.Diene.E2e.UnitTest</RootNamespace>
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
@@ -21,6 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../App/App.csproj" />
     <ProjectReference Include="../Lib/Lib.csproj" />
     <ProjectReference Include="../TestHelper/TestHelper.csproj" />
   </ItemGroup>

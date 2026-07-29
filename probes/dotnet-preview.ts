@@ -1,4 +1,4 @@
-import { runWithRedis } from './lib/dotnet.ts';
+import { runWebApp } from './lib/dotnet.ts';
 
 export default {
   contractVersion: 1,
@@ -9,7 +9,7 @@ export default {
       description: 'The preview task executes the compiled Release artifact.',
       kind: 'baseline',
       async run(repo: any) {
-        await runWithRedis(repo, 'dotnet-base-probe-preview', 'nix develop .#default -c pls preview');
+        await runWebApp(repo, 'dotnet-e2e-preview', 'nix develop .#default -c pls preview');
       },
     },
   ],
