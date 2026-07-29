@@ -39,8 +39,11 @@ public sealed class PersistentServiceHost : ServiceHost, IAsyncLifetime
             .StartCacheAsync(new StartRedisOptions { Key = "MAIN" })
             .ConfigureAwait(false);
 
-        // Touching Services builds the host, which is why the containers must already be up:
-        // ConfigureWebHost reads their connection details.
+        // The containers are up, so their connection details are now known: publish them into the
+        // environment BEFORE the next line, because touching Services is what builds the host and
+        // reads the configuration layers.
+        this.PublishSettings();
+
         using var scope = this.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<NoteDbContext>();
 
