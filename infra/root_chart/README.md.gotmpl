@@ -1,0 +1,101 @@
+{{ template "chart.header" . }}
+
+{{ template "chart.versionBadge" . }}{{ template "chart.typeBadge" . }}{{ template "chart.appVersionBadge" . }}
+
+{{ template "chart.description" . }}
+
+## What this chart owns (and does not)
+
+This is the **app chart** half of the R20 two-chart model. It is pure runtime and
+deploys to application/landscape clusters:
+
+| Resource                                                | Why                                                                   |
+| ------------------------------------------------------- | --------------------------------------------------------------------- |
+| `Deployment` `bunconsumer-worker`                       | the long-running consume/produce loop                                 |
+| `Job` `bunconsumer-dbinit`                              | one-shot pre-sync migration/seed entry point                          |
+| `ConfigMap` `bunconsumer-config` / `-dbinitconfig`      | the vendored application config YAMLs                                 |
+| `ExternalSecret` `bunconsumer-secrets`                  | materializes the service secret from the platform SecretStore         |
+
+It owns **no `Service` and no `HTTPRoute`** — the consumer serves no HTTP.
+Telemetry is push-based OTLP, so there is no `/metrics` scrape surface either.
+It owns **no cron surface** (Q10: one-shot Jobs are the only sanctioned job
+shape) and **no dependency sub-charts** (B30.5) — postgres, KV, cache, and object
+storage are requested through the sibling
+[primordial chart](../primordial_chart/README.md)'s CRs in **every** landscape,
+including lapras.
+
+## Dependency-blind probes (DQ16 / R20)
+
+Liveness **and** readiness are `exec` probes running the binary's `health`
+subcommand through the same artifact the image entrypoint runs
+(`bun dist/index.js health`). `health` inspects worker heartbeat and internal
+state only. A postgres/redis/S3 blip must degrade the service, never evict every
+pod. Dependency reachability belongs to `db-init` and to alerting.
+
+## db-init ordering, and why the rollout stays a rolling update
+
+`bunconsumer-dbinit` carries **both** hook systems — helm
+`pre-install,pre-upgrade` and ArgoCD `PreSync` — plus
+`hook-delete-policy: before-hook-creation` so a re-run is not an
+immutable-field conflict. Sync waves order it after the secret/config and ahead
+of the Deployment's implicit wave 0.
+
+The Job's checksum is deliberately **not** coupled into the Deployment's pod
+template. A migration must never trigger full app recreation; the Deployment
+always performs a normal `RollingUpdate`.
+
+Because helm hooks and ArgoCD PreSync both run before the release's ordinary
+resources, the Job mounts its **own** hook-scoped copy of the config ConfigMap.
+The Deployment's release-scoped copy does not exist yet at that point.
+
+On a **first** install the ExternalSecret has not materialized its target Secret
+when the pre-sync Job runs, so the secret `envFrom` is `optional: true` and
+db-init must be re-runnable. It is: the seed loader is idempotent
+(seed-if-not-exists) and safe for both tests and production.
+
+## Build-phase config vendoring (B30.3)
+
+The application config YAMLs (`config/settings.yaml` plus the landscape overlays)
+live **outside** the chart — the app reads them directly in local dev. Helm cannot
+reference files outside the chart directory, so the helm **build** step copies
+them into `infra/root_chart/files/config/`:
+
+```sh
+mkdir -p infra/root_chart/files/config && cp config/*.yaml infra/root_chart/files/config/
+```
+
+That directory is **gitignored and never committed** — it is regenerated per
+build. Every template guards the copy with `.Files.Glob`, so `helm lint`,
+`helm template`, and `helm install` all stay green with zero optional files
+present.
+
+When the copy has **not** run, the chart renders **no ConfigMap and no mount at
+all** — deliberately, not as a degraded fallback. The image bakes `config/` in at
+this same mount path, so mounting an empty ConfigMap would shadow those defaults
+with an empty directory. No files copied means the image's own config stays
+visible; files copied means the chart-supplied config wins.
+
+## Values overlays
+
+Two **independent stacked** dimensions (R16/B26), never a cross-product:
+
+```sh
+helm upgrade --install bunconsumer infra/root_chart \
+  -f infra/root_chart/values.yaml \
+  -f infra/root_chart/values.lapras.yaml \
+  -f infra/root_chart/values.<cluster>.yaml   # thin: usually just the cluster anchor
+```
+
+`values.example.yaml` is illustrative caller input, not an overlay dimension.
+
+## Identity
+
+Every resource name is `<service>-<token>` with **exactly one dash** and a
+dash-less token (B30.4): `bunconsumer-worker`, `bunconsumer-dbinit`,
+`bunconsumer-config`, `bunconsumer-secrets`. All submodules share one service
+secret, named after the **service**. LPSM labels and annotations are projected by
+`_helpers.tpl` range loops through the single configurable `labelPrefix` key.
+
+{{ template "chart.requirementsSection" . }}
+
+{{ template "chart.valuesSection" . }}

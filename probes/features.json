@@ -298,5 +298,135 @@
     "template": "diene/bun-base",
     "name": "bun-codecov-config",
     "class": "presence"
+  },
+  {
+    "template": "diene/observability",
+    "name": "observability-standards-present",
+    "class": "presence"
+  },
+  {
+    "template": "diene/bun-consumer",
+    "name": "worker-mode-sit",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-consumer",
+    "name": "db-init-mode-sit",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-consumer",
+    "name": "db-init-idempotency-sit",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-consumer",
+    "name": "message-journey-sit",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-consumer",
+    "name": "otel-export-sit",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-consumer",
+    "name": "app-chart-lint",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-consumer",
+    "name": "primordial-chart-lint",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-consumer",
+    "name": "config-layering",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-consumer",
+    "name": "config-schema-gen-check",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-consumer",
+    "name": "constants-sync-lint",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-consumer",
+    "name": "rebrand-static-guard",
+    "class": "gate"
+  },
+  {
+    "template": "diene/bun-consumer",
+    "name": "commander-entry",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/bun-consumer",
+    "name": "env-override-convention",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/bun-consumer",
+    "name": "health-metric",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/bun-consumer",
+    "name": "health-subcommand",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/bun-consumer",
+    "name": "http-auth-encryptor",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/bun-consumer",
+    "name": "task-surface",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/bun-consumer",
+    "name": "secret-behavior",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/bun-consumer",
+    "name": "app-chart-template",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/bun-consumer",
+    "name": "primordial-chart-template",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/bun-consumer",
+    "name": "app-chart-install",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/bun-consumer",
+    "name": "primordial-chart-install",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/bun-consumer",
+    "name": "config-dev-yaml",
+    "class": "presence"
+  },
+  {
+    "template": "diene/bun-consumer",
+    "name": "service-tree-app-block",
+    "class": "presence"
+  },
+  {
+    "template": "diene/bun-consumer",
+    "name": "lib-dogfood-artifacts",
+    "class": "presence"
   }
 ]

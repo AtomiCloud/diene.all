@@ -1,12 +1,14 @@
 import { expectBunGreen, expectBunRed } from './lib/bun-command.ts';
 
+const TARGET = 'return Ok(response === ';
+
 export default {
   contractVersion: 1,
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
   probes: [
     {
       name: 'baseline-bun-integration-tests-green',
-      description: 'The Bun integration tier proves the Redis adapter with Testcontainers.',
+      description: 'The Bun integration tier proves the store adapters with Testcontainers.',
       kind: 'baseline',
       async run(repo: any) {
         await expectBunGreen(
@@ -23,22 +25,21 @@ export default {
       expectedImpact: ['bun-integration-coverage'],
       async run(repo: any) {
         const paths = await repo.glob('src/adapters/**/*.ts');
-        for (const path of paths) {
+        for (const path of paths.sort()) {
           const source = await repo.read(path);
-          if (source.includes('return this.client.get(key);')) {
-            await repo.write(
-              path,
-              source.replace('return this.client.get(key);', 'return key.length === 0 ? this.client.get(key) : null;'),
-            );
-            await expectBunRed(
-              repo,
-              "nix develop .#ci -c bash -lc './scripts/local/setup.sh && pls test:int'",
-              'bun-integration-tests',
-            );
-            return;
-          }
+          const index = source.indexOf(TARGET);
+          if (index === -1) continue;
+          const lineEnd = source.indexOf(';', index);
+          const original = source.slice(index, lineEnd + 1);
+          await repo.write(path, source.replace(original, "return Ok(response !== 'OK');"));
+          await expectBunRed(
+            repo,
+            "nix develop .#ci -c bash -lc './scripts/local/setup.sh && pls test:int'",
+            'bun-integration-tests',
+          );
+          return;
         }
-        throw new Error('no structural Redis adapter target found');
+        throw new Error('no structural adapter success return found');
       },
     },
   ],

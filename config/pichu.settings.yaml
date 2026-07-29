@@ -1,0 +1,51 @@
+# yaml-language-server: $schema=../schemas/bun-consumer.schema.json
+app:
+  landscape: pichu
+postgres:
+  MAIN:
+    host: postgres.pichu.internal
+    ssl: true
+kv:
+  MAIN:
+    host: redis.pichu.internal
+    tls: true
+storage:
+  MAIN:
+    endpoint: https://fly.storage.tigris.dev
+    forcePathStyle: false
+  ARCHIVE:
+    endpoint: https://fly.storage.tigris.dev
+    forcePathStyle: false
+otel:
+  logs:
+    exporter:
+      otlp:
+        enabled: true
+        endpoint: http://alloy.monitoring.svc.cluster.local:4318
+  metrics:
+    exporter:
+      otlp:
+        enabled: true
+        endpoint: http://alloy.monitoring.svc.cluster.local:4318
+  traces:
+    exporter:
+      otlp:
+        enabled: true
+        endpoint: http://alloy.monitoring.svc.cluster.local:4318
+api:
+  backends:
+    - coordinate:
+        landscape: pichu
+        platform: diene
+        service: control-plane
+        module: api
+      baseUrl: https://control-plane.pichu.atomi.cloud
+      resource:
+        platform: diene
+        landscape: pichu
+        service: control-plane
+        resourceName: api
+      timeoutMs: 15000
+      retry: opaque-network-once
+errorPortal:
+  landscape: pichu

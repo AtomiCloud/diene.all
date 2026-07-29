@@ -1,0 +1,29 @@
+# ### bun-consumer-reusable-sit
+# #### source: bun-consumer
+name: ⚡ Reusable SIT
+
+on:
+  workflow_call:
+
+jobs:
+  sit:
+    name: SIT
+    runs-on:
+      - nscloud-ubuntu-22.04-amd64-4x8-with-cache
+      - nscloud-cache-size-50gb
+      - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
+    steps:
+      - uses: AtomiCloud/actions.setup-nix@v3
+      - uses: AtomiCloud/actions.cache-bun@v2
+      - name: Compile Bun consumer
+        run: nix develop .#ci -c ./scripts/ci/compile.sh
+      - name: Start SIT dependencies
+        run: nix develop .#ci -c ./scripts/ci/sit-stack.sh up
+      - name: Run SIT
+        env:
+          CLI_BIN: dist/bin/bun-consumer
+          SIT_DRIVER: binary
+        run: nix develop .#ci -c ./scripts/ci/test.sh sit
+      - name: Stop SIT dependencies
+        if: always()
+        run: nix develop .#ci -c ./scripts/ci/sit-stack.sh down

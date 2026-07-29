@@ -98,6 +98,21 @@ if [ -f .dart_tool/package_config.json ]; then
   done < <(jq -r '.packages[] | select(.name | startswith("diene_")) | [.name, .rootUri] | @tsv' .dart_tool/package_config.json)
 fi
 
+# ### bun-consumer-skills-sync-guard
+# #### source: bun-consumer
+# DISCHARGED on this cascade — SUPERSEDED BY workspace-vendor-swap BELOW, not dropped.
+# Recorded here, in the guard's own place, because an obligation that vanishes without
+# a stated reason is indistinguishable from one quietly removed.
+#
+# The guard named its own retirement: "Upstream owns the real fix; this guard keeps the
+# destructive swap honest." Upstream now has it, immediately below.
+#
+# UPSTREAM'S TRIGGER IS STRICTLY FINER, which is why keeping both is wrong:
+#   this guard  — fired when the staging tree was empty FOR ANY REASON
+#   workspace   — fires on declared_dependency && !resolved_dependency
+# The former is a SUPERSET that cannot distinguish a cold checkout from a tree that
+# legitimately declares nothing. Verified on THIS branch rather than inherited from the
+# leaf ruling: both sides were read in full before choosing.
 # ### workspace-vendor-swap
 # #### source: workspace
 # A declaration with zero resolved packages is a cold checkout, not a request

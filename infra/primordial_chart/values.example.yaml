@@ -1,0 +1,23 @@
+# ### bun-consumer-primordial-values-example
+# #### source: bun-consumer
+# Illustrative install-time values — NOT one of the two overlay dimensions.
+#
+# It also documents the LogtoApp ON shape. Turn it on ONLY when this chart is the
+# selected PLACEMENT OWNER for the app — the chart that declares the app's
+# serve-set. A worker with no HTTP surface is normally not that chart; an
+# app-owning consumer built from this template is.
+logtoApp:
+  enabled: true
+  identityRef: mew
+  type: Traditional
+  paths:
+    # Redirect and post-logout URIs are DERIVED as `origin(L) + declaredPath` for
+    # every host landscape in the live serve-set. Never declare a full URI here.
+    redirectPath: /auth/callback
+    postLogoutPath: /
+  resourceRefs:
+    - bunconsumer-worker-api
+  extraRedirectUris:
+    - http://localhost:3000/auth/callback
+  extraCorsOrigins:
+    - http://localhost:3000
