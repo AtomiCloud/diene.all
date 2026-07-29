@@ -28,10 +28,33 @@ with packages;
     yq-go
   ];
 
+  # ### flutter-base-mobile
+  # #### source: flutter-base
+  mobile = [
+    codemagic-cli-tools
+    fastlane
+    flutter
+    resvg
+    rsync
+  ]
+  ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [ cocoapods ];
+
+  # ### flutter-base-android
+  # #### source: flutter-base
+  android = [
+    androidsdk
+    bundletool
+    jdk17
+    protobuf
+    unzip
+    zip
+  ];
+
   # ### workspace-main
   # #### source: workspace
   main = [
     cyanprint
+    bun
     docker-client
     git
     go-task

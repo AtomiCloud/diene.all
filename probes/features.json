@@ -117,7 +117,7 @@
   {
     "template": "diene/workspace",
     "name": "skills-sync",
-    "class": "smoke"
+    "class": "gate"
   },
   {
     "template": "diene/workspace",
@@ -209,5 +209,180 @@
     "template": "diene/shared",
     "name": "docs-prettier",
     "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "flutter-analyze-hook",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "flutter-tests",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "flavor-tokenization",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "config-merge-order",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "build-time-landscape-policy",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "logto-auth-session",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "home-picker",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "oa3-sdk-freshness",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "material-theme",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "slang-freshness",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "translation-compile",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "locale-switch",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "i18n-layout",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "click-reaction",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "problem-local-error",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "notifications",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "rebrand-guard",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "result-problem",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "temporal-codecs",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "ios-build-number",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "android-build-number",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "ios-workflow-wiring",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "android-workflow-wiring",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "cd-matrix-shape",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "ios-profile-doctor",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "ios-stamp-doctor",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "android-stamp-doctor",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "config-schema-freshness",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "release-pubspec-stamp",
+    "class": "gate"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "flutter-toolchain-inventory",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "flavor-builds",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "stamped-app-version",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "frontend-ux-artifacts",
+    "class": "presence"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "per-flavor-icons",
+    "class": "presence"
+  },
+  {
+    "template": "diene/flutter-base",
+    "name": "cd-shells",
+    "class": "presence"
   }
 ]

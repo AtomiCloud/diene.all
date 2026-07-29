@@ -1,0 +1,15 @@
+$schema: ./schema.json
+app:
+  landscape: pichu
+branding:
+  appName: Diene Mobile (Pichu)
+  iconAsset: assets/brand/icon-pichu.png
+theme:
+  primary: '#DB2777'
+  secondary: '#22C55E'
+auth:
+  endpoint: https://auth.platform.pichu.example
+  resource: https://api.platform.pichu.example
+  redirectUri: cloud.atomi.pichu.platform.service.app://callback
+api:
+  baseUrl: https://api.platform.pichu.example

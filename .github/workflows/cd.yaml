@@ -1,0 +1,71 @@
+# ### flutter-base-cd
+# #### source: flutter-base
+name: CD
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      flavor:
+        description: Landscape to publish
+        type: choice
+        default: lapras
+        options: [lapras, pichu, pikachu, raichu]
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  setup:
+    name: Resolve Landscape Matrix
+    runs-on:
+      - nscloud-ubuntu-22.04-amd64-4x8-with-cache
+      - nscloud-cache-size-50gb
+      - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: AtomiCloud/actions.setup-nix@v3
+      - id: matrix
+        env:
+          EVENT: ${{ github.event_name }}
+          SEL: ${{ github.event.inputs.flavor }}
+        run: echo "matrix=$(nix develop .#cd -c ./scripts/ci/cd-matrix.sh)" >> "$GITHUB_OUTPUT"
+
+  build-ios:
+    name: Build iOS Donor
+    uses: ./.github/workflows/⚡reusable-build-ios.yaml
+    secrets: inherit
+
+  build-android:
+    name: Build Android Donor
+    uses: ./.github/workflows/⚡reusable-build-android.yaml
+
+  publish-ios:
+    name: Publish iOS
+    needs: [setup, build-ios]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
+    uses: ./.github/workflows/⚡reusable-publish-ios.yaml
+    with:
+      flavor: ${{ matrix.flavor }}
+    secrets: inherit
+
+  publish-android:
+    name: Publish Android
+    needs: [setup, build-android]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
+    uses: ./.github/workflows/⚡reusable-publish-android.yaml
+    with:
+      flavor: ${{ matrix.flavor }}
+      package-name: ${{ matrix.package_name }}
+    secrets: inherit

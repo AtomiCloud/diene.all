@@ -1,0 +1,27 @@
+openapi: 3.0.3
+info:
+  title: Diene Mobile Service
+  version: 1.0.0
+paths:
+  /user/me:
+    get:
+      operationId: getCurrentUser
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '404':
+          description: User has not completed onboarding
+components:
+  schemas:
+    UserProfile:
+      type: object
+      required: [id, homeLandscape]
+      properties:
+        id:
+          type: string
+        homeLandscape:
+          type: string

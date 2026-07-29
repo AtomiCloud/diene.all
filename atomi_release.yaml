@@ -36,6 +36,7 @@ plugins:
       assets:
         - Changelog.md
         - VERSION
+        - pubspec.yaml
         - docs/developer/CommitConventions.md
   - module: '@semantic-release/github'
     version: 10.3.5

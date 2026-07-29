@@ -1,0 +1,7 @@
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/brand/icon-lapras.png
+  adaptive_icon_background: '#071B1B'
+  adaptive_icon_foreground: assets/brand/icon-lapras.png
+  remove_alpha_ios: true
