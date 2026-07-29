@@ -1,0 +1,30 @@
+meta {
+  name: Server mode is serving
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/system/health
+  body: none
+  auth: none
+}
+
+tests {
+  test("the compiled artifact is serving HTTP in its default mode", function () {
+    console.log("[sit] server mode health -> " + res.getStatus() + " " + JSON.stringify(res.body));
+    expect(res.getStatus(), "health status").to.equal(200);
+  });
+
+  test("the serving process answers without a dependency in the path", function () {
+    // Both k8s probes target dependency-blind routes. If health only answered while
+    // postgres was up, a database blip would roll the serving deployment.
+    expect(res.getStatus(), "health must not depend on a backing store").to.equal(200);
+  });
+}
+
+docs {
+  `App/StartUp/RunMode.cs` resolves the mode from the first non-flag argument and
+  defaults to `server`. An unrecognised mode is an error rather than a silent
+  fall back, so a typo in the Job's args cannot start a web host.
+}

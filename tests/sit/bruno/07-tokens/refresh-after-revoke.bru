@@ -1,0 +1,38 @@
+meta {
+  name: Refresh after revoke is refused
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{logtoEndpoint}}/oidc/token
+  body: formUrlEncoded
+  auth: basic
+}
+
+auth:basic {
+  username: {{process.env.SIT_LOGTO_CLIENT_ID}}
+  password: {{process.env.SIT_LOGTO_CLIENT_SECRET}}
+}
+
+body:form-urlencoded {
+  grant_type: refresh_token
+  refresh_token: {{rotatedRefreshToken}}
+}
+
+tests {
+  test("the rotated refresh token no longer buys a new access token", function () {
+    console.log("[sit] refresh-after-revoke -> " + res.getStatus() + " " + JSON.stringify(res.body));
+    expect(res.getStatus(), "a revoked grant must not refresh").to.not.equal(200);
+    expect(res.getStatus(), "refresh-after-revoke status").to.equal(400);
+    expect(res.body.error, "error").to.equal("invalid_grant");
+  });
+}
+
+docs {
+  This is the assertion that makes revocation a PROOF. Revoking sessions does not
+  retroactively invalidate an already-issued JWT access token — that token stays
+  valid until it expires — so asserting "the old access token now 401s" would be
+  asserting something untrue. What revocation actually kills is the grant behind
+  it, and that shows up here, on the refresh.
+}

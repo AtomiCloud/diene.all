@@ -1,0 +1,30 @@
+meta {
+  name: List notes
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}{{apiRoot}}/notes
+  body: none
+  auth: inherit
+}
+
+tests {
+  test("the catalogue enumerates the created note", function () {
+    expect(res.getStatus(), "list status").to.equal(200);
+    expect(res.body, "list body").to.be.an("array");
+
+    const wanted = bru.getVar("sitNoteId");
+    const ids = res.body.map(function (note) { return note.id; });
+    console.log("[sit] listed " + ids.length + " notes, looking for " + wanted);
+
+    expect(ids, "the created note must appear in the listing").to.include(wanted);
+  });
+}
+
+docs {
+  Enumeration is served by `INoteCatalogue`, which the Postgres adapter implements
+  and the KV adapter deliberately does not. A green listing here therefore also
+  says the catalogue half is wired to a store that can answer it.
+}

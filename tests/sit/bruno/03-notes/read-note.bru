@@ -1,0 +1,26 @@
+meta {
+  name: Read note
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}{{apiRoot}}/notes/{{sitNoteId}}
+  body: none
+  auth: inherit
+}
+
+tests {
+  test("the created note reads back by identity", function () {
+    expect(res.getStatus(), "read status").to.equal(200);
+    console.log("[sit] read note = " + JSON.stringify(res.body));
+    expect(res.body.id, "id").to.equal(bru.getVar("sitNoteId"));
+    expect(res.body.record.title, "record.title").to.equal(bru.getVar("sitNoteTitle"));
+  });
+}
+
+docs {
+  Reading back through a SEPARATE request is what makes the create journey a
+  persistence proof rather than an echo: the value must survive the response that
+  reported it.
+}

@@ -1,0 +1,62 @@
+meta {
+  name: Refresh token rotates
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{logtoEndpoint}}/oidc/token
+  body: formUrlEncoded
+  auth: basic
+}
+
+auth:basic {
+  username: {{process.env.SIT_LOGTO_CLIENT_ID}}
+  password: {{process.env.SIT_LOGTO_CLIENT_SECRET}}
+}
+
+body:form-urlencoded {
+  grant_type: refresh_token
+  refresh_token: {{presentedRefreshToken}}
+}
+
+script:pre-request {
+  const seeded = bru.getProcessEnv("SIT_LOGTO_REFRESH_TOKEN");
+  if (!seeded) {
+    throw new Error(
+      "SIT_LOGTO_REFRESH_TOKEN is unset. The refresh journey needs a refresh token " +
+      "issued out of band for SIT_LOGTO_SUBJECT by this landscape's Logto."
+    );
+  }
+  bru.setVar("presentedRefreshToken", seeded);
+}
+
+script:post-response {
+  if (res.getStatus() === 200 && res.body && res.body.refresh_token) {
+    bru.setVar("rotatedRefreshToken", res.body.refresh_token);
+  }
+}
+
+tests {
+  test("a refresh grant renews the access token", function () {
+    console.log("[sit] refresh -> " + res.getStatus() + " expires_in=" + (res.body && res.body.expires_in));
+    expect(res.getStatus(), "refresh status").to.equal(200);
+    expect(res.body.access_token, "access_token").to.be.a("string").and.not.equal("");
+  });
+
+  test("the presented refresh token is ROTATED, not re-issued", function () {
+    const presented = bru.getVar("presentedRefreshToken");
+    const returned = res.body.refresh_token;
+    console.log("[sit] refresh token rotated = " + String(returned !== presented));
+
+    expect(returned, "refresh_token").to.be.a("string").and.not.equal("");
+    expect(returned, "a refresh token that comes back unchanged defeats theft detection")
+      .to.not.equal(presented);
+  });
+}
+
+docs {
+  Rotation is what lets the IdP detect a stolen token, so the assertion is on the
+  token being DIFFERENT — a suite that only checked "a refresh_token came back"
+  would pass against a server that never rotates.
+}

@@ -1,0 +1,27 @@
+meta {
+  name: System version
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/system/version
+  body: none
+  auth: none
+}
+
+tests {
+  test("the system version route agrees with the info endpoint", function () {
+    expect(res.getStatus(), "version status").to.equal(200);
+    console.log("[sit] system version = " + JSON.stringify(res.body));
+    expect(res.body.platform, "platform").to.equal(bru.getEnvVar("platform"));
+    expect(res.body.service, "service").to.equal(bru.getEnvVar("service"));
+    expect(res.body.module, "module").to.equal(bru.getEnvVar("module"));
+  });
+}
+
+docs {
+  Two independently composed routes — one written here, one consumed from the
+  server engine — must report the SAME service-tree identity. A disagreement means
+  the identity reached one of them from somewhere other than the `app:` block.
+}

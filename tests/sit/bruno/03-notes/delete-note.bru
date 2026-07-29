@@ -1,0 +1,23 @@
+meta {
+  name: Delete note
+  type: http
+  seq: 5
+}
+
+delete {
+  url: {{baseUrl}}{{apiRoot}}/notes/{{sitNoteId}}
+  body: none
+  auth: inherit
+}
+
+tests {
+  test("deleting a note answers 204 with no body", function () {
+    console.log("[sit] delete " + bru.getVar("sitNoteId") + " -> " + res.getStatus());
+    expect(res.getStatus(), "delete status").to.equal(204);
+  });
+}
+
+docs {
+  `ResolveEmpty` answers 204. Any other 2xx would mean a second success shape
+  reached the wire beside the one the server engine writes.
+}

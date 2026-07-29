@@ -1,0 +1,15 @@
+meta {
+  name: 03 notes
+  seq: 4
+}
+
+docs {
+  The fenced sample module's CRUD journey, end to end through the preview: create,
+  read, list, replace, delete, and read-after-delete. Every request carries the
+  machine token acquired in `00-auth`.
+
+  DEPENDS ON the Note controller, which is owned by another worker on this node.
+  The shapes asserted here follow `Lib/Note/NotePrincipal.cs` — `{ id, record: {
+  title, body } }` — and the `AtomiController` contract from the server engine's
+  usage skill: `Resolve` answers 200 with the value, `ResolveEmpty` answers 204.
+}

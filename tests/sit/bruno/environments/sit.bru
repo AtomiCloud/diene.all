@@ -1,0 +1,19 @@
+vars {
+  baseUrl: {{process.env.SIT_BASE_URL}}
+  landscape: castform
+  platform: sulfoxide
+  service: dotnet-api
+  module: api
+  zone: dev.atomi.cloud
+  fileLandscape: lapras
+  apiRoot: /api/v1
+  handoffMount: /app-handoff
+  openApiDocument: /openapi/v1.json
+  openApiTitle: {{process.env.SIT_OPENAPI_TITLE}}
+  corsOrigin: {{process.env.SIT_CORS_ORIGIN}}
+  seedNoteTitle: {{process.env.SIT_SEED_NOTE_TITLE}}
+  audience: {{process.env.SIT_AUDIENCE}}
+  logtoEndpoint: {{process.env.SIT_LOGTO_ENDPOINT}}
+  logtoManagementResource: {{process.env.SIT_LOGTO_MANAGEMENT_RESOURCE}}
+  logtoSubject: {{process.env.SIT_LOGTO_SUBJECT}}
+}

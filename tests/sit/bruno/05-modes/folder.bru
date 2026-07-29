@@ -1,0 +1,14 @@
+meta {
+  name: 05 modes
+  seq: 6
+}
+
+docs {
+  The two things this artifact can be. `server` is the default and is what the
+  preview's Deployment runs; `db-init` is the one-shot path the chart runs as a
+  hook-scoped Job before the rollout.
+
+  db-init has no HTTP surface, so it is proven here by its OBSERVABLE OUTCOME
+  through the serving process: the schema its migration created, and the preset
+  row its idempotent seed wrote.
+}

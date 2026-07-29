@@ -1,0 +1,53 @@
+meta {
+  name: Env override — indexed list
+  type: http
+  seq: 2
+}
+
+options {
+  url: {{baseUrl}}{{apiRoot}}/notes
+  body: none
+  auth: none
+}
+
+headers {
+  Origin: {{corsOrigin}}
+  Access-Control-Request-Method: GET
+}
+
+script:pre-request {
+  const origin = bru.getEnvVar("corsOrigin");
+  if (!origin) {
+    throw new Error(
+      "SIT_CORS_ORIGIN is unset. This journey proves that a LIST is overridden " +
+      "through INDEXED environment keys, so the preview must be deployed with " +
+      "ATOMI_HTTP__CORS__ENABLED=true and " +
+      "ATOMI_HTTP__CORS__ALLOWED_ORIGINS__0=<origin>, and SIT_CORS_ORIGIN must " +
+      "name that same origin."
+    );
+  }
+}
+
+tests {
+  test("ATOMI_HTTP__CORS__ALLOWED_ORIGINS__0 reaches the CORS policy", function () {
+    const origin = bru.getEnvVar("corsOrigin");
+    const allowed = res.getHeader("access-control-allow-origin");
+    console.log("[sit] preflight status=" + res.getStatus() + " origin=" + origin + " allow-origin=" + allowed);
+
+    expect(allowed, "Access-Control-Allow-Origin").to.equal(origin);
+  });
+
+  test("the allowed origin is not the empty file-configured list", function () {
+    const allowed = res.getHeader("access-control-allow-origin");
+    expect(allowed, "an origin must be echoed at all").to.be.a("string").and.not.equal("");
+  });
+}
+
+docs {
+  `http:cors:allowed_origins` is `[]` in `App/Config/settings.yaml`, and CORS is
+  off. A configured origin can therefore only have arrived through the environment.
+
+  Lists bind through INDEXED keys — `ATOMI_HTTP__CORS__ALLOWED_ORIGINS__0`,
+  `__1`, and so on. A JSON array or a comma-separated string in one variable does
+  NOT bind; it produces an empty list and this preflight echoes nothing.
+}

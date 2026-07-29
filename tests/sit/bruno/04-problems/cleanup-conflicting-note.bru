@@ -1,0 +1,23 @@
+meta {
+  name: Cleanup conflicting note
+  type: http
+  seq: 3
+}
+
+delete {
+  url: {{baseUrl}}{{apiRoot}}/notes/{{conflictNoteId}}
+  body: none
+  auth: inherit
+}
+
+tests {
+  test("the seeded conflict note is removed", function () {
+    console.log("[sit] cleanup " + bru.getVar("conflictNoteId") + " -> " + res.getStatus());
+    expect(res.getStatus(), "cleanup status").to.equal(204);
+  });
+}
+
+docs {
+  A castform preview is immutable but reusable for the life of its lease, so a
+  journey that leaves state behind poisons the next run's uniqueness assumptions.
+}

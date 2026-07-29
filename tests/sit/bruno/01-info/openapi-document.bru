@@ -1,0 +1,51 @@
+meta {
+  name: OpenAPI document
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}{{openApiDocument}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("the OpenAPI document is served", function () {
+    expect(res.getStatus(), "openapi status").to.equal(200);
+    expect(res.body.openapi, "openapi version").to.be.a("string");
+    expect(res.body.openapi.startsWith("3."), "openapi 3.x, got " + res.body.openapi).to.equal(true);
+  });
+
+  test("the document title is config-driven branding, never hardcoded", function () {
+    const title = res.body.info && res.body.info.title;
+    console.log("[sit] openapi info.title = " + title);
+    expect(title, "info.title").to.be.a("string").and.not.equal("");
+
+    const expected = bru.getEnvVar("openApiTitle");
+    if (expected) {
+      expect(title, "info.title must match the configured http:open_api:title").to.equal(expected);
+    }
+  });
+
+  test("the document declares the versioned note surface", function () {
+    const paths = Object.keys(res.body.paths || {});
+    console.log("[sit] openapi paths = " + JSON.stringify(paths));
+    const root = bru.getEnvVar("apiRoot") + "/notes";
+    expect(paths, "paths must contain " + root).to.include(root);
+  });
+}
+
+docs {
+  Served by `MapOpenApi()` at `/openapi/{documentName}.json`; the document name is
+  `v1`, matching the ApiExplorer group format `'v'VVV`.
+
+  The title assertion is the SIT half of the R21 rebrand gate: the title comes from
+  `http:open_api:title`, so a hardcoded branding string would make this journey
+  disagree with the landscape's configured value. Set `SIT_OPENAPI_TITLE` to the
+  value the preview was deployed with to turn the assertion from "non-empty" into
+  an exact match.
+
+  DEPENDS ON: the Note controller (owned by another worker) being routed under
+  `api/v1/notes`. If that surface moves, this assertion moves with it.
+}

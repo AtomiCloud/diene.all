@@ -1,0 +1,37 @@
+meta {
+  name: Seed conflicting note
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}{{apiRoot}}/notes
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "title": "{{conflictTitle}}",
+    "body": "the first note under a title the next request will re-use"
+  }
+}
+
+script:pre-request {
+  const unique = "sit-conflict-" + Date.now();
+  bru.setVar("conflictTitle", unique);
+  console.log("[sit] seeding conflict title " + unique);
+}
+
+script:post-response {
+  if (res.getStatus() === 200 && res.body && res.body.id) {
+    bru.setVar("conflictNoteId", res.body.id);
+  }
+}
+
+tests {
+  test("the first note under the title is accepted", function () {
+    expect(res.getStatus(), "seed status").to.equal(200);
+    expect(res.body.record.title, "record.title").to.equal(bru.getVar("conflictTitle"));
+  });
+}

@@ -1,0 +1,31 @@
+meta {
+  name: Handoff session
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}{{handoffMount}}/session
+  body: none
+  auth: inherit
+}
+
+tests {
+  test("the enabled auth-engine module answers at its configured mount", function () {
+    console.log("[sit] " + bru.getEnvVar("handoffMount") + "/session -> " + res.getStatus());
+    expect(res.getStatus(), "session status").to.equal(200);
+  });
+
+  test("the session view reports the token's own identity", function () {
+    console.log("[sit] session = " + JSON.stringify(res.body));
+    expect(res.body.subject, "subject").to.be.a("string").and.not.equal("");
+    expect(res.body.scopes, "scopes").to.be.an("array");
+    expect(res.body.expiresAt, "expiresAt").to.be.a("string").and.not.equal("");
+  });
+}
+
+docs {
+  The mount is configuration, not code: changing `auth:handoff:mount` moves this
+  route, which is why the URL is built from the `handoffMount` variable rather
+  than from a literal `/app-handoff`.
+}

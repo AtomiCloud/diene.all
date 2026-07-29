@@ -1,0 +1,26 @@
+meta {
+  name: Read deleted note
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}{{apiRoot}}/notes/{{sitNoteId}}
+  body: none
+  auth: inherit
+}
+
+tests {
+  test("a deleted note is gone, reported as RFC 9457", function () {
+    console.log("[sit] read-after-delete -> " + res.getStatus() + " " + JSON.stringify(res.body));
+    expect(res.getStatus(), "read-after-delete status").to.equal(404);
+    expect(res.getHeader("content-type"), "content-type").to.contain("application/problem+json");
+    expect(res.body.type, "type").to.be.a("string").and.not.equal("");
+    expect(res.body.status, "status").to.equal(404);
+  });
+}
+
+docs {
+  Closes the CRUD loop AND doubles as the negative half of the RFC 9457 contract:
+  a not-found is an error envelope, never an empty 200 or a bare ASP.NET 404 page.
+}

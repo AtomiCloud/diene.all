@@ -1,0 +1,33 @@
+meta {
+  name: Replace note
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseUrl}}{{apiRoot}}/notes/{{sitNoteId}}
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "title": "{{sitNoteTitle}}",
+    "body": "replaced by the diene dotnet-api SIT collection"
+  }
+}
+
+tests {
+  test("replacing a note returns the updated content under the same identity", function () {
+    expect(res.getStatus(), "replace status").to.equal(200);
+    console.log("[sit] replaced note = " + JSON.stringify(res.body));
+    expect(res.body.id, "id must be unchanged").to.equal(bru.getVar("sitNoteId"));
+    expect(res.body.record.body, "record.body").to.contain("replaced");
+  });
+}
+
+docs {
+  Replace is not an upsert: a missing note is reported rather than created, so a
+  caller cannot silently resurrect a deletion. The negative half of that contract
+  is asserted in `read-deleted-note.bru`.
+}

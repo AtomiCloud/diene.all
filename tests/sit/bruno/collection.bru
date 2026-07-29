@@ -1,0 +1,47 @@
+auth {
+  mode: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Accept: application/json
+}
+
+script:pre-request {
+  // A SIT run against an EMPTY host silently 404s or connection-refuses on every
+  // journey, which reads as "the service is broken" instead of "nobody told the run
+  // where castform is". Fail loudly, at the first request, naming the variable.
+  const baseUrl = bru.getEnvVar("baseUrl");
+  if (!baseUrl) {
+    throw new Error(
+      "SIT_BASE_URL is unset — the sit environment resolved baseUrl to an empty string. " +
+      "Export the castform preview host in the dotted form " +
+      "module.service.platform.instance.landscape.zone, e.g. " +
+      "https://api.dotnet-api.sulfoxide.<instance>.castform.dev.atomi.cloud"
+    );
+  }
+
+  // Print the VALUE under test, not just the fact that a request happened: a junit
+  // report of green assertions against an unexpected host is the failure this catches.
+  console.log("[sit] " + req.getMethod() + " " + req.getUrl());
+}
+
+docs {
+  # diene dotnet-api — Bruno SIT collection
+
+  Black-box API journeys run against the Garden-managed `castform` preview supplied
+  by the `environments` segment. There are no fakes and no Testcontainers at this
+  tier: every request crosses the preview's kgateway-exposed edge.
+
+  Run it headless from the repository root:
+
+  ```
+  pls test:sit
+  ```
+
+  See `README.md` beside this file for the environment contract, and `withheld/` for
+  the journeys that are deliberately NOT claimed as proof.
+}

@@ -1,0 +1,27 @@
+meta {
+  name: System health
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/system/health
+  body: none
+  auth: none
+}
+
+tests {
+  test("the consumed SystemController reports serving", function () {
+    expect(res.getStatus(), "health status").to.equal(200);
+    console.log("[sit] health = " + JSON.stringify(res.body));
+    expect(res.body.status, "status").to.be.a("string").and.not.equal("");
+    expect(res.body.checkedAt, "checkedAt").to.be.a("string").and.not.equal("");
+  });
+}
+
+docs {
+  `/system/health` ships inside `AtomiCloud.Diene.ServerEngine`; this repository
+  writes no health controller. Route verified by enumerating the composed
+  `EndpointDataSource` of the published packages — see the worker evidence file
+  `consumed-lib-routes.txt`.
+}

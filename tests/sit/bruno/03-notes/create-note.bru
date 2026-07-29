@@ -1,0 +1,43 @@
+meta {
+  name: Create note
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}{{apiRoot}}/notes
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "title": "{{sitNoteTitle}}",
+    "body": "created by the diene dotnet-api SIT collection"
+  }
+}
+
+script:pre-request {
+  // A fixed title would collide with the previous run's note on an immutable
+  // preview that is reused within its seven-day TTL, and the collision would be
+  // reported as a broken create rather than as leftover state.
+  const unique = "sit-note-" + Date.now();
+  bru.setVar("sitNoteTitle", unique);
+  console.log("[sit] creating note titled " + unique);
+}
+
+script:post-response {
+  if (res.getStatus() === 200 && res.body && res.body.id) {
+    bru.setVar("sitNoteId", res.body.id);
+  }
+}
+
+tests {
+  test("a note is created and answers with its assigned identity", function () {
+    expect(res.getStatus(), "create status").to.equal(200);
+    console.log("[sit] created note = " + JSON.stringify(res.body));
+    expect(res.body.id, "id").to.be.a("string").and.not.equal("");
+    expect(res.body.record.title, "record.title").to.equal(bru.getVar("sitNoteTitle"));
+    expect(res.body.record.body, "record.body").to.be.a("string").and.not.equal("");
+  });
+}

@@ -1,0 +1,14 @@
+meta {
+  name: 04 problems
+  seq: 5
+}
+
+docs {
+  The RFC 9457 contract, asserted on a REGISTERED domain problem rather than on a
+  protocol refusal, so the envelope, the `data` extension, and the versioned type
+  URI are all exercised at once.
+
+  The problem is `NoteTitleConflict` from `App/Error/NoteTitleConflict.cs`,
+  registered in `App/Error/ServiceProblems.cs` at 409 against
+  `POST /api/v1/notes`.
+}

@@ -1,0 +1,6 @@
+{
+  "version": "1",
+  "name": "diene-dotnet-api-sit",
+  "type": "collection",
+  "ignore": ["node_modules", ".git", "TestResults", "withheld"]
+}

@@ -1,0 +1,36 @@
+meta {
+  name: Info endpoint
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/
+  body: none
+  auth: none
+}
+
+tests {
+  test("GET / reports this service's own coordinates", function () {
+    expect(res.getStatus(), "info status").to.equal(200);
+    console.log("[sit] info = " + JSON.stringify(res.body));
+    expect(res.body.platform, "platform").to.equal(bru.getEnvVar("platform"));
+    expect(res.body.service, "service").to.equal(bru.getEnvVar("service"));
+    expect(res.body.module, "module").to.equal(bru.getEnvVar("module"));
+    expect(res.body.version, "version").to.be.a("string").and.not.equal("");
+  });
+
+  test("GET / answers unauthenticated — it is the probe target", function () {
+    expect(res.getStatus(), "info must not require a token").to.equal(200);
+  });
+}
+
+docs {
+  `GET /` is served by `App/Modules/Info/InfoController.cs` and is deliberately
+  dependency-blind: it reports that this process is serving and nothing more.
+  Reachability lives in db-init, so a database blip can never roll the deployment.
+
+  `version` is asserted non-empty rather than pinned: the one semver spans the
+  image tag and both chart versions, so pinning it here would redden the collection
+  on every release.
+}

@@ -1,0 +1,56 @@
+meta {
+  name: Duplicate title conflict
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}{{apiRoot}}/notes
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "title": "{{conflictTitle}}",
+    "body": "the second note under an already-used title"
+  }
+}
+
+tests {
+  test("the collision is reported as an RFC 9457 problem, not a bare 409", function () {
+    console.log("[sit] conflict envelope = " + JSON.stringify(res.body));
+    expect(res.getStatus(), "conflict status").to.equal(409);
+    expect(res.getHeader("content-type"), "content-type").to.contain("application/problem+json");
+    expect(res.body.title, "title").to.be.a("string").and.not.equal("");
+    expect(res.body.detail, "detail").to.be.a("string").and.not.equal("");
+    expect(res.body.status, "status").to.equal(409);
+    expect(res.body.traceId, "traceId").to.be.a("string").and.not.equal("");
+  });
+
+  test("the typed payload rides under the data extension", function () {
+    expect(res.body.data, "data").to.be.an("object");
+    expect(res.body.data.requestedTitle, "data.requestedTitle").to.equal(bru.getVar("conflictTitle"));
+    expect(res.body.recoverable, "recoverable").to.equal(true);
+  });
+
+  test("the type URI names the problem AND carries its version", function () {
+    const type = res.body.type;
+    console.log("[sit] problem type URI = " + type);
+    expect(type, "type").to.be.a("string").and.not.equal("");
+    expect(type, "type must name the wire id").to.contain("note_title_conflict");
+    expect(type, "type must keep the {version} segment (R14)").to.contain("v1");
+    expect(type, "an unregistered problem renders about:blank").to.not.equal("about:blank");
+  });
+}
+
+docs {
+  Three separate assertions on purpose. Removing the `data` mapping keeps the
+  envelope valid and the status right, so a test that only checked the status
+  would stay green — the sabotage this journey has to catch is exactly that.
+
+  The type URI is asserted by CONTENT, not by exact string: the host comes from
+  the `error_portal:` block and differs per landscape, so pinning the whole URI
+  would redden the collection for a configuration change rather than a contract
+  break.
+}

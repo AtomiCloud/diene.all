@@ -1,0 +1,30 @@
+meta {
+  name: Revoke user sessions
+  type: http
+  seq: 3
+}
+
+delete {
+  url: {{logtoEndpoint}}/api/users/{{logtoSubject}}/sessions
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{managementToken}}
+}
+
+script:pre-request {
+  const subject = bru.getEnvVar("logtoSubject");
+  if (!subject) {
+    throw new Error("SIT_LOGTO_SUBJECT is unset; there is no subject whose sessions to revoke.");
+  }
+  console.log("[sit] revoking sessions for subject " + subject);
+}
+
+tests {
+  test("revokeUserSessions succeeds for the subject", function () {
+    console.log("[sit] revoke -> " + res.getStatus());
+    expect([204, 200], "revoke status").to.include(res.getStatus());
+  });
+}

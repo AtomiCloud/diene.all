@@ -1,0 +1,13 @@
+meta {
+  name: 06 app handoff
+  seq: 7
+}
+
+docs {
+  The app-handoff module is ENABLED from configuration at `auth:handoff:mount`
+  (default `/app-handoff`); this repository hand-writes none of its endpoints.
+
+  Only the session route is exercised here. The mint and redeem endpoints are NOT
+  present in the consumed `AtomiCloud.Diene.AuthEngine` 1.0.0 — see
+  `../withheld/app-handoff-mint-redeem.md` for the evidence and the consequence.
+}

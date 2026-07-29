@@ -1,0 +1,34 @@
+meta {
+  name: Env override — scalar
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/
+  body: none
+  auth: none
+}
+
+tests {
+  test("ATOMI_APP__LANDSCAPE overrides the file-configured landscape", function () {
+    expect(res.getStatus(), "info status").to.equal(200);
+
+    const observed = res.body.landscape;
+    const fileValue = bru.getEnvVar("fileLandscape");
+    const expected = bru.getEnvVar("landscape");
+    console.log("[sit] landscape: file=" + fileValue + " expected=" + expected + " observed=" + observed);
+
+    expect(observed, "landscape must be the env-supplied value").to.equal(expected);
+    expect(observed, "landscape must NOT be the settings.yaml value").to.not.equal(fileValue);
+  });
+}
+
+docs {
+  `App/Config/settings.yaml` sets `app:landscape: lapras`. The castform deployment
+  exports `ATOMI_APP__LANDSCAPE=castform`. Asserting BOTH — equals the env value
+  AND differs from the file value — is what makes this an override proof instead
+  of a value check: if the env layer silently stopped applying, an assertion that
+  only checked "equals castform" would still be red, but an assertion that only
+  checked "is a non-empty string" would not.
+}

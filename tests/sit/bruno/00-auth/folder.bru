@@ -1,0 +1,10 @@
+meta {
+  name: 00 auth
+  seq: 1
+}
+
+docs {
+  Acquires the machine token every later journey presents. It runs first so a
+  credential failure is reported as a credential failure, not as a wall of 401s
+  from unrelated journeys.
+}

@@ -1,0 +1,16 @@
+meta {
+  name: 07 tokens
+  seq: 8
+}
+
+docs {
+  Token lifecycle against the landscape-local Logto: refresh with rotation, then
+  revocation, then proof that the revoked grant no longer refreshes.
+
+  It runs LAST on purpose — it revokes the subject's sessions, so any journey
+  ordered after it would be authenticating against state this folder destroyed.
+
+  Requires a refresh token issued out of band by the environments segment
+  (`SIT_LOGTO_REFRESH_TOKEN`): the authorization-code flow that mints one is
+  interactive and cannot be driven headless.
+}

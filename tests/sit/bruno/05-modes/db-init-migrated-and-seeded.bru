@@ -1,0 +1,49 @@
+meta {
+  name: db-init migrated and seeded
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}{{apiRoot}}/notes
+  body: none
+  auth: inherit
+}
+
+script:pre-request {
+  const seeded = bru.getEnvVar("seedNoteTitle");
+  if (!seeded) {
+    throw new Error(
+      "SIT_SEED_NOTE_TITLE is unset. db-init has no HTTP surface, so this journey " +
+      "proves it ran by finding the preset row its idempotent seed wrote. Set " +
+      "SIT_SEED_NOTE_TITLE to the title db-init seeds in this preview."
+    );
+  }
+}
+
+tests {
+  test("the migration ran — the note relation answers instead of erroring", function () {
+    // With no EF Core migration applied the relation does not exist and this query
+    // fails at the adapter, so a plain 200 here is already migration evidence.
+    console.log("[sit] catalogue status " + res.getStatus());
+    expect(res.getStatus(), "catalogue status").to.equal(200);
+    expect(res.body, "catalogue body").to.be.an("array");
+  });
+
+  test("the idempotent seed wrote its preset row exactly once", function () {
+    const seeded = bru.getEnvVar("seedNoteTitle");
+    const matches = res.body.filter(function (note) {
+      return note.record && note.record.title === seeded;
+    });
+    console.log("[sit] seeded title '" + seeded + "' matched " + matches.length + " row(s)");
+
+    expect(matches.length, "seed-if-not-exists must leave exactly one row").to.equal(1);
+  });
+}
+
+docs {
+  Asserting exactly ONE match is the point: a seed that re-inserts on every Job run
+  is still "seeded", and a count-agnostic assertion would call that green. The chart
+  runs db-init on both pre-install AND pre-upgrade, so the preview has run it more
+  than once by the time SIT sees it.
+}
