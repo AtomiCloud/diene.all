@@ -4,4 +4,16 @@
     <RootNamespace>AtomiCloud.DotnetBase.Lib</RootNamespace>
   </PropertyGroup>
 
+  <!-- ### dotnet-api-diene-lib-references -->
+  <!-- #### source: dotnet-api -->
+  <!-- The domain service returns Result<T, IDomainProblem>, so the domain layer needs the two
+       libraries that own those types. Problems carries a Microsoft.AspNetCore.App framework
+       reference, which is why a domain library ends up on the ASP.NET shared framework; that is
+       where IDomainProblem lives, so it is a property of the library layout, not a choice here.
+       PUBLISHED nuget.org packages only (R-E12). Never a ProjectReference. -->
+  <ItemGroup>
+    <PackageReference Include="AtomiCloud.Diene.Problems" />
+    <PackageReference Include="AtomiCloud.Diene.Result" />
+  </ItemGroup>
+
 </Project>
