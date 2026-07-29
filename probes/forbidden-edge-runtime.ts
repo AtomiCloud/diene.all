@@ -20,7 +20,10 @@ export default {
       name: 'mutation-forbidden-edge-runtime-caught',
       description: 'An `export const runtime = "edge"` in a route turns the forbidden-runtime check red.',
       kind: 'mutation',
-      expectedImpact: [],
+      // MEASURED COLLATERAL: the sabotage edits src/app/api/manifest/route.ts, an API route the Bruno collection exercises.
+      // On the 6f5907a matrix this row broke with control_failed naming bruno-collection,
+      // whose own output proves the control RAN and FAILED.
+      expectedImpact: ['bruno-collection'],
       async run(repo: any) {
         // The declaration builds fine and looks like an optimisation. It changes the
         // route's available API surface underneath OpenNext, so the failure appears

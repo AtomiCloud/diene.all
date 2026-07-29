@@ -26,7 +26,14 @@ export default {
       name: 'mutation-form-lifecycle-journey-caught',
       description: 'Offering a restore for a pristine draft turns the draft-policy suite red.',
       kind: 'mutation',
-      expectedImpact: [],
+      // MEASURED COLLATERAL (family: shared source read by the unit suite). This
+      // sabotage edits a real src/ module, and bunfig.unit.toml roots the suite at
+      // tests/unit where 16 of 20 files import ../../src/**, so the whole unit run
+      // reddens. On the 6f5907a matrix this row broke with control_failed naming
+      // diene/bun-base#bun-unit-tests, control output "task: [unit:default] bun test"
+      // - the control RAN and FAILED, so the blame was correct, and the empty array
+      // here was a positive assertion of no collateral that got believed.
+      expectedImpact: ['bun-unit-tests'],
       async run(repo: any) {
         // An always-true restore decision prompts "restore your draft?" on a form
         // the user never typed into, which reads as a bug in the app rather than

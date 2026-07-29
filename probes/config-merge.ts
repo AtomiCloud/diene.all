@@ -21,7 +21,20 @@ export default {
       name: 'mutation-config-merge-caught',
       description: 'A landscape overlay that no longer overrides the base file turns the precedence suite red.',
       kind: 'mutation',
-      expectedImpact: [],
+      // MEASURED COLLATERAL, not assumed. This sabotage edits config/pichu.config.yaml
+      // — a REAL SHARED CONFIG, not a fixture — and the unit suite is rooted at
+      // tests/unit and reads that config, so stripping seo.baseUrl reddens the whole
+      // `bun test` unit run. On the 6f5907a matrix this row broke with
+      // control_failed naming diene/bun-base#bun-unit-tests, whose control output was
+      // `task: [unit:default] bun test --config=bunfig.unit.toml` — the control RAN
+      // and FAILED, so the blame was correct and the omission here was the defect.
+      //
+      // Declared ONLY what genuinely occurs: bun-unit-tests is the one control
+      // observed failing from this sabotage. An expectedImpact that names an impact
+      // which does not happen is a FALSE STATEMENT IN THE METADATA, and an empty
+      // array is a POSITIVE ASSERTION of no collateral — which is what this was, and
+      // it got believed.
+      expectedImpact: ['bun-unit-tests'],
       async run(repo: any) {
         // Strip the overlay's own baseUrl: the pichu tree then keeps the base
         // value, which is exactly the silent misconfiguration this gate exists

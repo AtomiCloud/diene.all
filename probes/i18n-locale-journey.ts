@@ -22,7 +22,11 @@ export default {
       name: 'mutation-i18n-locale-journey-caught',
       description: 'A locale switch that replaces the path without the locale option turns the locale journey red.',
       kind: 'mutation',
-      expectedImpact: [],
+      // MEASURED COLLATERAL: the sabotage edits a TypeScript source file that the project-wide typecheck compiles.
+      // On the 6f5907a matrix this row broke with control_failed naming bun-typecheck,
+      // whose own output proves the control RAN and FAILED - so the blame was
+      // correct and the empty array was a positive assertion of no collateral.
+      expectedImpact: ['bun-typecheck'],
       async run(repo: any) {
         // The select visibly changes and nothing else does: the router re-renders
         // the same locale, so the switcher looks broken only if something asserts

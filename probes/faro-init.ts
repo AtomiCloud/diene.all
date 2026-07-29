@@ -22,7 +22,14 @@ export default {
       name: 'mutation-faro-init-caught',
       description: 'Dropping the landscape from the attribute map turns the LPSM attribute suite red.',
       kind: 'mutation',
-      expectedImpact: [],
+      // MEASURED COLLATERAL (family: shared source read by the unit suite). This
+      // sabotage edits a real src/ module, and bunfig.unit.toml roots the suite at
+      // tests/unit where 16 of 20 files import ../../src/**, so the whole unit run
+      // reddens. On the 6f5907a matrix this row broke with control_failed naming
+      // diene/bun-base#bun-unit-tests, control output "task: [unit:default] bun test"
+      // - the control RAN and FAILED, so the blame was correct, and the empty array
+      // here was a positive assertion of no collateral that got believed.
+      expectedImpact: ['bun-unit-tests'],
       async run(repo: any) {
         // Telemetry still flows, so nothing looks broken — but every signal from
         // every landscape lands in one undifferentiated bucket.

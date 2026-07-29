@@ -29,7 +29,7 @@ export default {
       description:
         'A binding whose resource name no longer matches the configured backend turns the integration suite red.',
       kind: 'mutation',
-      expectedImpact: ['auth-integration'],
+      expectedImpact: ['auth-integration', 'bun-integration-tests'],
       async run(repo: any) {
         // The resource name IS the audience the access token is minted for. A wrong
         // one still builds a complete-looking binding and every authenticated call

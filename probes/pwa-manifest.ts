@@ -20,7 +20,7 @@ export default {
       name: 'mutation-pwa-manifest-caught',
       description: 'A blank branding short name turns the manifest check red.',
       kind: 'mutation',
-      expectedImpact: ['config-merge', 'rebrand-static'],
+      expectedImpact: ['config-merge', 'rebrand-static', 'bun-unit-tests'],
       async run(repo: any) {
         // A blank short_name installs an app with no label under its icon; the page
         // itself renders perfectly, so nothing but this check sees it.

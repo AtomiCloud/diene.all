@@ -20,7 +20,11 @@ export default {
       name: 'mutation-pure-renderer-lint-caught',
       description: 'A service import inside a page turns the pure-renderer arch lint red.',
       kind: 'mutation',
-      expectedImpact: [],
+      // MEASURED COLLATERAL: the sabotage edits a TypeScript source file that the project-wide typecheck compiles.
+      // On the 6f5907a matrix this row broke with control_failed naming bun-typecheck,
+      // whose own output proves the control RAN and FAILED - so the blame was
+      // correct and the empty array was a positive assertion of no collateral.
+      expectedImpact: ['bun-typecheck'],
       async run(repo: any) {
         // A page that reaches for a backend binding directly still renders, and it
         // takes the layer boundary with it — the lint is the only thing that says so.

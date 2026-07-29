@@ -20,7 +20,11 @@ export default {
       name: 'mutation-garden-app-chart-lint-caught',
       description: 'A chart with no name turns helm lint red.',
       kind: 'mutation',
-      expectedImpact: [],
+      // MEASURED COLLATERAL: helm-smoke.sh installs BOTH charts, so editing a chart manifest breaks the install smoke.
+      // On the 6f5907a matrix this row broke with control_failed naming garden-app-chart-install,
+      // whose own output proves the control RAN and FAILED - so the blame was
+      // correct and the empty array was a positive assertion of no collateral.
+      expectedImpact: ['garden-app-chart-install'],
       async run(repo: any) {
         // The chart name is what every release, label, and repository index keys
         // on; a nameless chart is not installable at all.

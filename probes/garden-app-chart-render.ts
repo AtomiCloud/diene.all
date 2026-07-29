@@ -25,7 +25,11 @@ export default {
       name: 'mutation-garden-app-chart-render-caught',
       description: 'A Certificate template added to the chart turns the render-ownership check red.',
       kind: 'mutation',
-      expectedImpact: [],
+      // MEASURED COLLATERAL: helm-smoke.sh installs BOTH charts, so adding a chart template breaks the install smoke.
+      // On the 6f5907a matrix this row broke with control_failed naming garden-app-chart-install,
+      // whose own output proves the control RAN and FAILED - so the blame was
+      // correct and the empty array was a positive assertion of no collateral.
+      expectedImpact: ['garden-app-chart-install'],
       async run(repo: any) {
         // Two owners of the same certificate is worse than none: the chart and
         // Garden's exposure materializer would fight over renewal.

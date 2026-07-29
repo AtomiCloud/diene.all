@@ -23,7 +23,7 @@ export default {
       name: 'mutation-app-handoff-legal-caught',
       description: 'Showing the landscape list before consent turns the ordering slice red.',
       kind: 'mutation',
-      expectedImpact: ['picker-journey'],
+      expectedImpact: ['picker-journey', 'bun-integration-tests'],
       async run(repo: any) {
         // Both screens still exist and the user still consents eventually, so a
         // manual walkthrough looks fine — the consent has simply stopped preceding

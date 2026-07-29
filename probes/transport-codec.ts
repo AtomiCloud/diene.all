@@ -22,7 +22,11 @@ export default {
       description:
         'Serialising an instant with the default string conversion instead of the wire format turns the round trip red.',
       kind: 'mutation',
-      expectedImpact: [],
+      // MEASURED COLLATERAL: the sabotage edits a TypeScript source file that the project-wide typecheck compiles.
+      // On the 6f5907a matrix this row broke with control_failed naming bun-typecheck,
+      // whose own output proves the control RAN and FAILED - so the blame was
+      // correct and the empty array was a positive assertion of no collateral.
+      expectedImpact: ['bun-typecheck'],
       async run(repo: any) {
         // `String(instant)` produces a plausible-looking timestamp that still
         // typechecks and still parses in some readers — and disagrees with the

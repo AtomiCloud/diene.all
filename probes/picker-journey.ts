@@ -32,7 +32,7 @@ export default {
       description:
         'A guard that ignores the home claim and always reports pre-onboarding turns the admission slice red.',
       kind: 'mutation',
-      expectedImpact: ['auth-integration'],
+      expectedImpact: ['auth-integration', 'bun-unit-tests'],
       async run(repo: any) {
         // The picker is SIGN-UP ONLY. A guard that always reports pre-onboarding
         // sends established users back through landscape selection, where a second

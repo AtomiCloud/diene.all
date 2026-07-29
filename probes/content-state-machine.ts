@@ -21,7 +21,14 @@ export default {
       name: 'mutation-content-state-machine-caught',
       description: 'Dropping the flow emptiness re-check turns the state-machine suite red.',
       kind: 'mutation',
-      expectedImpact: [],
+      // MEASURED COLLATERAL (family: shared source read by the unit suite). This
+      // sabotage edits a real src/ module, and bunfig.unit.toml roots the suite at
+      // tests/unit where 16 of 20 files import ../../src/**, so the whole unit run
+      // reddens. On the 6f5907a matrix this row broke with control_failed naming
+      // diene/bun-base#bun-unit-tests, control output "task: [unit:default] bun test"
+      // - the control RAN and FAILED, so the blame was correct, and the empty array
+      // here was a positive assertion of no collateral that got believed.
+      expectedImpact: ['bun-unit-tests'],
       async run(repo: any) {
         // Without the re-check an empty payload renders as content: the user sees
         // a blank panel instead of the empty state, which is the L/E/E defect

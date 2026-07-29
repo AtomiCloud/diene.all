@@ -21,7 +21,13 @@ export default {
       name: 'mutation-landscape-binding-caught',
       description: 'Detecting the landscape from the browser location turns the binding suite red.',
       kind: 'mutation',
-      expectedImpact: [],
+      // MEASURED COLLATERAL (family: shared source read by the integration suite).
+      // This sabotage edits a real src/ module, and bunfig.int.toml roots the suite at
+      // tests/integration where 13 files import ../../src/**, so the integration run
+      // reddens. On the 6f5907a matrix this row broke with control_failed naming
+      // diene/bun-base#bun-integration-tests, control output "task: [int:default] bun
+      // test" - the control RAN and FAILED, so the blame was correct.
+      expectedImpact: ['bun-integration-tests'],
       async run(repo: any) {
         // Hostname sniffing makes the landscape disagree between the server and
         // client render, which silently mis-tags every telemetry signal.

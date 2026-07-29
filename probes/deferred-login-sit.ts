@@ -28,7 +28,7 @@ export default {
       name: 'mutation-deferred-login-sit-caught',
       description: 'An initiate route that skips its unauthenticated check turns the fail-closed assertion red.',
       kind: 'mutation',
-      expectedImpact: ['auth-integration'],
+      expectedImpact: ['auth-integration', 'bun-integration-tests'],
       async run(repo: any) {
         // A handoff nonce minted for an anonymous caller is a login token handed to
         // whoever asked. Nothing errors — the endpoint simply becomes an oracle.

@@ -22,7 +22,10 @@ export default {
       name: 'mutation-i18n-missing-key-caught',
       description: 'A key present in the reference locale and missing from another turns the missing-key lint red.',
       kind: 'mutation',
-      expectedImpact: [],
+      // MEASURED COLLATERAL: the sabotage removes a key from messages/de.json; the control failed reporting a missing home.title key.
+      // On the 6f5907a matrix this row broke with control_failed naming extended-binary-inventory,
+      // whose own output proves the control RAN and FAILED.
+      expectedImpact: ['extended-binary-inventory'],
       async run(repo: any) {
         // next-intl falls back silently, so a missing key ships as English text in
         // a German page — visible to users, invisible to the build.

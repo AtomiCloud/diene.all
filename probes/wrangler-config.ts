@@ -20,7 +20,7 @@ export default {
       name: 'mutation-wrangler-config-caught',
       description: 'A missing D1 tag-cache binding turns the Worker config check red.',
       kind: 'mutation',
-      expectedImpact: ['isr-bindings'],
+      expectedImpact: ['isr-bindings', 'workerd-preview'],
       async run(repo: any) {
         // Without the tag cache the Worker still deploys and still serves: only
         // on-demand revalidation quietly stops working, which surfaces as stale

@@ -21,7 +21,10 @@ export default {
       name: 'mutation-lib-coverage-caught',
       description: 'An uncovered exported domain function turns the domain coverage ledger red.',
       kind: 'mutation',
-      expectedImpact: [],
+      // MEASURED COLLATERAL: the sabotage PLANTS src/lib/__probe_uncovered__/index.ts to create uncovered code, which the coverage gate then correctly counts.
+      // On the 6f5907a matrix this row broke with control_failed naming bun-unit-coverage,
+      // whose own output proves the control RAN and FAILED.
+      expectedImpact: ['bun-unit-coverage'],
       async run(repo: any) {
         // The ledger is only worth having if adding untested domain code fails the
         // build rather than quietly lowering the percentage.

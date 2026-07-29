@@ -19,7 +19,11 @@ export default {
       name: 'mutation-primordial-chart-lint-caught',
       description: 'A chart with no version turns helm lint red.',
       kind: 'mutation',
-      expectedImpact: [],
+      // MEASURED COLLATERAL: helm-smoke.sh installs BOTH charts in one cluster, so the primordial chart breaks the shared install.
+      // On the 6f5907a matrix this row broke with control_failed naming garden-app-chart-install,
+      // whose own output proves the control RAN and FAILED - so the blame was
+      // correct and the empty array was a positive assertion of no collateral.
+      expectedImpact: ['garden-app-chart-install'],
       async run(repo: any) {
         // An unversioned chart cannot be packaged or promoted, so this is the
         // cheapest total break of the chart's own metadata contract.

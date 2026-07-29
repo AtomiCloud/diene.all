@@ -27,7 +27,7 @@ export default {
       name: 'mutation-isr-bindings-caught',
       description: 'A missing R2 incremental-cache bucket turns the ISR binding check red.',
       kind: 'mutation',
-      expectedImpact: ['wrangler-config'],
+      expectedImpact: ['wrangler-config', 'workerd-preview'],
       async run(repo: any) {
         // With no R2 bucket the incremental cache falls back to per-isolate memory:
         // the app is correct and unboundedly slower, and every isolate re-renders

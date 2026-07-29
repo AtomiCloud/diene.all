@@ -23,7 +23,13 @@ export default {
       name: 'mutation-ssr-landscape-payload-caught',
       description: 'Omitting the landscape from the client-safe projection turns the SSR payload journey red.',
       kind: 'mutation',
-      expectedImpact: [],
+      // MEASURED COLLATERAL (family: shared source read by the integration suite).
+      // This sabotage edits a real src/ module, and bunfig.int.toml roots the suite at
+      // tests/integration where 13 files import ../../src/**, so the integration run
+      // reddens. On the 6f5907a matrix this row broke with control_failed naming
+      // diene/bun-base#bun-integration-tests, control output "task: [int:default] bun
+      // test" - the control RAN and FAILED, so the blame was correct.
+      expectedImpact: ['bun-integration-tests'],
       async run(repo: any) {
         // Without the injected landscape the browser has no way to know which
         // landscape served it, so every client signal is mis-attributed.
