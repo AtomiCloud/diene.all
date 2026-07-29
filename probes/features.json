@@ -137,7 +137,7 @@
   {
     "template": "diene/workspace",
     "name": "skills-sync",
-    "class": "smoke"
+    "class": "gate"
   },
   {
     "template": "diene/workspace",
