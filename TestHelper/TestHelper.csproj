@@ -1,16 +1,22 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <RootNamespace>AtomiCloud.Diene.Note.TestHelper</RootNamespace>
-    <AssemblyName>AtomiCloud.Diene.Note.TestHelper</AssemblyName>
-    <PackageId>AtomiCloud.Diene.Note.TestHelper</PackageId>
-    <Description>Consumer test assertions for AtomiCloud.Diene.Note.</Description>
+    <RootNamespace>AtomiCloud.Diene.ApiEngine.TestHelper</RootNamespace>
+    <AssemblyName>AtomiCloud.Diene.ApiEngine.TestHelper</AssemblyName>
+    <PackageId>AtomiCloud.Diene.ApiEngine.TestHelper</PackageId>
+    <Description>Fake upstreams, client-tree doubles, response fixtures, and Result-Problem assertions for AtomiCloud.Diene.ApiEngine.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IsPackable>true</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="../Lib/Lib.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- auth-engine's published credential fake is consumed rather than reimplemented, so this
+         package's token helper imitates no contract of its own. -->
+    <PackageReference Include="AtomiCloud.Diene.AuthEngine.TestHelper" />
   </ItemGroup>
 
   <ItemGroup>
