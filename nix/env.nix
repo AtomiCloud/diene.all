@@ -7,7 +7,6 @@ with packages;
     git
     go-task
     infisical
-    jq
     pls
     sg
     skopeo
@@ -19,32 +18,26 @@ with packages;
     actionlint
     infralint
     kubeconform
-    kubernetes-helm
     kyverno
     pre-commit
     ripgrep
     shellcheck
     treefmt
-    yq-go
   ];
 
   # ### workspace-main
   # #### source: workspace
   main = [
     cyanprint
-    docker-client
     git
     go-task
     infisical
-    jq
     kubeconform
-    kubernetes-helm
     kyverno
     pls
     ripgrep
     shellcheck
     skopeo
-    yq-go
   ];
 
   # ### workspace-releaser-bootstrap

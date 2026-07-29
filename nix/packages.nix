@@ -67,21 +67,16 @@ let
       {
         inherit
           actionlint
-          bash
-          docker-client
           git
           go-task
           infisical
-          jq
           kubeconform
-          kubernetes-helm
           kyverno
           pre-commit
           ripgrep
           shellcheck
           skopeo
           treefmt
-          yq-go
           ;
       }
     );

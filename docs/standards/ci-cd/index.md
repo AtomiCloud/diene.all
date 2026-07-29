@@ -9,34 +9,38 @@ GitHub Actions supplies triggers, permissions, runners, and inputs. Repository
 logic stays in executable `scripts/ci/*.sh` files and runs through the matching
 Nix shell.
 
-## Workflow split
+## Reading the workflow set
 
-| Workflow  | Trigger                            | Responsibility                         |
-| --------- | ---------------------------------- | -------------------------------------- |
-| `CI`      | pushes, pull requests, manual runs | pre-commit, Docker, and Helm lanes     |
-| `Release` | successful `CI` run on `main`      | semantic versioning and GitHub release |
-| `CD`      | one `v*.*.*` tag pattern           | versioned Docker image and Helm chart  |
+The workflows are `.github/workflows/`. Two kinds live there, distinguished by
+their trigger block:
+
+- **Orchestrators** — a `name:` plus real event triggers (`on.push`,
+  `on.pull_request`, `on.workflow_run`). Their jobs do no work themselves: each
+  job is a `uses:` pointing at a repository-local reusable workflow, with
+  `permissions:`, `secrets: inherit`, and any repository-specific `with:` inputs.
+  Read a job's `uses:` to see which lane it runs, and the orchestrator's `on:`
+  block to see when.
+- **Reusable workflows** — `on.workflow_call` only, named with a `⚡` prefix.
+  Each owns runner selection and setup and ends in exactly one `run:` line of the
+  form `nix develop .#<shell> -c ./scripts/ci/<script>.sh`. That line is the
+  authoritative statement of which script the lane runs and in which shell.
 
 Callers grant permissions, pass only repository-specific values, and use
-`secrets: inherit`. Reusable workflows own setup and invoke exactly one existing
-CI script.
+`secrets: inherit`. The `a-workflow-wiring` gate enforces that every orchestrator
+job resolves to a repository-local reusable workflow and that each reusable
+workflow calls an existing, executable `scripts/ci` entry point.
 
-## Reusable workflows
-
-- `⚡reusable-precommit.yaml` runs `scripts/ci/pre-commit.sh` in `.#ci`.
-- `⚡reusable-docker.yaml` runs `scripts/ci/docker.sh` in `.#cd`.
-- `⚡reusable-helm.yaml` runs `scripts/ci/helm.sh` in `.#cd`.
-- `⚡reusable-release.yaml` runs `scripts/ci/release.sh` in `.#releaser`.
-
-`AtomiCloud/actions.setup-nix@v3` checks out the repository, so do not add an
-adjacent `actions/checkout`. Docker additionally uses
-`AtomiCloud/actions.setup-docker@v2`.
+`AtomiCloud/actions.setup-nix` checks out the repository, so do not add an
+adjacent `actions/checkout`.
 
 ## Pins and runners
 
-Trusted actions (`AtomiCloud/`, `actions/`, `codecov/`, and `docker/`) use major
-pins. Every other action uses an exact 40-character SHA plus its tag in a
-trailing comment. Classification lives in `config/action-trust.json`.
+Trusted actions use major pins; every other action uses an exact 40-character SHA
+plus its tag in a trailing comment. Which actions are trusted is recorded in
+`config/action-trust.json`: each key is an action reference and its value is
+`trusted` or `non-trusted`. `scripts/validate/action-pins.sh` reads that file and
+fails any action used in a workflow that has no classification, so adding an
+action means adding its entry there.
 
 Every nscloud Nix job carries exactly one shared tag:
 
@@ -49,12 +53,11 @@ introduce per-platform or per-service cache tags.
 
 ## Local reproduction
 
-Use the same entry points as CI:
+Run the same entry point the lane runs. Take the `run:` line from the reusable
+workflow you want to reproduce and run it verbatim, for example:
 
 ```bash
 nix develop .#ci -c ./scripts/ci/pre-commit.sh
-nix develop .#cd -c ./scripts/ci/docker.sh
-nix develop .#cd -c ./scripts/ci/helm.sh
 ```
 
 The Docker and Helm scripts build locally by default. Their reusable workflows

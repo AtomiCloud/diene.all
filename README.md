@@ -12,23 +12,17 @@ This branch is the all-features workspace baseline inherited by every downstream
 
 ## Commands
 
-- `pls setup` — synchronize installed diene package skills.
-- `pls lint` — run every pre-commit gate.
-- `pls docker:build` — build the local stub image.
-- `pls helm:lint` / `pls helm:template` — validate or render the root chart.
-- `pls secret:scan` — scan tracked content for secrets.
-- `pls skills:sync` — rebuild `.claude/skills/vendor/` from installed packages.
+Run `pls --list` for every available task and its description. The task set is
+declared in [`Taskfile.yaml`](Taskfile.yaml), whose `includes:` block maps each
+namespace to a file under [`tasks/`](tasks); a task shown as `<namespace>:<task>`
+is that key in the included file. Build artifacts — Dockerfiles and Helm charts —
+live under [`infra/`](infra) and may be plural, so their tasks are keyed per
+artifact. See [the Taskfile standard](docs/standards/taskfile/index.md) for the
+conventions.
 
 ## Standards
 
-- [CI/CD workflows](docs/standards/ci-cd/index.md)
-- [conventional commits](docs/standards/conventional-commits/index.md)
-- [Docker build and publishing](docs/standards/docker/index.md)
-- [Helm charts and publishing](docs/standards/helm/index.md)
-- [Infisical and secrets](docs/standards/infisical/index.md)
-- [linting and pre-commit](docs/standards/linting/index.md)
-- [Nix flakes and development shells](docs/standards/nix/index.md)
-- [release automation](docs/standards/semantic-release/index.md)
-- [service-tree identity](docs/standards/service-tree/index.md)
-- [shell scripts](docs/standards/shell-scripts/index.md)
-- [Taskfile conventions](docs/standards/taskfile/index.md)
+[`CLAUDE.md`](CLAUDE.md) is the index of repository conventions: one section per
+surface, each pointing at its standard under
+[`docs/standards/`](docs/standards). Read the section for the surface you are
+changing before you change it.

@@ -7,21 +7,18 @@
 let
   validator-runtime = pkgs.buildEnv {
     name = "workspace-validator-runtime";
+    # atomiutils supplies bash/jq/yq plus the coreutils/find/grep/sed binaries the
+    # validators call, so declaring those separately would duplicate the bundle
+    # (and collide with it in this buildEnv). git and ripgrep do not overlap it.
     paths = [
-      packages.bash
+      packages.atomiutils
       packages.git
-      packages.jq
       packages.ripgrep
-      packages.yq-go
-      pkgs.coreutils
-      pkgs.findutils
-      pkgs.gnugrep
-      pkgs.gnused
     ];
   };
   validator =
     command:
-    "${packages.bash}/bin/bash -c 'export PATH=${validator-runtime}/bin; exec ${packages.bash}/bin/bash ${command}'";
+    "${packages.atomiutils}/bin/bash -c 'export PATH=${validator-runtime}/bin; exec ${packages.atomiutils}/bin/bash ${command}'";
 in
 pre-commit-lib.run {
   src = ../.;
@@ -90,7 +87,7 @@ pre-commit-lib.run {
     a-helm-lint = {
       enable = true;
       name = "Helm lint";
-      entry = "${packages.kubernetes-helm}/bin/helm lint infra/root_chart";
+      entry = "${packages.infrautils}/bin/helm lint infra/root_chart";
       files = "^infra/root_chart/.*";
       pass_filenames = false;
       language = "system";
