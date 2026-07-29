@@ -21,3 +21,13 @@ tasks:
     desc: Watch the {{.MODE}} test tier
     cmds:
       - ./scripts/local/dotnet-test.sh {{.MODE}} --watch
+
+  # ### dotnet-api-sit
+  # #### source: dotnet-api
+  # SIT has no MODE axis: there is one collection and one environment. It delegates to the
+  # same script CI runs so a local green and a CI green cannot describe different runs.
+  sit:
+    internal: true
+    desc: Run the Bruno SIT collection headless against the castform preview
+    cmds:
+      - ./scripts/ci/sit.sh
