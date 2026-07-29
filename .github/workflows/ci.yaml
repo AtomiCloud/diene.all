@@ -60,11 +60,14 @@ jobs:
     uses: ./.github/workflows/⚡reusable-docker.yaml
     secrets: inherit
     with:
-      image_name: diene-dotnet-base
+      image_name: diene-dotnet-api
       dockerfile: ./infra/Dockerfile
 
+  # ### dotnet-api-ci
+  # #### source: dotnet-api
+  # Both charts go through ONE invocation so a single semver reaches both (R20).
   helm:
-    name: Helm Chart
+    name: Helm Charts
     permissions:
       contents: read
       id-token: write
@@ -72,4 +75,14 @@ jobs:
     uses: ./.github/workflows/⚡reusable-helm.yaml
     secrets: inherit
     with:
-      chart_path: ./infra/root_chart
+      chart_paths: ./infra/root_chart ./infra/primordial_chart
+
+  sit:
+    name: System Integration Tests
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-sit.yaml
+    secrets: inherit
+    with:
+      collection: tests/sit/bruno
+      environment: sit

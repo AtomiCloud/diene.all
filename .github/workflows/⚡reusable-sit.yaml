@@ -1,0 +1,38 @@
+# ### workspace-reusable-sit
+# #### source: workspace
+name: ⚡ Reusable SIT
+
+on:
+  workflow_call:
+    inputs:
+      collection:
+        required: false
+        type: string
+        default: tests/sit/bruno
+      environment:
+        required: false
+        type: string
+        default: sit
+
+jobs:
+  sit:
+    name: System Integration
+    runs-on:
+      - nscloud-ubuntu-22.04-amd64-4x8-with-cache
+      - nscloud-cache-size-50gb
+      - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
+    steps:
+      - uses: AtomiCloud/actions.setup-nix@v3
+      - uses: AtomiCloud/actions.cache-nuget@v1
+      - name: Run Bruno SIT collection
+        env:
+          SIT_COLLECTION: ${{ inputs.collection }}
+          SIT_ENVIRONMENT: ${{ inputs.environment }}
+        run: nix develop .#ci -c ./scripts/ci/sit.sh
+      - name: Upload SIT results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results-sit
+          path: TestResults/sit/*.xml
+          if-no-files-found: warn
