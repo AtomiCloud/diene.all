@@ -1,0 +1,32 @@
+# ### mercury-reusable-release-verify
+# #### source: mercury
+name: ⚡ Reusable Release Verify
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Immutable release SemVer to verify
+        required: true
+        type: string
+
+jobs:
+  verify:
+    name: Verify Immutable Release Set
+    permissions:
+      contents: read
+      packages: read
+    runs-on:
+      - nscloud-ubuntu-22.04-amd64-4x8-with-cache
+      - nscloud-cache-size-50gb
+      - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
+    env:
+      DOMAIN: ghcr.io
+      DOCKER_USER: ${{ github.actor }}
+      DOCKER_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+      OWNER: ${{ github.repository_owner }}
+      RELEASE_VERSION: ${{ inputs.version }}
+    steps:
+      - uses: AtomiCloud/actions.setup-nix@v3
+      - name: Verify the complete immutable artifact set for this semver
+        run: nix develop .#cd -c ./scripts/ci/release-verify.sh

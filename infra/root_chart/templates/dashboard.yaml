@@ -1,0 +1,12 @@
+{{- if .Values.dashboard.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "mercury.fullname" . }}-dashboard
+  labels:
+    {{- include "mercury.labels" . | nindent 4 }}
+    grafana_dashboard: "1"
+data:
+  mercury-webhook.json: |
+    {"annotations":{"list":[]},"editable":false,"panels":[{"type":"timeseries","title":"Intake","targets":[{"expr":"sum(rate(mercury_intake_total[5m]))"}]},{"type":"timeseries","title":"Delivery failures","targets":[{"expr":"sum(rate(mercury_delivery_failures_total[5m]))"}]},{"type":"stat","title":"DLQ depth","targets":[{"expr":"sum(mercury_dlq_depth)"}]}],"schemaVersion":39,"tags":["mercury","webhook"],"title":"Mercury Webhook","uid":"mercury-webhook"}
+{{- end }}

@@ -1,0 +1,66 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "mercury.fullname" . }}
+  labels:
+    {{- include "mercury.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "mercury.selectorLabels" . | nindent 6 }}
+  # Default-deny: only the ingress/egress rules below are permitted.
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            {{- toYaml .Values.networkPolicy.ingressNamespaceSelector | nindent 12 }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Release.Namespace }}
+        - namespaceSelector:
+            {{- toYaml .Values.networkPolicy.monitoringNamespaceSelector | nindent 12 }}
+      ports:
+        - {port: http}
+  egress:
+    # Cluster DNS resolution.
+    - to:
+        - namespaceSelector:
+            {{- toYaml .Values.networkPolicy.dns.namespaceSelector | nindent 12 }}
+      ports:
+        {{- toYaml .Values.networkPolicy.dns.ports | nindent 8 }}
+    # Cluster-local webhook delivery: an explicit trusted-topology allow-list.
+    # Each destination combines a non-empty namespace selector and pod selector
+    # in a single peer (logical AND), so egress reaches only platform-labelled
+    # webhook endpoints in platform-opted-in namespaces — never all namespaces.
+    {{- range .Values.networkPolicy.inClusterDelivery.destinations }}
+    - to:
+        - namespaceSelector:
+            {{- toYaml .namespaceSelector | nindent 12 }}
+          podSelector:
+            {{- toYaml .podSelector | nindent 12 }}
+      ports:
+        {{- toYaml .ports | nindent 8 }}
+    {{- end }}
+    {{- if .Values.networkPolicy.externalEgress.enabled }}
+    {{- if .Values.networkPolicy.externalEgress.gateway.enabled }}
+    # Platform-approved external egress via the egress gateway.
+    - to:
+        - namespaceSelector:
+            {{- toYaml .Values.networkPolicy.externalEgress.gateway.namespaceSelector | nindent 12 }}
+      ports:
+        {{- toYaml .Values.networkPolicy.externalEgress.gateway.ports | nindent 8 }}
+    {{- end }}
+    {{- if .Values.networkPolicy.externalEgress.direct.enabled }}
+    # Platform-approved direct external egress to dependency + subscriber
+    # destinations, scoped to non-cluster address space on approved ports.
+    - to:
+        {{- range .Values.networkPolicy.externalEgress.direct.cidrs }}
+        - ipBlock:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+      ports:
+        {{- toYaml .Values.networkPolicy.externalEgress.direct.ports | nindent 8 }}
+    {{- end }}
+    {{- end }}
+{{- end }}

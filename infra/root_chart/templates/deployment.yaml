@@ -1,0 +1,98 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "mercury.fullname" . }}
+  labels:
+    {{- include "mercury.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "mercury.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "mercury.labels" . | nindent 8 }}
+      annotations:
+        checksum/secrets: {{ toJson .Values.secret | sha256sum }}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: webhook
+          image: {{ include "mercury.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: [serve]
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          ports:
+            - {name: http, containerPort: {{ .Values.service.port }}, protocol: TCP}
+          startupProbe:
+            httpGet: {path: {{ .Values.probes.startupPath }}, port: http}
+            periodSeconds: {{ .Values.probes.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.timeoutSeconds }}
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: {path: {{ .Values.probes.livePath }}, port: http}
+            initialDelaySeconds: {{ .Values.probes.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.failureThreshold }}
+          readinessProbe:
+            httpGet: {path: {{ .Values.probes.readyPath }}, port: http}
+            initialDelaySeconds: {{ .Values.probes.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.failureThreshold }}
+          env:
+            - name: MERCURY_LANDSCAPE
+              value: {{ .Values.serviceTree.landscape | default "mew" | quote }}
+            - name: MERCURY_APP__LANDSCAPE
+              value: {{ .Values.serviceTree.landscape | default "mew" | quote }}
+            - name: MERCURY_APP__PLATFORM
+              value: {{ .Values.serviceTree.platform | quote }}
+            - name: MERCURY_APP__SERVICE
+              value: {{ .Values.serviceTree.service | quote }}
+            - name: MERCURY_APP__MODULE
+              value: {{ .Values.serviceTree.module | quote }}
+            - name: MERCURY_APP__VERSION
+              value: {{ .Chart.AppVersion | quote }}
+            {{- with .Values.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - {name: tmp, mountPath: /app/tmp}
+            {{- if .Values.secret.enabled }}
+            - {name: secrets, mountPath: /var/run/secrets/mercury, readOnly: true}
+            - {name: provider-secrets, mountPath: /var/run/secrets/mercury/providers, readOnly: true}
+            - {name: endpoint-secrets, mountPath: /var/run/secrets/mercury/endpoints, readOnly: true}
+            {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        {{- if .Values.secret.enabled }}
+        - name: secrets
+          secret:
+            secretName: {{ include "mercury.fullname" . }}
+        - name: provider-secrets
+          secret:
+            secretName: {{ include "mercury.fullname" . }}-providers
+        - name: endpoint-secrets
+          secret:
+            secretName: {{ include "mercury.fullname" . }}-endpoints
+        {{- end }}

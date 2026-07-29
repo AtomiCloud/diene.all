@@ -1,0 +1,30 @@
+# ### mercury-reusable-sit
+# #### source: mercury
+name: ⚡ Reusable SIT
+
+on:
+  workflow_call:
+    secrets:
+      MERCURY_SIT_PROOF_TRUST_JSON:
+        required: true
+      MERCURY_SIT_PROOF_BEARER:
+        required: true
+
+jobs:
+  sit:
+    name: Garden Journey
+    runs-on:
+      - nscloud-ubuntu-22.04-amd64-4x8-with-cache
+      - nscloud-cache-size-50gb
+      - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
+    steps:
+      - uses: AtomiCloud/actions.setup-nix@v3
+      - uses: AtomiCloud/actions.cache-bun@v2
+      # Provenance-bound authority inputs the Garden/SIT stack consumes. Both are
+      # required secrets so the workflow fails closed when either is absent — no
+      # defaults, skips, arbitrary proof URLs, or synthetic success.
+      - name: Run two-landscape Garden journey
+        env:
+          MERCURY_SIT_PROOF_TRUST_JSON: ${{ secrets.MERCURY_SIT_PROOF_TRUST_JSON }}
+          MERCURY_SIT_PROOF_BEARER: ${{ secrets.MERCURY_SIT_PROOF_BEARER }}
+        run: nix develop .#ci -c ./scripts/ci/sit.sh

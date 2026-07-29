@@ -1,0 +1,116 @@
+labelPrefix: atomi.cloud
+apiVersion: fleet.atomi.cloud/v1alpha1
+serviceTree:
+  platform: mercury
+  service: webhook
+  module: hooks
+  layer: '2'
+virtualLandscapeServices:
+  - vlandscape: mew
+    landscape: raichu
+    serve: true
+  - vlandscape: mew
+    landscape: amphoros
+    serve: true
+  - vlandscape: celebi
+    landscape: pichu
+    serve: true
+platformDependencies:
+  - landscape: mew
+    placement:
+      preferredHost: raichu
+    deletionPolicy:
+      retainSecret: 168h
+    database:
+      type: neon
+      delivery: external
+      providerAccountRef: production-neon
+      credentialMode: standard
+      rotation: 'on'
+      storage: 20Gi
+      version: '17'
+    store:
+      type: tigris
+      delivery: external
+      providerAccountRef: production-tigris
+      credentialMode: standard
+      rotation: 'on'
+      engine:
+        tigris:
+          bucket: mercury-webhook-archive
+  - landscape: raichu
+    placement:
+      preferredHost: raichu
+    deletionPolicy:
+      retainSecret: 168h
+    kv:
+      type: upstash
+      delivery: external
+      providerAccountRef: production-upstash
+      credentialMode: standard
+      rotation: 'on'
+      engine:
+        upstash:
+          eviction: false
+  - landscape: amphoros
+    placement:
+      preferredHost: amphoros
+    deletionPolicy:
+      retainSecret: 168h
+    kv:
+      type: upstash
+      delivery: external
+      providerAccountRef: production-upstash
+      credentialMode: standard
+      rotation: 'on'
+      engine:
+        upstash:
+          eviction: false
+  - landscape: pichu
+    placement:
+      preferredHost: pichu
+    deletionPolicy:
+      retainSecret: 168h
+    kv:
+      type: upstash
+      delivery: external
+      providerAccountRef: nonprod-upstash
+      credentialMode: standard
+      rotation: 'on'
+      engine:
+        upstash:
+          eviction: false
+webhookEngine:
+  home:
+    vlandscape: mew
+  retention:
+    cycle: monthly
+    keepMonths: 2
+    archive:
+      store: tigris
+      bucket: mercury-webhook-archive
+  retryWindow: 72h
+  backoff:
+    initial: 5s
+    shape: exponential
+  circuitBreaker:
+    failWindow: 24h
+  dedupWindow: 72h
+  quotas:
+    intakeRps: 50
+    burst: 200
+  customDomains: []
+productConfig:
+  enabled: true
+  defaultInternalAccount: true
+  tenancy: native
+  privatePath: supported
+  customDomains: multi
+  ordering: at-least-once-unordered
+  secretPointersOnly: true
+problems:
+  enabled: true
+  apiVersion: atomi.cloud/v1alpha1
+  path: files/problems.json
+  version: v1
+  landscapes: [mew, celebi]

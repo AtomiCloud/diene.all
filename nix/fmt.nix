@@ -14,6 +14,7 @@ let
           ".claude/skills/vendor/**"
           "Changelog.md"
           "docs/developer/CommitConventions.md"
+          "infra/primordial_chart/templates/**"
           "infra/root_chart/**"
         ];
       };

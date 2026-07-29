@@ -1,0 +1,7 @@
+[test]
+root = "tests/sit"
+timeout = 300000
+coverageReporter = ["text", "lcov"]
+coverageDir = "coverage/sit"
+coverageSkipTestFiles = true
+coveragePathIgnorePatterns = ["tests/**"]

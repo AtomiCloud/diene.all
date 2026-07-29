@@ -1,0 +1,37 @@
+virtualLandscapeServices:
+  - vlandscape: lapras
+    landscape: lapras
+    serve: true
+platformDependencies:
+  - landscape: lapras
+    placement:
+      preferredHost: lapras
+    deletionPolicy:
+      retainSecret: 1h
+    database:
+      type: postgres
+      delivery: local
+      credentialMode: standard
+      rotation: 'off'
+      storage: 1Gi
+      version: '17'
+    kv:
+      type: dragonfly
+      delivery: local
+      credentialMode: standard
+      rotation: 'off'
+      storage: 1Gi
+      engine:
+        dragonfly:
+          snapshot: true
+    store:
+      type: minio
+      delivery: local
+      credentialMode: standard
+      rotation: 'off'
+      engine:
+        minio:
+          bucket: mercury-webhook-archive
+webhookEngine:
+  home:
+    vlandscape: lapras

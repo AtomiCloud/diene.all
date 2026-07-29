@@ -1,0 +1,40 @@
+# ### mercury-reusable-helm
+# #### source: mercury
+name: ⚡ Reusable Helm
+
+on:
+  workflow_call:
+    inputs:
+      chart_path: { required: true, type: string }
+      publish: { required: false, type: boolean, default: false }
+      version: { required: false, type: string, default: '' }
+
+jobs:
+  build:
+    name: Validate and Publish Chart
+    runs-on:
+      - nscloud-ubuntu-22.04-amd64-4x8-with-cache
+      - nscloud-cache-size-50gb
+      - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
+    steps:
+      - uses: AtomiCloud/actions.setup-nix@v3
+      - name: Validate and optionally publish
+        id: chart
+        env:
+          CHART_PATH: ${{ inputs.chart_path }}
+          CI_HELM_PUSH: ${{ inputs.publish }}
+          DOMAIN: ghcr.io
+          DOCKER_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          DOCKER_USER: ${{ github.actor }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: nix develop .#cd -c ./scripts/ci/helm.sh
+      - name: Preserve signed chart provenance
+        if: inputs.publish
+        uses: actions/upload-artifact@v7
+        with:
+          name: provenance-${{ github.job }}
+          path: |
+            ${{ steps.chart.outputs.chart-package }}
+            ${{ steps.chart.outputs.chart-package }}.bundle
+          if-no-files-found: error

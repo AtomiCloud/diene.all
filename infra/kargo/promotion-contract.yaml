@@ -1,0 +1,43 @@
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Warehouse
+metadata:
+  name: webhook
+  namespace: mercury
+spec:
+  interval: 5m0s
+  freightCreationPolicy: Automatic
+  freightCreationCriteria:
+    expression: imageFrom("ghcr.io/atomicloud/diene.mercury").Tag == chartFrom("oci://ghcr.io/atomicloud/mercury-webhook").Version && chartFrom("oci://ghcr.io/atomicloud/mercury-webhook-primordial").Version == chartFrom("oci://ghcr.io/atomicloud/mercury-webhook").Version
+  subscriptions:
+    - image:
+        repoURL: ghcr.io/atomicloud/diene.mercury
+        imageSelectionStrategy: SemVer
+        constraint: '>=0.0.0'
+        strictSemvers: true
+    - chart:
+        repoURL: oci://ghcr.io/atomicloud/mercury-webhook
+        semverConstraint: '>=0.0.0'
+    - chart:
+        repoURL: oci://ghcr.io/atomicloud/mercury-webhook-primordial
+        semverConstraint: '>=0.0.0'
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: webhook-canary
+  namespace: mercury
+spec:
+  requestedFreight:
+    - origin: { kind: Warehouse, name: webhook }
+      sources: { direct: true }
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: webhook-active
+  namespace: mercury
+spec:
+  requestedFreight:
+    - origin: { kind: Warehouse, name: webhook }
+      sources:
+        stages: [webhook-canary]

@@ -1,0 +1,34 @@
+{
+  "problems": [
+    {
+      "id": "compiled_address_stale",
+      "type": "https://problems.atomi.cloud/docs/serving/mercury/webhook/hooks/v1/compiled_address_stale",
+      "title": "Compiled webhook delivery address is stale",
+      "status": 421
+    },
+    {
+      "id": "persistence_unavailable",
+      "type": "https://problems.atomi.cloud/docs/serving/mercury/webhook/hooks/v1/persistence_unavailable",
+      "title": "Webhook event could not be durably recorded",
+      "status": 503
+    },
+    {
+      "id": "quota_exhausted",
+      "type": "https://problems.atomi.cloud/docs/serving/mercury/webhook/hooks/v1/quota_exhausted",
+      "title": "Webhook intake quota exhausted",
+      "status": 429
+    },
+    {
+      "id": "unknown_route",
+      "type": "https://problems.atomi.cloud/docs/serving/mercury/webhook/hooks/v1/unknown_route",
+      "title": "Webhook route not found",
+      "status": 404
+    },
+    {
+      "id": "verification_failed",
+      "type": "https://problems.atomi.cloud/docs/serving/mercury/webhook/hooks/v1/verification_failed",
+      "title": "Provider signature verification failed",
+      "status": 401
+    }
+  ]
+}

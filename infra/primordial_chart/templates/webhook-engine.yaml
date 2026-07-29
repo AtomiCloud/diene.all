@@ -1,0 +1,21 @@
+apiVersion: {{ .Values.apiVersion }}
+kind: WebhookEngine
+metadata:
+  name: mercury
+  labels:
+    {{- include "mercuryPrimordial.labels" . | nindent 4 }}
+spec:
+  home:
+    vlandscape: {{ .Values.webhookEngine.home.vlandscape }}
+  retention:
+    {{- toYaml .Values.webhookEngine.retention | nindent 4 }}
+  retryWindow: {{ .Values.webhookEngine.retryWindow | quote }}
+  backoff:
+    {{- toYaml .Values.webhookEngine.backoff | nindent 4 }}
+  circuitBreaker:
+    {{- toYaml .Values.webhookEngine.circuitBreaker | nindent 4 }}
+  dedupWindow: {{ .Values.webhookEngine.dedupWindow | quote }}
+  quotas:
+    {{- toYaml .Values.webhookEngine.quotas | nindent 4 }}
+  customDomains:
+    {{- toYaml .Values.webhookEngine.customDomains | nindent 4 }}

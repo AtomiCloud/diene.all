@@ -1,0 +1,36 @@
+# ### mercury-reusable-docker
+# #### source: mercury
+name: ⚡ Reusable Docker
+
+on:
+  workflow_call:
+    inputs:
+      image_name: { required: true, type: string }
+      dockerfile: { required: false, type: string, default: ./infra/Dockerfile }
+      context: { required: false, type: string, default: . }
+      platform: { required: false, type: string, default: 'linux/amd64,linux/arm64' }
+      publish: { required: false, type: boolean, default: false }
+      version: { required: false, type: string, default: '' }
+
+jobs:
+  build:
+    name: Build and Scan Container
+    runs-on:
+      - nscloud-ubuntu-22.04-amd64-4x8-with-cache
+      - nscloud-cache-size-50gb
+      - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
+    steps:
+      - uses: AtomiCloud/actions.setup-nix@v3
+      - name: Build, scan, and optionally publish
+        id: image
+        env:
+          CI_DOCKER_CONTEXT: ${{ inputs.context }}
+          CI_DOCKER_IMAGE: ${{ inputs.image_name }}
+          CI_DOCKER_PLATFORM: ${{ inputs.platform }}
+          CI_DOCKER_PUSH: ${{ inputs.publish }}
+          CI_DOCKERFILE: ${{ inputs.dockerfile }}
+          DOMAIN: ghcr.io
+          DOCKER_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          DOCKER_USER: ${{ github.actor }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: nix develop .#cd -c ./scripts/ci/docker.sh

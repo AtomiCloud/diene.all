@@ -1,0 +1,184 @@
+labelPrefix: atomi.cloud
+serviceTree:
+  platform: mercury
+  service: webhook
+  module: hooks
+  layer: '2'
+image:
+  repository: ghcr.io/atomicloud/diene.mercury
+  tag: ''
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+replicaCount: 2
+dbInit:
+  enabled: true
+  backoffLimit: 3
+  activeDeadlineSeconds: 600
+  ttlSecondsAfterFinished: 300
+service:
+  port: 8080
+  metricsPort: 9090
+  annotations: {}
+probes:
+  livePath: /health/live
+  readyPath: /health/ready
+  startupPath: /health/startup
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 3
+  failureThreshold: 3
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 512Mi
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+pdb:
+  enabled: true
+  maxUnavailable: 1
+networkPolicy:
+  enabled: true
+  ingressNamespaceSelector:
+    matchLabels:
+      kubernetes.io/metadata.name: gateway
+  monitoringNamespaceSelector:
+    matchLabels:
+      kubernetes.io/metadata.name: monitoring
+  # Cluster DNS resolution is always required for external dependency lookups.
+  dns:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: kube-system
+    ports:
+      - {protocol: UDP, port: 53}
+      - {protocol: TCP, port: 53}
+  # Cluster-local webhook delivery is an explicit trusted-topology allow-list,
+  # never an all-namespace rule. Each destination class requires BOTH a
+  # non-empty namespace selector and an explicit pod selector, combined in one
+  # peer so the rule matches only the labelled pods inside the labelled
+  # namespaces. The selectors are platform-owned opt-in labels: a namespace is a
+  # candidate only once the platform sets atomi.cloud/webhook-delivery=allowed,
+  # and a pod is reachable only once it carries atomi.cloud/webhook-endpoint=true.
+  # Tenant-registered endpoint data never appears here, so a tenant can never
+  # widen the policy. The values schema rejects empty selectors and an empty
+  # destination list.
+  inClusterDelivery:
+    destinations:
+      - namespaceSelector:
+          matchLabels:
+            atomi.cloud/webhook-delivery: allowed
+        podSelector:
+          matchLabels:
+            atomi.cloud/webhook-endpoint: 'true'
+        ports:
+          - {protocol: TCP, port: 8080}
+          - {protocol: TCP, port: 443}
+  # Platform-approved egress to external dependencies (Neon, Upstash, Tigris,
+  # Apple, Google) and registered external subscriber destinations. Prefer the
+  # egress gateway where the platform provides one; otherwise direct CIDR egress
+  # is scoped to non-cluster address space on approved ports only.
+  externalEgress:
+    enabled: true
+    gateway:
+      enabled: false
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: egress
+      ports:
+        - {protocol: TCP, port: 443}
+    direct:
+      enabled: true
+      cidrs:
+        - cidr: 0.0.0.0/0
+          except:
+            - 10.0.0.0/8
+            - 172.16.0.0/12
+            - 192.168.0.0/16
+            - 169.254.0.0/16
+            - 100.64.0.0/10
+      ports:
+        - {protocol: TCP, port: 443}
+        - {protocol: TCP, port: 5432}
+        - {protocol: TCP, port: 6379}
+        - {protocol: TCP, port: 80}
+secret:
+  enabled: true
+  refreshInterval: 1h
+  store:
+    kind: ClusterSecretStore
+    name: platform-store
+  sharedFolder: /shared
+  serviceFolder: /webhook
+  providerFolder: /mercury/webhook/providers
+  endpointFolder: /mercury/webhook/endpoints
+env:
+  - name: MERCURY_STORAGE__REDIS_URL
+    valueFrom:
+      secretKeyRef: {name: webhook-hooks, key: redis-url}
+  - name: MERCURY_STORAGE__POSTGRES_URL
+    valueFrom:
+      secretKeyRef: {name: webhook-hooks, key: postgres-url}
+  - name: MERCURY_STORAGE__ARCHIVE_ENDPOINT
+    valueFrom:
+      secretKeyRef: {name: webhook-hooks, key: archive-endpoint}
+  - name: MERCURY_STORAGE__ARCHIVE_BUCKET
+    valueFrom:
+      secretKeyRef: {name: webhook-hooks, key: archive-bucket}
+  - name: MERCURY_STORAGE__ARCHIVE_REGION
+    valueFrom:
+      secretKeyRef: {name: webhook-hooks, key: archive-region}
+  - name: MERCURY_APP__BIND
+    value: 0.0.0.0
+  - name: MERCURY_APP__PORT
+    value: '8080'
+  - name: MERCURY_APP__PUBLIC_ORIGIN
+    value: https://hooks.webhook.mercury.mew.cluster.atomi.cloud
+  - name: MERCURY_APP__PREVIEW_DELIVERY_VISIBLE
+    value: 'false'
+  - name: MERCURY_APP__SHUTDOWN_GRACE_MS
+    value: '60000'
+  - name: MERCURY_SECURITY__CONSOLE_SESSION_SECRET_FILE
+    value: /var/run/secrets/mercury/console-session-secret
+  - name: MERCURY_SECURITY__MANAGEMENT_BOOTSTRAP_TOKEN_FILE
+    value: /var/run/secrets/mercury/management-bootstrap-token
+  - name: MERCURY_SECURITY__PROVIDER_SECRET_ROOT
+    value: /var/run/secrets/mercury/providers
+  - name: MERCURY_SECURITY__ENDPOINT_SECRET_ROOT
+    value: /var/run/secrets/mercury/endpoints
+  - name: MERCURY_SECURITY__ARCHIVE_ACCESS_KEY_ID_FILE
+    value: /var/run/secrets/mercury/archive-access-key-id
+  - name: MERCURY_SECURITY__ARCHIVE_SECRET_ACCESS_KEY_FILE
+    value: /var/run/secrets/mercury/archive-secret-access-key
+  - name: MERCURY_SECURITY__CONSOLE_AUTHORIZATION_PRIVATE_KEY_FILE
+    value: /var/run/secrets/mercury/console-authorization-private-key
+  - name: MERCURY_SECURITY__CONSOLE_AUTHORIZATION_PUBLIC_KEY_FILE
+    value: /var/run/secrets/mercury/console-authorization-public-key
+  - name: MERCURY_SECURITY__MANAGEMENT_ISSUER
+    value: mercury
+  - name: MERCURY_SECURITY__MANAGEMENT_AUDIENCE
+    value: mercury-management
+serviceMonitor:
+  enabled: true
+  interval: 30s
+alerts:
+  enabled: true
+dashboard:
+  enabled: true
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
+terminationGracePeriodSeconds: 60

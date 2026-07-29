@@ -1,0 +1,23 @@
+kind: Project
+apiVersion: garden.io/v2
+name: mercury-webhook
+environments:
+  - name: ci
+  - name: local
+providers:
+  - name: exec
+# The runner supplies two real Mercury processes, distinct landscape-local
+# Redis claims, shared Postgres/object storage, an HTTPS trust chain, and an
+# external bearer-protected v1 controller. Provider-operation and Route 53
+# proof authorities are injected by release CI and fail closed when absent.
+# This does not enable the consumable service in hermetic landscapes and
+# therefore does not rule D7/D21.
+---
+kind: Test
+apiVersion: garden.io/v0
+type: exec
+name: webhook-journey
+spec:
+  command:
+    - ../../scripts/local/test-sit.sh
+    - journey

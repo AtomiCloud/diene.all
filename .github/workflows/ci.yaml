@@ -8,6 +8,15 @@ on:
   workflow_dispatch:
 
 jobs:
+  # ### mercury-quality
+  # #### source: mercury
+  quality:
+    name: Format, Lint, Typecheck, Dead Code
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-quality.yaml
+    secrets: inherit
+
   precommit:
     name: Pre-Commit
     permissions:
@@ -40,4 +49,54 @@ jobs:
     permissions:
       contents: read
     uses: ./.github/workflows/⚡reusable-build.yaml
+    secrets: inherit
+
+  # ### mercury-product-ci
+  # #### source: mercury
+  container:
+    name: Container Build and Scan
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-docker.yaml
+    secrets: inherit
+    with:
+      image_name: mercury-webhook
+      dockerfile: ./infra/Dockerfile
+      # Fast single-arch build/scan for ordinary CI; the CD path builds and scans
+      # every target platform before any publish.
+      platform: linux/amd64
+      publish: false
+
+  helm-app:
+    name: App Chart
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-helm.yaml
+    secrets: inherit
+    with:
+      chart_path: ./infra/root_chart
+      publish: false
+
+  helm-primordial:
+    name: Primordial Chart
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-helm.yaml
+    secrets: inherit
+    with:
+      chart_path: ./infra/primordial_chart
+      publish: false
+
+  sit:
+    name: Garden System Integration Journey
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-sit.yaml
+    secrets: inherit
+
+  release-validation:
+    name: Release Contract
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-release-validation.yaml
     secrets: inherit

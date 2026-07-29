@@ -1,0 +1,111 @@
+app:
+  landscape: base
+  platform: mercury
+  service: webhook
+  module: hooks
+  version: 0.0.0
+  bind: 0.0.0.0
+  port: 8080
+  publicOrigin: https://hooks.webhook.mercury.mew.cluster.atomi.cloud
+  previewDeliveryVisible: false
+  shutdownGraceMs: 15000
+storage:
+  redisUrl: redis://127.0.0.1:6379
+  postgresUrl: postgres://mercury:mercury@127.0.0.1:5432/mercury
+  archiveEndpoint: http://127.0.0.1:9000
+  archiveBucket: mercury-webhook-archive
+  archiveRegion: us-east-1
+security:
+  consoleSessionSecretFile: /var/run/secrets/mercury/console-session-secret
+  managementBootstrapTokenFile: /var/run/secrets/mercury/management-bootstrap-token
+  providerSecretRoot: /var/run/secrets/mercury/providers
+  endpointSecretRoot: /var/run/secrets/mercury/endpoints
+  archiveAccessKeyIdFile: /var/run/secrets/mercury/archive-access-key-id
+  archiveSecretAccessKeyFile: /var/run/secrets/mercury/archive-secret-access-key
+  consoleAuthorizationPrivateKeyFile: /var/run/secrets/mercury/console-authorization-private-key
+  consoleAuthorizationPublicKeyFile: /var/run/secrets/mercury/console-authorization-public-key
+  managementIssuer: mercury
+  managementAudience: mercury-management
+topology:
+  services: {}
+# Production provider-operation contract for the serving landscape. Apple
+# history backfill runs as a singleton on the management-DB preferred-host
+# landscape; Google RTDN drift reconciliation pins an explicit DLQ. Every
+# credential is a reference to a root-confined file beneath
+# security.providerSecretRoot (Infisical -> ESO), never inline material. Local
+# and hermetic landscapes disable these via MERCURY_PROVIDEROPERATIONS__*__ENABLED
+# or a generated config overlay.
+providerOperations:
+  apple:
+    enabled: true
+    operationKey: apple-notification-history
+    preferredHostLandscape: raichu
+    intakePath: /operations/apple/backfill
+    leaseDurationMs: 60000
+    pageSize: 100
+    intervalMs: 3600000
+    jwt:
+      issuerId: 2e5c0f7a-6b1d-4c3e-9a8b-1f2d3c4b5a6e
+      keyId: A1B2C3D4E5
+      bundleId: cloud.atomi.mercury
+      # Flat mount key: the -providers ExternalSecret uses dataFrom.extract, whose
+      # rendered Secret has flat keys projected as files directly under
+      # providerSecretRoot (no items path mapping / hierarchy projection). A
+      # slash ref would resolve to a non-existent subdirectory.
+      signingKeySecretRef: apple-app-store-history.p8
+    history:
+      environment: Production
+      request:
+        startDateMs: 1704067200000
+        endDateMs: 4102444800000
+  google:
+    enabled: true
+    subscriptionName: projects/atomi-mercury-prod/subscriptions/mercury-rtdn
+    deadLetterTopic: projects/atomi-mercury-prod/topics/mercury-rtdn-dlq
+    deadLetterMaxDeliveryAttempts: 5
+    registeredPushUrl: https://hooks.webhook.mercury.mew.cluster.atomi.cloud/operations/google/rtdn
+    oidcServiceAccountEmail: mercury-rtdn@atomi-mercury-prod.iam.gserviceaccount.com
+    intervalMs: 3600000
+    oauth:
+      credentialSecretRef: google-pubsub-service-account.json
+      expectedServiceAccountEmail: mercury-rtdn@atomi-mercury-prod.iam.gserviceaccount.com
+      scopes:
+        - https://www.googleapis.com/auth/pubsub
+otel:
+  logs:
+    enabled: true
+    exporter:
+      console:
+        enabled: false
+      otlp:
+        enabled: false
+        endpoint: ''
+        headers: {}
+        protocol: http/protobuf
+        timeout: PT10S
+  metrics:
+    enabled: true
+    exporter:
+      console:
+        enabled: false
+      otlp:
+        enabled: false
+        endpoint: ''
+        headers: {}
+        protocol: http/protobuf
+        timeout: PT10S
+    interval: PT60S
+  traces:
+    enabled: true
+    exporter:
+      console:
+        enabled: false
+      otlp:
+        enabled: false
+        endpoint: ''
+        headers: {}
+        protocol: http/protobuf
+        timeout: PT10S
+    sampler:
+      ratio: 1
+      type: parentbased_traceidratio

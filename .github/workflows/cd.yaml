@@ -1,0 +1,108 @@
+# ### mercury-cd
+# #### source: mercury
+name: CD
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  sit:
+    name: Release Black-Box Proof
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-sit.yaml
+    secrets: inherit
+
+  # Pre-publication barrier: build, scan, and package EVERY artifact of this semver
+  # before ANY of them is published. If the image (both platforms) or either chart
+  # cannot be produced, no artifact is pushed, so one version can never be published
+  # as a partial subset because a sibling was broken.
+  preflight-image:
+    name: Preflight Image Build and Scan
+    needs: [sit]
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-docker.yaml
+    secrets: inherit
+    with:
+      image_name: atomicloud/diene.mercury
+      dockerfile: ./infra/Dockerfile
+      publish: false
+
+  preflight-app-chart:
+    name: Preflight App Chart
+    needs: [sit]
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-helm.yaml
+    secrets: inherit
+    with:
+      chart_path: ./infra/root_chart
+      publish: false
+
+  preflight-primordial-chart:
+    name: Preflight Primordial Chart
+    needs: [sit]
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-helm.yaml
+    secrets: inherit
+    with:
+      chart_path: ./infra/primordial_chart
+      publish: false
+
+  image:
+    name: Publish Image
+    needs: [preflight-image, preflight-app-chart, preflight-primordial-chart]
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+      attestations: write
+    uses: ./.github/workflows/⚡reusable-docker.yaml
+    secrets: inherit
+    with:
+      image_name: atomicloud/diene.mercury
+      dockerfile: ./infra/Dockerfile
+      publish: true
+      version: ${{ github.ref_name }}
+
+  app-chart:
+    name: Publish App Chart
+    needs: [preflight-image, preflight-app-chart, preflight-primordial-chart]
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+      attestations: write
+    uses: ./.github/workflows/⚡reusable-helm.yaml
+    secrets: inherit
+    with:
+      chart_path: ./infra/root_chart
+      publish: true
+      version: ${{ github.ref_name }}
+
+  primordial-chart:
+    name: Publish Primordial Chart
+    needs: [preflight-image, preflight-app-chart, preflight-primordial-chart]
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+      attestations: write
+    uses: ./.github/workflows/⚡reusable-helm.yaml
+    secrets: inherit
+    with:
+      chart_path: ./infra/primordial_chart
+      publish: true
+      version: ${{ github.ref_name }}
+
+  verify:
+    name: Verify Immutable Release Set
+    needs: [image, app-chart, primordial-chart]
+    uses: ./.github/workflows/⚡reusable-release-verify.yaml
+    secrets: inherit
+    with:
+      version: ${{ github.ref_name }}

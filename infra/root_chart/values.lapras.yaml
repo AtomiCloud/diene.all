@@ -1,0 +1,13 @@
+replicaCount: 1
+autoscaling:
+  enabled: false
+pdb:
+  enabled: false
+secret:
+  store:
+    kind: ClusterSecretStore
+    name: local-snapshot-store
+image:
+  repository: mercury-webhook
+  tag: local
+  pullPolicy: Never

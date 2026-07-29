@@ -1,0 +1,17 @@
+{{- $root := . -}}
+{{- range $vls := .Values.virtualLandscapeServices }}
+---
+apiVersion: {{ $root.Values.apiVersion }}
+kind: VirtualLandscapeService
+metadata:
+  name: webhook-{{ $vls.vlandscape }}-{{ $vls.landscape }}
+  labels:
+    {{- include "mercuryPrimordial.labels" $root | nindent 4 }}
+spec:
+  platform: mercury
+  vlandscape: {{ $vls.vlandscape }}
+  service: webhook
+  module: hooks
+  landscape: {{ $vls.landscape }}
+  serve: {{ $vls.serve }}
+{{- end }}

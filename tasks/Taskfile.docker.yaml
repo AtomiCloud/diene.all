@@ -1,0 +1,23 @@
+# ### mercury-docker
+# #### source: mercury
+version: '3'
+
+vars:
+  IMAGE: mercury-webhook
+
+tasks:
+  build:
+    desc: Build the local Mercury image
+    cmds:
+      - docker buildx build . -f infra/Dockerfile --platform linux/amd64 -t {{.IMAGE}}:local --load
+
+  scan:
+    desc: Scan the local Mercury image
+    deps: [build]
+    cmds:
+      - docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.58.2 image --exit-code 1 --ignore-unfixed --severity HIGH,CRITICAL {{.IMAGE}}:local
+
+  run:
+    desc: Run the local Mercury image
+    cmds:
+      - docker run --rm -p 8080:8080 {{.IMAGE}}:local

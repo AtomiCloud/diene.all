@@ -1,0 +1,42 @@
+{
+  "annotations": { "list": [] },
+  "editable": false,
+  "panels": [
+    {
+      "title": "Intake rate",
+      "type": "timeseries",
+      "targets": [{ "expr": "sum by (landscape, outcome) (rate(mercury_intake_total[5m]))" }]
+    },
+    {
+      "title": "Verification failures",
+      "type": "timeseries",
+      "targets": [{ "expr": "sum by (landscape, provider) (rate(mercury_verification_failures_total[5m]))" }]
+    },
+    {
+      "title": "Delivery lag p95",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum by (le, landscape) (rate(mercury_delivery_lag_seconds_bucket[5m])))" }
+      ]
+    },
+    {
+      "title": "Queue depth",
+      "type": "timeseries",
+      "targets": [{ "expr": "sum by (landscape) (mercury_delivery_queue_depth)" }]
+    },
+    {
+      "title": "DLQ depth",
+      "type": "stat",
+      "targets": [{ "expr": "sum(mercury_dlq_depth)" }]
+    },
+    {
+      "title": "Archive failures",
+      "type": "stat",
+      "targets": [{ "expr": "sum(increase(mercury_archive_failures_total[1h]))" }]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["mercury", "webhook"],
+  "title": "Mercury Webhook",
+  "uid": "mercury-webhook"
+}

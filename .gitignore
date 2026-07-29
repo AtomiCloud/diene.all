@@ -29,3 +29,7 @@ node_modules/
 dist/
 coverage/
 *.tsbuildinfo
+
+### mercury-runtime-artifacts
+#### source: mercury.webhook
+.garden/

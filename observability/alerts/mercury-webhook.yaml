@@ -1,0 +1,27 @@
+groups:
+  - name: mercury-webhook
+    rules:
+      - alert: MercuryWebhookUnavailable
+        expr: sum(up{service="webhook-hooks"}) < 1
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: Mercury webhook has no scrapeable instances
+      - alert: MercuryWebhookArchiveBlocked
+        expr: increase(mercury_archive_failures_total[15m]) > 0
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: Archive failure is blocking retention deletion
+      - alert: MercuryWebhookDeliveryBacklog
+        expr: mercury_delivery_queue_depth > 1000
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: Mercury delivery queue is backed up
+      - alert: MercuryAppleBackfillMissedCycles
+        expr: max by (landscape, operation) (mercury_apple_backfill_missed_cycles) > 2
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: Apple Server API backfill has missed more than two consecutive cycles

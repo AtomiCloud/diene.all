@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "labelPrefix",
+    "apiVersion",
+    "serviceTree",
+    "virtualLandscapeServices",
+    "platformDependencies",
+    "webhookEngine",
+    "productConfig",
+    "problems"
+  ],
+  "properties": {
+    "labelPrefix": { "type": "string", "minLength": 1 },
+    "apiVersion": { "const": "fleet.atomi.cloud/v1alpha1" },
+    "serviceTree": {
+      "type": "object",
+      "required": ["platform", "service", "module", "layer"],
+      "properties": {
+        "platform": { "const": "mercury" },
+        "service": { "const": "webhook" },
+        "module": { "const": "hooks" },
+        "layer": { "type": "string", "pattern": "^[0-9]+$" }
+      }
+    },
+    "virtualLandscapeServices": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["vlandscape", "landscape", "serve"],
+        "properties": {
+          "vlandscape": { "type": "string", "minLength": 1 },
+          "landscape": { "type": "string", "minLength": 1 },
+          "serve": { "type": "boolean" }
+        }
+      }
+    },
+    "platformDependencies": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["landscape", "placement", "deletionPolicy"],
+        "anyOf": [{ "required": ["database"] }, { "required": ["kv"] }, { "required": ["store"] }],
+        "properties": {
+          "landscape": { "type": "string", "minLength": 1 },
+          "placement": {
+            "type": "object",
+            "required": ["preferredHost"],
+            "properties": { "preferredHost": { "type": "string", "minLength": 1 } }
+          },
+          "deletionPolicy": {
+            "type": "object",
+            "required": ["retainSecret"],
+            "properties": { "retainSecret": { "type": "string", "pattern": "^[0-9]+[smh]$" } }
+          },
+          "database": { "$ref": "#/$defs/dependency" },
+          "kv": { "$ref": "#/$defs/dependency" },
+          "store": { "$ref": "#/$defs/dependency" }
+        }
+      }
+    },
+    "webhookEngine": {
+      "type": "object",
+      "required": [
+        "home",
+        "retention",
+        "retryWindow",
+        "backoff",
+        "circuitBreaker",
+        "dedupWindow",
+        "quotas",
+        "customDomains"
+      ],
+      "properties": {
+        "home": {
+          "type": "object",
+          "required": ["vlandscape"],
+          "properties": { "vlandscape": { "type": "string", "minLength": 1 } }
+        },
+        "retention": { "type": "object" },
+        "retryWindow": { "const": "72h" },
+        "backoff": { "type": "object" },
+        "circuitBreaker": { "type": "object" },
+        "dedupWindow": { "const": "72h" },
+        "quotas": { "type": "object" },
+        "customDomains": { "type": "array" }
+      },
+      "additionalProperties": false
+    },
+    "productConfig": {
+      "type": "object",
+      "required": [
+        "enabled",
+        "defaultInternalAccount",
+        "tenancy",
+        "privatePath",
+        "customDomains",
+        "ordering",
+        "secretPointersOnly"
+      ],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "defaultInternalAccount": { "const": true },
+        "tenancy": { "const": "native" },
+        "privatePath": { "const": "supported" },
+        "customDomains": { "const": "multi" },
+        "ordering": { "const": "at-least-once-unordered" },
+        "secretPointersOnly": { "const": true }
+      }
+    },
+    "problems": {
+      "type": "object",
+      "required": ["enabled", "apiVersion", "path", "version", "landscapes"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "apiVersion": { "const": "atomi.cloud/v1alpha1" },
+        "path": { "const": "files/problems.json" },
+        "version": { "pattern": "^v[0-9]+$" },
+        "landscapes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "dependency": {
+      "type": "object",
+      "required": ["type", "delivery", "credentialMode"],
+      "properties": {
+        "type": { "type": "string", "minLength": 1 },
+        "delivery": { "enum": ["local", "replicated", "external"] },
+        "credentialMode": { "enum": ["standard", "none"] },
+        "rotation": { "enum": ["on", "off"] },
+        "providerAccountRef": { "type": "string" },
+        "storage": { "type": "string" },
+        "version": { "type": "string" },
+        "engine": { "type": "object", "maxProperties": 1 }
+      }
+    }
+  }
+}

@@ -3,6 +3,10 @@
 version: '3'
 
 includes:
+  # ### mercury-product-includes
+  # #### source: mercury
+  docker: tasks/Taskfile.docker.yaml
+  helm: tasks/Taskfile.helm.yaml
   secret: tasks/Taskfile.secret.yaml
   # ### bun-base-test-includes
   # #### source: bun-base
@@ -16,6 +20,11 @@ includes:
     vars:
       MODE: int
       CONFIG: bunfig.int.toml
+  sit:
+    taskfile: tasks/Taskfile.test.yaml
+    vars:
+      MODE: sit
+      CONFIG: bunfig.sit.toml
 
 tasks:
   setup:
@@ -55,10 +64,11 @@ tasks:
       - ./scripts/local/deadcode.sh
 
   test:
-    desc: Run unit and integration suites without coverage
+    desc: Run unit, integration, and SIT suites without coverage
     cmds:
       - task: unit:default
       - task: int:default
+      - task: sit:default
 
   test:unit:
     desc: Run the unit suite without coverage
@@ -75,6 +85,7 @@ tasks:
     cmds:
       - task: unit:coverage
       - task: int:coverage
+      - task: sit:coverage
 
   test:unit:coverage:
     desc: Run the unit suite with coverage
@@ -101,3 +112,25 @@ tasks:
     deps: [build]
     cmds:
       - bun run ./dist/index.js -- {{.CLI_ARGS}}
+
+  # ### mercury-product-tasks
+  # #### source: mercury
+  up:
+    desc: Start Mercury, local dependencies, and deterministic sinks
+    cmds:
+      - ./scripts/local/up.sh
+
+  down:
+    desc: Stop the local Mercury stack
+    cmds:
+      - ./scripts/local/down.sh
+
+  test:sit:
+    desc: Run the bounded Mercury SIT journey
+    cmds:
+      - ./scripts/local/test-sit.sh journey
+
+  test:sit:coverage:
+    desc: Run the Mercury SIT journey with coverage
+    cmds:
+      - ./scripts/local/test-sit.sh coverage

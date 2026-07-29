@@ -1,0 +1,64 @@
+{{- if .Values.dbInit.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "mercury.fullname" . }}-dbinit
+  labels:
+    {{- include "mercury.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+    argocd.argoproj.io/sync-wave: "-1"
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+    helm.sh/hook-weight: "-1"
+spec:
+  backoffLimit: {{ .Values.dbInit.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.dbInit.activeDeadlineSeconds }}
+  ttlSecondsAfterFinished: {{ .Values.dbInit.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "mercury.labels" . | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      automountServiceAccountToken: false
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: dbinit
+          image: {{ include "mercury.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: [db-init]
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          env:
+            - name: MERCURY_LANDSCAPE
+              value: {{ .Values.serviceTree.landscape | default "mew" | quote }}
+            - name: MERCURY_APP__LANDSCAPE
+              value: {{ .Values.serviceTree.landscape | default "mew" | quote }}
+            - name: MERCURY_APP__PLATFORM
+              value: mercury
+            - name: MERCURY_APP__SERVICE
+              value: webhook
+            - name: MERCURY_APP__MODULE
+              value: hooks
+            - name: MERCURY_APP__VERSION
+              value: {{ .Chart.AppVersion | quote }}
+            {{- toYaml .Values.env | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - {name: tmp, mountPath: /app/tmp}
+            {{- if .Values.secret.enabled }}
+            - {name: secrets, mountPath: /var/run/secrets/mercury, readOnly: true}
+            {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        {{- if .Values.secret.enabled }}
+        - name: secrets
+          secret:
+            secretName: {{ include "mercury.fullname" . }}
+        {{- end }}
+{{- end }}

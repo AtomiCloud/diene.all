@@ -1,0 +1,21 @@
+# ### mercury-helm
+# #### source: mercury
+version: '3'
+
+tasks:
+  lint:
+    desc: Lint both Mercury charts
+    cmds:
+      - helm lint infra/root_chart
+      - helm lint infra/primordial_chart
+
+  template:
+    desc: Render both Mercury charts
+    cmds:
+      - helm template mercury infra/root_chart {{.CLI_ARGS}}
+      - helm template mercury-primordial infra/primordial_chart {{.CLI_ARGS}}
+
+  check:
+    desc: Assert chart contracts and snapshots
+    cmds:
+      - ./scripts/validate/chart-contracts.sh

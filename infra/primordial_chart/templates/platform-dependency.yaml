@@ -1,0 +1,33 @@
+{{- $root := . -}}
+{{- $seen := dict -}}
+{{- range $dependency := .Values.platformDependencies }}
+{{- if hasKey $seen $dependency.landscape }}{{ fail (printf "duplicate dependency landscape %s" $dependency.landscape) }}{{ end -}}
+{{- $_ := set $seen $dependency.landscape true -}}
+---
+apiVersion: {{ $root.Values.apiVersion }}
+kind: PlatformDependency
+metadata:
+  name: webhook-{{ $dependency.landscape }}
+  labels:
+    {{- include "mercuryPrimordial.labels" $root | nindent 4 }}
+spec:
+  platform: mercury
+  service: webhook
+  landscape: {{ $dependency.landscape }}
+  placement:
+    preferredHost: {{ $dependency.placement.preferredHost }}
+  {{- with $dependency.database }}
+  database:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $dependency.kv }}
+  kv:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $dependency.store }}
+  store:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  deletionPolicy:
+    retainSecret: {{ $dependency.deletionPolicy.retainSecret | quote }}
+{{ end }}

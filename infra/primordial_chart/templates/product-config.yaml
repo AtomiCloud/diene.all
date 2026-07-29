@@ -1,0 +1,22 @@
+{{- if .Values.productConfig.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: webhook-product-contract
+  labels:
+    {{- include "mercuryPrimordial.labels" . | nindent 4 }}
+data:
+  product.yaml: |
+    defaultInternalAccount: {{ .Values.productConfig.defaultInternalAccount }}
+    tenancy: {{ .Values.productConfig.tenancy }}
+    privatePath: {{ .Values.productConfig.privatePath }}
+    customDomains: {{ .Values.productConfig.customDomains }}
+    ordering: {{ .Values.productConfig.ordering }}
+    secretPointersOnly: {{ .Values.productConfig.secretPointersOnly }}
+    configMaterialization:
+      store: per-landscape-upstash
+      namespace: "cfg:*"
+      strategy: generation-swap
+    retention:
+      archiveBeforeDelete: true
+{{- end }}

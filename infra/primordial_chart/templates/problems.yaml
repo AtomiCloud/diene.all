@@ -1,0 +1,21 @@
+{{- if .Values.problems.enabled }}
+{{- $root := . -}}
+{{- $raw := required "problem catalog is required" (.Files.Get .Values.problems.path) -}}
+{{- $entries := (fromJson $raw).problems -}}
+{{- range $landscape := .Values.problems.landscapes }}
+---
+apiVersion: {{ $root.Values.problems.apiVersion }}
+kind: Problem
+metadata:
+  name: webhook-{{ $landscape }}-{{ $root.Values.problems.version }}
+  labels:
+    {{- include "mercuryPrimordial.labels" $root | nindent 4 }}
+spec:
+  platform: mercury
+  service: webhook
+  landscape: {{ $landscape }}
+  version: {{ $root.Values.problems.version }}
+  problems:
+    {{- toYaml $entries | nindent 4 }}
+{{- end }}
+{{- end }}
