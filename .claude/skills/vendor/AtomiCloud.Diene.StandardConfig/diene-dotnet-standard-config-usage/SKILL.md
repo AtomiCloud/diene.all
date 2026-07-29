@@ -39,13 +39,43 @@ Do not add, rename, or drop a key without a C0 change.
 
 ```yaml
 postgres:
-  MAIN: { host: db.internal, port: 5432, database: app, username: app, password: , ssl: true, pool: { min: 0, max: 10 } }
-cache:                       # Dragonfly. RAM-backed, EPHEMERAL.
-  MAIN: { host: cache.internal, port: 6379, password: , db: 0, tls: false }
-kv:                          # PERSISTENT. Same protocol, different durability contract.
-  MAIN: { host: kv.internal, port: 6379, password: , db: 0, tls: true }
+  MAIN:
+    host: db.internal
+    port: 5432
+    database: app
+    username: app
+    password: # secret: blank here, injected per landscape
+    ssl: true
+    pool:
+      min: 0
+      max: 10
+
+# Dragonfly. RAM-backed, EPHEMERAL.
+cache:
+  MAIN:
+    host: cache.internal
+    port: 6379
+    password:
+    db: 0
+    tls: false
+
+# PERSISTENT. Same protocol as cache, opposite durability contract.
+kv:
+  MAIN:
+    host: kv.internal
+    port: 6379
+    password:
+    db: 0
+    tls: true
+
 storage:
-  MAIN: { endpoint: https://fly.storage.tigris.dev, region: auto, bucket: app, access_key_id: , secret_access_key: , force_path_style: false }
+  MAIN:
+    endpoint: https://fly.storage.tigris.dev
+    region: auto
+    bucket: app
+    access_key_id:
+    secret_access_key:
+    force_path_style: false # true for MinIO and other path-style endpoints
 ```
 
 **Do not point `kv` at your `cache` instance.** They speak the same protocol on
@@ -61,8 +91,11 @@ Every preset is a map of NAMED connections. Adding one is data, never code:
 
 ```yaml
 postgres:
-  MAIN: { host: primary.internal, ... }
-  REPLICA: { host: replica.internal, ... }   # no new type, no new registration
+  MAIN:
+    host: primary.internal
+  # a second pool: no new type, no new registration, no code
+  REPLICA:
+    host: replica.internal
 ```
 
 ```csharp

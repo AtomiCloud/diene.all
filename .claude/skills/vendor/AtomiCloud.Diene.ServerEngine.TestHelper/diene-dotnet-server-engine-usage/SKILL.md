@@ -144,5 +144,5 @@ var body = new WebhookEnvelopeBuilder().ToBytes();
   removed field, an uppercase header name, an unpadded payload — that a typed
   record cannot express.
 - Assert bodies with the published Problems TestHelper: `await response.Should()
-  .BeRfc9457()`. Every response this package writes satisfies it, including the
+.BeRfc9457()`. Every response this package writes satisfies it, including the
   webhook protocol refusals.

@@ -58,7 +58,18 @@ otel:
 ```
 
 `timeout` and `interval` are ISO 8601 duration STRINGS (C0 §1), parsed through
-core-utils `Wire.ParseDuration`. A raw millisecond integer is rejected.
+core-utils `Wire.ParseDuration`. A raw millisecond integer is rejected, and so is
+a duration that is zero, negative, or larger than `int.MaxValue` milliseconds.
+
+**An enabled OTLP exporter is validated before anything is wired.** Its endpoint
+must be a non-blank absolute `http`/`https` URI naming port **4318 explicitly** —
+`http://collector` (implicit port) and `http://collector:4317` (zinc's gRPC port)
+are both rejected. The one exception is `OTEL_EXPORTER_OTLP_ENDPOINT`: when ops
+sets it, the SDK owns the endpoint and any block endpoint is ignored.
+
+Validation happens for the whole block before the host is touched, so a bad
+traces endpoint fails `AddAtomiOtel` outright rather than leaving a half-wired
+logs pipeline behind.
 
 ## Environment overrides
 
