@@ -20,7 +20,17 @@ export default {
       name: 'mutation-bun-unit-tests-caught',
       description: 'A flipped should assertion turns the Bun unit tier red.',
       kind: 'mutation',
-      expectedImpact: ['bun-unit-coverage'],
+      // DELIBERATE DIVERGENCE FROM THE PARENT - do not "restore" byte-identity.
+      // Byte-identical to bun-base upstream, but the control named below does not exist
+      // there; declaring it upstream would be a dangling reference inherited by every
+      // descendant. Ruled by noel 2026-07-29. Upstream fix: sulfone.lite #23 / Gap 6.
+      //
+      // EVIDENCE IS WEAKER FOR lib-coverage THAN FOR THE OTHER FOUR AND I AM MARKING IT:
+      // the 6f5907a matrix recorded control_failed naming lib-coverage, but its captured
+      // control output was EMPTY, so unlike the sibling rows there is no per-control text
+      // proving what failed. The verdict is real; the corroboration is not. If a later run
+      // shows this control green, drop lib-coverage rather than defending it.
+      expectedImpact: ['bun-unit-coverage', 'lib-coverage'],
       async run(repo: any) {
         const paths = await repo.glob('tests/unit/**/*.test.ts');
         for (const path of paths) {
