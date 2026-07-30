@@ -68,13 +68,13 @@ owned here.
 | `probes/features.json`                         | upstream file, changes confined to `diene/workspace`-templated rows; the `atomi/nix` rows are byte-identical              |
 | `probes/hook-helm-docs.ts`                     | owned-here; **removed** with the `a-helm-docs` hook (hook trim)                                                           |
 | `probes/lib/README.md`                         | owned-here                                                                                                                |
-| `probes/many-owner-schema.ts`                  | owned-here; **removed** with the many-owner enforcement (removal by ruling)                                               |
+| `probes/many-owner-schema.ts`                  | owned-here; **removed** with the ownership-block enforcement (removal by ruling)                                          |
 | `probes/workflow-names.ts`                     | owned-here; **removed** with the `a-workflow-names` hook (hook trim)                                                      |
 | `scripts/ci/setup.sh`                          | mixed regions; ownership-tag removal only (wave ruling)                                                                   |
 | `scripts/local/skills-sync.sh`                 | mixed regions; ownership-tag removal only (wave ruling)                                                                   |
 | `scripts/validate/binary-smoke.sh`             | owned-here                                                                                                                |
 | `scripts/validate/cache-tags.sh`               | owned-here; **removed** with the `a-cache-tags` hook (hook trim)                                                          |
-| `scripts/validate/many-owner.sh`               | owned-here; **removed** with the many-owner enforcement (removal by ruling)                                               |
+| `scripts/validate/many-owner.sh`               | owned-here; **removed** with the ownership-block enforcement (removal by ruling)                                          |
 | `scripts/validate/workflows.sh`                | owned-here; the dropped `workflow-names` mode removed, the other three modes unchanged                                    |
 | `tasks/Taskfile.docker.yaml`                   | owned-here                                                                                                                |
 | `tasks/Taskfile.helm.yaml`                     | owned-here                                                                                                                |
@@ -121,15 +121,14 @@ Files touched by the tag-removal fold: `.gitignore`, `CLAUDE.md`, `README.md`,
 `docs/standards/taskfile/index.md` and `CLAUDE.md` (one superseded keyed-block doctrine
 sentence each) and this audit artifact itself.
 
-### Many-owner removal and hook trim (same wave ruling)
+### Enforcement removal and hook trim (same wave ruling)
 
-The same fold removed the many-owner enforcement outright and applied the user-final hook
-trim. **Nothing is owed upstream for either, and the absence of records here is a
+The same fold removed the ownership-block enforcement outright and applied the user-final
+hook trim. **Nothing is owed upstream for either, and the absence of records here is a
 verified result rather than an omission:**
 
-- every removed artifact — `scripts/validate/many-owner.sh`,
-  `scripts/validate/cache-tags.sh`, and the four probe definitions — is workspace-born at
-  `f74cf31`, so no upstream file was deleted;
+- every removed validator and probe is workspace-born at `f74cf31`, so no upstream file
+  was deleted;
 - the trimmed and merged hooks all sit in the `workspace-hooks` region of
   `nix/pre-commit.nix`; the `treefmt` hook, the one `source: main` region in that file,
   was not touched;
@@ -138,9 +137,9 @@ verified result rather than an omission:**
   before and after (verified by comparing the filtered sets, not by reading the diff).
 
 All twelve files involved appear in the classification table above, including the eight
-that were deleted. The removal itself — why it is authorized content removal and not a
-silenced check — is recorded in `VALIDATOR-CHANGES.md`, which is the artifact the ruling
-named for it.
+that were deleted. What was removed, and why it is authorized content removal rather than
+a silenced check, is recorded in `VALIDATOR-CHANGES.md` — the artifact the ruling named
+for it. That record is not restated here.
 
 ### Documentation files audited but not changed
 
