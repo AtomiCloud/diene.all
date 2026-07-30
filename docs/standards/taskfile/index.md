@@ -32,5 +32,5 @@ Dockerfile and per chart. See [the Docker standard](../docker/index.md) and
 6. Do not add progress-only `echo` commands; the runner already displays each
    command.
 
-Each include and many-owner block remains self-contained so downstream strips can
-remove only their own axis.
+Each include remains self-contained so downstream strips can remove only their own
+axis.

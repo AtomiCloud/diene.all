@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ### dotnet-server-engine-setup-restore
-# #### source: lib/dotnet/server-engine
 # The declared NuGet packages are restored BEFORE skills are synchronized.
 # skills-sync vendors from ${HOME}/.nuget/packages, so on a runner whose shared
 # cache holds only SOME of the declared skill-bearing packages it publishes a
@@ -14,10 +12,6 @@ if compgen -G '*.slnx' >/dev/null; then
   dotnet restore >/dev/null
 fi
 
-# ### workspace-setup
-# #### source: workspace
 ./scripts/local/skills-sync.sh
 
-# ### workspace-setup-complete
-# #### source: workspace
 echo "✅ Repository setup complete"

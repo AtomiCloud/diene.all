@@ -45,8 +45,6 @@ let
     meta.mainProgram = "cyanprint";
   };
   all = rec {
-    # ### nix-root
-    # #### source: main
     atomipkgs = (
       with atomi;
       {
@@ -60,8 +58,6 @@ let
       }
     );
 
-    # ### workspace
-    # #### source: workspace
     nix-2605 = (
       with pkgs-2605;
       {
@@ -81,8 +77,6 @@ let
       }
     );
 
-    # ### nix-unstable
-    # #### source: main
     nix-unstable = (
       with pkgs-unstable;
       {

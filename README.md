@@ -1,12 +1,6 @@
 # Diene workspace baseline
 
-<!-- ### nix-root -->
-<!-- #### source: main -->
-
 Diene's reproducible development environment is managed by Nix. Run `direnv allow` once, then use `pls` tasks from the loaded shell.
-
-<!-- ### workspace -->
-<!-- #### source: workspace -->
 
 This branch is the all-features workspace baseline inherited by every downstream sample: split CI/CD, Docker, Helm, secrets, release configuration, validators, standards, and vendored agent-skill synchronization.
 

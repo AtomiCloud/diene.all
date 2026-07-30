@@ -23,8 +23,6 @@ in
 pre-commit-lib.run {
   src = ../.;
 
-  # ### nix-root-format
-  # #### source: main
   hooks = {
     treefmt = {
       enable = true;
@@ -37,8 +35,6 @@ pre-commit-lib.run {
       ];
     };
 
-    # ### workspace-hooks
-    # #### source: workspace
     a-action-pins-non-trusted = {
       enable = true;
       name = "Non-trusted action SHA pins";
