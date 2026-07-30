@@ -21,58 +21,66 @@ owned here.
 
 ### Files changed by this patch
 
-| File                                           | Classification                                                                                                   |
-| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `.coderabbit.yaml`                             | owned-here                                                                                                       |
-| `.dockerignore`                                | owned-here                                                                                                       |
-| `.github/actionlint.yaml`                      | owned-here                                                                                                       |
-| `.github/dependabot.yml`                       | owned-here                                                                                                       |
-| `.github/workflows/cd.yaml`                    | owned-here                                                                                                       |
-| `.github/workflows/ci.yaml`                    | owned-here                                                                                                       |
-| `.github/workflows/release.yaml`               | owned-here                                                                                                       |
-| `.github/workflows/⚡reusable-docker.yaml`     | owned-here                                                                                                       |
-| `.github/workflows/⚡reusable-helm.yaml`       | owned-here                                                                                                       |
-| `.github/workflows/⚡reusable-precommit.yaml`  | owned-here                                                                                                       |
-| `.github/workflows/⚡reusable-release.yaml`    | owned-here                                                                                                       |
-| `.github/workflows/🛡️merge-gatekeeper.yml`     | owned-here                                                                                                       |
-| `.gitignore`                                   | mixed regions; ownership-tag removal only (wave ruling)                                                          |
-| `.prettierrc.yaml`                             | owned-here                                                                                                       |
-| `CLAUDE.md`                                    | mixed regions; ownership-tag removal, plus one superseded keyed-block sentence dropped in its `workspace` region |
-| `README.md`                                    | upstream file, change confined to its `workspace` block; ownership tags removed (wave ruling)                    |
-| `Taskfile.yaml`                                | owned-here                                                                                                       |
-| `atomi_release.yaml`                           | owned-here                                                                                                       |
-| `docs/domain/README.md`                        | owned-here                                                                                                       |
-| `docs/standards/ci-cd/index.md`                | owned-here                                                                                                       |
-| `docs/standards/conventional-commits/index.md` | owned-here                                                                                                       |
-| `docs/standards/docker/index.md`               | owned-here                                                                                                       |
-| `docs/standards/helm/index.md`                 | owned-here                                                                                                       |
-| `docs/standards/infisical/index.md`            | owned-here                                                                                                       |
-| `docs/standards/linting/index.md`              | owned-here                                                                                                       |
-| `docs/standards/semantic-release/index.md`     | owned-here                                                                                                       |
-| `docs/standards/service-tree/index.md`         | owned-here                                                                                                       |
-| `docs/standards/shell-scripts/index.md`        | owned-here                                                                                                       |
-| `docs/standards/taskfile/index.md`             | owned-here; one superseded keyed-block sentence reworded in the fold                                             |
-| `flake.nix`                                    | upstream file, change confined to its `workspace` block                                                          |
-| `infra/Dockerfile`                             | owned-here                                                                                                       |
-| `infra/root_chart/Chart.yaml`                  | owned-here                                                                                                       |
-| `infra/root_chart/README.md`                   | owned-here (generated by `helm-docs`)                                                                            |
-| `infra/root_chart/README.md.gotmpl`            | owned-here (new in this patch)                                                                                   |
-| `infra/root_chart/templates/configmap.yaml`    | owned-here                                                                                                       |
-| `infra/root_chart/values.yaml`                 | owned-here                                                                                                       |
-| `nix/env.nix`                                  | upstream file, changes confined to `workspace` blocks; ownership tags removed (wave ruling)                      |
-| `nix/fmt.nix`                                  | upstream file, change confined to its `workspace` block                                                          |
-| `nix/packages.nix`                             | upstream file, change confined to the `workspace` block; ownership tags removed (wave ruling)                    |
-| `nix/pre-commit.nix`                           | upstream file, changes confined to workspace-born regions; ownership tags removed (wave ruling)                  |
-| `nix/shells.nix`                               | mixed regions; ownership-tag removal only (wave ruling)                                                          |
-| `probes/lib/README.md`                         | owned-here                                                                                                       |
-| `scripts/ci/setup.sh`                          | mixed regions; ownership-tag removal only (wave ruling)                                                          |
-| `scripts/local/skills-sync.sh`                 | mixed regions; ownership-tag removal only (wave ruling)                                                          |
-| `scripts/validate/binary-smoke.sh`             | owned-here                                                                                                       |
-| `tasks/Taskfile.docker.yaml`                   | owned-here                                                                                                       |
-| `tasks/Taskfile.helm.yaml`                     | owned-here                                                                                                       |
-| `tasks/Taskfile.secret.yaml`                   | owned-here                                                                                                       |
-| `UPSTREAM-CHANGES.md`                          | owned-here (this audit artifact, updated by the fold)                                                            |
-| `VALIDATOR-CHANGES.md`                         | owned-here (new in this patch)                                                                                   |
+| File                                           | Classification                                                                                                            |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `.coderabbit.yaml`                             | owned-here                                                                                                                |
+| `.dockerignore`                                | owned-here                                                                                                                |
+| `.github/actionlint.yaml`                      | owned-here                                                                                                                |
+| `.github/dependabot.yml`                       | owned-here                                                                                                                |
+| `.github/workflows/cd.yaml`                    | owned-here                                                                                                                |
+| `.github/workflows/ci.yaml`                    | owned-here                                                                                                                |
+| `.github/workflows/release.yaml`               | owned-here                                                                                                                |
+| `.github/workflows/⚡reusable-docker.yaml`     | owned-here                                                                                                                |
+| `.github/workflows/⚡reusable-helm.yaml`       | owned-here                                                                                                                |
+| `.github/workflows/⚡reusable-precommit.yaml`  | owned-here                                                                                                                |
+| `.github/workflows/⚡reusable-release.yaml`    | owned-here                                                                                                                |
+| `.github/workflows/🛡️merge-gatekeeper.yml`     | owned-here                                                                                                                |
+| `.gitignore`                                   | mixed regions; ownership-tag removal only (wave ruling)                                                                   |
+| `.prettierrc.yaml`                             | owned-here                                                                                                                |
+| `CLAUDE.md`                                    | mixed regions; ownership-tag removal, plus one superseded keyed-block sentence dropped in its `workspace` region          |
+| `README.md`                                    | upstream file, change confined to its `workspace` block; ownership tags removed (wave ruling)                             |
+| `Taskfile.yaml`                                | owned-here                                                                                                                |
+| `atomi_release.yaml`                           | owned-here                                                                                                                |
+| `docs/domain/README.md`                        | owned-here                                                                                                                |
+| `docs/standards/ci-cd/index.md`                | owned-here                                                                                                                |
+| `docs/standards/conventional-commits/index.md` | owned-here                                                                                                                |
+| `docs/standards/docker/index.md`               | owned-here                                                                                                                |
+| `docs/standards/helm/index.md`                 | owned-here                                                                                                                |
+| `docs/standards/infisical/index.md`            | owned-here                                                                                                                |
+| `docs/standards/linting/index.md`              | owned-here                                                                                                                |
+| `docs/standards/semantic-release/index.md`     | owned-here                                                                                                                |
+| `docs/standards/service-tree/index.md`         | owned-here                                                                                                                |
+| `docs/standards/shell-scripts/index.md`        | owned-here                                                                                                                |
+| `docs/standards/taskfile/index.md`             | owned-here; one superseded keyed-block sentence reworded in the fold                                                      |
+| `flake.nix`                                    | upstream file, change confined to its `workspace` block                                                                   |
+| `infra/Dockerfile`                             | owned-here                                                                                                                |
+| `infra/root_chart/Chart.yaml`                  | owned-here                                                                                                                |
+| `infra/root_chart/README.md`                   | owned-here (generated by `helm-docs`)                                                                                     |
+| `infra/root_chart/README.md.gotmpl`            | owned-here (new in this patch)                                                                                            |
+| `infra/root_chart/templates/configmap.yaml`    | owned-here                                                                                                                |
+| `infra/root_chart/values.yaml`                 | owned-here                                                                                                                |
+| `nix/env.nix`                                  | upstream file, changes confined to `workspace` blocks; ownership tags removed (wave ruling)                               |
+| `nix/fmt.nix`                                  | upstream file, change confined to its `workspace` block                                                                   |
+| `nix/packages.nix`                             | upstream file, change confined to the `workspace` block; ownership tags removed (wave ruling)                             |
+| `nix/pre-commit.nix`                           | upstream file, changes confined to workspace-born regions; ownership tags removed (wave ruling) and the hook trim applied |
+| `nix/shells.nix`                               | mixed regions; ownership-tag removal only (wave ruling)                                                                   |
+| `probes/cache-tag-shape.ts`                    | owned-here; **removed** with the `a-cache-tags` hook (hook trim)                                                          |
+| `probes/features.json`                         | upstream file, changes confined to `diene/workspace`-templated rows; the `atomi/nix` rows are byte-identical              |
+| `probes/hook-helm-docs.ts`                     | owned-here; **removed** with the `a-helm-docs` hook (hook trim)                                                           |
+| `probes/lib/README.md`                         | owned-here                                                                                                                |
+| `probes/many-owner-schema.ts`                  | owned-here; **removed** with the many-owner enforcement (removal by ruling)                                               |
+| `probes/workflow-names.ts`                     | owned-here; **removed** with the `a-workflow-names` hook (hook trim)                                                      |
+| `scripts/ci/setup.sh`                          | mixed regions; ownership-tag removal only (wave ruling)                                                                   |
+| `scripts/local/skills-sync.sh`                 | mixed regions; ownership-tag removal only (wave ruling)                                                                   |
+| `scripts/validate/binary-smoke.sh`             | owned-here                                                                                                                |
+| `scripts/validate/cache-tags.sh`               | owned-here; **removed** with the `a-cache-tags` hook (hook trim)                                                          |
+| `scripts/validate/many-owner.sh`               | owned-here; **removed** with the many-owner enforcement (removal by ruling)                                               |
+| `scripts/validate/workflows.sh`                | owned-here; the dropped `workflow-names` mode removed, the other three modes unchanged                                    |
+| `tasks/Taskfile.docker.yaml`                   | owned-here                                                                                                                |
+| `tasks/Taskfile.helm.yaml`                     | owned-here                                                                                                                |
+| `tasks/Taskfile.secret.yaml`                   | owned-here                                                                                                                |
+| `UPSTREAM-CHANGES.md`                          | owned-here (this audit artifact, updated by the fold)                                                                     |
+| `VALIDATOR-CHANGES.md`                         | owned-here (new in this patch)                                                                                            |
 
 Region notes for the mixed files:
 
@@ -112,6 +120,27 @@ Files touched by the tag-removal fold: `.gitignore`, `CLAUDE.md`, `README.md`,
 `scripts/ci/setup.sh`, `scripts/local/skills-sync.sh` (tag pairs), plus
 `docs/standards/taskfile/index.md` and `CLAUDE.md` (one superseded keyed-block doctrine
 sentence each) and this audit artifact itself.
+
+### Many-owner removal and hook trim (same wave ruling)
+
+The same fold removed the many-owner enforcement outright and applied the user-final hook
+trim. **Nothing is owed upstream for either, and the absence of records here is a
+verified result rather than an omission:**
+
+- every removed artifact — `scripts/validate/many-owner.sh`,
+  `scripts/validate/cache-tags.sh`, and the four probe definitions — is workspace-born at
+  `f74cf31`, so no upstream file was deleted;
+- the trimmed and merged hooks all sit in the `workspace-hooks` region of
+  `nix/pre-commit.nix`; the `treefmt` hook, the one `source: main` region in that file,
+  was not touched;
+- `probes/features.json` is chain-root-born and therefore upstream, but all four removed
+  rows carry `"template": "diene/workspace"`, and its `atomi/nix` rows are byte-identical
+  before and after (verified by comparing the filtered sets, not by reading the diff).
+
+All twelve files involved appear in the classification table above, including the eight
+that were deleted. The removal itself — why it is authorized content removal and not a
+silenced check — is recorded in `VALIDATOR-CHANGES.md`, which is the artifact the ruling
+named for it.
 
 ### Documentation files audited but not changed
 
