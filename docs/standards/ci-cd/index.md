@@ -26,7 +26,7 @@ their trigger block:
   authoritative statement of which script the lane runs and in which shell.
 
 Callers grant permissions, pass only repository-specific values, and use
-`secrets: inherit`. The `a-workflow-wiring` gate enforces that every orchestrator
+`secrets: inherit`. The `a-workflows` gate enforces that every orchestrator
 job resolves to a repository-local reusable workflow and that each reusable
 workflow calls an existing, executable `scripts/ci` entry point.
 

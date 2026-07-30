@@ -1,97 +1,101 @@
-# Validator changes needed after the marker strip
+# Validator changes — patch 1
 
-The ownership-marker rule ("markers only in multi-owner files") required stripping
-block-ownership markers from every file whose blocks all came from a single template.
-The marker-system code is exempt from edits, so this file records the validator change
-the strip now requires instead of making it.
+## Removal by ruling, not by staleness
 
-## Validator — `scripts/validate/many-owner.sh`
+The user ruling of 2026-07-29 deleted hand-written ownership tags from every file,
+single-owner and multi-owner alike, and superseded the earlier multi-owner exception
+outright. The empirical basis is that the cyanprint resolver never consumed the tags —
+it merges on heading boundaries and takes ownership from its own runtime metadata — so
+nothing mechanical depended on them.
 
-The script builds a fixed target list and then fails any target that has no keyed
-block:
+That ruling **removes the many-owner enforcement**, it does not repair it. The four
+artifacts below are gone from this branch:
 
-```sh
-printf '%s\n' .gitignore .dockerignore Taskfile.yaml CLAUDE.md >"${tmp}"
-find nix -maxdepth 1 -type f -name '*.nix' | sort >>"${tmp}"
-find .github/workflows -maxdepth 1 -type f \( -name '*.yaml' -o -name '*.yml' \) | sort >>"${tmp}"
-...
-[ -z "${markers}" ] && echo "❌ many-owner target '${file}' has no keyed block" >&2 && exit 1
-```
+- `scripts/validate/many-owner.sh` — the validator
+- the `a-many-owner` pre-commit hook in `nix/pre-commit.nix`
+- `probes/many-owner-schema.ts` — the probe definition
+- the `many-owner-schema` row in `probes/features.json`
 
-Two of the four literal targets, and both glob-based rules, now sweep in single-owner
-files. Those files are correctly marker-free under the rule, so the validator's "no
-keyed block" failure is a stale expectation, not a defect in the files.
+**This is authorized content removal, not a silenced check.** The distinction is the
+whole point of this record, so state it plainly:
 
-### Files the validator still demands markers from, but must not
+- A silenced check is one edited, disabled, or deleted **so that a red result stops
+  being reported**. The prohibition on that — never stamp on red — is unchanged and
+  still binding on every other check in this repository.
+- An authorized removal is one whose **subject no longer exists by ruling**. There are
+  no keyed ownership blocks left anywhere in the tree to check, so the validator has no
+  subject. Keeping it would assert a contract the ruling abolished.
 
-Literal targets, now marker-free:
+The ordering matters and is recorded honestly: this validator **was red** before it was
+removed, because the tag deletion left it demanding keyed blocks from files that no
+longer have any. It is not removed _because_ it was red. It is removed because the
+ruling that removed its subject also named it for removal, and it would have been
+removed on a green tree by the same authority. Both facts belong in the record.
 
-- `.dockerignore` — was `workspace` only (three blocks, one owner)
-- `Taskfile.yaml` — was `workspace` only
+A previous version of this file argued the opposite disposition — that the validator
+should be repaired to treat a marker-free file as legal, and listed the eleven files it
+would then have to stop failing. That analysis is **superseded**: it assumed markers
+survived somewhere, and under the ruling they do not.
 
-Caught by the `nix/*.nix` glob:
+Machine-stamped provenance remains permitted **only** if cyanprint stamps it from its
+own metadata. That is a future cyanprint capability and explicitly not this wave, so no
+stamping mechanism was added here.
 
-- `nix/fmt.nix` — was `workspace` only
+## Hook trim (user ruling, same wave)
 
-Caught by the `.github/workflows/*` glob:
+The hook set was trimmed in the same pass. Hooks are what a committer waits on, so
+several modes of one validator now share one hook; the enforcement mechanisms themselves
+are unchanged and each still has its own probe.
 
-- `.github/workflows/cd.yaml` — was `workspace` only
-- `.github/workflows/ci.yaml` — was `workspace` only
-- `.github/workflows/release.yaml` — was `workspace` only
-- `.github/workflows/⚡reusable-docker.yaml` — was `workspace` only
-- `.github/workflows/⚡reusable-helm.yaml` — was `workspace` only
-- `.github/workflows/⚡reusable-precommit.yaml` — was `workspace` only
-- `.github/workflows/⚡reusable-release.yaml` — was `workspace` only
-- `.github/workflows/🛡️merge-gatekeeper.yml` — was `workspace` only
+### Merged
 
-`.dockerignore` is second in list order, so the run currently exits there and never
-reaches the rest. All eleven are listed because all eleven would fail in turn.
+| Now                | Was                                                               | How                                                    |
+| ------------------ | ----------------------------------------------------------------- | ------------------------------------------------------ |
+| `a-action-pins`    | `a-action-pins-trusted`, `a-action-pins-non-trusted`              | both modes of `action-pins.sh`, via `validators`       |
+| `a-release-config` | `a-release-config`, `a-release-types`                             | `release-config.sh all`, a mode the script already had |
+| `a-workflows`      | `a-workflow-wiring`, `a-release-trigger`, `a-release-concurrency` | three modes of `workflows.sh`, via `validators`        |
 
-### Files that must keep being checked (genuinely multi-owner)
+The `wiring` mode keeps **both halves** unchanged inside the merged hook, per the ruling:
+every `scripts/ci` entry point a workflow references exists and is executable, **and**
+every orchestrator job resolves to a repository-local reusable workflow that calls one.
+Neither half was weakened, reordered, or made conditional.
 
-- `.gitignore` — `main`, `workspace`
-- `CLAUDE.md` — `main`, `workspace`
-- `nix/env.nix` — `main`, `workspace`
-- `nix/packages.nix` — `main`, `workspace`
-- `nix/pre-commit.nix` — `main`, `workspace`
-- `nix/shells.nix` — `main`, `workspace`
+### Kept split
 
-Three multi-owner files outside the validator's target list also keep their markers and
-would benefit from being checked: `README.md` (`main`, `workspace`), and
-`scripts/ci/setup.sh` and `scripts/local/skills-sync.sh` (both
-`lib/dotnet/server-engine`, `workspace`).
+`a-infisical` and `a-infisical-staged` stay two hooks by explicit ruling, even though
+both run the same binary. The full-tree scan and the staged-changes scan answer different
+questions and fail for different reasons.
 
-### What the validator should expect instead
+### Dropped
 
-Stop treating "is a `nix/*.nix` file" or "is a workflow file" as proof that a file is
-many-owner. A marker-free file is now a legal state; only a file that _has_ markers
-makes a claim the validator can check. Two options, either acceptable:
+| Hook               | Also removed                                                                             |
+| ------------------ | ---------------------------------------------------------------------------------------- |
+| `a-cache-tags`     | `scripts/validate/cache-tags.sh`, `probes/cache-tag-shape.ts`, its feature row           |
+| `a-helm-docs`      | `probes/hook-helm-docs.ts`, its feature row (the `helm-docs` binary stays)               |
+| `a-workflow-names` | the `workflow-names` mode of `workflows.sh`, `probes/workflow-names.ts`, its feature row |
 
-1. **Skip marker-free files.** Replace the hard failure with a `continue` when
-   `markers` is empty, keeping the uniqueness and one-provenance-line-per-block checks
-   for files that do carry markers. This keeps the globs and stays correct as templates
-   add or drop ownership.
-2. **Enumerate the many-owner targets.** Drop the two `find` rules and list exactly the
-   six files above. More precise today, but needs an edit whenever a file gains or
-   loses a second owner.
+Each drop removes the probe with the hook. `presence-probe-artifacts` requires a probe
+definition for every declared feature, so a feature row without its probe file — or the
+reverse — would be a genuine red rather than a leftover. All three were **green** when
+removed; none was dropped to avoid a failure.
 
-Option 1 is recommended: it encodes the rule itself ("markers must be well-formed where
-they exist; their absence is not an error") rather than a snapshot of today's ownership.
+One consequence worth naming: ci.yaml's name is no longer asserted directly, but
+`release-trigger` still requires `.on.workflow_run.workflows == ["CI"]`, so a rename of
+ci.yaml is still caught — one hop later, by the release trigger check rather than by a
+dedicated name check.
 
-### Probe impact — `probes/many-owner-schema.ts`
+## Resulting hook set
 
-Also exempt, and no change is needed under either option. Its mutation probe appends a
-second `### workspace` / `#### source: workspace` block to `.gitignore`, which stays
-multi-owner and still trips the duplicate-key check, so the gate keeps its teeth. Its
-baseline probe asserts the validator is green, so that row is red until the validator is
-updated, and under option 1 it goes green again.
+Twelve hooks declared, down from twenty — eleven at the pre-commit stage plus the
+commit-msg hook. `nix/pre-commit.nix` remains the authoritative statement of the set; it
+is not restated here, because it changes whenever a hook is added or removed.
+`docs/standards/linting/index.md` explains how to read it.
 
-### Measured state
+## Upstream classification
 
-Verified with `nix develop .#ci -c pre-commit run --all-files` after the strip: 18 of
-19 hooks pass — including `treefmt`, so the strip left no formatting fallout — and the
-only failure is `a-many-owner`, reporting `❌ many-owner target '.dockerignore' has no
-keyed block`.
-
-Until the validator is updated, red output from `scripts/validate/many-owner.sh` against
-the files listed above is expected.
+Every region touched by this record's work is `workspace`-owned: the trimmed hooks sit
+in the workspace block of `nix/pre-commit.nix`, all four removed feature rows carry
+`"template": "diene/workspace"`, and every removed script and probe was born on this
+branch. No part of it lands in a chain-root-owned region, so it owes no
+`UPSTREAM-CHANGES.md` entry. The touched files still appear in that audit's
+classification table as changed files.

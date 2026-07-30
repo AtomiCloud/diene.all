@@ -45,9 +45,8 @@ contract.
 Two things about that file are fixed policy rather than free configuration: the
 base plugin chain and the unified D3 commit-type vocabulary. Both are enforced by
 `scripts/validate/release-config.sh`, which holds the exact expected values —
-read it to see what the `a-release-config` and `a-release-types` gates will
-accept. Changing either means changing the validator and the configuration
-together, deliberately.
+read it to see what the `a-release-config` gate will accept. Changing either
+means changing the validator and the configuration together, deliberately.
 
 Both commit validation and release calculation consume this same configuration,
 so the vocabularies cannot drift independently.
@@ -56,9 +55,8 @@ so the vocabularies cannot drift independently.
 
 Release runs as its own workflow, triggered off a successful `CI` run rather than
 off a push. Its trigger, branch restriction, and concurrency group are declared
-in `.github/workflows/release.yaml` and pinned by the `a-release-trigger` and
-`a-release-concurrency` gates; `scripts/validate/workflows.sh` holds the exact
-expected values. The workflow ends in one `scripts/ci/release.sh` invocation in
+in `.github/workflows/release.yaml` and pinned by the `a-workflows` gate;
+`scripts/validate/workflows.sh` holds the exact expected values. The workflow ends in one `scripts/ci/release.sh` invocation in
 the release Nix shell, and that script runs `releaser release`, which calculates
 the version, updates the changelog and generated files, creates the tag, and
 publishes the GitHub release.

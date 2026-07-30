@@ -115,11 +115,11 @@ labels:
 ### Nix Store Cache
 
 Nix jobs use a single shared store cache — **not** per-service — so the cache tag is
-deliberately not namespaced by platform or service. The exact tag a job must carry is
-computed by [`scripts/validate/cache-tags.sh`](../../../scripts/validate/cache-tags.sh)
-from the job's runner: read the `expected=` line there to see the shape, and the checks
-above it to see how the OS and architecture are derived. That validator fails any job
-whose tag differs, so never introduce a per-platform or per-service tag.
+deliberately not namespaced by platform or service. The tags in use are declared on the
+`runs-on:` lines of the reusable workflows in
+[`.github/workflows/`](../../../.github/workflows): read a cached job's runner list to
+see the tag it carries and how the OS and architecture appear in it. Never introduce a
+per-platform or per-service tag.
 
 ### Platform / Service usage
 

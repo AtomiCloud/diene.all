@@ -29,8 +29,9 @@ because it changes whenever a hook is added or removed. Read it like this:
 - `name` is the label the run prints;
 - `entry` is what actually executes — either a Nix store path
   (`${packages.<tool>}/bin/<tool> …`, so the pinned tool runs) or a call to the
-  `validator` wrapper, which runs a script under `scripts/validate/` with a fixed
-  PATH;
+  `validator` wrapper, which runs one script under `scripts/validate/` with a
+  fixed PATH, or to the `validators` wrapper, which runs several such invocations
+  under that same PATH and stops at the first failure;
 - `files` is the regex selecting which paths trigger the hook; a hook with no
   `files` runs on every commit;
 - `stages` narrows a hook to a non-default stage; a hook without it runs at the
@@ -48,7 +49,10 @@ not available before that fold. There is no `.gitlint` hook or file.
 - Add custom hooks in `nix/pre-commit.nix` with an `a-` prefix.
 - Use Nix-provided tool paths or the repository validator wrapper; hooks must not
   depend on host-installed binaries.
-- Give each independent enforcement mechanism its own hook and probe mutation.
+- Group one validator script's modes into a single hook rather than one hook per
+  mode; hooks are the unit a committer waits on, not the unit of enforcement.
+- Give each independent enforcement mechanism its own probe mutation, including
+  the mechanisms that share a hook.
 - Run a single hook with
   `pre-commit run <hook-id> --all-files` when diagnosing a failure.
 

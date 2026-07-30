@@ -21,8 +21,8 @@ name — `infra/root_chart` is `root_chart:<verb>`. Read the task `desc` to see 
 chart a task acts on, or run `pls --list`.
 
 Pass extra `helm template` arguments after `--`. Chart linting is available
-directly and also runs in `pls lint`. Generated chart docs are enforced by the
-`helm-docs` pre-commit hook.
+directly and also runs in `pls lint`. Generated chart docs are produced by
+`helm-docs` from each chart's own values; no commit-time gate enforces them.
 
 Adding a chart means adding its own task set under its own key. Never generalize
 the existing tasks into one `lint` that switches on a shared chart variable.
