@@ -2473,6 +2473,9 @@ sit-post-promotion-verification)
     _kargo_drive_post_promotion_verification \
     kargo_drive_post_promotion_verification \
     kargo_promotion_ulid \
+    kargo_promotion_name_timestamp_ms \
+    kargo_manual_promotion_ordering_floor_reached \
+    kargo_wait_manual_promotion_ordering_floor \
     kargo_validate_manual_promotion_name \
     kargo_generate_manual_promotion_name \
     kargo_next_manual_promotion_timestamp \
@@ -2498,12 +2501,26 @@ sit-post-promotion-verification)
     >"${tmp}/ppv-promotion-clock.sh"
   rg -qF 'date -u +%s%3N' "${tmp}/ppv-promotion-clock.sh" ||
     fail 'manual Promotion ULIDs are no longer sourced from the real millisecond clock'
+  rg -qF 'candidate_ms=$((now_ms - 1))' "${tmp}/ppv-promotion-clock.sh" ||
+    fail 'manual Promotion ULIDs no longer carry the one-millisecond realtime ordering floor'
   sed -n '/^kargo_write_promotion_manifest() {$/,/^}$/p' "${ppv_source}" \
     >"${tmp}/ppv-promotion-writer.sh"
   if ! rg -q 'kargo_next_manual_promotion_timestamp' "${tmp}/ppv-promotion-writer.sh" ||
     ! rg -q 'kargo_generate_manual_promotion_name' "${tmp}/ppv-promotion-writer.sh" ||
     ! rg -qF '.metadata.name = strenv(NAME)' "${tmp}/ppv-promotion-writer.sh"; then
     fail 'the manual Promotion manifest writer is not bound to the ordered generated name'
+  fi
+  sed -n '/^kargo_create_manual_promotion() {$/,/^}$/p' "${ppv_source}" \
+    >"${tmp}/ppv-promotion-create.sh"
+  [ "$(tail -n 1 "${tmp}/ppv-promotion-create.sh")" = '}' ] ||
+    fail 'the extracted kargo_create_manual_promotion() body is unterminated'
+  ppv_floor_line="$(rg -n '^[[:space:]]*kargo_wait_manual_promotion_ordering_floor ' \
+    "${tmp}/ppv-promotion-create.sh" | cut -d: -f1)"
+  ppv_create_line="$(rg -n '^[[:space:]]*kubectl create -f ' \
+    "${tmp}/ppv-promotion-create.sh" | cut -d: -f1)"
+  if ! [[ ${ppv_floor_line} =~ ^[0-9]+$ && ${ppv_create_line} =~ ^[0-9]+$ ]] ||
+    [ "${ppv_floor_line}" -ge "${ppv_create_line}" ]; then
+    fail 'the manual Promotion ordering floor is not enforced immediately before kubectl create'
   fi
   sed -n '/^_kargo_drive_post_promotion_verification() {$/,/^}$/p' "${ppv_source}" \
     >"${tmp}/ppv-worker.sh"
@@ -2763,50 +2780,65 @@ expect_drive_failure() {
   fi
 }
 
-# N1: manual names carry a real ULID timestamp component and share Kargo's
-# lexical creation ordering across later manual and controller-style names.
+# N1: reproduce the rejected equal-millisecond entropy hole, then prove the
+# real-time floor makes even a maximal-entropy manual name sort below a later
+# minimal-entropy Kargo-style name. All helpers are extracted production bytes.
 naming_stage='canary-dummy-pikachu'
 naming_freight='0123456789abcdef'
-naming_earlier_ms=1700000000000
-naming_later_manual_ms=1700000000001
-naming_later_auto_ms=1700000000002
+naming_wall_ms=1700000000002
+naming_safe_manual_ms=$((naming_wall_ms - 1))
+naming_earlier_manual_ms=$((naming_wall_ms - 2))
 naming_earlier=''
 naming_later_manual=''
-naming_auto_ulid=''
+naming_wall_ulid=''
+naming_safe_ulid=''
 kargo_generate_manual_promotion_name \
-  "${naming_stage}" "${naming_freight}" "${naming_earlier_ms}" naming_earlier
+  "${naming_stage}" "${naming_freight}" "${naming_earlier_manual_ms}" naming_earlier
 kargo_generate_manual_promotion_name \
-  "${naming_stage}" "${naming_freight}" "${naming_later_manual_ms}" naming_later_manual
-kargo_promotion_ulid "${naming_later_auto_ms}" naming_auto_ulid
-naming_later_auto="${naming_stage}.${naming_auto_ulid}.${naming_freight:0:7}"
-kargo_validate_manual_promotion_name \
-  "${naming_later_auto}" "${naming_stage}" "${naming_freight}"
+  "${naming_stage}" "${naming_freight}" "${naming_safe_manual_ms}" naming_later_manual
 [[ "${naming_earlier}" < "${naming_later_manual}" ]] ||
   die 'N1 a later manual ULID name did not sort above the earlier manual name'
-[[ "${naming_earlier}" < "${naming_later_auto}" ]] ||
-  die 'N1 a later Kargo-style auto name did not sort above the earlier manual name'
-naming_earlier_ulid="${naming_earlier%.*}"
-naming_earlier_ulid="${naming_earlier_ulid##*.}"
-naming_decoded_ms="$(bun -e '
-  const alphabet = "0123456789abcdefghjkmnpqrstvwxyz";
-  let decoded = 0n;
-  for (const character of process.argv[1].slice(0, 10)) {
-    const digit = alphabet.indexOf(character);
-    if (digit < 0) process.exit(2);
-    decoded = decoded * 32n + BigInt(digit);
-  }
-  process.stdout.write(decoded.toString());
-' -- "${naming_earlier_ulid}")"
-[ "${naming_decoded_ms}" = "${naming_earlier_ms}" ] ||
+
+kargo_promotion_ulid "${naming_wall_ms}" naming_wall_ulid
+kargo_promotion_ulid "${naming_safe_manual_ms}" naming_safe_ulid
+naming_wall_prefix="${naming_wall_ulid:0:10}"
+naming_safe_prefix="${naming_safe_ulid:0:10}"
+naming_unsafe_manual="${naming_stage}.${naming_wall_prefix}zzzzzzzzzzzzzzzz.${naming_freight:0:7}"
+naming_same_time_auto="${naming_stage}.${naming_wall_prefix}0000000000000000.${naming_freight:0:7}"
+naming_safe_manual="${naming_stage}.${naming_safe_prefix}zzzzzzzzzzzzzzzz.${naming_freight:0:7}"
+kargo_validate_manual_promotion_name \
+  "${naming_unsafe_manual}" "${naming_stage}" "${naming_freight}"
+kargo_validate_manual_promotion_name \
+  "${naming_same_time_auto}" "${naming_stage}" "${naming_freight}"
+kargo_validate_manual_promotion_name \
+  "${naming_safe_manual}" "${naming_stage}" "${naming_freight}"
+[[ "${naming_same_time_auto}" < "${naming_unsafe_manual}" ]] ||
+  die 'N1 did not reproduce the equal-timestamp independent-entropy ordering hole'
+[[ "${naming_safe_manual}" < "${naming_same_time_auto}" ]] ||
+  die 'N1 the floored maximal-entropy manual name did not sort below the minimal-entropy auto name'
+if kargo_manual_promotion_ordering_floor_reached \
+  "${naming_safe_manual}" "${naming_safe_manual_ms}"; then
+  die 'N1 accepted a controller clock equal to the embedded manual timestamp'
+fi
+kargo_manual_promotion_ordering_floor_reached \
+  "${naming_safe_manual}" "${naming_wall_ms}" ||
+  die 'N1 rejected a controller clock strictly beyond the embedded manual timestamp'
+kargo_promotion_name_timestamp_ms "${naming_safe_manual}" naming_decoded_ms
+[ "${naming_decoded_ms}" = "${naming_safe_manual_ms}" ] ||
   die 'N1 the encoded ULID timestamp was not the supplied real millisecond value'
-[ "${#naming_earlier}" -le 253 ] || die 'N1 generated a name beyond the DNS limit'
+[ "${#naming_safe_manual}" -le 253 ] || die 'N1 generated a name beyond the DNS limit'
 naming_invalid=''
 if kargo_promotion_ulid 281474976710656 naming_invalid >/dev/null 2>&1; then
   die 'N1 accepted a timestamp outside the ULID 48-bit range'
 fi
+naming_overflow="${naming_stage}.zzzzzzzzzzzzzzzzzzzzzzzzzz.${naming_freight:0:7}"
+if kargo_validate_manual_promotion_name \
+  "${naming_overflow}" "${naming_stage}" "${naming_freight}" >/dev/null 2>&1; then
+  die 'N1 accepted a Promotion name with an overflowing 48-bit timestamp'
+fi
 naming_long_label="$(printf '%064d' 0)"
 if kargo_generate_manual_promotion_name \
-  "${naming_long_label}" "${naming_freight}" "${naming_earlier_ms}" \
+  "${naming_long_label}" "${naming_freight}" "${naming_earlier_manual_ms}" \
   naming_invalid >/dev/null 2>&1; then
   die 'N1 accepted a Promotion name with a DNS label beyond 63 characters'
 fi

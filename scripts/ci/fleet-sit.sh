@@ -3204,11 +3204,70 @@ kargo_promotion_ulid() {
   output_ref="${generated_ulid}"
 }
 
+kargo_promotion_name_timestamp_ms() {
+  local name="$1"
+  local output_name="$2"
+  local without_hash ulid decoded_ms
+  local -n output_ref="${output_name}"
+  without_hash="${name%.*}"
+  ulid="${without_hash##*.}"
+  [[ ${ulid} =~ ^[0-9a-hjkmnp-tv-z]{26}$ ]] || {
+    sit_fail "Promotion name has no valid lowercase ULID component: ${name}"
+    return 1
+  }
+  if ! decoded_ms="$(bun -e '
+    const alphabet = "0123456789abcdefghjkmnpqrstvwxyz";
+    let decoded = 0n;
+    for (const character of process.argv[1].slice(0, 10)) {
+      const digit = alphabet.indexOf(character);
+      if (digit < 0) process.exit(2);
+      decoded = decoded * 32n + BigInt(digit);
+    }
+    if (decoded >= (1n << 48n)) process.exit(3);
+    process.stdout.write(decoded.toString());
+  ' -- "${ulid}")"; then
+    sit_fail "Promotion name has an invalid 48-bit ULID timestamp: ${name}"
+    return 1
+  fi
+  # shellcheck disable=SC2034 # assignment returns through the caller's nameref
+  output_ref="${decoded_ms}"
+}
+
+kargo_manual_promotion_ordering_floor_reached() {
+  local name="$1"
+  local controller_clock_ms="$2"
+  local name_timestamp_ms
+  [[ ${controller_clock_ms} =~ ^[0-9]+$ ]] || return 1
+  kargo_promotion_name_timestamp_ms "${name}" name_timestamp_ms || return 1
+  [ "${controller_clock_ms}" -gt "${name_timestamp_ms}" ]
+}
+
+# The pinned controller runs inside this local k3d/Docker topology and shares
+# the host kernel's realtime clock with the harness. Kargo's ulid.Make() reads
+# that clock. Fail closed unless the shared realtime is strictly beyond the
+# manual name's timestamp before the Promotion can exist; any later Kargo name
+# must then have a greater ten-character timestamp prefix regardless of entropy.
+kargo_wait_manual_promotion_ordering_floor() {
+  local name="$1"
+  local attempt controller_clock_ms name_timestamp_ms
+  kargo_promotion_name_timestamp_ms "${name}" name_timestamp_ms || return 1
+  for ((attempt = 0; attempt < 5000; attempt++)); do
+    controller_clock_ms="$(date -u +%s%3N)"
+    if [[ ${controller_clock_ms} =~ ^[0-9]+$ ]] &&
+      [ "${controller_clock_ms}" -gt "${name_timestamp_ms}" ]; then
+      return 0
+    fi
+    sleep 0.001
+  done
+  sit_fail "shared controller clock did not advance beyond manual Promotion timestamp ${name_timestamp_ms}"
+  return 1
+}
+
 kargo_validate_manual_promotion_name() {
   local name="$1"
   local stage="$2"
   local freight="$3"
-  local without_hash ulid stage_prefix short_hash expected label
+  local without_hash ulid stage_prefix short_hash expected label timestamp_ms
   local -a labels
   stage_prefix="${stage:0:218}"
   short_hash="${freight:0:7}"
@@ -3225,6 +3284,7 @@ kargo_validate_manual_promotion_name() {
     sit_fail "manual Promotion name does not match <stage>.<lowercase-ulid>.<freight-short-hash>: ${name}"
     return 1
   }
+  kargo_promotion_name_timestamp_ms "${name}" timestamp_ms || return 1
   IFS='.' read -r -a labels <<<"${name}"
   for label in "${labels[@]}"; do
     [ "${#label}" -le 63 ] || {
@@ -3248,25 +3308,31 @@ kargo_generate_manual_promotion_name() {
   output_ref="${generated}"
 }
 
-# Manual Promotions in one harness process receive strictly increasing real
-# timestamp components. If two calls land in the same millisecond, wait for the
-# wall clock instead of substituting an unordered Kubernetes random suffix.
+# Stamp each manual Promotion one millisecond behind shared realtime, then
+# require that realtime floor again immediately before creation. Manual names
+# also remain strictly increasing: if two calls see the same millisecond, wait
+# for the clock instead of substituting an unordered Kubernetes random suffix.
 kargo_next_manual_promotion_timestamp() {
   local output_name="$1"
-  local attempt now_ms
+  local attempt now_ms candidate_ms
   local last_ms="${KARGO_MANUAL_PROMOTION_LAST_MS:-0}"
   local -n output_ref="${output_name}"
   for ((attempt = 0; attempt < 1000; attempt++)); do
     now_ms="$(date -u +%s%3N)"
-    if [[ ${now_ms} =~ ^[0-9]+$ ]] && [ "${now_ms}" -gt "${last_ms}" ]; then
-      KARGO_MANUAL_PROMOTION_LAST_MS="${now_ms}"
+    if [[ ${now_ms} =~ ^[0-9]+$ ]] && [ "${now_ms}" -gt 0 ]; then
+      candidate_ms=$((now_ms - 1))
+    else
+      candidate_ms=0
+    fi
+    if [ "${candidate_ms}" -gt "${last_ms}" ]; then
+      KARGO_MANUAL_PROMOTION_LAST_MS="${candidate_ms}"
       # shellcheck disable=SC2034 # assignment returns through the caller's nameref
-      output_ref="${now_ms}"
+      output_ref="${candidate_ms}"
       return 0
     fi
     sleep 0.001
   done
-  sit_fail 'real millisecond clock did not advance for a monotonic manual Promotion ULID'
+  sit_fail 'real millisecond ordering floor did not advance for a monotonic manual Promotion ULID'
   return 1
 }
 
@@ -3349,6 +3415,7 @@ kargo_create_manual_promotion() {
   promotion_name="$(yq -r '.metadata.name' "${manifest}")"
   kargo_validate_manual_promotion_name \
     "${promotion_name}" "${stage}" "${freight}"
+  kargo_wait_manual_promotion_ordering_floor "${promotion_name}"
   kubectl create -f "${manifest}" -o json >"${output}"
   jq -e --arg name "${promotion_name}" --arg stage "${stage}" --arg freight "${freight}" '
     .metadata.name == $name and
