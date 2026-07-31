@@ -10,30 +10,43 @@ This article builds on [Software Design Philosophy](../software-design-philosoph
 
 ```text
                     ┌─────────────────────┐
-                    │        E2E          │    Frontend only
-                    │    (Black-box)      │    Playwright, Cypress
+                    │        E2E          │    Frontends only
+                    │    (Black-box)      │    Bruno
                     └──────────┬──────────┘
                                │
                     ┌──────────┴──────────┐
-                    │        SIT          │    Full system, client's eye
-                    │    (Black-box)      │    k6, Gatling, Postman
+                    │       Smoke         │    Artifact executes per platform
                     └──────────┬──────────┘
                                │
                     ┌──────────┴──────────┐
-                    │    Integration      │    Adapters with real deps
-                    │    (White-box)      │    Testcontainers, real DBs
+                    │        SIT          │    Compiled artifact, client's eye
+                    │    (Black-box)      │    Bruno for HTTP APIs
                     └──────────┬──────────┘
                                │
-           ┌───────────────────┴───────────────────┐
-           │                                       │
-    ┌──────┴──────┐                        ┌───────┴───────┐
-    │  Functional │                        │     Unit      │
-    │  (Black-box)│                        │  (White-box)  │
-    │   LSP tests │                        │ 100% coverage │
-    └─────────────┘                        └───────────────┘
+                    ┌──────────┴──────────┐
+                    │    Integration      │    CONDITIONAL — see below
+                    │    (White-box)      │    Testcontainers, real deps
+                    └──────────┬──────────┘
+                               │
+      ┌────────────────────────┼────────────────────────┐
+      │                        │                        │
+┌─────┴─────┐          ┌───────┴───────┐        ┌───────┴───────┐
+│   Meta    │          │     Unit      │        │  Functional   │
+│ TestHelper│          │  (White-box)  │        │  (Black-box)  │
+│   100%    │          │  domain, 100% │        │   LSP tests   │
+└───────────┘          └───────────────┘        └───────────────┘
+                        `tests/unit/` hosts both
 ```
 
-The pyramid shape is deliberate: tests at the bottom are fast, cheap, and numerous. Tests at the top are slow, expensive, and few. A healthy codebase has many unit tests, some functional tests, fewer integration tests, and a minimal number of SIT/E2E tests.
+The canonical tiers are **unit**, **integration**, **meta**, **SIT**, **smoke** and
+**E2E**. Functional and contract tests are not a separate tier — they live in
+`tests/unit/` alongside the white-box unit tests, because they run at the same speed
+and against the same build.
+
+The pyramid shape is deliberate: tests at the bottom are fast, cheap, and numerous.
+Tests at the top are slow, expensive, and few. Two tiers are **not** unconditional:
+integration exists only where the [int-tier rule](#when-the-integration-tier-applies)
+says it does, and E2E is for frontends only.
 
 ---
 
@@ -213,9 +226,30 @@ In practice, unit tests and functional tests often live in the same test folder.
 
 ---
 
-## Integration Tests (White-Box)
+## Integration Tests (White-Box, Conditional)
 
 Integration tests verify that adapters work correctly with real external dependencies. They are **white-box tests** because they test adapter implementation with knowledge of internal structure.
+
+### When the Integration Tier Applies
+
+The integration tier is **not** a tier every project gets. It exists only for
+**repositories you designed yourself over a dependency that exposes a DSL** — Postgres
+SQL, Redis commands. There the thing under test is your query and mapping logic, so
+"we test the repository" and Testcontainers is the right tool.
+
+It does **not** apply to **small-interface dependencies**, which ship an interface plus
+an implementation in the library and are proven once, out of the box:
+
+| Dependency                        | Surface                                             | Consumer int tests                  |
+| --------------------------------- | --------------------------------------------------- | ----------------------------------- |
+| Telemetry                         | OTel libraries ship interfaces + in-memory mocks    | **No** — inject the mocks           |
+| Block storage                     | `save`, `getLink`, `getSignedUrl` — and little else | **No** — the library is proven once |
+| User-designed repo over SQL/Redis | Your own queries and mapping                        | **Yes**                             |
+
+Writing consumer integration tests for a small-interface dependency re-proves the
+library rather than your code. If a project has no user-designed repository over a
+DSL-exposing dependency, it has no integration tier, and that is the correct result —
+not a coverage gap.
 
 ### Integration Test Characteristics
 
@@ -237,7 +271,7 @@ This is fundamentally different from SIT/E2E which treat the system as a black b
 ### Example: Repository + Database
 
 ```typescript
-describe("OrderRepository integration", () => {
+describe('OrderRepository integration', () => {
   let db: Database;
   let repo: OrderRepository;
 
@@ -251,8 +285,9 @@ describe("OrderRepository integration", () => {
     await db.stop();
   });
 
-  it("should persist and retrieve order", async () => {
-    const order = Order.create({ items: [...], total: Money.usd(100) });
+  it('should persist and retrieve order', async () => {
+    const items = [OrderItem.create({ productId: 'widget-1', quantity: 2 })];
+    const order = Order.create({ items, total: Money.usd(100) });
     await repo.save(order);
     const retrieved = await repo.getById(order.id);
     expect(retrieved).toEqual(order);
@@ -264,71 +299,116 @@ Integration tests test **module by module**, not the whole system at once. A rep
 
 ---
 
+## Meta Tests
+
+The **meta tier** is a third tier alongside unit and integration. Its subject is the
+**TestHelper code itself** — the fakes, builders and assertion helpers a library ships
+for its consumers. Test infrastructure is code, and untested test infrastructure fails
+silently in the worst possible way: by passing.
+
+### What Meta Tests Cover
+
+- **Assert-the-asserter.** Every assertion helper is proven to **fail** on a known-bad
+  case and pass on a known-good case. A helper that never fails asserts nothing.
+- **Contract parity.** One shared behavioral suite per interface runs against **both**
+  the real implementation and the fake, so the fake cannot drift from what it stands
+  in for. Testcontainers is allowed here — these are integration-grade resources by
+  nature.
+- **Fixture and builder invariants.** The defaults a builder produces are valid, and
+  its overrides do what they claim.
+
+### TestHelper Is Opt-In
+
+A library ships a TestHelper only when it genuinely helps consumers: does it expose
+ports, I/O, nondeterminism or complex construction that consumers must fake, or
+assertions they would otherwise repeat in every test? Record a verdict and a one-line
+rationale per library. A "no" is legitimate — the guidance then lives in that
+library's usage documentation instead, covering how to build a TestHelper if a real
+need appears later, so it is written once rather than duplicated.
+
+When one language finds a helper useful, ask whether the same consumer pain exists in
+the sibling languages before answering for them.
+
+### Meta Coverage Is Separate
+
+TestHelper code is **excluded from the unit ledger** — unit coverage of test
+infrastructure measures usage, not correctness. It is measured by its own meta ledger,
+over TestHelper only, at **100%**, and uploaded under its own coverage flag. Where no
+TestHelper exists, the meta task is a no-op and uploads nothing.
+
+---
+
 ## SIT (System Integration Testing)
 
-SIT tests the **entire system from a client's perspective**. This is fully black-box testing: the test has no access to the code, no coverage metrics, only the external API.
+SIT tests the **entire system from a client's perspective**, driving the **compiled
+artifact** rather than the source tree. Binaries and CLIs are exercised as the built
+executable; HTTP APIs are exercised over the network.
+
+**Every feature gets a SIT journey.** This is the tier that answers "does the thing we
+shipped actually do the thing", so coverage of features here is per-feature and not
+"critical paths only".
 
 ### SIT Characteristics
 
-- **Scope:** Full system
+- **Scope:** Full system, through the compiled artifact
 - **Visibility:** Black-box (client's eye view)
 - **Speed:** Slow
-- **Coverage goal:** Critical user journeys
-- **Tools:** k6, Gatling, Postman, custom scripts
+- **Journey coverage:** One journey per feature
+- **Tools:** **Bruno** collections for HTTP APIs; the compiled artifact directly for
+  binaries and CLIs
 
 ### Why SIT?
 
-Integration tests verify pairs of modules. SIT verifies that the entire assembled system works. This catches:
+Integration tests verify one adapter against one real dependency. SIT verifies that the entire assembled artifact works. This catches:
 
 - Configuration errors
 - Wiring mistakes
 - Environment-specific issues
-- Performance problems under load
+- Packaging and startup faults the source tree never shows
 
-### SIT Example with k6
+### SIT for HTTP APIs: Bruno
 
-```javascript
-// k6 script - tests from outside the system
-import http from 'k6/http';
-import { check } from 'k6';
+HTTP APIs use **Bruno collections**, run headless in CI. Bruno is the locked-in format
+for SIT and for E2E — one collection format, not a different tool per tier.
 
-export default function () {
-  // Create order
-  const createRes = http.post(
-    'https://api.example.com/orders',
-    JSON.stringify({
-      items: [{ productId: 'widget-1', quantity: 2 }],
-    }),
-    {
-      headers: { 'Content-Type': 'application/json' },
-    },
-  );
-
-  check(createRes, {
-    'create returns 201': r => r.status === 201,
-    'create returns order id': r => r.json('id') !== undefined,
-  });
-
-  const orderId = createRes.json('id');
-
-  // Get order
-  const getRes = http.get(`https://api.example.com/orders/${orderId}`);
-
-  check(getRes, {
-    'get returns 200': r => r.status === 200,
-    'get returns correct order': r => r.json('id') === orderId,
-  });
-}
+```text
+bru run --env sit --reporter-junit --bail
 ```
 
-### No Coverage Metrics
+Collections that need scripting add `--sandbox=developer`. Collections live with the
+project, versioned like any other test source, one journey per feature.
 
-SIT is black-box. We cannot measure code coverage. Instead, we measure:
+### SIT for Binaries and CLIs
 
-- Response times
-- Error rates
-- Throughput
-- User journey completion
+Binaries and CLIs are driven as the **compiled artifact** — build it, then run it the
+way a user would, asserting on exit codes and stdout/stderr. Never import the source
+modules; that would make it a unit test wearing a SIT label.
+
+### SIT Coverage: In-Process Driver Only
+
+SIT run over the network against a deployed artifact yields no coverage, and that is
+expected. Where SIT coverage **is** wanted, it comes from one place only: running the
+same journeys through the **in-process driver** (`SIT_DRIVER=inprocess`), which loads
+the system in the test process so the instrumentation can see it.
+
+Two rules follow:
+
+- Coverage numbers may be attributed to SIT **only** from an in-process run. An
+  out-of-process run reports journeys passed, never a coverage percentage.
+- The journeys are the same either way. The driver changes how the system is reached,
+  not what is asserted.
+
+Alongside journeys, SIT also measures response times, error rates and throughput —
+but those are observations, not the pass criterion.
+
+---
+
+## Smoke Tests
+
+Smoke is the narrowest tier: it proves **the artifact executes on each target
+platform**. It is not a functional tier and does not overlap SIT — a passing smoke
+test means the binary starts and reports itself, nothing more. Every platform the
+artifact is published for gets one.
 
 ---
 
@@ -351,22 +431,17 @@ If you are building a backend API, you do not need E2E tests. SIT covers your ne
 - User interactions work
 - Frontend and backend integrate properly
 
-### Example with Playwright
+### E2E Uses Bruno
 
-```typescript
-test('user can create order', async ({ page }) => {
-  await page.goto('/orders/new');
+E2E is the same locked-in format as SIT: **Bruno collections**, run headless. Using
+one format across both black-box tiers means a journey can move between them without
+being rewritten, and there is one runner to keep working in CI.
 
-  await page.fill('[data-testid="product-search"]', 'widget');
-  await page.click('[data-testid="product-widget-1"]');
-  await page.click('[data-testid="add-to-order"]');
-
-  await page.click('[data-testid="submit-order"]');
-
-  await expect(page.locator('[data-testid="order-success"]')).toBeVisible();
-  await expect(page.locator('[data-testid="order-id"]')).toHaveText(/ORD-/);
-});
+```text
+bru run --env e2e --reporter-junit --bail
 ```
+
+Collections that need scripting add `--sandbox=developer`.
 
 ### E2E Tests Should Be Minimal
 
@@ -382,21 +457,57 @@ E2E tests are brittle and expensive. Keep them to a minimum:
 
 Group tests logically:
 
+Tests live under `tests/`, never colocated beside the source they exercise. Keeping
+the source tree free of test files is what lets the coverage ledgers be scoped by
+directory.
+
 ```text
 src/
-  services/
+  lib/                          # unit ledger scope (100% goal)
     OrderService.ts
-    OrderService.test.ts        # Unit tests (white-box)
-    OrderService.functional.ts  # Functional tests (black-box, LSP)
+  adapters/                     # integration ledger scope
+    OrderRepository.ts
 
 tests/
-  integration/
-    order-repository.test.ts    # Integration (module + database)
-  sit/
-    order-flow.test.ts          # SIT (full system, k6)
-  e2e/
-    order-creation.spec.ts      # E2E (Playwright, frontend)
+  unit/                         # unit AND functional/contract tests together
+    OrderService.test.ts        #   white-box unit
+    OrderService.contract.ts    #   black-box functional/LSP
+  integration/                  # only if the int-tier rule applies
+    order-repository.test.ts
+  meta/                         # TestHelper's own tests (100% goal)
+    order-assertions.test.ts
+  sit/                          # one journey per feature
+    orders/                     #   Bruno collection for an HTTP API
+  e2e/                          # frontends only, Bruno
+    order-creation/
 ```
+
+Functional and contract tests share `tests/unit/` with the white-box unit tests
+deliberately: same speed, same build, same command. What separates them is what they
+know, not where they live.
+
+---
+
+## Coverage
+
+Coverage is **scoped per tier by an exclusion ledger**, not measured once over
+everything. A single global percentage hides exactly the thing you want to know.
+
+| Tier        | Ledger scope                         | Goal          | Notes                                      |
+| ----------- | ------------------------------------ | ------------- | ------------------------------------------ |
+| Unit        | Domain source only (`src/lib`)       | 100%          | TestHelper is excluded from this ledger    |
+| Integration | Adapter source only (`src/adapters`) | Adapter paths | Only where the int tier applies            |
+| Meta        | TestHelper source only               | 100%          | No TestHelper → no ledger, no upload       |
+| SIT         | In-process driver runs only          | —             | Out-of-process runs report journeys, not % |
+| Smoke / E2E | —                                    | —             | Not coverage tiers                         |
+
+Every ledger excludes `tests/**`.
+
+**Local thresholds are blocking; the coverage service is informational.** A build
+fails locally when its tier threshold is missed. The uploaded report is for trend
+watching, carrying one flag per tier (`unit`, `int`, `meta`) with carryforward so a
+suite that did not run in a given build does not read as a regression. Each suite
+uploads under its own flag; never merge tiers into one number.
 
 ---
 
@@ -418,25 +529,41 @@ tests/
 - [ ] Same contract tests for all implementations
 - [ ] Verifies LSP (Liskov Substitution Principle)
 
-**Integration Tests:**
+**Integration Tests (only if the int-tier rule applies):**
 
+- [ ] There is a user-designed repository over a DSL-exposing dependency
+- [ ] No consumer int tests written for small-interface deps (telemetry, block storage)
 - [ ] Tests adapters with real external dependencies
 - [ ] White-box: knows implementation details
 - [ ] Uses real databases/APIs (Testcontainers)
 - [ ] Still mocks external services outside the adapter under test
+- [ ] Ledger scoped to adapter source only
+
+**Meta Tests (where a TestHelper exists):**
+
+- [ ] TestHelper opt-in verdict recorded with a one-line rationale
+- [ ] Every assertion helper proven to fail on a known-bad case
+- [ ] One shared contract suite runs against both the real implementation and the fake
+- [ ] Fixture/builder invariants covered
+- [ ] TestHelper excluded from the unit ledger, measured at 100% in its own
 
 **SIT:**
 
-- [ ] Full system from client's perspective
-- [ ] Black-box only (no code access)
-- [ ] No coverage metrics (measure behavior instead)
-- [ ] Uses tools like k6, Gatling
+- [ ] One journey per feature
+- [ ] Drives the compiled artifact, not the source tree
+- [ ] HTTP APIs use Bruno collections, run headless
+- [ ] Coverage claimed only from the in-process driver (`SIT_DRIVER=inprocess`)
+
+**Smoke:**
+
+- [ ] Artifact executes on every published platform
+- [ ] Proves startup only — no functional assertions
 
 **E2E:**
 
-- [ ] Includes frontend
+- [ ] Frontends only
+- [ ] Bruno, the same format as SIT
 - [ ] Tests critical happy paths only
-- [ ] Uses Playwright, Cypress, or similar
 
 ---
 

@@ -13,7 +13,9 @@ This article builds on [Three-Layer Architecture](../three-layer-architecture/in
 Without libraries, validation code is repetitive:
 
 ```typescript
-// Manual validation - lots of boilerplate
+// ANTI-PATTERN - manual validation, lots of boilerplate. Note that it also
+// throws for expected-invalid input, which this standard forbids; the fix is
+// a schema's non-throwing parse lifted into Result, shown below.
 // @ts-ignore — intentionally incomplete example for illustration
 function validateUser(input: unknown): User {
   if (typeof input !== 'object' || input === null) {
@@ -173,7 +175,11 @@ const CreateOrderSchema = z.object({
   }),
 });
 
-const order = CreateOrderSchema.parse(requestBody);
+// Both outcomes are represented as values. Nothing throws.
+const result = CreateOrderSchema.safeParse(requestBody);
+const order: Result<CreateOrder, ValidationError> = result.success
+  ? Result.ok(result.data)
+  : Result.err(ValidationError.from(result.error));
 ```
 
 ### Transform and Validate
@@ -240,14 +246,16 @@ Return meaningful, actionable errors:
 **Domain Invariants:**
 
 - [ ] Business rules in domain layer
-- [ ] Entity constructors enforce invariants
-- [ ] Meaningful domain exceptions
+- [ ] Smart constructors enforce invariants and return `Result`
+- [ ] Meaningful domain errors carried in the `Err` value
 
 **General:**
 
 - [ ] Use validation library, not hand-coded
 - [ ] Don't test library validators
 - [ ] Parse, don't validate
+- [ ] No throwing entry point (`parse`) for expected-invalid input — `safeParse` lifted into `Result`
+- [ ] Exceptions reserved for the genuinely exceptional, never for client input
 
 ---
 

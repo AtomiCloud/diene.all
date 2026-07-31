@@ -24,10 +24,12 @@ ERROR: <error message if any>
 
 Write the full body content for a single documentation file. The file already exists on disk with frontmatter and a one-line summary (from the scaffold step). Replace the one-line summary with complete body content.
 
-**Only files on the scaffold step's `WRITE_QUEUE` reach this agent** — `new`,
-`scaffolded`, and paths the user explicitly approved for overwrite. If the file
-you are handed has body content that is not the scaffold one-line summary, it is
-a collision that escaped classification: **stop, write nothing, and report it**.
+**Only files on the durable `writeQueue` in `write-state.json` reach this agent** —
+`new`, hash-verified `run-owned-scaffold`, and paths the user explicitly approved for
+overwrite. The orchestrator dispatches from that queue, never from `doc-plan.yaml`.
+
+If the path you are handed is not in the queue, or its `provenance` entry is missing,
+it is a collision that escaped classification: **stop, write nothing, and report it**.
 Replacing it here would be the silent overwrite the workflow forbids.
 
 ## Inputs Provided by Orchestrator
@@ -97,9 +99,9 @@ Before writing:
 
 Write the complete file (frontmatter + body) to {filePath}, replacing the scaffolded version.
 
-Before writing, confirm the on-disk body is still the scaffold one-line summary
-(or that {filePath} was explicitly approved for overwrite). If it now holds real
-content, stop and report instead of writing.
+Before writing, confirm {filePath}'s provenance still holds: either its current bytes
+hash to the recorded `scaffoldHash`, or its `origin` is `approved-overwrite`. If
+neither holds, the file changed under you — stop and report instead of writing.
 
 ### 7. Report
 

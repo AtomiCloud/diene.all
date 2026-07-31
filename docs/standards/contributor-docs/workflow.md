@@ -13,8 +13,14 @@ Systematically generate contributor documentation for a repository by analyzing 
 ```
 /contributor-docs                    → Analyze current branch vs main, generate docs
 /contributor-docs <base-branch>      → Analyze current branch vs specified base
-/contributor-docs --phase <phase>    → Skip to a specific phase
 ```
+
+There is deliberately **no phase-skip argument**. Resuming is driven by state, not by
+a flag: a run always re-enters at `task-state.json`'s `currentPhase`, and every phase
+depends on artifacts the previous one produced (write needs `doc-plan.yaml`; audit
+needs written files). A flag that jumped straight to `write` or `audit` would have to
+either fabricate those artifacts or fail, so it is not offered. To redo a phase,
+transition state through its state-agent — that path is defined and validated.
 
 ## Reference Documentation
 
@@ -59,6 +65,27 @@ ORCHESTRATOR (you = team lead)
 ```
 
 **Key principle:** The orchestrator NEVER reads step files directly. Always spawn a team agent and tell it which step file to read and execute.
+
+**Every dispatched path is written from the repository root.** Agents are spawned with
+the repo root as their working directory, so a path written relative to this
+standard's own directory — scaffold.md addressed as write/scaffold.md — does not
+resolve for them. Operational references are always spelled in full, starting from
+docs/standards/contributor-docs. Relative links such as `./checklist.md` are for
+humans reading this document in place; they are never what an agent is told to open.
+
+This is mechanically checkable. From the repository root:
+
+```bash
+# Every backticked operational path in the workflow family must exist on disk.
+grep -rhoE '`docs/standards/contributor-docs/[A-Za-z0-9/_.-]+`' docs/standards/contributor-docs/ \
+  | tr -d '`' | sort -u \
+  | while read -r p; do [ -e "$p" ] || echo "UNRESOLVED: $p"; done
+
+# And no operational reference may be written relative to the standard's own directory.
+grep -rnE '`(plan|write|audit|common)/[A-Za-z.-]+\.md`' docs/standards/contributor-docs/
+```
+
+Both must produce no output.
 
 ## Glossary
 
@@ -107,9 +134,19 @@ phase-state file when their phase is first entered, and they refuse to run if
 `create` mode, run by the plan state-agent, is the only bootstrap path:
 
 1. `mkdir -p .contributor-docs` — the directory is created, not assumed.
-2. Refuse if `task-state.json` already exists. Creation is not an overwrite; an
-   existing file means this is a resume, so hand back to `assess` instead.
-3. Write `task-state.json` with the initial schema:
+2. Write `plan-state.json` **first**, with the initial phase schema:
+
+   ```json
+   {
+     "step": "diff_analysis",
+     "diffSummaryReady": false,
+     "planFile": null,
+     "approved": false,
+     "reviewFeedback": null
+   }
+   ```
+
+3. Write `task-state.json` **last**, with the initial schema:
 
    ```json
    {
@@ -120,18 +157,20 @@ phase-state file when their phase is first entered, and they refuse to run if
    }
    ```
 
-4. Write `plan-state.json` with the initial phase schema:
+4. Validate every field before reporting success, then log the transition.
 
-   ```json
-   { "step": "diff_analysis", "approved": false, "reviewFeedback": null }
-   ```
+**`task-state.json` is the commit marker.** Creation spans two atomic renames, so
+there is a window between them. Writing the phase file first means a crash in that
+window leaves a phase file with no task file — visibly incomplete, and the next
+`create` finishes it. The opposite order would leave a complete-looking task file
+with no phase state, which every retry reads as "already initialized" and hands to
+`assess`, stranding the workflow with nothing to assess.
 
-5. Validate both before reporting success: the file parses as JSON, `currentPhase`
-   is one of the five legal values, `step` is a legal step for the phase, and
-   `baseBranch` names a ref that exists.
-6. Every write is atomic — write to a temp file in `.contributor-docs/` and `mv`
-   it into place — so an interrupted bootstrap leaves either no state file or a
-   complete one, never a half-written one.
+Each write is atomic — temp file in `.contributor-docs/` then `mv` — so no individual
+file is ever half-written. Atomicity plus commit-marker ordering is what makes the
+two-file bootstrap crash safe and the retry path deterministic. The full branch table
+for partial states lives in
+`docs/standards/contributor-docs/plan/state-agent.md`.
 
 Each phase state-agent applies rules 1, 2, 5 and 6 to its own phase-state file
 (`write-state.json`, `audit-state.json`) with that phase's initial step.
@@ -150,7 +189,7 @@ task-state.json.currentPhase:
     team(S)         team(O)      inline
 ```
 
-Dispatch: `plan/PHASE.md`
+Dispatch: `docs/standards/contributor-docs/plan/PHASE.md`
 
 ### Phase 2: Write
 
@@ -160,7 +199,7 @@ Dispatch: `plan/PHASE.md`
                  loop(S)×N         loop(S)×N               loop(S)×N
 ```
 
-Dispatch: `write/PHASE.md`
+Dispatch: `docs/standards/contributor-docs/write/PHASE.md`
 
 ### Phase 3: Audit
 
@@ -170,7 +209,7 @@ Dispatch: `write/PHASE.md`
                    loop(S)×N
 ```
 
-Dispatch: `audit/PHASE.md`
+Dispatch: `docs/standards/contributor-docs/audit/PHASE.md`
 
 ## Phase Dispatch
 
@@ -179,9 +218,9 @@ Dispatch: `audit/PHASE.md`
 | `currentPhase` | Action                                                                                                                                                 |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | No state file  | Parse arguments (base branch), spawn the **plan** state-agent in `create` mode (see [Clean Start](#clean-start-the-first-transition)), then start Plan |
-| `plan`         | Spawn plan state-agent to assess, dispatch per `plan/PHASE.md`                                                                                         |
-| `write`        | Spawn write state-agent to assess, dispatch per `write/PHASE.md`                                                                                       |
-| `audit`        | Spawn audit state-agent to assess, dispatch per `audit/PHASE.md`                                                                                       |
+| `plan`         | Spawn plan state-agent to assess, dispatch per `docs/standards/contributor-docs/plan/PHASE.md`                                                         |
+| `write`        | Spawn write state-agent to assess, dispatch per `docs/standards/contributor-docs/write/PHASE.md`                                                       |
+| `audit`        | Spawn audit state-agent to assess, dispatch per `docs/standards/contributor-docs/audit/PHASE.md`                                                       |
 | `completed`    | Report completion, list generated files                                                                                                                |
 | `failed`       | Report error, offer retry                                                                                                                              |
 

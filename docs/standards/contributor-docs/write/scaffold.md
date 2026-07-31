@@ -51,13 +51,32 @@ Create all necessary directories under the `docsRoot` specified in the plan:
     └── algorithms/
 ```
 
-### 3. Scaffold Each File
+### 3. Classify Every Planned Path — Before Writing Anything
 
-For each file in the plan (across `modules`, `shared`, `topLevel`, `adrs`, `indexes`):
+Do this for the **whole** plan first. Do not interleave classification with writing:
+a sequential pass that writes as it goes will have already destroyed a pre-existing
+file by the time it discovers the collision.
+
+See [Collision Safety](#resumability-and-collision-safety) below for the buckets and
+the refusal protocol. Produce three lists: writable paths, blocked collisions, and
+the approvals the user gave.
+
+### 4. Scaffold Each Writable File
+
+For each path classified `new` (or explicitly approved for overwrite):
 
 1. Build frontmatter from the plan entry + frontmatter schema for its type
 2. Write the file with frontmatter + one-line summary (the `description` from the plan)
 3. Do NOT write any body content beyond the one-line summary
+4. **Record the SHA-256 of the exact bytes just written** as that path's
+   `scaffoldHash`, together with its tier
+
+Paths classified `run-owned-scaffold` are already correct — leave them and carry their
+existing hash forward. Paths in the blocked set are skipped entirely.
+
+The hashes are what make ownership provable on the next run. Without them, "is this
+my scaffold or someone's draft?" can only be guessed from the body's shape, and that
+guess is what silently overwrites real documentation.
 
 Example scaffolded file:
 
@@ -75,13 +94,13 @@ related: []
 How auth tokens are refreshed without user interaction.
 ```
 
-### 4. Verify Cross-References
+### 5. Verify Cross-References
 
 After all files are created, verify that every path referenced in `crossLinks` across the plan resolves to an actual file on disk.
 
 If any paths are missing, report them as warnings (they may indicate a plan error).
 
-### 5. Report
+### 6. Report
 
 Report the result with total file count and docs root path.
 
@@ -93,15 +112,23 @@ two are not the same and must never be collapsed into "already exists → succes
 
 ### Classify every planned path
 
-For each path in the plan, record it in one of three buckets:
+For each path in the plan, record it in one of three buckets. The test is
+**provenance, not shape**:
 
-| Bucket         | Test                                                                         | Disposition                     |
-| -------------- | ---------------------------------------------------------------------------- | ------------------------------- |
-| `new`          | Path does not exist on disk                                                  | Scaffold it, queue it for write |
-| `scaffolded`   | Exists, and its body is only the scaffold one-line summary (no real content) | Resume — queue it for write     |
-| `pre-existing` | Exists **and** has body content beyond the one-line summary                  | **Collision — do not queue**    |
+| Bucket               | Test                                                                                                     | Disposition                     |
+| -------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| `new`                | Path does not exist on disk                                                                              | Scaffold it, queue it for write |
+| `run-owned-scaffold` | Exists **and** its current bytes hash to the `scaffoldHash` recorded in `write-state.json` for that path | Resume — queue it for write     |
+| `pre-existing`       | Exists and its hash does not match a recorded `scaffoldHash` (including: no hash recorded at all)        | **Collision — do not queue**    |
 
 Report all three buckets. `pre-existing` is not a warning; it is a stop.
+
+**Never infer ownership from the body looking like a one-line summary.** A
+pre-existing draft that contains frontmatter plus a single summary sentence is
+byte-for-byte indistinguishable in _shape_ from a fresh scaffold, and treating shape
+as proof is precisely how real documentation gets overwritten without confirmation.
+Only a recorded hash from this workflow's own state proves this run wrote the file.
+No recorded hash means not ours, which means it needs approval.
 
 ### Refuse on collision
 
@@ -118,19 +145,26 @@ If the `pre-existing` bucket is non-empty:
 
 This is the confirmation required by [workflow.md](../workflow.md) rule 3
 ("Never overwrite existing documentation files without user confirmation"). The
-write phase queues **only** `new`, `scaffolded`, and explicitly approved paths —
-it never re-derives the queue from the plan.
+write phase queues **only** `new`, `run-owned-scaffold`, and explicitly approved
+paths — it never re-derives the queue from the plan.
 
 ### Report Format
 
+The orchestrator persists this report into `write-state.json` (`writeQueue`,
+`provenance`, `approvedOverwrites`, `blockedCollisions`) before any tier runs. The
+report itself is transient; the state is what every later step reads.
+
 ```
 SCAFFOLDED: <count> new files
-RESUMED: <count> existing scaffolds
+RESUMED: <count> run-owned scaffolds (hash-verified)
 COLLISIONS: <count>          # if > 0, this run is blocked pending approval
   <path> (<n> lines)
   ...
 APPROVED_FOR_OVERWRITE: <paths the user explicitly approved, or none>
 WRITE_QUEUE: <the exact paths the write phase may process>
+PROVENANCE:
+  <path> origin=<new|run-owned-scaffold|approved-overwrite> tier=<N> scaffoldHash=<sha256>
+  ...
 ```
 
 ## Important

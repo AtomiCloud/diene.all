@@ -148,17 +148,17 @@ A critical design decision—timezone belongs at the right level of your domain:
 **Example - Alarm Done Right:**
 
 ```yaml
-User {
-  id: "user-123"
-  timezone: "America/New_York"  // ← TZ lives here
-}
+user:
+  id: 'user-123'
+  # The timezone lives on the user, not on each alarm.
+  timezone: 'America/New_York'
 
-Alarm {
-  id: "alarm-456"
-  userId: "user-123"
-  time: "07:00:00"              // ← Just time, no TZ
-  daysOfWeek: ["MON", "TUE", "WED", "THU", "FRI"]
-}
+alarm:
+  id: 'alarm-456'
+  userId: 'user-123'
+  # Just a wall-clock time, deliberately carrying no timezone.
+  time: '07:00:00'
+  daysOfWeek: ['MON', 'TUE', 'WED', 'THU', 'FRI']
 ```
 
 When the user moves to "Europe/London", update the user's timezone once—all alarms automatically adjust.

@@ -18,9 +18,48 @@ Scaffold is a single team agent. Each write tier uses the file-processor loop wi
   "currentTier": 0,
   "tiersCompleted": [],
   "filesWritten": 0,
-  "filesTotal": 0
+  "filesTotal": 0,
+  "writeQueue": [],
+  "provenance": {},
+  "approvedOverwrites": [],
+  "blockedCollisions": []
 }
 ```
+
+This is the **canonical write-phase schema**, and this file is its single source of
+truth. The write state-agent's create, assess and update modes must operate on
+exactly these fields — no more, no fewer. Where the state-agent's own documentation
+still describes different fields, this schema wins and the state-agent is the thing
+that is wrong.
+
+### The Durable Write Queue
+
+| Field                | Type           | Meaning                                                                |
+| -------------------- | -------------- | ---------------------------------------------------------------------- |
+| `writeQueue`         | array of paths | The **only** paths any tier may process. Nothing else is ever written. |
+| `provenance`         | path → record  | How each queued path was classified, and the evidence for it           |
+| `approvedOverwrites` | array of paths | Paths the user explicitly approved overwriting, one entry per path     |
+| `blockedCollisions`  | array of paths | Pre-existing paths seen but **not** approved — recorded, never written |
+
+Each `provenance` entry is:
+
+```json
+{
+  "docs/contributor/orders/features/checkout.mdx": {
+    "origin": "new | run-owned-scaffold | approved-overwrite",
+    "scaffoldHash": "<sha256 of the exact bytes this run scaffolded>",
+    "scaffoldedAt": "<ISO-8601>",
+    "tier": 4
+  }
+}
+```
+
+**Ownership is proven by hash, never inferred from shape.** A file is a run-owned
+scaffold only if its current bytes hash to the `scaffoldHash` this run recorded when
+it wrote them. A pre-existing draft that happens to be one line long is _not_ a
+scaffold, and no heuristic about "looks like a summary" may be used to decide it is.
+If the hash does not match, the path is treated as pre-existing and needs explicit
+approval.
 
 ## Step Dispatch
 
@@ -49,9 +88,25 @@ On entry, spawn write state-agent to assess. **NEVER read step files directly** 
 
 ## Scaffold Step
 
-The scaffolder creates every planned file with frontmatter + a one-line summary but no body content. This ensures all cross-reference paths exist before any writing begins.
+The scaffolder **classifies every planned path before writing anything**, then creates
+only the files it is allowed to create, with frontmatter + a one-line summary and no
+body content. This ensures cross-reference paths exist before writing begins, without
+ever writing over documentation that was already there.
 
-After the scaffolder reports success, via state-agent: update `scaffoldComplete: true`, `step: "write_tier_1"`, `currentTier: 1`.
+Order is load-bearing: classify → refuse/approve → write. Never write → discover.
+
+After the scaffolder reports, via state-agent, in one update:
+
+1. Record `writeQueue` = exactly the paths the scaffolder reports as writable —
+   `new`, `run-owned-scaffold`, and `approved-overwrite` — and nothing else.
+2. Record `provenance` for each, including the `scaffoldHash` of the bytes just
+   written.
+3. Record `approvedOverwrites` and `blockedCollisions` verbatim from the report.
+4. Set `scaffoldComplete: true`, `filesTotal` = `writeQueue.length`,
+   `step: "write_tier_1"`, `currentTier: 1`.
+
+If `blockedCollisions` is non-empty, the phase **stops here** and reports them for a
+decision. It does not advance to `write_tier_1` with an incomplete queue.
 
 ## File-Processor Loop (Per Tier)
 
@@ -59,11 +114,22 @@ For each `write_tier_N` step:
 
 ### 1. Initialize
 
-Read `.contributor-docs/doc-plan.yaml`, extract all files with `tier: N`. Pipe the file paths into init-state.sh:
+**Tier input comes from `write-state.json`, never from `doc-plan.yaml`.** The plan
+lists what was _wanted_; the queue records what was _approved_. Re-deriving tier
+inputs from the plan reintroduces every path the collision step refused, which is
+exactly the failure this queue exists to prevent.
+
+Ask the state-agent for the tier's slice:
+
+```
+tier N input = writeQueue filtered to provenance[path].tier == N
+```
+
+Pipe that list — and only that list — into init-state.sh:
 
 ```bash
-# Extract tier N file paths from doc-plan.yaml and initialize
-<tier-N-file-list> | bash docs/standards/contributor-docs/scripts/init-state.sh \
+# Tier N paths come from the durable approved queue, not from doc-plan.yaml
+<tier-N-queue-slice> | bash docs/standards/contributor-docs/scripts/init-state.sh \
   .contributor-docs/write-tier-N/state.json \
   '<source-paths-json>' \
   <concurrent-agents> \
@@ -104,7 +170,7 @@ Each spawned doc-writer receives controlled context (see `docs/standards/contrib
 | Relevant source code files                           | Read `sources` from doc-plan.yaml entry                                 |
 | Module overview content (if tier > 1)                | Read module's `overview.mdx`                                            |
 | Body template for the section type                   | From `docs/standards/contributor-docs/common/templates.md`              |
-| Formatting checklist                                 | From docs `checklist.md`                                                |
+| Formatting checklist                                 | From `docs/standards/contributor-docs/checklist.md`                     |
 
 Writers do NOT receive the full content of other doc files.
 

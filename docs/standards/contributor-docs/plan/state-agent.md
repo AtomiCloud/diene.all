@@ -17,12 +17,44 @@ When prompted: "Create task state: baseBranch={branch} docsRoot={dir}"
 This agent is the **only** owner of the first transition. The write and audit
 state-agents never create `task-state.json`.
 
+### `task-state.json` Is the Commit Marker
+
+Creation writes **two** files, so it has two atomic renames and a window between
+them. The order is chosen so that window is always recoverable:
+
+> **`plan-state.json` is written first. `task-state.json` is written last, and its
+> existence is what declares the bootstrap complete.**
+
+A crash between the renames therefore leaves a phase file with no task file — an
+obviously incomplete bootstrap that the next run can finish. The reverse order would
+leave a complete-looking task file with no phase state, which every retry would read
+as "already initialized" and hand to `assess`, stranding the workflow with nothing to
+assess.
+
 ### Procedure
 
 1. `mkdir -p .contributor-docs`
-2. If `.contributor-docs/task-state.json` already exists, do **not** overwrite it.
-   Report `ALREADY_INITIALIZED` and switch to Mode 1 instead.
-3. Write `.contributor-docs/task-state.json`:
+2. Inspect what already exists and branch:
+
+   | On disk                | Meaning                          | Action                                                                                        |
+   | ---------------------- | -------------------------------- | --------------------------------------------------------------------------------------------- |
+   | Neither file           | Clean start                      | Continue at step 3                                                                            |
+   | `plan-state.json` only | Crash after the first rename     | **Resume the bootstrap**: re-validate it, then continue at step 4                             |
+   | Both files             | Already initialized              | Report `ALREADY_INITIALIZED`, switch to Mode 1                                                |
+   | `task-state.json` only | Must not happen under this order | Report `CORRUPT_STATE: task state without plan state` and refuse — do not guess a phase state |
+
+3. Write `.contributor-docs/plan-state.json` (the canonical plan schema, matching
+   `docs/standards/contributor-docs/plan/PHASE.md`):
+   ```json
+   {
+     "step": "diff_analysis",
+     "diffSummaryReady": false,
+     "planFile": null,
+     "approved": false,
+     "reviewFeedback": null
+   }
+   ```
+4. Write `.contributor-docs/task-state.json` — **last**, as the commit marker:
    ```json
    {
      "currentPhase": "plan",
@@ -31,25 +63,42 @@ state-agents never create `task-state.json`.
      "planFile": null
    }
    ```
-4. Write `.contributor-docs/plan-state.json`:
-   ```json
-   { "step": "diff_analysis", "approved": false, "reviewFeedback": null }
-   ```
-5. Validate: both files parse as JSON, `currentPhase` is one of
-   `plan|write|audit|completed|failed`, `step` is one of
-   `diff_analysis|classify|review`, and `baseBranch` resolves to an existing ref.
-   On any failure, delete what was written and report `CREATE_FAILED: <reason>`.
+5. Validate before reporting success. Every field is checked, not just parseability:
+   - both files parse as JSON;
+   - `currentPhase` ∈ `plan|write|audit|completed|failed`;
+   - `step` ∈ `diff_analysis|classify|review`;
+   - `diffSummaryReady` and `approved` are booleans;
+   - `planFile` and `reviewFeedback` are a string or `null`;
+   - `baseBranch` resolves to an existing ref.
+
+   On any failure, remove both files so the next run sees a clean start rather than a
+   half-built pair, and report `CREATE_FAILED: <reason>`.
+
 6. Append `$(date -u +%Y-%m-%dT%H:%M:%SZ) phase=plan from=none to=diff_analysis`
    to `.contributor-docs/transitions.log`.
 
 **Atomic writes.** Every write in this file — Mode 0 and Mode 2 alike — goes
 through a temp file in `.contributor-docs/` followed by `mv`, so an interrupted
-run never leaves a partially written state file.
+run never leaves a partially written state file. Atomicity per file plus the
+commit-marker ordering is what makes the two-file creation crash safe.
+
+### Recovery Is Retryable
+
+Re-running `create` after a crash is always legal and always converges: the branch
+table sends a `plan-state.json`-only tree back into step 4, and a complete pair to
+`assess`. The retry path is the normal path, not a special repair mode.
 
 ### Report Format
 
 ```
-CREATED: task-state.json, plan-state.json
+CREATED: plan-state.json, task-state.json
+CURRENT_STEP: diff_analysis
+```
+
+or, when finishing an interrupted bootstrap:
+
+```
+RESUMED_BOOTSTRAP: task-state.json
 CURRENT_STEP: diff_analysis
 ```
 
