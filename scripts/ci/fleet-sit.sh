@@ -2267,6 +2267,27 @@ kargo_refresh_stage() {
     kargo_check_refresh_handled "${project}" "${stage}" "${token}"
 }
 
+# Same refresh-token annotate-and-wait as kargo_refresh_stage, bounded by an
+# explicit timeout instead of a fixed 90s. Used only from inside a bounded
+# retry driver where a per-attempt timeout is an expected, retried condition
+# rather than a terminal failure: unlike kargo_refresh_stage, it never routes
+# through sit_wait_for/sit_fail, so a retry that later succeeds leaves no
+# misleading "assertion failed" text behind.
+kargo_refresh_stage_quiet() {
+  local project="$1"
+  local stage="$2"
+  local timeout_s="$3"
+  local token deadline
+  token="fleet-sit-$(sit_epoch)-$$-${RANDOM}"
+  kubectl -n "${project}" annotate stage "${stage}" \
+    "kargo.akuity.io/refresh=${token}" --overwrite >/dev/null
+  deadline=$((SECONDS + timeout_s))
+  while ! kargo_check_refresh_handled "${project}" "${stage}" "${token}"; do
+    [ "${SECONDS}" -lt "${deadline}" ] || return 1
+    sleep "${FLEET_SIT_POLL_SECONDS:-3}"
+  done
+}
+
 kargo_check_promotion_succeeded() {
   local project="$1"
   local stage="$2"
@@ -2368,11 +2389,23 @@ kargo_check_stage_success() {
 # Everything needed to tell a health failure from a verification failure from a
 # Freight-projection failure, captured on the terminal failure itself rather
 # than reconstructed later from controller logs.
+#
+# The AnalysisRun filter must join on the exact Freight collection, not just
+# the Stage: F1/F2 already leave successful AnalysisRuns behind for the same
+# Stage name, and a Stage-only label filter would surface those stale runs as
+# if they belonged to this failure. The collection id is derived with the
+# same exact-Freight selector every other Stage predicate uses, then required
+# alongside the Stage label.
+#
+# Every path written here is appended to SIT_LEG_EVIDENCE (report-relative)
+# so a terminal L9 failure records these diagnostics as structured evidence
+# instead of leaving them undeclared on disk.
 kargo_capture_stage_failure_diagnostics() {
   local project="$1"
   local stage="$2"
   local freight="$3"
   local prefix="$4"
+  local collection_id relative
   kubectl -n "${project}" get stage "${stage}" -o json \
     >"${prefix}-stage.json" 2>&1 || true
   kubectl -n "${project}" get freight "${freight}" -o json \
@@ -2382,12 +2415,22 @@ kargo_capture_stage_failure_diagnostics() {
       [.items[]? | select(.spec.stage == $stage and .spec.freight == $freight)] |
       sort_by(.metadata.creationTimestamp)
     ' >"${prefix}-promotions.json" || true
+  collection_id="$(jq -r --arg freight "${freight}" \
+    "${KARGO_STAGE_PREDICATE_PREAMBLE}"'$collection.id // empty' \
+    "${prefix}-stage.json" 2>/dev/null)" || true
   kubectl -n "${project}" get analysisruns -o json 2>/dev/null |
-    jq --arg stage "${stage}" '
+    jq --arg stage "${stage}" --arg collection "${collection_id}" '
       [.items[]? |
-        select(.metadata.labels["kargo.akuity.io/stage"] == $stage)] |
+        select(.metadata.labels["kargo.akuity.io/stage"] == $stage and
+          $collection != "" and
+          .metadata.labels["kargo.akuity.io/freight-collection"] == $collection)] |
       sort_by(.metadata.creationTimestamp)
     ' >"${prefix}-analysisruns.json" || true
+  relative="${prefix#"${report}/"}"
+  SIT_LEG_EVIDENCE+=(
+    "${relative}-stage.json" "${relative}-freight.json"
+    "${relative}-promotions.json" "${relative}-analysisruns.json"
+  )
 }
 
 kargo_wait_verified() {
@@ -2430,21 +2473,32 @@ kargo_drive_stage_reconciliation() {
   local diagnostics="${output%.json}-diagnostics"
   local state="${KARGO_RUNTIME_DIR}/reconciled-${project}-${stage}.json"
   local max_attempts=8
+  local refresh_timeout=90
   local attempt_window=20
   local attempts=0
   local reconciled=0
-  local started_at started_epoch overall_deadline attempt_deadline
+  local started_at started_epoch overall_deadline attempt_deadline remaining
   started_at="$(sit_now)"
   started_epoch="$(sit_epoch)"
   overall_deadline=$((SECONDS + 300))
+  # The 300s deadline above is the DOCUMENTED overall budget, not just an
+  # outer loop-entry check: kargo_refresh_stage's own wait can otherwise run
+  # up to 90s past it. Every wait below is instead capped by whatever of that
+  # budget remains, so the driver can never overrun by close to one more
+  # refresh timeout.
   while [ "${reconciled}" -eq 0 ] &&
     [ "${attempts}" -lt "${max_attempts}" ] &&
     [ "${SECONDS}" -lt "${overall_deadline}" ]; do
     attempts=$((attempts + 1))
-    if ! kargo_refresh_stage "${project}" "${stage}"; then
+    remaining=$((overall_deadline - SECONDS))
+    [ "${remaining}" -gt 0 ] || break
+    if ! kargo_refresh_stage_quiet "${project}" "${stage}" \
+      "$((remaining < refresh_timeout ? remaining : refresh_timeout))"; then
       continue
     fi
-    attempt_deadline=$((SECONDS + attempt_window))
+    remaining=$((overall_deadline - SECONDS))
+    [ "${remaining}" -gt 0 ] || break
+    attempt_deadline=$((SECONDS + (remaining < attempt_window ? remaining : attempt_window)))
     while [ "${SECONDS}" -lt "${attempt_deadline}" ]; do
       if kargo_check_stage_reconciled "${project}" "${stage}" "${freight}"; then
         reconciled=1
@@ -3030,22 +3084,25 @@ kargo_runtime_trace_f3() {
   kargo_auto_promote_and_verify "${project}" raichu "${freight}" "${tag}" kargo-runtime-f3-raichu
   kargo_backdate_freight_stage "${project}" "${freight}" "${raichu}" 1200 \
     "${report}/kargo-runtime-f3-raichu-backdate.json"
+  raichu_since="$(jq -r '.after' "${report}/kargo-runtime-f3-raichu-backdate.json")"
   kargo_refresh_stage "${project}" "${ampharos}"
   kargo_assert_no_promotion_for 12 "${project}" "${ampharos}" "${freight}" \
     'only the raichu rendezvous member carries the Freight' \
     "${report}/kargo-runtime-f3-single-member-hold.json"
   # Bind the refusal to `availabilityStrategy: All` rather than to a generic
-  # controller delay: the exact Freight must be verified and resident in raichu
-  # and absent from pikachu at the moment the live webhook refuses.
+  # controller delay: the exact Freight must be verified AND soaked since the
+  # backdated timestamp in raichu (not merely newly resident with a non-null
+  # since), and absent from pikachu, at the moment the live webhook refuses.
   kubectl -n "${project}" get freight "${freight}" -o json \
     >"${report}/kargo-runtime-f3-single-member-freight.json"
-  jq -e --arg pikachu "${pikachu}" --arg raichu "${raichu}" '
+  jq -e --arg pikachu "${pikachu}" --arg raichu "${raichu}" \
+    --arg raichuSince "${raichu_since}" '
     .status.verifiedIn[$raichu].verifiedAt != null and
-    .status.currentlyIn[$raichu].since != null and
+    .status.currentlyIn[$raichu].since == $raichuSince and
     (.status.verifiedIn[$pikachu] // null) == null and
     (.status.currentlyIn[$pikachu] // null) == null
   ' "${report}/kargo-runtime-f3-single-member-freight.json" >/dev/null ||
-    sit_fail 'the f3 single-member refusal is not causally bound to raichu-only verification'
+    sit_fail 'the f3 single-member refusal is not causally bound to a soaked, backdated raichu residency with pikachu absent'
   kargo_capture_promotion_denial "${project}" "${ampharos}" "${freight}" \
     'availabilityStrategy All rejects Freight present in only raichu' \
     "${report}/kargo-runtime-f3-single-member-denial.json"
@@ -3105,7 +3162,6 @@ kargo_runtime_trace_f3() {
   # the webhook has admitted the Freight would be vacuously true because
   # pikachu might simply not be verified yet.
   pikachu_since="$(jq -r '.after' "${report}/kargo-runtime-f3-pikachu-backdate.json")"
-  raichu_since="$(jq -r '.after' "${report}/kargo-runtime-f3-raichu-backdate.json")"
   kubectl -n "${project}" get freight "${freight}" -o json \
     >"${report}/kargo-runtime-f3-rendezvous-membership.json"
   jq -e \
