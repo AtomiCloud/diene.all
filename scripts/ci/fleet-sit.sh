@@ -2257,6 +2257,40 @@ kargo_check_refresh_handled() {
   [ "$(kubectl -n "${project}" get stage "${stage}" -o jsonpath='{.status.lastHandledRefresh}' 2>/dev/null)" = "${token}" ]
 }
 
+# Driver decisions use Bash's monotonic SECONDS clock. Keeping the read behind
+# one function lets the daemon-free production-byte gate replace the clock
+# deterministically without making the public 180-second budget configurable.
+kargo_monotonic_now() {
+  printf '%s\n' "${SECONDS}"
+}
+
+# Return a kubectl request timeout capped by both ten seconds and the remaining
+# absolute driver budget. A caller at (or beyond) the deadline must not start a
+# new API request.
+kargo_driver_request_timeout() {
+  local deadline="$1"
+  local output_name="$2"
+  local now remaining
+  local -n output_ref="${output_name}"
+  now="$(kargo_monotonic_now)"
+  remaining=$((deadline - now))
+  [ "${remaining}" -gt 0 ] || return 1
+  [ "${remaining}" -le 10 ] || remaining=10
+  output_ref="${remaining}s"
+}
+
+kargo_check_refresh_handled_bounded() {
+  local project="$1"
+  local stage="$2"
+  local token="$3"
+  local deadline="$4"
+  local request_timeout
+  kargo_driver_request_timeout "${deadline}" request_timeout || return 1
+  [ "$(kubectl -n "${project}" get stage "${stage}" \
+    -o jsonpath='{.status.lastHandledRefresh}' \
+    --request-timeout="${request_timeout}" 2>/dev/null)" = "${token}" ]
+}
+
 kargo_refresh_stage() {
   local project="$1"
   local stage="$2"
@@ -2279,13 +2313,19 @@ kargo_refresh_stage_quiet() {
   local stage="$2"
   local deadline="$3"
   local token_output="$4"
-  local refresh_token remaining sleep_s
+  local refresh_token remaining sleep_s now request_timeout
+  local -n token_ref="${token_output}"
   refresh_token="fleet-sit-$(sit_epoch)-$$-${RANDOM}"
-  printf -v "${token_output}" '%s' "${refresh_token}"
+  # shellcheck disable=SC2034 # assignment returns through the caller's nameref
+  token_ref="${refresh_token}"
+  kargo_driver_request_timeout "${deadline}" request_timeout || return 1
   kubectl -n "${project}" annotate stage "${stage}" \
-    "kargo.akuity.io/refresh=${refresh_token}" --overwrite >/dev/null
-  while ! kargo_check_refresh_handled "${project}" "${stage}" "${refresh_token}"; do
-    remaining=$((deadline - SECONDS))
+    "kargo.akuity.io/refresh=${refresh_token}" --overwrite \
+    --request-timeout="${request_timeout}" >/dev/null
+  while ! kargo_check_refresh_handled_bounded \
+    "${project}" "${stage}" "${refresh_token}" "${deadline}"; do
+    now="$(kargo_monotonic_now)"
+    remaining=$((deadline - now))
     [ "${remaining}" -gt 0 ] || return 1
     sleep_s="${FLEET_SIT_POLL_SECONDS:-3}"
     [ "${sleep_s}" -le "${remaining}" ] || sleep_s="${remaining}"
@@ -2430,7 +2470,9 @@ kargo_capture_stage_failure_diagnostics() {
   local freight="$3"
   local prefix="$4"
   local collection_id="${5:-}"
-  local relative
+  local collection_source='supplied' relative
+  local analysisrun_capture_attempted=false
+  local analysisrun_capture_available=false
   local promotions_raw="${prefix}-promotions-raw.json"
   local analysisruns_raw="${prefix}-analysisruns-raw.json"
   kargo_capture_json_evidence "${project}" "stage/${stage}" \
@@ -2448,27 +2490,58 @@ kargo_capture_stage_failure_diagnostics() {
   fi
   rm -f "${promotions_raw}"
   if [ -z "${collection_id}" ]; then
+    collection_source='derived'
     collection_id="$(jq -r --arg freight "${freight}" \
       "${KARGO_STAGE_PREDICATE_PREAMBLE}"'$collection.id // empty' \
       "${prefix}-stage.json" 2>/dev/null)" || true
+    [ -n "${collection_id}" ] || collection_source='unavailable'
   fi
-  if kargo_capture_json_evidence "${project}" analysisruns.argoproj.io \
-    "${analysisruns_raw}"; then
+  if [ -n "${collection_id}" ]; then
+    analysisrun_capture_attempted=true
+  fi
+  if [ "${analysisrun_capture_attempted}" = true ] &&
+    kargo_capture_json_evidence "${project}" analysisruns.argoproj.io \
+      "${analysisruns_raw}"; then
+    analysisrun_capture_available=true
     jq --arg stage "${stage}" --arg collection "${collection_id}" '
         [.items[]? |
           select(.metadata.labels["kargo.akuity.io/stage"] == $stage and
-            $collection != "" and
             .metadata.labels["kargo.akuity.io/freight-collection"] == $collection)] |
         sort_by(.metadata.creationTimestamp)
       ' "${analysisruns_raw}" >"${prefix}-analysisruns.json"
   else
-    cp "${analysisruns_raw}" "${prefix}-analysisruns.json"
+    printf '[]\n' >"${prefix}-analysisruns.json"
   fi
+  if [ ! -s "${analysisruns_raw}" ]; then
+    printf '{}\n' >"${analysisruns_raw}"
+  fi
+  jq -n \
+    --arg collectionId "${collection_id}" \
+    --arg collectionSource "${collection_source}" \
+    --argjson captureAttempted "${analysisrun_capture_attempted}" \
+    --argjson captureAvailable "${analysisrun_capture_available}" \
+    --slurpfile capture "${analysisruns_raw}" '
+      {
+        schemaVersion:1,
+        collectionId:(if $collectionId == "" then null else $collectionId end),
+        collectionSource:$collectionSource,
+        analysisRunCapture:{
+          attempted:$captureAttempted,
+          captureAvailable:$captureAvailable,
+          requiredLabels:[
+            "kargo.akuity.io/stage",
+            "kargo.akuity.io/freight-collection"
+          ],
+          error:(if $captureAvailable then null else ($capture[0].error // null) end)
+        }
+      }
+    ' >"${prefix}-analysisruns-join.json"
   rm -f "${analysisruns_raw}"
   relative="${prefix#"${report}/"}"
   SIT_LEG_EVIDENCE+=(
     "${relative}-stage.json" "${relative}-freight.json"
     "${relative}-promotions.json" "${relative}-analysisruns.json"
+    "${relative}-analysisruns-join.json"
   )
 }
 
@@ -2502,8 +2575,9 @@ kargo_wait_verified() {
 # wait uses this helper, including the final Freight projection wait.
 kargo_sleep_before_deadline() {
   local deadline="$1"
-  local remaining sleep_s
-  remaining=$((deadline - SECONDS))
+  local now remaining sleep_s
+  now="$(kargo_monotonic_now)"
+  remaining=$((deadline - now))
   [ "${remaining}" -gt 0 ] || return 1
   sleep_s="${FLEET_SIT_POLL_SECONDS:-3}"
   [ "${sleep_s}" -le "${remaining}" ] || sleep_s="${remaining}"
@@ -2516,16 +2590,61 @@ kargo_post_promotion_deadline_reason() {
   local freight="$3"
   local collection_id="$4"
   local expected_phase="$5"
-  local phase="$6"
-  if [ "${phase}" = Successful ] && [ "${expected_phase}" = Successful ]; then
-    printf 'Freight %s was not projected verified in %s/%s within the shared 180s budget' \
-      "${freight}" "${project}" "${stage}"
-  elif [ -z "${phase}" ]; then
-    printf 'verification for exact collection %s was never scheduled in %s/%s within the shared 180s budget' \
-      "${collection_id}" "${project}" "${stage}"
+  local current_phase="$6"
+  local last_phase="$7"
+  local last_message="$8"
+  local capture_available="$9"
+  local collection_match_count="${10}"
+  local coherent="${11}"
+  local projection_checked="${12}"
+  local freight_capture_available="${13}"
+  local context="${14}"
+  local message_suffix=''
+  if [ -n "${last_message}" ]; then
+    message_suffix=": ${last_message}"
+  fi
+
+  if [ "${capture_available}" != true ] && [ -n "${last_phase}" ]; then
+    printf 'Stage capture became unavailable after observing %s verification for exact collection %s%s in %s/%s %s' \
+      "${last_phase}" "${collection_id}" "${message_suffix}" \
+      "${project}" "${stage}" "${context}"
+  elif [ "${capture_available}" != true ]; then
+    printf 'Stage capture was unavailable before exact collection %s could be assessed in %s/%s %s' \
+      "${collection_id}" "${project}" "${stage}" "${context}"
+  elif [[ ${collection_match_count} =~ ^[0-9]+$ ]] &&
+    [ "${collection_match_count}" -gt 1 ]; then
+    printf 'Stage %s/%s contained %s ambiguous entries for exact collection %s %s' \
+      "${project}" "${stage}" "${collection_match_count}" \
+      "${collection_id}" "${context}"
+  elif [ "${collection_match_count}" = 0 ]; then
+    printf 'terminal Promotion collection %s was absent from Stage freightHistory in %s/%s %s' \
+      "${collection_id}" "${project}" "${stage}" "${context}"
+  elif [ -n "${current_phase}" ] && [ "${current_phase}" = "${expected_phase}" ] &&
+    [ "${coherent}" != true ]; then
+    printf 'Stage %s/%s reached terminal %s verification for exact collection %s%s but remained incoherent %s' \
+      "${project}" "${stage}" "${current_phase}" "${collection_id}" \
+      "${message_suffix}" "${context}"
+  elif [ "${current_phase}" = Successful ] &&
+    [ "${expected_phase}" = Successful ] && [ "${coherent}" = true ] &&
+    [ "${projection_checked}" -eq 1 ]; then
+    if [ "${freight_capture_available}" = true ]; then
+      printf 'Freight %s was not projected verified in %s/%s %s' \
+        "${freight}" "${project}" "${stage}" "${context}"
+    else
+      printf 'Freight %s projection could not be read in %s/%s %s' \
+        "${freight}" "${project}" "${stage}" "${context}"
+    fi
+  elif [ -z "${current_phase}" ] && [ -n "${last_phase}" ]; then
+    printf 'exact verification became unavailable after observing %s for collection %s%s in %s/%s %s' \
+      "${last_phase}" "${collection_id}" "${message_suffix}" \
+      "${project}" "${stage}" "${context}"
+  elif [ -z "${current_phase}" ]; then
+    printf 'verification for exact collection %s was never scheduled in %s/%s %s' \
+      "${collection_id}" "${project}" "${stage}" "${context}"
   else
-    printf 'verification for exact collection %s remained %s or incoherent in %s/%s at the shared 180s deadline' \
-      "${collection_id}" "${phase}" "${project}" "${stage}"
+    printf 'verification for exact collection %s remained %s%s in %s/%s %s' \
+      "${collection_id}" "${current_phase}" "${message_suffix}" \
+      "${project}" "${stage}" "${context}"
   fi
 }
 
@@ -2537,11 +2656,24 @@ kargo_capture_post_promotion_observation() {
   local collection_id="$5"
   local state="$6"
   local observation="$7"
-  if ! kubectl -n "${project}" get stage "${stage}" -o json >"${state}" 2>/dev/null; then
-    jq -n '{captureAvailable:false,coherent:false,verificationPhase:null}' >"${observation}"
+  local deadline="$8"
+  local request_timeout
+  local state_tmp="${state}.tmp.$$"
+  if ! kargo_driver_request_timeout "${deadline}" request_timeout; then
+    jq -n \
+      '{captureAvailable:false,captureError:"decision deadline exhausted before Stage read",coherent:false,collectionMatchCount:0,verificationPhase:null}' \
+      >"${observation}"
     return 1
   fi
-  jq \
+  if ! kubectl -n "${project}" get stage "${stage}" -o json \
+    --request-timeout="${request_timeout}" >"${state_tmp}" 2>/dev/null; then
+    rm -f "${state_tmp}"
+    jq -n \
+      '{captureAvailable:false,captureError:"bounded Stage read failed",coherent:false,collectionMatchCount:0,verificationPhase:null}' \
+      >"${observation}"
+    return 1
+  fi
+  if ! jq \
     --arg freight "${freight}" \
     --arg promotion "${promotion}" \
     --arg collection_id "${collection_id}" \
@@ -2565,7 +2697,14 @@ kargo_capture_post_promotion_observation() {
         analysisRunName:($verification.analysisRun.name // null),
         analysisRunPhase:($verification.analysisRun.phase // null)
       }
-    ' "${state}" >"${observation}"
+    ' "${state_tmp}" >"${observation}"; then
+    rm -f "${state_tmp}"
+    jq -n \
+      '{captureAvailable:false,captureError:"Stage predicate evaluation failed",coherent:false,collectionMatchCount:0,verificationPhase:null}' \
+      >"${observation}"
+    return 1
+  fi
+  mv "${state_tmp}" "${state}"
 }
 
 kargo_write_post_promotion_record() {
@@ -2586,6 +2725,11 @@ kargo_write_post_promotion_record() {
   local freight_state="${15}"
   local refresh_log="${16}"
   local output="${17}"
+  local budget_seconds="${18}"
+  local elapsed_seconds="${19}"
+  local decision_at="${20}"
+  local last_phase="${21}"
+  local last_message="${22}"
   jq -n \
     --arg project "${project}" \
     --arg stage "${stage}" \
@@ -2594,14 +2738,18 @@ kargo_write_post_promotion_record() {
     --arg collectionId "${collection_id}" \
     --arg expectedPhase "${expected_phase}" \
     --arg startedAt "${started_at}" \
-    --arg finishedAt "$(sit_now)" \
+    --arg decisionAt "${decision_at}" \
+    --arg recordedAt "$(sit_now)" \
     --arg firstPhase "${first_phase}" \
     --arg firstPhaseAt "${first_phase_at}" \
+    --arg lastPhase "${last_phase}" \
+    --arg lastMessage "${last_message}" \
     --arg result "${result}" \
     --arg failureReason "${failure_reason}" \
     --argjson attempts "${attempts}" \
-    --argjson elapsed "$((SECONDS - started_seconds))" \
-    --argjson budget 180 \
+    --argjson elapsed "${elapsed_seconds}" \
+    --argjson budget "${budget_seconds}" \
+    --argjson decisionSeconds "$((started_seconds + elapsed_seconds))" \
     --slurpfile observed "${observation}" \
     --slurpfile freightState "${freight_state}" \
     --slurpfile refreshes "${refresh_log}" '
@@ -2615,21 +2763,32 @@ kargo_write_post_promotion_record() {
         failureReason:(if $failureReason == "" then null else $failureReason end),
         trigger:"kargo.akuity.io/refresh",
         budget_s:$budget,elapsed_s:$elapsed,
-        startedAt:$startedAt,finishedAt:$finishedAt,
+        budgetScope:{
+          decisionDeadline:"absolute monotonic deadline for controller observation, refresh scheduling and acknowledgement, exact terminal decision, and successful Freight projection",
+          apiRequests:"each driver-path kubectl request uses --request-timeout capped by the remaining decision budget",
+          excluded:[
+            "post-decision Stage copy and evidence serialization",
+            "failure diagnostic capture"
+          ]
+        },
+        startedAt:$startedAt,finishedAt:$decisionAt,recordedAt:$recordedAt,
+        decisionMonotonic_s:$decisionSeconds,
         refreshAttempts:$attempts,refreshes:$refreshes,
         firstObservedScheduledPhase:(if $firstPhase == "" then null else $firstPhase end),
         firstObservedScheduledAt:(if $firstPhaseAt == "" then null else $firstPhaseAt end),
-        finalPhase:($o.verificationPhase // null),
+        finalPhase:(if $lastPhase == "" then ($o.verificationPhase // null) else $lastPhase end),
         verification:{
           id:($o.verificationId // null),
-          phase:($o.verificationPhase // null),
-          message:($o.verificationMessage // null),
+          phase:(if $lastPhase == "" then ($o.verificationPhase // null) else $lastPhase end),
+          message:(if $lastMessage == "" then ($o.verificationMessage // null) else $lastMessage end),
           startedAt:($o.verificationStartedAt // null),
           finishedAt:($o.verificationFinishedAt // null),
           analysisRunName:($o.analysisRunName // null),
           analysisRunPhase:($o.analysisRunPhase // null)
         },
         coherentStage:{
+          captureAvailable:($o.captureAvailable // false),
+          captureError:($o.captureError // null),
           coherent:($o.coherent // false),
           collectionMatchCount:($o.collectionMatchCount // 0),
           currentPromotion:($o.currentPromotion // null),
@@ -2640,6 +2799,7 @@ kargo_write_post_promotion_record() {
           health:($o.health // null),
           lastHandledRefresh:($o.lastHandledRefresh // null)
         },
+        freightProjectionCaptureAvailable:($f.captureAvailable // false),
         freightVerifiedAt:($f.status.verifiedIn[$stage].verifiedAt // null)
       }
     ' >"${output}"
@@ -2666,74 +2826,128 @@ _kargo_drive_post_promotion_verification() {
   local observation="${KARGO_RUNTIME_DIR}/post-promotion-${slug}-observation.json"
   local freight_state="${KARGO_RUNTIME_DIR}/post-promotion-${slug}-freight.json"
   local refresh_log="${KARGO_RUNTIME_DIR}/post-promotion-${slug}-refreshes.jsonl"
+  local freight_tmp="${freight_state}.tmp.$$"
   local max_attempts=8 refresh_timeout=90 observation_window=20
   local attempts=0 next_refresh_at=0 observation_only=0 succeeded=0
-  local phase='' coherent=false verified_at='' first_phase='' first_phase_at=''
-  local remaining refresh_deadline token handled failure_reason=''
+  local current_phase='' current_message='' last_phase='' last_message=''
+  local coherent=false capture_available=false collection_match_count=0
+  local verified_at='' first_phase='' first_phase_at=''
+  local projection_checked=0 freight_capture_available=false
+  local budget_seconds=$((overall_deadline - started_seconds))
+  local now decision_seconds='' elapsed_seconds=0 decision_at context
+  local remaining refresh_deadline token handled request_timeout failure_reason=''
   printf '{}\n' >"${state}"
-  printf '{}\n' >"${observation}"
-  printf '{}\n' >"${freight_state}"
+  jq -n '{captureAvailable:false,coherent:false,collectionMatchCount:0,verificationPhase:null}' \
+    >"${observation}"
+  jq -n '{captureAvailable:false}' >"${freight_state}"
   : >"${refresh_log}"
 
   while true; do
-    if [ "${SECONDS}" -gt "${overall_deadline}" ]; then
+    now="$(kargo_monotonic_now)"
+    if [ "${now}" -ge "${overall_deadline}" ]; then
+      context="at the shared ${budget_seconds}s decision deadline"
       failure_reason="$(kargo_post_promotion_deadline_reason \
-        "${project}" "${stage}" "${freight}" "${collection_id}" "${expected_phase}" "${phase}")"
+        "${project}" "${stage}" "${freight}" "${collection_id}" \
+        "${expected_phase}" "${current_phase}" "${last_phase}" "${last_message}" \
+        "${capture_available}" "${collection_match_count}" "${coherent}" \
+        "${projection_checked}" "${freight_capture_available}" "${context}")"
+      decision_seconds="${now}"
       break
     fi
     kargo_capture_post_promotion_observation \
       "${project}" "${stage}" "${freight}" "${promotion}" "${collection_id}" \
-      "${state}" "${observation}" || true
-    phase="$(jq -r '.verificationPhase // empty' "${observation}")"
+      "${state}" "${observation}" "${overall_deadline}" || true
+    capture_available="$(jq -r '.captureAvailable // false' "${observation}")"
+    collection_match_count="$(jq -r '.collectionMatchCount // 0' "${observation}")"
+    current_phase="$(jq -r '.verificationPhase // empty' "${observation}")"
+    current_message="$(jq -r '.verificationMessage // empty' "${observation}")"
     coherent="$(jq -r '.coherent // false' "${observation}")"
-    if [ "${SECONDS}" -gt "${overall_deadline}" ]; then
+    if [ -n "${current_phase}" ]; then
+      last_phase="${current_phase}"
+      last_message="${current_message}"
+      observation_only=1
+      if [ -z "${first_phase}" ]; then
+        first_phase="${current_phase}"
+        first_phase_at="$(sit_now)"
+      fi
+    fi
+    now="$(kargo_monotonic_now)"
+    if [ "${now}" -gt "${overall_deadline}" ]; then
+      context="at the shared ${budget_seconds}s decision deadline"
       failure_reason="$(kargo_post_promotion_deadline_reason \
-        "${project}" "${stage}" "${freight}" "${collection_id}" "${expected_phase}" "${phase}")"
+        "${project}" "${stage}" "${freight}" "${collection_id}" \
+        "${expected_phase}" "${current_phase}" "${last_phase}" "${last_message}" \
+        "${capture_available}" "${collection_match_count}" "${coherent}" \
+        "${projection_checked}" "${freight_capture_available}" "${context}")"
+      decision_seconds="${now}"
       break
     fi
 
-    if [ -n "${phase}" ]; then
-      observation_only=1
-      if [ -z "${first_phase}" ]; then
-        first_phase="${phase}"
-        first_phase_at="$(sit_now)"
-      fi
-      case "${phase}" in
+    if [ -n "${current_phase}" ]; then
+      case "${current_phase}" in
       Pending | Running) ;;
       Successful | Failed)
-        if [ "${phase}" != "${expected_phase}" ]; then
-          failure_reason="expected ${expected_phase} verification for ${project}/${stage} but observed ${phase}"
+        if [ "${current_phase}" != "${expected_phase}" ]; then
+          failure_reason="expected ${expected_phase} verification for ${project}/${stage} but observed ${current_phase}: ${current_message:-no message}"
+          decision_seconds="${now}"
           break
         fi
         if [ "${coherent}" = true ]; then
-          kubectl -n "${project}" get freight "${freight}" -o json \
-            >"${freight_state}" 2>/dev/null || printf '{}\n' >"${freight_state}"
-          if [ "${expected_phase}" = Failed ] && [ "${SECONDS}" -le "${overall_deadline}" ]; then
+          if [ "${expected_phase}" = Failed ] && [ "${now}" -le "${overall_deadline}" ]; then
             succeeded=1
+            decision_seconds="${now}"
             break
           fi
+          projection_checked=1
+          freight_capture_available=false
+          if kargo_driver_request_timeout "${overall_deadline}" request_timeout &&
+            kubectl -n "${project}" get freight "${freight}" -o json \
+              --request-timeout="${request_timeout}" >"${freight_tmp}" 2>/dev/null &&
+            jq -e . "${freight_tmp}" >/dev/null 2>&1; then
+            jq '. + {captureAvailable:true}' "${freight_tmp}" >"${freight_state}"
+            freight_capture_available=true
+          else
+            jq -n '{captureAvailable:false,captureError:"bounded Freight projection read failed"}' \
+              >"${freight_state}"
+          fi
+          rm -f "${freight_tmp}"
+          now="$(kargo_monotonic_now)"
           verified_at="$(jq -r --arg stage "${stage}" \
             '.status.verifiedIn[$stage].verifiedAt // empty' "${freight_state}")"
-          if [ -n "${verified_at}" ] && [ "${SECONDS}" -le "${overall_deadline}" ]; then
-            succeeded=1
+          if [ -n "${verified_at}" ]; then
+            if [ "${now}" -le "${overall_deadline}" ]; then
+              succeeded=1
+              decision_seconds="${now}"
+              break
+            fi
+            failure_reason="Freight ${freight} projection in ${project}/${stage} was observed only after the shared ${budget_seconds}s decision deadline"
+            decision_seconds="${now}"
             break
           fi
         fi
         ;;
       Error | Aborted | Inconclusive)
-        failure_reason="expected ${expected_phase} verification for ${project}/${stage} but observed terminal ${phase}: $(jq -r '.verificationMessage // "no message"' "${observation}")"
+        failure_reason="expected ${expected_phase} verification for ${project}/${stage} but observed terminal ${current_phase}: ${current_message:-no message}"
+        decision_seconds="${now}"
         break
         ;;
       *)
-        failure_reason="unknown verification phase ${phase} for exact collection ${collection_id} in ${project}/${stage}"
+        failure_reason="unknown verification phase ${current_phase} for exact collection ${collection_id} in ${project}/${stage}: ${current_message:-no message}"
+        decision_seconds="${now}"
         break
         ;;
       esac
     fi
 
-    if [ "${SECONDS}" -ge "${overall_deadline}" ]; then
+    now="$(kargo_monotonic_now)"
+    if [ "${now}" -ge "${overall_deadline}" ]; then
+      context="at the shared ${budget_seconds}s decision deadline"
       failure_reason="$(kargo_post_promotion_deadline_reason \
-        "${project}" "${stage}" "${freight}" "${collection_id}" "${expected_phase}" "${phase}")"
+        "${project}" "${stage}" "${freight}" "${collection_id}" \
+        "${expected_phase}" "${current_phase}" "${last_phase}" "${last_message}" \
+        "${capture_available}" "${collection_match_count}" "${coherent}" \
+        "${projection_checked}" "${freight_capture_available}" "${context}")"
+      decision_seconds="${now}"
       break
     fi
 
@@ -2742,21 +2956,27 @@ _kargo_drive_post_promotion_verification() {
       continue
     fi
 
-    if [ "${SECONDS}" -lt "${next_refresh_at}" ]; then
+    if [ "${now}" -lt "${next_refresh_at}" ]; then
       kargo_sleep_before_deadline "${overall_deadline}" || true
       continue
     fi
     if [ "${attempts}" -ge "${max_attempts}" ]; then
-      failure_reason="verification for exact collection ${collection_id} was not scheduled after ${attempts} refresh attempts"
+      context="after ${attempts} refresh attempts within the shared ${budget_seconds}s decision budget"
+      failure_reason="$(kargo_post_promotion_deadline_reason \
+        "${project}" "${stage}" "${freight}" "${collection_id}" \
+        "${expected_phase}" "${current_phase}" "${last_phase}" "${last_message}" \
+        "${capture_available}" "${collection_match_count}" "${coherent}" \
+        "${projection_checked}" "${freight_capture_available}" "${context}")"
+      decision_seconds="${now}"
       break
     fi
 
-    remaining=$((overall_deadline - SECONDS))
+    remaining=$((overall_deadline - now))
     [ "${remaining}" -gt 0 ] || continue
     attempts=$((attempts + 1))
     token=''
     handled=false
-    refresh_deadline=$((SECONDS + refresh_timeout))
+    refresh_deadline=$((now + refresh_timeout))
     [ "${refresh_deadline}" -le "${overall_deadline}" ] || refresh_deadline="${overall_deadline}"
     if kargo_refresh_stage_quiet "${project}" "${stage}" \
       "${refresh_deadline}" token; then
@@ -2767,9 +2987,17 @@ _kargo_drive_post_promotion_verification() {
       --argjson handled "${handled}" \
       --arg observedAt "$(sit_now)" \
       '{token:$token,handled:$handled,observedAt:$observedAt}' >>"${refresh_log}"
-    remaining=$((overall_deadline - SECONDS))
-    next_refresh_at=$((SECONDS + (remaining < observation_window ? remaining : observation_window)))
+    now="$(kargo_monotonic_now)"
+    remaining=$((overall_deadline - now))
+    next_refresh_at=$((now + (remaining < observation_window ? remaining : observation_window)))
   done
+
+  if [ -z "${decision_seconds}" ]; then
+    decision_seconds="$(kargo_monotonic_now)"
+  fi
+  elapsed_seconds=$((decision_seconds - started_seconds))
+  [ "${elapsed_seconds}" -ge 0 ] || elapsed_seconds=0
+  decision_at="$(sit_now)"
 
   if [ "${succeeded}" -eq 1 ]; then
     cp "${state}" "${stage_output}"
@@ -2777,13 +3005,16 @@ _kargo_drive_post_promotion_verification() {
       "${project}" "${stage}" "${freight}" "${promotion}" "${collection_id}" \
       "${expected_phase}" "${started_at}" "${started_seconds}" "${attempts}" \
       "${first_phase}" "${first_phase_at}" success '' \
-      "${observation}" "${freight_state}" "${refresh_log}" "${reconciliation_output}"
+      "${observation}" "${freight_state}" "${refresh_log}" "${reconciliation_output}" \
+      "${budget_seconds}" "${elapsed_seconds}" "${decision_at}" \
+      "${last_phase}" "${last_message}"
     jq -e \
       --arg promotion "${promotion}" \
       --arg freight "${freight}" \
       --arg collection "${collection_id}" \
-      --arg phase "${expected_phase}" '
-        .budget_s == 180 and .elapsed_s <= .budget_s and
+      --arg phase "${expected_phase}" \
+      --argjson budget "${budget_seconds}" '
+        .budget_s == $budget and .elapsed_s <= .budget_s and
         .promotionName == $promotion and .freight == $freight and
         .freightCollectionId == $collection and .finalPhase == $phase and
         .coherentStage.coherent == true and
@@ -2799,7 +3030,9 @@ _kargo_drive_post_promotion_verification() {
       "${project}" "${stage}" "${freight}" "${promotion}" "${collection_id}" \
       "${expected_phase}" "${started_at}" "${started_seconds}" "${attempts}" \
       "${first_phase}" "${first_phase_at}" failure "${failure_reason}" \
-      "${observation}" "${freight_state}" "${refresh_log}" "${reconciliation_output}"
+      "${observation}" "${freight_state}" "${refresh_log}" "${reconciliation_output}" \
+      "${budget_seconds}" "${elapsed_seconds}" "${decision_at}" \
+      "${last_phase}" "${last_message}"
     kargo_capture_stage_failure_diagnostics \
       "${project}" "${stage}" "${freight}" "${diagnostics}" "${collection_id}"
     sit_fail "${failure_reason}"
@@ -2818,7 +3051,7 @@ kargo_drive_post_promotion_verification() {
   local promotion='' collection_id='' relative
   local started_at started_seconds overall_deadline diagnostics
   started_at="$(sit_now)"
-  started_seconds="${SECONDS}"
+  started_seconds="$(kargo_monotonic_now)"
   overall_deadline=$((started_seconds + 180))
   diagnostics="${reconciliation_output%.json}-failure"
   relative="${reconciliation_output#"${report}/"}"
@@ -2929,12 +3162,123 @@ kargo_assert_no_promotion_for() {
     ' >"${output}"
 }
 
+# Encode a real millisecond timestamp plus 80 bits of cryptographic entropy as
+# a lowercase ULID. This is the same 26-character ordering component used by
+# pinned Kargo v1.9.10 Promotion names.
+kargo_promotion_ulid() {
+  local timestamp_ms="$1"
+  local output_name="$2"
+  local generated_ulid
+  local -n output_ref="${output_name}"
+  [[ ${timestamp_ms} =~ ^[0-9]+$ ]] || {
+    sit_fail "Promotion ULID timestamp is not an unsigned millisecond value: ${timestamp_ms}"
+    return 1
+  }
+  if ! generated_ulid="$(bun -e '
+    const alphabet = "0123456789abcdefghjkmnpqrstvwxyz";
+    const timestamp = BigInt(process.argv[1]);
+    if (timestamp < 0n || timestamp >= (1n << 48n)) process.exit(2);
+    const encode = (input, length) => {
+      let value = input;
+      let result = "";
+      for (let index = 0; index < length; index += 1) {
+        result = alphabet[Number(value & 31n)] + result;
+        value >>= 5n;
+      }
+      if (value !== 0n) process.exit(3);
+      return result;
+    };
+    let entropy = 0n;
+    for (const byte of crypto.getRandomValues(new Uint8Array(10))) {
+      entropy = (entropy << 8n) | BigInt(byte);
+    }
+    process.stdout.write(encode(timestamp, 10) + encode(entropy, 16));
+  ' -- "${timestamp_ms}")"; then
+    sit_fail "Promotion ULID timestamp is outside the 48-bit ULID range: ${timestamp_ms}"
+    return 1
+  fi
+  [[ ${generated_ulid} =~ ^[0-9a-hjkmnp-tv-z]{26}$ ]] || {
+    sit_fail "generated Promotion ULID is not lowercase Crockford base32: ${generated_ulid}"
+    return 1
+  }
+  output_ref="${generated_ulid}"
+}
+
+kargo_validate_manual_promotion_name() {
+  local name="$1"
+  local stage="$2"
+  local freight="$3"
+  local without_hash ulid stage_prefix short_hash expected label
+  local -a labels
+  stage_prefix="${stage:0:218}"
+  short_hash="${freight:0:7}"
+  [ "${name}" = "${name,,}" ] && [ "${#name}" -le 253 ] &&
+    [[ ${name} =~ ^([a-z0-9]([-a-z0-9]*[a-z0-9])?)([.]([a-z0-9]([-a-z0-9]*[a-z0-9])?))*$ ]] || {
+    sit_fail "manual Promotion name is not a lowercase DNS subdomain of at most 253 characters: ${name}"
+    return 1
+  }
+  without_hash="${name%.*}"
+  ulid="${without_hash##*.}"
+  expected="${stage_prefix}.${ulid}.${short_hash}"
+  [ "${name}" = "${expected}" ] &&
+    [[ ${ulid} =~ ^[0-9a-hjkmnp-tv-z]{26}$ ]] || {
+    sit_fail "manual Promotion name does not match <stage>.<lowercase-ulid>.<freight-short-hash>: ${name}"
+    return 1
+  }
+  IFS='.' read -r -a labels <<<"${name}"
+  for label in "${labels[@]}"; do
+    [ "${#label}" -le 63 ] || {
+      sit_fail "manual Promotion name contains a DNS label longer than 63 characters: ${name}"
+      return 1
+    }
+  done
+}
+
+kargo_generate_manual_promotion_name() {
+  local stage="$1"
+  local freight="$2"
+  local timestamp_ms="$3"
+  local output_name="$4"
+  local ulid generated
+  local -n output_ref="${output_name}"
+  kargo_promotion_ulid "${timestamp_ms}" ulid || return 1
+  generated="${stage:0:218}.${ulid}.${freight:0:7}"
+  generated="${generated,,}"
+  kargo_validate_manual_promotion_name "${generated}" "${stage}" "${freight}" || return 1
+  output_ref="${generated}"
+}
+
+# Manual Promotions in one harness process receive strictly increasing real
+# timestamp components. If two calls land in the same millisecond, wait for the
+# wall clock instead of substituting an unordered Kubernetes random suffix.
+kargo_next_manual_promotion_timestamp() {
+  local output_name="$1"
+  local attempt now_ms
+  local last_ms="${KARGO_MANUAL_PROMOTION_LAST_MS:-0}"
+  local -n output_ref="${output_name}"
+  for ((attempt = 0; attempt < 1000; attempt++)); do
+    now_ms="$(date -u +%s%3N)"
+    if [[ ${now_ms} =~ ^[0-9]+$ ]] && [ "${now_ms}" -gt "${last_ms}" ]; then
+      KARGO_MANUAL_PROMOTION_LAST_MS="${now_ms}"
+      # shellcheck disable=SC2034 # assignment returns through the caller's nameref
+      output_ref="${now_ms}"
+      return 0
+    fi
+    sleep 0.001
+  done
+  sit_fail 'real millisecond clock did not advance for a monotonic manual Promotion ULID'
+  return 1
+}
+
 kargo_write_promotion_manifest() {
   local project="$1"
   local stage="$2"
   local freight="$3"
   local output="$4"
-  local promotion_template
+  local promotion_template promotion_timestamp_ms promotion_name
+  kargo_next_manual_promotion_timestamp promotion_timestamp_ms
+  kargo_generate_manual_promotion_name \
+    "${stage}" "${freight}" "${promotion_timestamp_ms}" promotion_name
   promotion_template="$(kubectl -n "${project}" get stage "${stage}" -o json |
     jq -c '{
       steps:(.spec.promotionTemplate.spec.steps // []),
@@ -2944,9 +3288,10 @@ kargo_write_promotion_manifest() {
     sit_fail "Stage ${project}/${stage} has no promotion steps to build into a Promotion"
   # The dollar reference is a yq variable, not shell expansion.
   # shellcheck disable=SC2016
-  NAMESPACE="${project}" STAGE="${stage}" FREIGHT="${freight}" \
+  NAME="${promotion_name}" NAMESPACE="${project}" STAGE="${stage}" FREIGHT="${freight}" \
     PROMOTION_TEMPLATE="${promotion_template}" yq '
     (strenv(PROMOTION_TEMPLATE) | from_json) as $template |
+    .metadata.name = strenv(NAME) |
     .metadata.namespace = strenv(NAMESPACE) |
     .spec.stage = strenv(STAGE) |
     .spec.freight = strenv(FREIGHT) |
@@ -2962,8 +3307,13 @@ kargo_capture_missing_promotion_steps_denial() {
   local output="$4"
   local manifest="${KARGO_RUNTIME_DIR}/missing-steps-${project}-${stage}-${freight}.yaml"
   local log="${output}.response.txt"
+  local promotion_timestamp_ms promotion_name
   local status=0
-  NAMESPACE="${project}" STAGE="${stage}" FREIGHT="${freight}" yq '
+  kargo_next_manual_promotion_timestamp promotion_timestamp_ms
+  kargo_generate_manual_promotion_name \
+    "${stage}" "${freight}" "${promotion_timestamp_ms}" promotion_name
+  NAME="${promotion_name}" NAMESPACE="${project}" STAGE="${stage}" FREIGHT="${freight}" yq '
+    .metadata.name = strenv(NAME) |
     .metadata.namespace = strenv(NAMESPACE) |
     .spec.stage = strenv(STAGE) |
     .spec.freight = strenv(FREIGHT)
@@ -2994,9 +3344,15 @@ kargo_create_manual_promotion() {
   local freight="$3"
   local output="$4"
   local manifest="${KARGO_RUNTIME_DIR}/promotion-${project}-${stage}-${freight}.yaml"
+  local promotion_name
   kargo_write_promotion_manifest "${project}" "${stage}" "${freight}" "${manifest}"
+  promotion_name="$(yq -r '.metadata.name' "${manifest}")"
+  kargo_validate_manual_promotion_name \
+    "${promotion_name}" "${stage}" "${freight}"
   kubectl create -f "${manifest}" -o json >"${output}"
-  jq -e --arg stage "${stage}" --arg freight "${freight}" '
+  jq -e --arg name "${promotion_name}" --arg stage "${stage}" --arg freight "${freight}" '
+    .metadata.name == $name and
+    (.metadata | has("generateName") | not) and
     .spec.stage == $stage and .spec.freight == $freight and
     (.spec.steps | length) == 4
   ' "${output}" >/dev/null
