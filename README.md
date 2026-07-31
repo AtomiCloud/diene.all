@@ -29,12 +29,15 @@ nix develop .#ci -c ./scripts/ci/fleet-sit-proof.sh --full
 
 Full mode creates exactly `--ephemeral --duration 2h --machine_type 16x32
 --enable=kubernetes:1.33 --wait_kube_system`. The two-hour TTL is a cost
-backstop, not cleanup: every success, failure, or signal attempts
-`nsc destroy <exact-instance-id> --force` and independently proves that exact
-id absent. Preserve `sit-report/` after the run; `sit-report.json` is the inner
-L0-L9 result and `lifecycle/lifecycle.json` binds the source snapshot, create
-argv/receipt, transfer and toolchain evidence, report digest, timings, destroy,
-and absence.
+backstop, not cleanup. The observed Namespace id contract is exactly 13
+lowercase alphanumeric characters. Harness creation retains the exact cidfile,
+minimal `--output json` stdout, stderr, and a separate full metadata receipt
+written by `--output_json_to`; every success, failure, or signal attempts `nsc
+destroy <exact-instance-id> --force` and independently proves that exact id
+absent. Preserve `sit-report/` after the run; `sit-report.json` is the inner
+L0-L9 result and `lifecycle/lifecycle.json` binds the source snapshot, each
+create artifact, transfer and toolchain evidence, report digest, timings,
+destroy, and absence.
 
 For the cheap local source gate, with no Namespace create/use/destroy:
 
@@ -44,11 +47,14 @@ nix develop .#ci -c ./scripts/ci/fleet-sit-proof.sh --prepare-only
 
 A ratchet lead may register a pre-created instance before first SSH by setting
 both `FLEET_SIT_NSC_INSTANCE_ID` and the absolute
-`FLEET_SIT_NSC_CREATE_RECEIPT` path. The wrapper revalidates its exact id,
-labels, 16x32 shape, Kubernetes receipt, hostname, Wolfi/k3s topology, and still
-owns exact-id destruction. Cleanup ownership begins before source and nsc-client
-preflight once the full invocation accepts an empty evidence directory and the
-syntactically exact provided id. See [the fleet repository contract](docs/domain/fleet-repo.md#testing-and-proof-tiers).
+`FLEET_SIT_NSC_CREATE_RECEIPT` path. That receipt must be the full instance
+metadata file produced by `nsc create --output_json_to /absolute/path`; the
+minimal JSON written to stdout by `--output json` is not sufficient. The
+wrapper revalidates its exact id, labels, 16x32 shape, Kubernetes receipt,
+hostname, Wolfi/k3s topology, and still owns exact-id destruction. Cleanup
+ownership begins before source and nsc-client preflight once the full invocation
+accepts an empty evidence directory and the exact 13-character provided id. See
+[the fleet repository contract](docs/domain/fleet-repo.md#testing-and-proof-tiers).
 
 ## Standards
 
