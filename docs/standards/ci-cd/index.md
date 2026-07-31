@@ -70,6 +70,15 @@ per-service cache tags. Must-not-share-cache Namespace lanes use the matching
 bare venue label with no cache-size or cache-tag label; cache absence is part of
 their isolation contract.
 
+Which jobs are cache-eligible is read from what a job does, not from the labels
+it carries: a job that uses a Nix setup action or runs a `nix` command is a
+Nix-store user. Such a job on the bare venue also records a non-empty job-level
+`env.S31_CACHE_EXEMPT_REASON`, so a deliberate isolation lane is distinguishable
+from a lane that lost its cache by accident. That exemption is only meaningful on
+the bare Namespace venue: a Nix-store user on a GitHub-hosted runner is rejected
+whether or not it records one, and a job that uses no Nix store may neither claim
+the shared cache nor record an exemption from it.
+
 ## Local reproduction
 
 Run the same entry point the lane runs. Take the `run:` line from the reusable

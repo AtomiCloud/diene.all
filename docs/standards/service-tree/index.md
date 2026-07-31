@@ -120,8 +120,9 @@ cache tag is deliberately not namespaced by platform or service. They declare a
 `runs-on:` lines in [`.github/workflows/`](../../../.github/workflows). The tag family
 is `nscloud-cache-tag-atomi-nix-store-cache-{os}-{arch}`; selecting another OS rotates
 the tag and starts cold rather than aliasing another OS's cache. Must-not-share-cache
-lanes instead use the corresponding bare Namespace venue with no cache metadata; that
-absence preserves their isolation. Never introduce a per-platform or per-service tag.
+lanes instead use the corresponding bare Namespace venue with no cache metadata, and a
+Nix-using lane states that intent in a non-empty job-level `env.S31_CACHE_EXEMPT_REASON`;
+that absence preserves their isolation. Never introduce a per-platform or per-service tag.
 
 ### Platform / Service usage
 

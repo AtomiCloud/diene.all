@@ -108,6 +108,77 @@ venue while retaining its cache tag. Both require the mode to fail. The mode ide
 jobs from their exact S31 runner/cache labels, not a retired substring, so the corrected
 cache split cannot make the check silently inspect zero jobs.
 
+## Cache eligibility is decided from behavior, not from labels
+
+Review found that the mode above still inferred cache eligibility from the labels it was
+validating. "I carry no cache tag" was therefore read as "I am a deliberate
+must-not-share-cache lane", so a Nix job that dropped `-with-cache` **together with** its
+cache-size and cache-tag labels passed green — the exact un-cacheable shape that made
+live run `30670113046` fail with `nscloud-cache-action requires a cache volume to be
+configured`. A gate that accepts the failure it exists to prevent is not enforcement, so
+the determination is now positive and independent of the labels under test.
+
+A job is an S31 **Nix-store user** because of what its steps do: it uses a Nix setup
+action (`AtomiCloud/actions.setup-nix`, `cachix/install-nix-action`,
+`DeterminateSystems/nix-installer-action`), invokes `namespacelabs/nscloud-cache-action`,
+or runs a `nix develop` / `nix build` / `nix shell` / `nix run` / `nix flake` /
+`nix profile` / `nix store` command (`nix-build`, `nix-shell` and `nix-store` included).
+The classification never reads `runs-on:`. From it:
+
+- A Nix-store user selects the exact cache-capable venue with its cache-size label and
+  its OS-matched cache tag, exactly as before.
+- A Nix-store user on the **bare** Namespace venue is legal only as a declared
+  must-not-share-cache lane: it records a non-empty job-level
+  `env.S31_CACHE_EXEMPT_REASON` and carries no cache-size or cache-tag label. Without
+  that record the gate is red, which is the F2 recurrence closed.
+- The exemption is **venue-scoped by ruling**: must-not-share-cache lanes are bare
+  Namespace lanes, so a Nix-store user on a GitHub-hosted runner is rejected with or
+  without a reason. GitHub-hosted lanes never attach a Namespace cache, so an exemption
+  recorded there is rejected too.
+- A job that is **not** a Nix-store user may not claim the shared Nix-store cache, and
+  has no exemption to record, because there is no shared store for it to be excluded
+  from.
+- Stale and misplaced markers are rejected: an exemption beside a `-with-cache` venue is
+  stale, and either S31 marker declared at step level or workflow level instead of
+  job-level `env` is misplaced. A whitespace-only marker is not a record.
+
+The 26.04 primary / 24.04 fallback labels, the cache-tag rotation, the
+`S31_RUNNER_FALLBACK_REASON` rules and the corrected `-with-cache` / bare split are
+unchanged; nothing above relaxes them.
+
+Two mechanical notes worth recording, because both are silent-failure shapes:
+
+- The per-job row is emitted with `\u001f` unit separators rather than tabs. A tab is IFS
+  whitespace, so two adjacent empty marker columns would have collapsed into one and
+  shifted the classification column — a baseline where no job records either marker is
+  precisely the case that would have misparsed.
+- The non-vacuity guards are unchanged in number (GitHub-hosted, Namespace,
+  cache-eligible) and now also keep the behavioural classification non-vacuous in both
+  directions, without a fourth counter: a cache-capable venue is rejected for any job
+  that is not a Nix-store user, so a non-zero cache-eligible count proves the classifier
+  answered "Nix" at least once, and a GitHub-hosted runner is rejected for any job that
+  is one, so a non-zero GitHub count proves it answered "not Nix" at least once. A
+  classifier stuck at either answer turns one of those guards red. A counter for the
+  bare/exempt branch is deliberately **not** asserted non-zero: this repository has no
+  isolation lane (`absol`, `target-pull`, `fleet-independence` are not workspace jobs),
+  so asserting it would fail a conformant tree. That branch is covered by probe arms
+  instead, and all four counts are printed on success so a vacuous branch is visible.
+
+`probes/cache-tag-shape.ts` grows from three arms to ten, one per independent assertion,
+following the release-workflow precedent. The new arms are: the F2 recurrence (bare venue
+with both cache metadata labels deleted), a non-Nix job claiming the shared cache, a
+stale exemption beside a cache-capable venue, a Nix job moved to a GitHub-hosted runner
+even with an exemption, a default `ubuntu-latest` label, an unrecorded 24.04 fallback,
+and combined primary/fallback Namespace labels — the last three being the goal's
+remaining named mutation classes, which the gate caught but no arm protected. Each arm
+fails loudly if its mutation target has drifted out of the workflow, so an arm cannot
+degrade into a no-op that asserts a red the gate never had to produce. `expectedImpact`
+stays `[]`: every mutation leaves valid YAML, and no other mechanism in the repository
+observes runner labels.
+
+The merged `a-workflows` hook is untouched — same four modes, same twelve hooks, and the
+retired `scripts/validate/cache-tags.sh` and `a-cache-tags` hook stay deleted.
+
 ## Resulting hook set
 
 Twelve hooks declared, down from twenty — eleven at the pre-commit stage plus the
