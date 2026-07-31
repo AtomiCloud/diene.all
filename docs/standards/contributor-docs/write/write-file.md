@@ -15,8 +15,19 @@
 RESULT: <success|error>
 FILE: <path written>
 LINES: <line count>
+WRITTEN_HASH: <sha256 of the exact bytes written, or none on error>
+GAPS: <none, or one per line in the format below>
+  <proposed path> type=<concept|algorithm> tier=<N> reason=<why this file needs it>
 ERROR: <error message if any>
 ```
+
+`GAPS` is a **structured field, not prose**. The whole discovered-gap transition is
+triggered by it, and a gap mentioned in a free-text paragraph is a gap the orchestrator
+will miss. Report `GAPS: none` when there are none — an absent field is indistinguishable
+from a forgotten one.
+
+`WRITTEN_HASH` is what the orchestrator records as this path's `writtenHash` when it
+marks the write complete. It is the sha256 of the exact bytes left on disk.
 
 **Do NOT update state files.** Report back to orchestrator only.
 
@@ -31,6 +42,10 @@ overwrite. The orchestrator dispatches from that queue, never from `doc-plan.yam
 If the path you are handed is not in the queue, or its `provenance` entry is missing,
 it is a collision that escaped classification: **stop, write nothing, and report it**.
 Replacing it here would be the silent overwrite the workflow forbids.
+
+The orchestrator verifies `provenance[path].writeStatus == "pending"` before dispatching
+you. A path already marked `written` is not tier input at all; if you are handed one, the
+dispatch is wrong and you stop the same way.
 
 ## Inputs Provided by Orchestrator
 
@@ -99,9 +114,28 @@ Before writing:
 
 Write the complete file (frontmatter + body) to {filePath}, replacing the scaffolded version.
 
-Before writing, confirm {filePath}'s provenance still holds: either its current bytes
-hash to the recorded `scaffoldHash`, or its `origin` is `approved-overwrite`. If
-neither holds, the file changed under you — stop and report instead of writing.
+Before writing, confirm {filePath}'s provenance still holds. Hash the current bytes and
+check them against exactly these authorizations — the first that matches wins, and if
+none matches, the file changed under you: **stop and report instead of writing**.
+
+| Provenance state                                  | Authorized if current bytes hash to | Meaning                           |
+| ------------------------------------------------- | ----------------------------------- | --------------------------------- |
+| `writeStatus: "pending"`, `writtenHash: null`     | the recorded `scaffoldHash`         | First write over your scaffold    |
+| `writeStatus: "pending"`, `writtenHash: <sha256>` | the recorded `writtenHash`          | Authorized replay of a prior body |
+| `origin: "approved-overwrite"`                    | anything                            | The user approved this path       |
+
+The middle row is the replay case, and it must be checked explicitly. On a replay the
+file's bytes are the body you wrote last time, not the scaffold — so they will **not**
+hash to `scaffoldHash`, and a guard that only knows about `scaffoldHash` refuses every
+replayed file and jams the transition on its own correct output. A path whose
+`writeStatus` is `pending` **and** whose provenance records a prior write is a
+legitimate rewrite: proceed.
+
+Note what is _not_ authorization: `writeStatus: "pending"` by itself. If `writtenHash`
+is recorded and the bytes do not match it, something outside this workflow changed the
+file — an outside edit, or a writer that crashed mid-write. Report it; the orchestrator
+resolves it by classifying the collision and, if the user approves, recording an
+`approved-overwrite`. Never resolve it by writing.
 
 ### 7. Report
 
@@ -113,5 +147,17 @@ Report the result with file path and line count.
 - Do NOT create additional files — only write the one assigned file
 - Do NOT modify the frontmatter — only add/replace body content
 - Do NOT read full content of other doc files (only frontmatter was provided for cross-refs)
-- If you discover a missing concept or algorithm that should exist, note it in your report but do NOT create it. Leave the outbound link unwritten rather than explaining it inline; the orchestrator re-plans, re-scaffolds and replays the owning tier. See [Discovered Gaps](../common/writing-order.md#discovered-gaps) for the full transition — this is the only legal path, and it is the same one `writing-order.md` names.
+- If you discover a missing concept or algorithm that should exist, report it in the
+  structured `GAPS` field and do NOT create it. Your obligation is exactly:
+  1. Report the **proposed path**, the **section type**, the **tier that section type belongs to** (concepts → tier 2, algorithms → tier 3), and **why this feature needs it**.
+  2. Finish the rest of the file normally.
+  3. Leave the outbound link **unwritten**. Do not explain the missing concept inline, and do not link to a path that does not exist.
+  4. Never create the file, and never touch state.
+
+  The orchestrator re-plans, scoped-re-scaffolds and replays the owning tier. See
+  `docs/standards/contributor-docs/common/writing-order.md` (Discovered Gaps) for why
+  it works this way and
+  `docs/standards/contributor-docs/write/PHASE.md` (Discovered-Gap Transition) for the
+  mechanism. This is the only legal path.
+
 - Keep the file under ~300 lines. If content exceeds this, split into subsections and note in your report which parts could become separate files

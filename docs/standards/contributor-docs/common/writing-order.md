@@ -148,24 +148,75 @@ to was never planned. There is exactly one legal transition for this, and the
 writers in the same tier would race on the same missing path and neither would
 appear in the plan or the state file.
 
-1. **Writer reports, then finishes what it can.** It records the gap in its
-   report (proposed path, section type, why the feature needs it) and completes
-   the rest of the feature, leaving the outbound link unwritten rather than
-   explaining the concept inline.
-2. **Orchestrator collects gaps at the tier boundary.** Gaps are not acted on
-   mid-tier; the current tier's batch finishes first.
-3. **Orchestrator re-plans.** It adds the missing files to `doc-plan.yaml`, then
-   re-runs the scaffold step for the added paths only — which puts them through
-   the same collision classification as any other path.
-4. **Orchestrator replays the owning tier.** Via the write state-agent it sets
-   `step` back to the tier that owns the new section type (concepts → tier 2,
-   algorithms → tier 3) and re-enters the tier sequence from there, so the new
-   files are written in dependency order like everything else.
-5. **The reporting feature is re-queued** in tier 4 once its dependency exists,
-   so the link it left unwritten is completed on the replay.
+This article owns the **rationale**: why the transition is shaped the way it is.
+The mechanism itself — the durable `gapTransition` record, its statuses, the
+crash behaviour at each one, and the computations behind `requeued`, `replayTier`
+and `resetTiers` — is defined once, in
+`docs/standards/contributor-docs/write/PHASE.md`, under
+[Discovered-Gap Transition](../write/PHASE.md#discovered-gap-transition). Change
+the mechanism there; change the reasoning here. Duplicating the status table into
+both files is how the two drift apart, and a consistency check refuses it.
 
-The state file is the record of this: a gap is not resolved until the re-planned
-path is in `doc-plan.yaml`, scaffolded, and marked done in its tier's state.
+### Why the orchestrator holds it
+
+Discovering a gap and acting on it are separate jobs. The writer that found the
+gap is one of several running in the same tier, has no view of the queue, and
+must not touch state files. So it reports the gap — proposed path, section type,
+the tier that section type belongs to, and why the feature needs it — finishes
+the rest of its file, and leaves the outbound link unwritten rather than
+explaining the concept inline. The orchestrator collects reports at the **tier
+boundary**, never mid-tier, so the whole batch's gaps are considered together and
+two writers reporting the same missing path produce one transition.
+
+### Why the re-scaffold is scoped
+
+The scaffolder is handed **exactly the transition's gap paths** and nothing else.
+This is not an optimization; a whole-plan re-scaffold cannot work at all.
+
+Ownership is proven by hash: a path is this run's scaffold only if its current
+bytes hash to the `scaffoldHash` recorded when the scaffold was written. Every
+file the run has already written fails that test **by design** — writing the body
+is precisely what replaced the scaffold bytes. So a re-scaffold over the whole
+plan classifies every completed file as `pre-existing`, which is a blocked
+collision, and the phase stops on its own successful output. The gap transition
+would jam the moment it tried to resolve a gap in a run that had done any work.
+
+Handing the scaffolder only the new paths keeps completed files out of
+classification entirely: they are never hashed, never blocked, and their recorded
+scaffold hashes are never touched.
+
+### Why the replay is selective
+
+Re-entering a tier does not mean rewriting it. The transition puts back into
+`pending` only the paths that are actually stale: the new gap files, the file
+that reported the gap, everything whose cross-links transitively reach a gap
+path, and the indexes that list them. Everything else keeps its completed bytes
+and its `written` status, and never appears in a tier's input again. Resetting a
+downstream tier resets its **processor state**, so the tier re-runs against the
+current queue — it does not re-run its contents.
+
+The alternative — rewriting every file at or below the replay point — would make
+each discovered gap cost a full rewrite of the documentation set, and would throw
+away correct work to fix an unrelated missing link.
+
+### When a gap is resolved
+
+A gap is not resolved until the re-planned path is in `doc-plan.yaml`, on the
+write queue with provenance, scaffolded, marked done in its tier's state,
+recorded in `gapsResolved`, **and** `gapTransition` is back to `null` — which
+cannot happen until every reset tier's processor state has been invalidated.
+Anything short of that is a transition still in flight, and the next run must
+finish it before any tier may dispatch.
+
+**Loop guard.** If the same path appears in `gapsResolved` more than twice, stop
+and report instead of replaying again. A gap that keeps coming back is a planning
+failure, and retrying it forever looks like progress while nothing converges.
+
+**One accepted hole.** A writer that discovers a gap and then dies before
+reporting loses the discovery, because writers never persist state. This is
+accepted deliberately: the audit phase rediscovers it as an unresolved link, and
+the alternative — letting writers write state — reintroduces the parallel-writer
+race this transition exists to prevent.
 
 ## Post-Writing Audit
 
