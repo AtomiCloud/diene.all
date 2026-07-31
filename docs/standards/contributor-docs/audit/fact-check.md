@@ -6,7 +6,12 @@ The orchestrator supplies all run-bound values:
 
 - Working directory: repository root
 - Doc file to check: `{filePath}`
+- Documentation root: `{docsRoot}` from `task-state.json`
 - Source files: `{sources}` from `doc-plan.yaml`
+- Planned metadata: `{type}`, `{tier}`, and `{crossLinks}` from the same exact plan
+  entry
+- Planned output paths: `{plannedPaths}`, the complete normalized output-path set from
+  that exact plan
 - Audit epoch: `{auditEpoch}`, a positive integer
 - Docs digest: `{docsDigest}`, a 64-character lowercase digest
 - Document file SHA-256: `{docFileHash}`, the hash of the exact assigned bytes
@@ -75,6 +80,18 @@ Compare source capabilities with documentation coverage:
 - **Missing behaviors**: is significant behavior undocumented?
 - **Missing edge cases**: are important error paths skipped?
 - **Missing configuration**: are configurable options omitted?
+- **Missing dependencies**: does a reusable concept or algorithm required to explain
+  a significant source behavior have neither a planned `crossLinks` target nor a valid
+  outbound link? This is an error even though there is no broken link on disk. If its
+  target is already in `{plannedPaths}`, record an ordinary `completeness` error to add
+  the missing cross-link; do not propose a gap. Only when no planned path supplies the
+  dependency, record `missing-dependency` with a normalized repository-root-relative
+  proposed path contained by `{docsRoot}`, `concept|algorithm` type, tier `2|3`, and a
+  non-empty reason. Do not accept explaining that reusable material inline.
+
+This source-to-plan comparison is the durable backstop for a writer that noticed a
+gap but died before returning its report. Link validation alone cannot rediscover an
+omitted link, so every fact-check must perform this check explicitly.
 
 ### 5. Check Staleness
 
@@ -127,12 +144,15 @@ comments immediately after the title:
 
 ### 1. <title>
 
-- **Type**: accuracy | completeness | staleness | formatting
+- **Type**: accuracy | completeness | missing-dependency | staleness | formatting
 - **Severity**: error | warning
 - **Location**: <line number or section in document>
 - **Source**: <source file and line, if applicable>
 - **Description**: <what is wrong>
 - **Fix**: <how to fix>
+- **Proposed dependency**: <normalized path under docsRoot; required for missing-dependency>
+- **Dependency type/tier**: <concept|algorithm> / <2|3; required for missing-dependency>
+- **Reason**: <why this document needs it; required for missing-dependency>
 
 ## Clean
 
@@ -172,5 +192,7 @@ already verified findings.
 - Do not fix findings; only report them.
 - Do not read other documentation files; read only the assigned document and
   its source code.
+- Use only the orchestrator-supplied plan metadata for dependency membership; never
+  discover additional queue members by scanning other documentation files.
 - Do not modify the document or source files.
 - Always write a finding after a successful current-byte audit, even when clean.

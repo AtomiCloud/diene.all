@@ -7,7 +7,8 @@ Manages state transitions for the Write phase. The orchestrator NEVER reads/writ
 ## Agent Context
 
 - Working directory: repo root
-- State files: `.contributor-docs/write-state.json`, `.contributor-docs/task-state.json`
+- State files: `.contributor-docs/write-state.json`, `.contributor-docs/task-state.json`;
+  read-only repair evidence from `.contributor-docs/audit-state.json`
 - Mode: {create|assess|update|gap}
 
 The canonical schema is `docs/standards/contributor-docs/write/PHASE.md`. Every field
@@ -26,7 +27,8 @@ This agent creates **only** `write-state.json`. It never creates `task-state.jso
 2. Refuse if `.contributor-docs/task-state.json` is absent: report `NOT_INITIALIZED`. This phase cannot bootstrap the task.
 3. Refuse if `.contributor-docs/write-state.json` already exists: report `ALREADY_INITIALIZED` and switch to Mode 1.
 4. Write `.contributor-docs/write-state.json` with the initial phase schema — all
-   twelve canonical fields, mirroring `docs/standards/contributor-docs/write/PHASE.md`:
+   thirteen canonical fields, mirroring
+   `docs/standards/contributor-docs/write/PHASE.md`:
 
    <!-- canonical-block: write-state-schema -->
 
@@ -42,6 +44,7 @@ This agent creates **only** `write-state.json`. It never creates `task-state.jso
      "provenance": {},
      "approvedOverwrites": [],
      "blockedCollisions": [],
+     "auditRepair": null,
      "gapTransition": null,
      "gapsResolved": []
    }
@@ -57,6 +60,7 @@ This agent creates **only** `write-state.json`. It never creates `task-state.jso
    - `writeQueue` is an array of strings;
    - `provenance` is an object;
    - `approvedOverwrites` and `blockedCollisions` are valid record arrays (Mode 2);
+   - `auditRepair` is null or a valid epoch-bound repair record (Mode 2);
    - `gapTransition` is `null` or a valid transition object (see Mode 3);
    - `gapsResolved` is an array;
    - no field outside this set is present.
@@ -109,6 +113,7 @@ CONTEXT:
 - queueLength: <writeQueue.length>
 - blockedCollisions: <count>
 - unconsumedApprovals: <count>
+- auditRepair: <none | auditEpoch/status/paths>
 - gapTransition: <none | enqueued | planned | prepared | scaffolded | reset | cleaned>
 - pendingInTier: <queued paths in currentTier with writeStatus == "pending">
 - tierPending: <pending files in current tier's processor state, if applicable>
@@ -132,7 +137,8 @@ or counter by supplying its desired value.
 
 ### Universal Procedure
 
-1. Read and completely validate both state files.
+1. Read and completely validate write and task state. For either audit-repair
+   operation, also validate audit state and every cited current artifact.
 2. Refuse Mode 2 while `gapTransition != null`; Mode 3 exclusively owns that graph.
 3. Validate every path as normalized, root-relative, and contained by `docsRoot`.
 4. Build the operation's complete candidate object, derive both counters, and enforce
@@ -142,17 +148,19 @@ or counter by supplying its desired value.
 
 ### Legal Operations
 
-| Operation                     | Legal source        | Required validation and atomic effect                                                                                                                                                                                                                                                                                         |
-| ----------------------------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `prepare-scaffold`            | `scaffold`          | Validate a whole-plan, exact-byte manifest and its hashes. Persist writable queue/provenance with `scaffoldedAt: null`, measure every collision, derive totals, then move to `scaffold_blocked` or `scaffold_prepared`. No target file may have been written.                                                                 |
-| `resolve-scaffold`            | `scaffold_blocked`  | Require approve/skip for the exact blocked set. Freshly match every approval to `observedHash`; append hash-bound scaffold approvals, update queue/provenance, clear only resolved collisions, derive totals, and reach `scaffold_prepared` only when none remain.                                                            |
-| `block-scaffold`              | `scaffold_prepared` | Freshly measure a create-time collision, record its exact current/expected hashes, and move to `scaffold_blocked`. Prepared hashes and already-created matching files remain adoptable.                                                                                                                                       |
-| `finalize-scaffold`           | `scaffold_prepared` | Require zero collisions and freshly hash every queued file to its prepared `scaffoldHash`; fill null `scaffoldedAt`, consume used scaffold approvals, set `scaffoldComplete: true`, derive counters, and move to `write_tier_1`.                                                                                              |
-| `record-writer-collision`     | `write_tier_N`      | Freshly hash one pending path that differs from its retained normal authority, atomically replace that path's collision record with exact observed/expected hashes, and keep the tier step. Any nonempty collision set blocks dispatch.                                                                                       |
-| `approve-writer-replay`       | `write_tier_N`      | Require an existing collision and an explicit user decision, freshly match `observedHash`, append an unconsumed `purpose: "writer-replay"` approval, and remove that collision atomically. A changed path is remeasured and remains blocked.                                                                                  |
-| `record-write`                | `write_tier_N`      | Require the path in the current tier, pending status, a report carrying valid `AUTHORIZED_FROM_HASH` and `WRITTEN_HASH`, and a legal start authorization. Freshly hash disk to `WRITTEN_HASH`, then atomically record written status/hash, derive `filesWritten`, and consume the exact replay approval if one authorized it. |
-| `complete-tier`               | `write_tier_N`      | Require zero collisions, the processor empty, every tier path written, and every fresh disk hash equal to `writtenHash`. Append N once. Advance to tier N+1, or keep `currentTier: 6` and reach `completed` after tier 6.                                                                                                     |
-| `advance-task-phase-to-audit` | `completed`         | Require the complete-step invariants, then atomically update only `task-state.currentPhase: "audit"` and append the phase transition.                                                                                                                                                                                         |
+| Operation                     | Legal source        | Required validation and atomic effect                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ----------------------------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `prepare-scaffold`            | `scaffold`          | Validate a whole-plan, exact-byte manifest and its hashes. Persist writable queue/provenance with `scaffoldedAt: null`, measure every collision, derive totals, then move to `scaffold_blocked` or `scaffold_prepared`. No target file may have been written.                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `resolve-scaffold`            | `scaffold_blocked`  | Require approve/skip for the exact blocked set. Freshly match every approval to `observedHash`; append hash-bound scaffold approvals, update queue/provenance, clear only resolved collisions, derive totals, and reach `scaffold_prepared` only when none remain.                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `block-scaffold`              | `scaffold_prepared` | Freshly measure a create-time collision, record its exact current/expected hashes, and move to `scaffold_blocked`. Prepared hashes and already-created matching files remain adoptable.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `finalize-scaffold`           | `scaffold_prepared` | Require zero collisions and freshly hash every queued file to its prepared `scaffoldHash`; fill null `scaffoldedAt`, consume used scaffold approvals, set `scaffoldComplete: true`, derive counters, and move to `write_tier_1`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `reopen-audit-repair`         | `completed`         | Require task/audit failure with nonzero current stamped errors, an existing marker that is null or older than the current audit epoch, and a non-empty exact set of queued paths named by those errors. Validate the completed resting state without requiring live hashes, then measure mismatches as collisions. Remove and verify absent every processor state/findings tree from the lowest selected tier through 6. Atomically install the current epoch-bound `auditRepair: replaying` marker, restore only those paths to pending while retaining `writtenHash`, truncate tier completion, derive counters, and enter the lowest selected tier. After that rename, move task phase `failed → write`. |
+| `resume-audit-repair-phase`   | `write_tier_N`      | Crash reconciliation for the prior operation: require task phase still `failed`, audit step `failed`, and at least one pending path that retains a `writtenHash` and is named by current stamped errors. A collided path still satisfies this retained-provenance test. Require the matching `auditRepair: replaying` marker, then update only task phase to `write`.                                                                                                                                                                                                                                                                                                                                       |
+| `record-writer-collision`     | `write_tier_N`      | Freshly hash one pending path that differs from its retained normal authority, atomically replace that path's collision record with exact observed/expected hashes, and keep the tier step. Any nonempty collision set blocks dispatch.                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `approve-writer-replay`       | `write_tier_N`      | Require an existing collision and an explicit user decision, freshly match `observedHash`, append an unconsumed `purpose: "writer-replay"` approval, and remove that collision atomically. A changed path is remeasured and remains blocked.                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `record-write`                | `write_tier_N`      | Require the path in the current tier, pending status, a report carrying valid `AUTHORIZED_FROM_HASH` and `WRITTEN_HASH`, and a legal start authorization. Freshly hash disk to `WRITTEN_HASH`, then atomically record written status/hash, derive `filesWritten`, and consume the exact replay approval if one authorized it.                                                                                                                                                                                                                                                                                                                                                                               |
+| `complete-tier`               | `write_tier_N`      | Require zero collisions, the processor empty, every tier path written, and every fresh disk hash equal to `writtenHash`. Append N once. Advance to tier N+1, or keep `currentTier: 6` and reach `completed` after tier 6.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `advance-task-phase-to-audit` | `completed`         | Require the complete-step invariants and fresh live hashes. On the initial write, atomically update task phase `write → audit`. During repair, require the matching `auditRepair: replaying` marker and failed audit, freshly verify every marked path, atomically set the marker to `completed`, then update task phase `write → audit`. A retry that sees the completed marker with task phase still `write` finishes only the second rename.                                                                                                                                                                                                                                                             |
 
 `record-write` accepts a start authorization only when
 `AUTHORIZED_FROM_HASH` equals the first-write `scaffoldHash`, the retained replay
@@ -160,6 +168,16 @@ or counter by supplying its desired value.
 same path. An approval does not mutate `writtenHash` and cannot be selected twice.
 The writer performs the same fresh pre-write check; the state-agent independently
 checks the returned bytes before completion.
+
+`reopen-audit-repair` never blesses changed bytes. Its `completed` source invariant
+requires all queue entries to be written but deliberately does not require live hashes;
+the operation performs that fresh comparison itself. A selected file that still hashes
+to its retained `writtenHash` can replay normally. Any mismatch becomes an exact
+collision in the reopened tier and blocks every writer until
+`approve-writer-replay` records a fresh one-use decision. Cleanup happens before the
+state rename: a crash after cleanup but before reopening merely discards processor
+caches and safely repeats; a crash after reopening but before the task-phase rename is
+reconciled only by `resume-audit-repair-phase`.
 
 ### Step Invariants
 
@@ -173,14 +191,16 @@ checks the returned bytes before completion.
   collision set is a valid blocked subtype but forbids writer dispatch and tier
   completion.
 - `completed`: tiers exactly `[1, 2, 3, 4, 5, 6]`, tier 6, every queue entry written,
-  every live file hash equal to `writtenHash`, and `filesWritten == filesTotal`.
+  and `filesWritten == filesTotal`. Live-hash equality is an operation precondition for
+  `complete-tier`, `advance-task-phase-to-audit`, and audit reset; it is not a resting
+  invariant, so `reopen-audit-repair` can measure drift into collisions.
 
 No operation may skip a source step, fabricate `tiersCompleted`, or enter completed
 state with pending work. A same-step update not named above is also refused.
 
 ### Complete-Object Validation
 
-- The object has exactly the canonical twelve keys and a legal ten-value `step`.
+- The object has exactly the canonical thirteen keys and a legal ten-value `step`.
 - `scaffoldComplete` is boolean; `currentTier` is an integer 0–6;
   `tiersCompleted` is a sorted, duplicate-free integer array.
 - Both counters are non-negative integers; `filesTotal == writeQueue.length` and
@@ -195,8 +215,21 @@ state with pending work. A same-step update not named above is also refused.
   hashes, tier, count, and path are valid. At most one unconsumed approval may exist
   for a path and purpose, and a new approval requires that path's current collision
   record.
+- `auditRepair` is null or has exactly the four mirrored fields below: a positive
+  integer epoch, lowercase SHA-256 digest, non-empty unique normalized queued paths,
+  and status `replaying|completed`. A current `replaying` record is legal only during
+  its reopened tiers or their completed/task-`write` handoff; `completed` requires
+  write step `completed` and every marked path written. A marker older than the audit
+  epoch is inert and may be replaced only by `reopen-audit-repair` for the newer failed
+  epoch. A marker equal to or newer than the current audit epoch is never replaceable;
+  a future-epoch marker is invalid.
 - `gapTransition` is null in this mode; `gapsResolved` contains only Mode 3 closed
   records with `status: "cleared"`.
+- `reopen-audit-repair` additionally validates the current audit epoch/digest stamps;
+  each fact-check finding also needs its current per-file hash, while a big-picture
+  report is bound by the live whole-tree digest. Each selected path is named by at
+  least one current error, is already queued with written provenance, and appears
+  once. It never accepts a warning-only or caller-invented path.
 - Unknown fields in any object are refused, never merged.
 
 ### Canonical Record Mirrors
@@ -238,6 +271,17 @@ state with pending work. A same-step update not named above is also refused.
   "tier": 4,
   "lineCount": 83,
   "detectedAt": "<ISO-8601>"
+}
+```
+
+<!-- canonical-block: write-audit-repair-record -->
+
+```json
+{
+  "auditEpoch": 1,
+  "docsDigest": "39e77a6619ba41e414906e08eb0f1d62d3069469c2b7cd5f702058869f256fb9",
+  "paths": ["docs/contributor/orders/features/checkout.mdx"],
+  "status": "replaying | completed"
 }
 ```
 
@@ -437,4 +481,6 @@ ERROR: <named refusal, if any>
 - Do not plan or write documentation content.
 - Mode 3 validates plan/scaffold effects and owns deletion of reset processor state;
   the orchestrator authors plan edits and the scaffolder authors scaffold bytes.
+- Mode 2 owns write-tier processor cleanup for `reopen-audit-repair`; documentation
+  fixes themselves still run through doc-writers and `record-write`.
 - Never accept a caller-supplied status without executing its named edge operation.

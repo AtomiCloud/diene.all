@@ -36,12 +36,13 @@ Transition](#discovered-gap-transition), and this file owns its mechanism.
   "provenance": {},
   "approvedOverwrites": [],
   "blockedCollisions": [],
+  "auditRepair": null,
   "gapTransition": null,
   "gapsResolved": []
 }
 ```
 
-This is the **canonical write-phase schema** — twelve top-level fields, and this file
+This is the **canonical write-phase schema** — thirteen top-level fields, and this file
 is their single source of truth. The write state-agent's create, assess, update and
 gap modes operate on exactly these fields: no more, no fewer, and an unknown field is
 refused rather than merged. The state-agent mirrors this block verbatim; where the two
@@ -61,6 +62,7 @@ block instead of guessing which fenced `json` block it wanted. See
 | `provenance`         | path → record  | How each queued path was classified, and the evidence for it           |
 | `approvedOverwrites` | array          | Append-only, exact-hash approvals and whether each was consumed        |
 | `blockedCollisions`  | array          | Current exact-hash collisions awaiting a per-path decision             |
+| `auditRepair`        | object or null | Epoch-bound proof of an authorized audit-repair replay                 |
 | `gapTransition`      | object or null | The in-flight discovered-gap transition; non-null blocks tier dispatch |
 | `gapsResolved`       | array          | Append-only log of closed transitions, one entry per completed replay  |
 
@@ -106,6 +108,30 @@ than once when the user approves different snapshots at different times. Consumi
 approval fills `consumedAt`; entries are never deleted or silently reused.
 At most one unconsumed approval may exist for a path and purpose, and appending one
 requires the path's current collision record.
+
+`auditRepair` is null on the initial write. Audit repair installs this exact record
+before reopening any path:
+
+<!-- canonical-block: write-audit-repair-record -->
+
+```json
+{
+  "auditEpoch": 1,
+  "docsDigest": "39e77a6619ba41e414906e08eb0f1d62d3069469c2b7cd5f702058869f256fb9",
+  "paths": ["docs/contributor/orders/features/checkout.mdx"],
+  "status": "replaying | completed"
+}
+```
+
+The record is the positive evidence that distinguishes a completed repair from an
+audit-failure task-phase crash. `reopen-audit-repair` requires the existing marker to
+be null or bound to an older audit epoch, then creates `replaying` with the current
+failed audit's exact epoch, digest, and selected queued paths. A marker already bound
+to the current epoch is never replaced.
+`advance-task-phase-to-audit` changes it to `completed` only after those paths have
+passed the ordinary writer and live-hash checks. A record from an older audit epoch is
+inert history: it cannot authorize reset and may be replaced only when a later failed
+epoch starts another repair.
 
 Each `blockedCollisions` entry binds the refusal to both sides of the proposed write:
 
@@ -264,6 +290,57 @@ set `scaffoldComplete: true`, recompute both counters, and move
 `scaffold_prepared → write_tier_1` with `currentTier: 1`. No tier is reachable before
 that barrier.
 
+## Audit-Repair Replay
+
+Audit content errors never authorize direct edits. When current stamped audit
+artifacts name documentation paths that need repair, the orchestrator invokes write
+state-agent `reopen-audit-repair` with that exact non-empty path set.
+
+The operation is legal only from write step `completed`, audit step `failed`, task
+phase `failed`, derived `currentContentErrors > 0`, and an `auditRepair` marker that is
+null or belongs to an older audit epoch. It never replaces a marker already bound to
+the current epoch. It validates that every selected path:
+
+- is a unique normalized member of `writeQueue` with written provenance;
+- is named by at least one current-epoch, current-digest error artifact rather than a
+  warning or caller assertion; and
+- either still hashes to its retained `writtenHash` or is measured into an exact
+  `blockedCollisions` record.
+
+Let `repairTier` be the lowest selected provenance tier. Before changing canonical
+state, the state-agent removes and verifies absent each
+`.contributor-docs/write-tier-N/state.json` and findings tree for every tier from
+`repairTier` through 6. Cleanup-first is crash safe: losing only a processor cache
+does not change completed provenance, and retry repeats the absence checks.
+
+One atomic write then installs `auditRepair` with the current audit epoch/digest,
+the exact selected paths, and `status: "replaying"`; sets only those paths back to
+`pending`; keeps every `writtenHash`; truncates `tiersCompleted` below `repairTier`; sets
+`currentTier: repairTier` and `step: "write_tier_<repairTier>"`, persists any measured
+collisions, and derives `filesWritten`. It does not change scaffold ownership or add a
+queue member. After that commit marker, the state-agent changes task phase
+`failed → write`; a crash between the two renames is reconciled by the named
+`resume-audit-repair-phase` operation, never by a generic phase patch.
+
+Ordinary tier dispatch then applies unchanged. A normal retained hash authorizes the
+replay; a mismatch blocks until one fresh `purpose: "writer-replay"` approval is
+consumed by a successful, freshly verified `record-write`. The orchestrator supplies
+each repair writer both its current audit errors and the complete normalized
+`plannedPaths` set from the current plan at dispatch time. A stamped
+`missing-dependency` error whose proposed path is absent from that set must be returned
+in the writer's `GAPS` report so the normal discovered-gap transition adds and replays
+the dependency. If its proposed path has since joined `plannedPaths`, the writer
+downgrades the retained error to an ordinary link-only repair and produces no gap item.
+
+After all tiers reach `completed`, `advance-task-phase-to-audit` freshly validates the
+marker's epoch/digest, every marked path's written status, and every live
+`writtenHash`. It first changes the marker to `completed`, then moves task phase
+`write → audit`. A crash between those renames is an idempotent retry: the completed
+marker authorizes only finishing the task-phase rename. The marker — not task phase or
+the still-failed audit counters alone — proves that a writer-authorized repair cycle
+finished. Only then may audit reset to a fresh epoch. No direct document edit, stale
+`writtenHash`, or completed processor cache can bypass this replay.
+
 ## File-Processor Loop (Per Tier)
 
 For each `write_tier_N` step:
@@ -390,6 +467,8 @@ Each spawned doc-writer receives controlled context (see `docs/standards/contrib
 | The scaffolded file (frontmatter + one-line summary) | Read from disk, include in prompt                                       |
 | Frontmatter of all cross-referenced files            | Read `crossLinks` paths from scaffolded files, extract frontmatter only |
 | Relevant source code files                           | Read `sources` from doc-plan.yaml entry                                 |
+| Current stamped audit errors (repair replay only)    | Read only errors that named this path in the failed audit epoch         |
+| Complete normalized planned-path set                 | Re-read current `doc-plan.yaml` immediately before writer dispatch      |
 | Module overview content (if tier > 1)                | Read module's `overview.mdx`                                            |
 | Body template for the section type                   | From `docs/standards/contributor-docs/common/templates.md`              |
 | Formatting checklist                                 | From `docs/standards/contributor-docs/checklist.md`                     |
@@ -549,20 +628,23 @@ reported missing a third time is not a retry case — it is a planning failure, 
 replaying it again would loop forever while every individual step reports success. Stop
 and report instead.
 
-### The Accepted Gap: A Writer That Dies Before Reporting
+### A Writer That Dies Before Reporting
 
-Step 0 of this transition — the writer noticing — has no durable form, and deliberately
-so. Team agents never touch state files (`docs/standards/contributor-docs/workflow.md`),
-and that rule is worth more than the case it costs us. A writer that discovers a gap and
-then dies before reporting loses the discovery: its file is never marked done, so the
-tier reprocesses it, and if that retry also fails to surface the gap, the missing link
-survives the write phase.
+Step 0 of this transition — the writer noticing — has no durable form inside the
+writer. Team agents never touch state files
+(`docs/standards/contributor-docs/workflow.md`), so a writer that dies before returning
+its report leaves its processor path pending and the tier reprocesses it. Writers still
+never persist a competing gap record.
 
-This is accepted, and it is narrow, because the audit phase rediscovers it: an outbound
-link that was left unwritten is an unresolved reference, and checking those is exactly
-what the audit's fact-check arm does. The cost of the alternative — letting writers
-persist state — is a race between parallel writers in the same tier on the same missing
-path, which is the failure this transition was built to prevent.
+If the retry also omits the gap, audit does **not** pretend an unwritten link is broken.
+Each fact-check receives the file's sources, exact planned `crossLinks`, and the
+complete normalized planned-path set, then compares significant source behavior with
+dependency coverage. A missing link to an existing planned path is an ordinary
+completeness error. A genuinely unplanned reusable concept or algorithm becomes a
+stamped `missing-dependency` error with path, type, tier, and reason. Audit repair
+reopens the reporting file through the normal writer guard; only the latter replay
+reports a durable gap batch and enters this transition. Thus discovery may be delayed,
+but it cannot pass a clean audit merely because no outbound link existed to validate.
 
 ## Consistency Checks
 
@@ -576,8 +658,9 @@ each must produce the stated result.
    range extractor that concatenates two of them yields invalid JSON — a check that always
    errors is a check that asserts nothing.
 2. **Record-shape equality.** The `write-provenance-record`,
-   `write-approval-record`, `write-collision-record`, and `gap-transition-record`
-   blocks have matching field sets in this file and the state-agent mirror.
+   `write-approval-record`, `write-collision-record`, `write-audit-repair-record`, and
+   `gap-transition-record` blocks have matching field sets in this file and the
+   state-agent mirror.
 3. **No retired field survives.** The retired mis-ordering of `tiersCompleted` — the same
    two words the other way round — and a generic `errors` field appear nowhere in the
    contributor-docs tree. This check greps for the retired spelling, so this document
@@ -610,5 +693,9 @@ All state writes go through the **write state-agent** (sub-agent, haiku). Read `
 
 When all tiers are complete:
 
-1. Via state-agent: update `task-state.json`: `currentPhase: "audit"`
-2. Proceed to audit phase
+1. Invoke state-agent `advance-task-phase-to-audit`; never issue a generic task-state
+   update. On an initial write it validates the complete step and live hashes before
+   moving task phase. On an audit repair it first commits the matching
+   `auditRepair: completed` marker, then moves task phase, and a crash between those
+   renames retries only the phase handoff.
+2. Proceed to audit phase.

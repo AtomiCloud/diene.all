@@ -8,7 +8,7 @@ Manages state transitions for the Plan phase. The orchestrator NEVER reads/write
 
 - Working directory: repo root
 - State files: `.contributor-docs/plan-state.json`, `.contributor-docs/task-state.json`
-- Mode: {assess|update}
+- Mode: {create|assess|update}
 
 ## Mode 0: Create (clean start — this agent owns it)
 
@@ -45,15 +45,21 @@ assess.
 
 3. Write `.contributor-docs/plan-state.json` (the canonical plan schema, matching
    `docs/standards/contributor-docs/plan/PHASE.md`):
+
+   <!-- canonical-block: plan-state-schema -->
+
    ```json
    {
      "step": "diff_analysis",
      "diffSummaryReady": false,
+     "diffSummaryHash": null,
      "planFile": null,
-     "approved": false,
-     "reviewFeedback": null
+     "planHash": null,
+     "reviewFeedback": null,
+     "approved": false
    }
    ```
+
 4. Write `.contributor-docs/task-state.json` — **last**, as the commit marker:
    ```json
    {
@@ -66,8 +72,9 @@ assess.
 5. Validate before reporting success. Every field is checked, not just parseability:
    - both files parse as JSON;
    - `currentPhase` ∈ `plan|write|audit|completed|failed`;
-   - `step` ∈ `diff_analysis|classify|review`;
+   - `step` ∈ `diff_analysis|classify|review|completed`;
    - `diffSummaryReady` and `approved` are booleans;
+   - `diffSummaryHash` and `planHash` are a lowercase SHA-256 or `null`;
    - `planFile` and `reviewFeedback` are a string or `null`;
    - `baseBranch` resolves to an existing ref.
 
@@ -108,11 +115,19 @@ When prompted: "Assess plan phase state"
 
 ### Procedure
 
-1. Read `.contributor-docs/plan-state.json` (if exists)
-2. Read `.contributor-docs/task-state.json` for shared context
-3. Check if `.contributor-docs/diff-summary.md` exists
-4. Check if `.contributor-docs/doc-plan.yaml` exists
-5. Report current state
+1. Read and completely validate `.contributor-docs/plan-state.json`.
+2. Read and validate `.contributor-docs/task-state.json` for shared context.
+3. Check whether `.contributor-docs/diff-summary.md` and
+   `.contributor-docs/doc-plan.yaml` exist, and freshly hash each existing artifact.
+4. Derive whether the live hashes equal their recorded values. After `diff_analysis`, a
+   diff-summary mismatch preempts every later dispatch and selects only
+   `invalidate-diff-summary`. A plan mismatch preempts `review` and `completed` dispatch
+   and selects `invalidate-plan`, but it does not block `classify`: on first entry the
+   candidate may be absent, and after rejection the classifier is expected to replace
+   the retained rejected-plan bytes. Report every mismatch without mutation; the named
+   invalidation operation or `record-classification` validates and binds the complete
+   next state.
+5. Report current state without mutation.
 
 ### Report Format
 
@@ -120,54 +135,103 @@ When prompted: "Assess plan phase state"
 CURRENT_STEP: <step from plan-state.json>
 CONTEXT:
 - diffSummaryReady: <true|false>
+- diffSummaryHash: <64 lowercase hex | absent>
+- diffSummaryHashCurrent: <true|false>
 - planFile: <exists|absent>
+- planHash: <64 lowercase hex | absent>
+- planHashCurrent: <true|false>
 - approved: <true|false>
 - reviewFeedback: <present|absent>
 ```
 
-## Mode 2: Update (write state)
+## Mode 2: Commanded Plan-State Operations
 
-When prompted: "Update plan state: {UPDATES_JSON}"
+When prompted: `Update plan state: {OPERATION_JSON}`
 
-### Procedure
+The object must name exactly one legal operation below. A generic field patch is
+`UPDATE_REFUSED: operation required`; callers never provide a desired `step`,
+`approved` flag, artifact hash, or task phase.
 
-1. Read `.contributor-docs/plan-state.json`
-2. Apply each field update from {UPDATES_JSON}
-3. Write back to `.contributor-docs/plan-state.json`
-4. If `step` changed, append transition log:
-   ```bash
-   echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) phase=plan from={old_step} to={new_step}" >> .contributor-docs/transitions.log
-   ```
-5. Report what changed
+### Universal Procedure
 
-When prompted to update `task-state.json` (phase transitions only):
+1. Read and completely validate both state files and the source step's stored
+   structural invariants. Live artifact freshness is operation-specific:
+   `invalidate-diff-summary` is allowed to prove the summary mismatch that every later
+   operation must refuse, and `invalidate-plan` is allowed to prove the plan mismatch
+   that every other review or completion operation must refuse.
+2. Resolve every artifact path from the repository root, refuse path escape, and
+   freshly hash the exact bytes.
+3. Build the operation's complete candidate object; never merge caller fields into
+   state.
+4. Validate the candidate and target-step invariants before writing.
+5. Write through a temp file in `.contributor-docs/` plus atomic rename.
+6. Append the transition log only after the rename.
 
-1. Read `.contributor-docs/task-state.json`
-2. Apply updates
-3. Write back
-4. Append phase transition log:
-   ```bash
-   echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) phase-transition from={old} to={new}" >> .contributor-docs/transitions.log
-   ```
+### Legal Operations
+
+| Operation                     | Legal source                         | Required validation and atomic effect                                                                                                                                                                                                                                                                   |
+| ----------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `record-diff-analysis`        | `diff_analysis`                      | Require `.contributor-docs/diff-summary.md` to exist and cover the complete base diff. Freshly hash it; set `diffSummaryReady: true`, record `diffSummaryHash`, clear plan identity/feedback/approval, and move to `classify`.                                                                          |
+| `invalidate-diff-summary`     | `classify`, `review`, or `completed` | Prove the live diff summary is absent or its fresh hash differs from `diffSummaryHash`. Restore the untouched `diff_analysis` object: clear summary readiness/hash, plan identity, feedback, and approval, then move to `diff_analysis`.                                                                |
+| `record-classification`       | `classify`                           | Require the recorded diff-summary hash still matches. Parse and completely validate `.contributor-docs/doc-plan.yaml`, including diff coverage, unique normalized output paths under `docsRoot`, type/tier rules, sources, and cross-links. Record its path/hash, clear feedback, and move to `review`. |
+| `reject-plan`                 | `review`                             | Require explicit non-empty user feedback and a fresh plan hash equal to `planHash`. Preserve the reviewed plan identity and feedback, keep `approved: false`, and move to `classify` for a new classification.                                                                                          |
+| `invalidate-plan`             | `review` or `completed`              | Require the diff-summary hash still matches and prove the live plan is absent or its fresh hash differs from `planHash`. Clear `planFile`, `planHash`, and any approval; set fixed feedback `Plan changed after classification; rebuild from current bytes.`, and move to `classify`.                   |
+| `approve-plan`                | `review`                             | Require an explicit user approval, current diff-summary and plan hashes, and a still-valid complete plan. In one write set `approved: true`, clear feedback, and move to `completed`.                                                                                                                   |
+| `advance-task-phase-to-write` | `completed`                          | Require completed invariants, task phase `plan`, and current artifact hashes. Atomically update only `task-state.currentPhase: "write"` and `task-state.planFile` to the exact approved path. A retry observing those same task values is an idempotent success.                                        |
+
+An explicit user decision is input evidence, not a caller-selected state value. The
+state-agent accepts it only in `reject-plan` or `approve-plan` at `review`, and binds
+it to the fresh `planHash` before installing the corresponding fixed candidate.
+Neither invalidation accepts caller feedback or a desired hash.
+`invalidate-diff-summary` derives the mismatch and restores the exact initial object;
+`invalidate-plan` derives its mismatch and fixed classifier feedback.
+
+### Complete-Object Validation
+
+- The object has exactly the seven canonical fields shown in Mode 0; unknown or
+  missing fields are refused.
+- `step` is one of `diff_analysis`, `classify`, `review`, or `completed`;
+  booleans, nullable strings, and lowercase SHA-256 values have their marked types.
+- `diff_analysis` is the untouched initial object: no ready flag, hashes, plan,
+  feedback, or approval.
+- `classify` requires a recorded diff-summary identity. Its live equality is a
+  `record-classification` precondition, while a proven inequality is the
+  `invalidate-diff-summary` precondition. On first entry it has no plan identity or
+  feedback; after rejection it retains the rejected plan identity plus non-empty user
+  feedback; after plan invalidation it has no plan identity plus the fixed invalidation
+  feedback. It is never approved.
+- `review` requires recorded diff-summary and plan identities, no feedback, and
+  `approved: false`. Summary equality is an operation precondition except when a proven
+  inequality selects `invalidate-diff-summary`; plan equality is an
+  `approve-plan`/`reject-plan` precondition, while a proven inequality is the
+  `invalidate-plan` precondition.
+- `completed` requires recorded identities for the summary and the fully validated plan,
+  no feedback, and `approved: true`. Live equality and continued plan validity are
+  `advance-task-phase-to-write` preconditions, not resting invariants: summary drift
+  selects `invalidate-diff-summary`, and plan drift selects `invalidate-plan`.
+- `task-state.currentPhase` remains `plan` through all plan-step operations. Only
+  `advance-task-phase-to-write` may change it, and only to `write` with the exact
+  approved `planFile`.
+
+No same-step mutation is legal except the idempotent task-phase retry described
+above. A stale required hash or wrong edge returns `UPDATE_REFUSED: <reason>` with both
+prior state files byte-identical. The exceptions are the named invalidation edges, whose
+required mismatch is their evidence. A retained rejected-plan hash becoming non-current
+during `classify` is candidate production, not a same-step state mutation.
 
 ### Report Format
 
 ```
 RESULT: <updated|error>
-FIELDS_UPDATED: <list>
+OPERATION: <name>
+FROM_STEP: <step>
 NEW_STEP: <step value if changed>
 ERROR: <error message if any>
 ```
 
-### Validation Rules
-
-- `step` must be one of: `diff_analysis`, `classify`, `review`, `completed`
-- `diffSummaryReady` must be boolean
-- `approved` must be boolean
-- `planFile` must be a string path or null
-- `reviewFeedback` must be a string or null
-
 ## Important
 
 - Manage `plan-state.json` and `task-state.json` (phase transitions only)
-- Do NOT execute any phase steps — just assess and update state
+- Do not execute phase work; validate its artifacts and perform only the named state
+  operations above.
+- Never accept arbitrary fields or caller-selected target states.

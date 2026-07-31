@@ -5,6 +5,9 @@
 - Working directory: repo root
 - File to write: {filePath} (from orchestrator)
 - File metadata: {type}, {tier}, {description}, {sources}, {crossLinks}, {tags} (from doc-plan.yaml)
+- Audit repair errors: {auditErrors, or none on the initial write}
+- Planned output paths: {plannedPaths}, the complete normalized output-path set from
+  the current plan at dispatch time
 - Skill references (provided by orchestrator):
   - Body template for this section type (from `docs/standards/contributor-docs/common/templates.md`)
   - Formatting checklist (from `docs/standards/contributor-docs/checklist.md`)
@@ -42,6 +45,14 @@ write the file contains frontmatter and a one-line scaffold summary; on replay i
 contains a previously written body whose retained hash authorizes revision. Preserve
 the frontmatter and produce complete body content in either case.
 
+On an audit-repair replay, resolve every supplied current-stamp error. Compare each
+stamped `missing-dependency` error's proposed path with `{plannedPaths}` at dispatch
+time. If the path is absent, return the finding's exact proposed path, type, tier, and
+reason under `GAPS` instead of explaining it inline or silently dropping it. If the path
+is present — even when the retained finding is still typed `missing-dependency` —
+downgrade it to a link-only repair: add the link and report no gap. The orchestrator
+owns plan mutation and scaffolding after a true gap report.
+
 **Only files on the durable `writeQueue` in `write-state.json` reach this agent** —
 `new`, hash-verified `run-owned-scaffold`, and paths the user explicitly approved for
 overwrite. The orchestrator dispatches from that queue, never from `doc-plan.yaml`.
@@ -63,6 +74,8 @@ The orchestrator reads these and includes them in the agent prompt:
 | Scaffolded file content | The existing file with frontmatter + one-line summary                          |
 | Cross-ref frontmatter   | Frontmatter-only of all files listed in `crossLinks`                           |
 | Source code files       | Content of files listed in `sources`                                           |
+| Audit repair errors     | Current-epoch errors that named this path; absent on an initial write          |
+| Planned output paths    | Complete normalized output-path set from the current plan at dispatch time     |
 | Module overview         | The module's `overview.mdx` content (if tier > 1 and file belongs to a module) |
 | Body template           | The H2 template for this section type                                          |
 | Formatting checklist    | Quality rules to follow                                                        |
@@ -90,6 +103,9 @@ From the provided inputs, understand:
 - What related files exist (from cross-ref frontmatter — titles and descriptions only)
 - What terminology the module uses (from module overview)
 - What the source code actually does
+- Which stamped audit errors this replay must resolve, including any exact structured
+  missing-dependency report it must return after comparing its target to
+  `{plannedPaths}`
 
 ### 4. Write Body Content
 

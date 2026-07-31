@@ -148,4 +148,9 @@ Index files also use minimal frontmatter.
 2. **No `module` field.** The folder path encodes the module. Duplicating it in frontmatter creates drift.
 3. **`related` is generic.** Concepts can link to algorithms, algorithms to concepts, surfaces to surfaces. No type restriction.
 4. **`tags` is freeform.** No controlled vocabulary at the schema level. When writing docs, reuse existing tags from sibling files to keep them consistent.
-5. **`status` is universal.** All content types support `draft | stable | deprecated` to track lifecycle.
+5. **`status` is type-specific.** Features, concepts, algorithms, and surfaces use
+   `draft | stable | deprecated`. ADRs use the decision lifecycle
+   `proposed | accepted | superseded | deprecated`, with `superseded_by` required only
+   for `superseded`. Module overviews and index files use their minimal schemas and
+   omit status. Scaffolders and writers must select the vocabulary from the file's
+   schema, never apply one universal list.

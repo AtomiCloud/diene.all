@@ -10,7 +10,12 @@ Present the documentation plan to the user for review and approval.
 
 ### 1. Read the Plan
 
-Read `.contributor-docs/doc-plan.yaml`.
+Read `.contributor-docs/doc-plan.yaml`. Ask the state-agent to assess and provide the
+fresh `planHash`; do not read state JSON directly. If the live file no longer matches
+the hash recorded at classification, do not present or decide on the moving plan; report
+the stale review state and invoke state-agent `invalidate-plan`. That named operation
+proves the mismatch and returns to `classify`, where `record-classification` validates
+and binds a replacement.
 
 ### 2. Present Summary
 
@@ -36,6 +41,8 @@ Display a structured summary to the user:
 - 03-development/ (<N> files)
 
 ### Total: <N> files across <N> tiers
+
+Plan identity: <64-character planHash>
 ```
 
 ### 3. Ask for Approval
@@ -49,12 +56,14 @@ Use AskUserQuestion:
 
 If approved:
 
-- Via state-agent: update plan state `approved: true`, `step: "completed"`
+- Invoke state-agent `approve-plan` with the explicit approval and the presented
+  `planHash`. The operation chooses the fixed target object; do not send field patches.
 
 If revise:
 
 - Capture the user's feedback
-- Via state-agent: update plan state `reviewFeedback: "<feedback>"`, `step: "classify"`
+- Invoke state-agent `reject-plan` with the non-empty feedback and presented
+  `planHash`. The operation chooses the fixed target object; do not send field patches.
 
 ## Important
 
@@ -62,3 +71,5 @@ If revise:
 - Do NOT proceed to write without user approval
 - The plan can go through multiple review cycles
 - Use the state-agent for ALL state updates
+- Bind either decision to the exact hash shown to the user
+- Never present a non-current plan; use `invalidate-plan` to return it to classification

@@ -140,9 +140,11 @@ phase-state file when their phase is first entered, and they refuse to run if
    {
      "step": "diff_analysis",
      "diffSummaryReady": false,
+     "diffSummaryHash": null,
      "planFile": null,
-     "approved": false,
-     "reviewFeedback": null
+     "planHash": null,
+     "reviewFeedback": null,
+     "approved": false
    }
    ```
 
@@ -180,8 +182,9 @@ Each phase state-agent applies rules 1, 2, 5 and 6 to its own phase-state file
 ```
 task-state.json.currentPhase:
   plan → write → audit → completed
-                   ↓
-                 failed --(audit repair reset)--> audit
+          ↑        ↓
+          └────── failed --(no-current-error reset)--> audit
+            audit content repair
 ```
 
 ### Phase 1: Plan
@@ -224,7 +227,7 @@ Dispatch: `docs/standards/contributor-docs/audit/PHASE.md`
 | `write`        | Spawn write state-agent to assess, dispatch per `docs/standards/contributor-docs/write/PHASE.md`                                                       |
 | `audit`        | Spawn audit state-agent to assess, dispatch per `docs/standards/contributor-docs/audit/PHASE.md`                                                       |
 | `completed`    | Report completion, list generated files                                                                                                                |
-| `failed`       | Spawn audit state-agent to assess and dispatch the audit repair/reset flow below; never stop at a generic retry message                                |
+| `failed`       | Spawn audit and write state-agents to assess and dispatch the fenced audit repair/reset flow below; never stop at a generic retry message              |
 
 **Transition logging:** When advancing phases, the state-agent appends:
 
@@ -234,23 +237,68 @@ echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) phase-transition from={old_phase} to={new_p
 
 ### Failed-Phase Dispatch
 
-Audit is the only phase permitted to set `task-state.currentPhase: "failed"` in this
-workflow, so failed dispatch is deterministic rather than user-directed:
+Audit is the only phase permitted to create task phase `failed`, but content repair
+temporarily routes that fenced failure through the ordinary write machinery. Dispatch
+uses the complete audit/write/task triple:
 
-1. Spawn audit state-agent `assess`.
-2. If `audit-state.step == "failed"`, present the current stamped errors, perform the
-   targeted repairs, and invoke audit state-agent `reset`.
-3. If `audit-state.step == "big_picture"`, `auditEpoch >= 2`, every reset field has
-   its canonical fresh value, and task phase is still `failed`, a reset commit landed
-   before cleanup or the task-phase write. Resume that same reset: do not increment
-   `auditEpoch`; repeat stale-artifact cleanup and finish the transition to task phase
-   `audit`.
-4. Any other combination is `INVALID_FAILED_STATE`; report the exact pair and mutate
-   nothing. It is not converted into a fresh audit or a completed run.
+1. Spawn both audit and write state-agents in `assess` mode. Validate all state,
+   current audit stamps, the complete error-to-path mapping, and `auditRepair` before
+   selecting a row below. Audit dispatch evaluates these same fenced rows when task
+   phase is still `audit`.
+2. With audit step `failed`, task phase `audit`, write step `completed`, and
+   `auditRepair` null or bound to an older audit epoch, the audit-state failure rename
+   committed before its paired task-phase rename. Invoke only
+   `resume-failed-task-phase`, then reassess from task phase `failed`; never infer
+   completed repair from this tuple. A current `replaying` marker here is inconsistent
+   state and must not be normalized by this recovery.
+3. With audit step `failed`, if `repairOutOfScope` is non-empty, report
+   `REPAIR_OUT_OF_SCOPE` with the exact current errors and mutate nothing. This includes
+   a skipped/non-queued reporting document or an unsupported topology change. The
+   declared proposed-path addition for a stamped `missing-dependency` is not out of
+   scope; it uses the normal discovered-gap transition after the reporting document is
+   reopened. Assessment reports this outcome as `none` at every active audit step, so a
+   partial big-picture result cannot short-circuit fact-check.
+4. With audit step `failed`, task phase `failed`, write step `completed`, derived
+   `currentContentErrors == 0`, and non-empty `writeDriftBlocked`, report
+   `WRITE_DRIFT_BLOCKED: <complete sorted normalized paths>` and mutate nothing. This
+   named authority outcome means external byte drift prevents evidence reset; it is not
+   `INVALID_FAILED_STATE`.
+5. With audit step `failed`, task phase `failed`, write step `completed`, and derived
+   `currentContentErrors > 0`, present the current errors and select the exact queued
+   `repairPaths` they name. Invoke write state-agent `reopen-audit-repair`; direct
+   document edits are forbidden. It clears repair-tier processors, retains write
+   hashes, installs the current epoch/digest/path-bound `auditRepair: replaying`
+   marker, reopens only those paths, and then moves task phase to `write`.
+6. With audit step `failed`, task phase still `failed`, write step `write_tier_N`, and
+   a matching `auditRepair: replaying` marker, the write-state rename committed before
+   its task-phase rename. Invoke only `resume-audit-repair-phase`, then enter ordinary
+   `write` dispatch.
+7. Task phase `write` always follows the ordinary write row. Repair writers receive
+   their stamped errors plus the current complete normalized planned-path set. Only a
+   `missing-dependency` whose proposed path is still absent becomes a structured `GAPS`
+   report; one whose target joined the plan is downgraded to link-only repair. When all
+   tiers complete, write state-agent freshly verifies the marked paths, atomically
+   changes the marker to `completed`, then moves task phase to `audit`. A crash between
+   those renames retries only the task-phase handoff.
+8. With task phase `audit`, audit step `failed`, write step `completed`, and the exact
+   current `auditRepair: completed` marker, invoke audit reset. It starts the next
+   epoch and cleans every prior-epoch artifact before ordinary audit work resumes.
+9. A failed audit with no **currently stamped** content errors represents a hard-agent
+   or freshness retry rather than content repair. It may reset directly from task
+   phase `failed` only while completed write provenance still freshly matches disk;
+   stale counters alone never authorize either repair or reset. A mismatch is the
+   `WRITE_DRIFT_BLOCKED` outcome in row 4.
+10. If audit step is `big_picture`, `auditEpoch >= 2`, every reset field has its fresh
+    value, and task phase is still `failed`, a direct-reset commit needs reconciliation.
+    Resume cleanup without incrementing the epoch and finish task phase
+    `failed → audit`. Post-repair stale-artifact cleanup is reached from ordinary audit
+    dispatch through `resetResumeRequired`.
+11. Any other combination is `INVALID_FAILED_STATE`; report the exact triple and
+    mutate nothing.
 
-After reset completes, dispatch re-enters the ordinary `audit` row. This is the public
-route that makes the audit phase's documented `failed → big_picture` recovery edge
-reachable after an invocation boundary.
+These rows make both recovery cycles reachable after invocation boundaries while
+keeping their authorities separate: write provenance authorizes document replacement,
+and the audit epoch commit marker authorizes evidence invalidation.
 
 ## File-Processor Pattern
 

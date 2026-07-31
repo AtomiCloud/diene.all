@@ -8,7 +8,7 @@ flowchart LR
   FC -->|zero errors and fresh evidence| C[completed]
   BP -->|hard agent error| F[failed]
   FC -->|one or more errors, hard agent error, or stale evidence| F
-  F -->|repair reset| BP
+  F -->|writer replay then reset, or zero-error retry| BP
 ```
 
 The big-picture auditor runs first (one opus agent, holistic view). Then
@@ -127,13 +127,16 @@ complete object and refuses unknown fields before each write.
 | `fact_check`                  | `completed`   | Both arms are current, every file hash matches, digest is unchanged, and `totalErrors == 0` | Set the fact-check flag and counters and record accepted warnings                                                                                                              |
 | `fact_check`                  | `failed`      | A complete current audit has `totalErrors > 0`                                              | Set the fact-check flag and counters, preserve measured results, and set `step: "failed"`                                                                                      |
 | `big_picture` or `fact_check` | `failed`      | An audit agent has a hard error or evidence becomes stale                                   | Preserve every result measured so far and set only `step: "failed"`; record the reason in the orchestrator's audit run report and the transition log, not in a new state field |
-| `failed`                      | `big_picture` | Repair reset                                                                                | Atomically install the next epoch's fully reset state, then idempotently remove prior-epoch artifacts                                                                          |
+| `failed`                      | `big_picture` | No current stamped content error, or an exact current `auditRepair: completed` marker       | Atomically install the next epoch's fully reset state, then idempotently remove prior-epoch artifacts                                                                          |
 
 The `failed` to `big_picture` edge is available only through the reset mode.
 Ordinary update mode cannot change `auditEpoch` or `docsDigest`.
 Every transition to `audit-state.step: "failed"` is paired, through the same
 state-agent, with `task-state.currentPhase: "failed"`. The hard-error reason
 still remains outside the audit-state schema.
+A zero-current-error failure whose queued written bytes no longer match retained
+provenance has no transition: it reports the named non-mutating authority outcome
+`WRITE_DRIFT_BLOCKED: <paths>` instead of invalidating evidence over changed bytes.
 
 ## Step Dispatch
 
@@ -141,14 +144,25 @@ On entry, spawn the audit state-agent to assess. **NEVER read step files
 directly** — spawn a teammate and tell it which step file to read. The
 file-processor loop for fact-check is managed by the orchestrator using scripts.
 
-| Condition                     | Action                                                                                                                                     |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| No `audit-state.json`         | Create via state-agent, then spawn the big-picture auditor                                                                                 |
-| `step: "big_picture"`         | Spawn big-picture auditor — tell it to read `docs/standards/contributor-docs/audit/big-picture.md`                                         |
-| `step: "fact_check"`          | Run the fact-check file-processor loop below                                                                                               |
-| `step: "completed"`           | Advance `task-state.currentPhase` to `"completed"` via state-agent                                                                         |
-| `step: "failed"`              | Run the repair loop; never advance directly to `"completed"`                                                                               |
-| Hard error in an active agent | Via state-agent, make the legal transition from the active step and `task-state.currentPhase` to `failed`, then record the external reason |
+| Condition                                        | Action                                                                                                                                     |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `resetResumeRequired: true`                      | Resume reset-owned stale-artifact cleanup without incrementing `auditEpoch`; finish task phase when still `failed`                         |
+| `failurePairingResumeRequired: true`             | Invoke `resume-failed-task-phase`; do not interpret task phase `audit` as completed repair                                                 |
+| `step: "failed"` and `repairOutOfScope != none`  | Report `REPAIR_OUT_OF_SCOPE` with the exact current errors and mutate nothing                                                              |
+| `step: "failed"` and `writeDriftBlocked != none` | Report `WRITE_DRIFT_BLOCKED` with the exact drifted queued paths and mutate nothing                                                        |
+| No `audit-state.json`                            | Create via state-agent, then spawn the big-picture auditor                                                                                 |
+| `step: "big_picture"`                            | Spawn big-picture auditor — tell it to read `docs/standards/contributor-docs/audit/big-picture.md`                                         |
+| `step: "fact_check"`                             | Run the fact-check file-processor loop below                                                                                               |
+| `step: "completed"`                              | Advance `task-state.currentPhase` to `"completed"` via state-agent                                                                         |
+| `step: "failed"`                                 | Run the repair loop; never advance directly to `"completed"`                                                                               |
+| Hard error in an active agent                    | Via state-agent, make the legal transition from the active step and `task-state.currentPhase` to `failed`, then record the external reason |
+
+Evaluate the reset-resume row first, then the separated failure-pairing row. They are
+the only safe actions while a committed new epoch still has old artifacts, or while an
+audit failure rename has landed without its paired task-phase rename. The two named
+authority outcomes are evaluated only at `step: "failed"`, before the generic failed
+repair/reset row. Partial big-picture or fact-check findings never select either
+outcome and therefore never short-circuit the other audit arm.
 
 ## Big-Picture Step
 
@@ -217,8 +231,9 @@ modified to carry audit metadata.
 while next-file.sh returns files:
   1. Get the next batch from .contributor-docs/fact-check/state.json.
   2. Immediately before dispatch, SHA-256 the exact bytes of each assigned file.
-  3. Spawn one fact-checker per file with file path, sources, auditEpoch,
-     docsDigest, and the per-file SHA-256.
+  3. Spawn one fact-checker per file with file path, docsRoot, sources, exact plan
+     type/tier/crossLinks metadata, the complete normalized planned-path set,
+     auditEpoch, docsDigest, and the per-file SHA-256.
   4. Wait for every agent in the batch.
   5. Verify each finding's three stamps and recompute its file SHA-256.
   6. Mark a file done only after all three values match; otherwise regenerate it.
@@ -296,36 +311,69 @@ state explicitly identifies what was accepted. Reset clears the collection.
 
 ### Repair Loop (`failed`)
 
-`failed` is a working state, not a dead end. On re-invocation with
-`currentPhase: "failed"`, top-level dispatch in
-`docs/standards/contributor-docs/workflow.md#failed-phase-dispatch` routes here by
-spawning audit state-agent assessment; there is no manual state-file call or generic
-retry branch:
+`failed` is a working state, not a dead end. Top-level failed dispatch starts the
+writer-authorized repair route, and ordinary audit dispatch returns here after that
+route sets task phase back to `audit`. Both routes spawn state-agent assessment; there
+is no manual state-file call or generic retry branch:
 
-1. Present the outstanding errors from the current audit reports.
-2. Fix them by re-running affected write-tier files or making targeted document
-   edits.
-3. Invoke state-agent reset. From `step: "failed"`, it increments
-   `auditEpoch`, recomputes `docsDigest`, builds the complete reset object
-   (`step: "big_picture"`, false completion flags, zero counters, and an empty
-   `acceptedWarnings`), and installs that object with one atomic temp-file
-   rename. That rename is the reset's commit marker.
-4. Only after the commit marker lands, remove
+1. Present the outstanding current-stamp errors and map every content error to the
+   queued documentation path it names. A `missing-dependency` finding supplies its
+   proposed path, type, tier, and reason but reopens the reporting document first; its
+   declared new path uses the ordinary discovered-gap transition and is therefore
+   inside writer authority. If any error has neither an existing queued rewrite path
+   nor that declared gap route — including a skipped reporting document or a required
+   move, split, merge, removal, or unsupported topology change — report
+   `REPAIR_OUT_OF_SCOPE` with the exact errors and mutate nothing. It is a terminal
+   authority outcome, not `INVALID_FAILED_STATE`.
+2. When assessment derives `currentContentErrors > 0`, invoke write state-agent
+   `reopen-audit-repair` with the
+   exact affected queued paths. It freshly checks retained `writtenHash` authority,
+   persists mismatches as collisions, removes stale write-tier processors, installs an
+   epoch/digest/path-bound `auditRepair: replaying` marker, and routes task phase
+   through `write`. **Do not make targeted document edits outside this operation.**
+3. Complete the ordinary write-tier replay. Each successful writer result goes
+   through `record-write` before processor completion; exact approvals are consumed
+   once. Structured unplanned gap errors enter the normal discovered-gap transition;
+   missing links to already planned paths do not. After tier 6 completes, write
+   state-agent freshly verifies the marked paths, changes `auditRepair` to `completed`,
+   and moves task phase back to `audit` while audit step remains `failed`.
+4. Invoke audit state-agent reset. The repair rewrites document bytes, so the old
+   per-file error stamps are expected to be stale now. The post-repair authority is the
+   exact current `auditRepair: completed` marker plus its live `writtenHash` checks and
+   the preserved nonzero total recording that this epoch found content errors. A
+   hard-agent/freshness failure with no current stamped content error may reset directly
+   when completed write provenance still matches disk. If those live hashes instead
+   identify drifted queued paths, report `WRITE_DRIFT_BLOCKED: <paths>` and mutate
+   nothing; do not collapse that authority stop into `INVALID_FAILED_STATE`. Reset
+   increments `auditEpoch`, recomputes `docsDigest`, builds the
+   complete reset object (`step: "big_picture"`, false completion flags, zero
+   counters, and an empty `acceptedWarnings`), and installs it with one atomic
+   temp-file rename. That rename is the reset's commit marker.
+5. Only after the commit marker lands, remove
    `.contributor-docs/big-picture-report.md`,
    `.contributor-docs/fact-check/state.json`,
    `.contributor-docs/fact-check/epoch.json`, and every findings artifact under
    `.contributor-docs/fact-check/findings/`. Remove them in place; do not
    archive or rename the canonical paths.
-5. Set `task-state.json.currentPhase` to `"audit"` and re-audit from the top.
-   Partial re-audits are not permitted.
+6. If task phase is still `failed` (the no-current-content-error path), set it to `audit`.
+   A content-repair replay already returned it to `audit`. Re-audit from the top;
+   partial re-audits are not permitted.
 
-A crash before the state rename leaves the old failed epoch intact. A crash
-after it leaves a committed new epoch plus stale artifacts whose epoch or digest
-cannot match; they are rejected and removed idempotently when reset resumes.
-Resume never increments the already committed epoch a second time. A crash after
-artifact removal but before the task-state update is also safe: reset recognizes
-the committed reset while `currentPhase` is still `"failed"`, repeats cleanup,
-and finishes the task-state transition.
+A crash before the write-state reopen loses at most processor caches. A crash after
+that rename but before task phase reaches `write` is reconciled by
+`resume-audit-repair-phase`; the retained hashes, pending paths, and `replaying` marker
+are already the commit marker. A crash during replay follows ordinary write
+reconciliation. A crash after the marker becomes `completed` but before task phase
+reaches `audit` retries only that phase rename.
+
+A crash before the audit-state reset rename leaves the old failed epoch intact. A
+crash after it leaves a committed new epoch plus stale artifacts whose epoch or digest
+cannot match; they are rejected and removed idempotently when reset resumes. Resume
+never increments the already committed epoch a second time. On a direct no-current-error
+reset, a crash after artifact removal but before the task-state update is also safe:
+reset recognizes the committed reset while `currentPhase` is still `"failed"`, repeats
+cleanup, and finishes the task-state transition. On a post-repair reset task phase is
+already `audit`; stale prior-epoch artifacts themselves trigger cleanup reconciliation.
 
 The loop repeats until a fresh audit run reports zero errors. Only that clean,
 content-stable run may set `completed`.

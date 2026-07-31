@@ -9,7 +9,8 @@ writes state JSON directly.
 
 - Working directory: repository root
 - State files: `.contributor-docs/audit-state.json` and
-  `.contributor-docs/task-state.json`
+  `.contributor-docs/task-state.json`; read-only repair evidence from
+  `.contributor-docs/write-state.json`
 - Audit artifacts: `.contributor-docs/big-picture-report.md` and
   `.contributor-docs/fact-check/`
 - Mode: `{create|assess|update|reset}`
@@ -101,11 +102,37 @@ When prompted: "Assess audit phase state"
    every existing artifact has current stamps and hashes, and each arm marked
    complete has all of its required artifacts. It is a report value, never a
    state field.
-8. Derive `resetResumeRequired` when task phase is `failed`, audit step is
-   `big_picture`, `auditEpoch >= 2`, and every reset field has its canonical fresh
-   value. This is the committed-reset crash combination; it resumes cleanup without
-   another increment.
-9. Report current state without mutating it.
+8. Derive `currentContentErrors` from error entries whose epoch/digest and, for
+   fact-check, per-file hash are all current. Stored counters from a stale or partial
+   artifact are not repair authority.
+9. Read and validate `write-state.json` whenever audit or task state indicates a
+   failed/repair cycle; report its step and `auditRepair` marker but never mutate it.
+10. Only when audit step is `failed`, derive `repairPaths` by mapping every current
+    content error to the exact queued, written path or paths whose body can resolve it.
+    A `missing-dependency` selects its reporting document, not its proposed new path;
+    its declared proposed-path addition is authorized later by the ordinary
+    discovered-gap transition. Derive `repairOutOfScope` for every current error that
+    has neither an existing queued rewrite path nor that declared gap route, including a
+    skipped/non-queued reporting document or a required move, split, merge, removal, or
+    unsupported queue-topology change. Never guess a repair path from prose. At any
+    other audit step, report an empty `repairPaths` set and `repairOutOfScope: none`:
+    partial audit findings never select a repair authority outcome.
+11. Derive `writeDriftBlocked` when audit step is `failed`, task phase is `failed`, write
+    step is `completed`, `currentContentErrors == 0`, and at least one queued written
+    path is absent or its fresh live hash differs from retained `writtenHash`. Report
+    the complete sorted normalized set of those paths. Otherwise report `none`; this
+    outcome cannot replace the content-repair route when a current error exists.
+12. Derive `failurePairingResumeRequired` when audit step is `failed`, task phase is
+    still `audit`, write step is `completed`, and `auditRepair` is null or belongs to an
+    older audit epoch. This is the crash window after the audit-state failure rename,
+    not evidence that repair completed. A current `replaying` marker in this tuple is
+    inconsistent state, not a failure-pairing signal.
+13. Derive `resetResumeRequired` when audit step is `big_picture`, `auditEpoch >= 2`,
+    and every reset field has its canonical fresh value, plus either:
+    - task phase is still `failed` (the direct-reset task rename did not land); or
+    - task phase is `audit` and at least one reset-owned artifact still carries a prior
+      epoch/digest or prior format (post-repair reset cleanup did not finish).
+14. Report current state without mutating it.
 
 ### Report Format
 
@@ -113,6 +140,7 @@ When prompted: "Assess audit phase state"
 CURRENT_STEP: <step from audit-state.json>
 CONTEXT:
 - taskPhase: <task-state currentPhase>
+- writeStep: <write-state step>
 - auditEpoch: <positive integer>
 - docsDigest: <64 lowercase hex>
 - liveDocsDigest: <64 lowercase hex>
@@ -125,28 +153,44 @@ CONTEXT:
 - factCheckWarnings: <count>
 - factCheckPending: <pending file count, if processor state exists>
 - totalErrors: <count>
+- currentContentErrors: <count of currently stamped error entries>
+- repairPaths: <exact queued paths named by all repairable current errors>
+- repairOutOfScope: <none | exact current errors that lack writer authority>
+- writeDriftBlocked: <none | exact queued written paths whose live bytes drifted>
+- auditRepair: <none | auditEpoch/status/paths from write state>
+- failurePairingResumeRequired: <true|false>
 - acceptedWarnings: <entry count>
 - resetResumeRequired: <true|false>
 ```
 
 ## Mode 2: Update
 
-When prompted: "Update audit state: {UPDATES_JSON}"
+When prompted with either form:
+
+- `Update audit state: {UPDATES_JSON}` for an ordinary canonical-field update; or
+- `Update audit state: {"operation":"resume-failed-task-phase"}` for the named
+  task-phase recovery.
 
 ### Procedure
 
 1. Read and validate the current `audit-state.json`.
-2. Require `UPDATES_JSON` to be an object. Refuse any key outside the canonical
-   11-field set with `UPDATE_REFUSED: unknown field <name>`.
-3. Refuse `auditEpoch` or `docsDigest` in ordinary updates. Creation establishes
+2. Require the supplied JSON to be an object. If it contains `operation`, require the
+   exact single-key object `{"operation":"resume-failed-task-phase"}`, execute only
+   that named task-phase operation under the preconditions below, and return. This
+   command envelope is not an audit-state candidate and is exempt from the canonical
+   11-field key check. Refuse an unknown operation or an operation object with any
+   additional key.
+3. For an ordinary update, refuse any key outside the canonical 11-field set with
+   `UPDATE_REFUSED: unknown field <name>`.
+4. Refuse `auditEpoch` or `docsDigest` in ordinary updates. Creation establishes
    them and reset is their only mutation path.
-4. Apply the requested keys to an in-memory copy and validate the complete
+5. Apply the requested keys to an in-memory copy and validate the complete
    result.
-5. Enforce the legal transition and evidence rules below.
-6. Write the validated object through a temporary file and atomic rename.
-7. If `step` changed, append the transition to
+6. Enforce the legal transition and evidence rules below.
+7. Write the validated object through a temporary file and atomic rename.
+8. If `step` changed, append the transition to
    `.contributor-docs/transitions.log`.
-8. Report the changed fields.
+9. Report the changed fields.
 
 ### Legal Update Transitions
 
@@ -167,6 +211,11 @@ When prompted: "Update audit state: {UPDATES_JSON}"
   `task-state.currentPhase: "failed"` through its own atomic write. If a crash
   separates those writes, finish the task-state transition on retry before
   allowing reset.
+- Named task-phase operation `resume-failed-task-phase` requires audit step `failed`,
+  task phase `audit`, write step `completed`, and `auditRepair` null or bound to an
+  older audit epoch. It
+  changes only task phase `audit → failed` and appends the phase transition. This is
+  the sole recovery for the separated failure writes; it never resets audit evidence.
 - `failed → big_picture` is refused in this mode. Only reset may take that edge.
 - `completed` has no outgoing audit-state transition.
 
@@ -183,6 +232,7 @@ entry to `.contributor-docs/transitions.log`.
 
 ```text
 RESULT: <updated|error>
+OPERATION: <ordinary-update|resume-failed-task-phase>
 FIELDS_UPDATED: <list>
 NEW_STEP: <step value if changed>
 ERROR: <error message if any>
@@ -198,11 +248,28 @@ complete next-epoch state.
 
 ### Procedure
 
-1. Read and validate both state files and resolve `docsRoot`.
-2. Start a new reset only when `audit-state.step == "failed"` and
-   `task-state.currentPhase == "failed"`. Otherwise use the resume rule below or
-   report `RESET_REFUSED: <current step>`. A completed or mid-sweep run cannot be
-   reset.
+1. Read and validate audit, task, and write state files and resolve `docsRoot`.
+2. Start a new reset only when `audit-state.step == "failed"`, write state is valid
+   and `completed`, and exactly one fenced source holds:
+   - **no-current-content-error retry:** derived `currentContentErrors == 0`, task
+     phase is `failed`, and completed write provenance still matches every live file;
+     or
+   - **content repair complete:** `totalErrors > 0`, task phase is `audit`, and
+     `write-state.auditRepair` has status `completed` with this exact failed audit's
+     epoch and digest. Its non-empty path set is written, and every live marked file
+     freshly matches its `writtenHash` after the repair replay.
+
+   If the no-current-content-error tuple holds except for live-hash equality, report
+   `WRITE_DRIFT_BLOCKED: <complete sorted normalized drifted paths>` and mutate nothing.
+   This is a named terminal authority outcome: stale or externally changed written bytes
+   cannot be reset away and are not collapsed into `INVALID_FAILED_STATE`.
+
+   Otherwise use the resume rule below or report
+   `RESET_REFUSED: <task phase>/<audit step>/<write step>`. In particular, a
+   nonzero-error audit cannot reset directly from task phase `failed`, task phase
+   `audit` without the exact completed marker is the failure-pairing crash rather than
+   repair evidence, and an active repair tier cannot discard the failed evidence.
+
 3. Recompute the canonical docs digest. Build one complete 11-field object with
    `auditEpoch` incremented by one, the new digest, `step: "big_picture"`, both
    completion flags false, every counter zero, and `acceptedWarnings: []`.
@@ -214,12 +281,15 @@ complete next-epoch state.
    - `.contributor-docs/fact-check/state.json`;
    - `.contributor-docs/fact-check/epoch.json`;
    - every artifact under `.contributor-docs/fact-check/findings/`.
-6. Only after cleanup succeeds, atomically set
-   `task-state.currentPhase: "audit"` and append its phase transition.
+6. Only after cleanup succeeds, atomically set task phase `failed → audit` for the
+   no-current-content-error path and append its phase transition. For a completed content
+   repair, require task phase already `audit` and leave it byte-identical.
 7. Report the committed epoch and the number of artifacts actually removed.
 
 Do not archive artifacts or change their canonical paths. Missing paths count as
 already removed, so cleanup is idempotent.
+The completed write marker remains as epoch-bound history; after the audit epoch
+increments it is inert and cannot authorize a later reset.
 
 ### Crash Resume Rule
 
@@ -229,9 +299,15 @@ already removed, so cleanup is idempotent.
   reset fields while `task-state.currentPhase == "failed"`. Recognize that exact
   combination as a committed reset: do not increment the epoch, repeat all
   cleanup, then finish step 6.
-- If cleanup itself fails, keep `task-state.currentPhase == "failed"`, report
-  `RESET_CLEANUP_PENDING: <reason>`, and retry. Prior artifacts cannot be
-  accepted because their epoch or digest does not match the committed state.
+- After a content-repair reset, task phase was already `audit`. If the committed fresh
+  reset still has any prior-epoch or prior-format reset-owned artifact, recognize that
+  stale artifact as the unfinished-cleanup marker: do not increment the epoch, repeat
+  cleanup, and leave task phase `audit`. If cleanup had already finished, ordinary
+  `big_picture` dispatch is safe and no reset resume is needed.
+- If cleanup itself fails, leave `task-state.currentPhase` unchanged: `failed`
+  for a direct reset or `audit` after completed content repair. Report
+  `RESET_CLEANUP_PENDING: <reason>` and retry. Prior artifacts cannot be accepted
+  because their epoch or digest does not match the committed state.
 - A crash after cleanup but before step 6 follows the same resume path and
   repeats only idempotent removal.
 
@@ -242,6 +318,7 @@ RESET: audit-state.json
 NEW_EPOCH: <positive integer>
 ARTIFACTS_REMOVED: <count>
 RESET_RESUMED: <true|false>
+RESET_SOURCE: <no-current-content-error|content-repair>
 ```
 
 ## Validation Rules
@@ -271,6 +348,8 @@ and `failed`.
 ## Important
 
 - Manage `audit-state.json` and phase-transition updates to `task-state.json`.
+- Read `write-state.json` only to fence content-repair reset; write state-agent owns
+  every write-state mutation.
 - Do not execute audit work; only create, assess, validate, update, or reset
   state and its reset-owned stale artifacts.
 - Never accept an unstamped or mismatched audit artifact.

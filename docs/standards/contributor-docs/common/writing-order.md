@@ -220,11 +220,14 @@ must finish it before any tier may dispatch.
 stop and report instead of opening a third transition. A gap that keeps coming back is a planning
 failure, and retrying it forever looks like progress while nothing converges.
 
-**One accepted hole.** A writer that discovers a gap and then dies before
-reporting loses the discovery, because writers never persist state. This is
-accepted deliberately: the audit phase rediscovers it as an unresolved link, and
-the alternative — letting writers write state — reintroduces the parallel-writer
-race this transition exists to prevent.
+**Writer death before reporting.** Writers never persist state, so a dead writer's
+processor path remains pending and is retried without introducing a parallel-writer
+race. If the retry omits the same gap, fact-check compares the document's significant
+source behavior with its planned dependency links and the complete planned-path set.
+It records a normal completeness error when the target was already planned, or a
+stamped `missing-dependency` error when the target is truly unplanned, even though no
+broken outbound link exists. Audit repair then replays that file through the ordinary
+writer; only the unplanned case enters the gap transition.
 
 ## Post-Writing Audit
 
