@@ -19,4 +19,10 @@ conventions.
 [`CLAUDE.md`](CLAUDE.md) is the index of repository conventions: one section per
 surface, each pointing at its standard under
 [`docs/standards/`](docs/standards). Read the section for the surface you are
-changing before you change it.
+changing before you change it. The index covers both the tooling surfaces of
+this baseline and the language-agnostic engineering standards it carries.
+
+Domain-specific architecture and behavior belongs under
+[`docs/domain/`](docs/domain/README.md), not under `docs/standards/`. The
+[`docs/standards/contracts/`](docs/standards/contracts/README.md) location is
+reserved for the separately owned C0 contracts standard.

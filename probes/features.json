@@ -189,5 +189,30 @@
     "template": "diene/workspace",
     "name": "probe-artifacts",
     "class": "presence"
+  },
+  {
+    "template": "diene/shared",
+    "name": "claude-link-integrity",
+    "class": "gate"
+  },
+  {
+    "template": "diene/shared",
+    "name": "docs-markdownlint",
+    "class": "gate"
+  },
+  {
+    "template": "diene/shared",
+    "name": "docs-prettier",
+    "class": "gate"
+  },
+  {
+    "template": "diene/shared",
+    "name": "standards-inventory",
+    "class": "presence"
+  },
+  {
+    "template": "diene/shared",
+    "name": "thin-skills",
+    "class": "presence"
   }
 ]

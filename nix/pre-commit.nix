@@ -58,6 +58,15 @@ pre-commit-lib.run {
       language = "system";
     };
 
+    a-claude-links = {
+      enable = true;
+      name = "CLAUDE link integrity";
+      entry = "${pkgs.lychee}/bin/lychee --offline --no-progress CLAUDE.md";
+      files = "^(CLAUDE\\.md|docs/standards/.*\\.md)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
     a-enforce-exec = {
       enable = true;
       name = "Executable shell scripts";
@@ -89,6 +98,19 @@ pre-commit-lib.run {
       name = "Staged secrets scan";
       entry = "${packages.infisical}/bin/infisical scan git-changes --staged -v";
       pass_filenames = false;
+      language = "system";
+    };
+
+    # The selector is directory-shaped on purpose: every standard under
+    # docs/standards/ and every first-level skill trigger is linted, so adding a
+    # topic needs no edit here. Vendored skills sit deeper than one level and are
+    # ignored again by .markdownlint-cli2.jsonc.
+    a-markdownlint = {
+      enable = true;
+      name = "Markdown lint";
+      entry = "${pkgs.markdownlint-cli2}/bin/markdownlint-cli2";
+      files = "^(CLAUDE\\.md|README\\.md|docs/standards/.*\\.md|\\.claude/skills/[^/]+/SKILL\\.md)$";
+      pass_filenames = true;
       language = "system";
     };
 
