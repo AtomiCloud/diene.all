@@ -58,11 +58,19 @@ pre-commit-lib.run {
       language = "system";
     };
 
+    # always_run, not a files pattern: the check reads CLAUDE.md but fails on the
+    # state of its *targets*, and a deleted or renamed target need not touch any
+    # path a pattern could name. Selecting on content would make deletion coverage
+    # depend on the deleter also editing a watched file. The check is offline and
+    # costs milliseconds, so running it every time is cheaper than the gap.
+    # SSL_CERT_FILE is bound explicitly because the pure flake derivation has no
+    # ambient certificate file, and lychee refuses to start without one even under
+    # --offline.
     a-claude-links = {
       enable = true;
       name = "CLAUDE link integrity";
-      entry = "${pkgs.lychee}/bin/lychee --offline --no-progress CLAUDE.md";
-      files = "^(CLAUDE\\.md|docs/standards/.*\\.md)$";
+      entry = "${pkgs.coreutils}/bin/env SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt ${pkgs.lychee}/bin/lychee --offline --no-progress CLAUDE.md";
+      always_run = true;
       pass_filenames = false;
       language = "system";
     };

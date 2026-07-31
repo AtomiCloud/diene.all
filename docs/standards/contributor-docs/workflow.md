@@ -96,6 +96,46 @@ ORCHESTRATOR (you = team lead)
 | `docsRoot`     | string | Output directory (default: `docs/contributor`)                |
 | `planFile`     | string | Path to doc plan YAML (`.contributor-docs/doc-plan.yaml`)     |
 
+### Clean Start (the first transition)
+
+A clean invocation has no `.contributor-docs/` directory at all. Exactly one
+component may create it: the **plan state-agent in `create` mode**. The write and
+audit state-agents never create `task-state.json`; they only create their own
+phase-state file when their phase is first entered, and they refuse to run if
+`task-state.json` is absent.
+
+`create` mode, run by the plan state-agent, is the only bootstrap path:
+
+1. `mkdir -p .contributor-docs` — the directory is created, not assumed.
+2. Refuse if `task-state.json` already exists. Creation is not an overwrite; an
+   existing file means this is a resume, so hand back to `assess` instead.
+3. Write `task-state.json` with the initial schema:
+
+   ```json
+   {
+     "currentPhase": "plan",
+     "baseBranch": "<from arguments, default main>",
+     "docsRoot": "<from arguments, default docs/contributor>",
+     "planFile": null
+   }
+   ```
+
+4. Write `plan-state.json` with the initial phase schema:
+
+   ```json
+   { "step": "diff_analysis", "approved": false, "reviewFeedback": null }
+   ```
+
+5. Validate both before reporting success: the file parses as JSON, `currentPhase`
+   is one of the five legal values, `step` is a legal step for the phase, and
+   `baseBranch` names a ref that exists.
+6. Every write is atomic — write to a temp file in `.contributor-docs/` and `mv`
+   it into place — so an interrupted bootstrap leaves either no state file or a
+   complete one, never a half-written one.
+
+Each phase state-agent applies rules 1, 2, 5 and 6 to its own phase-state file
+(`write-state.json`, `audit-state.json`) with that phase's initial step.
+
 ## Top-Level State Machine
 
 ```
@@ -136,14 +176,14 @@ Dispatch: `audit/PHASE.md`
 
 **On invocation, spawn a state-agent to assess `task-state.json`, then dispatch:**
 
-| `currentPhase` | Action                                                                  |
-| -------------- | ----------------------------------------------------------------------- |
-| No state file  | Parse arguments (base branch), create state via state-agent, start Plan |
-| `plan`         | Spawn plan state-agent to assess, dispatch per `plan/PHASE.md`          |
-| `write`        | Spawn write state-agent to assess, dispatch per `write/PHASE.md`        |
-| `audit`        | Spawn audit state-agent to assess, dispatch per `audit/PHASE.md`        |
-| `completed`    | Report completion, list generated files                                 |
-| `failed`       | Report error, offer retry                                               |
+| `currentPhase` | Action                                                                                                                                                 |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| No state file  | Parse arguments (base branch), spawn the **plan** state-agent in `create` mode (see [Clean Start](#clean-start-the-first-transition)), then start Plan |
+| `plan`         | Spawn plan state-agent to assess, dispatch per `plan/PHASE.md`                                                                                         |
+| `write`        | Spawn write state-agent to assess, dispatch per `write/PHASE.md`                                                                                       |
+| `audit`        | Spawn audit state-agent to assess, dispatch per `audit/PHASE.md`                                                                                       |
+| `completed`    | Report completion, list generated files                                                                                                                |
+| `failed`       | Report error, offer retry                                                                                                                              |
 
 **Transition logging:** When advancing phases, the state-agent appends:
 
@@ -156,8 +196,10 @@ echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) phase-transition from={old_phase} to={new_p
 The write phase (per-tier) and audit fact-check use the file-processor loop. Scripts are in `scripts/`:
 
 ```bash
-# 1. Initialize: pipe file list into init-state.sh
-echo "file1.mdx\nfile2.mdx" | bash docs/standards/contributor-docs/scripts/init-state.sh <state-file> '<source-paths>' <N> '<output-dir>'
+# 1. Initialize: pipe file list into init-state.sh.
+# Use printf, not echo: Bash's echo emits the backslash-n literally, which
+# records ONE pending file named "file1.mdx\nfile2.mdx" instead of two.
+printf '%s\n' file1.mdx file2.mdx | bash docs/standards/contributor-docs/scripts/init-state.sh <state-file> '<source-paths>' <N> '<output-dir>'
 
 # 2. Loop: get next batch, spawn agents, mark done
 bash docs/standards/contributor-docs/scripts/next-file.sh <state-file> --batch <N>

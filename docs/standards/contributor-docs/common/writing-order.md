@@ -83,7 +83,7 @@ Written fourth. By now, concepts and algorithms exist. Features can properly lin
 
 - Per-module `features/` (all modules in parallel)
 
-**Key rule:** If while writing a feature the writer discovers a missing concept or algorithm, it must stop, scaffold + write the missing file, then return to the feature. Never explain inline.
+**Key rule:** If while writing a feature the writer discovers a missing concept or algorithm, it must **stop and report the gap** — never explain inline, and never create the file itself. Creating it is the orchestrator's transition, not the writer's; see [Discovered Gaps](#discovered-gaps) below.
 
 ### Tier 5: Surfaces
 
@@ -139,6 +139,33 @@ Writers do **not** receive the full content of other files. This prevents:
 - Terminology drift from reading conflicting sources
 
 ---
+
+## Discovered Gaps
+
+A writer working in tier N may find that a concept or algorithm it needs to link
+to was never planned. There is exactly one legal transition for this, and the
+**orchestrator owns it** — a doc-writer never creates files, because parallel
+writers in the same tier would race on the same missing path and neither would
+appear in the plan or the state file.
+
+1. **Writer reports, then finishes what it can.** It records the gap in its
+   report (proposed path, section type, why the feature needs it) and completes
+   the rest of the feature, leaving the outbound link unwritten rather than
+   explaining the concept inline.
+2. **Orchestrator collects gaps at the tier boundary.** Gaps are not acted on
+   mid-tier; the current tier's batch finishes first.
+3. **Orchestrator re-plans.** It adds the missing files to `doc-plan.yaml`, then
+   re-runs the scaffold step for the added paths only — which puts them through
+   the same collision classification as any other path.
+4. **Orchestrator replays the owning tier.** Via the write state-agent it sets
+   `step` back to the tier that owns the new section type (concepts → tier 2,
+   algorithms → tier 3) and re-enters the tier sequence from there, so the new
+   files are written in dependency order like everything else.
+5. **The reporting feature is re-queued** in tier 4 once its dependency exists,
+   so the link it left unwritten is completed on the replay.
+
+The state file is the record of this: a gap is not resolved until the re-planned
+path is in `doc-plan.yaml`, scaffolded, and marked done in its tier's state.
 
 ## Post-Writing Audit
 

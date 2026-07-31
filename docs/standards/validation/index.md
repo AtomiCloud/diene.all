@@ -41,8 +41,18 @@ const UserSchema = z.object({
   email: z.string().email(),
 });
 
-const user = UserSchema.parse(input); // throws on invalid, returns typed User
+// Expected-invalid input is a VALUE, not an exception. Use the non-throwing
+// entry point and lift it into the project Result type.
+const parsed = UserSchema.safeParse(input);
+const user = parsed.success ? Result.ok(parsed.data) : Result.err(ValidationError.from(parsed.error));
 ```
+
+Invalid external input is expected — a client can always send a bad email. Per
+[functional practices](../functional-practices/index.md) and the
+[three-layer architecture](../three-layer-architecture/index.md), expected
+failures are Result values, so validation never uses the throwing `parse`
+entry point. Reserve throwing for genuinely exceptional conditions the caller
+cannot be expected to handle.
 
 ### Reduce Tests
 
@@ -99,29 +109,44 @@ External World → [Validate] → Controller → Domain
 Business rules live in the domain layer:
 
 ```csharp
-// Domain invariant in entity
+// Domain invariant in entity. The constructor is private and the smart
+// constructor returns a Result, so a violated invariant is a value the caller
+// must handle -- not an exception thrown across the layer boundary.
 public record Order
 {
     public Money Total { get; init; }
 
-    public Order(Money total)
-    {
-        if (total.Amount < 0)
-            throw new DomainException("Order total cannot be negative");
-        Total = total;
-    }
+    private Order(Money total) => Total = total;
+
+    public static Result<Order> Create(Money total) =>
+        total.Amount < 0
+            ? Result<Order>.Err(new NegativeOrderTotal(total))
+            : Result<Order>.Ok(new Order(total));
 }
 ```
 
+A domain invariant that external input can violate is still an _expected_
+failure: the client sent a negative total, and the API must answer with a 422
+rather than crash. It therefore returns a Result exactly like input validation
+does. The difference between the two is **where the rule lives and what it
+means**, not whether it throws.
+
 ### Input Validation vs Domain Invariants
 
-| Aspect     | Input Validation        | Domain Invariants                    |
-| ---------- | ----------------------- | ------------------------------------ |
-| Location   | API boundary            | Domain constructors/methods          |
-| Purpose    | Sanitize external input | Enforce business rules               |
-| Examples   | Email format, required  | Order total >= 0, status transitions |
-| Error type | ValidationError (400)   | DomainException (422)                |
-| Library    | Validation library      | Domain code                          |
+| Aspect       | Input Validation                    | Domain Invariants                    |
+| ------------ | ----------------------------------- | ------------------------------------ |
+| Location     | API boundary                        | Domain constructors/methods          |
+| Purpose      | Sanitize external input             | Enforce business rules               |
+| Examples     | Email format, required              | Order total >= 0, status transitions |
+| Mechanism    | Non-throwing parse → `Result`       | Smart constructor → `Result`         |
+| Failure type | `ValidationError` in the `Err` case | Domain error in the `Err` case       |
+| Mapped to    | 400                                 | 422                                  |
+| Library      | Validation library                  | Domain code                          |
+
+Both columns return the project `Result` type. Neither throws for expected
+invalid input; the API layer maps the `Err` case to its status code. Exceptions
+remain for the genuinely exceptional — a lost database connection, a corrupt
+config — never for a client sending bad data.
 
 ---
 

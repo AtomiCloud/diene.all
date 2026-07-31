@@ -124,7 +124,6 @@ flowchart TD
     A[Input] --> B[Step]
     B --> C[Output]
 ```
-````
 
 ## Why This Way
 
@@ -148,10 +147,10 @@ Performance characteristics, complexity costs.
 ## Related
 
 - Links to related concepts, algorithms
-
 ````
 
 **Rules:**
+
 - `## Why This Way` is the most important section. It must document rejected alternatives and roadblocks -- not just "how it works."
 - `## Approach` uses a Mermaid diagram. No step-by-step pseudocode. Minimal code.
 - Code snippets (if any) should be short (<15 lines) and illustrate a key insight, not the full implementation.
@@ -160,7 +159,7 @@ Performance characteristics, complexity costs.
 
 ## Surface Template
 
-```mdx
+````mdx
 ---
 (frontmatter)
 ---
@@ -170,11 +169,13 @@ One-line summary.
 ## Endpoint
 
 For API:
+
 - **Method**: `GET`
 - **Path**: `/v1/users/:id`
 - **Auth**: Bearer token
 
 For CLI:
+
 - **Command**: `app cache clear`
 - **Flags**: `--force`, `--dry-run`
 
@@ -185,10 +186,10 @@ Use typed code blocks.
 
 ```typescript
 interface RequestBody {
-  name: string
-  email: string
+  name: string;
+  email: string;
 }
-````
+```
 
 ## Response
 
@@ -212,10 +213,10 @@ Response schema, status codes.
 ## Related
 
 - Links to related surfaces, features
-
 ````
 
 **Rules:**
+
 - One file per endpoint/command. Never combine multiple endpoints.
 - Request and response schemas use typed code blocks (TypeScript interfaces, JSON examples).
 - All possible error responses are documented in a table.
@@ -252,7 +253,7 @@ What was chosen and the reasoning.
 ## Consequences
 
 What changes as a result. Impact on existing code/patterns.
-````
+```
 
 **Rules:**
 
@@ -295,16 +296,14 @@ graph LR
 ```
 ````
 
-````
-
 ---
 
 ## Index File Template
 
 ```mdx
 ---
-title: "Module X -- Features"
-description: "Feature map for Module X"
+title: 'Module X -- Features'
+description: 'Feature map for Module X'
 ---
 
 ## Overview
@@ -321,7 +320,7 @@ How features in this module are organized/grouped.
 ### Group B
 
 - [Feature 3](./feature-3.mdx) -- one-line description
-````
+```
 
 **Rules:**
 

@@ -24,15 +24,15 @@ Scaffold is a single team agent. Each write tier uses the file-processor loop wi
 
 ## Step Dispatch
 
-| Step           | Agent         | Model  | Type    | File                  | Description                               |
-| -------------- | ------------- | ------ | ------- | --------------------- | ----------------------------------------- |
-| `scaffold`     | scaffolder    | sonnet | team    | `write/scaffold.md`   | Create all files with frontmatter + TODOs |
-| `write_tier_1` | doc-writer ×N | sonnet | fp-loop | `write/write-file.md` | Tier 1: foundations                       |
-| `write_tier_2` | doc-writer ×N | sonnet | fp-loop | `write/write-file.md` | Tier 2: concepts                          |
-| `write_tier_3` | doc-writer ×N | sonnet | fp-loop | `write/write-file.md` | Tier 3: algorithms                        |
-| `write_tier_4` | doc-writer ×N | sonnet | fp-loop | `write/write-file.md` | Tier 4: features                          |
-| `write_tier_5` | doc-writer ×N | sonnet | fp-loop | `write/write-file.md` | Tier 5: surfaces                          |
-| `write_tier_6` | doc-writer ×N | sonnet | fp-loop | `write/write-file.md` | Tier 6: indexes                           |
+| Step           | Agent         | Model  | Type    | File                                                  | Description                               |
+| -------------- | ------------- | ------ | ------- | ----------------------------------------------------- | ----------------------------------------- |
+| `scaffold`     | scaffolder    | sonnet | team    | `docs/standards/contributor-docs/write/scaffold.md`   | Create all files with frontmatter + TODOs |
+| `write_tier_1` | doc-writer ×N | sonnet | fp-loop | `docs/standards/contributor-docs/write/write-file.md` | Tier 1: foundations                       |
+| `write_tier_2` | doc-writer ×N | sonnet | fp-loop | `docs/standards/contributor-docs/write/write-file.md` | Tier 2: concepts                          |
+| `write_tier_3` | doc-writer ×N | sonnet | fp-loop | `docs/standards/contributor-docs/write/write-file.md` | Tier 3: algorithms                        |
+| `write_tier_4` | doc-writer ×N | sonnet | fp-loop | `docs/standards/contributor-docs/write/write-file.md` | Tier 4: features                          |
+| `write_tier_5` | doc-writer ×N | sonnet | fp-loop | `docs/standards/contributor-docs/write/write-file.md` | Tier 5: surfaces                          |
+| `write_tier_6` | doc-writer ×N | sonnet | fp-loop | `docs/standards/contributor-docs/write/write-file.md` | Tier 6: indexes                           |
 
 All write tiers use the same agent file (`write-file.md`), parameterized with the tier number and file metadata.
 
@@ -40,12 +40,12 @@ All write tiers use the same agent file (`write-file.md`), parameterized with th
 
 On entry, spawn write state-agent to assess. **NEVER read step files directly** — spawn a teammate and tell it which step file to read. The file-processor loop is managed by the orchestrator using scripts.
 
-| Condition              | Action                                                                      |
-| ---------------------- | --------------------------------------------------------------------------- |
-| No `write-state.json`  | Create via state-agent with `step: "scaffold"`, spawn scaffolder            |
-| `step: "scaffold"`     | Spawn scaffolder (sonnet) — tell it to read `write/scaffold.md`             |
-| `step: "write_tier_N"` | Run file-processor loop for tier N (see below)                              |
-| `step: "completed"`    | Phase done — advance `task-state.currentPhase` to `"audit"` via state-agent |
+| Condition              | Action                                                                                          |
+| ---------------------- | ----------------------------------------------------------------------------------------------- |
+| No `write-state.json`  | Create via state-agent with `step: "scaffold"`, spawn scaffolder                                |
+| `step: "scaffold"`     | Spawn scaffolder (sonnet) — tell it to read `docs/standards/contributor-docs/write/scaffold.md` |
+| `step: "write_tier_N"` | Run file-processor loop for tier N (see below)                                                  |
+| `step: "completed"`    | Phase done — advance `task-state.currentPhase` to `"audit"` via state-agent                     |
 
 ## Scaffold Step
 
@@ -78,7 +78,7 @@ If `.contributor-docs/write-tier-N/state.json` already exists with pending files
 while next-file.sh returns files:
   1. Get next batch: bash docs/standards/contributor-docs/scripts/next-file.sh .contributor-docs/write-tier-N/state.json --batch <N>
   2. For each file in batch, spawn a doc-writer team agent (sonnet):
-     - Tell it to read write/write-file.md
+     - Tell it to read docs/standards/contributor-docs/write/write-file.md
      - Provide: file path, type, description, sources, crossLinks from doc-plan.yaml
      - Provide: the tier number
   3. Wait for all agents in batch to complete
@@ -95,7 +95,7 @@ When all files in the tier are processed:
 
 ## Context Provided to Each Doc-Writer
 
-Each spawned doc-writer receives controlled context (see `common/writing-order.md` for rationale):
+Each spawned doc-writer receives controlled context (see `docs/standards/contributor-docs/common/writing-order.md` for rationale):
 
 | Input                                                | How to Provide                                                          |
 | ---------------------------------------------------- | ----------------------------------------------------------------------- |
@@ -103,18 +103,18 @@ Each spawned doc-writer receives controlled context (see `common/writing-order.m
 | Frontmatter of all cross-referenced files            | Read `crossLinks` paths from scaffolded files, extract frontmatter only |
 | Relevant source code files                           | Read `sources` from doc-plan.yaml entry                                 |
 | Module overview content (if tier > 1)                | Read module's `overview.mdx`                                            |
-| Body template for the section type                   | From `common/templates.md`                                              |
+| Body template for the section type                   | From `docs/standards/contributor-docs/common/templates.md`              |
 | Formatting checklist                                 | From docs `checklist.md`                                                |
 
 Writers do NOT receive the full content of other doc files.
 
 ## Parallel Within Tiers, Sequential Across Tiers
 
-Within a single tier, all files are written in parallel (batched by concurrent agent count). Across tiers, the order is strict. See `common/writing-order.md` for the dependency rationale.
+Within a single tier, all files are written in parallel (batched by concurrent agent count). Across tiers, the order is strict. See `docs/standards/contributor-docs/common/writing-order.md` for the dependency rationale.
 
 ## State Transitions
 
-All state writes go through the **write state-agent** (sub-agent, haiku). Read `write/state-agent.md` for the protocol.
+All state writes go through the **write state-agent** (sub-agent, haiku). Read `docs/standards/contributor-docs/write/state-agent.md` for the protocol.
 
 **Bootstrap exceptions:** None.
 

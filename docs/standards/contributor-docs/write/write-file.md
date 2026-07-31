@@ -6,7 +6,7 @@
 - File to write: {filePath} (from orchestrator)
 - File metadata: {type}, {tier}, {description}, {sources}, {crossLinks}, {tags} (from doc-plan.yaml)
 - Skill references (provided by orchestrator):
-  - Body template for this section type (from `common/templates.md`)
+  - Body template for this section type (from `docs/standards/contributor-docs/common/templates.md`)
   - Formatting checklist (from `docs/standards/contributor-docs/checklist.md`)
 
 ## Agent Report Format
@@ -23,6 +23,12 @@ ERROR: <error message if any>
 ## Task
 
 Write the full body content for a single documentation file. The file already exists on disk with frontmatter and a one-line summary (from the scaffold step). Replace the one-line summary with complete body content.
+
+**Only files on the scaffold step's `WRITE_QUEUE` reach this agent** — `new`,
+`scaffolded`, and paths the user explicitly approved for overwrite. If the file
+you are handed has body content that is not the scaffold one-line summary, it is
+a collision that escaped classification: **stop, write nothing, and report it**.
+Replacing it here would be the silent overwrite the workflow forbids.
 
 ## Inputs Provided by Orchestrator
 
@@ -91,6 +97,10 @@ Before writing:
 
 Write the complete file (frontmatter + body) to {filePath}, replacing the scaffolded version.
 
+Before writing, confirm the on-disk body is still the scaffold one-line summary
+(or that {filePath} was explicitly approved for overwrite). If it now holds real
+content, stop and report instead of writing.
+
 ### 7. Report
 
 Report the result with file path and line count.
@@ -101,5 +111,5 @@ Report the result with file path and line count.
 - Do NOT create additional files — only write the one assigned file
 - Do NOT modify the frontmatter — only add/replace body content
 - Do NOT read full content of other doc files (only frontmatter was provided for cross-refs)
-- If you discover a missing concept or algorithm that should exist, note it in your report but do NOT create it
+- If you discover a missing concept or algorithm that should exist, note it in your report but do NOT create it. Leave the outbound link unwritten rather than explaining it inline; the orchestrator re-plans, re-scaffolds and replays the owning tier. See [Discovered Gaps](../common/writing-order.md#discovered-gaps) for the full transition — this is the only legal path, and it is the same one `writing-order.md` names.
 - Keep the file under ~300 lines. If content exceeds this, split into subsections and note in your report which parts could become separate files

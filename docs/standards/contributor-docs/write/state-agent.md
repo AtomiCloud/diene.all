@@ -8,7 +8,33 @@ Manages state transitions for the Write phase. The orchestrator NEVER reads/writ
 
 - Working directory: repo root
 - State files: `.contributor-docs/write-state.json`, `.contributor-docs/task-state.json`
-- Mode: {assess|update}
+- Mode: {create|assess|update}
+
+## Mode 0: Create (first entry into this phase)
+
+When prompted: "Create write phase state"
+
+This agent creates **only** `write-state.json`. It never creates `task-state.json` — the plan state-agent owns the clean start (see [workflow.md](../workflow.md#clean-start-the-first-transition)).
+
+### Procedure
+
+1. `mkdir -p .contributor-docs`
+2. Refuse if `.contributor-docs/task-state.json` is absent: report `NOT_INITIALIZED`. This phase cannot bootstrap the task.
+3. Refuse if `.contributor-docs/write-state.json` already exists: report `ALREADY_INITIALIZED` and switch to Mode 1.
+4. Write `.contributor-docs/write-state.json` with the initial phase schema:
+   ```json
+   { "step": "scaffold", "completedTiers": [], "errors": [] }
+   ```
+5. Validate: the file parses as JSON and `step` is a legal step for this phase. On failure, delete what was written and report `CREATE_FAILED: <reason>`.
+
+**Atomic writes.** Every write in this file — Mode 0 and Mode 2 alike — goes through a temp file in `.contributor-docs/` followed by `mv`.
+
+### Report Format
+
+```
+CREATED: write-state.json
+CURRENT_STEP: scaffold
+```
 
 ## Mode 1: Assess (determine current state)
 

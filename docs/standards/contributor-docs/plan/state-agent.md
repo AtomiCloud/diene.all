@@ -10,6 +10,49 @@ Manages state transitions for the Plan phase. The orchestrator NEVER reads/write
 - State files: `.contributor-docs/plan-state.json`, `.contributor-docs/task-state.json`
 - Mode: {assess|update}
 
+## Mode 0: Create (clean start — this agent owns it)
+
+When prompted: "Create task state: baseBranch={branch} docsRoot={dir}"
+
+This agent is the **only** owner of the first transition. The write and audit
+state-agents never create `task-state.json`.
+
+### Procedure
+
+1. `mkdir -p .contributor-docs`
+2. If `.contributor-docs/task-state.json` already exists, do **not** overwrite it.
+   Report `ALREADY_INITIALIZED` and switch to Mode 1 instead.
+3. Write `.contributor-docs/task-state.json`:
+   ```json
+   {
+     "currentPhase": "plan",
+     "baseBranch": "{branch, default main}",
+     "docsRoot": "{dir, default docs/contributor}",
+     "planFile": null
+   }
+   ```
+4. Write `.contributor-docs/plan-state.json`:
+   ```json
+   { "step": "diff_analysis", "approved": false, "reviewFeedback": null }
+   ```
+5. Validate: both files parse as JSON, `currentPhase` is one of
+   `plan|write|audit|completed|failed`, `step` is one of
+   `diff_analysis|classify|review`, and `baseBranch` resolves to an existing ref.
+   On any failure, delete what was written and report `CREATE_FAILED: <reason>`.
+6. Append `$(date -u +%Y-%m-%dT%H:%M:%SZ) phase=plan from=none to=diff_analysis`
+   to `.contributor-docs/transitions.log`.
+
+**Atomic writes.** Every write in this file — Mode 0 and Mode 2 alike — goes
+through a temp file in `.contributor-docs/` followed by `mv`, so an interrupted
+run never leaves a partially written state file.
+
+### Report Format
+
+```
+CREATED: task-state.json, plan-state.json
+CURRENT_STEP: diff_analysis
+```
+
 ## Mode 1: Assess (determine current state)
 
 When prompted: "Assess plan phase state"

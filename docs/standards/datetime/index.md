@@ -178,12 +178,23 @@ When the user moves to "Europe/London", update the user's timezone once—all al
 
 ### 1. Timezone Confusion
 
-```typescript
-// WRONG - Uses local time, ambiguous
-const createdAt = new Date();
+`new Date()` is not itself the hazard: it captures the current epoch instant and
+carries no timezone. The hazards are the APIs around it that silently substitute
+the machine's timezone — parsing an offset-less string, the local getters, and
+local display.
 
-// RIGHT - Explicitly UTC
-const createdAt = Temporal.Now.instant();
+```typescript
+// WRONG - a timestamp string with no offset is parsed in the machine's
+// timezone, so the same source text becomes a different instant per machine
+const startsAt = new Date('2026-03-15T09:00');
+
+// WRONG - the instant may be right, but the getters reinterpret it in the
+// machine's timezone, so the calendar day can come out off by one
+const dayShown = startsAt.getDate();
+
+// RIGHT - the zone is part of the value instead of inherited from the machine
+const starts = Temporal.PlainDateTime.from('2026-03-15T09:00').toZonedDateTime('Asia/Singapore');
+const day = starts.day;
 ```
 
 ### 2. DST Transitions

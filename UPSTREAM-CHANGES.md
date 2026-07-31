@@ -324,5 +324,8 @@ all 19 hooks, so no failure output needed recording.
 - The point-at-truth rule's documentation home is **pending the user's ruling**. The rule
   was applied to this node's content; no home was invented for its text, here or
   anywhere else.
-- The Shared deletions (contributor docs, lychee) are pending user confirmation and are
-  out of scope for this node.
+- ~~The Shared deletions (contributor docs, lychee) are pending user confirmation and are
+  out of scope for this node.~~ **Resolved.** Both landed on this node with the shared
+  payload: the contributor-docs standard is at `docs/standards/contributor-docs/`, and
+  lychee backs the `a-claude-links` hook in `nix/pre-commit.nix`. Neither is pending and
+  neither is out of scope any more, so this is no longer an open item.

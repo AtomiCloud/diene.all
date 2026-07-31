@@ -170,7 +170,7 @@ A Principal is one or more Records with an ID. It represents the entity as store
 
 **Single Record (simple entity):**
 
-```typescript
+```text
 PostPrincipal: id: uuid;
 record: PostRecord;
 
@@ -196,7 +196,7 @@ Principals are the **primary unit of storage and retrieval**. A database table m
 
 A Model is a view that shows a Principal together with its related Principals. It represents the **full picture** of a concept as needed by a particular use-case.
 
-```typescript
+```text
 Post:                    // Model for viewing a post
   principal: PostPrincipal
   author: AuthorPrincipal
@@ -224,7 +224,7 @@ With three structure types defined, we can map the five standard CRUD operations
 
 ### Service Interface Example
 
-```typescript
+```text
 interface PostService:
   search(params: PostSearch): Result<PostPrincipal[]>
   get(id: uuid): Result<Post?>
@@ -235,7 +235,7 @@ interface PostService:
 
 And the corresponding repository interface follows the same shape:
 
-```typescript
+```text
 interface PostRepository:
   search(params: PostSearch): Result<PostPrincipal[]>
   get(id: uuid): Result<Post?>

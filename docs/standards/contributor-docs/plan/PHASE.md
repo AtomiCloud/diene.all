@@ -21,27 +21,27 @@
 
 ## Step Dispatch
 
-| Step            | Agent         | Model  | Type   | File                    | Description                        |
-| --------------- | ------------- | ------ | ------ | ----------------------- | ---------------------------------- |
-| `diff_analysis` | diff-analyzer | sonnet | team   | `plan/diff-analysis.md` | Read git diff, catalog all changes |
-| `classify`      | doc-planner   | opus   | team   | `plan/classify.md`      | Classify changes, build doc plan   |
-| `review`        | —             | —      | inline | `plan/review.md`        | Present plan to user for approval  |
+| Step            | Agent         | Model  | Type   | File                                                    | Description                        |
+| --------------- | ------------- | ------ | ------ | ------------------------------------------------------- | ---------------------------------- |
+| `diff_analysis` | diff-analyzer | sonnet | team   | `docs/standards/contributor-docs/plan/diff-analysis.md` | Read git diff, catalog all changes |
+| `classify`      | doc-planner   | opus   | team   | `docs/standards/contributor-docs/plan/classify.md`      | Classify changes, build doc plan   |
+| `review`        | —             | —      | inline | `docs/standards/contributor-docs/plan/review.md`        | Present plan to user for approval  |
 
 ## Step Dispatch Logic
 
 On entry, spawn plan state-agent to assess. **NEVER read step files directly** — spawn a teammate and tell it which step file to read. Exception: `review` is inline.
 
-| Condition               | Action                                                                      |
-| ----------------------- | --------------------------------------------------------------------------- |
-| No `plan-state.json`    | Create via state-agent with `step: "diff_analysis"`, spawn diff-analyzer    |
-| `step: "diff_analysis"` | Spawn diff-analyzer (sonnet) — tell it to read `plan/diff-analysis.md`      |
-| `step: "classify"`      | Spawn doc-planner (opus) — tell it to read `plan/classify.md`               |
-| `step: "review"`        | **Inline**: read `plan/review.md`, present plan to user                     |
-| `step: "completed"`     | Phase done — advance `task-state.currentPhase` to `"write"` via state-agent |
+| Condition               | Action                                                                                                 |
+| ----------------------- | ------------------------------------------------------------------------------------------------------ |
+| No `plan-state.json`    | Create via state-agent with `step: "diff_analysis"`, spawn diff-analyzer                               |
+| `step: "diff_analysis"` | Spawn diff-analyzer (sonnet) — tell it to read `docs/standards/contributor-docs/plan/diff-analysis.md` |
+| `step: "classify"`      | Spawn doc-planner (opus) — tell it to read `docs/standards/contributor-docs/plan/classify.md`          |
+| `step: "review"`        | **Inline**: read `docs/standards/contributor-docs/plan/review.md`, present plan to user                |
+| `step: "completed"`     | Phase done — advance `task-state.currentPhase` to `"write"` via state-agent                            |
 
 ## State Transitions
 
-All state writes go through the **plan state-agent** (sub-agent, haiku). Read `plan/state-agent.md` for the protocol.
+All state writes go through the **plan state-agent** (sub-agent, haiku). Read `docs/standards/contributor-docs/plan/state-agent.md` for the protocol.
 
 **Bootstrap exceptions:** None.
 

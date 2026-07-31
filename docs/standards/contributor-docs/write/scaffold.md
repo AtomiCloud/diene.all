@@ -85,11 +85,53 @@ If any paths are missing, report them as warnings (they may indicate a plan erro
 
 Report the result with total file count and docs root path.
 
-## Resumability
+## Resumability and Collision Safety
 
-- If all files from the plan already exist on disk with frontmatter: report success
-- If some files exist: create only the missing ones, report
-- If no files exist: start from Step 1
+A planned path that already exists is ambiguous: it may be this run's own
+scaffold (resume) or **pre-existing documentation this run would destroy**. The
+two are not the same and must never be collapsed into "already exists → success".
+
+### Classify every planned path
+
+For each path in the plan, record it in one of three buckets:
+
+| Bucket         | Test                                                                         | Disposition                     |
+| -------------- | ---------------------------------------------------------------------------- | ------------------------------- |
+| `new`          | Path does not exist on disk                                                  | Scaffold it, queue it for write |
+| `scaffolded`   | Exists, and its body is only the scaffold one-line summary (no real content) | Resume — queue it for write     |
+| `pre-existing` | Exists **and** has body content beyond the one-line summary                  | **Collision — do not queue**    |
+
+Report all three buckets. `pre-existing` is not a warning; it is a stop.
+
+### Refuse on collision
+
+If the `pre-existing` bucket is non-empty:
+
+1. **Stop.** Do not scaffold over any of them, and do not queue them for write.
+2. Show the user the exact collision set — every colliding path, one per line,
+   with its current line count — so the decision is made against real files and
+   not a summary.
+3. Ask for explicit per-path approval. Approval is per path; a blanket "yes"
+   must be given by the user, never inferred.
+4. Only paths the user explicitly approves move to the write queue. Everything
+   still unapproved is dropped from this run and reported as skipped.
+
+This is the confirmation required by [workflow.md](../workflow.md) rule 3
+("Never overwrite existing documentation files without user confirmation"). The
+write phase queues **only** `new`, `scaffolded`, and explicitly approved paths —
+it never re-derives the queue from the plan.
+
+### Report Format
+
+```
+SCAFFOLDED: <count> new files
+RESUMED: <count> existing scaffolds
+COLLISIONS: <count>          # if > 0, this run is blocked pending approval
+  <path> (<n> lines)
+  ...
+APPROVED_FOR_OVERWRITE: <paths the user explicitly approved, or none>
+WRITE_QUEUE: <the exact paths the write phase may process>
+```
 
 ## Important
 
