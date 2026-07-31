@@ -114,14 +114,14 @@ labels:
 
 ### Nix Store Cache
 
-Nix jobs use a single shared store cache — **not** per-service — so the cache tag is
-deliberately not namespaced by platform or service. The tags in use are declared on the
-`runs-on:` lines of the reusable workflows in
-[`.github/workflows/`](../../../.github/workflows): read a cached job's runner list to
-see the tag it carries and how the OS and architecture appear in it. The family is
-`nscloud-cache-tag-atomi-nix-store-cache-{os}-{arch}`; selecting another OS rotates the
-tag and starts cold rather than aliasing another OS's cache. Never introduce a
-per-platform or per-service tag.
+Cache-eligible Nix jobs use a single shared store cache — **not** per-service — so the
+cache tag is deliberately not namespaced by platform or service. They declare a
+`-with-cache` Namespace venue, `nscloud-cache-size-50gb`, and the matching tag on their
+`runs-on:` lines in [`.github/workflows/`](../../../.github/workflows). The tag family
+is `nscloud-cache-tag-atomi-nix-store-cache-{os}-{arch}`; selecting another OS rotates
+the tag and starts cold rather than aliasing another OS's cache. Must-not-share-cache
+lanes instead use the corresponding bare Namespace venue with no cache metadata; that
+absence preserves their isolation. Never introduce a per-platform or per-service tag.
 
 ### Platform / Service usage
 

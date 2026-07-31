@@ -43,28 +43,32 @@ plus its tag in a trailing comment. Which actions are trusted is recorded in
 fails any action used in a workflow that has no classification, so adding an
 action means adding its entry there.
 
-Runner selection is 26.04-first. GitHub-hosted jobs select `ubuntu-26.04`;
-Namespace jobs select `nscloud-ubuntu-26.04-amd64-16x32`. The only permitted
-fallbacks are `ubuntu-24.04` and `nscloud-ubuntu-24.04-amd64-16x32`. A job that
-selects a fallback records a non-empty reason in job-level
+Runner selection is 26.04-first. GitHub-hosted jobs select `ubuntu-26.04`.
+Namespace jobs use one of two deliberate venues: cache-eligible Nix-store users
+select `nscloud-ubuntu-26.04-amd64-16x32-with-cache`; lanes that must not share
+cache state select the bare `nscloud-ubuntu-26.04-amd64-16x32`. The only
+permitted fallbacks are the corresponding `ubuntu-24.04` and Namespace 24.04
+labels. A job that selects a fallback records a non-empty reason in job-level
 `env.S31_RUNNER_FALLBACK_REASON`; primary jobs do not carry that fallback
 record. Primary and fallback Namespace venue labels are never combined.
 
-Every Namespace Nix job carries exactly one shared OS-sensitive tag. The two
-valid label/tag pairs are:
+Cache-eligible Namespace Nix jobs carry exactly one shared OS-sensitive tag and
+the `nscloud-cache-size-50gb` label. The two valid cached label/tag pairs are:
 
 ```text
-nscloud-ubuntu-26.04-amd64-16x32
+nscloud-ubuntu-26.04-amd64-16x32-with-cache
 nscloud-cache-tag-atomi-nix-store-cache-ubuntu-26.04-amd64
 
-nscloud-ubuntu-24.04-amd64-16x32
+nscloud-ubuntu-24.04-amd64-16x32-with-cache
 nscloud-cache-tag-atomi-nix-store-cache-ubuntu-24.04-amd64
 ```
 
 The organization stays constant; only runner OS and architecture vary. An OS
 change rotates the tag and starts with one cold build before warm reuse. Never
 alias or carry a 24.04 cache into 26.04, and never introduce per-platform or
-per-service cache tags.
+per-service cache tags. Must-not-share-cache Namespace lanes use the matching
+bare venue label with no cache-size or cache-tag label; cache absence is part of
+their isolation contract.
 
 ## Local reproduction
 

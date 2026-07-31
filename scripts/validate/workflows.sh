@@ -61,9 +61,12 @@ if [ "${mode}" = "cache-tag-shape" ]; then
   checked=0
   github_checked=0
   namespace_checked=0
+  cache_eligible_checked=0
   while IFS=$'\t' read -r file job runner_type runners fallback_reason; do
-    namespace_primary=0
-    namespace_fallback=0
+    namespace_cache_primary=0
+    namespace_cache_fallback=0
+    namespace_bare_primary=0
+    namespace_bare_fallback=0
     github_primary=0
     github_fallback=0
     cache_size_count=0
@@ -74,8 +77,10 @@ if [ "${mode}" = "cache-tag-shape" ]; then
     IFS=',' read -r -a runner_labels <<<"${runners}"
     for label in "${runner_labels[@]}"; do
       case "${label}" in
-      nscloud-ubuntu-26.04-amd64-16x32) namespace_primary=$((namespace_primary + 1)) ;;
-      nscloud-ubuntu-24.04-amd64-16x32) namespace_fallback=$((namespace_fallback + 1)) ;;
+      nscloud-ubuntu-26.04-amd64-16x32-with-cache) namespace_cache_primary=$((namespace_cache_primary + 1)) ;;
+      nscloud-ubuntu-24.04-amd64-16x32-with-cache) namespace_cache_fallback=$((namespace_cache_fallback + 1)) ;;
+      nscloud-ubuntu-26.04-amd64-16x32) namespace_bare_primary=$((namespace_bare_primary + 1)) ;;
+      nscloud-ubuntu-24.04-amd64-16x32) namespace_bare_fallback=$((namespace_bare_fallback + 1)) ;;
       ubuntu-26.04) github_primary=$((github_primary + 1)) ;;
       ubuntu-24.04) github_fallback=$((github_fallback + 1)) ;;
       nscloud-cache-size-50gb) cache_size_count=$((cache_size_count + 1)) ;;
@@ -89,16 +94,22 @@ if [ "${mode}" = "cache-tag-shape" ]; then
 
     [ -n "${unsupported_labels}" ] && echo "❌ ${file} job '${job}' has unsupported runner labels '${unsupported_labels}'" >&2 && exit 1
 
-    venue_count=$((namespace_primary + namespace_fallback + github_primary + github_fallback))
+    venue_count=$((namespace_cache_primary + namespace_cache_fallback + namespace_bare_primary + namespace_bare_fallback + github_primary + github_fallback))
     [ "${venue_count}" -ne 1 ] && echo "❌ ${file} job '${job}' must select exactly one S31 primary or fallback venue label" >&2 && exit 1
 
-    if [ $((namespace_primary + namespace_fallback)) -eq 1 ]; then
+    if [ $((namespace_cache_primary + namespace_cache_fallback + namespace_bare_primary + namespace_bare_fallback)) -eq 1 ]; then
       [ "${runner_type}" != "array" ] && echo "❌ ${file} job '${job}' must declare Namespace runner metadata as an array" >&2 && exit 1
-      [ "${cache_size_count}" -gt 1 ] && echo "❌ ${file} job '${job}' must not repeat the Namespace cache-size label" >&2 && exit 1
-      [ "${cache_tag_count}" -ne 1 ] && echo "❌ ${file} job '${job}' must have exactly one nscloud cache tag" >&2 && exit 1
-      expected_tag="nscloud-cache-tag-atomi-nix-store-cache-ubuntu-26.04-amd64"
-      [ "${namespace_fallback}" -eq 1 ] && expected_tag="nscloud-cache-tag-atomi-nix-store-cache-ubuntu-24.04-amd64"
-      [ "${cache_tag}" != "${expected_tag}" ] && echo "❌ ${file} job '${job}' cache tag must be '${expected_tag}', got '${cache_tag}'" >&2 && exit 1
+      if [ $((namespace_cache_primary + namespace_cache_fallback)) -eq 1 ]; then
+        [ "${cache_size_count}" -ne 1 ] && echo "❌ ${file} job '${job}' must have exactly one Namespace cache-size label" >&2 && exit 1
+        [ "${cache_tag_count}" -ne 1 ] && echo "❌ ${file} job '${job}' must have exactly one nscloud cache tag" >&2 && exit 1
+        expected_tag="nscloud-cache-tag-atomi-nix-store-cache-ubuntu-26.04-amd64"
+        [ "${namespace_cache_fallback}" -eq 1 ] && expected_tag="nscloud-cache-tag-atomi-nix-store-cache-ubuntu-24.04-amd64"
+        [ "${cache_tag}" != "${expected_tag}" ] && echo "❌ ${file} job '${job}' cache tag must be '${expected_tag}', got '${cache_tag}'" >&2 && exit 1
+        cache_eligible_checked=$((cache_eligible_checked + 1))
+      else
+        [ "${cache_size_count}" -ne 0 ] && echo "❌ ${file} job '${job}' must not attach Namespace cache metadata to a bare venue" >&2 && exit 1
+        [ "${cache_tag_count}" -ne 0 ] && echo "❌ ${file} job '${job}' must not attach a Namespace cache tag to a bare venue" >&2 && exit 1
+      fi
       namespace_checked=$((namespace_checked + 1))
     else
       [ "${runner_type}" != "string" ] && echo "❌ ${file} job '${job}' must declare its GitHub-hosted runner as one scalar label" >&2 && exit 1
@@ -107,7 +118,7 @@ if [ "${mode}" = "cache-tag-shape" ]; then
       github_checked=$((github_checked + 1))
     fi
 
-    if [ $((namespace_fallback + github_fallback)) -eq 1 ]; then
+    if [ $((namespace_cache_fallback + namespace_bare_fallback + github_fallback)) -eq 1 ]; then
       [ -z "${fallback_reason}" ] && echo "❌ ${file} job '${job}' selects an S31 fallback without env.S31_RUNNER_FALLBACK_REASON" >&2 && exit 1
     else
       [ -n "${fallback_reason}" ] && echo "❌ ${file} job '${job}' records a fallback reason while selecting the primary runner" >&2 && exit 1
@@ -116,7 +127,8 @@ if [ "${mode}" = "cache-tag-shape" ]; then
   done <"${tmp}"
 
   [ "${github_checked}" -eq 0 ] && echo "❌ no GitHub-hosted S31 runner declaration was checked" >&2 && exit 1
-  [ "${namespace_checked}" -eq 0 ] && echo "❌ no Namespace S31 runner/cache declaration was checked" >&2 && exit 1
+  [ "${namespace_checked}" -eq 0 ] && echo "❌ no Namespace S31 runner declaration was checked" >&2 && exit 1
+  [ "${cache_eligible_checked}" -eq 0 ] && echo "❌ no cache-eligible Namespace S31 runner/cache declaration was checked" >&2 && exit 1
   echo "✅ S31 runner labels and cache tags conform across ${checked} jobs"
   exit 0
 fi

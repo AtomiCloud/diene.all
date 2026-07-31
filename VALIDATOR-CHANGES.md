@@ -87,9 +87,12 @@ dedicated name check.
 ## Cache-tag coverage restored as a mode
 
 The later S31 runner/cache ruling introduced a new OS-sensitive contract after the hook
-trim above: runner selection is 26.04-first with exact 24.04 fallbacks, and a Namespace
-cache tag must rotate with the selected OS. That gate-shaped promise must remain live
-after this patch rather than survive only as session evidence.
+trim above: runner selection is 26.04-first with exact 24.04 fallbacks, and a
+cache-eligible Namespace job must use a `-with-cache` venue, one size label, and a
+cache tag that rotates with the selected OS. Must-not-share-cache lanes use the matching
+bare venue with no cache metadata; this threat-model split prevents isolation lanes from
+silently sharing store state. Live run `30670113046` proved why the distinction matters:
+the earlier bare-venue-plus-tag shape schedules but cannot attach a cache volume.
 
 The trim's committer-facing target was **hook count**, not enforcement coverage. The
 cache-tag check is therefore restored as the `cache-tag-shape` mode of
@@ -99,10 +102,11 @@ mode adds no hook: the resulting set remains twelve. The old standalone
 `scripts/validate/cache-tags.sh` and `a-cache-tags` hook remain deleted.
 
 `probes/cache-tag-shape.ts` and its feature row return because the restored mechanism
-needs its own baseline and destructive arm. Its mutation pairs the selected 26.04 runner
-with the 24.04 cache tag and requires the mode to fail. The mode identifies jobs from
-their actual runner/cache labels, not the retired `with-cache` substring, so changing to
-the exact S31 labels cannot make the check silently inspect zero jobs.
+needs its own baseline and destructive arms. One mutation pairs the selected 26.04
+cache-capable runner with the 24.04 cache tag; another changes that runner to the bare
+venue while retaining its cache tag. Both require the mode to fail. The mode identifies
+jobs from their exact S31 runner/cache labels, not a retired substring, so the corrected
+cache split cannot make the check silently inspect zero jobs.
 
 ## Resulting hook set
 
