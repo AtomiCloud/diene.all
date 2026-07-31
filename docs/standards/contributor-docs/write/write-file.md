@@ -15,6 +15,7 @@
 RESULT: <success|error>
 FILE: <path written>
 LINES: <line count>
+AUTHORIZED_FROM_HASH: <sha256 of the exact pre-write bytes, or none on error>
 WRITTEN_HASH: <sha256 of the exact bytes written, or none on error>
 GAPS: <none, or one per line in the format below>
   <proposed path> type=<concept|algorithm> tier=<N> reason=<why this file needs it>
@@ -26,14 +27,20 @@ triggered by it, and a gap mentioned in a free-text paragraph is a gap the orche
 will miss. Report `GAPS: none` when there are none — an absent field is indistinguishable
 from a forgotten one.
 
-`WRITTEN_HASH` is what the orchestrator records as this path's `writtenHash` when it
-marks the write complete. It is the sha256 of the exact bytes left on disk.
+`AUTHORIZED_FROM_HASH` identifies the exact snapshot the writer replaced.
+`WRITTEN_HASH` identifies the exact bytes it left on disk. Both are required lowercase
+SHA-256 values on success. The state-agent validates the first against provenance or
+one unconsumed approval, freshly validates the second against disk, and records
+completion before the processor is marked done.
 
 **Do NOT update state files.** Report back to orchestrator only.
 
 ## Task
 
-Write the full body content for a single documentation file. The file already exists on disk with frontmatter and a one-line summary (from the scaffold step). Replace the one-line summary with complete body content.
+Write or replay the full body content for one queued documentation file. On its first
+write the file contains frontmatter and a one-line scaffold summary; on replay it
+contains a previously written body whose retained hash authorizes revision. Preserve
+the frontmatter and produce complete body content in either case.
 
 **Only files on the durable `writeQueue` in `write-state.json` reach this agent** —
 `new`, hash-verified `run-owned-scaffold`, and paths the user explicitly approved for
@@ -118,11 +125,11 @@ Before writing, confirm {filePath}'s provenance still holds. Hash the current by
 check them against exactly these authorizations — the first that matches wins, and if
 none matches, the file changed under you: **stop and report instead of writing**.
 
-| Provenance state                                  | Authorized if current bytes hash to | Meaning                           |
-| ------------------------------------------------- | ----------------------------------- | --------------------------------- |
-| `writeStatus: "pending"`, `writtenHash: null`     | the recorded `scaffoldHash`         | First write over your scaffold    |
-| `writeStatus: "pending"`, `writtenHash: <sha256>` | the recorded `writtenHash`          | Authorized replay of a prior body |
-| `origin: "approved-overwrite"`                    | anything                            | The user approved this path       |
+| Provenance state                                  | Authorized if current bytes hash to                              | Meaning                                |
+| ------------------------------------------------- | ---------------------------------------------------------------- | -------------------------------------- |
+| `writeStatus: "pending"`, `writtenHash: null`     | the recorded `scaffoldHash`                                      | First write over a finalized scaffold  |
+| `writeStatus: "pending"`, `writtenHash: <sha256>` | the recorded `writtenHash`                                       | Replay while prior body is unchanged   |
+| pending with renewed approval                     | one unconsumed `purpose: "writer-replay"` entry's `approvedHash` | Replace the exact newly approved bytes |
 
 The middle row is the replay case, and it must be checked explicitly. On a replay the
 file's bytes are the body you wrote last time, not the scaffold — so they will **not**
@@ -131,15 +138,24 @@ replayed file and jams the transition on its own correct output. A path whose
 `writeStatus` is `pending` **and** whose provenance records a prior write is a
 legitimate rewrite: proceed.
 
+The approval row is one-use and exact-hash bound. `origin: "approved-overwrite"` is
+history, not standing authority; it never permits "anything" and never outranks a
+retained `writtenHash`. When bytes differ from both normal hashes, stop first. The
+orchestrator may append a fresh approval only after showing that exact collision to
+the user. After a successful approved write, `record-write` consumes that approval.
+
 Note what is _not_ authorization: `writeStatus: "pending"` by itself. If `writtenHash`
 is recorded and the bytes do not match it, something outside this workflow changed the
 file — an outside edit, or a writer that crashed mid-write. Report it; the orchestrator
-resolves it by classifying the collision and, if the user approves, recording an
-`approved-overwrite`. Never resolve it by writing.
+persists the exact mismatch through state-agent `record-writer-collision` and, if the
+user approves, records a new hash-bound writer-replay approval. Never resolve it by
+changing provenance first or by writing under an old path approval.
 
 ### 7. Report
 
-Report the result with file path and line count.
+Freshly hash the complete file after writing and report the result with file path,
+pre-write authorization hash, written hash, and line count. A success report missing
+either hash is an error and must not be marked done.
 
 ## Important
 

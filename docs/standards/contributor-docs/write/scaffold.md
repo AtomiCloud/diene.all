@@ -3,6 +3,7 @@
 ## Agent Context
 
 - Working directory: repo root
+- Operation: `{prepare|create}` (provided by orchestrator)
 - Doc plan: `.contributor-docs/doc-plan.yaml`
 - Docs references:
   - `docs/standards/contributor-docs/frontmatter.md` — frontmatter schemas
@@ -10,9 +11,13 @@
 
 ## Agent Report Format
 
-```
+```text
 RESULT: <success|error>
-FILES_CREATED: <count>
+OPERATION: <prepare|create>
+INPUT_SET: <whole-plan|gap-paths>
+MANIFEST_JSON: <JSON array; required for prepare, exact shape below>
+FILES_CREATED: <count; create only>
+FILES_ADOPTED: <count; create only>
 DOCS_ROOT: <path>
 ERROR: <error message if any>
 ```
@@ -21,32 +26,33 @@ ERROR: <error message if any>
 
 ## Task
 
-Create every file in the input set the orchestrator handed you, with frontmatter and a one-line summary. No body content. This ensures all cross-reference paths exist before any writing begins.
+`prepare` renders and classifies every handed path but writes nothing. `create` writes
+or adopts only a manifest whose expected hashes are already durable. Splitting these
+operations ensures a crash can never leave a scaffold whose ownership exists only in
+a lost agent report.
 
 ## Steps
 
 ### 1. Read Inputs
 
-**The orchestrator gives you your input set — the exact list of paths to classify and
-create. You never choose it.** On first entry into the write phase that set is the
-complete manifest in `.contributor-docs/doc-plan.yaml`. On a gap scaffold it is exactly
-`gapTransition.gapPaths` and nothing else; files this run has already written are not in
-it, are never classified, and keep their recorded scaffold hashes untouched. See
-`docs/standards/contributor-docs/write/PHASE.md` for both dispatches.
+**The orchestrator gives you the operation and exact input set. You never choose
+either.** Initial `prepare` receives the complete plan; initial `create` receives the
+prepared `writeQueue`. Gap operations receive exactly `gapTransition.gapPaths`.
+Files outside that set are never classified or touched. See
+`docs/standards/contributor-docs/write/PHASE.md` for each dispatch.
 
 Read `.contributor-docs/doc-plan.yaml` for the metadata of the paths in your input set.
 Read the frontmatter schemas doc for correct frontmatter per section type.
 Read the structure doc for folder layout conventions.
 
-On a gap scaffold, report the exact bytes you will write for each path — and their
-sha256 — **before** creating any file, so the orchestrator can record the expected
-scaffold identity first. A crash between your write and that record would otherwise
-leave a new file that nothing in the state file claims, and the next run would classify
-this run's own scaffold as a pre-existing collision.
+In `create`, also read the already-persisted expected hashes from `provenance` for an
+initial scaffold or `gapTransition.expectedScaffold` for a gap. Refuse an input path
+without exactly one persisted expected hash.
 
-### 2. Create Directory Structure
+### 2. Plan Directory Structure
 
-Create all necessary directories under the `docsRoot` specified in the plan:
+Resolve all necessary directories under the `docsRoot` specified in the plan. In
+`prepare`, only compute them. In `create`, make only the parents of handed paths:
 
 ```
 <docsRoot>/
@@ -64,12 +70,11 @@ Create all necessary directories under the `docsRoot` specified in the plan:
     └── algorithms/
 ```
 
-### 3. Classify Every Path in Your Input Set — Before Writing Anything
+### 3. Prepare: Classify and Render Without Writing
 
-Do this for the **whole of your input set** first — the full plan on first entry, the
-exact gap path list on a gap scaffold. Do not interleave classification with writing: a
-sequential pass that writes as it goes will have already destroyed a pre-existing file
-by the time it discovers the collision.
+This step applies only to `prepare`. Do it for the **whole input set** before returning.
+Do not create a directory or file. A sequential pass that writes as it classifies has
+already destroyed a pre-existing file by the time it discovers the collision.
 
 "Whole" means whole _input_, never "whole plan regardless of what you were handed".
 Re-classifying the full plan on a gap scaffold would put every file this run has already
@@ -77,22 +82,62 @@ written back through the hash test, which they fail by construction — a writte
 not hash to its scaffold — so every one of them would be bucketed `pre-existing` and the
 run would block on its own output.
 
-See [Collision Safety](#resumability-and-collision-safety) below for the buckets and
-the refusal protocol. Produce three lists: writable paths, blocked collisions, and
-the approvals the user gave.
+Render each path's exact proposed bytes in memory. Return one JSON record per path:
 
-### 4. Scaffold Each Writable File
+```json
+{
+  "path": "docs/contributor/orders/features/checkout.mdx",
+  "tier": 4,
+  "disposition": "new | run-owned-scaffold | collision",
+  "bytesBase64": "<base64 of the exact bytes create would write>",
+  "expectedHash": "<sha256 of the decoded exact bytes>",
+  "observedHash": "<sha256 of current bytes, or null when absent>",
+  "lineCount": 83
+}
+```
 
-For each path classified `new` (or explicitly approved for overwrite):
+`MANIFEST_JSON` must be a JSON array whose unique path set equals the handed input
+exactly. Base64 makes frontmatter and newlines unambiguous; the state-agent decodes it
+and independently recomputes `expectedHash`. `lineCount` is zero for an absent path.
+For initial prepare, existing bytes without prior prepared ownership are collisions.
+For gap prepare at status `planned`, every existing target is reported as a collision
+even when it happens to equal the proposed bytes: the expected hash was not durable
+before that observation. On a retry the report still describes filesystem truth; the
+state-agent, not this agent, decides whether a still-matching unconsumed scaffold
+approval resolves the observation.
+
+### 4. Create: Prove the Prepared Manifest, Then Write or Adopt
+
+This step applies only to `create`. Re-render every handed path, recompute its hash,
+and require equality with the already-persisted expected hash **before writing any
+path**. Then classify the current disk state of the **entire set** against durable
+authority before writing any path:
+
+| Context          | Create/adopt rule                                                                                    |
+| ---------------- | ---------------------------------------------------------------------------------------------------- |
+| Initial `new`    | absent → create; expected hash → adopt a crash-completed create                                      |
+| Initial resumed  | expected hash → adopt                                                                                |
+| Initial approved | exact unconsumed scaffold `approvedHash` → create; expected hash → adopt                             |
+| Gap `prepared`   | absent → create; `expectedScaffold[path]` → adopt; exact unconsumed scaffold `approvedHash` → create |
+
+A gap file matching `expectedScaffold[path]` at `prepared` is run-owned even though
+its provenance has not been installed yet. That is the crash window the prepared hash
+exists to close. At `planned`, the same unowned file was a collision; status is what
+distinguishes coincidental pre-existence from a crash-completed prepared write.
+
+Anything else is a collision: write nothing further and report the exact current
+hash and line count. Never turn a create-time mismatch into an approval yourself.
+
+For each authorized create:
 
 1. Build frontmatter from the plan entry + frontmatter schema for its type
 2. Write the file with frontmatter + one-line summary (the `description` from the plan)
 3. Do NOT write any body content beyond the one-line summary
-4. **Record the SHA-256 of the exact bytes just written** as that path's
-   `scaffoldHash`, together with its tier
+4. Re-hash the installed bytes and require the persisted expected hash
 
-Paths classified `run-owned-scaffold` are already correct — leave them and carry their
-existing hash forward. Paths in the blocked set are skipped entirely.
+Paths adopted by expected hash are already correct and are left byte-identical. After
+the whole set is created/adopted, freshly hash all of it and report both counts. The
+state-agent, not this agent, finalizes provenance and consumes approvals.
 
 The hashes are what make ownership provable on the next run. Without them, "is this
 my scaffold or someone's draft?" can only be guessed from the body's shape, and that
@@ -130,29 +175,29 @@ A planned path that already exists is ambiguous: it may be this run's own
 scaffold (resume) or **pre-existing documentation this run would destroy**. The
 two are not the same and must never be collapsed into "already exists → success".
 
-### Classify every planned path
+### Ownership Depends on Both Hash and Durable Stage
 
-For each path **in your input set**, record it in one of three buckets. The test is
-**provenance, not shape**:
+| Durable stage                     | Hash that proves run ownership         |
+| --------------------------------- | -------------------------------------- |
+| Initial `scaffold_prepared`       | `provenance[path].scaffoldHash`        |
+| Gap `prepared`                    | `gapTransition.expectedScaffold[path]` |
+| Finalized scaffold or first write | `provenance[path].scaffoldHash`        |
 
-| Bucket               | Test                                                                                                     | Disposition                     |
-| -------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| `new`                | Path does not exist on disk                                                                              | Scaffold it, queue it for write |
-| `run-owned-scaffold` | Exists **and** its current bytes hash to the `scaffoldHash` recorded in `write-state.json` for that path | Resume — queue it for write     |
-| `pre-existing`       | Exists and its hash does not match a recorded `scaffoldHash` (including: no hash recorded at all)        | **Collision — do not queue**    |
-
-Report all three buckets. `pre-existing` is not a warning; it is a stop.
+The gap row is deliberately provenance-free: prepared expected hashes are committed
+before create, while provenance is installed after create. Omitting that row turns a
+crash-completed gap file into a false collision. Conversely, at gap `planned`, no
+expected hash is durable yet, so an existing lookalike remains pre-existing.
 
 **Never infer ownership from the body looking like a one-line summary.** A
 pre-existing draft that contains frontmatter plus a single summary sentence is
 byte-for-byte indistinguishable in _shape_ from a fresh scaffold, and treating shape
 as proof is precisely how real documentation gets overwritten without confirmation.
-Only a recorded hash from this workflow's own state proves this run wrote the file.
-No recorded hash means not ours, which means it needs approval.
+Only a hash recorded **before the possible create** proves this run owns the bytes.
+No applicable recorded hash means not ours, which means it needs approval.
 
 ### Refuse on collision
 
-If the `pre-existing` bucket is non-empty:
+If any collision is non-empty:
 
 1. **Stop.** Do not scaffold over any of them, and do not queue them for write.
 2. Show the user the exact collision set — every colliding path, one per line,
@@ -160,37 +205,28 @@ If the `pre-existing` bucket is non-empty:
    not a summary.
 3. Ask for explicit per-path approval. Approval is per path; a blanket "yes"
    must be given by the user, never inferred.
-4. Only paths the user explicitly approves move to the write queue. Everything
-   still unapproved is dropped from this run and reported as skipped.
+4. Bind each approval to the freshly measured `observedHash`. An initial collision
+   may instead be skipped; a discovered gap is required and remains blocked until
+   approved.
 
 This is the confirmation required by [workflow.md](../workflow.md) rule 3
 ("Never overwrite existing documentation files without user confirmation"). The
-write phase queues **only** `new`, `run-owned-scaffold`, and explicitly approved
-paths — it never re-derives the queue from the plan.
+write phase queues **only** prepared `new`, hash-adopted run-owned, and explicitly
+approved paths — it never re-derives the queue from the plan. The approval is consumed
+by the scaffold create and gives no later writer standing authority.
 
 ### Report Format
 
-The orchestrator persists this report into `write-state.json` (`writeQueue`,
-`provenance`, `approvedOverwrites`, `blockedCollisions`) before any tier runs. The
-report itself is transient; the state is what every later step reads.
-
-```
-INPUT_SET: <whole-plan | gap-paths>
-SCAFFOLDED: <count> new files
-RESUMED: <count> run-owned scaffolds (hash-verified)
-COLLISIONS: <count>          # if > 0, this run is blocked pending approval
-  <path> (<n> lines)
-  ...
-APPROVED_FOR_OVERWRITE: <paths the user explicitly approved, or none>
-WRITE_QUEUE: <the exact paths the write phase may process>
-PROVENANCE:
-  <path> origin=<new|run-owned-scaffold|approved-overwrite> tier=<N> scaffoldHash=<sha256>
-  ...
-```
+For `prepare`, use the top-level `MANIFEST_JSON` report field exactly; summaries may
+follow it but cannot replace it. For `create`, report the exact created/adopted path
+lists and any collision with its current hash and line count. The orchestrator sends
+the machine-readable result to the state-agent; neither component reconstructs the
+manifest from prose.
 
 ## Important
 
 - Do NOT update state files
+- `prepare` performs no filesystem writes, including directory creation
 - Do NOT write body content — only frontmatter + one-line summary
-- Do NOT modify existing files that already have body content (beyond the one-line summary)
+- Modify an existing file only under an exact, unconsumed scaffold approval
 - Follow the frontmatter schemas exactly from the docs reference

@@ -297,7 +297,10 @@ state explicitly identifies what was accepted. Reset clears the collection.
 ### Repair Loop (`failed`)
 
 `failed` is a working state, not a dead end. On re-invocation with
-`currentPhase: "failed"`:
+`currentPhase: "failed"`, top-level dispatch in
+`docs/standards/contributor-docs/workflow.md#failed-phase-dispatch` routes here by
+spawning audit state-agent assessment; there is no manual state-file call or generic
+retry branch:
 
 1. Present the outstanding errors from the current audit reports.
 2. Fix them by re-running affected write-tier files or making targeted document

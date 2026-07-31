@@ -180,6 +180,8 @@ Each phase state-agent applies rules 1, 2, 5 and 6 to its own phase-state file
 ```
 task-state.json.currentPhase:
   plan → write → audit → completed
+                   ↓
+                 failed --(audit repair reset)--> audit
 ```
 
 ### Phase 1: Plan
@@ -194,9 +196,9 @@ Dispatch: `docs/standards/contributor-docs/plan/PHASE.md`
 ### Phase 2: Write
 
 ```
-[scaffold] → [write_tier_1] → [write_tier_2] → ... → [write_tier_6] → completed
-  team(S)      file-processor    file-processor         file-processor
-                 loop(S)×N         loop(S)×N               loop(S)×N
+[scaffold] → [scaffold_prepared] → [write_tier_1] → ... → [write_tier_6] → completed
+     │                  ↑             file-processor          file-processor
+     └→ [scaffold_blocked] ───────────┘ loop(S)×N               loop(S)×N
 ```
 
 Dispatch: `docs/standards/contributor-docs/write/PHASE.md`
@@ -222,13 +224,33 @@ Dispatch: `docs/standards/contributor-docs/audit/PHASE.md`
 | `write`        | Spawn write state-agent to assess, dispatch per `docs/standards/contributor-docs/write/PHASE.md`                                                       |
 | `audit`        | Spawn audit state-agent to assess, dispatch per `docs/standards/contributor-docs/audit/PHASE.md`                                                       |
 | `completed`    | Report completion, list generated files                                                                                                                |
-| `failed`       | Report error, offer retry                                                                                                                              |
+| `failed`       | Spawn audit state-agent to assess and dispatch the audit repair/reset flow below; never stop at a generic retry message                                |
 
 **Transition logging:** When advancing phases, the state-agent appends:
 
 ```bash
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) phase-transition from={old_phase} to={new_phase}" >> .contributor-docs/transitions.log
 ```
+
+### Failed-Phase Dispatch
+
+Audit is the only phase permitted to set `task-state.currentPhase: "failed"` in this
+workflow, so failed dispatch is deterministic rather than user-directed:
+
+1. Spawn audit state-agent `assess`.
+2. If `audit-state.step == "failed"`, present the current stamped errors, perform the
+   targeted repairs, and invoke audit state-agent `reset`.
+3. If `audit-state.step == "big_picture"`, `auditEpoch >= 2`, every reset field has
+   its canonical fresh value, and task phase is still `failed`, a reset commit landed
+   before cleanup or the task-phase write. Resume that same reset: do not increment
+   `auditEpoch`; repeat stale-artifact cleanup and finish the transition to task phase
+   `audit`.
+4. Any other combination is `INVALID_FAILED_STATE`; report the exact pair and mutate
+   nothing. It is not converted into a fresh audit or a completed run.
+
+After reset completes, dispatch re-enters the ordinary `audit` row. This is the public
+route that makes the audit phase's documented `failed → big_picture` recovery edge
+reachable after an invocation boundary.
 
 ## File-Processor Pattern
 
@@ -240,10 +262,14 @@ The write phase (per-tier) and audit fact-check use the file-processor loop. Scr
 # records ONE pending file named "file1.mdx\nfile2.mdx" instead of two.
 printf '%s\n' file1.mdx file2.mdx | bash docs/standards/contributor-docs/scripts/init-state.sh <state-file> '<source-paths>' <N> '<output-dir>'
 
-# 2. Loop: get next batch, spawn agents, mark done
+# 2. Loop: get next batch and spawn agents
 bash docs/standards/contributor-docs/scripts/next-file.sh <state-file> --batch <N>
 
-# 3. After each agent completes:
+# 3. Validate the phase-specific durable result first.
+#    Write: state-agent record-write verifies returned/start/disk hashes.
+#    Audit: verify epoch, digest, and fresh per-file hash.
+
+# 4. Only after that validation succeeds:
 bash docs/standards/contributor-docs/scripts/mark-done.sh <state-file> <filename>
 ```
 

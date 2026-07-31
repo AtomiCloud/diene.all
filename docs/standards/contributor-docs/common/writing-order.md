@@ -168,13 +168,20 @@ explaining the concept inline. The orchestrator collects reports at the **tier
 boundary**, never mid-tier, so the whole batch's gaps are considered together and
 two writers reporting the same missing path produce one transition.
 
+The transition preserves the complete reporter→gap mapping, not just the union of
+missing paths. Planning adds each missing path to the `crossLinks` of every writer
+that reported it, and replay begins from all reporters. Collapsing duplicate gaps while
+retaining only one reporter would leave the other completed file unable to acquire its
+new link.
+
 ### Why the re-scaffold is scoped
 
 The scaffolder is handed **exactly the transition's gap paths** and nothing else.
 This is not an optimization; a whole-plan re-scaffold cannot work at all.
 
-Ownership is proven by hash: a path is this run's scaffold only if its current
-bytes hash to the `scaffoldHash` recorded when the scaffold was written. Every
+Ownership is proven by a hash made durable before the possible write: ordinary
+scaffolds use provenance `scaffoldHash`; a gap at prepared status uses
+`gapTransition.expectedScaffold[path]` until provenance is finalized. Every
 file the run has already written fails that test **by design** — writing the body
 is precisely what replaced the scaffold bytes. So a re-scaffold over the whole
 plan classifies every completed file as `pre-existing`, which is a blocked
@@ -199,17 +206,18 @@ The alternative — rewriting every file at or below the replay point — would 
 each discovered gap cost a full rewrite of the documentation set, and would throw
 away correct work to fix an unrelated missing link.
 
-### When a gap is resolved
+### When a gap transition is closed
 
-A gap is not resolved until the re-planned path is in `doc-plan.yaml`, on the
-write queue with provenance, scaffolded, marked done in its tier's state,
-recorded in `gapsResolved`, **and** `gapTransition` is back to `null` — which
-cannot happen until every reset tier's processor state has been invalidated.
-Anything short of that is a transition still in flight, and the next run must
-finish it before any tier may dispatch.
+The transition is not closed until every re-planned path is in `doc-plan.yaml`, on
+the write queue with provenance, scaffolded, the affected processor state is removed,
+the closed record is in `gapsResolved`, **and** `gapTransition` is back to `null`.
+Only then may tier dispatch resume. The new gap file and every stale dependant are
+still pending at that point; the replayed tiers write and mark them done afterward.
+Anything short of the closed record is a transition still in flight, and the next run
+must finish it before any tier may dispatch.
 
-**Loop guard.** If the same path appears in `gapsResolved` more than twice, stop
-and report instead of replaying again. A gap that keeps coming back is a planning
+**Loop guard.** If the same path already appears in two prior `gapsResolved` records,
+stop and report instead of opening a third transition. A gap that keeps coming back is a planning
 failure, and retrying it forever looks like progress while nothing converges.
 
 **One accepted hole.** A writer that discovers a gap and then dies before

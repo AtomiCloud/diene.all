@@ -101,13 +101,18 @@ When prompted: "Assess audit phase state"
    every existing artifact has current stamps and hashes, and each arm marked
    complete has all of its required artifacts. It is a report value, never a
    state field.
-8. Report current state without mutating it.
+8. Derive `resetResumeRequired` when task phase is `failed`, audit step is
+   `big_picture`, `auditEpoch >= 2`, and every reset field has its canonical fresh
+   value. This is the committed-reset crash combination; it resumes cleanup without
+   another increment.
+9. Report current state without mutating it.
 
 ### Report Format
 
 ```text
 CURRENT_STEP: <step from audit-state.json>
 CONTEXT:
+- taskPhase: <task-state currentPhase>
 - auditEpoch: <positive integer>
 - docsDigest: <64 lowercase hex>
 - liveDocsDigest: <64 lowercase hex>
@@ -121,6 +126,7 @@ CONTEXT:
 - factCheckPending: <pending file count, if processor state exists>
 - totalErrors: <count>
 - acceptedWarnings: <entry count>
+- resetResumeRequired: <true|false>
 ```
 
 ## Mode 2: Update

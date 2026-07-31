@@ -3,18 +3,21 @@
 ## State Machine
 
 ```
-[scaffold] → [write_tier_1] → [write_tier_2] → [write_tier_3] → [write_tier_4] → [write_tier_5] → [write_tier_6] → completed
-  team(S)      fp-loop(S)×N    fp-loop(S)×N    fp-loop(S)×N    fp-loop(S)×N    fp-loop(S)×N    fp-loop(S)×N
+[scaffold] → [scaffold_prepared] → [write_tier_1] → [write_tier_2] → [write_tier_3]
+     │                  ↑             fp-loop(S)×N      fp-loop(S)×N      fp-loop(S)×N
+     └→ [scaffold_blocked] ───────────┘
 
-any [write_tier_N] --(gap reported)--> [gap_scaffold] --(replay)--> [write_tier_<replayTier>]
-                                          team(S)
+[write_tier_3] → [write_tier_4] → [write_tier_5] → [write_tier_6] → [completed]
+   fp-loop(S)×N      fp-loop(S)×N      fp-loop(S)×N      fp-loop(S)×N
+
+any [write_tier_N] --(gap reports)--> gapTransition --(replay)--> [write_tier_<replayTier>]
 ```
 
 Scaffold is a single team agent. Each write tier uses the file-processor loop with parallel sonnet agents.
 
-The march through the tiers is linear except for one edge: a writer that discovers a
-missing dependency sends the phase back through `gap_scaffold` and into an earlier
-tier. That edge is not an error path — it is the [Discovered-Gap
+The march through the tiers is linear except for one edge: writers that discover a
+missing dependency open one durable `gapTransition` and replay an earlier tier. That
+edge is not an error path — it is the [Discovered-Gap
 Transition](#discovered-gap-transition), and this file owns its mechanism.
 
 ## State File: `write-state.json`
@@ -23,7 +26,7 @@ Transition](#discovered-gap-transition), and this file owns its mechanism.
 
 ```json
 {
-  "step": "scaffold | gap_scaffold | write_tier_1 | write_tier_2 | write_tier_3 | write_tier_4 | write_tier_5 | write_tier_6 | completed",
+  "step": "scaffold | scaffold_blocked | scaffold_prepared | write_tier_1 | write_tier_2 | write_tier_3 | write_tier_4 | write_tier_5 | write_tier_6 | completed",
   "scaffoldComplete": false,
   "currentTier": 0,
   "tiersCompleted": [],
@@ -56,8 +59,8 @@ block instead of guessing which fenced `json` block it wanted. See
 | -------------------- | -------------- | ---------------------------------------------------------------------- |
 | `writeQueue`         | array of paths | The **only** paths any tier may process. Nothing else is ever written. |
 | `provenance`         | path → record  | How each queued path was classified, and the evidence for it           |
-| `approvedOverwrites` | array of paths | Paths the user explicitly approved overwriting, one entry per path     |
-| `blockedCollisions`  | array of paths | Pre-existing paths seen but **not** approved — recorded, never written |
+| `approvedOverwrites` | array          | Append-only, exact-hash approvals and whether each was consumed        |
+| `blockedCollisions`  | array          | Current exact-hash collisions awaiting a per-path decision             |
 | `gapTransition`      | object or null | The in-flight discovered-gap transition; non-null blocks tier dispatch |
 | `gapsResolved`       | array          | Append-only log of closed transitions, one entry per completed replay  |
 
@@ -69,14 +72,60 @@ Each `provenance` entry is:
 {
   "docs/contributor/orders/features/checkout.mdx": {
     "origin": "new | run-owned-scaffold | approved-overwrite",
-    "scaffoldHash": "<sha256 of the exact bytes this run scaffolded>",
-    "scaffoldedAt": "<ISO-8601>",
+    "scaffoldHash": "<sha256 of the exact prepared scaffold bytes>",
+    "scaffoldedAt": "<ISO-8601 or null while prepared>",
     "tier": 4,
     "writeStatus": "pending | written",
     "writtenHash": null
   }
 }
 ```
+
+Preparation records `scaffoldHash` before any bytes are created and leaves
+`scaffoldedAt: null`. Finalization freshly hashes the file and fills `scaffoldedAt`
+only after the current bytes match that prepared hash. No tier may run while any
+queued provenance entry still has a null `scaffoldedAt`.
+
+Each `approvedOverwrites` entry is an append-only, one-use authority:
+
+<!-- canonical-block: write-approval-record -->
+
+```json
+{
+  "path": "docs/contributor/orders/features/checkout.mdx",
+  "approvedHash": "<sha256 of the exact bytes the user approved replacing>",
+  "purpose": "scaffold | writer-replay",
+  "approvedAt": "<ISO-8601>",
+  "consumedAt": null
+}
+```
+
+An approval authorizes only the current bytes matching `approvedHash`, only for its
+named `purpose`, and only while `consumedAt` is null. A path may therefore appear more
+than once when the user approves different snapshots at different times. Consuming an
+approval fills `consumedAt`; entries are never deleted or silently reused.
+At most one unconsumed approval may exist for a path and purpose, and appending one
+requires the path's current collision record.
+
+Each `blockedCollisions` entry binds the refusal to both sides of the proposed write:
+
+<!-- canonical-block: write-collision-record -->
+
+```json
+{
+  "path": "docs/contributor/orders/features/checkout.mdx",
+  "observedHash": "<sha256 of the current bytes>",
+  "expectedHash": "<sha256 of the normal scaffold or replay authority>",
+  "tier": 4,
+  "lineCount": 83,
+  "detectedAt": "<ISO-8601>"
+}
+```
+
+Approval is accepted only if a fresh hash still equals `observedHash`. If it changed,
+the stale decision is refused and a new collision record is measured. Skipping a
+collision removes it from this run; approving it appends an exact-hash approval and
+adds or updates its prepared queue/provenance entry atomically.
 
 `writeStatus` and `writtenHash` are the per-path provenance state. Together they
 distinguish the three situations a replay has to tell apart, which no single flag can:
@@ -88,39 +137,46 @@ distinguish the three situations a replay has to tell apart, which no single fla
 | `pending`     | `<sha256>`    | Authorized replay of a body | Rewrite, if current bytes still hash to `writtenHash` |
 
 **`writtenHash` is recorded whenever a writer completes**, in the same state update
-that sets `writeStatus: "written"`. It is the sha256 of the exact bytes the writer
-left on disk. On a replay the transition sets `writeStatus` back to `pending` and
+that sets `writeStatus: "written"`. The writer must report it, and the state-agent
+freshly hashes the disk and requires equality before installing either field. On a
+replay the transition sets `writeStatus` back to `pending` and
 **keeps** `writtenHash`, and that retained hash — not the pending status — is the
 overwrite authority. `writeStatus: "pending"` on its own authorizes nothing: a path
 whose bytes match neither `scaffoldHash` nor `writtenHash` changed under the workflow
 (a half-written body from a crashed writer, or an outside edit) and is refused, exactly
 as an unclassified collision is refused.
 
-**Ownership is proven by hash, never inferred from shape.** A file is a run-owned
-scaffold only if its current bytes hash to the `scaffoldHash` this run recorded when
-it wrote them. A pre-existing draft that happens to be one line long is _not_ a
-scaffold, and no heuristic about "looks like a summary" may be used to decide it is.
-If the hash does not match, the path is treated as pre-existing and needs explicit
+**Ownership is proven by a pre-write durable hash, never inferred from shape.** A
+finalized file is a run-owned scaffold only if its current bytes hash to provenance
+`scaffoldHash`; during gap create, the temporary authority is
+`gapTransition.expectedScaffold[path]`. A pre-existing draft that happens to be one
+line long is _not_ a scaffold, and no heuristic about "looks like a summary" may be
+used to decide it is. If no status-appropriate hash matches, the path needs explicit
 approval.
 
 ## Step Dispatch
 
-| Step           | Agent         | Model  | Type    | File                                                  | Description                                |
-| -------------- | ------------- | ------ | ------- | ----------------------------------------------------- | ------------------------------------------ |
-| `scaffold`     | scaffolder    | sonnet | team    | `docs/standards/contributor-docs/write/scaffold.md`   | Create all files with frontmatter + TODOs  |
-| `gap_scaffold` | scaffolder    | sonnet | team    | `docs/standards/contributor-docs/write/scaffold.md`   | Scaffold **only** `gapTransition.gapPaths` |
-| `write_tier_1` | doc-writer ×N | sonnet | fp-loop | `docs/standards/contributor-docs/write/write-file.md` | Tier 1: foundations                        |
-| `write_tier_2` | doc-writer ×N | sonnet | fp-loop | `docs/standards/contributor-docs/write/write-file.md` | Tier 2: concepts                           |
-| `write_tier_3` | doc-writer ×N | sonnet | fp-loop | `docs/standards/contributor-docs/write/write-file.md` | Tier 3: algorithms                         |
-| `write_tier_4` | doc-writer ×N | sonnet | fp-loop | `docs/standards/contributor-docs/write/write-file.md` | Tier 4: features                           |
-| `write_tier_5` | doc-writer ×N | sonnet | fp-loop | `docs/standards/contributor-docs/write/write-file.md` | Tier 5: surfaces                           |
-| `write_tier_6` | doc-writer ×N | sonnet | fp-loop | `docs/standards/contributor-docs/write/write-file.md` | Tier 6: indexes                            |
+| Step                | Agent         | Model  | Type    | File                                                  | Description                                |
+| ------------------- | ------------- | ------ | ------- | ----------------------------------------------------- | ------------------------------------------ |
+| `scaffold`          | scaffolder    | sonnet | team    | `docs/standards/contributor-docs/write/scaffold.md`   | Prepare the whole-plan manifest            |
+| `scaffold_blocked`  | none          | —      | hold    | —                                                     | Await exact per-path collision decisions   |
+| `scaffold_prepared` | scaffolder    | sonnet | team    | `docs/standards/contributor-docs/write/scaffold.md`   | Create/adopt the prepared initial scaffold |
+| gap `planned`       | scaffolder    | sonnet | team    | `docs/standards/contributor-docs/write/scaffold.md`   | Prepare only `gapTransition.gapPaths`      |
+| gap `prepared`      | scaffolder    | sonnet | team    | `docs/standards/contributor-docs/write/scaffold.md`   | Create/adopt the prepared gap scaffold     |
+| `write_tier_1`      | doc-writer ×N | sonnet | fp-loop | `docs/standards/contributor-docs/write/write-file.md` | Tier 1: foundations                        |
+| `write_tier_2`      | doc-writer ×N | sonnet | fp-loop | `docs/standards/contributor-docs/write/write-file.md` | Tier 2: concepts                           |
+| `write_tier_3`      | doc-writer ×N | sonnet | fp-loop | `docs/standards/contributor-docs/write/write-file.md` | Tier 3: algorithms                         |
+| `write_tier_4`      | doc-writer ×N | sonnet | fp-loop | `docs/standards/contributor-docs/write/write-file.md` | Tier 4: features                           |
+| `write_tier_5`      | doc-writer ×N | sonnet | fp-loop | `docs/standards/contributor-docs/write/write-file.md` | Tier 5: surfaces                           |
+| `write_tier_6`      | doc-writer ×N | sonnet | fp-loop | `docs/standards/contributor-docs/write/write-file.md` | Tier 6: indexes                            |
+| `completed`         | none          | —      | handoff | —                                                     | Advance task phase to audit                |
 
 All write tiers use the same agent file (`write-file.md`), parameterized with the tier
-number and file metadata. Both scaffold steps use the same agent file
-(`scaffold.md`), parameterized with **the exact path set it is to classify and
-create** — the whole plan on first entry, `gapTransition.gapPaths` on a gap scaffold.
-The scaffolder never chooses its own input set.
+number and file metadata. Every scaffold dispatch uses the same agent file
+(`scaffold.md`), parameterized with an explicit `prepare` or `create` operation and
+**the exact path set it may inspect** — the whole plan on first entry or
+`gapTransition.gapPaths` during recovery. The scaffolder never chooses its own input
+set and a `prepare` operation never writes.
 
 ## Step Dispatch Logic
 
@@ -128,46 +184,99 @@ On entry, spawn write state-agent to assess. **NEVER read step files directly** 
 
 Conditions are evaluated **in order**. The first row wins.
 
-| #   | Condition               | Action                                                                                                                                                         |
-| --- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | `gapTransition != null` | **Finish the in-flight transition first** — resume it at its recorded `status` (see [Discovered-Gap Transition](#discovered-gap-transition)). No tier may run. |
-| 2   | No `write-state.json`   | Create via state-agent with `step: "scaffold"`, spawn scaffolder                                                                                               |
-| 3   | `step: "scaffold"`      | Spawn scaffolder (sonnet) — tell it to read `docs/standards/contributor-docs/write/scaffold.md`, input set = the whole plan                                    |
-| 4   | `step: "gap_scaffold"`  | Spawn scaffolder (sonnet) — same file, input set = `gapTransition.gapPaths` and nothing else                                                                   |
-| 5   | `step: "write_tier_N"`  | Run file-processor loop for tier N (see below)                                                                                                                 |
-| 6   | `step: "completed"`     | Phase done — advance `task-state.currentPhase` to `"audit"` via state-agent                                                                                    |
+| #   | Condition                    | Action                                                                                                                     |
+| --- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `gapTransition != null`      | **Finish the in-flight transition first** — resume its exact operation from `status`. No initial scaffold or tier may run. |
+| 2   | No `write-state.json`        | Create via state-agent with `step: "scaffold"`, then reassess                                                              |
+| 3   | `blockedCollisions` nonempty | Present every measured collision; dispatch no scaffold or writer until exact decisions clear the set                       |
+| 4   | `step: "scaffold"`           | Spawn scaffolder `prepare`, input set = the whole plan; state-agent records the manifest before any create                 |
+| 5   | `step: "scaffold_blocked"`   | Invalid without collisions — state-agent reports the broken invariant                                                      |
+| 6   | `step: "scaffold_prepared"`  | Spawn scaffolder `create`, input set = prepared `writeQueue`; state-agent freshly verifies and finalizes                   |
+| 7   | `step: "write_tier_N"`       | Reconcile canonical written records with processor state, then run the file-processor loop for tier N                      |
+| 8   | `step: "completed"`          | Phase done — advance `task-state.currentPhase` to `"audit"` via state-agent                                                |
 
 Row 1 takes precedence over the step because a transition that is half-applied has a
 `step` that is not yet true. Dispatching on it would run a tier against a queue the
 transition has not finished extending.
 
-## Scaffold Step
+## Initial Scaffold Protocol
 
-The scaffolder **classifies every planned path before writing anything**, then creates
-only the files it is allowed to create, with frontmatter + a one-line summary and no
-body content. This ensures cross-reference paths exist before writing begins, without
-ever writing over documentation that was already there.
+Initial scaffolding is a durable prepare → create → finalize protocol. A one-shot
+"create, then report" is forbidden: a crash after the filesystem write but before the
+state write would leave an ownerless file that the retry correctly treats as a
+collision.
 
-Order is load-bearing: classify → refuse/approve → write. Never write → discover.
+### 1. Prepare
 
-After the scaffolder reports, via state-agent, in one update:
+The scaffolder classifies the **entire** whole-plan input, renders the exact bytes for
+each proposed scaffold in memory, and returns a machine-readable manifest containing
+path, tier, disposition, exact bytes, SHA-256, and (for a collision) the current hash
+and line count. It writes nothing.
 
-1. Record `writeQueue` = exactly the paths the scaffolder reports as writable —
-   `new`, `run-owned-scaffold`, and `approved-overwrite` — and nothing else.
-2. Record `provenance` for each, including the `scaffoldHash` of the bytes just
-   written, `writeStatus: "pending"` and `writtenHash: null`.
-3. Record `approvedOverwrites` and `blockedCollisions` verbatim from the report.
-4. Set `scaffoldComplete: true`, `filesTotal` = `writeQueue.length`,
-   `filesWritten` = 0, `step: "write_tier_1"`, `currentTier: 1`.
+The state-agent validates exact input coverage, normalized root-relative paths under
+`docsRoot`, and every reported hash. In one atomic operation it:
 
-If `blockedCollisions` is non-empty, the phase **stops here** and reports them for a
-decision. It does not advance to `write_tier_1` with an incomplete queue.
+1. records the writable paths in `writeQueue` and creates their prepared `provenance`
+   entries with `scaffoldedAt: null`;
+2. records every collision as a hash-bound `blockedCollisions` entry;
+3. sets `filesTotal` from the queue; and
+4. moves `scaffold → scaffold_blocked` when collisions exist, otherwise
+   `scaffold → scaffold_prepared`.
+
+The exact bytes stay in the scaffolder report; state persists their expected hashes.
+The later create operation must re-render the bytes and prove their hashes equal the
+persisted values, so plan drift cannot change a prepared write.
+
+### 2. Resolve Collisions
+
+`scaffold_blocked` dispatches no writer. The user decides every blocked path
+individually. The state-agent requires a decision for the exact current collision set:
+
+- `skip` removes the path from this run;
+- `approve` is accepted only while a fresh disk hash still equals `observedHash`,
+  appends a one-use `purpose: "scaffold"` approval, and adds or updates the path's
+  prepared queue/provenance record.
+
+The decisions, queue, provenance, approval ledger, cleared collision set,
+`filesTotal`, and `step: "scaffold_prepared"` land atomically. A changed path is
+remeasured and remains blocked; approval never follows a stale hash.
+
+### 3. Create and Finalize
+
+The scaffolder's `create` operation re-renders each prepared path and first requires
+the render hash to equal `provenance[path].scaffoldHash`. It then applies exactly one
+of these rules:
+
+| Prepared origin      | Current filesystem state that permits create/adopt                                                                                   |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `new`                | absent → create; expected scaffold hash → adopt a crash-completed write                                                              |
+| `run-owned-scaffold` | expected scaffold hash → adopt                                                                                                       |
+| `approved-overwrite` | exact hash of an unconsumed `purpose: "scaffold"` approval → create; expected scaffold hash → adopt a crash-completed approved write |
+
+Anything else is a newly measured collision. The state-agent atomically records it
+and returns the step to `scaffold_blocked`; a partially created set is harmless
+because every created path has a persisted expected hash and is adopted on retry.
+
+After the scaffolder reports, the state-agent freshly hashes **every** queued path.
+Only when each equals its prepared `scaffoldHash` does one atomic finalize operation
+fill null `scaffoldedAt` values, consume any used scaffold approvals, clear collisions,
+set `scaffoldComplete: true`, recompute both counters, and move
+`scaffold_prepared → write_tier_1` with `currentTier: 1`. No tier is reachable before
+that barrier.
 
 ## File-Processor Loop (Per Tier)
 
 For each `write_tier_N` step:
 
 ### 1. Initialize
+
+Before computing new input, reconcile processor state with canonical provenance. A
+crash may occur after the state-agent records a verified write but before
+`mark-done.sh` updates the processor. For each processor-pending path already marked
+`written` in provenance, freshly require the disk hash to equal `writtenHash`, then
+call `mark-done.sh`. A mismatch is a collision and blocks the tier; it is never
+silently skipped. This reconciliation is idempotent and is the only legal recovery
+for that crash window.
 
 **Tier input comes from `write-state.json`, never from `doc-plan.yaml`.** The plan
 lists what was _wanted_; the queue records what was _approved_. Re-deriving tier
@@ -221,30 +330,56 @@ while next-file.sh returns files:
      - Tell it to read docs/standards/contributor-docs/write/write-file.md
      - Provide: file path, type, description, sources, crossLinks from doc-plan.yaml
      - Provide: the tier number
-  3. Wait for all agents in batch to complete
-  4. For each completed file: bash docs/standards/contributor-docs/scripts/mark-done.sh .contributor-docs/write-tier-N/state.json <filename>
+  3. Wait for all agents in batch to complete.
+  4. For each successful report, require lowercase 64-hex
+     `AUTHORIZED_FROM_HASH` and `WRITTEN_HASH` values.
+  5. Spawn state-agent `record-write`. It freshly hashes the file, requires equality
+     with `WRITTEN_HASH`, atomically records `writeStatus: "written"` plus that exact
+     `writtenHash`, derives `filesWritten`, and consumes any writer-replay approval.
+     A mismatch remains pending; state-agent `record-writer-collision` persists the
+     observed and expected hashes in `blockedCollisions`, which blocks dispatch.
+  6. Only after `record-write` succeeds, run:
+     bash docs/standards/contributor-docs/scripts/mark-done.sh .contributor-docs/write-tier-N/state.json <filename>
 ```
+
+The order is canonical state first, processor state second. Reversing it can make a
+file disappear from the processor while provenance still says pending. The chosen
+order has one recoverable crash window, handled by initialization reconciliation.
+An outside edit between the writer's return and the fresh state-agent hash therefore
+cannot be blessed as workflow output.
+
+When the user approves a writer collision, `approve-writer-replay` first re-hashes the
+path and requires equality with the recorded `observedHash`, appends one unconsumed
+approval for that exact snapshot, and atomically removes the collision. A changed
+snapshot is remeasured and stays blocked. The next writer consumes the approval only
+after `WRITTEN_HASH` is freshly verified.
 
 ### 3. Tier Complete
 
-When all files in the tier are processed, in one state-agent update:
+When all files in the tier are processed, invoke state-agent `complete-tier N`. It
+freshly verifies that:
 
-- For each path the tier completed: set `provenance[path].writeStatus: "written"` and
-  `provenance[path].writtenHash` to the sha256 of the bytes the writer left on disk
-- Append N to `tiersCompleted`; set `currentTier: N+1`
-- Recompute `filesWritten` as the number of `provenance` entries with
-  `writeStatus == "written"` — **derive it, never increment it**
-- If N < 6: update `step: "write_tier_{N+1}"`
-- If N = 6: update `step: "completed"`
+- the processor has no pending path;
+- every queued path assigned to tier N has `writeStatus: "written"` and a valid
+  `writtenHash`;
+- every such file's current bytes still hash to that `writtenHash`; and
+- `filesWritten` equals the derived global count.
+
+Only then does one atomic update append N to `tiersCompleted` and advance the step.
+For N < 6 it sets `currentTier: N+1` and `step: "write_tier_{N+1}"`. For N = 6 it
+keeps `currentTier: 6` and sets `step: "completed"`; completed state requires
+`tiersCompleted == [1, 2, 3, 4, 5, 6]`, every queue entry written, and
+`filesWritten == filesTotal`.
 
 `filesWritten` is derived because an incremented counter and a replay disagree
 immediately: a replay rewrites files that were already counted, and every gap would
 inflate the total past `filesTotal`. Deriving from provenance means the counter cannot
 drift from the thing it counts, and a crash between two updates cannot double-count.
 
-If the tier produced gap reports, the tier boundary is also where they are collected —
-see [Discovered-Gap Transition](#discovered-gap-transition). Open the transition
-**before** advancing `step`; the transition itself sets the step it replays into.
+If the tier produced gap reports, the tier boundary is also where **all** reports are
+collected and de-duplicated — see [Discovered-Gap Transition](#discovered-gap-transition).
+Open one transition containing every reporter **before** `complete-tier`; the
+transition itself sets the step it replays into.
 
 ## Context Provided to Each Doc-Writer
 
@@ -284,7 +419,17 @@ this table exists in exactly one place, and a consistency check proves it.
 ```json
 {
   "status": "enqueued | planned | prepared | scaffolded | reset | cleaned",
-  "reportedBy": "docs/contributor/orders/features/checkout.mdx",
+  "reports": [
+    {
+      "reportedBy": "docs/contributor/orders/features/checkout.mdx",
+      "gaps": [
+        {
+          "path": "docs/contributor/orders/concepts/idempotency.mdx",
+          "reason": "Checkout needs the shared idempotency contract"
+        }
+      ]
+    }
+  ],
   "gapPaths": [
     {
       "path": "docs/contributor/orders/concepts/idempotency.mdx",
@@ -292,7 +437,9 @@ this table exists in exactly one place, and a consistency check proves it.
       "tier": 2
     }
   ],
-  "expectedScaffold": {},
+  "expectedScaffold": {
+    "docs/contributor/orders/concepts/idempotency.mdx": "<sha256>"
+  },
   "replayTier": 2,
   "requeued": ["docs/contributor/orders/features/checkout.mdx"],
   "resetTiers": [2, 4],
@@ -300,6 +447,14 @@ this table exists in exactly one place, and a consistency check proves it.
   "openedAt": "<ISO-8601>"
 }
 ```
+
+`reports` is the normalized, de-duplicated batch of every writer report collected at
+the tier boundary. Each `reportedBy` must be a queued path in the current tier, each
+nested gap must retain its non-empty reason and appear in the top-level `gapPaths`
+union, and that union may contain no unreported path. Retaining the mapping lets
+planning add a missing cross-link to the right files; one singular reporter loses
+completed writers when two agents
+independently discover the same dependency.
 
 **`gapTransition != null` blocks ordinary tier dispatch and is the recovery marker.**
 Every run checks it before it looks at `step` (dispatch row 1). Its `status` says
@@ -311,15 +466,15 @@ idempotent.
 
 <!-- canonical-block: gap-transition-mechanism -->
 
-| Status       | Advanced by  | Durable effect of reaching it                                                                                                                                                                                                                                                                                                        | Resume from a crash at this status                                                                                                                                                                             |
-| ------------ | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| _(opening)_  | state-agent  | One atomic write creates `gapTransition` with `status: "enqueued"`, `reportedBy`, `gapPaths`, `replayTier`, `requeued`, `resetTiers`, `expectedScaffold: {}`, `cleanedTiers: []`, `openedAt`. Nothing else in the state file changes.                                                                                                | The record either exists or it does not. If it does not, the gap is lost and the audit phase rediscovers it; no half-open transition is possible.                                                              |
-| `enqueued`   | orchestrator | `doc-plan.yaml` gains an entry for every `gapPaths` member (path, type, tier, description, sources, crossLinks). Then `status: "planned"`.                                                                                                                                                                                           | Re-add the entries. Adding an entry that is already present is a no-op, so a partially re-planned file converges.                                                                                              |
-| `planned`    | scaffolder   | The scaffolder classifies **only** `gapPaths`, and reports the exact bytes it will write for each. The orchestrator records those bytes' sha256 into `expectedScaffold` and sets `status: "prepared"` — **before any file is created**.                                                                                              | Re-run the scoped classification. Nothing has been written yet, so nothing can be orphaned.                                                                                                                    |
-| `prepared`   | scaffolder   | The scaffolder writes the gap files. Then, in one atomic state write: `writeQueue` extended with the gap paths; a `provenance` entry per path with `origin: "new"`, `scaffoldHash` = its `expectedScaffold` hash, `tier`, `writeStatus: "pending"`, `writtenHash: null`; `filesTotal` = `writeQueue.length`; `status: "scaffolded"`. | For each gap path: absent → write it; present and hashing to its `expectedScaffold` entry → it is ours, keep it; present and hashing to anything else → **stop**, record it in `blockedCollisions` and report. |
-| `scaffolded` | state-agent  | One atomic write: `tiersCompleted` truncated to tiers `< replayTier`; `currentTier: replayTier`; `step: "write_tier_<replayTier>"`; `writeStatus: "pending"` restored for every `requeued` path (their `writtenHash` is **kept**); `filesWritten` recomputed; `status: "reset"`.                                                     | Re-apply. Every effect is an assignment to a known value, so re-applying an already-applied reset changes nothing.                                                                                             |
-| `reset`      | orchestrator | For each tier in `resetTiers`, delete `.contributor-docs/write-tier-<N>/state.json` and everything under `.contributor-docs/write-tier-<N>/findings/`, appending N to `cleanedTiers` after each one. When `cleanedTiers` covers `resetTiers`, `status: "cleaned"`.                                                                   | Resume cleanup at the first tier not in `cleanedTiers`. Deleting an already-deleted artifact is a no-op.                                                                                                       |
-| `cleaned`    | state-agent  | One atomic write: the record — plus `closedAt` — is appended to `gapsResolved`, and `gapTransition` is set to `null`. The transition is over and ordinary dispatch resumes at `step`.                                                                                                                                                | If `gapTransition` is still non-null the append may or may not have happened; the state-agent appends only if no `gapsResolved` entry shares this `openedAt`.                                                  |
+| Status       | Advanced by | Durable effect of reaching it                                                                                                                                                                                                                                                                                                                                                                                                                                 | Resume from a crash at this status                                                                                                                       |
+| ------------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| _(opening)_  | state-agent | Validate the aggregated reports and computed closure, then atomically create `status: "enqueued"` with exact `reports`, their `gapPaths` union, `replayTier`, `requeued`, `resetTiers`, empty `expectedScaffold`/`cleanedTiers`, and `openedAt`. Nothing else changes.                                                                                                                                                                                        | The record exists completely or not at all.                                                                                                              |
+| `enqueued`   | state-agent | After the orchestrator edits `doc-plan.yaml`, verify every gap entry's path/type/tier and verify each reporter's `crossLinks` now contains the paths in its own report. Then atomically set `status: "planned"`.                                                                                                                                                                                                                                              | Re-apply the idempotent plan edits and ask the state-agent to verify them again.                                                                         |
+| `planned`    | state-agent | Scaffolder `prepare` renders but does not write. Validate its exact path/hash/exact-byte manifest, require `expectedScaffold` key coverage to equal `gapPaths`, measure collisions, and atomically install the hashes plus `status: "prepared"`. Any existing path on its first observation is a collision, even if its bytes equal the proposal. On retry, a still-matching unconsumed scaffold approval resolves that observation instead of recreating it. | Re-run prepare while still planned. A collision keeps the status planned and records `blockedCollisions`; after an exact-hash decision, retry this edge. |
+| `prepared`   | state-agent | Scaffolder `create` re-renders and proves each persisted hash. For each path: absent → write; current hash equal to `expectedScaffold[path]` → adopt a crash-completed create; current hash equal to an unconsumed scaffold approval → overwrite; anything else → record `GAP_COLLISION`. After fresh disk hashes all match, atomically extend queue/provenance, consume approvals, derive totals, and set `status: "scaffolded"`.                            | Re-run create. A path matching `expectedScaffold` is run-owned at this status even though provenance is not installed yet. Mismatches stay blocked.      |
+| `scaffolded` | state-agent | Atomically truncate `tiersCompleted` below `replayTier`, set `currentTier`/`step` to the replay tier, restore every `requeued` path to pending while retaining `writtenHash`, derive `filesWritten`, and set `status: "reset"`.                                                                                                                                                                                                                               | Retry at `scaffolded` applies once; observing `reset` proves the atomic edge already committed.                                                          |
+| `reset`      | state-agent | For each not-yet-cleaned tier, delete its processor `state.json` and findings tree, verify both are absent, and only then atomically append that tier to `cleanedTiers`. When exact set equality with `resetTiers` holds, the same operation sets `status: "cleaned"`.                                                                                                                                                                                        | Resume with the first tier not recorded clean. Missing artifacts are already clean; a failed deletion never earns a `cleanedTiers` entry.                |
+| `cleaned`    | state-agent | Atomically append a copy with `status: "cleared"` and `closedAt` to `gapsResolved`, then set `gapTransition: null`. The append is unique by `openedAt`.                                                                                                                                                                                                                                                                                                       | If the live transition remains, repeat clear; an existing closed record with the same `openedAt` is not duplicated.                                      |
 
 **The transition is never cleared before cleanup completes.** `cleaned` exists as a
 distinct status precisely so that a crash during cleanup resumes cleanup. If the clear
@@ -334,12 +489,12 @@ success.
 These three are computed once, when the transition is opened, and are then fixed for
 its lifetime. All three are mechanical; none of them is a judgement call.
 
-**`requeued`** is the reporting path plus the transitive reverse-dependency closure of
-the gap paths, restricted to work that is already queued:
+**`requeued`** is every reporting path plus the transitive reverse-dependency closure
+of the gap paths, restricted to work that is already queued:
 
 ```
 G  = the set of gapPaths
-R₀ = { reportedBy }
+R₀ = { every reports[*].reportedBy }
 Rₙ₊₁ = Rₙ ∪ { p ∈ writeQueue : crossLinks(p) ∩ (Rₙ ∪ G) ≠ ∅ }
 R  = the fixpoint of that iteration
 requeued = (R ∩ writeQueue) \ G, plus the index closure below
@@ -375,13 +530,19 @@ again.
 
 ### Refusals
 
-| Condition                                                         | Refusal              |
-| ----------------------------------------------------------------- | -------------------- |
-| Opening while `gapTransition != null`                             | `GAP_IN_FLIGHT`      |
-| `replayTier > currentTier`                                        | `GAP_TIER_INVALID`   |
-| A proposed gap path is already on `writeQueue`                    | `GAP_ALREADY_QUEUED` |
-| A gap path appears in two or more prior `gapsResolved` entries    | `GAP_LOOP`           |
-| A gap file on disk matches neither absence nor `expectedScaffold` | `GAP_COLLISION`      |
+| Condition                                                                              | Refusal                  |
+| -------------------------------------------------------------------------------------- | ------------------------ |
+| Opening while `gapTransition != null`                                                  | `GAP_IN_FLIGHT`          |
+| Any reporter is not a normalized queued path in the current tier                       | `GAP_REPORTER_INVALID`   |
+| `reports` is empty, a reason is blank, or its nested gap union differs from `gapPaths` | `GAP_REPORT_SET_INVALID` |
+| Any path is absolute, escapes `docsRoot`, is duplicated, or has a type/tier mismatch   | `GAP_PATH_INVALID`       |
+| `replayTier > currentTier`                                                             | `GAP_TIER_INVALID`       |
+| A proposed gap path is already on `writeQueue`                                         | `GAP_ALREADY_QUEUED`     |
+| A gap path appears in two or more prior `gapsResolved` entries                         | `GAP_LOOP`               |
+| `expectedScaffold` keys differ from the gap set or a value is not a SHA-256            | `GAP_MANIFEST_INVALID`   |
+| A gap file lacks exact-hash approval or prepared-hash ownership                        | `GAP_COLLISION`          |
+| A requested status skips or reverses the transition graph                              | `GAP_TRANSITION_INVALID` |
+| Cleanup is recorded before the exact processor artifacts are absent                    | `GAP_CLEANUP_INCOMPLETE` |
 
 `GAP_LOOP` is the loop guard. A path that has been gap-scaffolded twice and is being
 reported missing a third time is not a retry case — it is a planning failure, and
@@ -414,8 +575,9 @@ each must produce the stated result.
    than by fence position, because both files contain several fenced `json` blocks and a
    range extractor that concatenates two of them yields invalid JSON — a check that always
    errors is a check that asserts nothing.
-2. **Provenance-shape equality.** Same comparison for the
-   `canonical-block: write-provenance-record` blocks.
+2. **Record-shape equality.** The `write-provenance-record`,
+   `write-approval-record`, `write-collision-record`, and `gap-transition-record`
+   blocks have matching field sets in this file and the state-agent mirror.
 3. **No retired field survives.** The retired mis-ordering of `tiersCompleted` — the same
    two words the other way round — and a generic `errors` field appear nowhere in the
    contributor-docs tree. This check greps for the retired spelling, so this document
@@ -424,13 +586,19 @@ each must produce the stated result.
    near-miss it guards: the retired name differs from the canonical one only by word
    order, so a careless global replace destroys the correct field.
 4. **Legal-step equality** across this file's schema union, its state machine, its
-   dispatch table, and the state-agent's validation list — all four name the same nine
+   dispatch table, and the state-agent's validation list — all four name the same ten
    steps.
 5. **No membership re-derivation from the plan.** Every surviving `doc-plan.yaml`
    reference under `write/` is a metadata lookup (`sources`, `crossLinks`, `description`,
    `type`, `tier` of a _planned_ entry) and never a source of queue or tier membership.
 6. **The mechanism table appears exactly once** across the contributor-docs tree —
    selected by its `canonical-block: gap-transition-mechanism` marker.
+7. **Negative transition controls.** Drive and require refusal for an initial
+   scaffold create before prepare, a completed step with pending queue members, every
+   skipped gap status, an incomplete `expectedScaffold` key set, fabricated cleanup,
+   and a writer report whose returned hash differs from fresh disk bytes. Then drive
+   one healthy initial scaffold and the complete
+   `enqueued → planned → prepared → scaffolded → reset → cleaned → cleared` gap path.
 
 ## State Transitions
 
