@@ -61,6 +61,7 @@ cluster_name=''
 cluster_created=0
 report_active=0
 cleanup_started=0
+final_evidence_collected=0
 GIT_SERVER_PID=''
 PF_SERVER_PID=''
 PF_APPSET_PID=''
@@ -2268,23 +2269,27 @@ kargo_refresh_stage() {
 }
 
 # Same refresh-token annotate-and-wait as kargo_refresh_stage, bounded by an
-# explicit timeout instead of a fixed 90s. Used only from inside a bounded
-# retry driver where a per-attempt timeout is an expected, retried condition
+# absolute deadline instead of a fixed 90s. Used only from inside a bounded
+# retry driver where an acknowledgement timeout is an expected, retried condition
 # rather than a terminal failure: unlike kargo_refresh_stage, it never routes
 # through sit_wait_for/sit_fail, so a retry that later succeeds leaves no
 # misleading "assertion failed" text behind.
 kargo_refresh_stage_quiet() {
   local project="$1"
   local stage="$2"
-  local timeout_s="$3"
-  local token deadline
-  token="fleet-sit-$(sit_epoch)-$$-${RANDOM}"
+  local deadline="$3"
+  local token_output="$4"
+  local refresh_token remaining sleep_s
+  refresh_token="fleet-sit-$(sit_epoch)-$$-${RANDOM}"
+  printf -v "${token_output}" '%s' "${refresh_token}"
   kubectl -n "${project}" annotate stage "${stage}" \
-    "kargo.akuity.io/refresh=${token}" --overwrite >/dev/null
-  deadline=$((SECONDS + timeout_s))
-  while ! kargo_check_refresh_handled "${project}" "${stage}" "${token}"; do
-    [ "${SECONDS}" -lt "${deadline}" ] || return 1
-    sleep "${FLEET_SIT_POLL_SECONDS:-3}"
+    "kargo.akuity.io/refresh=${refresh_token}" --overwrite >/dev/null
+  while ! kargo_check_refresh_handled "${project}" "${stage}" "${refresh_token}"; do
+    remaining=$((deadline - SECONDS))
+    [ "${remaining}" -gt 0 ] || return 1
+    sleep_s="${FLEET_SIT_POLL_SECONDS:-3}"
+    [ "${sleep_s}" -le "${remaining}" ] || sleep_s="${remaining}"
+    sleep "${sleep_s}"
   done
 }
 
@@ -2348,32 +2353,29 @@ KARGO_STAGE_PREDICATE_PREAMBLE='
   ) as $coherent |
 '
 
-kargo_check_stage_verification() {
-  local project="$1"
-  local stage="$2"
-  local freight="$3"
-  local phase="$4"
-  kubectl -n "${project}" get stage "${stage}" -o json 2>/dev/null |
-    jq -e --arg freight "${freight}" --arg phase "${phase}" \
-      "${KARGO_STAGE_PREDICATE_PREAMBLE}"'
-      $collection != null and ($verification.phase // "") == $phase
-    ' >/dev/null
-}
-
-# The post-terminal Stage state the reconciliation driver waits for: the
-# Promotion is finished, the Stage is healthy for this exact Freight, and
-# verification has actually started rather than never having been scheduled.
-kargo_check_stage_reconciled() {
-  local project="$1"
-  local stage="$2"
-  local freight="$3"
-  kubectl -n "${project}" get stage "${stage}" -o json 2>/dev/null |
-    jq -e --arg freight "${freight}" \
-      "${KARGO_STAGE_PREDICATE_PREAMBLE}"'
-      $coherent and
-      (["Pending","Running","Successful"] | index($verification.phase // "")) != null
-    ' >/dev/null
-}
+# Exact post-Promotion selector. Unlike the general exact-Freight selector
+# above, this binds the Stage to the terminal Promotion object which opened the
+# verification edge. Reused Stage names and histories therefore cannot satisfy
+# a later wait with an older collection or Promotion.
+# shellcheck disable=SC2016
+KARGO_POST_PROMOTION_PREDICATE_PREAMBLE='
+  ((.status.freightHistory // []) |
+    map(select(
+      .id == $collection_id and
+      .items["Warehouse/dummy"].name == $freight
+    ))) as $collections |
+  (if ($collections | length) == 1 then $collections[0] else null end) as $collection |
+  ((($collection.verificationHistory // [])[0]) // null) as $verification |
+  (
+    (.status.currentPromotion // null) == null and
+    (.status.lastPromotion.name // "") == $promotion and
+    (.status.lastPromotion.status.phase // "") == "Succeeded" and
+    (.status.lastPromotion.freight.name // "") == $freight and
+    (.status.lastPromotion.status.freightCollection.id // "") == $collection_id and
+    $collection != null and
+    (.status.health.status // "") == "Healthy"
+  ) as $coherent |
+'
 
 kargo_check_stage_success() {
   local project="$1"
@@ -2393,39 +2395,76 @@ kargo_check_stage_success() {
 # The AnalysisRun filter must join on the exact Freight collection, not just
 # the Stage: F1/F2 already leave successful AnalysisRuns behind for the same
 # Stage name, and a Stage-only label filter would surface those stale runs as
-# if they belonged to this failure. The collection id is derived with the
-# same exact-Freight selector every other Stage predicate uses, then required
-# alongside the Stage label.
+# if they belonged to this failure. Post-Promotion callers supply the terminal
+# Promotion's collection id directly; reverify-only callers fall back to the
+# exact-Freight selector. The Stage and collection labels are both required.
 #
 # Every path written here is appended to SIT_LEG_EVIDENCE (report-relative)
 # so a terminal L9 failure records these diagnostics as structured evidence
 # instead of leaving them undeclared on disk.
+kargo_capture_json_evidence() {
+  local namespace="$1"
+  local resource="$2"
+  local output="$3"
+  local tmp="${output}.tmp.$$"
+  local error="${output}.error.$$"
+  if kubectl -n "${namespace}" get "${resource}" -o json >"${tmp}" 2>"${error}" &&
+    jq -e . "${tmp}" >/dev/null 2>&1; then
+    mv "${tmp}" "${output}"
+    rm -f "${error}"
+    return 0
+  fi
+  jq -n \
+    --arg namespace "${namespace}" \
+    --arg resource "${resource}" \
+    --rawfile error "${error}" \
+    '{captureAvailable:false,namespace:$namespace,resource:$resource,error:$error}' \
+    >"${output}"
+  rm -f "${tmp}" "${error}"
+  return 1
+}
+
 kargo_capture_stage_failure_diagnostics() {
   local project="$1"
   local stage="$2"
   local freight="$3"
   local prefix="$4"
-  local collection_id relative
-  kubectl -n "${project}" get stage "${stage}" -o json \
-    >"${prefix}-stage.json" 2>&1 || true
-  kubectl -n "${project}" get freight "${freight}" -o json \
-    >"${prefix}-freight.json" 2>&1 || true
-  kubectl -n "${project}" get promotions.kargo.akuity.io -o json 2>/dev/null |
+  local collection_id="${5:-}"
+  local relative
+  local promotions_raw="${prefix}-promotions-raw.json"
+  local analysisruns_raw="${prefix}-analysisruns-raw.json"
+  kargo_capture_json_evidence "${project}" "stage/${stage}" \
+    "${prefix}-stage.json" || true
+  kargo_capture_json_evidence "${project}" "freight/${freight}" \
+    "${prefix}-freight.json" || true
+  if kargo_capture_json_evidence "${project}" promotions.kargo.akuity.io \
+    "${promotions_raw}"; then
     jq --arg stage "${stage}" --arg freight "${freight}" '
-      [.items[]? | select(.spec.stage == $stage and .spec.freight == $freight)] |
-      sort_by(.metadata.creationTimestamp)
-    ' >"${prefix}-promotions.json" || true
-  collection_id="$(jq -r --arg freight "${freight}" \
-    "${KARGO_STAGE_PREDICATE_PREAMBLE}"'$collection.id // empty' \
-    "${prefix}-stage.json" 2>/dev/null)" || true
-  kubectl -n "${project}" get analysisruns -o json 2>/dev/null |
+        [.items[]? | select(.spec.stage == $stage and .spec.freight == $freight)] |
+        sort_by(.metadata.creationTimestamp)
+      ' "${promotions_raw}" >"${prefix}-promotions.json"
+  else
+    cp "${promotions_raw}" "${prefix}-promotions.json"
+  fi
+  rm -f "${promotions_raw}"
+  if [ -z "${collection_id}" ]; then
+    collection_id="$(jq -r --arg freight "${freight}" \
+      "${KARGO_STAGE_PREDICATE_PREAMBLE}"'$collection.id // empty' \
+      "${prefix}-stage.json" 2>/dev/null)" || true
+  fi
+  if kargo_capture_json_evidence "${project}" analysisruns.argoproj.io \
+    "${analysisruns_raw}"; then
     jq --arg stage "${stage}" --arg collection "${collection_id}" '
-      [.items[]? |
-        select(.metadata.labels["kargo.akuity.io/stage"] == $stage and
-          $collection != "" and
-          .metadata.labels["kargo.akuity.io/freight-collection"] == $collection)] |
-      sort_by(.metadata.creationTimestamp)
-    ' >"${prefix}-analysisruns.json" || true
+        [.items[]? |
+          select(.metadata.labels["kargo.akuity.io/stage"] == $stage and
+            $collection != "" and
+            .metadata.labels["kargo.akuity.io/freight-collection"] == $collection)] |
+        sort_by(.metadata.creationTimestamp)
+      ' "${analysisruns_raw}" >"${prefix}-analysisruns.json"
+  else
+    cp "${analysisruns_raw}" "${prefix}-analysisruns.json"
+  fi
+  rm -f "${analysisruns_raw}"
   relative="${prefix#"${report}/"}"
   SIT_LEG_EVIDENCE+=(
     "${relative}-stage.json" "${relative}-freight.json"
@@ -2459,101 +2498,380 @@ kargo_wait_verified() {
   kubectl -n "${project}" get stage "${stage}" -o json >"${output}"
 }
 
-# Kargo v1.9.10 evaluates Stage health as Unknown while a Promotion is current
-# and refuses to start verification until health is Healthy, so a hermetic
-# zero-duration Promotion can reach its terminal phase without the Stage ever
-# being reconciled again. Request that reconciliation explicitly with fresh
-# refresh tokens instead of waiting longer: bounded in attempts and in time,
-# and loud with live objects when the runtime cannot recover.
-kargo_drive_stage_reconciliation() {
+# Sleep without crossing an absolute SECONDS deadline. Every post-Promotion
+# wait uses this helper, including the final Freight projection wait.
+kargo_sleep_before_deadline() {
+  local deadline="$1"
+  local remaining sleep_s
+  remaining=$((deadline - SECONDS))
+  [ "${remaining}" -gt 0 ] || return 1
+  sleep_s="${FLEET_SIT_POLL_SECONDS:-3}"
+  [ "${sleep_s}" -le "${remaining}" ] || sleep_s="${remaining}"
+  sleep "${sleep_s}"
+}
+
+kargo_post_promotion_deadline_reason() {
   local project="$1"
   local stage="$2"
   local freight="$3"
-  local output="$4"
-  local diagnostics="${output%.json}-diagnostics"
-  local state="${KARGO_RUNTIME_DIR}/reconciled-${project}-${stage}.json"
-  local max_attempts=8
-  local refresh_timeout=90
-  local attempt_window=20
-  local attempts=0
-  local reconciled=0
-  local started_at started_epoch overall_deadline attempt_deadline remaining
-  started_at="$(sit_now)"
-  started_epoch="$(sit_epoch)"
-  overall_deadline=$((SECONDS + 300))
-  # The 300s deadline above is the DOCUMENTED overall budget, not just an
-  # outer loop-entry check: kargo_refresh_stage's own wait can otherwise run
-  # up to 90s past it. Every wait below is instead capped by whatever of that
-  # budget remains, so the driver can never overrun by close to one more
-  # refresh timeout.
-  while [ "${reconciled}" -eq 0 ] &&
-    [ "${attempts}" -lt "${max_attempts}" ] &&
-    [ "${SECONDS}" -lt "${overall_deadline}" ]; do
-    attempts=$((attempts + 1))
-    remaining=$((overall_deadline - SECONDS))
-    [ "${remaining}" -gt 0 ] || break
-    if ! kargo_refresh_stage_quiet "${project}" "${stage}" \
-      "$((remaining < refresh_timeout ? remaining : refresh_timeout))"; then
-      continue
-    fi
-    remaining=$((overall_deadline - SECONDS))
-    [ "${remaining}" -gt 0 ] || break
-    attempt_deadline=$((SECONDS + (remaining < attempt_window ? remaining : attempt_window)))
-    while [ "${SECONDS}" -lt "${attempt_deadline}" ]; do
-      if kargo_check_stage_reconciled "${project}" "${stage}" "${freight}"; then
-        reconciled=1
-        break
-      fi
-      sleep "${FLEET_SIT_POLL_SECONDS:-3}"
-    done
-  done
-  if [ "${reconciled}" -ne 1 ]; then
-    kargo_capture_stage_failure_diagnostics "${project}" "${stage}" "${freight}" \
-      "${diagnostics}"
-    sit_fail "Stage ${project}/${stage} never reconciled into a coherent post-Promotion state for ${freight} after ${attempts} refresh attempts"
+  local collection_id="$4"
+  local expected_phase="$5"
+  local phase="$6"
+  if [ "${phase}" = Successful ] && [ "${expected_phase}" = Successful ]; then
+    printf 'Freight %s was not projected verified in %s/%s within the shared 180s budget' \
+      "${freight}" "${project}" "${stage}"
+  elif [ -z "${phase}" ]; then
+    printf 'verification for exact collection %s was never scheduled in %s/%s within the shared 180s budget' \
+      "${collection_id}" "${project}" "${stage}"
+  else
+    printf 'verification for exact collection %s remained %s or incoherent in %s/%s at the shared 180s deadline' \
+      "${collection_id}" "${phase}" "${project}" "${stage}"
+  fi
+}
+
+kargo_capture_post_promotion_observation() {
+  local project="$1"
+  local stage="$2"
+  local freight="$3"
+  local promotion="$4"
+  local collection_id="$5"
+  local state="$6"
+  local observation="$7"
+  if ! kubectl -n "${project}" get stage "${stage}" -o json >"${state}" 2>/dev/null; then
+    jq -n '{captureAvailable:false,coherent:false,verificationPhase:null}' >"${observation}"
     return 1
   fi
-  kubectl -n "${project}" get stage "${stage}" -o json >"${state}"
+  jq \
+    --arg freight "${freight}" \
+    --arg promotion "${promotion}" \
+    --arg collection_id "${collection_id}" \
+    "${KARGO_POST_PROMOTION_PREDICATE_PREAMBLE}"'
+      {
+        captureAvailable:true,
+        collectionMatchCount:($collections | length),
+        coherent:$coherent,
+        currentPromotion:(.status.currentPromotion // null),
+        lastPromotionName:(.status.lastPromotion.name // null),
+        lastPromotionPhase:(.status.lastPromotion.status.phase // null),
+        lastPromotionFreight:(.status.lastPromotion.freight.name // null),
+        lastPromotionCollectionId:(.status.lastPromotion.status.freightCollection.id // null),
+        health:(.status.health.status // null),
+        lastHandledRefresh:(.status.lastHandledRefresh // null),
+        verificationId:($verification.id // null),
+        verificationPhase:($verification.phase // null),
+        verificationMessage:($verification.message // null),
+        verificationStartedAt:($verification.startTime // null),
+        verificationFinishedAt:($verification.finishTime // null),
+        analysisRunName:($verification.analysisRun.name // null),
+        analysisRunPhase:($verification.analysisRun.phase // null)
+      }
+    ' "${state}" >"${observation}"
+}
+
+kargo_write_post_promotion_record() {
+  local project="$1"
+  local stage="$2"
+  local freight="$3"
+  local promotion="$4"
+  local collection_id="$5"
+  local expected_phase="$6"
+  local started_at="$7"
+  local started_seconds="$8"
+  local attempts="$9"
+  local first_phase="${10}"
+  local first_phase_at="${11}"
+  local result="${12}"
+  local failure_reason="${13}"
+  local observation="${14}"
+  local freight_state="${15}"
+  local refresh_log="${16}"
+  local output="${17}"
   jq -n \
     --arg project "${project}" \
     --arg stage "${stage}" \
     --arg freight "${freight}" \
+    --arg promotion "${promotion}" \
+    --arg collectionId "${collection_id}" \
+    --arg expectedPhase "${expected_phase}" \
     --arg startedAt "${started_at}" \
     --arg finishedAt "$(sit_now)" \
+    --arg firstPhase "${first_phase}" \
+    --arg firstPhaseAt "${first_phase_at}" \
+    --arg result "${result}" \
+    --arg failureReason "${failure_reason}" \
     --argjson attempts "${attempts}" \
-    --argjson maxAttempts "${max_attempts}" \
-    --argjson elapsed "$(($(sit_epoch) - started_epoch))" \
-    --slurpfile observed "${state}" '
-      ($observed[0].status) as $status |
-      (($status.freightHistory // []) |
-        map(select(.items["Warehouse/dummy"].name == $freight)) | first) as $collection |
+    --argjson elapsed "$((SECONDS - started_seconds))" \
+    --argjson budget 180 \
+    --slurpfile observed "${observation}" \
+    --slurpfile freightState "${freight_state}" \
+    --slurpfile refreshes "${refresh_log}" '
+      ($observed[0] // {}) as $o |
+      ($freightState[0] // {}) as $f |
       {
+        schemaVersion:1,
         project:$project,stage:$stage,freight:$freight,
+        promotionName:$promotion,freightCollectionId:$collectionId,
+        expectedPhase:$expectedPhase,result:$result,
+        failureReason:(if $failureReason == "" then null else $failureReason end),
         trigger:"kargo.akuity.io/refresh",
-        refreshAttempts:$attempts,maxRefreshAttempts:$maxAttempts,
-        startedAt:$startedAt,finishedAt:$finishedAt,elapsed_s:$elapsed,
+        budget_s:$budget,elapsed_s:$elapsed,
+        startedAt:$startedAt,finishedAt:$finishedAt,
+        refreshAttempts:$attempts,refreshes:$refreshes,
+        firstObservedScheduledPhase:(if $firstPhase == "" then null else $firstPhase end),
+        firstObservedScheduledAt:(if $firstPhaseAt == "" then null else $firstPhaseAt end),
+        finalPhase:($o.verificationPhase // null),
+        verification:{
+          id:($o.verificationId // null),
+          phase:($o.verificationPhase // null),
+          message:($o.verificationMessage // null),
+          startedAt:($o.verificationStartedAt // null),
+          finishedAt:($o.verificationFinishedAt // null),
+          analysisRunName:($o.analysisRunName // null),
+          analysisRunPhase:($o.analysisRunPhase // null)
+        },
         coherentStage:{
-          currentPromotion:($status.currentPromotion // null),
-          lastPromotionName:($status.lastPromotion.name // null),
-          lastPromotionPhase:($status.lastPromotion.status.phase // null),
-          lastPromotionFreight:($status.lastPromotion.freight.name // null),
-          health:($status.health.status // null),
-          lastHandledRefresh:($status.lastHandledRefresh // null),
-          freightCollectionId:($collection.id // null),
-          verificationPhase:((($collection.verificationHistory // [])[0].phase) // null)
-        }
+          coherent:($o.coherent // false),
+          collectionMatchCount:($o.collectionMatchCount // 0),
+          currentPromotion:($o.currentPromotion // null),
+          lastPromotionName:($o.lastPromotionName // null),
+          lastPromotionPhase:($o.lastPromotionPhase // null),
+          lastPromotionFreight:($o.lastPromotionFreight // null),
+          lastPromotionCollectionId:($o.lastPromotionCollectionId // null),
+          health:($o.health // null),
+          lastHandledRefresh:($o.lastHandledRefresh // null)
+        },
+        freightVerifiedAt:($f.status.verifiedIn[$stage].verifiedAt // null)
       }
     ' >"${output}"
-  jq -e --arg freight "${freight}" '
-    .refreshAttempts >= 1 and
-    .coherentStage.currentPromotion == null and
-    .coherentStage.lastPromotionPhase == "Succeeded" and
-    .coherentStage.lastPromotionFreight == $freight and
-    .coherentStage.freightCollectionId != null and
-    .coherentStage.health == "Healthy" and
-    (.coherentStage.verificationPhase | IN("Pending","Running","Successful"))
-  ' "${output}" >/dev/null ||
-    sit_fail "the recorded reconciliation artifact for ${project}/${stage} is not a coherent Stage state"
+}
+
+# Internal worker accepts an absolute deadline so the daemon-free regression
+# gate can exercise expiry instantly. Production callers use only the public
+# wrapper below, whose one fixed budget is 180 seconds.
+_kargo_drive_post_promotion_verification() {
+  local project="$1"
+  local stage="$2"
+  local freight="$3"
+  local promotion="$4"
+  local collection_id="$5"
+  local expected_phase="$6"
+  local stage_output="$7"
+  local reconciliation_output="$8"
+  local started_at="$9"
+  local started_seconds="${10}"
+  local overall_deadline="${11}"
+  local diagnostics="${reconciliation_output%.json}-failure"
+  local slug="${project}-${stage}-$$-${RANDOM}"
+  local state="${KARGO_RUNTIME_DIR}/post-promotion-${slug}-stage.json"
+  local observation="${KARGO_RUNTIME_DIR}/post-promotion-${slug}-observation.json"
+  local freight_state="${KARGO_RUNTIME_DIR}/post-promotion-${slug}-freight.json"
+  local refresh_log="${KARGO_RUNTIME_DIR}/post-promotion-${slug}-refreshes.jsonl"
+  local max_attempts=8 refresh_timeout=90 observation_window=20
+  local attempts=0 next_refresh_at=0 observation_only=0 succeeded=0
+  local phase='' coherent=false verified_at='' first_phase='' first_phase_at=''
+  local remaining refresh_deadline token handled failure_reason=''
+  printf '{}\n' >"${state}"
+  printf '{}\n' >"${observation}"
+  printf '{}\n' >"${freight_state}"
+  : >"${refresh_log}"
+
+  while true; do
+    if [ "${SECONDS}" -gt "${overall_deadline}" ]; then
+      failure_reason="$(kargo_post_promotion_deadline_reason \
+        "${project}" "${stage}" "${freight}" "${collection_id}" "${expected_phase}" "${phase}")"
+      break
+    fi
+    kargo_capture_post_promotion_observation \
+      "${project}" "${stage}" "${freight}" "${promotion}" "${collection_id}" \
+      "${state}" "${observation}" || true
+    phase="$(jq -r '.verificationPhase // empty' "${observation}")"
+    coherent="$(jq -r '.coherent // false' "${observation}")"
+    if [ "${SECONDS}" -gt "${overall_deadline}" ]; then
+      failure_reason="$(kargo_post_promotion_deadline_reason \
+        "${project}" "${stage}" "${freight}" "${collection_id}" "${expected_phase}" "${phase}")"
+      break
+    fi
+
+    if [ -n "${phase}" ]; then
+      observation_only=1
+      if [ -z "${first_phase}" ]; then
+        first_phase="${phase}"
+        first_phase_at="$(sit_now)"
+      fi
+      case "${phase}" in
+      Pending | Running) ;;
+      Successful | Failed)
+        if [ "${phase}" != "${expected_phase}" ]; then
+          failure_reason="expected ${expected_phase} verification for ${project}/${stage} but observed ${phase}"
+          break
+        fi
+        if [ "${coherent}" = true ]; then
+          kubectl -n "${project}" get freight "${freight}" -o json \
+            >"${freight_state}" 2>/dev/null || printf '{}\n' >"${freight_state}"
+          if [ "${expected_phase}" = Failed ] && [ "${SECONDS}" -le "${overall_deadline}" ]; then
+            succeeded=1
+            break
+          fi
+          verified_at="$(jq -r --arg stage "${stage}" \
+            '.status.verifiedIn[$stage].verifiedAt // empty' "${freight_state}")"
+          if [ -n "${verified_at}" ] && [ "${SECONDS}" -le "${overall_deadline}" ]; then
+            succeeded=1
+            break
+          fi
+        fi
+        ;;
+      Error | Aborted | Inconclusive)
+        failure_reason="expected ${expected_phase} verification for ${project}/${stage} but observed terminal ${phase}: $(jq -r '.verificationMessage // "no message"' "${observation}")"
+        break
+        ;;
+      *)
+        failure_reason="unknown verification phase ${phase} for exact collection ${collection_id} in ${project}/${stage}"
+        break
+        ;;
+      esac
+    fi
+
+    if [ "${SECONDS}" -ge "${overall_deadline}" ]; then
+      failure_reason="$(kargo_post_promotion_deadline_reason \
+        "${project}" "${stage}" "${freight}" "${collection_id}" "${expected_phase}" "${phase}")"
+      break
+    fi
+
+    if [ "${observation_only}" -eq 1 ]; then
+      kargo_sleep_before_deadline "${overall_deadline}" || true
+      continue
+    fi
+
+    if [ "${SECONDS}" -lt "${next_refresh_at}" ]; then
+      kargo_sleep_before_deadline "${overall_deadline}" || true
+      continue
+    fi
+    if [ "${attempts}" -ge "${max_attempts}" ]; then
+      failure_reason="verification for exact collection ${collection_id} was not scheduled after ${attempts} refresh attempts"
+      break
+    fi
+
+    remaining=$((overall_deadline - SECONDS))
+    [ "${remaining}" -gt 0 ] || continue
+    attempts=$((attempts + 1))
+    token=''
+    handled=false
+    refresh_deadline=$((SECONDS + refresh_timeout))
+    [ "${refresh_deadline}" -le "${overall_deadline}" ] || refresh_deadline="${overall_deadline}"
+    if kargo_refresh_stage_quiet "${project}" "${stage}" \
+      "${refresh_deadline}" token; then
+      handled=true
+    fi
+    jq -cn \
+      --arg token "${token}" \
+      --argjson handled "${handled}" \
+      --arg observedAt "$(sit_now)" \
+      '{token:$token,handled:$handled,observedAt:$observedAt}' >>"${refresh_log}"
+    remaining=$((overall_deadline - SECONDS))
+    next_refresh_at=$((SECONDS + (remaining < observation_window ? remaining : observation_window)))
+  done
+
+  if [ "${succeeded}" -eq 1 ]; then
+    cp "${state}" "${stage_output}"
+    kargo_write_post_promotion_record \
+      "${project}" "${stage}" "${freight}" "${promotion}" "${collection_id}" \
+      "${expected_phase}" "${started_at}" "${started_seconds}" "${attempts}" \
+      "${first_phase}" "${first_phase_at}" success '' \
+      "${observation}" "${freight_state}" "${refresh_log}" "${reconciliation_output}"
+    jq -e \
+      --arg promotion "${promotion}" \
+      --arg freight "${freight}" \
+      --arg collection "${collection_id}" \
+      --arg phase "${expected_phase}" '
+        .budget_s == 180 and .elapsed_s <= .budget_s and
+        .promotionName == $promotion and .freight == $freight and
+        .freightCollectionId == $collection and .finalPhase == $phase and
+        .coherentStage.coherent == true and
+        (if $phase == "Successful" then .freightVerifiedAt != null else true end)
+      ' "${reconciliation_output}" >/dev/null || {
+      failure_reason="post-Promotion evidence contract failed for ${project}/${stage}"
+      succeeded=0
+    }
+  fi
+
+  if [ "${succeeded}" -ne 1 ]; then
+    kargo_write_post_promotion_record \
+      "${project}" "${stage}" "${freight}" "${promotion}" "${collection_id}" \
+      "${expected_phase}" "${started_at}" "${started_seconds}" "${attempts}" \
+      "${first_phase}" "${first_phase_at}" failure "${failure_reason}" \
+      "${observation}" "${freight_state}" "${refresh_log}" "${reconciliation_output}"
+    kargo_capture_stage_failure_diagnostics \
+      "${project}" "${stage}" "${freight}" "${diagnostics}" "${collection_id}"
+    sit_fail "${failure_reason}"
+    return 1
+  fi
+}
+
+kargo_drive_post_promotion_verification() {
+  local project="$1"
+  local stage="$2"
+  local freight="$3"
+  local promotion_capture="$4"
+  local expected_phase="$5"
+  local stage_output="$6"
+  local reconciliation_output="$7"
+  local promotion='' collection_id='' relative
+  local started_at started_seconds overall_deadline diagnostics
+  started_at="$(sit_now)"
+  started_seconds="${SECONDS}"
+  overall_deadline=$((started_seconds + 180))
+  diagnostics="${reconciliation_output%.json}-failure"
+  relative="${reconciliation_output#"${report}/"}"
+  SIT_LEG_EVIDENCE+=("${relative}")
+
+  case "${expected_phase}" in
+  Successful | Failed) ;;
+  *)
+    jq -n \
+      --arg project "${project}" --arg stage "${stage}" --arg freight "${freight}" \
+      --arg expectedPhase "${expected_phase}" --arg startedAt "${started_at}" '
+        {schemaVersion:1,project:$project,stage:$stage,freight:$freight,
+         promotionName:null,freightCollectionId:null,expectedPhase:$expectedPhase,
+         result:"failure",failureReason:"invalid expected phase",
+         trigger:"none",budget_s:180,elapsed_s:0,startedAt:$startedAt,
+         finishedAt:$startedAt,refreshAttempts:0,refreshes:[]}
+      ' >"${reconciliation_output}"
+    sit_fail "post-Promotion verification expected phase must be Successful or Failed, got ${expected_phase}"
+    return 1
+    ;;
+  esac
+
+  if ! jq -e --arg stage "${stage}" --arg freight "${freight}" '
+    length >= 1 and
+    (.[-1].metadata.name // "") != "" and
+    .[-1].spec.stage == $stage and
+    .[-1].spec.freight == $freight and
+    .[-1].status.phase == "Succeeded" and
+    .[-1].status.freight.name == $freight and
+    ((.[-1].status.freightCollection.id // "") | type) == "string" and
+    (.[-1].status.freightCollection.id // "") != ""
+  ' "${promotion_capture}" >/dev/null; then
+    jq -n \
+      --arg project "${project}" --arg stage "${stage}" --arg freight "${freight}" \
+      --arg expectedPhase "${expected_phase}" --arg startedAt "${started_at}" '
+        {schemaVersion:1,project:$project,stage:$stage,freight:$freight,
+         promotionName:null,freightCollectionId:null,expectedPhase:$expectedPhase,
+         result:"failure",failureReason:"invalid terminal Promotion capture",
+         trigger:"none",budget_s:180,elapsed_s:0,startedAt:$startedAt,
+         finishedAt:$startedAt,refreshAttempts:0,refreshes:[]}
+      ' >"${reconciliation_output}"
+    kargo_capture_stage_failure_diagnostics \
+      "${project}" "${stage}" "${freight}" "${diagnostics}" ''
+    sit_fail "terminal Promotion capture does not bind ${project}/${stage} to exact Freight ${freight}"
+    return 1
+  fi
+  promotion="$(jq -r '.[-1].metadata.name' "${promotion_capture}")"
+  collection_id="$(jq -r '.[-1].status.freightCollection.id' "${promotion_capture}")"
+
+  _kargo_drive_post_promotion_verification \
+    "${project}" "${stage}" "${freight}" "${promotion}" "${collection_id}" \
+    "${expected_phase}" "${stage_output}" "${reconciliation_output}" \
+    "${started_at}" "${started_seconds}" "${overall_deadline}"
 }
 
 kargo_check_auto_enabled() {
@@ -2764,8 +3082,15 @@ kargo_set_analysis_outcome() {
   local project="$1"
   local key="$2"
   local value="$3"
+  local output="$4"
+  local relative="${output#"${report}/"}"
+  SIT_LEG_EVIDENCE+=("${relative}")
   kubectl -n "${project}" patch configmap kargo-analysis-outcomes --type merge \
-    -p "$(jq -cn --arg key "${key}" --arg value "${value}" '{data:{($key):$value}}')" >/dev/null
+    -p "$(jq -cn --arg key "${key}" --arg value "${value}" '{data:{($key):$value}}')" \
+    -o json >"${output}"
+  jq -e --arg key "${key}" --arg value "${value}" \
+    '.data[$key] == $value' "${output}" >/dev/null ||
+    sit_fail "analysis outcome ${project}/${key}=${value} did not persist"
 }
 
 kargo_backdate_freight_stage() {
@@ -2805,16 +3130,32 @@ kargo_capture_current_analysis_run() {
   local freight="$3"
   local expected_phase="$4"
   local output="$5"
+  local collection_id="$6"
   local analysis_run
   analysis_run="$(kubectl -n "${project}" get stage "${stage}" -o json |
-    jq -r --arg freight "${freight}" \
-      "${KARGO_STAGE_PREDICATE_PREAMBLE}"'
-      $verification.analysisRun.name // empty
+    jq -r --arg freight "${freight}" --arg collection_id "${collection_id}" '
+      ((.status.freightHistory // []) |
+        map(select(
+          .id == $collection_id and
+          .items["Warehouse/dummy"].name == $freight
+        ))) as $collections |
+      if ($collections | length) == 1 then
+        $collections[0].verificationHistory[0].analysisRun.name // empty
+      else
+        empty
+      end
     ')"
   [ -n "${analysis_run}" ] ||
-    sit_fail "Stage ${project}/${stage} has no current AnalysisRun for ${freight}"
+    sit_fail "Stage ${project}/${stage} has no AnalysisRun for exact collection ${collection_id}"
   kubectl -n "${project}" get analysisrun "${analysis_run}" -o json >"${output}"
-  jq -e --arg phase "${expected_phase}" '.status.phase == $phase' "${output}" >/dev/null
+  jq -e \
+    --arg phase "${expected_phase}" \
+    --arg stage "${stage}" \
+    --arg collection "${collection_id}" '
+      .status.phase == $phase and
+      .metadata.labels["kargo.akuity.io/stage"] == $stage and
+      .metadata.labels["kargo.akuity.io/freight-collection"] == $collection
+    ' "${output}" >/dev/null
 }
 
 kargo_check_git_tag() {
@@ -2844,20 +3185,11 @@ kargo_auto_promote_and_verify() {
   kargo_refresh_stage "${project}" "${stage}"
   kargo_wait_promotion_succeeded "${project}" "${stage}" "${freight}" \
     "${report}/${prefix}-promotion.json"
+  kargo_drive_post_promotion_verification \
+    "${project}" "${stage}" "${freight}" "${report}/${prefix}-promotion.json" \
+    Successful "${report}/${prefix}-stage.json" \
+    "${report}/${prefix}-reconciliation.json"
   kargo_wait_git_tag "${project}" "${landscape}" "${tag}"
-  kargo_wait_verified "${project}" "${stage}" "${freight}" \
-    "${report}/${prefix}-stage.json"
-}
-
-kargo_wait_verification_phase() {
-  local project="$1"
-  local stage="$2"
-  local freight="$3"
-  local phase="$4"
-  local output="$5"
-  sit_wait_for 180 "${phase} verification for ${freight} in ${project}/${stage}" \
-    kargo_check_stage_verification "${project}" "${stage}" "${freight}" "${phase}"
-  kubectl -n "${project}" get stage "${stage}" -o json >"${output}"
 }
 
 kargo_runtime_trace_f1() {
@@ -2900,11 +3232,15 @@ kargo_runtime_trace_f1() {
     "${report}/kargo-runtime-f1-pikachu-manual-promotion-created.json"
   kargo_wait_promotion_succeeded "${project}" "${pikachu}" "${freight}" \
     "${report}/kargo-runtime-f1-pikachu-promotion.json"
+  kargo_drive_post_promotion_verification \
+    "${project}" "${pikachu}" "${freight}" \
+    "${report}/kargo-runtime-f1-pikachu-promotion.json" Successful \
+    "${report}/kargo-runtime-f1-pikachu-stage.json" \
+    "${report}/kargo-runtime-f1-pikachu-reconciliation.json"
   kargo_wait_git_tag "${project}" pikachu "${tag}"
-  kargo_wait_verified "${project}" "${pikachu}" "${freight}" \
-    "${report}/kargo-runtime-f1-pikachu-stage.json"
   kargo_capture_current_analysis_run "${project}" "${pikachu}" "${freight}" Successful \
-    "${report}/kargo-runtime-f1-canary-smoke-analysisrun.json"
+    "${report}/kargo-runtime-f1-canary-smoke-analysisrun.json" \
+    "$(jq -r '.freightCollectionId' "${report}/kargo-runtime-f1-pikachu-reconciliation.json")"
 
   kargo_refresh_stage "${project}" "${ampharos}"
   kargo_assert_no_promotion_for 12 "${project}" "${ampharos}" "${freight}" \
@@ -2929,11 +3265,15 @@ kargo_runtime_trace_f1() {
   kargo_refresh_stage "${project}" "${ampharos}"
   kargo_wait_promotion_succeeded "${project}" "${ampharos}" "${freight}" \
     "${report}/kargo-runtime-f1-ampharos-promotion.json"
+  kargo_drive_post_promotion_verification \
+    "${project}" "${ampharos}" "${freight}" \
+    "${report}/kargo-runtime-f1-ampharos-promotion.json" Successful \
+    "${report}/kargo-runtime-f1-ampharos-stage.json" \
+    "${report}/kargo-runtime-f1-ampharos-reconciliation.json"
   kargo_wait_git_tag "${project}" ampharos "${tag}"
-  kargo_wait_verified "${project}" "${ampharos}" "${freight}" \
-    "${report}/kargo-runtime-f1-ampharos-stage.json"
   kargo_capture_current_analysis_run "${project}" "${ampharos}" "${freight}" Successful \
-    "${report}/kargo-runtime-f1-canary-analysis-analysisrun.json"
+    "${report}/kargo-runtime-f1-canary-analysis-analysisrun.json" \
+    "$(jq -r '.freightCollectionId' "${report}/kargo-runtime-f1-ampharos-reconciliation.json")"
   kubectl -n "${project}" get freight "${freight}" -o json \
     >"${report}/kargo-runtime-f1-freight-final.json"
   jq -e \
@@ -2970,8 +3310,9 @@ kargo_runtime_trace_f1() {
 kargo_runtime_trace_f2() {
   local project='canary'
   local tag='2.2.2'
-  local pikachu raichu ampharos freight old_verification_id since_after_backdate since_after_reverify
-  local reverify_started_epoch ampharos_created_epoch immediate_elapsed
+  local pikachu raichu ampharos freight old_verification_id f2_collection_id
+  local since_after_backdate since_after_reverify reverify_finished_at
+  local reverify_succeeded_epoch ampharos_created_epoch immediate_elapsed
   pikachu="$(kargo_stage_name "${project}" pikachu)"
   raichu="$(kargo_stage_name "${project}" raichu)"
   ampharos="$(kargo_stage_name "${project}" ampharos)"
@@ -2982,16 +3323,23 @@ kargo_runtime_trace_f2() {
   kargo_auto_promote_and_verify "${project}" pichu "${freight}" "${tag}" kargo-runtime-f2-pichu
   kargo_auto_promote_and_verify "${project}" raichu "${freight}" "${tag}" kargo-runtime-f2-raichu
 
-  kargo_set_analysis_outcome "${project}" canary-smoke fail
+  kargo_set_analysis_outcome "${project}" canary-smoke fail \
+    "${report}/kargo-runtime-f2-analysis-outcome-fail.json"
   kargo_create_manual_promotion "${project}" "${pikachu}" "${freight}" \
     "${report}/kargo-runtime-f2-pikachu-manual-promotion-created.json"
   kargo_wait_promotion_succeeded "${project}" "${pikachu}" "${freight}" \
     "${report}/kargo-runtime-f2-pikachu-promotion.json"
+  kargo_drive_post_promotion_verification \
+    "${project}" "${pikachu}" "${freight}" \
+    "${report}/kargo-runtime-f2-pikachu-promotion.json" Failed \
+    "${report}/kargo-runtime-f2-pikachu-failed-stage.json" \
+    "${report}/kargo-runtime-f2-pikachu-failed-reconciliation.json"
   kargo_wait_git_tag "${project}" pikachu "${tag}"
-  kargo_wait_verification_phase "${project}" "${pikachu}" "${freight}" Failed \
-    "${report}/kargo-runtime-f2-pikachu-failed-stage.json"
+  f2_collection_id="$(jq -r '.freightCollectionId' \
+    "${report}/kargo-runtime-f2-pikachu-failed-reconciliation.json")"
   kargo_capture_current_analysis_run "${project}" "${pikachu}" "${freight}" Failed \
-    "${report}/kargo-runtime-f2-canary-smoke-failed-analysisrun.json"
+    "${report}/kargo-runtime-f2-canary-smoke-failed-analysisrun.json" \
+    "${f2_collection_id}"
   kubectl -n "${project}" get freight "${freight}" -o json \
     >"${report}/kargo-runtime-f2-freight-after-failure.json"
   jq -e --arg stage "${pikachu}" '.status.verifiedIn[$stage] == null' \
@@ -3010,20 +3358,41 @@ kargo_runtime_trace_f2() {
     'failed analysis remains an independent availability gate after full residency' \
     "${report}/kargo-runtime-f2-failed-analysis-denial.json"
 
-  kargo_set_analysis_outcome "${project}" canary-smoke pass
-  old_verification_id="$(jq -r \
-    '.status.freightHistory[0].verificationHistory[0].id' \
-    "${report}/kargo-runtime-f2-pikachu-failed-stage.json")"
+  kargo_set_analysis_outcome "${project}" canary-smoke pass \
+    "${report}/kargo-runtime-f2-analysis-outcome-pass.json"
+  old_verification_id="$(jq -er \
+    --arg freight "${freight}" --arg collection_id "${f2_collection_id}" '
+      ((.status.freightHistory // []) |
+        map(select(
+          .id == $collection_id and
+          .items["Warehouse/dummy"].name == $freight
+        ))) as $collections |
+      $collections | select(length == 1) | .[0].verificationHistory[0] |
+      select(.phase == "Failed") | .id |
+      select(type == "string" and length > 0)
+    ' "${report}/kargo-runtime-f2-pikachu-failed-stage.json")"
   [ -n "${old_verification_id}" ] && [ "${old_verification_id}" != 'null' ] ||
     sit_fail 'failed f2 verification has no ID for reverify'
-  reverify_started_epoch="$(sit_epoch)"
   kubectl -n "${project}" annotate stage "${pikachu}" \
     "kargo.akuity.io/reverify=${old_verification_id}" --overwrite \
     >"${report}/kargo-runtime-f2-reverify-request.txt"
   kargo_wait_verified "${project}" "${pikachu}" "${freight}" \
     "${report}/kargo-runtime-f2-pikachu-reverified-stage.json"
   kargo_capture_current_analysis_run "${project}" "${pikachu}" "${freight}" Successful \
-    "${report}/kargo-runtime-f2-canary-smoke-reverified-analysisrun.json"
+    "${report}/kargo-runtime-f2-canary-smoke-reverified-analysisrun.json" \
+    "${f2_collection_id}"
+  reverify_finished_at="$(jq -er \
+    --arg freight "${freight}" --arg collection_id "${f2_collection_id}" '
+      ((.status.freightHistory // []) |
+        map(select(
+          .id == $collection_id and
+          .items["Warehouse/dummy"].name == $freight
+        ))) as $collections |
+      $collections | select(length == 1) | .[0].verificationHistory[0] |
+      select(.phase == "Successful") | .finishTime |
+      select(type == "string" and length > 0)
+    ' "${report}/kargo-runtime-f2-pikachu-reverified-stage.json")"
+  reverify_succeeded_epoch="$(date -u -d "${reverify_finished_at}" +%s)"
   since_after_reverify="$(kubectl -n "${project}" get freight "${freight}" -o json |
     jq -r --arg stage "${pikachu}" '.status.currentlyIn[$stage].since')"
   [ "${since_after_reverify}" = "${since_after_backdate}" ] ||
@@ -3034,14 +3403,18 @@ kargo_runtime_trace_f2() {
     "${report}/kargo-runtime-f2-ampharos-promotion.json"
   ampharos_created_epoch="$(date -u -d \
     "$(jq -r '.[-1].metadata.creationTimestamp' "${report}/kargo-runtime-f2-ampharos-promotion.json")" +%s)"
-  immediate_elapsed=$((ampharos_created_epoch - reverify_started_epoch))
+  immediate_elapsed=$((ampharos_created_epoch - reverify_succeeded_epoch))
   [ "${immediate_elapsed}" -ge 0 ] && [ "${immediate_elapsed}" -le 90 ] ||
     sit_fail "ampharos did not become immediately eligible after re-verification (${immediate_elapsed}s)"
+  kargo_drive_post_promotion_verification \
+    "${project}" "${ampharos}" "${freight}" \
+    "${report}/kargo-runtime-f2-ampharos-promotion.json" Successful \
+    "${report}/kargo-runtime-f2-ampharos-stage.json" \
+    "${report}/kargo-runtime-f2-ampharos-reconciliation.json"
   kargo_wait_git_tag "${project}" ampharos "${tag}"
-  kargo_wait_verified "${project}" "${ampharos}" "${freight}" \
-    "${report}/kargo-runtime-f2-ampharos-stage.json"
   kargo_capture_current_analysis_run "${project}" "${ampharos}" "${freight}" Successful \
-    "${report}/kargo-runtime-f2-canary-analysis-analysisrun.json"
+    "${report}/kargo-runtime-f2-canary-analysis-analysisrun.json" \
+    "$(jq -r '.freightCollectionId' "${report}/kargo-runtime-f2-ampharos-reconciliation.json")"
   kubectl -n "${project}" get freight "${freight}" -o json \
     >"${report}/kargo-runtime-f2-freight-final.json"
 
@@ -3144,17 +3517,15 @@ kargo_runtime_trace_f3() {
     kargo_check_auto_enabled "${project}" "${ampharos}" false
   kargo_wait_promotion_succeeded "${project}" "${pikachu}" "${freight}" \
     "${report}/kargo-runtime-f3-pikachu-auto-promotion.json"
-  # The automatic Promotion starts and succeeds inside one second, so the Stage
-  # can be left holding the health it evaluated WHILE that Promotion was still
-  # current. Drive the post-terminal reconciliation before waiting on anything
-  # derived from it.
-  kargo_drive_stage_reconciliation "${project}" "${pikachu}" "${freight}" \
+  kargo_drive_post_promotion_verification \
+    "${project}" "${pikachu}" "${freight}" \
+    "${report}/kargo-runtime-f3-pikachu-auto-promotion.json" Successful \
+    "${report}/kargo-runtime-f3-pikachu-stage.json" \
     "${report}/kargo-runtime-f3-pikachu-reconciliation.json"
   kargo_wait_git_tag "${project}" pikachu "${tag}"
-  kargo_wait_verified "${project}" "${pikachu}" "${freight}" \
-    "${report}/kargo-runtime-f3-pikachu-stage.json"
   kargo_capture_current_analysis_run "${project}" "${pikachu}" "${freight}" Successful \
-    "${report}/kargo-runtime-f3-canary-smoke-analysisrun.json"
+    "${report}/kargo-runtime-f3-canary-smoke-analysisrun.json" \
+    "$(jq -r '.freightCollectionId' "${report}/kargo-runtime-f3-pikachu-reconciliation.json")"
   kargo_backdate_freight_stage "${project}" "${freight}" "${pikachu}" 1200 \
     "${report}/kargo-runtime-f3-pikachu-backdate.json"
 
@@ -3282,11 +3653,15 @@ kargo_runtime_trace_wall_clock_soak() {
     "${report}/kargo-runtime-soak-pikachu-manual-promotion-created.json"
   kargo_wait_promotion_succeeded "${project}" "${pikachu}" "${freight}" \
     "${report}/kargo-runtime-soak-pikachu-promotion.json"
+  kargo_drive_post_promotion_verification \
+    "${project}" "${pikachu}" "${freight}" \
+    "${report}/kargo-runtime-soak-pikachu-promotion.json" Successful \
+    "${report}/kargo-runtime-soak-pikachu-stage.json" \
+    "${report}/kargo-runtime-soak-pikachu-reconciliation.json"
   kargo_wait_git_tag "${project}" pikachu "${tag}"
-  kargo_wait_verified "${project}" "${pikachu}" "${freight}" \
-    "${report}/kargo-runtime-soak-pikachu-stage.json"
   kargo_capture_current_analysis_run "${project}" "${pikachu}" "${freight}" Successful \
-    "${report}/kargo-runtime-soak-canary-smoke-analysisrun.json"
+    "${report}/kargo-runtime-soak-canary-smoke-analysisrun.json" \
+    "$(jq -r '.freightCollectionId' "${report}/kargo-runtime-soak-pikachu-reconciliation.json")"
   since="$(kubectl -n "${project}" get freight "${freight}" -o json |
     jq -r --arg stage "${pikachu}" '.status.currentlyIn[$stage].since')"
   since_epoch="$(date -u -d "${since}" +%s)"
@@ -3310,11 +3685,15 @@ kargo_runtime_trace_wall_clock_soak() {
     sit_fail "the real controller promoted before the 90s promotion-time lower bound (${elapsed}s)"
   [ "${elapsed}" -le 180 ] ||
     sit_fail "the 90s wall-clock strengthener exceeded its bounded 180s upper window (${elapsed}s)"
+  kargo_drive_post_promotion_verification \
+    "${project}" "${ampharos}" "${freight}" \
+    "${report}/kargo-runtime-soak-ampharos-promotion.json" Successful \
+    "${report}/kargo-runtime-soak-ampharos-stage.json" \
+    "${report}/kargo-runtime-soak-ampharos-reconciliation.json"
   kargo_wait_git_tag "${project}" ampharos "${tag}"
-  kargo_wait_verified "${project}" "${ampharos}" "${freight}" \
-    "${report}/kargo-runtime-soak-ampharos-stage.json"
   kargo_capture_current_analysis_run "${project}" "${ampharos}" "${freight}" Successful \
-    "${report}/kargo-runtime-soak-canary-analysis-analysisrun.json"
+    "${report}/kargo-runtime-soak-canary-analysis-analysisrun.json" \
+    "$(jq -r '.freightCollectionId' "${report}/kargo-runtime-soak-ampharos-reconciliation.json")"
 
   jq -n \
     --arg freight "${freight}" --arg tag "${tag}" \
@@ -3472,6 +3851,8 @@ run_kargo_runtime_leg() {
 collect_final_evidence() {
   [ "${cluster_created}" -eq 1 ] || return 0
   [ -n "${report}" ] || return 0
+  [ "${final_evidence_collected}" -eq 0 ] || return 0
+  final_evidence_collected=1
   kubectl -n argocd get applications.argoproj.io -o json >"${report}/apps-final.json" 2>&1 || true
   kubectl -n argocd get applicationsets.argoproj.io -o yaml >"${report}/appsets-final.yaml" 2>&1 || true
   kubectl -n argocd get pods -o wide >"${report}/pods-final.txt" 2>&1 || true
@@ -3493,6 +3874,68 @@ collect_final_evidence() {
     >"${report}/kargo-runtime-webhooks-server.log" 2>&1 || true
   kubectl -n argo-rollouts logs deployment/argo-rollouts --all-containers --tail=-1 \
     >"${report}/kargo-runtime-rollouts-controller.log" 2>&1 || true
+
+  local -a kargo_final_paths=(
+    'kargo-runtime-canary-stages-final.json'
+    'kargo-runtime-canary-freight-final.json'
+    'kargo-runtime-canary-promotions-final.json'
+    'kargo-runtime-canary-analysisruns-final.json'
+    'kargo-runtime-canary-events-final.json'
+    'kargo-runtime-canary-analysis-outcomes-final.json'
+  )
+  kargo_capture_json_evidence canary stages.kargo.akuity.io \
+    "${report}/${kargo_final_paths[0]}" || true
+  kargo_capture_json_evidence canary freight.kargo.akuity.io \
+    "${report}/${kargo_final_paths[1]}" || true
+  kargo_capture_json_evidence canary promotions.kargo.akuity.io \
+    "${report}/${kargo_final_paths[2]}" || true
+  kargo_capture_json_evidence canary analysisruns.argoproj.io \
+    "${report}/${kargo_final_paths[3]}" || true
+  kargo_capture_json_evidence canary events \
+    "${report}/${kargo_final_paths[4]}" || true
+  kargo_capture_json_evidence canary configmap/kargo-analysis-outcomes \
+    "${report}/${kargo_final_paths[5]}" || true
+  if [ "${SIT_CURRENT_LEG:-}" = 'L9-kargo-v1-runtime' ]; then
+    SIT_LEG_EVIDENCE+=("${kargo_final_paths[@]}")
+  fi
+}
+
+# The pass path remains strict in sit_leg_pass. On a failure, retain only files
+# which actually exist and are non-empty, and preserve absent success-path
+# expectations in one real evidence artifact instead of claiming them as files.
+sit_prepare_failure_evidence() {
+  local path missing_json
+  local -a existing=() missing=() invalid=()
+  for path in "${SIT_LEG_EVIDENCE[@]}"; do
+    case "${path}" in
+    /* | .. | ../* | */.. | */../*) invalid+=("${path}") ;;
+    *)
+      if [ -s "${report}/${path}" ]; then
+        existing+=("${path}")
+      else
+        missing+=("${path}")
+      fi
+      ;;
+    esac
+  done
+  if [ "${#missing[@]}" -gt 0 ] || [ "${#invalid[@]}" -gt 0 ]; then
+    if [ "${#missing[@]}" -gt 0 ]; then
+      missing_json="$(printf '%s\n' "${missing[@]}" | jq -Rsc 'split("\n")[:-1]')"
+    else
+      missing_json='[]'
+    fi
+    local invalid_json='[]'
+    if [ "${#invalid[@]}" -gt 0 ]; then
+      invalid_json="$(printf '%s\n' "${invalid[@]}" | jq -Rsc 'split("\n")[:-1]')"
+    fi
+    jq -n \
+      --argjson missingEvidence "${missing_json}" \
+      --argjson invalidEvidence "${invalid_json}" \
+      '{missingEvidence:$missingEvidence,invalidEvidence:$invalidEvidence}' \
+      >"${report}/failure-evidence-gaps.json"
+    existing+=('failure-evidence-gaps.json')
+  fi
+  SIT_LEG_EVIDENCE=("${existing[@]}")
 }
 
 stop_pid() {
@@ -3529,12 +3972,24 @@ on_error() {
   local rc=$?
   local line="${BASH_LINENO[0]:-unknown}"
   local command="${BASH_COMMAND:-unknown}"
+  local -a error_functions=("${FUNCNAME[@]}")
+  local -a error_sources=("${BASH_SOURCE[@]}")
+  local -a error_lines=("${BASH_LINENO[@]}")
+  local frame
   trap - ERR
   set +e
   if [ "${report_active}" -eq 1 ]; then
-    printf 'exit_code=%s\nline=%s\ncommand=%s\n' "${rc}" "${line}" "${command}" \
-      >"${report}/last-error.txt"
+    {
+      printf 'exit_code=%s\nline=%s\ncommand=%s\n' "${rc}" "${line}" "${command}"
+      for ((frame = 0; frame < ${#error_functions[@]}; frame++)); do
+        printf 'frame[%d].function=%s\n' "${frame}" "${error_functions[$frame]:-unknown}"
+        printf 'frame[%d].source=%s\n' "${frame}" "${error_sources[$frame]:-unknown}"
+        printf 'frame[%d].line=%s\n' "${frame}" "${error_lines[$frame]:-unknown}"
+      done
+    } >"${report}/last-error.txt"
     SIT_LEG_EVIDENCE+=('last-error.txt')
+    collect_final_evidence
+    sit_prepare_failure_evidence
     sit_leg_fail "${rc}" "command failed at line ${line}"
     sit_report_finish fail
   fi
@@ -4379,7 +4834,6 @@ run_full() {
     'kargo-runtime-delta-oracle.json' 'kargo-runtime-rendered-contract.json' \
     'kargo-runtime-persisted.json' 'kargo-runtime-persisted-contract.json' \
     'kargo-runtime-f1-trace.json' 'kargo-runtime-f2-trace.json' \
-    'kargo-runtime-f3-pikachu-reconciliation.json' \
     'kargo-runtime-f3-trace.json' 'kargo-runtime-soak-trace.json' \
     'kargo-runtime-git.diff' 'kargo-runtime-git-oracle.json' \
     'kargo-runtime-raichu-values-before.yaml' 'kargo-runtime-raichu-values-after.yaml' \
