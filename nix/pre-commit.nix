@@ -138,14 +138,16 @@ pre-commit-lib.run {
 
     # The wiring mode keeps both of its halves — every referenced scripts/ci entry
     # point exists and is executable, and every orchestrator job resolves to a
-    # repository-local reusable workflow that calls one — unchanged.
+    # repository-local reusable workflow that calls one — unchanged. The S31 mode
+    # shares this workflow hook without increasing the committer-facing hook count.
     a-workflows = {
       enable = true;
-      name = "Workflow wiring, release trigger and concurrency";
+      name = "Workflow wiring, release policy and runner cache shape";
       entry = validators [
         "scripts/validate/workflows.sh wiring"
         "scripts/validate/workflows.sh release-trigger"
         "scripts/validate/workflows.sh release-concurrency"
+        "scripts/validate/workflows.sh cache-tag-shape"
       ];
       files = "^\\.github/workflows/.*\\.ya?ml$";
       pass_filenames = false;
