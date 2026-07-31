@@ -2,99 +2,126 @@
 
 ## Agent Context
 
-- Working directory: repo root
-- Doc file to check: {filePath} (from orchestrator)
-- Source files: {sources} (from doc-plan.yaml, provided by orchestrator)
-- Output dir: `.contributor-docs/fact-check/findings/`
-- Docs reference: `docs/standards/contributor-docs/checklist.md` — formatting rules
+The orchestrator supplies all run-bound values:
+
+- Working directory: repository root
+- Doc file to check: `{filePath}`
+- Source files: `{sources}` from `doc-plan.yaml`
+- Audit epoch: `{auditEpoch}`, a positive integer
+- Docs digest: `{docsDigest}`, a 64-character lowercase digest
+- Document file SHA-256: `{docFileHash}`, the hash of the exact assigned bytes
+- Output directory: `.contributor-docs/fact-check/findings/`
+- Docs reference: `docs/standards/contributor-docs/checklist.md`
 
 ## Agent Report Format
 
-```
+```text
 RESULT: <success|error>
-FILE: <doc file checked>
-ISSUES_FOUND: <count>
+AUDIT_EPOCH: <positive integer>
+DOCS_DIGEST: <64 lowercase hex>
+DOC_FILE_SHA256: <64 lowercase hex>
+FILE: <document file checked>
+ERRORS_FOUND: <count>
+WARNINGS_FOUND: <count>
 FINDINGS_FILE: <path to findings file>
 ERROR: <error message if any>
 ```
 
-**Do NOT update state files.** Report back to orchestrator only.
+**Do not update state files.** Report back to the orchestrator only.
 
 ## Task
 
-Check a single documentation file against its source code for accuracy, completeness, and formatting compliance. Write findings to the output directory.
+Check one documentation file against its source code for accuracy,
+completeness, staleness, and formatting compliance. Write a finding bound to the
+current audit epoch, complete docs digest, and exact bytes audited.
 
 ## Steps
 
-### 1. Read the Doc File
+### 1. Read and Bind the Document
 
-Read {filePath} completely — frontmatter and full body content.
+Read `{filePath}` completely, including frontmatter and body. Compute SHA-256
+from the exact bytes read and compare it with `{docFileHash}`.
+
+If the values differ, or if the file changes before the finding is written,
+return `RESULT: error` without writing a finding. The orchestrator treats this
+as stale epoch evidence and makes the legal transition to `failed` rather than
+accepting a result for moving bytes.
 
 ### 2. Read the Source Code
 
-Read all files listed in {sources}. These are the implementation files that this doc describes.
+Read every file in `{sources}`. For files longer than 500 lines, focus on:
 
-For large files (>500 lines), focus on:
-
-- Exports / public API
-- Key functions, their signatures, and inline comments
-- Types and interfaces
-- Error handling patterns
+- exports and public API;
+- key functions, signatures, and inline comments;
+- types and interfaces;
+- error-handling patterns.
 
 ### 3. Check Accuracy
 
-Compare doc claims against source code:
+Compare documentation claims with source code:
 
-- **Function/method names**: does the doc reference correct names?
-- **Parameter types**: do documented types match the code?
-- **Behavior descriptions**: does the doc accurately describe what the code does?
-- **Code examples**: are inline code snippets correct and runnable?
-- **Configuration values**: are defaults, env vars, and config keys accurate?
+- **Function or method names**: do documented names exist?
+- **Parameter types**: do documented types match?
+- **Behavior descriptions**: do they describe what the code does?
+- **Code examples**: are snippets correct and runnable?
+- **Configuration values**: are defaults, environment variables, and keys
+  accurate?
 - **Error handling**: are documented error cases real?
 
 ### 4. Check Completeness
 
-Compare source code capabilities against doc coverage:
+Compare source capabilities with documentation coverage:
 
-- **Missing behaviors**: does the source code have significant behavior not documented?
-- **Missing edge cases**: are important edge cases or error paths skipped?
-- **Missing configuration**: are there configurable options not documented?
+- **Missing behaviors**: is significant behavior undocumented?
+- **Missing edge cases**: are important error paths skipped?
+- **Missing configuration**: are configurable options omitted?
 
 ### 5. Check Staleness
 
-Look for docs describing things that don't exist:
+Look for documentation of things that no longer exist:
 
-- **Removed functionality**: does the doc describe features/APIs not in the source?
-- **Renamed items**: does the doc use old names for renamed functions/types?
-- **Changed behavior**: does the doc describe behavior that differs from current code?
+- **Removed functionality**: does the file describe removed APIs?
+- **Renamed items**: does it use an obsolete name?
+- **Changed behavior**: does its description differ from current code?
 
 ### 6. Check Formatting
 
 Run through the formatting checklist:
 
-- [ ] All code blocks have language specified
-- [ ] All diagrams use Mermaid
-- [ ] Headers follow the expected template structure for this section type
-- [ ] File does not exceed ~300 lines
-- [ ] No inline explanation of content that should be in a linked file
-- [ ] Cross-reference links use correct relative paths
+- [ ] All code blocks have a language.
+- [ ] All diagrams use Mermaid.
+- [ ] Headers follow the expected template for this section type.
+- [ ] The file does not exceed approximately 300 lines.
+- [ ] Content that belongs in a linked file is not explained inline.
+- [ ] Cross-reference links use correct relative paths.
 
 ### 7. Write Findings
 
-Derive the findings filename from the doc file path (replace `/` with `__`, replace `.mdx` with `.md`).
+Derive the findings filename by replacing `/` with `__` and changing the final
+`.mdx` or `.md` suffix to `.md`. Before writing, hash `{filePath}` again and
+require the result to equal `{docFileHash}`.
 
-Write to `.contributor-docs/fact-check/findings/<findings-filename>`:
+Write `.contributor-docs/fact-check/findings/<findings-filename>` with all three
+comments immediately after the title:
 
 ```markdown
 # Fact Check: {filePath}
 
+<!-- audit-epoch: {auditEpoch} -->
+<!-- docs-digest: {docsDigest} -->
+<!-- doc-file-sha256: {docFileHash} -->
+
 ## Summary
 
-- Accuracy issues: <count>
-- Completeness issues: <count>
-- Staleness issues: <count>
-- Formatting issues: <count>
-- Total: <count>
+- Audit epoch: {auditEpoch}
+- Docs digest: {docsDigest}
+- Document file SHA-256: {docFileHash}
+- Accuracy errors: <count>
+- Completeness errors: <count>
+- Staleness errors: <count>
+- Formatting errors: <count>
+- Warnings: <count>
+- Total errors: <count>
 
 ## Issues
 
@@ -102,26 +129,48 @@ Write to `.contributor-docs/fact-check/findings/<findings-filename>`:
 
 - **Type**: accuracy | completeness | staleness | formatting
 - **Severity**: error | warning
-- **Location**: <line number or section in doc>
-- **Source**: <source file and line if applicable>
-- **Description**: <what's wrong>
+- **Location**: <line number or section in document>
+- **Source**: <source file and line, if applicable>
+- **Description**: <what is wrong>
 - **Fix**: <how to fix>
 
 ## Clean
 
-- <list of checks that passed>
+- <checks that passed>
 ```
 
-If no issues are found, write a findings file with `Total: 0` and a `## Clean` section listing all passed checks.
+If no findings exist, write `Total errors: 0`, `Warnings: 0`, and list all
+passed checks under `Clean`. Every processed file gets a finding, including a
+clean file.
+
+Write a complete replacement finding for this invocation. Never merge with or
+append to an earlier finding.
 
 ### 8. Report
 
-Report the result with issue count and findings file path.
+Return the exact epoch, docs digest, document hash, separate error and warning
+counts, and findings path.
+
+## Epoch Binding
+
+A finding is evidence only when all of these values match at acceptance time:
+
+- its `audit-epoch` comment equals `audit-state.json.auditEpoch`;
+- its `docs-digest` comment equals `audit-state.json.docsDigest`;
+- its `doc-file-sha256` comment equals a fresh SHA-256 of its assigned file;
+- the fact-check `epoch.json` sidecar matches the same epoch and digest.
+
+A missing or mismatched stamp makes the finding stale. The orchestrator
+regenerates it and does not mark the file done. This agent never reads a prior
+finding to short-circuit its work; there is no per-file artifact resumability.
+Processor-level resumability comes only from current-stamp processor state plus
+already verified findings.
 
 ## Important
 
-- Do NOT update state files
-- Do NOT fix any issues — only report them
-- Do NOT read other doc files — only the one assigned file and its source code
-- Do NOT modify the doc file or source code
-- Every file gets a findings file, even if clean (for completeness tracking)
+- Do not update state files.
+- Do not fix findings; only report them.
+- Do not read other documentation files; read only the assigned document and
+  its source code.
+- Do not modify the document or source files.
+- Always write a finding after a successful current-byte audit, even when clean.

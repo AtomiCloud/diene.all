@@ -2,27 +2,38 @@
 
 ## Agent Context
 
-- Working directory: repo root
+The orchestrator provides every run-bound value. Do not read state files to
+discover them.
+
+- Working directory: repository root
 - Doc plan: `.contributor-docs/doc-plan.yaml`
-- Docs root: from `task-state.json` `docsRoot` field
+- Docs root: the `task-state.json.docsRoot` value supplied by the orchestrator
+- Audit epoch: `{auditEpoch}`, a positive integer supplied by the orchestrator
+- Docs digest: `{docsDigest}`, the current epoch's 64-character lowercase digest
 - Docs references:
   - `docs/standards/contributor-docs/structure.md` — expected folder structure
   - `docs/standards/contributor-docs/checklist.md` — formatting rules
 
 ## Agent Report Format
 
-```
+```text
 RESULT: <success|error>
-ISSUES_FOUND: <count>
+AUDIT_EPOCH: <positive integer>
+DOCS_DIGEST: <64 lowercase hex>
+ERRORS_FOUND: <count>
+WARNINGS_FOUND: <count>
 REPORT_FILE: .contributor-docs/big-picture-report.md
 ERROR: <error message if any>
 ```
 
-**Do NOT update state files.** Report back to orchestrator only.
+**Do not update state files.** Report back to the orchestrator only.
 
 ## Task
 
-Perform a holistic audit of the generated documentation. Read all doc files at a high level (frontmatter + H2 headings + first paragraph per section). Check structural coherence, coverage, cross-references, and terminology. Write a report.
+Perform a holistic audit of the generated documentation. Read all document files
+at a high level (frontmatter, H2 headings, and the first paragraph per section).
+Check structural coherence, coverage, cross-references, and terminology. Write a
+stamped report for the supplied epoch and docs digest.
 
 ## What to Check
 
@@ -34,14 +45,17 @@ Perform a holistic audit of the generated documentation. Read all doc files at a
 
 ### 2. Coverage
 
-- Does every capability identified in `.contributor-docs/diff-summary.md` have corresponding documentation?
-- Are there obvious gaps (e.g., a feature with no concept explaining its "why")?
-- Do features that have complex logic have corresponding algorithm docs?
+- Does every capability identified in `.contributor-docs/diff-summary.md` have
+  corresponding documentation?
+- Are there obvious gaps, such as a feature with no concept explaining its
+  "why"?
+- Do features with complex logic have corresponding algorithm docs?
 
 ### 3. Cross-Reference Integrity
 
-- Do all `related`, `concepts`, `algorithms`, `surfaces` paths in frontmatter resolve to real files?
-- Do all inline `[text](path)` links resolve to real files?
+- Do all `related`, `concepts`, `algorithms`, and `surfaces` paths in
+  frontmatter resolve to real files?
+- Do all inline links resolve to real files?
 - Are there orphan files not linked from any index or other file?
 - Are cross-links bidirectional where appropriate?
 
@@ -63,38 +77,60 @@ Perform a holistic audit of the generated documentation. Read all doc files at a
 
 ## Steps
 
-### 1. Read All Files (High Level)
+### 1. Check for a Current Report
 
-For each doc file under the docs root:
+If `.contributor-docs/big-picture-report.md` exists, read only enough to inspect
+its machine-readable header and summary:
 
-1. Read the full frontmatter
-2. Read the H2 headings
-3. Read the first paragraph after each H2
+- Reuse it only when both `audit-epoch` and `docs-digest` exactly match the
+  supplied values and its summary is complete.
+- A report with no stamp, a malformed stamp, or either mismatch is stale.
+  Overwrite it by regenerating from step 2; never return its counts.
 
-Do NOT read full file content. Focus on structure and metadata.
+A repair reset always increments the epoch, so a prior repair's report cannot
+pass this check. Same-epoch reuse exists only for crash recovery.
 
-### 2. Read the Plan
+### 2. Read All Files at a High Level
 
-Read `.contributor-docs/doc-plan.yaml` and `.contributor-docs/diff-summary.md` for what was planned vs what was built.
+For each document file under the docs root:
 
-### 3. Run Each Check
+1. Read the full frontmatter.
+2. Read the H2 headings.
+3. Read the first paragraph after each H2.
 
-Evaluate each of the 6 check categories above. For each issue found, record:
+Do not read full file content. Focus on structure and metadata.
 
-- **Category**: which check (structural, coverage, cross-ref, terminology, navigation, index)
-- **Severity**: error (must fix) or warning (should fix)
-- **File(s)**: affected file path(s)
-- **Description**: what the issue is and how to fix it
+### 3. Read the Plan
 
-### 4. Write Report
+Read `.contributor-docs/doc-plan.yaml` and
+`.contributor-docs/diff-summary.md` for what was planned versus built.
 
-Write `.contributor-docs/big-picture-report.md`:
+### 4. Run Each Check
+
+Evaluate each of the six check categories above. For every finding, record:
+
+- **Category**: structural, coverage, cross-reference, terminology, navigation,
+  or index
+- **Severity**: error (must fix) or warning (non-blocking)
+- **File(s)**: affected file paths
+- **Description**: what is wrong and how to fix it
+
+### 5. Write the Report
+
+Write `.contributor-docs/big-picture-report.md` with the two comments immediately
+after the title. Substitute the exact supplied values; do not copy the example
+values literally.
 
 ```markdown
 # Big Picture Audit Report
 
+<!-- audit-epoch: {auditEpoch} -->
+<!-- docs-digest: {docsDigest} -->
+
 ## Summary
 
+- Audit epoch: {auditEpoch}
+- Docs digest: {docsDigest}
 - Errors: <count>
 - Warnings: <count>
 - Files audited: <count>
@@ -119,21 +155,30 @@ Write `.contributor-docs/big-picture-report.md`:
 
 ## Pass
 
-- <list of checks that passed cleanly>
+- <checks that passed cleanly>
 ```
 
-### 5. Report
+When a severity has no findings, state `None.` under that heading. Write the
+whole report for this invocation; do not merge current results into an older
+report.
 
-Report the result with issue count and report file path.
+### 6. Report
 
-## Resumability
+Return the exact epoch and digest, separate error and warning counts, and the
+canonical report path. The orchestrator verifies the on-disk comments before it
+updates state.
 
-- If `.contributor-docs/big-picture-report.md` already exists: report success with existing issue count
-- If not: start from Step 1
+## Artifact Binding
+
+The report is evidence only for the exact `auditEpoch` and `docsDigest` stamped
+inside it. A missing or mismatched comment makes it stale regardless of its
+counts, modification time, or filename. Stale reports are regenerated and never
+accepted as a completed audit arm.
 
 ## Important
 
-- Do NOT update state files
-- Do NOT fix any issues — only report them
-- Do NOT read full file content — stick to frontmatter + H2 headings + first paragraphs
-- Do NOT read source code — that's the fact-checker's job
+- Do not update or read state files.
+- Do not fix findings; only report them.
+- Do not read full document content; use frontmatter, H2 headings, and first
+  paragraphs.
+- Do not read source code; that is the fact-checker's task.
