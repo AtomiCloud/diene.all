@@ -1,17 +1,4 @@
-const topics = [
-  'authorization',
-  'contributor-docs',
-  'datetime',
-  'domain-driven-design',
-  'functional-practices',
-  'software-design-philosophy',
-  'solid-principles',
-  'stateless-oop-di',
-  'testing',
-  'three-layer-architecture',
-  'utilities',
-  'validation',
-] as const;
+import { topics } from './standards-inventory.ts';
 
 // The probe runtime is Bun, which ships a YAML parser as Bun.YAML.parse. A regex
 // over the frontmatter would report a malformed document as proven — an
