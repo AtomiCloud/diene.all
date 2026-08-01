@@ -1186,7 +1186,7 @@ init_state_main() {
         "$AUDIT_AGENT"
       )
 
-      row=$(awk '/^\| `task-state\.json` — creation and every task-phase edge \|/ {
+      row=$(awk '/^\|[[:space:]]*`task-state\.json` — creation and every task-phase edge[[:space:]]*\|/ {
       print
       exit
     }' "$workflow")
