@@ -3,8 +3,14 @@
 ## State Machine
 
 ```
-[diff_analysis] → [classify] → [review] → completed
+[diff_analysis] → [classify] → [review] → [completed]
     team(S)         team(O)      inline
+```
+
+<!-- canonical-block: plan-legal-steps -->
+
+```json
+["diff_analysis", "classify", "review", "completed"]
 ```
 
 ## State File: `plan-state.json`

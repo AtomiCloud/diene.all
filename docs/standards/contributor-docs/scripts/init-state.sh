@@ -1285,13 +1285,20 @@ init_state_main() {
     }
 
     check_record_write_usage_contract() {
-      local invocation_count
+      local script=${1:-"$CD_ROOT/scripts/init-state.sh"} docs_root=${2:-$CD_ROOT}
+      local usage_comment pending_line usage_comment_count pending_line_count invocation_count
 
-      rg -qF '#        init-state.sh --assert-record-write <pending|committed> <state-file> <path> <plan-hash>' \
-        "$CD_ROOT/scripts/init-state.sh" || return 1
-      rg -qF 'pending stdin:' "$CD_ROOT/scripts/init-state.sh" || return 1
-      invocation_count=$(rg -n --glob '*.md' \
-        '^[[:space:]]+--assert-record-write pending[[:space:]]*\\$' "$CD_ROOT" | wc -l | tr -d ' ')
+      usage_comment='#        init-state.sh --assert-record-write <pending|committed> <state-file> <path> <plan-hash>'
+      pending_line="    echo '          pending stdin: {\"writerReport\":...,\"returnedHash\":...}; committed reads canonical write-state.json' >&2"
+      usage_comment_count=$(rg -xcF -- "$usage_comment" "$script" || true)
+      pending_line_count=$(rg -xcF -- "$pending_line" "$script" || true)
+      [[ ${usage_comment_count:-0} -eq 1 ]] || return 1
+      [[ ${pending_line_count:-0} -eq 1 ]] || return 1
+      invocation_count=$(
+        { rg -n --glob '*.md' \
+          '^[[:space:]]+--assert-record-write pending[[:space:]]*\\$' "$docs_root" || true; } |
+          wc -l | tr -d ' '
+      )
       [[ $invocation_count -eq 1 ]]
     }
 
@@ -1454,6 +1461,63 @@ init_state_main() {
     if ! check_record_write_usage_contract; then
       contract_failure '--assert-record-write usage/canonical invocation contract drifted'
     fi
+    RECORD_WRITE_USAGE_FIXTURE="$CONTROL_DIR/init-state-without-record-write-usage.sh"
+    if ! awk '
+      $0 == "#        init-state.sh --assert-record-write <pending|committed> <state-file> <path> <plan-hash>" {
+        removed++
+        next
+      }
+      { print }
+      END { if (removed != 1) exit 1 }
+    ' "$CD_ROOT/scripts/init-state.sh" >"$RECORD_WRITE_USAGE_FIXTURE"; then
+      contract_failure 'Record-write usage fixture could not remove exactly one comment'
+    elif check_record_write_usage_contract "$RECORD_WRITE_USAGE_FIXTURE" "$CD_ROOT" 2>/dev/null; then
+      contract_failure 'Record-write usage-comment destructive fixture stayed green'
+    elif ! check_record_write_usage_contract; then
+      contract_failure 'Real record-write usage inputs did not recover green after comment fixture'
+    fi
+
+    RECORD_WRITE_STDIN_FIXTURE="$CONTROL_DIR/init-state-without-pending-stdin.sh"
+    if ! awk '
+      /^[[:space:]]*echo .*pending stdin:/ {
+        removed++
+        next
+      }
+      { print }
+      END { if (removed != 1) exit 1 }
+    ' "$CD_ROOT/scripts/init-state.sh" >"$RECORD_WRITE_STDIN_FIXTURE"; then
+      contract_failure 'Record-write stdin fixture could not remove exactly one usage line'
+    elif check_record_write_usage_contract "$RECORD_WRITE_STDIN_FIXTURE" "$CD_ROOT" 2>/dev/null; then
+      contract_failure 'Record-write pending-stdin destructive fixture stayed green'
+    elif ! check_record_write_usage_contract; then
+      contract_failure 'Real record-write usage inputs did not recover green after stdin fixture'
+    fi
+
+    RECORD_WRITE_DOCS_FIXTURE="$CONTROL_DIR/record-write-docs-duplicate-invocation"
+    RECORD_WRITE_DUPLICATE_DOC="$RECORD_WRITE_DOCS_FIXTURE/write/state-agent.md"
+    RECORD_WRITE_DUPLICATE_TMP="$CONTROL_DIR/record-write-state-agent-duplicate.md"
+    if ! cp -R "$CD_ROOT" "$RECORD_WRITE_DOCS_FIXTURE"; then
+      contract_failure 'Record-write docs fixture could not copy the documentation tree'
+    elif ! awk '
+      /^[[:space:]]+--assert-record-write pending[[:space:]]*\\$/ {
+        print
+        print
+        duplicated++
+        next
+      }
+      { print }
+      END { if (duplicated != 1) exit 1 }
+    ' "$RECORD_WRITE_DUPLICATE_DOC" >"$RECORD_WRITE_DUPLICATE_TMP"; then
+      contract_failure 'Record-write docs fixture could not duplicate exactly one canonical invocation'
+    elif ! mv "$RECORD_WRITE_DUPLICATE_TMP" "$RECORD_WRITE_DUPLICATE_DOC"; then
+      contract_failure 'Record-write docs fixture could not install its duplicate invocation'
+    elif check_record_write_usage_contract "$CD_ROOT/scripts/init-state.sh" \
+      "$RECORD_WRITE_DOCS_FIXTURE" 2>/dev/null; then
+      contract_failure 'Record-write duplicate-invocation destructive fixture stayed green'
+    elif ! check_record_write_usage_contract; then
+      contract_failure 'Real record-write usage inputs did not recover green after docs fixture'
+    fi
+
     if ! check_plan_converter_contract; then
       contract_failure 'Plan converter refusal/prerequisite contract drifted'
     fi
@@ -1560,6 +1624,14 @@ init_state_main() {
         return 1
       fi
       jq -r '.[]' "$json" | LC_ALL=C sort >"$output"
+    }
+
+    normalise_step_lines() {
+      local lines=$1 output=$2 json="$CONTROL_DIR/step-lines.$$.json"
+
+      [[ -s $lines ]] || return 1
+      jq -Rsc 'split("\n") | map(select(length > 0))' "$lines" >"$json" || return 1
+      normalise_step_array "$json" "$output"
     }
 
     phase_step_set() {
@@ -1709,6 +1781,260 @@ init_state_main() {
       fi
     }
 
+    plan_state_machine_step_set() {
+      local file=$1 output=$2 raw="$CONTROL_DIR/plan-machine-raw.$$.txt"
+
+      if ! awk '
+        /^## State Machine$/ {
+          sections++
+          if (sections == 1) {
+            inside = 1
+            next
+          }
+        }
+        inside && /^## / { inside = 0 }
+        inside {
+          line = $0
+          while (match(line, /\[[a-z][a-z0-9_]*\]/)) {
+            print substr(line, RSTART + 1, RLENGTH - 2)
+            steps++
+            line = substr(line, RSTART + RLENGTH)
+          }
+        }
+        END { if (sections != 1 || steps == 0) exit 1 }
+      ' "$file" >"$raw"; then
+        return 1
+      fi
+      normalise_step_lines "$raw" "$output"
+    }
+
+    plan_dispatch_step_set() {
+      local file=$1 output=$2 raw="$CONTROL_DIR/plan-dispatch-raw.$$.txt"
+
+      if ! awk '
+        /^## Step Dispatch$/ {
+          sections++
+          if (sections == 1) {
+            inside = 1
+            next
+          }
+        }
+        inside && /^## / { inside = 0 }
+        inside && /^\| Step[[:space:]]+\|/ {
+          headers++
+          next
+        }
+        inside && /^\| `/ {
+          fields = split($0, column, "|")
+          if (fields < 3) {
+            bad = 1
+            next
+          }
+          step = column[2]
+          sub(/^[[:space:]]*/, "", step)
+          sub(/[[:space:]]*$/, "", step)
+          if (step !~ /^`[a-z][a-z0-9_]*`$/) {
+            bad = 1
+            next
+          }
+          sub(/^`/, "", step)
+          sub(/`$/, "", step)
+          print step
+          rows++
+        }
+        END { if (sections != 1 || headers != 1 || rows == 0 || bad) exit 1 }
+      ' "$file" >"$raw"; then
+        return 1
+      fi
+      normalise_step_lines "$raw" "$output"
+    }
+
+    plan_agent_validation_step_set() {
+      local file=$1 output=$2 raw="$CONTROL_DIR/plan-validation-raw.$$.txt"
+
+      if ! awk '
+        index($0, "`step` ∈") {
+          hits++
+          if ($0 !~ /^[[:space:]]*- `step` ∈ `[a-z][a-z0-9_]*(\|[a-z][a-z0-9_]*)*`;[[:space:]]*$/) {
+            bad = 1
+            next
+          }
+          prefix = "`step` ∈ `"
+          value = substr($0, index($0, prefix) + length(prefix))
+          sub(/`;[[:space:]]*$/, "", value)
+          count = split(value, steps, "|")
+          for (part = 1; part <= count; part++) print steps[part]
+        }
+        END { if (hits != 1 || bad) exit 1 }
+      ' "$file" >"$raw"; then
+        return 1
+      fi
+      normalise_step_lines "$raw" "$output"
+    }
+
+    plan_agent_complete_step_set() {
+      local file=$1 output=$2 raw="$CONTROL_DIR/plan-complete-object-raw.$$.txt"
+
+      if ! awk '
+        index($0, "`step` is one of") {
+          hits++
+          if ($0 !~ /^[[:space:]]*- `step` is one of `[a-z][a-z0-9_]*`(, `[a-z][a-z0-9_]*`)*(, or `[a-z][a-z0-9_]*`| or `[a-z][a-z0-9_]*`)?;[[:space:]]*$/) {
+            bad = 1
+            next
+          }
+          prefix = "`step` is one of "
+          line = substr($0, index($0, prefix) + length(prefix))
+          while (match(line, /`[a-z][a-z0-9_]*`/)) {
+            print substr(line, RSTART + 1, RLENGTH - 2)
+            steps++
+            line = substr(line, RSTART + RLENGTH)
+          }
+        }
+        END { if (hits != 1 || steps == 0 || bad) exit 1 }
+      ' "$file" >"$raw"; then
+        return 1
+      fi
+      normalise_step_lines "$raw" "$output"
+    }
+
+    plan_agent_operation_step_set() {
+      local file=$1 output=$2 raw="$CONTROL_DIR/plan-operation-raw.$$.txt"
+
+      if ! awk '
+        /^### Legal Operations$/ {
+          sections++
+          if (sections == 1) {
+            inside = 1
+            next
+          }
+        }
+        inside && /^### / { inside = 0 }
+        inside && /^\| Operation[[:space:]]+\| Legal source/ {
+          headers++
+          next
+        }
+        inside && /^\| `/ {
+          fields = split($0, column, "|")
+          if (fields < 4) {
+            bad = 1
+            next
+          }
+          source = column[3]
+          sub(/^[[:space:]]*/, "", source)
+          sub(/[[:space:]]*$/, "", source)
+          if (source !~ /^`[a-z][a-z0-9_]*`(, `[a-z][a-z0-9_]*`)*(, or `[a-z][a-z0-9_]*`| or `[a-z][a-z0-9_]*`)?$/) {
+            bad = 1
+            next
+          }
+          line = source
+          while (match(line, /`[a-z][a-z0-9_]*`/)) {
+            print substr(line, RSTART + 1, RLENGTH - 2)
+            steps++
+            line = substr(line, RSTART + RLENGTH)
+          }
+          rows++
+        }
+        END {
+          if (sections != 1 || headers != 1 || rows == 0 || steps == 0 || bad) exit 1
+        }
+      ' "$file" >"$raw"; then
+        return 1
+      fi
+      if ! awk '/^[a-z][a-z0-9_]*$/ { next } { exit 1 }' "$raw"; then
+        return 1
+      fi
+      LC_ALL=C sort -u "$raw" >"$output"
+      [[ -s $output ]]
+    }
+
+    check_plan_legal_steps() {
+      local phase=$1 agent=$2 scratch=$3 agent_step index drift=0 concrete_drift=0
+      local phase_json phase_steps agent_json agent_steps schema_steps machine_steps
+      local dispatch_steps validation_steps operation_steps complete_steps agent_schema concrete_step
+      local -a compared_steps compared_labels
+
+      phase_json="$scratch/phase-steps.json"
+      phase_steps="$scratch/phase-steps"
+      agent_json="$scratch/agent-steps.json"
+      agent_steps="$scratch/agent-steps"
+      schema_steps="$scratch/schema-steps"
+      machine_steps="$scratch/machine-steps"
+      dispatch_steps="$scratch/dispatch-steps"
+      validation_steps="$scratch/validation-steps"
+      operation_steps="$scratch/operation-steps"
+      complete_steps="$scratch/complete-steps"
+      agent_schema="$scratch/agent-schema.json"
+      concrete_step="$scratch/concrete-step"
+      mkdir -p "$scratch"
+
+      if ! extract_marked_json "$phase" plan-legal-steps "$phase_json" ||
+        ! normalise_step_array "$phase_json" "$phase_steps"; then
+        printf 'PLAN_LEGAL_STEP_SOURCE_INVALID phase-marker\n' >&2
+        return 1
+      fi
+      if ! extract_marked_json "$agent" plan-legal-steps "$agent_json" ||
+        ! normalise_step_array "$agent_json" "$agent_steps"; then
+        printf 'PLAN_LEGAL_STEP_SOURCE_INVALID state-agent-marker\n' >&2
+        return 1
+      fi
+      if ! phase_step_set "$phase" plan-state-schema "$schema_steps" ||
+        ! plan_state_machine_step_set "$phase" "$machine_steps" ||
+        ! plan_dispatch_step_set "$phase" "$dispatch_steps"; then
+        printf 'PLAN_LEGAL_STEP_SOURCE_INVALID phase-structure\n' >&2
+        return 1
+      fi
+      if ! plan_agent_validation_step_set "$agent" "$validation_steps" ||
+        ! plan_agent_operation_step_set "$agent" "$operation_steps" ||
+        ! plan_agent_complete_step_set "$agent" "$complete_steps" ||
+        ! extract_marked_json "$agent" plan-state-schema "$agent_schema" ||
+        ! agent_step=$(jq -er \
+          '.step | select(type == "string" and test("^[a-z][a-z0-9_]*$"))' "$agent_schema"); then
+        printf 'PLAN_LEGAL_STEP_SOURCE_INVALID state-agent-structure\n' >&2
+        return 1
+      fi
+      printf '%s\n' "$agent_step" >"$concrete_step"
+
+      compared_steps=("$agent_steps" "$schema_steps" "$machine_steps" "$dispatch_steps"
+        "$validation_steps" "$operation_steps" "$complete_steps")
+      compared_labels=(state-agent-marker phase-schema state-machine step-dispatch
+        state-agent-validation legal-operations state-agent-complete-object)
+      for index in "${!compared_steps[@]}"; do
+        if ! cmp -s "$phase_steps" "${compared_steps[$index]}"; then
+          drift=1
+        fi
+      done
+      if ! rg -qxF -- "$agent_step" "$phase_steps"; then
+        drift=1
+        concrete_drift=1
+      fi
+      if [[ $drift -ne 0 ]]; then
+        printf 'PLAN_LEGAL_STEP_DRIFT\n' >&2
+        for index in "${!compared_steps[@]}"; do
+          if ! cmp -s "$phase_steps" "${compared_steps[$index]}"; then
+            diff -u --label plan-legal-steps --label "${compared_labels[$index]}" \
+              "$phase_steps" "${compared_steps[$index]}" >&2 || true
+          fi
+        done
+        if [[ $concrete_drift -ne 0 ]]; then
+          diff -u --label plan-legal-steps --label state-agent-concrete-step \
+            "$phase_steps" "$concrete_step" >&2 || true
+        fi
+        return 1
+      fi
+    }
+
+    exercise_plan_legal_step_fixture() {
+      local label=$1 phase=$2 agent=$3 scratch=$4 output
+
+      if output=$(check_plan_legal_steps "$phase" "$agent" "$scratch" 2>&1); then
+        contract_failure "${label} destructive fixture stayed green"
+      elif [[ $output != *PLAN_LEGAL_STEP_DRIFT* ]]; then
+        contract_failure "${label} destructive fixture failed for the wrong reason"
+      elif ! check_plan_legal_steps "$PLAN_PHASE" "$PLAN_AGENT" "${scratch}-recovery"; then
+        contract_failure "Real plan legal-step inputs did not recover after ${label} fixture"
+      fi
+    }
+
     assert_object_shape() {
       local label=$1 file=$2 marker=$3 expected_count=$4 required_key=$5 json
       json="$CONTROL_DIR/${label// /-}.json"
@@ -1748,26 +2074,16 @@ init_state_main() {
     }
 
     check_plan_state_schema() {
-      local phase=$1 agent=$2 scratch=$3 agent_step
+      local phase=$1 agent=$2 scratch=$3
       local phase_json="$scratch/phase.json" agent_json="$scratch/agent.json"
       local phase_shape="$scratch/phase.shape" agent_shape="$scratch/agent.shape"
-      local phase_steps="$scratch/phase-steps" expected_steps="$scratch/expected-steps"
 
       mkdir -p "$scratch"
       if ! extract_marked_json "$phase" plan-state-schema "$phase_json" ||
         ! extract_marked_json "$agent" plan-state-schema "$agent_json" ||
         ! jq -ceS 'del(.step)' "$phase_json" >"$phase_shape" ||
         ! jq -ceS 'del(.step)' "$agent_json" >"$agent_shape" ||
-        ! cmp -s "$phase_shape" "$agent_shape" ||
-        ! phase_step_set "$phase" plan-state-schema "$phase_steps"; then
-        printf 'Canonical block drift: plan-state-schema\n' >&2
-        return 1
-      fi
-      jq -cn '["diff_analysis","classify","review","completed"]' |
-        jq -r '.[]' | LC_ALL=C sort >"$expected_steps"
-      if ! cmp -s "$phase_steps" "$expected_steps" ||
-        ! agent_step=$(jq -er '.step | select(type == "string")' "$agent_json") ||
-        ! rg -qxF "$agent_step" "$phase_steps"; then
+        ! cmp -s "$phase_shape" "$agent_shape"; then
         printf 'Canonical block drift: plan-state-schema\n' >&2
         return 1
       fi
@@ -1954,6 +2270,10 @@ init_state_main() {
       "$CONTROL_DIR/real-audit-legal-steps"; then
       contract_failure 'AUDIT_LEGAL_STEP_DRIFT or malformed legal-step source'
     fi
+    if ! check_plan_legal_steps "$PLAN_PHASE" "$PLAN_AGENT" \
+      "$CONTROL_DIR/real-plan-legal-steps"; then
+      contract_failure 'PLAN_LEGAL_STEP_DRIFT or malformed legal-step source'
+    fi
 
     FIXTURE_AGENT="$CONTROL_DIR/state-agent-without-write-tier-5.md"
     if ! awk '
@@ -2063,6 +2383,152 @@ init_state_main() {
       contract_failure 'Real plan-state-schema inputs did not recover green'
     fi
 
+    PLAN_PHASE_MARKER_FIXTURE="$CONTROL_DIR/plan-phase-with-retired-marker-step.md"
+    if ! awk '
+      {
+        line = $0
+        sub(/^[[:space:]]*/, "", line)
+        sub(/[[:space:]]*$/, "", line)
+      }
+      line == "<!-- canonical-block: plan-legal-steps -->" { in_steps = 1 }
+      in_steps && /"completed"/ {
+        sub(/"completed"/, "\"retired_step\"")
+        changed++
+        in_steps = 0
+      }
+      { print }
+      END { if (changed != 1) exit 1 }
+    ' "$PLAN_PHASE" >"$PLAN_PHASE_MARKER_FIXTURE"; then
+      contract_failure 'Plan phase-marker fixture could not change exactly one step'
+    else
+      exercise_plan_legal_step_fixture 'Plan phase-marker' "$PLAN_PHASE_MARKER_FIXTURE" \
+        "$PLAN_AGENT" "$CONTROL_DIR/plan-phase-marker-fixture"
+    fi
+
+    PLAN_AGENT_MARKER_FIXTURE="$CONTROL_DIR/plan-agent-with-retired-marker-step.md"
+    if ! awk '
+      {
+        line = $0
+        sub(/^[[:space:]]*/, "", line)
+        sub(/[[:space:]]*$/, "", line)
+      }
+      line == "<!-- canonical-block: plan-legal-steps -->" { in_steps = 1 }
+      in_steps && /"completed"/ {
+        sub(/"completed"/, "\"retired_step\"")
+        changed++
+        in_steps = 0
+      }
+      { print }
+      END { if (changed != 1) exit 1 }
+    ' "$PLAN_AGENT" >"$PLAN_AGENT_MARKER_FIXTURE"; then
+      contract_failure 'Plan state-agent marker fixture could not change exactly one step'
+    else
+      exercise_plan_legal_step_fixture 'Plan state-agent marker' "$PLAN_PHASE" \
+        "$PLAN_AGENT_MARKER_FIXTURE" "$CONTROL_DIR/plan-agent-marker-fixture"
+    fi
+
+    PLAN_SCHEMA_STEP_FIXTURE="$CONTROL_DIR/plan-phase-with-retired-schema-step.md"
+    if ! awk '
+      {
+        line = $0
+        sub(/^[[:space:]]*/, "", line)
+        sub(/[[:space:]]*$/, "", line)
+      }
+      line == "<!-- canonical-block: plan-state-schema -->" { in_schema = 1 }
+      in_schema && /"step":.*completed/ {
+        sub(/completed/, "retired_step")
+        changed++
+        in_schema = 0
+      }
+      { print }
+      END { if (changed != 1) exit 1 }
+    ' "$PLAN_PHASE" >"$PLAN_SCHEMA_STEP_FIXTURE"; then
+      contract_failure 'Plan schema-step fixture could not change exactly one union member'
+    else
+      exercise_plan_legal_step_fixture 'Plan schema-step' "$PLAN_SCHEMA_STEP_FIXTURE" \
+        "$PLAN_AGENT" "$CONTROL_DIR/plan-schema-step-fixture"
+    fi
+
+    PLAN_MACHINE_FIXTURE="$CONTROL_DIR/plan-phase-with-retired-machine-step.md"
+    if ! awk '
+      /^## State Machine$/ { inside = 1 }
+      inside && /^## / && $0 != "## State Machine" { inside = 0 }
+      inside && /\[review\]/ {
+        sub(/\[review\]/, "[retired_step]")
+        changed++
+      }
+      { print }
+      END { if (changed != 1) exit 1 }
+    ' "$PLAN_PHASE" >"$PLAN_MACHINE_FIXTURE"; then
+      contract_failure 'Plan state-machine fixture could not change exactly one step'
+    else
+      exercise_plan_legal_step_fixture 'Plan state-machine' "$PLAN_MACHINE_FIXTURE" \
+        "$PLAN_AGENT" "$CONTROL_DIR/plan-machine-fixture"
+    fi
+
+    PLAN_DISPATCH_FIXTURE="$CONTROL_DIR/plan-phase-with-retired-dispatch-step.md"
+    if ! awk '
+      /^## Step Dispatch$/ { inside = 1 }
+      inside && /^## / && $0 != "## Step Dispatch" { inside = 0 }
+      inside && /^\| `review`[[:space:]]+\|/ {
+        sub(/`review`/, "`retired_step`")
+        changed++
+      }
+      { print }
+      END { if (changed != 1) exit 1 }
+    ' "$PLAN_PHASE" >"$PLAN_DISPATCH_FIXTURE"; then
+      contract_failure 'Plan Step Dispatch fixture could not change exactly one row'
+    else
+      exercise_plan_legal_step_fixture 'Plan Step Dispatch' "$PLAN_DISPATCH_FIXTURE" \
+        "$PLAN_AGENT" "$CONTROL_DIR/plan-dispatch-fixture"
+    fi
+
+    PLAN_VALIDATION_FIXTURE="$CONTROL_DIR/plan-agent-with-retired-validation-step.md"
+    if ! awk '
+      index($0, "`step` ∈") {
+        sub(/completed/, "retired_step")
+        changed++
+      }
+      { print }
+      END { if (changed != 1) exit 1 }
+    ' "$PLAN_AGENT" >"$PLAN_VALIDATION_FIXTURE"; then
+      contract_failure 'Plan validation-prose fixture could not change exactly one step'
+    else
+      exercise_plan_legal_step_fixture 'Plan validation prose' "$PLAN_PHASE" \
+        "$PLAN_VALIDATION_FIXTURE" "$CONTROL_DIR/plan-validation-fixture"
+    fi
+
+    PLAN_OPERATION_FIXTURE="$CONTROL_DIR/plan-agent-with-retired-operation-source.md"
+    if ! awk '
+      /^### Legal Operations$/ { inside = 1 }
+      inside && /^### / && $0 != "### Legal Operations" { inside = 0 }
+      inside && /^\| `record-diff-analysis`[[:space:]]+\|/ {
+        changed += sub(/\| `diff_analysis`[[:space:]]+\|/, "| `retired_step` |")
+      }
+      { print }
+      END { if (changed != 1) exit 1 }
+    ' "$PLAN_AGENT" >"$PLAN_OPERATION_FIXTURE"; then
+      contract_failure 'Plan Legal Operations fixture could not change exactly one source step'
+    else
+      exercise_plan_legal_step_fixture 'Plan Legal Operations' "$PLAN_PHASE" \
+        "$PLAN_OPERATION_FIXTURE" "$CONTROL_DIR/plan-operation-fixture"
+    fi
+
+    PLAN_COMPLETE_PROSE_FIXTURE="$CONTROL_DIR/plan-agent-with-retired-complete-step.md"
+    if ! awk '
+      index($0, "`step` is one of") {
+        sub(/`completed`/, "`retired_step`")
+        changed++
+      }
+      { print }
+      END { if (changed != 1) exit 1 }
+    ' "$PLAN_AGENT" >"$PLAN_COMPLETE_PROSE_FIXTURE"; then
+      contract_failure 'Plan complete-object prose fixture could not change exactly one step'
+    else
+      exercise_plan_legal_step_fixture 'Plan complete-object prose' "$PLAN_PHASE" \
+        "$PLAN_COMPLETE_PROSE_FIXTURE" "$CONTROL_DIR/plan-complete-prose-fixture"
+    fi
+
     PLAN_STEP_FIXTURE="$CONTROL_DIR/plan-agent-with-retired-step.md"
     if ! awk '
       {
@@ -2079,14 +2545,9 @@ init_state_main() {
       END { if (changed != 1) exit 1 }
     ' "$PLAN_AGENT" >"$PLAN_STEP_FIXTURE"; then
       contract_failure 'Plan-step fixture could not change exactly one marked step'
-    elif FIXTURE_OUTPUT=$(check_plan_state_schema "$PLAN_PHASE" "$PLAN_STEP_FIXTURE" \
-      "$CONTROL_DIR/plan-step-fixture" 2>&1); then
-      contract_failure 'Plan-step destructive fixture stayed green'
-    elif [[ $FIXTURE_OUTPUT != *'Canonical block drift: plan-state-schema'* ]]; then
-      contract_failure 'Plan-step destructive fixture failed for the wrong reason'
-    elif ! check_plan_state_schema "$PLAN_PHASE" "$PLAN_AGENT" \
-      "$CONTROL_DIR/plan-step-recovery"; then
-      contract_failure 'Real plan-state step membership did not recover green'
+    else
+      exercise_plan_legal_step_fixture 'Plan concrete-step' "$PLAN_PHASE" \
+        "$PLAN_STEP_FIXTURE" "$CONTROL_DIR/plan-step-fixture"
     fi
 
     AUDIT_STEP_FIXTURE="$CONTROL_DIR/audit-agent-without-failed-step.md"
@@ -2190,7 +2651,7 @@ init_state_main() {
       contract_failure 'Real canonical marker namespace did not recover green'
     fi
     if [[ $FAILURES -eq $CONTROL_FAILURES_BEFORE ]]; then
-      echo '✅ Audit/plan schema, legal-step, key-set, and marker destructive fixtures recovered green'
+      echo '✅ Audit/plan schema, legal-step/prose, key-set, and marker destructive fixtures recovered green'
     fi
 
     RETIRED_TIERS='completed''Tiers'
@@ -2849,6 +3310,7 @@ JQ
       FAILURES=$((FAILURES + 1))
     fi
 
+    CONTROL_FAILURES_BEFORE=$FAILURES
     PENDING_WRITE_STATE=$(jq -c '
     .step = "write_tier_4" | .pending = ["docs/r.mdx"] |
     .filesWritten = 0 |
@@ -3129,10 +3591,12 @@ JQ
       contract_failure 'Tier completion accepted a missing writer report'
     elif [[ $OUTPUT != *WRITE_REPORT_MISSING* ]]; then
       contract_failure 'Missing writer report failed tier completion for the wrong reason'
-    else
+    fi
+    if [[ $FAILURES -eq $CONTROL_FAILURES_BEFORE ]]; then
       echo '✅ Writer reports persisted atomically and malformed or missing reports were refused'
     fi
 
+    CONTROL_FAILURES_BEFORE=$FAILURES
     HEALTHY=$(jq -n -L "$CONTROL_DIR" --argjson state "$BASE_STATE" \
       --arg operation prepare-scaffold --argjson data '{}' -f "$CONTROL_DIR/reducer.jq")
     HEALTHY=$(jq -n -L "$CONTROL_DIR" --argjson state "$HEALTHY" \
@@ -3171,7 +3635,8 @@ JQ
         --argjson data '{}' -f "$CONTROL_DIR/reducer.jq" >/dev/null; then
       echo "❌ Healthy gap path did not clear" >&2
       FAILURES=$((FAILURES + 1))
-    else
+    fi
+    if [[ $FAILURES -eq $CONTROL_FAILURES_BEFORE ]]; then
       echo '✅ Healthy gap close preserved the full transition and reset cleared durable reports'
     fi
 

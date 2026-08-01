@@ -60,6 +60,12 @@ assess.
    }
    ```
 
+   <!-- canonical-block: plan-legal-steps -->
+
+   ```json
+   ["diff_analysis", "classify", "review", "completed"]
+   ```
+
 4. Write `.contributor-docs/task-state.json` — **last**, as the commit marker:
 
    <!-- canonical-block: task-state-schema -->
