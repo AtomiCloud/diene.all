@@ -27,7 +27,22 @@ async function rewrite(repo: any, path: string, edits: Edit[]): Promise<void> {
   await repo.write(path, source);
 }
 
-function caught(name: string, description: string, path: string, edits: Edit[]) {
+// An arm may name the refusal it expects. A mutation that turns the gate red for
+// some other reason — broken YAML, a label the mutation did not mean to touch —
+// would assert nothing about the mechanism the arm exists to protect, and the two
+// classifier arms below are exactly where that confusion is easy to miss.
+async function expectRedBecause(repo: any, reason: string): Promise<void> {
+  const result = await repo.exec(GATE, { timeoutMs: 240000 });
+  if (result.exitCode === 0) {
+    throw new Error('cache-tag-shape stayed green after sabotage');
+  }
+  const output = `${result.stderr}\n${result.stdout}`;
+  if (!output.includes(reason)) {
+    throw new Error(`cache-tag-shape turned red for the wrong reason (expected '${reason}'): ${output.trim()}`);
+  }
+}
+
+function caught(name: string, description: string, path: string, edits: Edit[], reason?: string) {
   return {
     name,
     description,
@@ -35,10 +50,18 @@ function caught(name: string, description: string, path: string, edits: Edit[]) 
     expectedImpact: [],
     async run(repo: any) {
       await rewrite(repo, path, edits);
-      await expectRed(repo, GATE, 'cache-tag-shape');
+      if (reason === undefined) {
+        await expectRed(repo, GATE, 'cache-tag-shape');
+      } else {
+        await expectRedBecause(repo, reason);
+      }
     },
   };
 }
+
+// The refusal both classifier arms must provoke: the job is read as a non-Nix job,
+// so its claim on the shared cache is rejected.
+const NOT_A_NIX_STORE_USER = 'claims the shared S31 Nix-store cache but is not a Nix-store user';
 
 export default {
   contractVersion: 1,
@@ -89,6 +112,17 @@ export default {
         { find: '      - uses: AtomiCloud/actions.setup-nix@v3\n', replace: '' },
         { find: 'run: nix develop .#cd -c ./scripts/ci/docker.sh', replace: 'run: ./scripts/ci/docker.sh' },
       ],
+      NOT_A_NIX_STORE_USER,
+    ),
+    caught(
+      'mutation-textual-nix-mention-cache-claim-caught',
+      'A job whose run: script only MENTIONS Nix must not claim the shared Nix-store cache: stripping the Nix setup action and leaving a harmless `echo nix develop` behind — which installs and invokes nothing — must turn the S31 gate red instead of reading the mention as store use.',
+      DOCKER,
+      [
+        { find: '      - uses: AtomiCloud/actions.setup-nix@v3\n', replace: '' },
+        { find: 'run: nix develop .#cd -c ./scripts/ci/docker.sh', replace: 'run: echo nix develop' },
+      ],
+      NOT_A_NIX_STORE_USER,
     ),
     caught(
       'mutation-stale-cache-exemption-caught',

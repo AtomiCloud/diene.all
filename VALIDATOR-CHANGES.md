@@ -179,6 +179,58 @@ observes runner labels.
 The merged `a-workflows` hook is untouched — same four modes, same twelve hooks, and the
 retired `scripts/validate/cache-tags.sh` and `a-cache-tags` hook stay deleted.
 
+## A `run:` line counts when it invokes Nix, not when it mentions it
+
+The behavioural determination above was still a substring match over the whole
+unparsed `run:` string. Review reproduced the bypass that follows: delete the Nix setup
+action from the Docker reusable, change its command to `echo nix develop`, leave the
+`-with-cache` venue and both cache labels untouched, and the gate returned exit 0. The
+job installs nothing and invokes nothing, so it is precisely the non-Nix lane that must
+not claim the shared store — the F1 failure mode reachable through a slightly different
+edit.
+
+The two step fields are now read for what they are:
+
+- `uses:` stays a text match, because an action reference **is** the whole value. A Nix
+  setup action remains a positive signal on its own, whatever the `run:` script says.
+- `run:` is a shell script, so it is read as one. It counts only when shell syntax puts
+  a supported Nix command in **command position**: at the start of the script, or after
+  a separator (newline, `;`, `&`, `|`, `(`, `)`), optionally behind `VAR=value`
+  assignments, shell keywords (`if`, `then`, `while`, `do`, …) or a plain wrapper
+  (`command`, `exec`, `env`, `nohup`, `time`, `sudo`). `nix` itself is a multiplexer, so
+  it counts only when the next word is `develop`, `build`, `shell`, `run`, `flake`,
+  `profile` or `store`; `nix-build`, `nix-shell` and `nix-store` count on their own.
+
+The reader is a lexer, not a shell: it splits the script into words while tracking
+single quotes, double quotes, backslash escapes, backticks, `#` comments and heredoc
+bodies, then asks one question of the word list. Quoted text, comment text and heredoc
+content never become a command word, which is what makes `echo nix develop`,
+`printf 'nix develop'`, `# nix develop` and a `<<'EOF'` body all non-Nix.
+
+**Its boundary is deliberate and fails closed.** A word built from anything other than
+literal unquoted characters — quoted (`'nix' develop`), escaped, or expanded (`$CMD`,
+`` `nix build` ``) — is never matched against a Nix command name; a `nix` whose next
+word is a flag rather than a subcommand is not read as store use; a `<<` whose delimiter
+cannot be read abandons the rest of the script. Every one of those resolves to "no Nix
+invocation", and that direction is the safe one: a missed invocation refuses a cache
+claim and turns the gate red, while a misread mention would hand a cache volume to a job
+that never touches the store. The refusal is also easy to answer — a lane written in a
+form the lexer cannot read declares itself with a Nix setup action, which is matched as
+text. The corresponding cost is honest: a real invocation hidden behind an expansion is
+a false negative, and on a bare venue such a job is read as an ordinary non-Nix lane
+rather than an undeclared F2 recurrence.
+
+The scanner is a jq function block inside `cache-tag-shape`; it adds no runtime, no tool
+and no hook. Hook count stays twelve, the four modes are unchanged, and the corrected
+`-with-cache` / bare split is untouched.
+
+`probes/cache-tag-shape.ts` gains an eleventh arm —
+`mutation-textual-nix-mention-cache-claim-caught` — which is the reviewer's exact
+reproduction: setup action removed, command replaced with `echo nix develop`, cached
+labels retained. It and the existing non-Nix arm now assert the refusal **text**, not
+merely a non-zero exit, so neither can pass on a red produced by broken YAML or a
+drifted mutation target. One baseline plus ten mutations.
+
 ## Resulting hook set
 
 Twelve hooks declared, down from twenty — eleven at the pre-commit stage plus the

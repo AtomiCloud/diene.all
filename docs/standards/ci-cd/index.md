@@ -71,8 +71,15 @@ bare venue label with no cache-size or cache-tag label; cache absence is part of
 their isolation contract.
 
 Which jobs are cache-eligible is read from what a job does, not from the labels
-it carries: a job that uses a Nix setup action or runs a `nix` command is a
-Nix-store user. Such a job on the bare venue also records a non-empty job-level
+it carries: a job is a Nix-store user when a step uses a Nix setup action, or
+when a `run:` script **invokes** `nix develop|build|shell|run|flake|profile|store`
+(or legacy `nix-build`, `nix-shell`, `nix-store`) as a command. A mention is not
+an invocation — `echo nix develop`, a comment, quoted text and heredoc content
+leave a job non-Nix. The gate reads `run:` with a small shell lexer rather than a
+full shell, and every form it cannot read confidently, such as a quoted, escaped
+or `$VAR`-expanded command word, counts as no invocation and so refuses the cache
+claim; a lane written that way declares itself with the Nix setup action instead.
+Such a job on the bare venue also records a non-empty job-level
 `env.S31_CACHE_EXEMPT_REASON`, so a deliberate isolation lane is distinguishable
 from a lane that lost its cache by accident. That exemption is only meaningful on
 the bare Namespace venue: a Nix-store user on a GitHub-hosted runner is rejected
