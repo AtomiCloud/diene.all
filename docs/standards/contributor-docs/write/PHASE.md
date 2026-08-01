@@ -973,25 +973,25 @@ again.
 
 ### Refusals
 
-| Condition                                                                                         | Refusal                      |
-| ------------------------------------------------------------------------------------------------- | ---------------------------- |
-| Outside the exact `enqueued` recovery tuple, live plan is absent/mismatched or lineage is invalid | `PLAN_DRIFT_BLOCKED`         |
+| Condition                                                                                                         | Refusal                      |
+| ----------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| Outside the exact `enqueued` recovery tuple, live plan is absent/mismatched or lineage is invalid                 | `PLAN_DRIFT_BLOCKED`         |
 | Any closed record is incomplete, repeats `openedAt`, or differs from its re-derived closure/tier/cleanup metadata | `GAP_CLOSURE_INVALID`        |
-| Candidate is absent when `authorize-gap-plan` or a normal `apply-gap-plan` requires it            | `GAP_PLAN_CANDIDATE_MISSING` |
-| Candidate's parsed delta is wider/narrower than the exact reported entries and reporter links     | `GAP_PLAN_DELTA_INVALID`     |
-| Candidate/live bytes do not hash to the stored endpoint required by `apply-gap-plan`              | `GAP_PLAN_HASH_INVALID`      |
-| Opening while `gapTransition != null`                                                             | `GAP_IN_FLIGHT`              |
-| Any reporter is not a normalized queued path in the current tier                                  | `GAP_REPORTER_INVALID`       |
-| `reports` empty, reason blank, type/tier conflicts, or `gapPaths` differs from derived tuples     | `GAP_REPORT_SET_INVALID`     |
-| A written tier path has no complete bound provenance `writerReport`                               | `WRITE_REPORT_MISSING`       |
-| Any path is absolute, escapes `docsRoot`, is duplicated, or has a type/tier mismatch              | `GAP_PATH_INVALID`           |
-| `replayTier > currentTier`                                                                        | `GAP_TIER_INVALID`           |
-| A proposed gap path is already on `writeQueue`                                                    | `GAP_ALREADY_QUEUED`         |
-| A gap path repeats across `gapsResolved`, or a live gap repeats a closed path                     | `GAP_LOOP`                   |
-| `expectedScaffold` keys differ from the gap set or a value is not a SHA-256                       | `GAP_MANIFEST_INVALID`       |
-| A gap file lacks exact-hash approval or prepared-hash ownership                                   | `GAP_COLLISION`              |
-| A requested status skips or reverses the transition graph                                         | `GAP_TRANSITION_INVALID`     |
-| Cleanup is recorded before the exact processor artifacts are absent                               | `GAP_CLEANUP_INCOMPLETE`     |
+| Candidate is absent when `authorize-gap-plan` or a normal `apply-gap-plan` requires it                            | `GAP_PLAN_CANDIDATE_MISSING` |
+| Candidate's parsed delta is wider/narrower than the exact reported entries and reporter links                     | `GAP_PLAN_DELTA_INVALID`     |
+| Candidate/live bytes do not hash to the stored endpoint required by `apply-gap-plan`                              | `GAP_PLAN_HASH_INVALID`      |
+| Opening while `gapTransition != null`                                                                             | `GAP_IN_FLIGHT`              |
+| Any reporter is not a normalized queued path in the current tier                                                  | `GAP_REPORTER_INVALID`       |
+| `reports` empty, reason blank, type/tier conflicts, or `gapPaths` differs from derived tuples                     | `GAP_REPORT_SET_INVALID`     |
+| A written tier path has no complete bound provenance `writerReport`                                               | `WRITE_REPORT_MISSING`       |
+| Any path is absolute, escapes `docsRoot`, is duplicated, or has a type/tier mismatch                              | `GAP_PATH_INVALID`           |
+| `replayTier > currentTier`                                                                                        | `GAP_TIER_INVALID`           |
+| A proposed gap path is already on `writeQueue`                                                                    | `GAP_ALREADY_QUEUED`         |
+| A gap path repeats across `gapsResolved`, or a live gap repeats a closed path                                     | `GAP_LOOP`                   |
+| `expectedScaffold` keys differ from the gap set or a value is not a SHA-256                                       | `GAP_MANIFEST_INVALID`       |
+| A gap file lacks exact-hash approval or prepared-hash ownership                                                   | `GAP_COLLISION`              |
+| A requested status skips or reverses the transition graph                                                         | `GAP_TRANSITION_INVALID`     |
+| Cleanup is recorded before the exact processor artifacts are absent                                               | `GAP_CLEANUP_INCOMPLETE`     |
 
 Every refusal above leaves write state, the live plan, candidate (except a successful
 candidate-to-live rename), processor state, task phase, and audit artifacts
