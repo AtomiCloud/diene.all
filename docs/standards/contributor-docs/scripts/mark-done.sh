@@ -12,22 +12,19 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 source "$SCRIPT_DIR/init-state.sh"
 
 assert_processor_membership() {
-  local state_file=$1 filename=$2 plan_hash=$3 kind output_dir expected_output output_abs
+  local state_file=$1 filename=$2 plan_hash=$3 kind output_dir expected_output output_abs program
 
   kind=$(assert_processor_state_path "$state_file") || return 1
   expected_output=$(processor_findings_dir "$kind")
+  program=$(processor_contract_jq_source)
   if [[ ! -f $state_file || -L $state_file ]] ||
     ! output_dir=$(jq -er '.outputDir | select(type == "string" and length > 0)' \
       "$state_file" 2>/dev/null) || [[ -L $output_dir ]] ||
     ! output_abs=$(realpath -m -- "$output_dir") || [[ $output_abs != "$expected_output" ]] ||
-    ! jq -e --arg file "$filename" --arg hash "$plan_hash" --arg kind "$kind" '
+    ! jq -e --arg file "$filename" --arg hash "$plan_hash" --arg kind "$kind" "$program"'
       . as $processor |
-      (($processor | keys | sort) ==
-        (["sourcePaths","outputDir","concurrentAgents","filesToProcess",
-          "processedFiles","pendingFiles","startTime","authorizedPlanHash",
-          "recordWriteAuthorizations"] | sort)) and
-      ($processor.sourcePaths | type == "array") and
-      ($processor.concurrentAgents | type == "number" and floor == . and . >= 1) and
+      (($processor | keys | sort) == (processor_state_keys | sort)) and
+      processor_config_valid($processor.sourcePaths; $processor.concurrentAgents) and
       ($processor.startTime | type == "string" and
         test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")) and
       ($processor.authorizedPlanHash == $hash) and

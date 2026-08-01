@@ -245,6 +245,21 @@ authority_contract_test_barrier() {
   }
 }
 
+# Canonical processor configuration and state-key law. Initialization and completion
+# import this exact jq source so neither can admit a state the other later refuses.
+processor_contract_jq_source() {
+  cat <<'JQ'
+def processor_config_valid($source_paths; $concurrent):
+  ($source_paths | type == "array") and
+  all($source_paths[]; type == "string" and length > 0) and
+  ($concurrent | type == "number" and floor == . and . >= 1);
+def processor_state_keys:
+  ["sourcePaths","outputDir","concurrentAgents","filesToProcess",
+   "processedFiles","pendingFiles","startTime","authorizedPlanHash",
+   "recordWriteAuthorizations"];
+JQ
+}
+
 # Canonical pending/committed writer-report law. Runtime helpers and the executable
 # reducer import these exact definitions; no caller may substitute a SHA-shaped start
 # hash for the processor's durable authorization snapshot.
@@ -375,7 +390,7 @@ def timestamp:
 def exact_keys($value; $want):
   ($value | type == "object") and (($value | keys | sort) == ($want | sort));
 def normalized_path($value):
-  type == "string" and length > 0 and (startswith("/") | not) and
+  $value | type == "string" and length > 0 and (startswith("/") | not) and
   (split("/") | all(. != "" and . != "." and . != ".."));
 def dirname($path):
   $path | split("/") | .[0:length - 1] | join("/");
@@ -1042,7 +1057,10 @@ assert_plan_authority() {
     echo "PLAN_DRIFT_BLOCKED: expected=${expected_hash} actual=candidate-present" >&2
     return 1
   fi
-  if ! plan_json=$(yq -o=json '.' "$live_plan" 2>/dev/null); then
+  if ! plan_json=$(yq -o=json '.' "$live_plan" 2>/dev/null) ||
+    ! plan_json=$(printf '%s' "$plan_json" | jq -c -s '
+      if length == 1 then .[0] else error("expected exactly one JSON value") end
+    ' 2>/dev/null); then
     echo "PLAN_CONVERTER_UNAVAILABLE: yq could not convert '${live_plan}' to JSON" >&2
     return 1
   fi
@@ -1254,14 +1272,46 @@ init_state_main() {
     }
 
     check_plan_converter_contract() {
-      local script=${1:-"$CD_ROOT/scripts/init-state.sh"} bad_pattern
+      local script=${1:-"$CD_ROOT/scripts/init-state.sh"}
+      local workflow=${2:-$WORKFLOW} bad_pattern
 
-      rg -qF 'PLAN_CONVERTER_UNAVAILABLE' "$WORKFLOW" || return 1
-      rg -qF '`yq`' "$WORKFLOW" || return 1
+      rg -qF 'PLAN_CONVERTER_UNAVAILABLE' "$workflow" || return 1
+      rg -qF '`yq`' "$workflow" || return 1
       rg -qF 'PLAN_CONVERTER_UNAVAILABLE' "$script" || return 1
       bad_pattern='PLAN_DRIFT_BLOCKED.*'
       bad_pattern+='yq|<\(yq '
       ! rg -q "$bad_pattern" "$script"
+    }
+
+    check_processor_contract_sources() {
+      local init_script=${1:-"$CD_ROOT/scripts/init-state.sh"}
+      local mark_script=${2:-"$CD_ROOT/scripts/mark-done.sh"}
+      local source_name='processor_contract_jq_''source'
+      local predicate_name='processor_config_''valid'
+      local keys_name='processor_state_''keys' program
+
+      program=$(bash -c 'source "$1"; "$2"' processor-contract \
+        "$init_script" "$source_name") || return 1
+      jq -ne "$program
+        ($keys_name == [\"sourcePaths\",\"outputDir\",\"concurrentAgents\",
+          \"filesToProcess\",\"processedFiles\",\"pendingFiles\",\"startTime\",
+          \"authorizedPlanHash\",\"recordWriteAuthorizations\"]) and
+        $predicate_name([\"src/r.ts\"]; 1) and
+        ($predicate_name([\"\"]; 1) | not) and
+        ($predicate_name([1]; 1) | not) and
+        ($predicate_name({}; 1) | not) and
+        ($predicate_name([\"src/r.ts\"]; 0) | not) and
+        ($predicate_name([\"src/r.ts\"]; 1.5) | not)" >/dev/null || return 1
+      [[ $(rg -c "^${source_name}\\(\\) \\{" "$init_script" || true) == 1 ]] || return 1
+      [[ $(rg -cF "PROCESSOR_CONTRACT_JQ=\$(${source_name})" \
+        "$init_script" || true) == 1 ]] || return 1
+      [[ $(rg -c "$predicate_name" "$init_script" || true) == 3 ]] || return 1
+      [[ $(rg -c "$keys_name" "$init_script" || true) == 2 ]] || return 1
+      [[ $(rg -cF "program=\$(${source_name})" "$mark_script" || true) == 1 ]] || return 1
+      [[ $(rg -c "$predicate_name" "$mark_script" || true) == 1 ]] || return 1
+      [[ $(rg -c "$keys_name" "$mark_script" || true) == 1 ]] || return 1
+      ! rg -qF '(["sourcePaths","outputDir","concurrentAgents","filesToProcess",' \
+        "$mark_script"
     }
 
     wait_for_contract_barrier() {
@@ -1356,6 +1406,32 @@ init_state_main() {
     if ! check_plan_converter_contract; then
       contract_failure 'Plan converter refusal/prerequisite contract drifted'
     fi
+    PLAN_CONVERTER_REFUSAL_DOC_FIXTURE="$CONTROL_DIR/workflow-without-converter-refusal.md"
+    if ! awk '
+      index($0, "`PLAN_CONVERTER_UNAVAILABLE: <reason>`") { removed++; next }
+      { print }
+      END { if (removed != 1) exit 1 }
+    ' "$WORKFLOW" >"$PLAN_CONVERTER_REFUSAL_DOC_FIXTURE"; then
+      contract_failure 'Plan converter refusal-doc fixture could not remove exactly one requirement'
+    elif check_plan_converter_contract "$CD_ROOT/scripts/init-state.sh" \
+      "$PLAN_CONVERTER_REFUSAL_DOC_FIXTURE" 2>/dev/null; then
+      contract_failure 'Plan converter refusal documentation destructive fixture stayed green'
+    elif ! check_plan_converter_contract; then
+      contract_failure 'Real plan converter refusal documentation did not recover green'
+    fi
+    PLAN_CONVERTER_PREREQUISITE_DOC_FIXTURE="$CONTROL_DIR/workflow-without-yq.md"
+    if ! awk '
+      index($0, "- `yq` (for reading `doc-plan.yaml`)") { removed++; next }
+      { print }
+      END { if (removed != 1) exit 1 }
+    ' "$WORKFLOW" >"$PLAN_CONVERTER_PREREQUISITE_DOC_FIXTURE"; then
+      contract_failure 'Plan converter prerequisite fixture could not remove exactly one requirement'
+    elif check_plan_converter_contract "$CD_ROOT/scripts/init-state.sh" \
+      "$PLAN_CONVERTER_PREREQUISITE_DOC_FIXTURE" 2>/dev/null; then
+      contract_failure 'Plan converter prerequisite documentation destructive fixture stayed green'
+    elif ! check_plan_converter_contract; then
+      contract_failure 'Real plan converter prerequisite documentation did not recover green'
+    fi
     PLAN_CONVERTER_FIXTURE="$CONTROL_DIR/init-state-with-yq-process-substitution.sh"
     if ! awk '
       /^[[:space:]]*--argjson live "\$plan_json"/ {
@@ -1440,10 +1516,10 @@ init_state_main() {
       local schema="$CONTROL_DIR/phase-${marker}-schema.$$.json"
       local array="$CONTROL_DIR/phase-${marker}-legal-steps.$$.json"
       if ! extract_marked_json "$file" "$marker" "$schema" ||
-        ! jq -ce '
+        ! jq -ce --arg marker "$marker" '
         if type == "object" and (.step | type == "string") then
           .step | split("|") | map(gsub("^[[:space:]]+|[[:space:]]+$"; ""))
-        else error("write-state-schema.step must be a string") end
+        else error($marker + ".step must be a string") end
       ' "$schema" >"$array"; then
         return 1
       fi
@@ -1703,6 +1779,10 @@ init_state_main() {
       fi
     }
 
+    CONTROL_FAILURES_BEFORE=$FAILURES
+    # Write mirrors carry different legal-union `.step` values, so compare their
+    # shapes. Audit mirrors are exactly equal; plan mirrors delete `.step` and then
+    # require exact equality for every remaining value.
     MARKERS=(
       write-state-schema
       write-provenance-record
@@ -2057,7 +2137,8 @@ init_state_main() {
     elif ! check_exact_canonical_pair "$AUDIT_PHASE" "$AUDIT_AGENT" audit-state-schema \
       "$CONTROL_DIR/marker-namespace-recovery"; then
       contract_failure 'Real canonical marker namespace did not recover green'
-    else
+    fi
+    if [[ $FAILURES -eq $CONTROL_FAILURES_BEFORE ]]; then
       echo '✅ Audit/plan schema, legal-step, key-set, and marker destructive fixtures recovered green'
     fi
 
@@ -4244,29 +4325,65 @@ JQ
       contract_failure 'Processor initialization changed state while refusing a stale slice'
     fi
 
-    mkdir -p "$CONTROL_DIR/no-yq-bin"
+    CONTROL_FAILURES_BEFORE=$FAILURES
+    mkdir -p "$CONTROL_DIR/no-yq-bin" "$CONTROL_DIR/empty-yq-bin" \
+      "$CONTROL_DIR/malformed-yq-bin"
     printf '%s\n' '#!/usr/bin/env bash' 'exit 127' >"$CONTROL_DIR/no-yq-bin/yq"
-    chmod +x "$CONTROL_DIR/no-yq-bin/yq"
-    cp "$PROCESSOR_STATE" "$CONTROL_DIR/init-converter.before"
-    CONVERTER_TEMPS_BEFORE=$(find "$(dirname "$PROCESSOR_STATE")" -maxdepth 1 -type f \
-      -name 'state.json.??????' -print | LC_ALL=C sort)
-    if OUTPUT=$(printf '%s\n' 'docs/r.mdx' | (
-      cd "$PROCESSOR_REPO" && PATH="$CONTROL_DIR/no-yq-bin:$PATH" \
-        bash "$CD_ROOT/scripts/init-state.sh" \
-        .contributor-docs/write-tier-4/state.json '["src/r.ts"]' 1 \
-        .contributor-docs/write-tier-4/findings --plan-hash "$PLAN_A"
-    ) 2>&1); then
-      contract_failure 'Processor initialization accepted an unavailable plan converter'
-    elif [[ $OUTPUT != *PLAN_CONVERTER_UNAVAILABLE* ]]; then
-      contract_failure "Unavailable plan converter failed with the wrong refusal: ${OUTPUT}"
-    elif [[ $OUTPUT == *PLAN_DRIFT_BLOCKED* ]]; then
-      contract_failure 'Unavailable plan converter masqueraded as plan drift'
-    elif ! cmp -s "$PROCESSOR_STATE" "$CONTROL_DIR/init-converter.before"; then
-      contract_failure 'Unavailable plan converter changed existing processor state'
-    elif [[ $(find "$(dirname "$PROCESSOR_STATE")" -maxdepth 1 -type f \
-      -name 'state.json.??????' -print | LC_ALL=C sort) != "$CONVERTER_TEMPS_BEFORE" ]]; then
-      contract_failure 'Unavailable plan converter changed the processor temp-file set'
-    fi
+    printf '%s\n' '#!/usr/bin/env bash' 'exit 0' >"$CONTROL_DIR/empty-yq-bin/yq"
+    printf '%s\n' '#!/usr/bin/env bash' "printf '%s\\n' 'not-json'" \
+      >"$CONTROL_DIR/malformed-yq-bin/yq"
+    chmod +x "$CONTROL_DIR/no-yq-bin/yq" "$CONTROL_DIR/empty-yq-bin/yq" \
+      "$CONTROL_DIR/malformed-yq-bin/yq"
+    CONVERTER_VARIANTS=(unavailable empty malformed)
+    CONVERTER_BINS=(no-yq-bin empty-yq-bin malformed-yq-bin)
+    for CONVERTER_INDEX in "${!CONVERTER_VARIANTS[@]}"; do
+      CONVERTER_VARIANT=${CONVERTER_VARIANTS[$CONVERTER_INDEX]}
+      CONVERTER_BIN="$CONTROL_DIR/${CONVERTER_BINS[$CONVERTER_INDEX]}"
+      if [[ $CONVERTER_VARIANT == unavailable ]]; then
+        if PATH="$CONVERTER_BIN:$PATH" yq -o=json '.' "$PROCESSOR_PLAN" \
+          >/dev/null 2>&1; then
+          contract_failure 'Unavailable-converter fixture did not fail destructively'
+        fi
+      elif ! FIXTURE_CONVERTER_OUTPUT=$(PATH="$CONVERTER_BIN:$PATH" \
+        yq -o=json '.' "$PROCESSOR_PLAN" 2>/dev/null); then
+        contract_failure "${CONVERTER_VARIANT} converter fixture did not exit zero"
+      elif [[ $CONVERTER_VARIANT == empty && -n $FIXTURE_CONVERTER_OUTPUT ]]; then
+        contract_failure 'Empty converter fixture emitted bytes'
+      elif [[ $CONVERTER_VARIANT == malformed ]] &&
+        { [[ $FIXTURE_CONVERTER_OUTPUT != not-json ]] ||
+          jq -e . <<<"$FIXTURE_CONVERTER_OUTPUT" >/dev/null 2>&1; }; then
+        contract_failure 'Malformed converter fixture did not emit malformed JSON'
+      fi
+
+      cp "$PROCESSOR_STATE" "$CONTROL_DIR/init-converter-${CONVERTER_VARIANT}.before"
+      CONVERTER_TEMPS_BEFORE=$(find "$(dirname "$PROCESSOR_STATE")" -maxdepth 1 \
+        -type f -name 'state.json.??????' -print | LC_ALL=C sort)
+      if OUTPUT=$(printf '%s\n' 'docs/r.mdx' | (
+        cd "$PROCESSOR_REPO" && PATH="$CONVERTER_BIN:$PATH" \
+          bash "$CD_ROOT/scripts/init-state.sh" \
+          .contributor-docs/write-tier-4/state.json '["src/r.ts"]' 1 \
+          .contributor-docs/write-tier-4/findings --plan-hash "$PLAN_A"
+      ) 2>&1); then
+        contract_failure "Processor initialization accepted ${CONVERTER_VARIANT} converter output"
+      elif [[ $OUTPUT != *PLAN_CONVERTER_UNAVAILABLE* ]]; then
+        contract_failure "${CONVERTER_VARIANT} converter output failed with the wrong refusal: ${OUTPUT}"
+      elif [[ $OUTPUT == *PLAN_DRIFT_BLOCKED* ]]; then
+        contract_failure "${CONVERTER_VARIANT} converter output masqueraded as plan drift"
+      elif ! cmp -s "$PROCESSOR_STATE" \
+        "$CONTROL_DIR/init-converter-${CONVERTER_VARIANT}.before"; then
+        contract_failure "${CONVERTER_VARIANT} converter output changed existing processor state"
+      elif [[ $(find "$(dirname "$PROCESSOR_STATE")" -maxdepth 1 -type f \
+        -name 'state.json.??????' -print | LC_ALL=C sort) != "$CONVERTER_TEMPS_BEFORE" ]]; then
+        contract_failure "${CONVERTER_VARIANT} converter output changed the processor temp-file set"
+      fi
+      if ! printf '%s\n' 'docs/r.mdx' | (
+        cd "$PROCESSOR_REPO" && bash "$CD_ROOT/scripts/init-state.sh" \
+          .contributor-docs/write-tier-4/state.json '["src/r.ts"]' 1 \
+          .contributor-docs/write-tier-4/findings --plan-hash "$PLAN_A"
+      ) >/dev/null; then
+        contract_failure "Healthy initialization did not recover after ${CONVERTER_VARIANT} converter output"
+      fi
+    done
 
     printf '%s\n' "$PROCESSOR_PENDING_WRITE" >"$PROCESSOR_WRITE_STATE"
     MALFORMED_PROCESSOR_CONFIGS=(
@@ -4337,7 +4454,8 @@ JQ
         .contributor-docs/write-tier-4/findings --plan-hash "$PLAN_A"
     ) >/dev/null; then
       contract_failure 'Processor fixture did not recover after malformed-configuration controls'
-    else
+    fi
+    if [[ $FAILURES -eq $CONTROL_FAILURES_BEFORE ]]; then
       echo '✅ Converter and malformed processor configuration refusals were non-mutating and recovered end to end'
     fi
 
@@ -5377,6 +5495,67 @@ JQ
       echo '✅ Runtime and reducer agreed on the shared normalized reportedBy path law'
     fi
 
+    CONTROL_FAILURES_BEFORE=$FAILURES
+    if ! check_processor_contract_sources; then
+      contract_failure 'Canonical processor predicate/key sources or their consumers drifted'
+    fi
+    PROCESSOR_PREDICATE_NAME='processor_config_''valid'
+    PROCESSOR_PREDICATE_FIXTURE="$CONTROL_DIR/init-state-with-broken-processor-predicate.sh"
+    if ! awk -v name="$PROCESSOR_PREDICATE_NAME" '
+      index($0, "def " name "(") == 1 {
+        sub(name, name "_broken")
+        changed++
+      }
+      { print }
+      END { if (changed != 1) exit 1 }
+    ' "$CD_ROOT/scripts/init-state.sh" >"$PROCESSOR_PREDICATE_FIXTURE"; then
+      contract_failure 'Processor-predicate fixture could not break exactly one canonical definition'
+    elif check_processor_contract_sources "$PROCESSOR_PREDICATE_FIXTURE" \
+      "$CD_ROOT/scripts/mark-done.sh" 2>/dev/null; then
+      contract_failure 'Processor-predicate destructive fixture stayed green'
+    elif ! check_processor_contract_sources; then
+      contract_failure 'Real canonical processor predicate did not recover green'
+    fi
+    PROCESSOR_KEYS_NAME='processor_state_''keys'
+    PROCESSOR_KEYS_FIXTURE="$CONTROL_DIR/init-state-with-drifted-processor-keys.sh"
+    if ! awk -v definition="def ${PROCESSOR_KEYS_NAME}:" '
+      $0 == definition { in_keys = 1 }
+      in_keys && /"recordWriteAuthorizations"/ {
+        sub(/"recordWriteAuthorizations"/, "\"attackerJunk\"")
+        changed++
+      }
+      { print }
+      in_keys && /];/ { in_keys = 0 }
+      END { if (changed != 1) exit 1 }
+    ' "$CD_ROOT/scripts/init-state.sh" >"$PROCESSOR_KEYS_FIXTURE"; then
+      contract_failure 'Processor-key fixture could not drift exactly one canonical key'
+    elif check_processor_contract_sources "$PROCESSOR_KEYS_FIXTURE" \
+      "$CD_ROOT/scripts/mark-done.sh" 2>/dev/null; then
+      contract_failure 'Processor-key destructive fixture stayed green'
+    elif ! check_processor_contract_sources; then
+      contract_failure 'Real canonical processor key set did not recover green'
+    fi
+    PROCESSOR_SOURCE_NAME='processor_contract_jq_''source'
+    PROCESSOR_CONSUMER_FIXTURE="$CONTROL_DIR/mark-done-without-processor-source.sh"
+    if ! awk -v name="$PROCESSOR_SOURCE_NAME" '
+      index($0, name) {
+        sub(name, name "_missing")
+        changed++
+      }
+      { print }
+      END { if (changed != 1) exit 1 }
+    ' "$CD_ROOT/scripts/mark-done.sh" >"$PROCESSOR_CONSUMER_FIXTURE"; then
+      contract_failure 'Processor-consumer fixture could not break exactly one canonical import'
+    elif check_processor_contract_sources "$CD_ROOT/scripts/init-state.sh" \
+      "$PROCESSOR_CONSUMER_FIXTURE" 2>/dev/null; then
+      contract_failure 'Processor-consumer destructive fixture stayed green'
+    elif ! check_processor_contract_sources; then
+      contract_failure 'Real processor completion consumer did not recover green'
+    fi
+    if [[ $FAILURES -eq $CONTROL_FAILURES_BEFORE ]]; then
+      echo '✅ Canonical processor predicate, exact keys, and all consumers passed drift pins'
+    fi
+
     RECORD_WRITE_DEF_COUNT=$(rg -c '^def cd_record_write_authority' \
       "$CD_ROOT/scripts/init-state.sh" || true)
     if [[ $RECORD_WRITE_DEF_COUNT != 1 ]] ||
@@ -5471,13 +5650,12 @@ JQ
   CONCURRENT="$3"
   OUTPUT_DIR="$4"
   PLAN_HASH="$6"
+  PROCESSOR_CONTRACT_JQ=$(processor_contract_jq_source)
 
-  if ! jq -e -n --args '
+  if ! jq -e -n --args "$PROCESSOR_CONTRACT_JQ"'
       ($ARGS.positional[0] | fromjson? // null) as $sourcePaths |
       ($ARGS.positional[1] | fromjson? // null) as $concurrent |
-      ($sourcePaths | type == "array") and
-      all($sourcePaths[]; type == "string" and length > 0) and
-      ($concurrent | type == "number" and floor == . and . >= 1)
+      processor_config_valid($sourcePaths; $concurrent)
     ' -- "$SOURCE_PATHS" "$CONCURRENT" >/dev/null 2>&1; then
     echo "PROCESSOR_AUTHORITY_INVALID: malformed processor configuration (source-paths must be a JSON array of non-empty strings; concurrent must be an integer >= 1)" >&2
     exit 1
@@ -5539,14 +5717,10 @@ JQ
     ! jq -e --argjson sourcePaths "$SOURCE_PATHS" --arg outputDir "$OUTPUT_DIR" \
       --argjson concurrent "$CONCURRENT" --argjson files "$FILES_JSON" \
       --arg planHash "$PLAN_HASH" \
-      --argjson authorizations "$RECORD_WRITE_AUTHORIZATIONS" '
-      ((keys | sort) == (["sourcePaths","outputDir","concurrentAgents","filesToProcess",
-        "processedFiles","pendingFiles","startTime","authorizedPlanHash",
-        "recordWriteAuthorizations"] | sort)) and
-      (.sourcePaths | type == "array") and
-      all(.sourcePaths[]; type == "string" and length > 0) and
+      --argjson authorizations "$RECORD_WRITE_AUTHORIZATIONS" "$PROCESSOR_CONTRACT_JQ"'
+      ((keys | sort) == (processor_state_keys | sort)) and
+      processor_config_valid(.sourcePaths; .concurrentAgents) and
       .sourcePaths == $sourcePaths and .outputDir == $outputDir and
-      (.concurrentAgents | type == "number" and floor == . and . >= 1) and
       .concurrentAgents == $concurrent and .filesToProcess == $files and
       .processedFiles == [] and .pendingFiles == $files and
       .authorizedPlanHash == $planHash and
