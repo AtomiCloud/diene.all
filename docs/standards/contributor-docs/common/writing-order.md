@@ -168,8 +168,10 @@ explaining the concept inline. The orchestrator collects reports at the **tier
 boundary**, never mid-tier, so the whole batch's gaps are considered together and
 two writers reporting the same missing path produce one transition.
 
-The transition preserves the complete reporter→gap mapping, not just the union of
-missing paths. The orchestrator prepares only the fixed
+The transition preserves the complete reporter→gap mapping — exact path, type, tier,
+and reason — not just the union of missing paths. Conflicting type/tier reports for
+one path are refused rather than normalized into broader authority. The orchestrator
+prepares only the fixed
 `.contributor-docs/doc-plan.gap-candidate.yaml` sidecar. It never edits the live
 `doc-plan.yaml`. The write state-agent independently proves that the candidate adds
 each reported entry and exactly the reporter links required for its type, records the

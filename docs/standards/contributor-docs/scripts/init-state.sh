@@ -220,6 +220,16 @@ if [[ ${1:-} == "--check-write-contract" ]]; then
   assert_exact_keys 'gap plan mutation' "$WRITE_PHASE" gap-plan-mutation-record "$GAP_MUTATION_KEYS"
   assert_exact_keys 'gap plan mutation mirror' "$WRITE_AGENT" gap-plan-mutation-record "$GAP_MUTATION_KEYS"
 
+  GAP_MUTATION_CONTRACT="$CONTROL_DIR/gap-plan-mutation-contract.json"
+  CANONICAL_CANDIDATE_PATH='.contributor-docs/doc-plan.gap-candidate.yaml'
+  if ! extract_marked_json "$WRITE_PHASE" gap-plan-mutation-record "$GAP_MUTATION_CONTRACT" ||
+    ! CONTRACT_CANDIDATE_PATH=$(jq -er '.candidatePath | select(type == "string")' "$GAP_MUTATION_CONTRACT"); then
+    contract_failure 'Gap plan mutation candidate path is not extractable from the marked contract'
+    CONTRACT_CANDIDATE_PATH=$CANONICAL_CANDIDATE_PATH
+  elif [[ $CONTRACT_CANDIDATE_PATH != "$CANONICAL_CANDIDATE_PATH" ]]; then
+    contract_failure "Gap plan mutation candidate path drifted: $CONTRACT_CANDIDATE_PATH"
+  fi
+
   if ! check_write_legal_steps "$WRITE_AGENT" "$CONTROL_DIR/real-legal-steps"; then
     contract_failure 'WRITE_LEGAL_STEP_DRIFT or malformed legal-step source'
   fi
@@ -273,28 +283,98 @@ def refuse($code): error($code);
 def next_gap($status):
   {enqueued:"planned", planned:"prepared", prepared:"scaffolded",
    scaffolded:"reset", reset:"cleaned", cleaned:"cleared"}[$status];
+def sha256: type == "string" and test("^[0-9a-f]{64}$");
+def stored_mutation($mutation; $candidate_path):
+  ($mutation | type == "object")
+  and (($mutation | keys | sort) ==
+    (["candidatePath","fromPlanHash","toPlanHash","addedPlanEntries","addedCrossLinks"] | sort))
+  and $mutation.candidatePath == $candidate_path
+  and ($mutation.fromPlanHash | sha256)
+  and ($mutation.toPlanHash | sha256)
+  and $mutation.fromPlanHash != $mutation.toPlanHash
+  and ($mutation.addedPlanEntries | type == "array")
+  and ($mutation.addedCrossLinks | type == "array");
+def closed_cursor($state):
+  if ($state.planStateHash | sha256) and
+    ($state.approvedPlanHash | sha256) and
+    $state.approvedPlanHash == $state.planStateHash and
+    ($state.gapsResolved | type == "array") and
+    ($state.canonicalCandidatePath | type == "string") then
+    reduce $state.gapsResolved[] as $closed
+      ($state.planStateHash;
+        if $closed.status == "cleared" and
+          stored_mutation($closed.planMutation; $state.canonicalCandidatePath) and
+          $closed.planMutation.fromPlanHash == . then
+          $closed.planMutation.toPlanHash
+        else refuse("PLAN_DRIFT_BLOCKED") end)
+  else refuse("PLAN_DRIFT_BLOCKED") end;
 def current_plan($state):
-  if $state.authorizedPlanHash != $state.livePlanHash then
-    refuse("PLAN_DRIFT_BLOCKED")
-  else $state end;
-def exact_mutation($data):
-  ($data.candidateHash | type == "string")
-  and ($data.fromPlanHash | type == "string")
-  and ($data.toPlanHash | type == "string")
+  closed_cursor($state) as $cursor |
+  if $state.gapStatus == null and
+    $state.authorizedPlanHash == $cursor and
+    $state.livePlanHash == $state.authorizedPlanHash and
+    ($state.candidateHash // null) == null then
+    $state
+  elif (["planned","prepared","scaffolded","reset","cleaned"] | index($state.gapStatus)) != null and
+    stored_mutation($state.gapPlanMutation; $state.canonicalCandidatePath) and
+    $state.gapPlanMutation.fromPlanHash == $cursor and
+    $state.authorizedPlanHash == $state.gapPlanMutation.toPlanHash and
+    $state.livePlanHash == $state.authorizedPlanHash and
+    ($state.candidateHash // null) == null then
+    $state
+  else refuse("PLAN_DRIFT_BLOCKED") end;
+def reported_gap_tuples($state):
+  [$state.reports[] as $report | $report.gaps[] |
+    {path:.path, type:.type, tier:.tier}];
+def derived_gap_paths($state):
+  reported_gap_tuples($state) | sort_by([.path,.type,.tier]) |
+  unique_by([.path,.type,.tier]);
+def reports_match_gap_paths($state):
+  ($state.reports | type == "array") and ($state.reports | length) > 0 and
+  all($state.reports[];
+    (.reportedBy | type == "string") and (.gaps | type == "array") and (.gaps | length) > 0 and
+    all(.gaps[];
+      (.path | type == "string") and (.reason | type == "string") and (.reason | length) > 0 and
+      ((.type == "concept" and .tier == 2) or (.type == "algorithm" and .tier == 3)))) and
+  (reported_gap_tuples($state) | group_by(.path) |
+    all(.[]; (map({type:.type,tier:.tier}) | unique | length) == 1)) and
+  ($state.gapPaths | type == "array") and
+  (($state.gapPaths | sort_by([.path,.type,.tier])) == derived_gap_paths($state));
+def expected_added_entries($state):
+  $state.gapPaths | map({outputPath:.path,type:.type,tier:.tier}) |
+  sort_by([.outputPath,.type,.tier]);
+def expected_added_links($state):
+  [$state.reports[] as $report | $report.gaps[] |
+    {reportedBy:$report.reportedBy,
+     field:(if .type == "concept" then "concepts" else "algorithms" end),
+     target:.path}] |
+  sort_by([.reportedBy,.field,.target]) | unique_by([.reportedBy,.field,.target]);
+def exact_mutation($state; $data):
+  ($data.candidateHash | sha256)
+  and ($data.fromPlanHash | sha256)
+  and ($data.toPlanHash | sha256)
+  and $data.candidatePath == $state.canonicalCandidatePath
   and $data.candidateHash == $data.toPlanHash
   and $data.fromPlanHash != $data.toPlanHash
   and ($data.addedPlanEntries | type == "array")
   and ($data.addedCrossLinks | type == "array")
-  and $data.addedPlanEntries == $data.expectedAddedPlanEntries
-  and $data.addedCrossLinks == $data.expectedAddedCrossLinks;
+  and ($data.unrelatedChanges | type == "array") and ($data.unrelatedChanges | length) == 0
+  and ($data.addedPlanEntries == ($data.addedPlanEntries | sort_by(.outputPath)))
+  and (($data.addedPlanEntries |
+    map({outputPath:.outputPath,type:.entry.type,tier:.entry.tier}) |
+    sort_by([.outputPath,.type,.tier])) == expected_added_entries($state))
+  and ($data.addedCrossLinks == expected_added_links($state));
 def gap_mutation($state): $state.gapPlanMutation;
 def apply($state; $operation; $data):
   if $operation == "authorize-gap-plan" then
+    closed_cursor($state) as $cursor |
     if $state.gapStatus != null then refuse("GAP_TRANSITION_INVALID")
-    elif $state.authorizedPlanHash != $state.livePlanHash then refuse("PLAN_DRIFT_BLOCKED")
+    elif $state.authorizedPlanHash != $cursor or
+      $state.livePlanHash != $state.authorizedPlanHash then refuse("PLAN_DRIFT_BLOCKED")
     elif ($state.candidateHash // null) == null then refuse("GAP_PLAN_CANDIDATE_MISSING")
-    elif (exact_mutation($data) | not) then refuse("GAP_PLAN_DELTA_INVALID")
-    elif $data.fromPlanHash != $state.authorizedPlanHash or
+    elif (reports_match_gap_paths($state) | not) then refuse("GAP_REPORT_SET_INVALID")
+    elif (exact_mutation($state; $data) | not) then refuse("GAP_PLAN_DELTA_INVALID")
+    elif $data.fromPlanHash != $cursor or
       $state.candidateHash != $data.toPlanHash then refuse("GAP_PLAN_HASH_INVALID")
     else $state | .gapStatus = "enqueued" |
       .gapPlanMutation = {
@@ -304,11 +384,18 @@ def apply($state; $operation; $data):
       }
     end
   elif $operation == "apply-gap-plan" then
+    closed_cursor($state) as $cursor |
     if $state.gapStatus == "planned" and
-      $state.authorizedPlanHash == $state.livePlanHash then $state
+      stored_mutation(gap_mutation($state); $state.canonicalCandidatePath) and
+      gap_mutation($state).fromPlanHash == $cursor and
+      $state.authorizedPlanHash == gap_mutation($state).toPlanHash and
+      $state.authorizedPlanHash == $state.livePlanHash and
+      ($state.candidateHash // null) == null then $state
     elif $state.gapStatus != "enqueued" then refuse("GAP_TRANSITION_INVALID")
-    elif (gap_mutation($state).fromPlanHash != $state.authorizedPlanHash) then
+    elif (stored_mutation(gap_mutation($state); $state.canonicalCandidatePath) | not) then
       refuse("GAP_PLAN_HASH_INVALID")
+    elif gap_mutation($state).fromPlanHash != $cursor or
+      $state.authorizedPlanHash != $cursor then refuse("PLAN_DRIFT_BLOCKED")
     elif $state.livePlanHash == gap_mutation($state).fromPlanHash and
       ($state.candidateHash // null) == null then refuse("GAP_PLAN_CANDIDATE_MISSING")
     elif $state.livePlanHash == gap_mutation($state).fromPlanHash and
@@ -348,19 +435,52 @@ def apply($state; $operation; $data):
     if $data.returnedHash != $data.diskHash then refuse("WRITE_HASH_MISMATCH")
     else $state end
   elif $operation == "gap-advance" then
-    current_plan($state) |
+    if $state.gapStatus == "enqueued" then refuse("GAP_TRANSITION_INVALID")
+    else current_plan($state) |
     if next_gap($state.gapStatus) != $data.target then refuse("GAP_TRANSITION_INVALID")
     elif $data.target == "prepared" and (($data.expectedScaffold | keys | sort) != ($data.gapPaths | sort))
       then refuse("GAP_MANIFEST_INVALID")
     elif $data.target == "cleaned" and (($data.cleanedTiers | sort) != ($data.resetTiers | sort))
       then refuse("GAP_CLEANUP_INCOMPLETE")
-    elif $data.target == "cleared" then $state | .gapStatus = null
-    else $state | .gapStatus = $data.target end
+    elif $data.target == "cleared" then
+      $state |
+      .gapsResolved += [{status:"cleared",planMutation:.gapPlanMutation}] |
+      .gapPlanMutation = null | .gapStatus = null
+    else $state | .gapStatus = $data.target end end
   else refuse("UNKNOWN_OPERATION") end;
 apply($state; $operation; $data)
 JQ
 
-  BASE_STATE='{"step":"scaffold","pending":[],"gapStatus":null}'
+  PLAN_A=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  PLAN_B=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  PLAN_C=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+  BASE_STATE=$(jq -cn --arg hash "$PLAN_A" --arg candidate "$CONTRACT_CANDIDATE_PATH" '{
+    step:"scaffold",pending:[],gapStatus:null,
+    planStateHash:$hash,approvedPlanHash:$hash,authorizedPlanHash:$hash,livePlanHash:$hash,
+    candidateHash:null,canonicalCandidatePath:$candidate,gapsResolved:[],gapPlanMutation:null,
+    reports:[{reportedBy:"docs/r.mdx",gaps:[{
+      path:"docs/a.mdx",type:"concept",tier:2,reason:"Reporter needs the concept"
+    }]}],
+    gapPaths:[{path:"docs/a.mdx",type:"concept",tier:2}]
+  }')
+  PLAN_MUTATION=$(jq -cn --arg from "$PLAN_A" --arg to "$PLAN_B" \
+    --arg candidate "$CONTRACT_CANDIDATE_PATH" '{
+      fromPlanHash:$from,toPlanHash:$to,candidateHash:$to,candidatePath:$candidate,
+      addedPlanEntries:[{outputPath:"docs/a.mdx",container:"shared",entry:{
+        path:"a.mdx",type:"concept",tier:2
+      }}],
+      addedCrossLinks:[{reportedBy:"docs/r.mdx",field:"concepts",target:"docs/a.mdx"}],
+      unrelatedChanges:[]
+    }')
+  STORED_PLAN_MUTATION=$(jq -c 'del(.candidateHash,.unrelatedChanges)' <<<"$PLAN_MUTATION")
+  ENQUEUED_STATE=$(jq -c --arg hash "$PLAN_B" --argjson mutation "$STORED_PLAN_MUTATION" '
+    .candidateHash = $hash | .gapStatus = "enqueued" | .gapPlanMutation = $mutation
+  ' <<<"$BASE_STATE")
+  PLANNED_STATE=$(jq -c --arg hash "$PLAN_B" '
+    .candidateHash = null | .authorizedPlanHash = $hash | .livePlanHash = $hash |
+    .gapStatus = "planned"
+  ' <<<"$ENQUEUED_STATE")
+
   if OUTPUT=$(jq -n -L "$CONTROL_DIR" --argjson state "$BASE_STATE" \
     --arg operation create-scaffold --argjson data '{}' -f "$CONTROL_DIR/reducer.jq" 2>&1); then
     echo "❌ Create-before-prepare control passed" >&2
@@ -369,8 +489,9 @@ JQ
     echo "❌ Create-before-prepare failed for the wrong reason" >&2
     FAILURES=$((FAILURES + 1))
   fi
+  PENDING_STATE=$(jq -c '.step = "write_tier_6" | .pending = ["docs/a.mdx"]' <<<"$BASE_STATE")
   if OUTPUT=$(jq -n -L "$CONTROL_DIR" \
-    --argjson state '{"step":"write_tier_6","pending":["docs/a.mdx"],"gapStatus":null}' \
+    --argjson state "$PENDING_STATE" \
     --arg operation complete-tier --argjson data '{}' -f "$CONTROL_DIR/reducer.jq" 2>&1); then
     echo "❌ Pending-completion control passed" >&2
     FAILURES=$((FAILURES + 1))
@@ -379,7 +500,7 @@ JQ
     FAILURES=$((FAILURES + 1))
   fi
   if OUTPUT=$(jq -n -L "$CONTROL_DIR" \
-    --argjson state '{"step":"write_tier_2","pending":[],"gapStatus":"enqueued"}' \
+    --argjson state "$ENQUEUED_STATE" \
     --arg operation gap-advance --argjson data '{"target":"prepared"}' \
     -f "$CONTROL_DIR/reducer.jq" 2>&1); then
     echo "❌ Skipped-gap-status control passed" >&2
@@ -389,7 +510,7 @@ JQ
     FAILURES=$((FAILURES + 1))
   fi
   if OUTPUT=$(jq -n -L "$CONTROL_DIR" \
-    --argjson state '{"step":"write_tier_2","pending":[],"gapStatus":"planned"}' \
+    --argjson state "$(jq -c '.step = "write_tier_2"' <<<"$PLANNED_STATE")" \
     --arg operation gap-advance \
     --argjson data '{"target":"prepared","gapPaths":["docs/a.mdx"],"expectedScaffold":{}}' \
     -f "$CONTROL_DIR/reducer.jq" 2>&1); then
@@ -400,7 +521,7 @@ JQ
     FAILURES=$((FAILURES + 1))
   fi
   if OUTPUT=$(jq -n -L "$CONTROL_DIR" \
-    --argjson state '{"step":"write_tier_2","pending":[],"gapStatus":"reset"}' \
+    --argjson state "$(jq -c '.step = "write_tier_2" | .gapStatus = "reset"' <<<"$PLANNED_STATE")" \
     --arg operation gap-advance \
     --argjson data '{"target":"cleaned","resetTiers":[2,4],"cleanedTiers":[2]}' \
     -f "$CONTROL_DIR/reducer.jq" 2>&1); then
@@ -411,7 +532,7 @@ JQ
     FAILURES=$((FAILURES + 1))
   fi
   if OUTPUT=$(jq -n -L "$CONTROL_DIR" \
-    --argjson state '{"step":"write_tier_2","pending":["docs/a.mdx"],"gapStatus":null}' \
+    --argjson state "$(jq -c '.step = "write_tier_2" | .pending = ["docs/a.mdx"]' <<<"$BASE_STATE")" \
     --arg operation record-write \
     --argjson data '{"returnedHash":"aa","diskHash":"bb"}' \
     -f "$CONTROL_DIR/reducer.jq" 2>&1); then
@@ -430,8 +551,8 @@ JQ
     echo "❌ Healthy initial scaffold did not reach write_tier_1" >&2
     FAILURES=$((FAILURES + 1))
   fi
-  GAP_STATE='{"step":"write_tier_4","pending":[],"gapStatus":"enqueued"}'
-  for TARGET in planned prepared scaffolded reset cleaned cleared; do
+  GAP_STATE=$(jq -c '.step = "write_tier_4"' <<<"$PLANNED_STATE")
+  for TARGET in prepared scaffolded reset cleaned cleared; do
     DATA=$(jq -cn --arg target "$TARGET" '{target:$target}')
     if [[ $TARGET == prepared ]]; then
       DATA='{"target":"prepared","gapPaths":["docs/a.mdx"],"expectedScaffold":{"docs/a.mdx":"hash"}}'
@@ -441,7 +562,10 @@ JQ
     GAP_STATE=$(jq -n -L "$CONTROL_DIR" --argjson state "$GAP_STATE" \
       --arg operation gap-advance --argjson data "$DATA" -f "$CONTROL_DIR/reducer.jq")
   done
-  if [[ $(jq -r '.gapStatus' <<<"$GAP_STATE") != null ]]; then
+  if [[ $(jq -r '.gapStatus' <<<"$GAP_STATE") != null ]] ||
+    [[ $(jq -r '.gapsResolved | length' <<<"$GAP_STATE") -ne 1 ]] ||
+    ! jq -n -L "$CONTROL_DIR" --argjson state "$GAP_STATE" --arg operation write-dispatch \
+      --argjson data '{}' -f "$CONTROL_DIR/reducer.jq" >/dev/null; then
     echo "❌ Healthy gap path did not clear" >&2
     FAILURES=$((FAILURES + 1))
   fi
@@ -450,19 +574,7 @@ JQ
   # shapes are tied back to the marked Markdown sources below.  It proves that every
   # ordinary dispatch/handoff shares the same approved-plan guard and that the only
   # successor is the named gap candidate transaction.
-  PLAN_A=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-  PLAN_B=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-  PLAN_C=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-  PLAN_BASE=$(jq -cn --arg hash "$PLAN_A" '{step:"write_tier_1",pending:[],gapStatus:null,
-    approvedPlanHash:$hash,authorizedPlanHash:$hash,livePlanHash:$hash,candidateHash:null,
-    gapPlanMutation:null}')
-  PLAN_MUTATION=$(jq -cn --arg from "$PLAN_A" --arg to "$PLAN_B" '{
-    fromPlanHash:$from, toPlanHash:$to, candidateHash:$to, candidatePath:".contributor-docs/doc-plan.gap-candidate.yaml",
-    addedPlanEntries:[{outputPath:"docs/a.mdx",container:"shared",entry:{path:"a.mdx",type:"concept",tier:1}}],
-    addedCrossLinks:[{reportedBy:"docs/r.mdx",field:"concepts",target:"docs/a.mdx"}],
-    expectedAddedPlanEntries:[{outputPath:"docs/a.mdx",container:"shared",entry:{path:"a.mdx",type:"concept",tier:1}}],
-    expectedAddedCrossLinks:[{reportedBy:"docs/r.mdx",field:"concepts",target:"docs/a.mdx"}]
-  }')
+  PLAN_BASE=$(jq -c '.step = "write_tier_1"' <<<"$BASE_STATE")
 
   CONTROL_FAILURES_BEFORE=$FAILURES
   for OPERATION in write-dispatch audit-dispatch advance-task-phase-to-audit advance-task-phase-to-completed; do
@@ -485,6 +597,68 @@ JQ
   done
   if [[ $FAILURES -eq $CONTROL_FAILURES_BEFORE ]]; then
     echo '✅ Ordinary write/audit dispatch and both terminal handoffs rejected post-approval plan tampering'
+  fi
+
+  CONTROL_FAILURES_BEFORE=$FAILURES
+  ROOT_MISMATCH=$(jq -c --arg hash "$PLAN_C" '.planStateHash = $hash' <<<"$PLAN_BASE")
+  if OUTPUT=$(jq -n -L "$CONTROL_DIR" --argjson state "$ROOT_MISMATCH" \
+    --arg operation write-dispatch --argjson data '{}' -f "$CONTROL_DIR/reducer.jq" 2>&1); then
+    contract_failure 'Immutable approved-root mismatch was accepted'
+  elif [[ $OUTPUT != *PLAN_DRIFT_BLOCKED* ]]; then
+    contract_failure 'Immutable approved-root mismatch failed for the wrong reason'
+  fi
+  SILENT_REBIND=$(jq -c --arg hash "$PLAN_C" \
+    '.authorizedPlanHash = $hash | .livePlanHash = $hash' <<<"$PLAN_BASE")
+  if OUTPUT=$(jq -n -L "$CONTROL_DIR" --argjson state "$SILENT_REBIND" \
+    --arg operation audit-dispatch --argjson data '{}' -f "$CONTROL_DIR/reducer.jq" 2>&1); then
+    contract_failure 'Authorized/live hashes silently rebound away from the approved root'
+  elif [[ $OUTPUT != *PLAN_DRIFT_BLOCKED* ]]; then
+    contract_failure 'Silent authority rebind failed for the wrong reason'
+  fi
+  VALID_CLOSED_CHAIN=$(jq -c --arg hash "$PLAN_B" --argjson mutation "$STORED_PLAN_MUTATION" '
+    .gapsResolved = [{status:"cleared",planMutation:$mutation}] |
+    .authorizedPlanHash = $hash | .livePlanHash = $hash
+  ' <<<"$PLAN_BASE")
+  if ! jq -n -L "$CONTROL_DIR" --argjson state "$VALID_CLOSED_CHAIN" \
+    --arg operation write-dispatch --argjson data '{}' -f "$CONTROL_DIR/reducer.jq" >/dev/null; then
+    contract_failure 'Valid closed plan-mutation chain was rejected'
+  fi
+  BROKEN_CLOSED_CHAIN=$(jq -c --arg hash "$PLAN_C" \
+    '.gapsResolved[0].planMutation.fromPlanHash = $hash' <<<"$VALID_CLOSED_CHAIN")
+  if OUTPUT=$(jq -n -L "$CONTROL_DIR" --argjson state "$BROKEN_CLOSED_CHAIN" \
+    --arg operation write-dispatch --argjson data '{}' -f "$CONTROL_DIR/reducer.jq" 2>&1); then
+    contract_failure 'Broken closed plan-mutation chain was accepted'
+  elif [[ $OUTPUT != *PLAN_DRIFT_BLOCKED* ]]; then
+    contract_failure 'Broken closed plan-mutation chain failed for the wrong reason'
+  fi
+  if [[ $FAILURES -eq $CONTROL_FAILURES_BEFORE ]]; then
+    echo '✅ Immutable approved root and ordered closed plan-mutation chain were enforced'
+  fi
+
+  CONTROL_FAILURES_BEFORE=$FAILURES
+  BAD_CANDIDATE_PATH=$(jq -c \
+    '.candidatePath = ".contributor-docs/not-the-authorized-candidate.yaml"' <<<"$PLAN_MUTATION")
+  if OUTPUT=$(jq -n -L "$CONTROL_DIR" --argjson state \
+    "$(jq -c --arg hash "$PLAN_B" '.candidateHash = $hash' <<<"$PLAN_BASE")" \
+    --arg operation authorize-gap-plan --argjson data "$BAD_CANDIDATE_PATH" \
+    -f "$CONTROL_DIR/reducer.jq" 2>&1); then
+    contract_failure 'Non-canonical gap candidate path was accepted'
+  elif [[ $OUTPUT != *GAP_PLAN_DELTA_INVALID* ]]; then
+    contract_failure 'Non-canonical gap candidate path failed for the wrong reason'
+  fi
+  REPORT_TYPE_TIER_DRIFT=$(jq -c --arg hash "$PLAN_B" '
+    .candidateHash = $hash | .reports[0].gaps[0].type = "algorithm" |
+    .reports[0].gaps[0].tier = 3
+  ' <<<"$PLAN_BASE")
+  if OUTPUT=$(jq -n -L "$CONTROL_DIR" --argjson state "$REPORT_TYPE_TIER_DRIFT" \
+    --arg operation authorize-gap-plan --argjson data "$PLAN_MUTATION" \
+    -f "$CONTROL_DIR/reducer.jq" 2>&1); then
+    contract_failure 'Writer-reported type/tier drift was normalized into a successor'
+  elif [[ $OUTPUT != *GAP_REPORT_SET_INVALID* ]]; then
+    contract_failure 'Writer-reported type/tier drift failed for the wrong reason'
+  fi
+  if [[ $FAILURES -eq $CONTROL_FAILURES_BEFORE ]]; then
+    echo '✅ Fixed candidate path and writer-reported path/type/tier authority were enforced'
   fi
 
   CONTROL_FAILURES_BEFORE=$FAILURES
@@ -512,7 +686,11 @@ JQ
     fi
 
     CONTROL_FAILURES_BEFORE=$FAILURES
-    BAD_DELTA=$(jq -c '.addedPlanEntries += [{outputPath:"docs/extra.mdx",container:"shared",entry:{path:"extra.mdx",type:"concept",tier:1}}]' <<<"$PLAN_MUTATION")
+    BAD_DELTA=$(jq -c '
+      .addedPlanEntries += [{outputPath:"docs/extra.mdx",container:"shared",entry:{
+        path:"extra.mdx",type:"concept",tier:2
+      }}] | .unrelatedChanges = ["existing reporter sources changed"]
+    ' <<<"$PLAN_MUTATION")
     if OUTPUT=$(jq -n -L "$CONTROL_DIR" --argjson state \
       "$(jq -c --arg hash "$PLAN_B" '.candidateHash = $hash' <<<"$PLAN_BASE")" \
       --arg operation authorize-gap-plan --argjson data "$BAD_DELTA" -f "$CONTROL_DIR/reducer.jq" 2>&1); then
@@ -563,12 +741,13 @@ JQ
   fi
 
   for LITERAL in authorizedPlanHash authorize-gap-plan apply-gap-plan PLAN_DRIFT_BLOCKED \
-    GAP_PLAN_DELTA_INVALID GAP_PLAN_HASH_INVALID GAP_PLAN_CANDIDATE_MISSING; do
+    GAP_PLAN_DELTA_INVALID GAP_PLAN_HASH_INVALID GAP_PLAN_CANDIDATE_MISSING \
+    GAP_REPORT_SET_INVALID; do
     if ! rg -qF "$LITERAL" "$WRITE_PHASE" || ! rg -qF "$LITERAL" "$WRITE_AGENT"; then
       contract_failure "Reducer literal is not documented: $LITERAL"
     fi
   done
-  echo '✅ Plan-authority reducer controls passed (tamper, successor, refusals, crash adoption)'
+  echo '✅ Plan-authority reducer controls passed (root chain, report binding, successor, refusals, crash adoption)'
 
   PLAN_REFERENCE_COUNT=$(git -C "$REPO_ROOT" grep -n 'doc-plan.yaml' -- \
     docs/standards/contributor-docs/write | wc -l | tr -d ' ')

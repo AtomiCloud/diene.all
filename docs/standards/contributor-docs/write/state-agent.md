@@ -417,6 +417,8 @@ mutate anything.
       "gaps": [
         {
           "path": "docs/contributor/orders/concepts/idempotency.mdx",
+          "type": "concept",
+          "tier": 2,
           "reason": "Checkout needs the shared idempotency contract"
         }
       ]
@@ -504,9 +506,12 @@ identity except for this operation's narrow candidate-presence input window, and
 prior candidate authority. This is the sole operation allowed to inspect a candidate
 while no live gap exists. Validate a non-empty, duplicate-free
 `reports` array; every reporter must be a normalized queued path in the current tier,
-every nested gap must have a non-empty reason, and its normalized path union must
-exactly equal `gapPaths`. Validate containment under `docsRoot`, concept/algorithm
-type-to-tier rules, no current queue member, the loop guard, and independently
+and every nested gap must retain the writer's exact normalized `path`, `type`, `tier`,
+and non-empty `reason`. Independently derive `gapPaths` by de-duplicating the reported
+`(path, type, tier)` tuples. Refuse conflicting type/tier reports for one path, any
+caller-supplied `gapPaths` mismatch, or an unreported top-level item. Validate
+containment under `docsRoot`, concept/algorithm type-to-tier rules, no current queue
+member, the loop guard, and independently
 recompute `requeued`, `replayTier`, and `resetTiers` from `writeQueue` plus current
 authorized plan metadata. `replayTier` may not exceed `currentTier`.
 
@@ -523,7 +528,7 @@ with stable container selectors and sort entries by `outputPath` and links by
 Freshly require the live-plan hash to equal `authorizedPlanHash`; store it as
 `fromPlanHash`. Freshly hash the complete candidate bytes as `toPlanHash` and require
 the hashes to differ. Candidate absence is `GAP_PLAN_CANDIDATE_MISSING`. One atomic
-state write installs `status: "enqueued"`, the exact reports/computed values, empty
+state write installs `status: "enqueued"`, the exact reports, derived `gapPaths`, other computed values, empty
 `expectedScaffold`/`cleanedTiers`, `openedAt`, and the complete five-field
 `planMutation`. It does not change the live plan, candidate, queue, or
 `authorizedPlanHash`.
@@ -651,8 +656,10 @@ ERROR: <named refusal, if any>
 ### Gap Validation and Refusals
 
 - The live record has exactly the ten marked fields. `reports` is non-empty, each
-  nested gap retains a non-empty reason, and its path union equals `gapPaths`; every
-  reporter and gap path passes containment and membership checks.
+  nested gap retains the writer's exact path, type, tier, and non-empty reason, and
+  `gapPaths` is the de-duplicated exact `(path, type, tier)` tuple set derived from
+  those reports. Conflicting metadata for one path is invalid; every reporter and gap
+  path passes containment and membership checks.
 - `planMutation` has exactly the five marked fields. Its candidate path is fixed, both
   endpoints are distinct lowercase SHA-256 values, `addedPlanEntries` captures every
   complete new YAML mapping with a stable container selector and, under `LC_ALL=C`, is

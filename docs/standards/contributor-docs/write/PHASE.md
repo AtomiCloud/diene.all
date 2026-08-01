@@ -573,6 +573,8 @@ this table exists in exactly one place, and a consistency check proves it.
       "gaps": [
         {
           "path": "docs/contributor/orders/concepts/idempotency.mdx",
+          "type": "concept",
+          "tier": 2,
           "reason": "Checkout needs the shared idempotency contract"
         }
       ]
@@ -654,10 +656,12 @@ The nested plan authority is exactly this five-field record:
 ```
 
 `reports` is the normalized, de-duplicated batch of every writer report collected at
-the tier boundary. Each `reportedBy` must be a queued path in the current tier, each
-nested gap must retain its non-empty reason and appear in the top-level `gapPaths`
-union, and that union may contain no unreported path. Retaining the mapping lets
-the candidate add a missing cross-link to the right files; one singular reporter
+the tier boundary. Each `reportedBy` must be a queued path in the current tier, and
+each nested gap retains the writer's exact normalized `path`, `type`, `tier`, and
+non-empty `reason`. The state-agent derives `gapPaths` by de-duplicating those exact
+`(path, type, tier)` tuples; a path reported with conflicting type or tier is refused,
+and the derived array may contain no unreported path. Retaining the complete mapping
+lets the candidate add a missing cross-link to the right files; one singular reporter
 loses completed writers when two agents independently discover the same dependency.
 
 `entry` is the complete parsed YAML mapping added to the candidate, including every
@@ -683,7 +687,8 @@ complete authority or refuses without touching either plan.
 
 `authorize-gap-plan` accepts only this exact semantic delta:
 
-1. Candidate-only normalized output paths equal `gapPaths` exactly.
+1. Candidate-only normalized output paths equal the `gapPaths` independently derived
+   from the durable reports exactly.
 2. Every added entry's normalized output path, `type`, and `tier` equal its gap item;
    its complete mapping is captured in `addedPlanEntries`, and the entire candidate
    passes ordinary complete-plan validation for `docsRoot`, path, type/tier, sources,
@@ -807,7 +812,7 @@ again.
 | Candidate/live bytes do not hash to the stored endpoint required by `apply-gap-plan`              | `GAP_PLAN_HASH_INVALID`      |
 | Opening while `gapTransition != null`                                                             | `GAP_IN_FLIGHT`              |
 | Any reporter is not a normalized queued path in the current tier                                  | `GAP_REPORTER_INVALID`       |
-| `reports` is empty, a reason is blank, or its nested gap union differs from `gapPaths`            | `GAP_REPORT_SET_INVALID`     |
+| `reports` empty, reason blank, type/tier conflicts, or `gapPaths` differs from derived tuples     | `GAP_REPORT_SET_INVALID`     |
 | Any path is absolute, escapes `docsRoot`, is duplicated, or has a type/tier mismatch              | `GAP_PATH_INVALID`           |
 | `replayTier > currentTier`                                                                        | `GAP_TIER_INVALID`           |
 | A proposed gap path is already on `writeQueue`                                                    | `GAP_ALREADY_QUEUED`         |
