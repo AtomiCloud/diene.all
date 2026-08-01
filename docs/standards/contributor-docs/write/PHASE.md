@@ -27,6 +27,7 @@ Transition](#discovered-gap-transition), and this file owns its mechanism.
 ```json
 {
   "step": "scaffold | scaffold_blocked | scaffold_prepared | write_tier_1 | write_tier_2 | write_tier_3 | write_tier_4 | write_tier_5 | write_tier_6 | completed",
+  "authorizedPlanHash": "<64 lowercase hex>",
   "scaffoldComplete": false,
   "currentTier": 0,
   "tiersCompleted": [],
@@ -42,11 +43,22 @@ Transition](#discovered-gap-transition), and this file owns its mechanism.
 }
 ```
 
-This is the **canonical write-phase schema** — thirteen top-level fields, and this file
+This is the **canonical write-phase schema** — fourteen top-level fields, and this file
 is their single source of truth. The write state-agent's create, assess, update and
 gap modes operate on exactly these fields: no more, no fewer, and an unknown field is
 refused rather than merged. The state-agent mirrors this block verbatim; where the two
 ever disagree, this file takes precedence and the mirror is repaired here first.
+
+`authorizedPlanHash` is initialized from the immutable user-approved
+`plan-state.json.planHash`. It can advance only through `apply-gap-plan` after an exact
+successor was recorded by `authorize-gap-plan`; no scaffold, writer, audit, repair, or
+terminal operation may write it.
+
+Creation requires the exact completed approved seven-field plan state, task phase
+`write`, matching task/plan paths equal to `.contributor-docs/doc-plan.yaml`, the
+current bound source/diff-summary snapshot, and a fresh live-plan hash equal to the
+approved `planHash`. The initial `authorizedPlanHash` is copied from that hash, never
+provided by a caller. A candidate sidecar must be absent on this no-gap baseline.
 
 The HTML comment above the block is a marker, not decoration. Both this file and
 `docs/standards/contributor-docs/write/state-agent.md` carry the same marker above
@@ -217,22 +229,42 @@ On entry, spawn write state-agent to assess. **NEVER read step files directly** 
 
 Conditions are evaluated **in order**. The first row wins.
 
-| #   | Condition                      | Action                                                                                                                                                                      |
-| --- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | `sourceSnapshotCurrent: false` | Report `SOURCE_DRIFT_BLOCKED` with exact drift evidence and mutate nothing                                                                                                  |
-| 2   | `gapTransition != null`        | **Finish the in-flight transition first** — resume its exact operation from `status`. No initial scaffold or tier may run.                                                  |
-| 3   | No `write-state.json`          | Create via state-agent with `step: "scaffold"`, then reassess                                                                                                               |
-| 4   | `blockedCollisions` nonempty   | Present every measured collision; invoke `resolve-scaffold` at `scaffold_blocked` or `approve-writer-replay` in a write tier; dispatch no writer until the exact set clears |
-| 5   | `step: "scaffold"`             | Spawn scaffolder `prepare`, input set = the whole plan; invoke `prepare-scaffold` on its complete manifest                                                                  |
-| 6   | `step: "scaffold_blocked"`     | Invalid without collisions — state-agent reports the broken invariant                                                                                                       |
-| 7   | `step: "scaffold_prepared"`    | Spawn scaffolder `create`, input set = prepared `writeQueue`; invoke `block-scaffold` for any mismatch, otherwise `finalize-scaffold`                                       |
-| 8   | `step: "write_tier_N"`         | Reconcile canonical written records with processor state, then run the file-processor loop for tier N                                                                       |
-| 9   | `step: "completed"`            | Invoke state-agent `advance-task-phase-to-audit`; do not issue a generic phase update                                                                                       |
+| #   | Condition                                                     | Action                                                                                                                                                                      |
+| --- | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `sourceSnapshotCurrent: false`                                | Report `SOURCE_DRIFT_BLOCKED` with exact drift evidence and mutate nothing                                                                                                  |
+| 2   | Exact valid `enqueued` tuple and `gapPlanApplyRequired: true` | Invoke only `apply-gap-plan`, including adoption of the one candidate-rename crash tuple; dispatch nothing else                                                             |
+| 3   | Write state exists and `planHashCurrent: false`               | Report `PLAN_DRIFT_BLOCKED: expected=<hash> actual=<hash-or-absent>` and mutate no state, processor, task-phase, or audit artifact bytes                                    |
+| 4   | `gapTransition != null`                                       | **Finish the in-flight transition first** — resume its exact operation from `status`. No initial scaffold or tier may run.                                                  |
+| 5   | No `write-state.json`                                         | Create via state-agent with `step: "scaffold"` and approved `authorizedPlanHash`, then reassess                                                                             |
+| 6   | `blockedCollisions` nonempty                                  | Present every measured collision; invoke `resolve-scaffold` at `scaffold_blocked` or `approve-writer-replay` in a write tier; dispatch no writer until the exact set clears |
+| 7   | `step: "scaffold"`                                            | Spawn scaffolder `prepare`, input set = the whole plan; invoke `prepare-scaffold` on its complete manifest                                                                  |
+| 8   | `step: "scaffold_blocked"`                                    | Invalid without collisions — state-agent reports the broken invariant                                                                                                       |
+| 9   | `step: "scaffold_prepared"`                                   | Spawn scaffolder `create`, input set = prepared `writeQueue`; invoke `block-scaffold` for any mismatch, otherwise `finalize-scaffold`                                       |
+| 10  | `step: "write_tier_N"`                                        | Reconcile canonical written records with processor state, then run the file-processor loop for tier N                                                                       |
+| 11  | `step: "completed"`                                           | Invoke state-agent `advance-task-phase-to-audit`; do not issue a generic phase update                                                                                       |
 
-Source drift takes precedence over every write or recovery action. Once it is clear,
-the gap row takes precedence over the step because a transition that is half-applied has a
-`step` that is not yet true. Dispatching on it would run a tier against a queue the
-transition has not finished extending.
+Source drift takes precedence over every write or recovery action. The sole next
+exception is a completely validated `enqueued` `apply-gap-plan` tuple, because its
+candidate-to-live rename may have committed before the state rename. Ordinary plan
+drift then preempts every remaining in-flight gap, scaffold, processor, writer,
+repair, collision, tier-completion, and task-phase operation. A transition whose plan
+identity is current still outranks the ordinary step because the step is not yet true
+of its partially applied queue effects.
+
+`planHashCurrent: true` is an immediate precondition for every ordinary scaffolder or
+writer dispatch, processor reconciliation, collision decision, `prepare-scaffold`,
+`resolve-scaffold`, `block-scaffold`, `finalize-scaffold`, audit-repair reopen/resume,
+`record-writer-collision`, `approve-writer-replay`, `record-write`, `complete-tier`,
+and `advance-task-phase-to-audit`. Mode 3 requires the same guard on every edge and
+collision decision except the narrowly fenced `apply-gap-plan` crash tuple. The guard
+is freshly re-evaluated at state-agent acceptance, not inherited from an earlier
+assessment.
+
+Before `write-state.json` exists there is no authority chain to assess. The no-state
+row therefore invokes `create`, whose single validation point independently requires
+the immutable approved root, current live-plan hash, and absent candidate before it
+copies that root into `authorizedPlanHash`; failed creation cannot bypass the drift
+guard.
 
 ## Initial Scaffold Protocol
 
@@ -240,6 +272,13 @@ Initial scaffolding is a durable prepare → create → finalize protocol. A one
 "create, then report" is forbidden: a crash after the filesystem write but before the
 state write would leave an ownerless file that the retry correctly treats as a
 collision.
+
+Every scaffolder dispatch receives `PLAN_SHA256 = authorizedPlanHash`. Immediately
+before consuming plan metadata and again before returning a prepare/create report, the
+scaffolder hashes the exact live plan and requires equality. Its report carries the
+same `PLAN_SHA256`; the accepting state-agent freshly rehashes the live plan and
+requires the report and state authority to match. Any mismatch is
+`PLAN_DRIFT_BLOCKED`, not a scaffold collision.
 
 ### 1. Prepare — `prepare-scaffold`
 
@@ -249,7 +288,8 @@ path, tier, disposition, exact bytes, SHA-256, and (for a collision) the current
 and line count. It writes nothing.
 
 The state-agent validates exact input coverage, normalized root-relative paths under
-`docsRoot`, and every reported hash. The orchestrator invokes `prepare-scaffold`,
+`docsRoot`, every reported hash, and the returned `PLAN_SHA256`. The orchestrator
+invokes `prepare-scaffold`,
 which in one atomic operation:
 
 1. records the writable paths in `writeQueue` and creates their prepared `provenance`
@@ -281,8 +321,9 @@ remeasured and remains blocked; approval never follows a stale hash.
 ### 3. Create and Finalize — `block-scaffold` / `finalize-scaffold`
 
 The scaffolder's `create` operation re-renders each prepared path and first requires
-the render hash to equal `provenance[path].scaffoldHash`. It then applies exactly one
-of these rules:
+the render hash to equal `provenance[path].scaffoldHash`. It also rechecks
+`PLAN_SHA256` before rendering and before returning. It then applies exactly one of
+these rules:
 
 | Prepared origin      | Current filesystem state that permits create/adopt                                                                                   |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
@@ -312,7 +353,8 @@ state-agent `reopen-audit-repair` with that exact non-empty path set.
 The operation is legal only from write step `completed`, audit step `failed`, task
 phase `failed`, derived `currentContentErrors > 0`, and an `auditRepair` marker that is
 null or belongs to an older audit epoch. It never replaces a marker already bound to
-the current epoch. It validates that every selected path:
+the current epoch. Before any recovery mutation it requires the complete plan-authority
+chain and fresh live plan hash to be current. It validates that every selected path:
 
 - is a unique normalized member of `writeQueue` with written provenance;
 - is named by at least one current-epoch, current-digest error artifact rather than a
@@ -339,15 +381,16 @@ Ordinary tier dispatch then applies unchanged. A normal retained hash authorizes
 replay; a mismatch blocks until one fresh `purpose: "writer-replay"` approval is
 consumed by a successful, freshly verified `record-write`. The orchestrator supplies
 each repair writer both its current audit errors and the complete normalized
-`plannedPaths` set from the current plan at dispatch time. A stamped
+`plannedPaths` set, read only after the live plan hashes to `authorizedPlanHash`, at
+dispatch time. A stamped
 `missing-dependency` error whose proposed path is absent from that set must be returned
 in the writer's `GAPS` report so the normal discovered-gap transition adds and replays
 the dependency. If its proposed path has since joined `plannedPaths`, the writer
 downgrades the retained error to an ordinary link-only repair and produces no gap item.
 
 After all tiers reach `completed`, `advance-task-phase-to-audit` freshly validates the
-marker's epoch/digest, every marked path's written status, and every live
-`writtenHash`. It first changes the marker to `completed`, then moves task phase
+marker's epoch/digest, the complete plan-authority chain, every marked path's written
+status, and every live `writtenHash`. It first changes the marker to `completed`, then moves task phase
 `write → audit`. A crash between those renames is an idempotent retry: the completed
 marker authorizes only finishing the task-phase rename. The marker — not task phase or
 the still-failed audit counters alone — proves that a writer-authorized repair cycle
@@ -367,6 +410,10 @@ crash may occur after the state-agent records a verified write but before
 call `mark-done.sh`. A mismatch is a collision and blocks the tier; it is never
 silently skipped. This reconciliation is idempotent and is the only legal recovery
 for that crash window.
+
+Reconciliation begins only after a fresh live-plan hash equals
+`authorizedPlanHash` and the complete plan-mutation chain validates. Processor state
+cannot hide plan drift.
 
 **Tier input comes from `write-state.json`, never from `doc-plan.yaml`.** The plan
 lists what was _wanted_; the queue records what was _approved_. Re-deriving tier
@@ -420,14 +467,20 @@ while next-file.sh returns files:
      - Tell it to read docs/standards/contributor-docs/write/write-file.md
      - Provide: file path, type, description, sources, crossLinks from doc-plan.yaml
      - Provide: the tier number
+     - Provide: `PLAN_SHA256 = authorizedPlanHash`
   3. Wait for all agents in batch to complete.
-  4. For each successful report, require lowercase 64-hex
-     `AUTHORIZED_FROM_HASH` and `WRITTEN_HASH` values.
+  4. For each successful report, require lowercase 64-hex `PLAN_SHA256`,
+     `AUTHORIZED_FROM_HASH`, and `WRITTEN_HASH` values. The writer must have hashed the
+     exact plan before consuming metadata and again immediately before its authorized
+     write/report.
   5. Spawn state-agent `record-write`. It freshly hashes the file, requires equality
-     with `WRITTEN_HASH`, atomically records `writeStatus: "written"` plus that exact
-     `writtenHash`, derives `filesWritten`, and consumes any writer-replay approval.
-     A mismatch remains pending; state-agent `record-writer-collision` persists the
-     observed and expected hashes in `blockedCollisions`, which blocks dispatch.
+     with `WRITTEN_HASH`, freshly hashes the live plan and requires equality with both
+     reported `PLAN_SHA256` and `authorizedPlanHash`, atomically records
+     `writeStatus: "written"` plus that exact `writtenHash`, derives `filesWritten`,
+     and consumes any writer-replay approval. A file mismatch remains pending;
+     state-agent `record-writer-collision` persists the observed and expected hashes in
+     `blockedCollisions`, which blocks dispatch. A plan mismatch is instead the
+     non-mutating `PLAN_DRIFT_BLOCKED` outcome.
   6. Only after `record-write` succeeds, run:
      bash docs/standards/contributor-docs/scripts/mark-done.sh .contributor-docs/write-tier-N/state.json <filename>
 ```
@@ -449,6 +502,8 @@ after `WRITTEN_HASH` is freshly verified.
 When all files in the tier are processed, invoke state-agent `complete-tier N`. It
 freshly verifies that:
 
+- the complete plan-authority chain is valid and the live plan hashes to
+  `authorizedPlanHash`;
 - the processor has no pending path;
 - every queued path assigned to tier N has `writeStatus: "written"` and a valid
   `writtenHash`;
@@ -480,6 +535,7 @@ Each spawned doc-writer receives controlled context (see `docs/standards/contrib
 | The scaffolded file (frontmatter + one-line summary) | Read from disk, include in prompt                                       |
 | Frontmatter of all cross-referenced files            | Read `crossLinks` paths from scaffolded files, extract frontmatter only |
 | Relevant source code files                           | Read `sources` from doc-plan.yaml entry                                 |
+| Authorized plan identity                             | Pass `PLAN_SHA256 = authorizedPlanHash`                                 |
 | Current stamped audit errors (repair replay only)    | Read only errors that named this path in the failed audit epoch         |
 | Complete normalized planned-path set                 | Re-read current `doc-plan.yaml` immediately before writer dispatch      |
 | Module overview content (if tier > 1)                | Read module's `overview.mdx`                                            |
@@ -536,7 +592,64 @@ this table exists in exactly one place, and a consistency check proves it.
   "requeued": ["docs/contributor/orders/features/checkout.mdx"],
   "resetTiers": [2, 4],
   "cleanedTiers": [],
-  "openedAt": "<ISO-8601>"
+  "openedAt": "<ISO-8601>",
+  "planMutation": {
+    "candidatePath": ".contributor-docs/doc-plan.gap-candidate.yaml",
+    "fromPlanHash": "<64 lowercase hex>",
+    "toPlanHash": "<64 lowercase hex>",
+    "addedPlanEntries": [
+      {
+        "outputPath": "docs/contributor/orders/concepts/idempotency.mdx",
+        "container": "module:orders",
+        "entry": {
+          "path": "orders/concepts/idempotency.mdx",
+          "type": "concept",
+          "tier": 2,
+          "description": "Checkout needs the shared idempotency contract",
+          "sources": ["src/orders/checkout.ts"]
+        }
+      }
+    ],
+    "addedCrossLinks": [
+      {
+        "reportedBy": "docs/contributor/orders/features/checkout.mdx",
+        "field": "concepts",
+        "target": "docs/contributor/orders/concepts/idempotency.mdx"
+      }
+    ]
+  }
+}
+```
+
+The nested plan authority is exactly this five-field record:
+
+<!-- canonical-block: gap-plan-mutation-record -->
+
+```json
+{
+  "candidatePath": ".contributor-docs/doc-plan.gap-candidate.yaml",
+  "fromPlanHash": "<64 lowercase hex>",
+  "toPlanHash": "<64 lowercase hex>",
+  "addedPlanEntries": [
+    {
+      "outputPath": "docs/contributor/orders/concepts/idempotency.mdx",
+      "container": "module:orders",
+      "entry": {
+        "path": "orders/concepts/idempotency.mdx",
+        "type": "concept",
+        "tier": 2,
+        "description": "Checkout needs the shared idempotency contract",
+        "sources": ["src/orders/checkout.ts"]
+      }
+    }
+  ],
+  "addedCrossLinks": [
+    {
+      "reportedBy": "docs/contributor/orders/features/checkout.mdx",
+      "field": "concepts",
+      "target": "docs/contributor/orders/concepts/idempotency.mdx"
+    }
+  ]
 }
 ```
 
@@ -544,29 +657,92 @@ this table exists in exactly one place, and a consistency check proves it.
 the tier boundary. Each `reportedBy` must be a queued path in the current tier, each
 nested gap must retain its non-empty reason and appear in the top-level `gapPaths`
 union, and that union may contain no unreported path. Retaining the mapping lets
-planning add a missing cross-link to the right files; one singular reporter loses
-completed writers when two agents
-independently discover the same dependency.
+the candidate add a missing cross-link to the right files; one singular reporter
+loses completed writers when two agents independently discover the same dependency.
+
+`entry` is the complete parsed YAML mapping added to the candidate, including every
+optional key and value. `container` is a stable selector such as `module:<name>` or
+`shared`, never an array index. Under `LC_ALL=C`, `addedPlanEntries` is sorted by
+`outputPath` and `addedCrossLinks` by `(reportedBy, field, target)`. Every live
+transition and every closed `gapsResolved` record carries this complete
+`planMutation` unchanged.
+
+### Candidate Authorization and Exact Delta
+
+The orchestrator may write only
+`.contributor-docs/doc-plan.gap-candidate.yaml`. That sidecar is transient, is not the
+live plan, and grants no authority merely by existing. The state-agent parses both the
+current live plan and candidate and independently derives `planMutation`; a caller may
+not supply or narrow the delta.
+
+`authorize-gap-plan` is the sole operation allowed to inspect a candidate while no
+live transition exists. Its input window is the narrow exception to the resting
+no-gap rule that the sidecar is absent: the closed-chain cursor, live hash, and
+`authorizedPlanHash` must still match, and the operation either atomically records the
+complete authority or refuses without touching either plan.
+
+`authorize-gap-plan` accepts only this exact semantic delta:
+
+1. Candidate-only normalized output paths equal `gapPaths` exactly.
+2. Every added entry's normalized output path, `type`, and `tier` equal its gap item;
+   its complete mapping is captured in `addedPlanEntries`, and the entire candidate
+   passes ordinary complete-plan validation for `docsRoot`, path, type/tier, sources,
+   and links.
+3. Additions to existing entries are exactly the reporter-to-gap edges in `reports`,
+   under `concepts` for concept gaps or `algorithms` for algorithm gaps.
+4. No existing scalar, source, tag, description, module metadata, entry, or unrelated
+   link changes; no key or entry is removed; no extra entry or link appears.
+5. `fromPlanHash` equals both a fresh live-plan hash and
+   `write-state.authorizedPlanHash`. `toPlanHash` is a fresh SHA-256 of all candidate
+   bytes and must differ from `fromPlanHash`.
+
+The endpoint hashes bind raw bytes; the stored parsed delta proves that the authority
+is no wider than the reported gaps.
+
+### Plan-Authority Chain
+
+Every assessment and every write/audit operation validates the full chain, never just
+the latest field:
+
+1. Set `cursor = plan-state.planHash` after completely validating the immutable
+   completed approved plan state.
+2. Walk `gapsResolved` in append order. Require each record to be `cleared` and its
+   `planMutation.fromPlanHash == cursor`, then advance `cursor` to `toPlanHash`.
+3. With no live gap, require
+   `cursor == authorizedPlanHash == SHA256(live doc-plan.yaml)` and require the
+   candidate sidecar absent.
+4. With a live gap at `planned|prepared|scaffolded|reset|cleaned`, require its
+   `fromPlanHash == cursor`, then require
+   `toPlanHash == authorizedPlanHash == SHA256(live plan)`; the candidate is absent and
+   the derived cursor advances to `toPlanHash`.
+5. The sole exceptional tuple is `enqueued` with fully valid stored authority:
+   `authorizedPlanHash == fromPlanHash == cursor`. The live hash may be
+   `fromPlanHash` with an exact `toPlanHash` candidate present, or `toPlanHash` with
+   the candidate absent after the candidate rename landed but before the state rename.
+
+Outside that fenced recovery tuple, an absent plan, broken lineage, or live hash that
+differs from `authorizedPlanHash` is the non-mutating
+`PLAN_DRIFT_BLOCKED: expected=<hash> actual=<hash-or-absent>` outcome.
 
 **`gapTransition != null` blocks ordinary tier dispatch and is the recovery marker.**
-Every run checks it before it looks at `step` (dispatch row 1). Its `status` says
-exactly which durable effects have already landed, so a crashed transition is resumed
-rather than restarted, and restarting one anyway is harmless because every status is
-idempotent.
+After source drift, the one valid `enqueued` plan-apply tuple is checked before ordinary
+plan drift; all other live transitions are checked only after plan identity is current.
+Its `status` says exactly which durable effects have already landed, so a crashed
+transition is resumed rather than guessed at.
 
 ### The Mechanism
 
 <!-- canonical-block: gap-transition-mechanism -->
 
-| Status       | Advanced by | Durable effect of reaching it                                                                                                                                                                                                                                                                                                                                                                                                                                 | Resume from a crash at this status                                                                                                                                            |
-| ------------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| _(opening)_  | state-agent | Validate the aggregated reports and computed closure, then atomically create `status: "enqueued"` with exact `reports`, their `gapPaths` union, `replayTier`, `requeued`, `resetTiers`, empty `expectedScaffold`/`cleanedTiers`, and `openedAt`. Nothing else changes.                                                                                                                                                                                        | The record exists completely or not at all.                                                                                                                                   |
-| `enqueued`   | state-agent | After the orchestrator edits `doc-plan.yaml`, verify every gap entry's path/type/tier and verify each reporter's `crossLinks` now contains the paths in its own report. Then atomically set `status: "planned"`.                                                                                                                                                                                                                                              | Re-apply the idempotent plan edits and ask the state-agent to verify them again.                                                                                              |
-| `planned`    | state-agent | Scaffolder `prepare` renders but does not write. Validate its exact path/hash/exact-byte manifest, require `expectedScaffold` key coverage to equal `gapPaths`, measure collisions, and atomically install the hashes plus `status: "prepared"`. Any existing path on its first observation is a collision, even if its bytes equal the proposal. On retry, a still-matching unconsumed scaffold approval resolves that observation instead of recreating it. | Re-run prepare while still planned. A collision keeps the status planned; invoke `approve-collision` for an exact-hash decision, then retry this edge.                        |
-| `prepared`   | state-agent | Scaffolder `create` re-renders and proves each persisted hash. For each path: absent → write; current hash equal to `expectedScaffold[path]` → adopt a crash-completed create; current hash equal to an unconsumed scaffold approval → overwrite; anything else → record `GAP_COLLISION`. After fresh disk hashes all match, atomically extend queue/provenance, consume approvals, derive totals, and set `status: "scaffolded"`.                            | Re-run create. A path matching `expectedScaffold` is run-owned at this status even though provenance is not installed yet. Invoke `approve-collision` for a blocked mismatch. |
-| `scaffolded` | state-agent | Atomically truncate `tiersCompleted` below `replayTier`, set `currentTier`/`step` to the replay tier, restore every `requeued` path to pending while retaining `writtenHash`, derive `filesWritten`, and set `status: "reset"`.                                                                                                                                                                                                                               | Retry at `scaffolded` applies once; observing `reset` proves the atomic edge already committed.                                                                               |
-| `reset`      | state-agent | For each not-yet-cleaned tier, delete its processor `state.json` and findings tree, verify both are absent, and only then atomically append that tier to `cleanedTiers`. When exact set equality with `resetTiers` holds, the same operation sets `status: "cleaned"`.                                                                                                                                                                                        | Resume with the first tier not recorded clean. Missing artifacts are already clean; a failed deletion never earns a `cleanedTiers` entry.                                     |
-| `cleaned`    | state-agent | Atomically append a copy with `status: "cleared"` and `closedAt` to `gapsResolved`, then set `gapTransition: null`. The append is unique by `openedAt`.                                                                                                                                                                                                                                                                                                       | If the live transition remains, repeat clear; an existing closed record with the same `openedAt` is not duplicated.                                                           |
+| Status       | Advanced by          | Durable effect of reaching it                                                                                                                                                                                                                                                                                                                                                                                                                | Resume from a crash at this status                                                                                                                                               |
+| ------------ | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| _(opening)_  | `authorize-gap-plan` | Require current source and plan authority, validate reports and closure, parse and completely validate the current/candidate plans, and independently prove the exact delta. Atomically create `status: "enqueued"` with the complete `planMutation`, reports, computed fields, empty `expectedScaffold`/`cleanedTiers`, and `openedAt`. The live plan and `authorizedPlanHash` do not change.                                               | With no record, repair or recreate only the candidate sidecar and retry authorization. An installed record is complete; never synthesize it from candidate existence.            |
+| `enqueued`   | `apply-gap-plan`     | Accept only the stored authority. Normally atomically rename the exact candidate over `doc-plan.yaml`, freshly prove `toPlanHash`, then atomically set `authorizedPlanHash = toPlanHash` and status `planned` in the same write-state rename. If live already hashes to `toPlanHash` and the candidate is absent, adopt that one rename crash by performing only the state update. Observing planned/to is idempotent success.               | A live `fromPlanHash` needs the exact candidate. A live `toPlanHash` with no candidate finishes only the pending state rename. Every other tuple is refused without a new write. |
+| `planned`    | state-agent          | With the candidate absent and live/authorized hash equal to `toPlanHash`, scaffolder `prepare` validates `PLAN_SHA256`, renders but does not write, and returns an exact-byte manifest. Validate exact `gapPaths` coverage, measure collisions, and atomically install `expectedScaffold` plus status `prepared`. Any existing path on first observation is a collision; a still-matching unconsumed scaffold approval resolves it on retry. | Re-run prepare while still planned. A collision keeps the status planned; invoke `approve-collision` for an exact-hash decision, then retry this edge.                           |
+| `prepared`   | state-agent          | With plan identity still current, scaffolder `create` re-renders and proves every persisted hash and `PLAN_SHA256`. For each path: absent → write; expected scaffold hash → adopt a crash-completed create; exact unconsumed scaffold approval → overwrite; anything else → `GAP_COLLISION`. After fresh disk hashes match, atomically extend queue/provenance, consume approvals, derive totals, and set status `scaffolded`.               | Re-run create. A path matching `expectedScaffold` is run-owned at this status even though provenance is not installed yet. Invoke `approve-collision` for a blocked mismatch.    |
+| `scaffolded` | state-agent          | After revalidating the full plan chain, atomically truncate `tiersCompleted` below `replayTier`, set `currentTier`/`step` to the replay tier, restore every `requeued` path to pending while retaining `writtenHash`, derive `filesWritten`, and set status `reset`.                                                                                                                                                                         | Retry at `scaffolded` applies once; observing `reset` proves the atomic edge already committed.                                                                                  |
+| `reset`      | state-agent          | After revalidating plan identity, delete each not-yet-cleaned tier's processor state/findings, verify absence, and only then atomically append that tier to `cleanedTiers`. Exact equality with `resetTiers` sets status `cleaned` in the same write.                                                                                                                                                                                        | Resume with the first tier not recorded clean. Missing artifacts are already clean; a failed deletion never earns a `cleanedTiers` entry.                                        |
+| `cleaned`    | state-agent          | After revalidating plan identity, atomically append the complete record, including unchanged `planMutation`, with status `cleared` and `closedAt` to `gapsResolved`, then set `gapTransition: null`. The append is unique by `openedAt`.                                                                                                                                                                                                     | If the live transition remains, repeat clear; an existing closed record with the same `openedAt` is not duplicated.                                                              |
 
 **The transition is never cleared before cleanup completes.** `cleaned` exists as a
 distinct status precisely so that a crash during cleanup resumes cleanup. If the clear
@@ -592,10 +768,11 @@ R  = the fixpoint of that iteration
 requeued = (R ∩ writeQueue) \ G, plus the index closure below
 ```
 
-`crossLinks(p)` is read from `p`'s `doc-plan.yaml` entry. This is a **metadata lookup**,
-not a membership derivation: which paths exist and may be written still comes only from
-`writeQueue`, and every candidate is intersected with it. The iteration is monotone over
-a finite queue, so it terminates in at most `writeQueue.length` rounds.
+`crossLinks(p)` is read from `p`'s live `doc-plan.yaml` entry only after that file
+freshly hashes to `authorizedPlanHash`. This is a **metadata lookup**, not a membership
+derivation: which paths exist and may be written still comes only from `writeQueue`,
+and every candidate is intersected with it. The iteration is monotone over a finite
+queue, so it terminates in at most `writeQueue.length` rounds.
 
 The closure is transitive because dependency staleness is. If a feature links to the new
 concept, the feature is stale; if a surface links to that feature, the surface may now
@@ -622,19 +799,28 @@ again.
 
 ### Refusals
 
-| Condition                                                                              | Refusal                  |
-| -------------------------------------------------------------------------------------- | ------------------------ |
-| Opening while `gapTransition != null`                                                  | `GAP_IN_FLIGHT`          |
-| Any reporter is not a normalized queued path in the current tier                       | `GAP_REPORTER_INVALID`   |
-| `reports` is empty, a reason is blank, or its nested gap union differs from `gapPaths` | `GAP_REPORT_SET_INVALID` |
-| Any path is absolute, escapes `docsRoot`, is duplicated, or has a type/tier mismatch   | `GAP_PATH_INVALID`       |
-| `replayTier > currentTier`                                                             | `GAP_TIER_INVALID`       |
-| A proposed gap path is already on `writeQueue`                                         | `GAP_ALREADY_QUEUED`     |
-| A gap path appears in two or more prior `gapsResolved` entries                         | `GAP_LOOP`               |
-| `expectedScaffold` keys differ from the gap set or a value is not a SHA-256            | `GAP_MANIFEST_INVALID`   |
-| A gap file lacks exact-hash approval or prepared-hash ownership                        | `GAP_COLLISION`          |
-| A requested status skips or reverses the transition graph                              | `GAP_TRANSITION_INVALID` |
-| Cleanup is recorded before the exact processor artifacts are absent                    | `GAP_CLEANUP_INCOMPLETE` |
+| Condition                                                                                         | Refusal                      |
+| ------------------------------------------------------------------------------------------------- | ---------------------------- |
+| Outside the exact `enqueued` recovery tuple, live plan is absent/mismatched or lineage is invalid | `PLAN_DRIFT_BLOCKED`         |
+| Candidate is absent when `authorize-gap-plan` or a normal `apply-gap-plan` requires it            | `GAP_PLAN_CANDIDATE_MISSING` |
+| Candidate's parsed delta is wider/narrower than the exact reported entries and reporter links     | `GAP_PLAN_DELTA_INVALID`     |
+| Candidate/live bytes do not hash to the stored endpoint required by `apply-gap-plan`              | `GAP_PLAN_HASH_INVALID`      |
+| Opening while `gapTransition != null`                                                             | `GAP_IN_FLIGHT`              |
+| Any reporter is not a normalized queued path in the current tier                                  | `GAP_REPORTER_INVALID`       |
+| `reports` is empty, a reason is blank, or its nested gap union differs from `gapPaths`            | `GAP_REPORT_SET_INVALID`     |
+| Any path is absolute, escapes `docsRoot`, is duplicated, or has a type/tier mismatch              | `GAP_PATH_INVALID`           |
+| `replayTier > currentTier`                                                                        | `GAP_TIER_INVALID`           |
+| A proposed gap path is already on `writeQueue`                                                    | `GAP_ALREADY_QUEUED`         |
+| A gap path appears in two or more prior `gapsResolved` entries                                    | `GAP_LOOP`                   |
+| `expectedScaffold` keys differ from the gap set or a value is not a SHA-256                       | `GAP_MANIFEST_INVALID`       |
+| A gap file lacks exact-hash approval or prepared-hash ownership                                   | `GAP_COLLISION`              |
+| A requested status skips or reverses the transition graph                                         | `GAP_TRANSITION_INVALID`     |
+| Cleanup is recorded before the exact processor artifacts are absent                               | `GAP_CLEANUP_INCOMPLETE`     |
+
+Every refusal above leaves write state, the live plan, candidate (except a successful
+candidate-to-live rename), processor state, task phase, and audit artifacts
+byte-identical. Collision measurement retains its existing narrow exception: it may
+atomically replace `blockedCollisions` while leaving the transition status unchanged.
 
 `GAP_LOOP` is the loop guard. A path that has been gap-scaffolded twice and is being
 reported missing a third time is not a retry case — it is a planning failure, and
@@ -682,7 +868,8 @@ merely exiting nonzero is not a catch. The hook runs the same command on every c
 2. **Record-shape equality.** The `write-provenance-record`,
    `write-approval-record`, `write-collision-record`, `write-audit-repair-record`, and
    `gap-transition-record` blocks have matching field sets in this file and the
-   state-agent mirror.
+   state-agent mirror. The nested `gap-plan-mutation-record` is compared separately
+   and must have exactly its five fields.
 3. **No retired field survives.** The retired mis-ordering of `tiersCompleted` — the same
    two words the other way round — and a generic `errors` field appear nowhere in the
    contributor-docs tree. This check greps for the retired spelling, so this document
@@ -691,8 +878,9 @@ merely exiting nonzero is not a catch. The hook runs the same command on every c
    near-miss it guards: the retired name differs from the canonical one only by word
    order, so a careless global replace destroys the correct field.
 4. **Legal-step equality** across this file's schema union, its state machine, the ten
-   rows in the Step Dispatch table, and the state-agent's validation list — all four
-   name the same ten steps. Gap Sub-Dispatch is compared as a separate status set.
+   rows in the Step Dispatch table, and the state-agent's marked
+   `canonical-block: write-legal-steps` JSON array — all four name the same ten steps.
+   Gap Sub-Dispatch is compared as a separate status set.
 5. **No membership re-derivation from the plan.** This is the judgment half, not a
    binary text gate. The harness prints `REVIEW_REQUIRED` with the complete count of
    surviving `doc-plan.yaml` references under `write/`; a reviewer reads every hit and
@@ -701,13 +889,15 @@ merely exiting nonzero is not a catch. The hook runs the same command on every c
    command neither auto-passes nor auto-fails this semantic classification.
 6. **The mechanism table appears exactly once** across the contributor-docs tree —
    selected by its `canonical-block: gap-transition-mechanism` marker.
-7. **Negative transition controls.** The executable reducer drives and requires the
-   specific refusal discriminator for an initial
-   scaffold create before prepare, a completed step with pending queue members, every
-   skipped gap status, an incomplete `expectedScaffold` key set, fabricated cleanup,
-   and a writer report whose returned hash differs from fresh disk bytes. Then drive
-   one healthy initial scaffold and the complete
-   `enqueued → planned → prepared → scaffolded → reset → cleaned → cleared` gap path.
+7. **Negative transition controls.** The executable reducer proves removal of one
+   marked legal step fails with `WRITE_LEGAL_STEP_DRIFT`; ordinary post-approval plan
+   tampering blocks both writer dispatch and terminal handoff with
+   `PLAN_DRIFT_BLOCKED` and byte-identical state; an exact discovered-gap candidate
+   advances through `authorize-gap-plan` and `apply-gap-plan`; an extra semantic delta
+   fails with `GAP_PLAN_DELTA_INVALID`; wrong candidate bytes fail with
+   `GAP_PLAN_HASH_INVALID`; and the candidate-rename crash tuple is adopted
+   idempotently. Existing controls still cover skipped gap statuses, incomplete
+   manifests, fabricated cleanup, collisions, and returned/disk writer hash mismatch.
 
 ## State Transitions
 
@@ -720,8 +910,9 @@ All state writes go through the **write state-agent** (sub-agent, haiku). Read `
 When all tiers are complete:
 
 1. Invoke state-agent `advance-task-phase-to-audit`; never issue a generic task-state
-   update. On an initial write it validates the complete step and live hashes before
-   moving task phase. Both routes require the canonical source snapshot still current.
+   update. On an initial write it validates the complete step, complete plan-authority
+   chain, `authorizedPlanHash`, and all live hashes before moving task phase. Both
+   routes require the canonical source snapshot and live plan identity still current.
    On an audit repair it first commits the matching
    `auditRepair: completed` marker, then moves task phase, and a crash between those
    renames retries only the phase handoff.

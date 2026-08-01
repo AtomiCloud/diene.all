@@ -105,6 +105,7 @@ Both must produce no output.
 ├── plan-state.json          # Plan phase steps
 ├── diff-summary.md          # Source-snapshot-bound analysis used by planning
 ├── doc-plan.yaml            # Approved documentation plan
+├── doc-plan.gap-candidate.yaml # Transient candidate for one discovered-gap successor
 ├── write-state.json         # Write phase steps + tier tracking
 ├── audit-state.json         # Audit phase steps
 ├── big-picture-report.md    # Epoch/digest-stamped holistic audit artifact
@@ -181,6 +182,44 @@ identity and approval. Once task phase has reached `write`, `audit`, `failed`, o
 all state and artifacts byte-identical. Cleaning a transient outside path permits a
 retry only when every recorded source identity still matches; a committed source
 change requires an explicit whole-run restart rather than an invented replan edge.
+
+## Approved Plan Identity Invariant
+
+`plan-state.json.planHash` is the immutable SHA-256 of the exact plan bytes the user
+approved. The plan state-agent never rewrites that baseline after the handoff to
+write. On first write-state creation, the write state-agent requires the completed,
+approved seven-field plan state; matching task/plan paths equal to
+`.contributor-docs/doc-plan.yaml`; the current source and diff-summary binding; and a
+fresh hash of the live plan equal to `planHash`. It initializes
+`write-state.json.authorizedPlanHash` to that approved hash.
+
+Only a discovered-gap transition may authorize a successor. The orchestrator may
+prepare `.contributor-docs/doc-plan.gap-candidate.yaml`, but it never edits the live
+plan. `authorize-gap-plan` proves that the candidate adds exactly the reported gap
+entries and reporter links and records its hash successor without changing the live
+plan. `apply-gap-plan` installs those exact candidate bytes and advances
+`authorizedPlanHash`; no other operation may change that field.
+
+Every write and audit assessment validates the complete authority chain. Starting at
+the immutable `plan-state.planHash`, it walks `gapsResolved` in append order, requiring
+each cleared record's `planMutation.fromPlanHash` to equal the cursor before advancing
+to `toPlanHash`. A live transition must extend that same cursor. With no live gap, the
+derived cursor, `authorizedPlanHash`, and a fresh hash of the live plan must be equal,
+and the candidate sidecar must be absent. From `planned` onward the live transition's
+`toPlanHash` is the current authorized/live hash and the sidecar is absent.
+
+The only live-plan mismatch that may mutate anything is the fenced `enqueued` crash
+recovery: stored authority is fully valid, `authorizedPlanHash == fromPlanHash` equals
+the derived cursor, the live plan already hashes to `toPlanHash`, and the candidate is
+absent because its rename committed before the write-state rename. `apply-gap-plan`
+may finish that pending state update. Any other missing plan, broken lineage, or live
+hash mismatch is
+`PLAN_DRIFT_BLOCKED: expected=<hash> actual=<hash-or-absent>` and leaves state,
+processor files, task phase, and audit artifacts byte-identical.
+
+The source-snapshot dirty-path exception deliberately permits `.contributor-docs/`, so
+`sourceSnapshotCurrent: true` does not imply that either plan is authorized. Source
+and plan identity remain separate ordered guards on every later dispatch and update.
 
 ### Clean Start (the first transition)
 
@@ -279,19 +318,22 @@ Dispatch: `docs/standards/contributor-docs/audit/PHASE.md`
 
 **On invocation, spawn a state-agent to assess `task-state.json`, then dispatch:**
 
-| `currentPhase` | Action                                                                                                                                                                 |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| No state file  | Parse arguments (base branch), spawn the **plan** state-agent in `create` mode (see [Clean Start](#clean-start-the-first-transition)), then start Plan                 |
-| `plan`         | Spawn plan state-agent to assess, dispatch per `docs/standards/contributor-docs/plan/PHASE.md`                                                                         |
-| `write`        | Spawn write state-agent to assess, dispatch per `docs/standards/contributor-docs/write/PHASE.md`                                                                       |
-| `audit`        | Spawn audit state-agent to assess, dispatch per `docs/standards/contributor-docs/audit/PHASE.md`                                                                       |
-| `completed`    | Spawn the audit state-agent to reassess the source snapshot and completed evidence; report completion and list generated files only while both remain current          |
-| `failed`       | Spawn audit and write state-agents to reassess source and recovery evidence; source drift preempts every repair/reset action, otherwise dispatch the fenced flow below |
+| `currentPhase` | Action                                                                                                                                                      |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No state file  | Parse arguments (base branch), spawn the **plan** state-agent in `create` mode (see [Clean Start](#clean-start-the-first-transition)), then start Plan      |
+| `plan`         | Spawn plan state-agent to assess, dispatch per `docs/standards/contributor-docs/plan/PHASE.md`                                                              |
+| `write`        | Spawn write state-agent to assess source and plan authority, then dispatch per `docs/standards/contributor-docs/write/PHASE.md`                             |
+| `audit`        | Spawn audit state-agent to assess source and the complete plan-authority chain, then dispatch per `docs/standards/contributor-docs/audit/PHASE.md`          |
+| `completed`    | Spawn the audit state-agent to reassess source, plan authority, and completed evidence; report completion and generated files only while all remain current |
+| `failed`       | Spawn audit and write state-agents to reassess source, plan authority, and recovery evidence; those identity guards preempt every fenced recovery row below |
 
 Every non-bootstrap row above begins with the named phase state-agent's `assess` mode.
-For task phase `completed`, `SOURCE_DRIFT_BLOCKED` or invalidated accepted-warning
-evidence suppresses the completion report. For task phase `failed`, the same source
-outcome suppresses every row in Failed-Phase Dispatch.
+Source drift is evaluated first. The one valid `enqueued` `apply-gap-plan` crash tuple
+is evaluated next during write; ordinary plan drift is then evaluated before every
+remaining write, audit, recovery, terminal, or completed-reporting row. For task phase
+`completed`, `SOURCE_DRIFT_BLOCKED`, `PLAN_DRIFT_BLOCKED`, or invalidated
+accepted-warning evidence suppresses the completion report. For task phase `failed`,
+either named identity outcome suppresses every row in Failed-Phase Dispatch.
 
 **Transition logging:** When advancing phases, the state-agent appends:
 
@@ -307,8 +349,9 @@ uses the complete audit/write/task triple:
 
 1. Spawn both audit and write state-agents in `assess` mode. Validate all state,
    current audit stamps, the complete error-to-path mapping, and `auditRepair` before
-   selecting a row below. Audit dispatch evaluates these same fenced rows when task
-   phase is still `audit`.
+   selecting a row below. Source drift preempts plan drift; plan drift then preempts
+   every repair, reset, resume, and terminal edge. Audit dispatch evaluates these same
+   fenced rows when task phase is still `audit`.
 2. With audit step `failed`, task phase `audit`, write step `completed`, and
    `auditRepair` null or bound to an older audit epoch, the audit-state failure rename
    committed before its paired task-phase rename. Invoke only

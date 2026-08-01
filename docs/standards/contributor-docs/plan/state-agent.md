@@ -222,6 +222,10 @@ Neither invalidation accepts caller feedback or a desired hash.
   no feedback, and `approved: true`. Live equality and continued plan validity are
   `advance-task-phase-to-write` preconditions, not resting invariants: summary drift
   selects `invalidate-diff-summary`, and plan drift selects `invalidate-plan`.
+  Once task phase is `write`, `audit`, `failed`, or `completed`, this entire object is
+  read-only and its `planHash` is the immutable user-approved root of the later write
+  authority chain. Post-handoff plan changes are never normalized through
+  `invalidate-plan` or any generic plan-state mutation.
 - Every plan entry has a required type. Top-level types are exactly the six
   `top-level-*` values in `docs/standards/contributor-docs/plan/classify.md` at
   tier 1; `adr` is tier 1,
@@ -253,3 +257,5 @@ ERROR: <error message if any>
 - Do not execute phase work; validate its artifacts and perform only the named state
   operations above.
 - Never accept arbitrary fields or caller-selected target states.
+- After `advance-task-phase-to-write`, never mutate the completed approved plan state.
+  Later state-agents may read its `planHash` only as the immutable authority root.

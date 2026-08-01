@@ -144,7 +144,7 @@ Writers do **not** receive the full content of other files. This prevents:
 
 A writer working in tier N may find that a concept or algorithm it needs to link
 to was never planned. There is exactly one legal transition for this, and the
-**orchestrator owns it** — a doc-writer never creates files, because parallel
+**orchestrator coordinates it** — a doc-writer never creates files, because parallel
 writers in the same tier would race on the same missing path and neither would
 appear in the plan or the state file.
 
@@ -169,10 +169,19 @@ boundary**, never mid-tier, so the whole batch's gaps are considered together an
 two writers reporting the same missing path produce one transition.
 
 The transition preserves the complete reporter→gap mapping, not just the union of
-missing paths. Planning adds each missing path to the `crossLinks` of every writer
-that reported it, and replay begins from all reporters. Collapsing duplicate gaps while
-retaining only one reporter would leave the other completed file unable to acquire its
-new link.
+missing paths. The orchestrator prepares only the fixed
+`.contributor-docs/doc-plan.gap-candidate.yaml` sidecar. It never edits the live
+`doc-plan.yaml`. The write state-agent independently proves that the candidate adds
+each reported entry and exactly the reporter links required for its type, records the
+hash successor, and later installs those exact bytes. Replay begins from all
+reporters. Collapsing duplicate gaps while retaining only one reporter would leave the
+other completed file unable to acquire its new link.
+
+This separation preserves approval authority. The original `planHash` remains the
+immutable user-approved root; each closed transition contributes one exact
+`fromPlanHash → toPlanHash` successor. Merely writing a candidate sidecar grants no
+authority, and no orchestrator or audit action may bypass `authorize-gap-plan` and
+`apply-gap-plan` by changing the live plan directly.
 
 ### Why the re-scaffold is scoped
 
@@ -208,13 +217,16 @@ away correct work to fix an unrelated missing link.
 
 ### When a gap transition is closed
 
-The transition is not closed until every re-planned path is in `doc-plan.yaml`, on
-the write queue with provenance, scaffolded, the affected processor state is removed,
-the closed record is in `gapsResolved`, **and** `gapTransition` is back to `null`.
-Only then may tier dispatch resume. The new gap file and every stale dependant are
-still pending at that point; the replayed tiers write and mark them done afterward.
-Anything short of the closed record is a transition still in flight, and the next run
-must finish it before any tier may dispatch.
+The transition is not closed until the exact authorized candidate is installed as
+`doc-plan.yaml`, its `planMutation` continues the chain from the immutable approved
+hash, `authorizedPlanHash` and a fresh live-plan hash equal its `toPlanHash`, the
+candidate sidecar is absent, every re-planned path is on the write queue with
+provenance and scaffolded, the affected processor state is removed, the complete
+closed record is in `gapsResolved`, **and** `gapTransition` is back to `null`. Only
+then may tier dispatch resume. The new gap file and every stale dependant are still
+pending at that point; the replayed tiers write and mark them done afterward. Anything
+short of the closed record is a transition still in flight, and the next run must
+finish it before any tier may dispatch.
 
 **Loop guard.** If the same path already appears in two prior `gapsResolved` records,
 stop and report instead of opening a third transition. A gap that keeps coming back is a planning

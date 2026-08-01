@@ -28,6 +28,9 @@ refuses unknown fields. Hashes bind both review gates to the artifact bytes that
 actually assessed; a ready flag or path alone is not evidence that the file stayed
 unchanged. The source snapshot is intentionally inside the hashed diff summary rather
 than duplicated as state fields; its live identities are revalidated independently.
+After the approved handoff, `planHash` remains the immutable user-approved baseline.
+Any authorized discovered-gap successors are recorded as a hash chain in write state;
+they do not rewrite plan state.
 
 ## Step Dispatch
 
@@ -113,4 +116,7 @@ When approved:
    artifact hashes, then updates only `task-state.json.currentPhase: "write"` and its matching `planFile`.
    A summary mismatch first invokes `invalidate-diff-summary`; a plan mismatch first
    invokes `invalidate-plan`.
-3. Proceed to write phase.
+3. Treat the completed plan state, including `planHash`, as read-only input from this
+   point onward. The write state-agent initializes `authorizedPlanHash` from it, and
+   only the discovered-gap authority chain may advance the live plan identity.
+4. Proceed to write phase.
