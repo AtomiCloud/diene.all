@@ -94,20 +94,27 @@ if [ "${mode}" = "cache-tag-shape" ]; then
 def nix_subcommands: ["develop", "build", "shell", "run", "flake", "profile", "store"];
 def nix_command_names: ["nix", "nix-build", "nix-shell", "nix-store"];
 def nix_legacy_commands: ["nix-build", "nix-shell", "nix-store"];
+# A Nix command name standing as its own token inside a longer string. The
+# boundaries exclude the characters a longer name or path would continue with, so
+# 'nixpkgs' and '/nix/store' do not match while 'system("nix develop")' does.
+def nix_token_pattern: "(^|[^A-Za-z0-9_./-])(nix|nix-build|nix-shell|nix-store)([^A-Za-z0-9_-]|$)";
 # Words that leave the NEXT word in command position.
 def shell_keywords: ["if", "then", "elif", "else", "while", "until", "do", "!", "{"];
 # Commands that run their argument list as a command.
 def command_wrappers: ["command", "exec", "env", "nohup", "time", "sudo", "doas", "nice", "ionice", "setsid", "stdbuf", "timeout", "taskset", "chroot", "runuser", "su", "xargs"];
 def shell_interpreters: ["sh", "bash", "zsh", "dash", "ash", "ksh"];
-# Commands that do NOT execute their arguments, so a Nix command name handed to
-# one of them is text. Anything not listed here is treated as able to run it.
+# Commands that demonstrably do NOT execute their arguments, so a Nix command
+# name handed to one of them is text. The set is deliberately small: anything
+# that can delegate execution stays off it — git dispatches external
+# subcommands, package managers and Bun run scripts, awk has system(), sed has
+# 'e', and eval/xargs/find are executors outright. A Nix name given to any
+# command not listed here is unreadable rather than assumed inert.
 def inert_commands: [
   "echo", "printf", "print", ":", "true", "false", "test", "[", "[[", "case", "for", "select", "in",
-  "declare", "typeset", "local", "export", "readonly", "unset", "set", "read", "alias", "shift",
-  "return", "exit", "break", "continue", "grep", "egrep", "fgrep", "rg", "ag", "sed", "awk", "cut",
-  "tr", "sort", "uniq", "head", "tail", "wc", "cat", "tee", "ls", "git", "docker", "jq", "yq",
-  "curl", "wget", "mkdir", "rm", "cp", "mv", "ln", "touch", "chmod", "chown", "basename", "dirname",
-  "pwd", "cd", "type", "hash", "apt-get", "apk", "npm", "yarn", "pnpm", "bun"
+  "declare", "typeset", "local", "export", "readonly", "unset", "set", "shift", "return", "exit",
+  "break", "continue", "grep", "egrep", "fgrep", "rg", "cut", "tr", "sort", "uniq", "head", "tail",
+  "wc", "cat", "tee", "ls", "mkdir", "rm", "cp", "mv", "ln", "touch", "chmod", "chown", "basename",
+  "dirname", "pwd", "cd"
 ];
 
 # A word carries its resolved literal value and whether that value is certain:
@@ -201,14 +208,24 @@ def shell_words:
               or (.mode == "single") or (.mode == "double") or (.mode == "backtick")
               or ((.hd_queue | length) > 0) or (.hd_want != 0)) };
 
-# Split the word stream into simple commands, and drop array literals whole:
-# 'args=(nix develop)' assigns two strings and runs nothing.
+# Split the word stream into simple commands, dropping the two groups that only
+# look like commands:
+#
+#   array literals   'args=(nix develop)' assigns two strings and runs nothing.
+#   case patterns    a group closed by a ')' that opened nothing is a pattern,
+#                    so the 'nix-build)' of a case branch is data while the
+#                    branch body after it is a real command.
 def group_commands:
   reduce .[] as $t (
-    { cmds: [], cur: [], skip: false, risky: false };
+    { cmds: [], cur: [], skip: false, depth: 0, risky: false };
     if ($t.sep // null) != null then
-      (if .skip then (if $t.sep == ")" then .skip = false else .risky = (.risky or ($t.sep == "(")) end)
-       else .cmds += [.cur] end)
+      (if .skip then
+         (if $t.sep == ")" then .skip = false else .risky = (.risky or ($t.sep == "(")) end)
+       elif $t.sep == "(" then .cmds += [.cur] | .depth += 1
+       elif $t.sep == ")" then
+         (if .depth > 0 then .cmds += [.cur] | .depth -= 1 else . end)
+       else .cmds += [.cur]
+       end)
       | .cur = []
     else
       (if .skip then .
@@ -221,7 +238,9 @@ def group_commands:
 
 def is_nix_name($w): $w.ok and ((nix_command_names | index($w.lit)) != null);
 def is_nix_subcommand($w): $w.ok and ((nix_subcommands | index($w.lit)) != null);
-def mentions_nix: any(. as $e | is_nix_name($e));
+# A Nix command name anywhere in an argument, on its own token boundary — the
+# form './runner.sh "nix develop"' and awk's system("nix develop") both take.
+def mentions_nix_token: any(. as $e | $e.ok and ($e.lit | test(nix_token_pattern)));
 
 # One simple command -> "nix" | "plain" | "ambiguous" | {recurse: <script>}.
 def cmd_verdict:
@@ -234,10 +253,14 @@ def cmd_verdict:
       elif ($w.lit | test("^[A-Za-z_][A-Za-z0-9_]*(\\[[^]]*\\])?\\+?=")) then ($rest | cmd_verdict)
       elif (shell_keywords | index($w.lit)) != null then ($rest | cmd_verdict)
       elif $w.lit == "nix" then
-        # 'nix' is a multiplexer: store use depends on the subcommand, so
-        # 'nix --version' is not store use and 'nix $SUB' cannot be read.
-        (if ($rest | any(. as $e | is_nix_subcommand($e))) then "nix"
-         elif ($rest | all(.ok)) then "plain"
+        # 'nix' is a multiplexer, and only the FIRST argument decides what it
+        # does: 'nix --version develop' prints the version, and a supported word
+        # later in the tail proves nothing. An option before the subcommand is
+        # unreadable rather than assumed, because option arity is unknown, and an
+        # unrecognised subcommand is unreadable rather than assumed inert,
+        # because 'nix eval' and friends do read the store.
+        (if ($rest | length) == 0 then "plain"
+         elif is_nix_subcommand($rest[0]) then "nix"
          else "ambiguous" end)
       elif (nix_legacy_commands | index($w.lit)) != null then "nix"
       elif (command_wrappers | index($w.lit)) != null then
@@ -247,21 +270,25 @@ def cmd_verdict:
          elif ($rest[0].ok | not) or ($rest[0].lit | test("^-")) then "ambiguous"
          else ($rest | cmd_verdict) end)
       elif (shell_interpreters | index($w.lit)) != null then
-        ([$rest | to_entries[] | select(.value.ok and .value.lit == "-c") | .key] | first) as $i
-        | (if $i == null then (if ($rest | mentions_nix) then "ambiguous" else "plain" end)
+        # The script of a -c flag is read as a script. Combined flags count:
+        # 'bash -lc <script>' is as much a nested shell as 'bash -c <script>'.
+        ([$rest | to_entries[] | select(.value.ok and (.value.lit | test("^-[A-Za-z]*c[A-Za-z]*$"))) | .key] | first) as $i
+        | (if $i == null then (if ($rest | mentions_nix_token) then "ambiguous" else "plain" end)
            elif ($rest | length) <= ($i + 1) then "ambiguous"
            elif ($rest[$i + 1].ok | not) then "ambiguous"
            else { recurse: $rest[$i + 1].lit }
            end)
       elif $w.lit == "eval" then "ambiguous"
-      elif ($rest | mentions_nix) then
+      elif ($rest | mentions_nix_token) then
         (if (inert_commands | index($w.lit)) != null then "plain" else "ambiguous" end)
       else "plain"
       end
   end;
 
-# 'nix() { … }', 'function nix …' and 'alias nix=…' redefine what the word runs.
-def shadows_nix:
+# 'nix() { … }', 'function nix …', 'alias nix=…' and 'alias helper="nix develop"'
+# all change what some later word runs, so no invocation in the script is
+# evidence of store use any more.
+def hides_nix:
   . as $ts
   | [range(0; ($ts | length))]
   | any(
@@ -271,9 +298,33 @@ def shadows_nix:
       | ($w.ok // false)
         and (
           ($w.lit | test("^(nix|nix-build|nix-shell|nix-store)\\("))
-          or ($w.lit | test("^(nix|nix-build|nix-shell|nix-store)="))
+          # 'alias helper=nix develop' hides an invocation behind a new name. An
+          # array literal opens with '=(' and assigns strings, so it is excluded.
+          or (($w.lit | test("^[A-Za-z_][A-Za-z0-9_-]*="))
+              and (($w.lit | test("^[A-Za-z_][A-Za-z0-9_]*(\\[[^]]*\\])?\\+?=\\(")) | not)
+              and ($w.lit | test(nix_token_pattern)))
           or (is_nix_name($w) and (($n.sep? // "") == "("))
           or (($w.lit == "function") and (($n.ok? // false) and is_nix_name($n)))
+        )
+    );
+
+# Any function definition, by either spelling. Whether such a function is ever
+# called is beyond a lexer, so a definition plus a Nix invocation anywhere in the
+# script is unreadable rather than proof that Nix runs.
+def defines_function:
+  . as $ts
+  | [range(0; ($ts | length))]
+  | any(
+      . as $i
+      | ($ts[$i]) as $w
+      | ($ts[$i + 1]) as $n
+      | ($ts[$i + 2]) as $n2
+      | ($w.ok // false)
+        and (
+          ($w.lit | test("^[A-Za-z_][A-Za-z0-9_.-]*\\(\\)?$"))
+          or ($w.lit == "function")
+          or (($w.lit | test("^[A-Za-z_][A-Za-z0-9_.-]*$"))
+              and (($n.sep? // "") == "(") and (($n2.sep? // "") == ")"))
         )
     );
 
@@ -282,10 +333,9 @@ def run_verdict($depth):
   | ($lex.words | group_commands) as $g
   | [$g.cmds[] | cmd_verdict]
   | map(if type == "object" then (if $depth >= 3 then "ambiguous" else (.recurse | run_verdict($depth + 1)) end) else . end)
-  | if (index("nix") != null) then
-      # A script that defines or aliases a Nix command name has changed what that
-      # word runs, so a later 'nix develop' is no longer evidence of store use.
-      (if ($lex.words | shadows_nix) then "ambiguous" else "nix" end)
+  | if ($lex.words | hides_nix) then "ambiguous"
+    elif (index("nix") != null) then
+      (if ($lex.words | defines_function) then "ambiguous" else "nix" end)
     elif $lex.risky or $g.risky or (index("ambiguous") != null) then "ambiguous"
     else "plain"
     end;

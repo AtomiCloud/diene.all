@@ -257,9 +257,10 @@ What is read positively, rather than refused:
 - **Leading redirections and `sh -c`.** `>log nix develop` is Nix, and
   `sh -c '<script>'` is answered by reading `<script>` (bounded to three levels).
 - **An argument is inert only if its command is.** A Nix command name handed to `echo`,
-  `printf`, `grep`, `test`, `case`, `docker` and the like is text. Handed to a command
-  the gate does not know — `timeout 10m nix build`, `./run.sh nix build` — it is
-  `unreadable`, because that command may well run it.
+  `printf`, `grep`, `test`, `case`, `cat` and the like is text. Handed to a command the
+  gate does not know — `timeout 10m nix build`, `./run.sh nix build` — it is
+  `unreadable`, because that command may well run it. (The inert list was trimmed further
+  in the round below.)
 - **Redefinition is refused.** If a script defines or aliases `nix`, `nix-build`,
   `nix-shell` or `nix-store`, a later invocation of that name is no longer evidence of
   store use, and the script is `unreadable` rather than Nix.
@@ -269,17 +270,60 @@ form the reader cannot resolve must add the setup action or simplify its command
 cost is bounded in practice — every Nix lane in this repository already uses the setup
 action — and the direction is now the same on every venue.
 
-`probes/cache-tag-shape.ts` grows to one baseline plus **ten** mutations. The new arm,
-`mutation-textual-nix-mention-cache-claim-caught`, runs two independent sabotages in
-sequence against the same file, each with its own required refusal: first the reviewer's
-exact reproduction (setup action removed, command replaced with `echo nix develop`,
-cached labels retained), then the array literal `args=(nix develop)`. They are sequential
-rather than combined on purpose — one script carrying both mentions would let a single
-red satisfy both assertions, so a regression in either mechanism could hide behind the
-other. Every reasoned arm now asserts the refusal **text**, and the text it asserts is
-the definite non-Nix message including its `(no Nix setup action and no nix command in
-its steps)` parenthetical: the `unreadable` refusal opens with the same clause, and a
-looser match would let "cannot be read" stand in for "definitely not Nix".
+### Where the boundary was still wrong
+
+Exact-SHA review of the first tri-state candidate found the boundary drawn in the wrong
+place in six more spots. Each is now closed, and the direction of every correction is the
+same: read what the shell would read, and refuse rather than assume everywhere else.
+
+- **Only the first argument decides what `nix` does.** Accepting a supported word anywhere
+  in the tail made `nix --version develop` a cache-eligible Nix job. The first resolved
+  argument must be the subcommand; an option before it (`nix --extra-experimental-features
+… develop`) and an unrecognised subcommand (`nix echo develop`) are both `unreadable`.
+  Refusing the unrecognised one matters in the other direction too — `nix eval` and
+  `nix copy` are real store use, so reading them as "not Nix" would be the bare-venue hole
+  again.
+- **A `case` branch pattern is matched, not run.** The parenthesised form was already data,
+  but a pattern on its own line — the ordinary multi-line `case` layout — arrived as a
+  command group ending in `)`, so `nix-build)` read as a legacy Nix command. A group closed
+  by a `)` that opened nothing is a pattern; the branch body after it is still a command.
+- **A function definition proves nothing about what runs.** `helper() { nix develop; }`
+  followed by `printf done` invokes nothing, and tracking calls is beyond a lexer. A script
+  that defines a function and contains a Nix invocation is `unreadable`.
+- **An alias can carry the invocation.** `alias helper='nix develop'; helper` runs Nix
+  under another name, so an alias whose name or value bears a Nix command name makes the
+  script `unreadable` — the same rule that already covered `alias nix=echo`.
+- **Combined shell flags are still `-c`.** `bash -lc '<script>'` is as much a nested shell
+  as `bash -c '<script>'`, and its script is now read.
+- **The inert list overclaimed.** It named commands that can delegate execution: `git`
+  dispatches external subcommands (`git nix develop`), package managers and Bun run scripts
+  (`bun run nix`), `awk` has `system()` and `sed` has `e`. The list is now a small
+  demonstrably inert set, and a Nix command name reaching anything else — including on its
+  own token boundary INSIDE a quoted argument, as in `./runner.sh 'nix develop'` or
+  `awk 'BEGIN { system("nix develop") }'` — is `unreadable`.
+
+The token-boundary test excludes the characters a longer name or path continues with, so
+`nixpkgs` and `/nix/store` are not Nix mentions.
+
+`probes/cache-tag-shape.ts` stays at one baseline plus **ten** mutations. The arm
+`mutation-textual-nix-mention-cache-claim-caught` runs **four** independent sabotages in
+sequence against the same file, each rewriting what the last left behind and each
+requiring its own refusal:
+
+1. the original reproduction — setup action removed, command replaced with
+   `echo nix develop`, cached labels retained;
+2. the array literal `args=(nix develop)`;
+3. a `case` branch pattern `nix-build)` in ordinary multi-line layout;
+4. `nix --version develop`, which is refused for the **other** reason — the gate does not
+   claim that no Nix runs, only that it cannot confirm that any does.
+
+They are sequential rather than folded into one script on purpose: a single script
+carrying all four shapes would let one red satisfy every assertion, so a regression in any
+one mechanism could hide behind the others. Stages 1–3 assert the definite non-Nix message
+**including** its `(no Nix setup action and no nix command in its steps)` parenthetical,
+because the `unreadable` refusal opens with the same clause and a looser match would let
+"cannot be read" stand in for "definitely not Nix"; stage 4 asserts that `unreadable`
+clause instead.
 
 ## Resulting hook set
 

@@ -75,20 +75,34 @@ it carries. A step's `uses:` is matched as text, so a Nix setup action always
 makes a job a Nix-store user. A step's `run:` is a shell script, and the gate
 reads it with a small shell lexer that gives one of **three** answers:
 
-- **Nix** — a supported Nix command definitely runs:
-  `nix develop|build|shell|run|flake|profile|store`, or legacy `nix-build`,
-  `nix-shell`, `nix-store`, standing in command position. Assignments,
-  redirections, keywords, plain wrappers (`sudo nix build`), subshells, process
-  substitution and `sh -c '…'` are all read through.
+- **Nix** — a supported Nix command definitely runs. The command word is
+  `nix` **followed immediately by** `develop`, `build`, `shell`, `run`, `flake`,
+  `profile` or `store`, or it is legacy `nix-build`, `nix-shell` or `nix-store`.
+  Assignments, redirections, keywords, plain wrappers (`sudo nix build`),
+  subshells, process substitution and `sh -c '…'` (including combined flags such
+  as `bash -lc '…'`) are all read through.
 - **Not Nix** — the script definitely runs no Nix command. A mention is not an
   invocation: `echo nix develop`, a comment, quoted text, heredoc content, an
-  array literal `args=(nix develop)`, an arithmetic expression, a function
-  definition and a `case` pattern are all data.
-- **Cannot be read** — the script uses syntax the lexer will not guess at: an
-  expanded command name (`$CMD develop`), a wrapper with options
-  (`sudo -u root nix develop`), `eval`, backticks, an unterminated quote or
-  heredoc, a script that redefines or aliases `nix`, or a Nix command name handed
-  to a command that might run it (`timeout 10m nix build`).
+  array literal `args=(nix develop)`, an arithmetic expression, and a `case`
+  branch pattern — `nix-build)` with or without its opening parenthesis — are all
+  data.
+- **Cannot be read** — the script uses syntax the gate will not guess at:
+  - an expanded command name (`$CMD develop`), backticks, `eval`, an unterminated
+    quote or heredoc;
+  - a wrapper with options (`sudo -u root nix develop`), where which word is the
+    command depends on what the option consumes;
+  - **any first argument to `nix` other than a supported subcommand** — a version
+    flag before `develop` still only prints a version, and `nix eval` is real
+    store use, so an option and an unrecognised subcommand are both refused;
+  - a **function or alias definition** that could carry the invocation:
+    `helper() { nix develop; }` may never be called, and
+    `alias helper='nix develop'` renames it, so neither is proof either way;
+  - a Nix command name handed to a command that is not on the small inert list —
+    `timeout 10m nix build`, `git nix develop`, `bun run nix`,
+    `awk 'BEGIN { system("nix develop") }'`, `./runner.sh 'nix develop'`. Only
+    commands that demonstrably do not execute their arguments (`echo`, `printf`,
+    `grep`, `test`, `case`, `cat`, …) treat such a name as text; anything that can
+    delegate execution does not.
 
 The third answer is **refused on every venue** — cached, bare and GitHub-hosted —
 and is the point of having three answers rather than two. Calling an unreadable

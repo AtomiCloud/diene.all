@@ -87,6 +87,20 @@ function caughtSequence(name: string, description: string, path: string, stages:
 const NOT_A_NIX_STORE_USER =
   'claims the shared S31 Nix-store cache but is not a Nix-store user (no Nix setup action and no nix command in its steps)';
 
+// The gate's third answer: the script uses syntax the reader will not guess at,
+// so the cache claim is refused without asserting that no Nix runs.
+const NOT_CONFIRMABLE = 'is not a Nix-store user that this gate can confirm';
+
+// A `run:` block scalar at the Docker step's indentation.
+const runBlock = (...lines: string[]) => ['run: |', ...lines.map(line => `          ${line}`)].join('\n');
+
+// The run: texts the mention sequence walks through, each replacing the last.
+const RUN_REAL = 'run: nix develop .#cd -c ./scripts/ci/docker.sh';
+const RUN_ECHO = 'run: echo nix develop';
+const RUN_ARRAY = runBlock('args=(nix develop)', `printf '%s\\n' "\${args[*]}"`);
+const RUN_CASE_PATTERN = runBlock('case "$1" in', '  nix-build)', '    ./scripts/ci/docker.sh', '    ;;', 'esac');
+const RUN_NIX_VERSION = 'run: nix --version develop';
+
 export default {
   contractVersion: 1,
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
@@ -140,25 +154,21 @@ export default {
     ),
     caughtSequence(
       'mutation-textual-nix-mention-cache-claim-caught',
-      'A job whose run: script only MENTIONS Nix must not claim the shared Nix-store cache. Two independent shapes, each proved on its own: a harmless `echo nix develop`, and then a Bash array literal `args=(nix develop)` whose parenthesis is not a subshell, so its contents are data. Neither installs or invokes anything, and each must turn the S31 gate red for the non-Nix reason.',
+      'A job whose run: script does not demonstrably invoke Nix must not claim the shared Nix-store cache. Four independent shapes, each proved on its own: a harmless `echo nix develop`; a Bash array literal `args=(nix develop)`, whose parenthesis is not a subshell; a `case` branch pattern named `nix-build`, which is matched rather than run; and `nix --version develop`, where the first argument decides what nix does and a supported word later in the tail proves nothing.',
       DOCKER,
       [
         {
           edits: [
             { find: '      - uses: AtomiCloud/actions.setup-nix@v3\n', replace: '' },
-            { find: 'run: nix develop .#cd -c ./scripts/ci/docker.sh', replace: 'run: echo nix develop' },
+            { find: RUN_REAL, replace: RUN_ECHO },
           ],
           reason: NOT_A_NIX_STORE_USER,
         },
-        {
-          edits: [
-            {
-              find: 'run: echo nix develop',
-              replace: ['run: |', '          args=(nix develop)', '          printf \'%s\\n\' "${args[*]}"'].join('\n'),
-            },
-          ],
-          reason: NOT_A_NIX_STORE_USER,
-        },
+        { edits: [{ find: RUN_ECHO, replace: RUN_ARRAY }], reason: NOT_A_NIX_STORE_USER },
+        { edits: [{ find: RUN_ARRAY, replace: RUN_CASE_PATTERN }], reason: NOT_A_NIX_STORE_USER },
+        // The last stage is refused for the OTHER reason: the gate does not claim
+        // that no Nix runs here, only that it cannot confirm that any does.
+        { edits: [{ find: RUN_CASE_PATTERN, replace: RUN_NIX_VERSION }], reason: NOT_CONFIRMABLE },
       ],
     ),
     caught(
