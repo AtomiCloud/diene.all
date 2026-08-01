@@ -619,7 +619,9 @@ or its exact approval index/hash. Pending view requires that approval unconsumed
 normal authority still equal to current pending provenance; committed view requires a
 selected approval consumed and a normal-branch approval still unconsumed. Missing
 snapshot authority is `PROCESSOR_AUTHORITY_INVALID`; malformed or escaped report data
-is `GAP_REPORT_SET_INVALID`.
+is `GAP_REPORT_SET_INVALID`. A pending report/disk hash mismatch is
+`WRITE_HASH_MISMATCH`; an incomplete lifecycle record is `WRITE_INCOMPLETE`; and
+post-commit drift from the recorded document bytes is `WRITTEN_BYTES_CHANGED`.
 
 When the user approves a writer collision, `approve-writer-replay` first re-hashes the
 path and requires equality with the recorded `observedHash`. Under one Authority

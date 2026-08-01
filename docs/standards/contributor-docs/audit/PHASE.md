@@ -348,9 +348,9 @@ values:
 
 There is deliberately a crash window between initialization and this second
 acquisition. If the process dies there, the sidecar is absent. The existing
-**Initialize or Resume** staleness rule in this section classifies a missing or
-mismatched sidecar as a stale cache: remove processor state, sidecar, and findings, then
-reinitialize.
+**Initialize or Resume** staleness rule in this section is exact.
+Treat a missing or mismatched sidecar as a stale cache: remove processor state,
+sidecar, and findings, then reinitialize.
 
 The sibling exists because `init-state.sh` and its processor-state format are
 shared with the write phase. They are not audit-specific and must not be
