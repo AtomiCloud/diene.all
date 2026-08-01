@@ -302,6 +302,11 @@ nsc_list_json() {
     echo 'nsc list stdout contains an ESC byte' >&2
     return 1
   fi
+  # Raw JSON evidence must be well-formed UTF-8 without byte substitution.
+  if ! iconv -f UTF-8 -t UTF-8 "${raw}" >/dev/null; then
+    echo 'nsc list stdout is not valid UTF-8' >&2
+    return 1
+  fi
   # jq must observe exactly one complete top-level null or array value.
   if ! jq -e -s '
     length == 1 and (.[0] == null or (.[0] | type) == "array")
@@ -754,7 +759,7 @@ validate_download_archive() {
 }
 
 run_outer() {
-  for command in bash date git jq nsc sha256sum tar timeout; do
+  for command in bash date git iconv jq nsc sha256sum tar timeout; do
     require_command "${command}"
   done
   validate_nsc_version

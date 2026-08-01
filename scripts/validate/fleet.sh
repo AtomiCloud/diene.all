@@ -1181,6 +1181,11 @@ sit-namespace-lifecycle | sit-proof-lifecycle)
   rg -qF 'nsc list --output json </dev/null >"${raw}" 2>"${output}.stderr"' \
     "${proof_source}" ||
     fail 'the production Namespace list path is not the direct non-TTY client interface'
+  rg -qF 'for command in bash date git iconv jq nsc sha256sum tar timeout; do' \
+    "${proof_source}" ||
+    fail 'the production Namespace outer preflight does not require iconv'
+  rg -qF 'iconv -f UTF-8 -t UTF-8 "${raw}" >/dev/null' "${proof_source}" ||
+    fail 'the production Namespace list path has no checked raw UTF-8 boundary'
   rg -qF 'namespace_first_line_receipt apk info --who-owns "${path}"' "${sit_source}" ||
     fail 'Wolfi BusyBox tool receipts no longer use fail-closed package ownership'
   if rg -n '(sha256sum|tar|timeout)[[:space:]]+--version' "${sit_source}"; then
@@ -1557,6 +1562,11 @@ list)
     active_instance_json
     printf '\033[0K'
     ;;
+  invalid-utf8)
+    printf '[{"cluster_id":"%s","labels":{"ratchet-node":"fleet","ratchet-generation":"7"},"shape":{"virtual_cpu":16,"memory_megabytes":32768,"machine_arch":"amd64","os":"linux"},"kubernetes":"1.33","ignored":"audited-' "${id}"
+    printf '\xff'
+    printf -- '-byte"}]\n'
+    ;;
   missing-id) active_instance_json 'zzzzzzzzzzzzz' ;;
   *)
     echo "shim: unmodeled list form ${NSC_SHIM_LIST_FORM:-}" >&2
@@ -1845,6 +1855,24 @@ NSL_NSC_SHIM
   LC_ALL=C grep -q $'\033' "${nsl_report}/lifecycle/list-before-use.json.raw" ||
     fail 'Namespace lifecycle escape-list fixture contains no literal ESC byte'
 
+  nsl_run list-invalid-utf8 fail NSC_SHIM_LIST_FORM=invalid-utf8
+  nsl_assert_list_boundary_refusal list-invalid-utf8 'nsc list stdout is not valid UTF-8'
+  nsl_invalid_utf8_raw="${nsl_report}/lifecycle/list-before-use.json.raw"
+  nsl_invalid_utf8_count="$(od -An -tx1 -v "${nsl_invalid_utf8_raw}" |
+    awk '{ for (i = 1; i <= NF; i++) if ($i == "ff") count++ } END { print count + 0 }')"
+  [ "${nsl_invalid_utf8_count}" -eq 1 ] ||
+    fail 'Namespace lifecycle invalid-UTF-8 fixture does not contain exactly one raw 0xff byte'
+  if iconv -f UTF-8 -t UTF-8 "${nsl_invalid_utf8_raw}" >/dev/null 2>&1; then
+    fail 'Namespace lifecycle invalid-UTF-8 fixture is accepted by the checked iconv boundary'
+  fi
+  jq -e -s --arg id "${nsl_id}" '
+    length == 1 and
+    (.[0] | type) == "array" and
+    .[0][0].cluster_id == $id and
+    (.[0][0].ignored | type) == "string"
+  ' "${nsl_invalid_utf8_raw}" >/dev/null ||
+    fail 'jq alone no longer accepts the success-shaped raw 0xff fixture, so the regression test is not specific'
+
   # A syntactically valid array reaches the exact-id selection predicate but
   # cannot authorize first use unless it contains the one registered id.
   nsl_run list-missing-exact-id fail NSC_SHIM_LIST_FORM=missing-id
@@ -1935,6 +1963,25 @@ NSL_NSC_SHIM
     "${nsl_root}/cases/mutation-list-escape-guard/stderr.txt" ||
     fail 'the escape-list mutant did not reach the later JSON boundary'
   nsl_restore_list_proof
+
+  nsl_install_list_guard_mutant \
+    utf8-byte '  # Raw JSON evidence must be well-formed UTF-8 without byte substitution.'
+  nsl_run mutation-list-utf8-guard pass NSC_SHIM_LIST_FORM=invalid-utf8
+  nsl_assert_exact_destroy mutation-list-utf8-guard
+  nsl_list_before="${nsl_report}/lifecycle/list-before-use.json"
+  if ! { test -s "${nsl_list_before}" &&
+    cmp -s "${nsl_list_before}.raw" "${nsl_list_before}"; }; then
+    fail 'removing only the UTF-8 guard did not pass the original invalid bytes into the validated list'
+  fi
+  if iconv -f UTF-8 -t UTF-8 "${nsl_list_before}" >/dev/null 2>&1; then
+    fail 'the UTF-8 guard mutant fixture no longer carries invalid bytes'
+  fi
+  jq -e -s --arg id "${nsl_id}" '
+    length == 1 and (.[0] | type) == "array" and .[0][0].cluster_id == $id
+  ' "${nsl_list_before}" >/dev/null ||
+    fail 'the UTF-8 guard mutant did not prove jq alone accepts the invalid success-shaped list'
+  nsl_restore_list_proof
+
   cmp -s "${nsl_proof_baseline}" "${nsl_fixture}/scripts/ci/fleet-sit-proof.sh" ||
     fail 'the lifecycle fixture did not restore the unmutated production list guards'
   test -z "$(git -C "${nsl_fixture}" status --porcelain --untracked-files=all)" ||
