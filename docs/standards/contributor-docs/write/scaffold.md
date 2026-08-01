@@ -5,6 +5,8 @@
 - Working directory: repo root
 - Operation: `{prepare|create}` (provided by orchestrator)
 - Doc plan: `.contributor-docs/doc-plan.yaml`
+- Authorized plan SHA-256: `{PLAN_SHA256}`, copied exactly from the assessed
+  `write-state.json.authorizedPlanHash`
 - Docs root: `{docsRoot}` from `.contributor-docs/task-state.json`
 - Docs references:
   - `docs/standards/contributor-docs/frontmatter.md` — frontmatter schemas
@@ -16,6 +18,7 @@
 RESULT: <success|error>
 OPERATION: <prepare|create>
 INPUT_SET: <whole-plan|gap-paths>
+PLAN_SHA256: <64 lowercase hex>
 MANIFEST_JSON: <JSON array; required for prepare, exact shape below>
 FILES_CREATED: <count; create only>
 FILES_ADOPTED: <count; create only>
@@ -42,6 +45,14 @@ prepared `writeQueue`. Gap operations receive exactly `gapTransition.gapPaths`.
 Files outside that set are never classified or touched. See
 `docs/standards/contributor-docs/write/PHASE.md` for each dispatch.
 
+Before parsing the plan or consuming any plan-derived metadata, hash the exact,
+complete bytes of `.contributor-docs/doc-plan.yaml`. Require a 64-character lowercase
+`{PLAN_SHA256}` and exact equality with that fresh hash. A missing plan or mismatch is
+`PLAN_DRIFT_BLOCKED: expected={PLAN_SHA256} actual=<hash-or-absent>`: do not create a
+directory or file, do not adopt an existing file, and do not return a manifest.
+`PLAN_SHA256` is an input identity, not a caller assertion this agent may replace with
+the value it just measured.
+
 Read `.contributor-docs/doc-plan.yaml` for the metadata of the paths in your input set.
 Require its `docsRoot` to equal the orchestrator-supplied task-state value before
 rendering anything. Plan paths are relative to that value; returned manifest paths
@@ -57,7 +68,8 @@ without exactly one persisted expected hash.
 
 Resolve all necessary directories under the authoritative `{docsRoot}` from task
 state. The matching plan value is a validation copy, not a second authority. In
-`prepare`, only compute them. In `create`, make only the parents of handed paths:
+`prepare`, only compute them. In `create`, resolve them in memory and make only the
+parents of handed paths after the pre-create plan check in step 4 succeeds:
 
 ```
 <docsRoot>/
@@ -111,6 +123,11 @@ before that observation. On a retry the report still describes filesystem truth;
 state-agent, not this agent, decides whether a still-matching unconsumed scaffold
 approval resolves the observation.
 
+After rendering and classifying the whole input set, freshly hash the exact live plan
+again immediately before returning. Return success only when it still equals
+`{PLAN_SHA256}`, and include that exact value as `PLAN_SHA256` in the report. A second
+hash mismatch returns `PLAN_DRIFT_BLOCKED` and no manifest.
+
 ### 4. Create: Prove the Prepared Manifest, Then Write or Adopt
 
 This step applies only to `create`. Re-render every handed path, recompute its hash,
@@ -132,6 +149,15 @@ distinguishes coincidental pre-existence from a crash-completed prepared write.
 
 Anything else is a collision: write nothing further and report the exact current
 hash and line count. Never turn a create-time mismatch into an approval yourself.
+
+After the complete set has been re-rendered and classified, freshly hash the exact
+live plan and require equality with `{PLAN_SHA256}` immediately before the first
+directory creation, file creation, or adoption result. A mismatch is
+`PLAN_DRIFT_BLOCKED` and leaves every target and parent byte-identical. The orchestrator
+must keep plan mutation fenced until it accepts the result. Recheck the exact plan once
+more after the complete set is created or adopted and immediately before returning a
+success report; a mismatch is `PLAN_DRIFT_BLOCKED` and the result cannot be finalized
+into state.
 
 For each authorized create:
 
@@ -173,7 +199,12 @@ If any paths are missing, report them as warnings (they may indicate a plan erro
 
 ### 6. Report
 
-Report the result with total file count and docs root path.
+Report the result with the exact accepted `PLAN_SHA256`, total file count, and docs
+root path. The orchestrator passes the machine-readable report to the write
+state-agent. At acceptance, the state-agent freshly hashes the live plan and requires
+the report value, `write-state.json.authorizedPlanHash`, and the live hash to be equal.
+Otherwise it returns `PLAN_DRIFT_BLOCKED` without changing write state or processor
+artifacts. A success report never authorizes a plan change.
 
 ## Resumability and Collision Safety
 
@@ -241,6 +272,8 @@ manifest from prose.
 
 - Do NOT update state files
 - `prepare` performs no filesystem writes, including directory creation
+- Do not consume plan metadata or return a result unless the exact live plan hashes to
+  `PLAN_SHA256`
 - Do NOT write body content — only frontmatter + one-line summary
 - Modify an existing file only under an exact, unconsumed scaffold approval
 - Follow the frontmatter schemas exactly from the docs reference

@@ -10,8 +10,8 @@ writes state JSON directly.
 - Working directory: repository root
 - State files: `.contributor-docs/audit-state.json` and
   `.contributor-docs/task-state.json`; read-only source binding from
-  `.contributor-docs/plan-state.json` and repair evidence from
-  `.contributor-docs/write-state.json`
+  `.contributor-docs/plan-state.json` and mandatory read-only plan authority and repair
+  evidence from `.contributor-docs/write-state.json`
 - Audit artifacts: `.contributor-docs/big-picture-report.md` and
   `.contributor-docs/fact-check/`
 - Mode: `{create|assess|update|reset}`
@@ -63,6 +63,61 @@ Every write uses a temporary file in `.contributor-docs/` followed by `mv`.
 Validation happens before the rename. A refusal or validation failure leaves the
 previous state byte-identical.
 
+## Plan Authority Validation
+
+Every mode uses this one read-only validation before it creates, reports, changes, or
+removes anything. Validate the complete canonical `plan-state.json` and 14-field
+`write-state.json`; a merely parseable subset is not authority. The plan state must be
+the immutable approved baseline: `step: "completed"`, `approved: true`, no feedback,
+canonical `.contributor-docs/doc-plan.yaml` paths in plan and task state, and a
+64-character lowercase `planHash`. The write state must contain a valid lowercase
+`authorizedPlanHash` and every canonical record, including every complete
+`planMutation`.
+
+Derive the authority chain without trusting a caller:
+
+1. Set `cursor = plan-state.json.planHash`.
+2. Walk `gapsResolved` in append order. Require each record to be completely valid and
+   `cleared`, with `planMutation.fromPlanHash == cursor`, then set
+   `cursor = planMutation.toPlanHash`.
+3. With `gapTransition == null`, require the fixed candidate sidecar absent and
+   `cursor == authorizedPlanHash == SHA256` of the exact complete live plan bytes.
+4. With a live `planned`, `prepared`, `scaffolded`, `reset`, or `cleaned` transition,
+   require its complete `planMutation.fromPlanHash == cursor` and
+   `planMutation.toPlanHash == authorizedPlanHash == SHA256(live plan)`, advance the
+   derived cursor to `toPlanHash`, and require the candidate sidecar absent.
+5. Recognize only one exceptional crash tuple: a completely valid `enqueued`
+   transition whose `fromPlanHash == cursor == authorizedPlanHash`. Its live plan may
+   hash to `fromPlanHash` while the candidate exists and freshly hashes to
+   `toPlanHash`, or to `toPlanHash` while the candidate is absent. Set
+   `gapPlanApplyRequired: true`. No audit mode may consume this tuple; only write
+   state-agent `apply-gap-plan` can finish it.
+
+For ordinary audit work, `planHashCurrent` is true only when the whole chain is valid,
+the live plan exists and hashes to `authorizedPlanHash`, and no apply-only mismatch is
+being consumed. A missing plan, broken lineage, invalid candidate/live tuple, or fresh
+hash mismatch reports
+`PLAN_DRIFT_BLOCKED: expected=<hash> actual=<hash-or-absent>` with the exact lineage or
+tuple reason. It leaves audit state, task state, transition logs, processor state,
+reports, findings, and reset-owned artifacts byte-identical.
+
+Every assessment and successful mode report exposes these exact derived fields:
+
+```text
+- approvedPlanHash: <plan-state.planHash>
+- authorizedPlanHash: <write-state.authorizedPlanHash>
+- livePlanHash: <64 lowercase hex | absent>
+- planHashCurrent: <true|false>
+- planHashMismatch: <none | exact expected/actual/lineage reason>
+- gapPlanApplyRequired: <true|false>
+```
+
+An audit report's `PLAN_SHA256` is evidence to compare with this derivation, never
+authority to replace it. At every report acceptance, processor completion, state
+transition, reset effect, or task-phase handoff, freshly hash the live plan again and
+require equality among the artifact/report stamp, `authorizedPlanHash`, and that fresh
+hash.
+
 ## Mode 0: Create
 
 When prompted: "Create audit phase state"
@@ -73,25 +128,32 @@ This mode creates only `audit-state.json`. The plan state-agent owns
 
 ### Procedure
 
-1. Create `.contributor-docs/` if necessary.
-2. If `task-state.json` is absent, report `NOT_INITIALIZED`. If it does not
+1. If `task-state.json` is absent, report `NOT_INITIALIZED`. If it does not
    parse, report `CREATE_FAILED: invalid task-state.json`.
+2. Read and completely validate `plan-state.json` and `write-state.json`; either is
+   mandatory on first audit entry. Require task phase `audit`, write step `completed`,
+   `gapTransition: null`, and `auditRepair: null`.
 3. Read `docsRoot` from `task-state.json`. Refuse with
    `CREATE_FAILED: docsRoot unresolvable` unless it is a non-empty string that
    resolves from the repository root to a directory.
 4. Validate the canonical source snapshot from the diff summary. On mismatch report
    `SOURCE_DRIFT_BLOCKED` with exact evidence and create nothing.
-5. If `audit-state.json` already exists, report `ALREADY_INITIALIZED` and switch
+5. Run the complete Plan Authority Validation above. Require
+   `planHashCurrent: true` and `gapPlanApplyRequired: false`; otherwise report the
+   exact `PLAN_DRIFT_BLOCKED` or apply-required context and create nothing.
+6. If `audit-state.json` already exists, report `ALREADY_INITIALIZED` and switch
    to assess mode.
-6. Compute `docsDigest` with the canonical path-plus-file-bytes algorithm in
+7. Compute `docsDigest` with the canonical path-plus-file-bytes algorithm in
    `docs/standards/contributor-docs/audit/PHASE.md`.
-7. Build the exact mirrored object above with `step: "big_picture"`,
+8. Build the exact mirrored object above with `step: "big_picture"`,
    `auditEpoch: 1`, the computed non-null digest, false flags, zero counters, and
    an empty warning collection.
-8. Validate the complete object, write a temporary file, and atomically rename
-   it to `.contributor-docs/audit-state.json`.
-9. Parse the installed file and validate it again. On failure, remove only the
-   audit-state file created by this mode and report `CREATE_FAILED: <reason>`.
+9. Validate the complete object and freshly repeat the plan-authority/live-hash check.
+   Then write a temporary file and atomically rename it to
+   `.contributor-docs/audit-state.json`. Plan mutation remains fenced through
+   acceptance.
+10. Parse the installed file and validate it again. On failure, remove only the
+    audit-state file created by this mode and report `CREATE_FAILED: <reason>`.
 
 ### Report Format
 
@@ -100,6 +162,13 @@ CREATED: audit-state.json
 CURRENT_STEP: big_picture
 AUDIT_EPOCH: 1
 DOCS_DIGEST: <64 lowercase hex>
+CONTEXT:
+- approvedPlanHash: <plan-state.planHash>
+- authorizedPlanHash: <write-state.authorizedPlanHash>
+- livePlanHash: <same 64 lowercase hex>
+- planHashCurrent: true
+- planHashMismatch: none
+- gapPlanApplyRequired: false
 ```
 
 ## Mode 1: Assess
@@ -108,33 +177,45 @@ When prompted: "Assess audit phase state"
 
 ### Procedure
 
-1. Read and validate `audit-state.json`. Report `NOT_INITIALIZED` when absent
-   and `INVALID_STATE: <reason>` when its exact schema is invalid.
-2. Read `task-state.json` and resolve `docsRoot`.
+1. Read and completely validate `task-state.json`, `plan-state.json`, and
+   `write-state.json`, then resolve `docsRoot`. Write state is mandatory on every
+   entry, including an ordinary first-epoch assessment. Read and validate
+   `audit-state.json`; report `NOT_INITIALIZED` when it is absent and
+   `INVALID_STATE: <reason>` when any complete object is invalid.
+2. Validate the cross-state tuple. Ordinary audit states require write step
+   `completed` with no live gap. While audit step is `failed`, also recognize the exact
+   documented `auditRepair: replaying|completed` tuples and their
+   task-phase/write-tier/gap crash intermediates so assessment can route the existing
+   writer-authorized repair. Never treat an arbitrary active write step as audit
+   authority.
 3. Validate the canonical source snapshot, including the live diff-summary hash's
    equality to `plan-state.json.diffSummaryHash`. Derive `sourceSnapshotCurrent` and
    the complete binding/identity/digest mismatch or sorted outside dirty-path set. A
    false result blocks all ordinary and recovery dispatch without mutation.
-4. Recompute the live canonical docs digest.
-5. Inspect the epoch and digest comments in
+4. Run Plan Authority Validation and derive all six plan report fields before
+   inspecting audit artifacts. A false `planHashCurrent` blocks all ordinary,
+   recovery, reset, and terminal dispatch after the source guard. A true
+   `gapPlanApplyRequired` is report-only context for the write dispatcher; no audit
+   path consumes it.
+5. Recompute the live canonical docs digest.
+6. Inspect the epoch, digest, and `plan-sha256` comments in
    `.contributor-docs/big-picture-report.md` when it exists.
-6. Inspect `.contributor-docs/fact-check/state.json` and its required sibling
+7. Inspect `.contributor-docs/fact-check/state.json` and its required sibling
    `.contributor-docs/fact-check/epoch.json`. If processor state exists without
    the sidecar, it is stale.
-7. For every file marked done in processor state, require a findings file with
-   matching epoch and digest comments and a matching SHA-256 for the document's
-   exact current bytes.
-8. Derive `epochConsistent`. It is true only when the live digest matches state,
-   every existing artifact has current stamps and hashes, and each arm marked
-   complete has all of its required artifacts. It is a report value, never a
-   state field.
-9. Derive `currentContentErrors` from error entries whose epoch/digest and, for
-   fact-check, per-file hash are all current. Stored counters from a stale or partial
-   artifact are not repair authority.
-10. Read and validate `write-state.json` whenever audit or task state indicates a
-    failed/repair cycle; report its step and `auditRepair` marker but never mutate it.
-11. Only when audit step is `failed`, derive `repairPaths` by mapping every current
-    content error to the exact queued, written path or paths whose body can resolve it.
+8. For every file marked done in processor state, require a findings file with
+   matching epoch, digest, and `plan-sha256` comments and a matching SHA-256 for the
+   document's exact current bytes.
+9. Derive `epochConsistent`. It is true only when the live docs digest matches state,
+   the plan authority is current, every existing artifact has current stamps and
+   hashes, and each arm marked complete has all of its required artifacts. It is a
+   report value, never a state field.
+10. Derive `currentContentErrors` only from error entries whose epoch, digest,
+    `PLAN_SHA256`, and, for fact-check, per-file hash are all current. Stored counters
+    from a stale, partial, or unauthorized-plan artifact are not repair authority.
+11. Only when audit step is `failed` and plan identity is current, derive
+    `repairPaths` by mapping every current content error to the exact queued, written
+    path or paths whose body can resolve it.
     A `missing-dependency` selects its reporting document, not its proposed new path;
     its declared proposed-path addition is authorized later by the ordinary
     discovered-gap transition. Derive `repairOutOfScope` for every current error that
@@ -158,7 +239,8 @@ When prompted: "Assess audit phase state"
     - task phase is still `failed` (the direct-reset task rename did not land); or
     - task phase is `audit` and at least one reset-owned artifact still carries a prior
       epoch/digest or prior format (post-repair reset cleanup did not finish).
-15. Report current state without mutating it.
+15. Report current state without mutating it. Assessment never repairs lineage,
+    installs a candidate plan, rewrites an audit stamp, or deletes stale artifacts.
 
 ### Report Format
 
@@ -169,6 +251,12 @@ CONTEXT:
 - writeStep: <write-state step>
 - sourceSnapshotCurrent: <true|false>
 - sourceSnapshotMismatch: <none | summary binding, identity/digest mismatch, or sorted outside dirty paths>
+- approvedPlanHash: <plan-state.planHash>
+- authorizedPlanHash: <write-state.authorizedPlanHash>
+- livePlanHash: <64 lowercase hex | absent>
+- planHashCurrent: <true|false>
+- planHashMismatch: <none | exact expected/actual/lineage reason>
+- gapPlanApplyRequired: <true|false>
 - auditEpoch: <positive integer>
 - docsDigest: <64 lowercase hex>
 - liveDocsDigest: <64 lowercase hex>
@@ -202,12 +290,17 @@ to compare with the independently derived set, never a value to install on trust
 
 ### Universal Procedure
 
-1. Read and completely validate the current audit and task state. Read write state when
-   the selected recovery operation requires it.
+1. Read and completely validate the current audit, task, plan, and write state. Write
+   state is mandatory for every operation, not only recovery.
 2. Validate the canonical source snapshot. On mismatch report
    `SOURCE_DRIFT_BLOCKED` and leave all audit, task, and reset-owned artifacts
    byte-identical.
-3. Require one of these exact envelopes:
+3. Run Plan Authority Validation. Require `planHashCurrent: true` and
+   `gapPlanApplyRequired: false` before every ordinary, failure, crash-reconciliation,
+   or terminal edge. On mismatch report the exact `PLAN_DRIFT_BLOCKED` and leave all
+   state, transition logs, processor state, reports, findings, and reset-owned
+   artifacts byte-identical.
+4. Require one of these exact envelopes:
    - `{"operation":"record-big-picture"}`;
    - `{"operation":"complete-audit"}` or that object plus only
      `acceptedWarnings: [...]`;
@@ -215,26 +308,29 @@ to compare with the independently derived set, never a value to install on trust
      `reason`;
    - `{"operation":"resume-failed-task-phase"}`;
    - `{"operation":"advance-task-phase-to-completed"}`.
-4. Freshly read every artifact required by that operation and derive the complete
+5. Freshly read every artifact required by that operation and derive the complete
    candidate state or task transition. Never merge caller fields into state.
-5. Enforce the source step, task phase, stamps, digests, document hashes, counters, and
-   operation-specific rules below. Validate the complete candidate object before any
-   write.
-6. Write each changed state file through a temporary file and atomic rename. Append a
+6. Enforce the source step, task phase, audit stamps, `PLAN_SHA256`, digests, document
+   hashes, counters, and operation-specific rules below. Validate the complete
+   candidate object before any write.
+7. Immediately before the first effect, freshly rerun the complete authority-chain
+   validation and live-plan hash. Plan mutation is fenced until the operation is
+   accepted. A mismatch takes the non-mutating plan-drift outcome.
+8. Write each changed state file through a temporary file and atomic rename. Append a
    step or phase transition only after its corresponding rename.
-7. Report the selected operation and resulting fixed state. An unknown key, wrong
+9. Report the selected operation and resulting fixed state. An unknown key, wrong
    envelope, wrong edge, or stale evidence is `UPDATE_REFUSED: <reason>` and leaves all
    files byte-identical except for the documented two-rename failure pairing.
 
 ### Legal Operations
 
-| Operation                         | Legal source                                               | Required validation and effect                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| --------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `record-big-picture`              | audit `big_picture`, task `audit`                          | Require the canonical report with current epoch/digest stamps. Independently enumerate its error and warning items and require its summary counters to match. Build the complete state with `bigPictureComplete: true`, the derived counters, `totalErrors` equal to derived big-picture errors, and `step: "fact_check"`.                                                                                                                     |
-| `complete-audit`                  | audit `fact_check`, task `audit`                           | Require a complete current fact-check processor, exact current finding coverage, current epoch sidecar, matching document hashes, and unchanged live docs digest. Derive fact-check counters and the complete sorted accepted-warning set. Require the combined error sum to be zero. If the optional caller claim exists, require exact equality or refuse `WARNING_ACCEPTANCE_MISMATCH`; install only the derived set and enter `completed`. |
-| `fail-audit`                      | audit `big_picture` or `fact_check`, task `audit`          | Without `reason`, require a complete current fact-check audit with a derived nonzero error sum; derive its final counters and enter `failed`. With `reason`, require a hard-agent or freshness failure, preserve every already measured field, and change only the audit step. In both forms, atomically rename audit state first, then task phase `audit → failed`; record the external reason outside audit state.                           |
-| `resume-failed-task-phase`        | audit `failed`, task `audit`                               | Require write step `completed` and `auditRepair` null or bound to an older audit epoch. Change only task phase `audit → failed`. This is the sole recovery after `fail-audit` committed audit state but crashed before its paired task-state rename; it never resets evidence.                                                                                                                                                                 |
-| `advance-task-phase-to-completed` | audit `completed`, task `audit` or exact retry `completed` | Revalidate every completed invariant, including current source, artifact stamps and hashes, live docs digest, counters, and exact accepted-warning derivation. Atomically change only task phase `audit → completed`. A retry that already observes that exact task phase is idempotent success.                                                                                                                                               |
+| Operation                         | Legal source                                               | Required validation and effect                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| --------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `record-big-picture`              | audit `big_picture`, task `audit`                          | Require the canonical report with current epoch/digest stamps and `PLAN_SHA256 == authorizedPlanHash ==` the fresh live hash. Independently enumerate its error and warning items and require its summary counters to match. Build the complete state with `bigPictureComplete: true`, the derived counters, `totalErrors` equal to derived big-picture errors, and `step: "fact_check"`.                                                               |
+| `complete-audit`                  | audit `fact_check`, task `audit`                           | Require a complete current fact-check processor, exact finding coverage, current epoch sidecar, every report/finding `PLAN_SHA256`, matching document hashes, and unchanged live docs digest. Revalidate the full plan chain; derive fact-check counters and the complete sorted accepted-warning set. Require zero combined errors. An optional caller claim must exactly match or refuse `WARNING_ACCEPTANCE_MISMATCH`; install only the derived set. |
+| `fail-audit`                      | audit `big_picture` or `fact_check`, task `audit`          | First require current complete plan authority. Without `reason`, require a complete current fact-check audit, including all plan stamps, with a derived nonzero error sum; derive final counters and enter `failed`. With `reason`, require a hard-agent or non-plan freshness failure, preserve every measured field, and change only the audit step. Atomically rename audit state first, then task phase `audit → failed`.                           |
+| `resume-failed-task-phase`        | audit `failed`, task `audit`                               | Revalidate current plan identity, write step `completed`, and `auditRepair` null or bound to an older audit epoch. Change only task phase `audit → failed`. This is the sole recovery after `fail-audit` committed audit state but crashed before its paired task-state rename; it never resets evidence.                                                                                                                                               |
+| `advance-task-phase-to-completed` | audit `completed`, task `audit` or exact retry `completed` | Revalidate every completed invariant, including current source, the full plan chain and live hash, every artifact `PLAN_SHA256`, artifact stamps and hashes, live docs digest, counters, and exact accepted-warning derivation. Atomically change only task phase `audit → completed`. A retry that already observes that exact task phase is idempotent success only after the same checks.                                                            |
 
 `failed → big_picture` is refused in this mode; only reset may take that edge. Audit
 `completed` has no outgoing audit-state edge: its only operation is the separately
@@ -250,6 +346,13 @@ OPERATION: <record-big-picture|complete-audit|fail-audit|resume-failed-task-phas
 FROM_STEP: <audit step>
 NEW_STEP: <audit step>
 TASK_PHASE: <task phase>
+CONTEXT:
+- approvedPlanHash: <plan-state.planHash>
+- authorizedPlanHash: <write-state.authorizedPlanHash>
+- livePlanHash: <64 lowercase hex | absent>
+- planHashCurrent: <true|false>
+- planHashMismatch: <none | exact expected/actual/lineage reason>
+- gapPlanApplyRequired: <true|false>
 ERROR: <error message if any>
 ```
 
@@ -263,10 +366,16 @@ complete next-epoch state.
 
 ### Procedure
 
-1. Read and validate audit, task, and write state files and resolve `docsRoot`.
+1. Read and validate audit, task, plan, and write state files and resolve `docsRoot`.
+   The complete write state and its plan lineage are required on both a new reset and
+   every cleanup/task-phase resume.
 2. Validate the canonical source snapshot. A mismatch is
    `SOURCE_DRIFT_BLOCKED` and leaves state and stale artifacts untouched.
-3. Start a new reset only when `audit-state.step == "failed"`, write state is valid
+3. Run Plan Authority Validation. Require `planHashCurrent: true` and
+   `gapPlanApplyRequired: false`; otherwise report `PLAN_DRIFT_BLOCKED` with exact
+   evidence and leave audit state, task state, transition logs, reports, processor
+   state, findings, and reset-owned artifacts byte-identical.
+4. Start a new reset only when `audit-state.step == "failed"`, write state is valid
    and `completed`, and exactly one fenced source holds:
    - **no-current-content-error retry:** derived `currentContentErrors == 0`, task
      phase is `failed`, and completed write provenance still matches every live file;
@@ -287,21 +396,23 @@ complete next-epoch state.
    `audit` without the exact completed marker is the failure-pairing crash rather than
    repair evidence, and an active repair tier cannot discard the failed evidence.
 
-4. Recompute the canonical docs digest. Build one complete 11-field object with
+5. Recompute the canonical docs digest. Build one complete 11-field object with
    `auditEpoch` incremented by one, the new digest, `step: "big_picture"`, both
    completion flags false, every counter zero, and `acceptedWarnings: []`.
-5. Validate that object, write it to a temporary file, and atomically rename it
-   over `audit-state.json`. This single rename commits both the new epoch and
-   every reset field together.
-6. After the rename, remove these stale artifacts in place:
+6. Validate that object and freshly repeat the full plan-authority/live-hash check.
+   Fence plan mutation through the remaining reset effects, write the object to a
+   temporary file, and atomically rename it over `audit-state.json`. This single
+   rename commits both the new epoch and every reset field together.
+7. After the rename, remove these stale artifacts in place:
    - `.contributor-docs/big-picture-report.md`;
    - `.contributor-docs/fact-check/state.json`;
    - `.contributor-docs/fact-check/epoch.json`;
    - every artifact under `.contributor-docs/fact-check/findings/`.
-7. Only after cleanup succeeds, atomically set task phase `failed → audit` for the
+8. Only after cleanup succeeds, atomically set task phase `failed → audit` for the
    no-current-content-error path and append its phase transition. For a completed content
    repair, require task phase already `audit` and leave it byte-identical.
-8. Report the committed epoch and the number of artifacts actually removed.
+9. Report the committed epoch and the number of artifacts actually removed, together
+   with the six exact plan-identity fields.
 
 Do not archive artifacts or change their canonical paths. Missing paths count as
 already removed, so cleanup is idempotent.
@@ -310,22 +421,23 @@ increments it is inert and cannot authorize a later reset.
 
 ### Crash Resume Rule
 
-- A crash before step 5's rename leaves the old `failed` object, so retry starts
+- A crash before step 6's rename leaves the old `failed` object, so retry starts
   the same reset and computes the next epoch once.
 - A crash after the rename leaves `audit-state.step == "big_picture"` with fully
   reset fields while `task-state.currentPhase == "failed"`. Recognize that exact
-  combination as a committed reset: do not increment the epoch, repeat all
-  cleanup, then finish step 7.
+  combination as a committed reset only after source and plan identity revalidate: do
+  not increment the epoch, repeat all cleanup, then finish step 8.
 - After a content-repair reset, task phase was already `audit`. If the committed fresh
   reset still has any prior-epoch or prior-format reset-owned artifact, recognize that
-  stale artifact as the unfinished-cleanup marker: do not increment the epoch, repeat
-  cleanup, and leave task phase `audit`. If cleanup had already finished, ordinary
-  `big_picture` dispatch is safe and no reset resume is needed.
+  stale artifact as the unfinished-cleanup marker only after source and plan identity
+  revalidate: do not increment the epoch, repeat cleanup, and leave task phase `audit`.
+  If cleanup had already finished, ordinary `big_picture` dispatch is safe and no
+  reset resume is needed.
 - If cleanup itself fails, leave `task-state.currentPhase` unchanged: `failed`
   for a direct reset or `audit` after completed content repair. Report
   `RESET_CLEANUP_PENDING: <reason>` and retry. Prior artifacts cannot be accepted
   because their epoch or digest does not match the committed state.
-- A crash after cleanup but before step 7 follows the same resume path and
+- A crash after cleanup but before step 8 follows the same resume path and
   repeats only idempotent removal.
 
 ### Report Format
@@ -336,6 +448,13 @@ NEW_EPOCH: <positive integer>
 ARTIFACTS_REMOVED: <count>
 RESET_RESUMED: <true|false>
 RESET_SOURCE: <no-current-content-error|content-repair>
+CONTEXT:
+- approvedPlanHash: <plan-state.planHash>
+- authorizedPlanHash: <write-state.authorizedPlanHash>
+- livePlanHash: <same 64 lowercase hex>
+- planHashCurrent: true
+- planHashMismatch: none
+- gapPlanApplyRequired: false
 ```
 
 ## Validation Rules
@@ -362,17 +481,21 @@ and `failed`.
   `bigPictureErrors + factCheckErrors`.
 - `step: "completed"` additionally requires both completion flags, zero total
   errors, proof that both arms were generated in the current epoch, current
-  stamps and file hashes for both arms, and a fresh live docs digest equal to
-  `docsDigest`. Its warning-record count equals the sum of both warning counters.
+  epoch/digest/`PLAN_SHA256` stamps and file hashes for both arms, a fresh live docs
+  digest equal to `docsDigest`, and a complete current plan-authority chain whose live
+  hash equals `authorizedPlanHash`. Its warning-record count equals the sum of both
+  warning counters.
 - A missing artifact required by a true completion flag is invalid evidence,
   never an implicit pass.
 
 ## Important
 
 - Manage `audit-state.json` and phase-transition updates to `task-state.json`.
-- Read `write-state.json` only to fence content-repair reset; write state-agent owns
-  every write-state mutation.
+- Always read completely valid `plan-state.json` and `write-state.json` as read-only
+  plan authority. The write state-agent owns every write-state mutation.
 - Do not execute audit work; only create, assess, validate, update, or reset
   state and its reset-owned stale artifacts.
-- Never accept an unstamped or mismatched audit artifact.
+- Never accept an audit artifact with a missing or mismatched epoch, docs digest,
+  document hash, or `PLAN_SHA256`.
+- Never authorize, install, or repair a plan; preserve the exact write-owned chain.
 - Never add a state field to carry a hard-agent failure reason.

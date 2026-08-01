@@ -5,6 +5,8 @@
 - Working directory: repo root
 - File to write: {filePath} (from orchestrator)
 - File metadata: {type}, {tier}, {description}, {sources}, {crossLinks}, {tags} (from doc-plan.yaml)
+- Authorized plan SHA-256: `{PLAN_SHA256}`, copied exactly from the assessed
+  `write-state.json.authorizedPlanHash`
 - Audit repair errors: {auditErrors, or none on the initial write}
 - Planned output paths: {plannedPaths}, the complete normalized output-path set from
   the current plan at dispatch time
@@ -17,6 +19,7 @@
 ```
 RESULT: <success|error>
 FILE: <path written>
+PLAN_SHA256: <64 lowercase hex>
 LINES: <line count>
 AUTHORIZED_FROM_HASH: <sha256 of the exact pre-write bytes, or none on error>
 WRITTEN_HASH: <sha256 of the exact bytes written, or none on error>
@@ -51,7 +54,9 @@ time. If the path is absent, return the finding's exact proposed path, type, tie
 reason under `GAPS` instead of explaining it inline or silently dropping it. If the path
 is present — even when the retained finding is still typed `missing-dependency` —
 downgrade it to a link-only repair: add the link and report no gap. The orchestrator
-owns plan mutation and scaffolding after a true gap report.
+may prepare only the fixed gap-candidate sidecar after a true gap report; the write
+state-agent alone authorizes and installs the exact live-plan successor before the
+orchestrator dispatches its scoped scaffolding.
 
 **Only files on the durable `writeQueue` in `write-state.json` reach this agent** —
 `new`, hash-verified `run-owned-scaffold`, and paths the user explicitly approved for
@@ -71,6 +76,7 @@ The orchestrator reads these and includes them in the agent prompt:
 
 | Input                   | Description                                                                    |
 | ----------------------- | ------------------------------------------------------------------------------ |
+| Plan SHA-256            | Exact `authorizedPlanHash` reported by write-state assessment                  |
 | Scaffolded file content | The existing file with frontmatter + one-line summary                          |
 | Cross-ref frontmatter   | Frontmatter-only of all files listed in `crossLinks`                           |
 | Source code files       | Content of files listed in `sources`                                           |
@@ -82,11 +88,29 @@ The orchestrator reads these and includes them in the agent prompt:
 
 ## Steps
 
+### 0. Bind the Authorized Plan
+
+Before consuming `{type}`, `{tier}`, `{description}`, `{sources}`, `{crossLinks}`,
+`{tags}`, `{plannedPaths}`, or any content selected through those values, hash the
+exact, complete bytes of `.contributor-docs/doc-plan.yaml`. Require
+`{PLAN_SHA256}` to be 64-character lowercase hexadecimal and equal to that fresh
+hash. A missing plan or mismatch is
+`PLAN_DRIFT_BLOCKED: expected={PLAN_SHA256} actual=<hash-or-absent>`: do not modify
+the document, do not report a gap, and do not use the supplied plan metadata.
+
+The value is the current `authorizedPlanHash` only because the write state-agent
+already validated the complete authority chain. This agent may verify that identity;
+it may not derive a replacement authority from whatever bytes happen to be live.
+
 ### 1. Read the Scaffolded File
 
 Read {filePath} from disk. Parse the frontmatter to understand the file's metadata, type, and cross-links.
 
 ### 2. Read Source Code
+
+Freshly hash the exact live plan again and require equality with `{PLAN_SHA256}`
+immediately before using `{sources}`, `{crossLinks}`, or `{plannedPaths}` and before
+reading any source selected by them. Refuse with `PLAN_DRIFT_BLOCKED` on mismatch.
 
 Read all files listed in `sources`. For large files (>500 lines), focus on:
 
@@ -144,6 +168,11 @@ Before writing:
 
 Write the complete file (frontmatter + body) to {filePath}, replacing the scaffolded version.
 
+Immediately before the authorized write, freshly hash the exact live plan and require
+equality with `{PLAN_SHA256}`. Perform this check after validation and body rendering
+but before any document bytes change. On mismatch, return `PLAN_DRIFT_BLOCKED` and
+leave the document byte-identical.
+
 Before writing, confirm {filePath}'s provenance still holds. Hash the current bytes and
 check them against exactly these authorizations — the first that matches wins, and if
 none matches, the file changed under you: **stop and report instead of writing**.
@@ -177,13 +206,23 @@ changing provenance first or by writing under an old path approval.
 ### 7. Report
 
 Freshly hash the complete file after writing and report the result with file path,
-pre-write authorization hash, written hash, and line count. A success report missing
-either hash is an error and must not be marked done.
+accepted `PLAN_SHA256`, pre-write authorization hash, written hash, and line count.
+Freshly hash the exact live plan once more immediately before returning and require it
+to equal the reported `PLAN_SHA256`; otherwise return `PLAN_DRIFT_BLOCKED` instead of
+a success result.
+
+The accepting write state-agent freshly hashes the plan again during `record-write`
+and requires equality among the report's `PLAN_SHA256`, `authorizedPlanHash`, and the
+live hash. If they disagree it returns `PLAN_DRIFT_BLOCKED` and leaves write state and
+processor artifacts byte-identical. A success report missing any of the three hashes
+is an error and must not be marked done.
 
 ## Important
 
 - Do NOT update state files
 - Do NOT create additional files — only write the one assigned file
+- Do not consume plan metadata, sources, or cross-links unless the exact live plan
+  hashes to `PLAN_SHA256`
 - Do NOT modify the frontmatter — only add/replace body content
 - Do NOT read full content of other doc files (only frontmatter was provided for cross-refs)
 - If you discover a missing concept or algorithm that should exist, report it in the
