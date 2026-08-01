@@ -207,29 +207,79 @@ bodies, then asks one question of the word list. Quoted text, comment text and h
 content never become a command word, which is what makes `echo nix develop`,
 `printf 'nix develop'`, `# nix develop` and a `<<'EOF'` body all non-Nix.
 
-**Its boundary is deliberate and fails closed.** A word built from anything other than
-literal unquoted characters — quoted (`'nix' develop`), escaped, or expanded (`$CMD`,
-`` `nix build` ``) — is never matched against a Nix command name; a `nix` whose next
-word is a flag rather than a subcommand is not read as store use; a `<<` whose delimiter
-cannot be read abandons the rest of the script. Every one of those resolves to "no Nix
-invocation", and that direction is the safe one: a missed invocation refuses a cache
-claim and turns the gate red, while a misread mention would hand a cache volume to a job
-that never touches the store. The refusal is also easy to answer — a lane written in a
-form the lexer cannot read declares itself with a Nix setup action, which is matched as
-text. The corresponding cost is honest: a real invocation hidden behind an expansion is
-a false negative, and on a bare venue such a job is read as an ordinary non-Nix lane
-rather than an undeclared F2 recurrence.
-
 The scanner is a jq function block inside `cache-tag-shape`; it adds no runtime, no tool
 and no hook. Hook count stays twelve, the four modes are unchanged, and the corrected
 `-with-cache` / bare split is untouched.
 
-`probes/cache-tag-shape.ts` gains an eleventh arm —
-`mutation-textual-nix-mention-cache-claim-caught` — which is the reviewer's exact
-reproduction: setup action removed, command replaced with `echo nix develop`, cached
-labels retained. It and the existing non-Nix arm now assert the refusal **text**, not
-merely a non-zero exit, so neither can pass on a red produced by broken YAML or a
-drifted mutation target. One baseline plus ten mutations.
+## Two answers were not enough: the unreadable verdict
+
+The section above claimed that resolving every unreadable construct to "no Nix
+invocation" was the fail-closed direction. **That claim was wrong**, and review proved
+it from two sides.
+
+First, "no Nix invocation" is only safe on a cache-capable venue. On the **bare** venue
+it is the opposite of safe: a real Nix job the reader could not make out —
+`'nix' develop`, `sudo -u root nix develop`, `sh -c 'nix develop'`, or an invocation
+after text that merely looked like a heredoc opener — was recorded as an ordinary
+non-Nix lane and passed green with no cache labels **and** no
+`env.S31_CACHE_EXEMPT_REASON`. That is exactly the F2 hole the exemption marker exists
+to close, re-opened through the classifier instead of through the labels.
+
+Second, "counts as a command" was too eager in the other direction. A `(` was treated as
+a command separator wherever it appeared, so `args=(nix develop)`, `((nix-build))`,
+`nix-build() { … }` and a parenthesised `case` pattern all produced a command word that
+runs nothing. And a script may take the name away from the binary entirely:
+`nix() { echo harmless; }` or `alias nix=echo` followed by `nix develop` calls no Nix at
+all.
+
+So the `run:` scanner now answers with three states, and the gate acts on all three:
+
+| Verdict          | Meaning                                   | Venue rule                         |
+| ---------------- | ----------------------------------------- | ---------------------------------- |
+| `nix-store-user` | a supported Nix command definitely runs   | cache-capable venue, as before     |
+| `no-nix`         | the script definitely runs no Nix command | may not claim the cache, as before |
+| **`unreadable`** | the reader will not guess at this syntax  | **refused on every venue**         |
+
+`unreadable` is refused on cached, bare and GitHub-hosted venues alike, and neither an
+exemption marker nor a bare venue excuses it. Only a Nix setup action — matched as text,
+never guessed at — settles the question, and the message says so.
+
+What is read positively, rather than refused:
+
+- **Quoting resolves.** A word is carried as its literal value, so `'nix' develop` and
+  `"nix" develop` are the command `nix`. Only an expansion (`$CMD`, backticks) leaves a
+  word unresolved.
+- **Parentheses are read in context.** `(` opens a subshell only where a command may
+  start. Directly after a word it is an array literal or a function definition; doubled
+  it is arithmetic; after `in` or `;;` it is a `case` pattern. The exceptions are the
+  expansion prefixes `$( … )`, `<( … )` and `>( … )`, which do start a command — so
+  process substitution and `out=$(nix build)` are still Nix.
+- **Leading redirections and `sh -c`.** `>log nix develop` is Nix, and
+  `sh -c '<script>'` is answered by reading `<script>` (bounded to three levels).
+- **An argument is inert only if its command is.** A Nix command name handed to `echo`,
+  `printf`, `grep`, `test`, `case`, `docker` and the like is text. Handed to a command
+  the gate does not know — `timeout 10m nix build`, `./run.sh nix build` — it is
+  `unreadable`, because that command may well run it.
+- **Redefinition is refused.** If a script defines or aliases `nix`, `nix-build`,
+  `nix-shell` or `nix-store`, a later invocation of that name is no longer evidence of
+  store use, and the script is `unreadable` rather than Nix.
+
+The honest cost of the boundary is a refusal, not a silent pass: a lane written in a
+form the reader cannot resolve must add the setup action or simplify its command. The
+cost is bounded in practice — every Nix lane in this repository already uses the setup
+action — and the direction is now the same on every venue.
+
+`probes/cache-tag-shape.ts` grows to one baseline plus **ten** mutations. The new arm,
+`mutation-textual-nix-mention-cache-claim-caught`, runs two independent sabotages in
+sequence against the same file, each with its own required refusal: first the reviewer's
+exact reproduction (setup action removed, command replaced with `echo nix develop`,
+cached labels retained), then the array literal `args=(nix develop)`. They are sequential
+rather than combined on purpose — one script carrying both mentions would let a single
+red satisfy both assertions, so a regression in either mechanism could hide behind the
+other. Every reasoned arm now asserts the refusal **text**, and the text it asserts is
+the definite non-Nix message including its `(no Nix setup action and no nix command in
+its steps)` parenthetical: the `unreadable` refusal opens with the same clause, and a
+looser match would let "cannot be read" stand in for "definitely not Nix".
 
 ## Resulting hook set
 

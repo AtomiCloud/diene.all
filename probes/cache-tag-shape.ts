@@ -12,6 +12,7 @@ const CACHED_VENUE = [
 ].join('\n');
 
 type Edit = { find: string; replace: string };
+type Stage = { edits: Edit[]; reason: string };
 
 // A mutation whose target has drifted out of the file would silently sabotage nothing
 // and leave the arm asserting a red the gate never had to produce, so a missing target
@@ -59,9 +60,32 @@ function caught(name: string, description: string, path: string, edits: Edit[], 
   };
 }
 
-// The refusal both classifier arms must provoke: the job is read as a non-Nix job,
-// so its claim on the shared cache is rejected.
-const NOT_A_NIX_STORE_USER = 'claims the shared S31 Nix-store cache but is not a Nix-store user';
+// An arm may also be a SEQUENCE of independent sabotages against the same file,
+// each with its own required refusal. Two mechanisms folded into one mutated
+// script would let a single red satisfy both assertions, so a regression in one
+// could hide behind the other; run in sequence, each rewrite has to earn its own
+// refusal, and stage N+1 starts from the text stage N left behind.
+function caughtSequence(name: string, description: string, path: string, stages: Stage[]) {
+  return {
+    name,
+    description,
+    kind: 'mutation' as const,
+    expectedImpact: [],
+    async run(repo: any) {
+      for (const stage of stages) {
+        await rewrite(repo, path, stage.edits);
+        await expectRedBecause(repo, stage.reason);
+      }
+    },
+  };
+}
+
+// The refusal the classifier arms must provoke. It carries the parenthetical of
+// the DEFINITE non-Nix message on purpose: the gate's third answer — "cannot be
+// read" — opens with the same clause, and a reason that matched both would let an
+// unreadable-syntax refusal stand in for the definite one these arms are proving.
+const NOT_A_NIX_STORE_USER =
+  'claims the shared S31 Nix-store cache but is not a Nix-store user (no Nix setup action and no nix command in its steps)';
 
 export default {
   contractVersion: 1,
@@ -114,15 +138,28 @@ export default {
       ],
       NOT_A_NIX_STORE_USER,
     ),
-    caught(
+    caughtSequence(
       'mutation-textual-nix-mention-cache-claim-caught',
-      'A job whose run: script only MENTIONS Nix must not claim the shared Nix-store cache: stripping the Nix setup action and leaving a harmless `echo nix develop` behind — which installs and invokes nothing — must turn the S31 gate red instead of reading the mention as store use.',
+      'A job whose run: script only MENTIONS Nix must not claim the shared Nix-store cache. Two independent shapes, each proved on its own: a harmless `echo nix develop`, and then a Bash array literal `args=(nix develop)` whose parenthesis is not a subshell, so its contents are data. Neither installs or invokes anything, and each must turn the S31 gate red for the non-Nix reason.',
       DOCKER,
       [
-        { find: '      - uses: AtomiCloud/actions.setup-nix@v3\n', replace: '' },
-        { find: 'run: nix develop .#cd -c ./scripts/ci/docker.sh', replace: 'run: echo nix develop' },
+        {
+          edits: [
+            { find: '      - uses: AtomiCloud/actions.setup-nix@v3\n', replace: '' },
+            { find: 'run: nix develop .#cd -c ./scripts/ci/docker.sh', replace: 'run: echo nix develop' },
+          ],
+          reason: NOT_A_NIX_STORE_USER,
+        },
+        {
+          edits: [
+            {
+              find: 'run: echo nix develop',
+              replace: ['run: |', '          args=(nix develop)', '          printf \'%s\\n\' "${args[*]}"'].join('\n'),
+            },
+          ],
+          reason: NOT_A_NIX_STORE_USER,
+        },
       ],
-      NOT_A_NIX_STORE_USER,
     ),
     caught(
       'mutation-stale-cache-exemption-caught',

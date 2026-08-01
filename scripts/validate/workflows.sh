@@ -51,119 +51,246 @@ if [ "${mode}" = "cache-tag-shape" ]; then
   # shape that made live run 30670113046 fail.
   #
   # A step's 'uses:' is matched as text, because an action reference IS the whole
-  # value. A step's 'run:' is a shell script, so it is read as one: only a Nix
-  # command in command position counts, never a mention of one.
+  # value. A step's 'run:' is a shell script, so it is read as one.
   nix_setup_action='AtomiCloud/actions[.]setup-nix|cachix/install-nix-action|DeterminateSystems/nix-installer-action|namespacelabs/nscloud-cache-action'
 
   # ---------------------------------------------------------------------------
-  # run: scanner — invocation, not mention.
+  # run: scanner — three answers, because two are not enough.
   #
   # 'echo nix develop' installs and uses nothing, so a substring match on the
-  # script text hands a cache volume to a job that cannot use it. The scanner
-  # below splits a run: script into shell words and asks whether a supported Nix
-  # command stands in COMMAND position: at the start of the script, or after a
-  # separator (newline ; & | ( ) ), optionally behind VAR=value assignments,
-  # shell keywords, or a plain wrapper such as 'env' or 'sudo'. Quoted text,
-  # comments and heredoc bodies never produce a command word.
+  # script text hands a cache volume to a job that cannot use it. But answering
+  # only "Nix" or "not Nix" is equally wrong in the other direction: a real
+  # invocation the reader cannot make out ('$CMD develop', 'sudo -u root nix
+  # develop') would be recorded as "not Nix", and on the bare venue that silently
+  # excuses a Nix job from both the cache labels AND the exemption marker. So the
+  # scanner answers:
   #
-  # It is a small lexer, not a shell. Every construct it cannot read confidently
-  # resolves to "no Nix invocation": a word that is quoted, escaped, expanded
-  # ($VAR, backticks) or reached through an unreadable heredoc is left
-  # unclassified. That is the fail-closed direction — a missed invocation only
-  # refuses a cache claim (red), while a misread mention would grant the cache to
-  # a job that never touches the store, which is the bypass this closes. A job
-  # written in a form the scanner cannot read declares itself with a Nix setup
-  # action instead.
+  #   nix        a supported Nix command definitely runs
+  #   plain      the script definitely runs no Nix command
+  #   ambiguous  the script contains syntax this reader cannot resolve
+  #
+  # 'ambiguous' is refused on every venue (see below). It is not a failure of the
+  # job — it is the gate declining to guess, and the answer is always the same:
+  # declare the Nix setup action, or write the command so it can be read.
+  #
+  # How a word is read: the lexer resolves quoting ('nix' and "nix" are the word
+  # nix) but never guesses at an expansion ($CMD, backticks) — such a word is
+  # unresolved. Comments and heredoc bodies produce no words at all.
+  #
+  # How a command is found: the first word of a simple command, after VAR=value
+  # assignments, leading redirections, shell keywords and plain wrappers (env,
+  # sudo, command, …). A '(' opens a subshell only where a command may start, so
+  # an array literal, an arithmetic expression, a function definition and a
+  # parenthesised case pattern are data, not commands. 'sh -c <script>' is read by
+  # scanning <script>.
+  #
+  # When a mention is inert: a Nix command name that appears as an ARGUMENT is
+  # inert only when the command receiving it is known not to execute its
+  # arguments (echo, printf, grep, test, case, …). Any other command receiving
+  # the word 'nix' is ambiguous, because it may well run it.
   # ---------------------------------------------------------------------------
   nix_scanner="$(
     cat <<'JQ'
 def nix_subcommands: ["develop", "build", "shell", "run", "flake", "profile", "store"];
+def nix_command_names: ["nix", "nix-build", "nix-shell", "nix-store"];
 def nix_legacy_commands: ["nix-build", "nix-shell", "nix-store"];
 # Words that leave the NEXT word in command position.
-def command_prefix_words: ["if", "then", "elif", "else", "while", "until", "do", "!", "command", "exec", "env", "nohup", "time", "sudo"];
+def shell_keywords: ["if", "then", "elif", "else", "while", "until", "do", "!", "{"];
+# Commands that run their argument list as a command.
+def command_wrappers: ["command", "exec", "env", "nohup", "time", "sudo", "doas", "nice", "ionice", "setsid", "stdbuf", "timeout", "taskset", "chroot", "runuser", "su", "xargs"];
+def shell_interpreters: ["sh", "bash", "zsh", "dash", "ash", "ksh"];
+# Commands that do NOT execute their arguments, so a Nix command name handed to
+# one of them is text. Anything not listed here is treated as able to run it.
+def inert_commands: [
+  "echo", "printf", "print", ":", "true", "false", "test", "[", "[[", "case", "for", "select", "in",
+  "declare", "typeset", "local", "export", "readonly", "unset", "set", "read", "alias", "shift",
+  "return", "exit", "break", "continue", "grep", "egrep", "fgrep", "rg", "ag", "sed", "awk", "cut",
+  "tr", "sort", "uniq", "head", "tail", "wc", "cat", "tee", "ls", "git", "docker", "jq", "yq",
+  "curl", "wget", "mkdir", "rm", "cp", "mv", "ln", "touch", "chmod", "chown", "basename", "dirname",
+  "pwd", "cd", "type", "hash", "apt-get", "apk", "npm", "yarn", "pnpm", "bun"
+];
 
-# Heredoc bodies are data, so they are removed before any word is read. Openers
-# are matched textually and generously: a '<<' that is really inside quotes only
-# drops more lines than a shell would, and a '<<' whose delimiter cannot be read
-# abandons the remainder of the script. Both directions lose invocations rather
-# than invent them.
-def heredoc_free:
-  reduce (. / "\n")[] as $line (
-    { pending: [], code: [], readable: true };
-    if (.readable | not) then .
-    elif (.pending | length) > 0 then
-      (.pending[0]) as $open
-      | if (if $open.strip then ($line | sub("^\t+"; "")) else $line end) == $open.delim
-        then .pending = .pending[1:]
-        else .
-        end
-    else
-      ([$line | match("<<(-?)[ \t]*(?:'([^']*)'|\"([^\"]*)\"|([A-Za-z_][A-Za-z0-9_.-]*))"; "g")
-        | { strip: (.captures[0].string == "-"),
-            delim: ([.captures[1].string, .captures[2].string, .captures[3].string] | map(values) | first) }]) as $opens
-      | if ($opens | length) != ([$line | match("(?<!<)<<(?!<)"; "g")] | length)
-        then .readable = false
-        else .code += [$line] | .pending += $opens
-        end
-    end
-  )
-  | if .readable then (.code | join("\n")) else null end;
+# A word carries its resolved literal value and whether that value is certain:
+# 'nix' and "nix" resolve to nix, while $CMD and `cmd` do not resolve at all.
+def tok_push:
+  if .started then
+    (if .hd_want == 1 then
+       (if (.lit | test("<<-?[^<]*$"))
+        then (.lit | capture("<<(?<s>-?)(?<d>[^<]*)$")) as $m
+          | if $m.d == "" then .hd_want = 2 | .hd_strip = ($m.s == "-")
+            else .hd_queue += [{ delim: $m.d, strip: ($m.s == "-") }] | .hd_want = 0
+            end
+        else .hd_want = 0 | .risky = true
+        end)
+     elif .hd_want == 2 then
+       .hd_queue += [{ delim: .lit, strip: .hd_strip }] | .hd_want = 0 | (if .ok then . else .risky = true end)
+     else . end)
+    | .out += [{ lit: .lit, ok: .ok }]
+    | .lit = "" | .ok = true | .started = false
+  else . end;
 
-# 'plain' records that a word was built only from literal, unquoted characters.
-# A word that is not plain is never matched against a Nix command name.
-def tok_flush: if .started then .out += [{ w: .tok, plain: .plain }] | .tok = "" | .plain = true | .started = false else . end;
-def tok_sep: tok_flush | .out += [{ sep: true }];
+def tok_sep($c): tok_push | .out += [{ sep: $c }];
+
+# Where a '(' is a case pattern rather than a subshell: directly after the 'in'
+# of a case, or after the ';;' that ends the previous branch.
+def pattern_pos:
+  (.out | length) as $n
+  | (($n > 0) and (.out[$n - 1].lit? == "in"))
+    or (($n > 1) and (.out[$n - 1].sep? == ";") and (.out[$n - 2].sep? == ";"));
 
 def shell_words:
   reduce (. / "")[] as $c (
-    { mode: "code", esc: false, tok: "", plain: true, started: false, out: [] };
-    if .esc then
-      (if .mode == "code" and $c != "\n" then .tok += $c | .plain = false | .started = true else . end) | .esc = false
-    elif .mode == "single" then (if $c == "'" then .mode = "code" else . end)
-    elif .mode == "double" then (if $c == "\\" then .esc = true elif $c == "\"" then .mode = "code" else . end)
-    elif .mode == "backtick" then (if $c == "`" then .mode = "code" else . end)
-    elif .mode == "comment" then (if $c == "\n" then .mode = "code" | tok_sep else . end)
-    elif $c == "\\" then .esc = true
-    elif $c == "'" then .mode = "single" | .plain = false | .started = true
-    elif $c == "\"" then .mode = "double" | .plain = false | .started = true
-    elif $c == "`" then .mode = "backtick" | .plain = false | .started = true
-    elif $c == "#" and (.started | not) then .mode = "comment"
-    elif $c == "$" then .plain = false | .started = true
-    elif ($c == " " or $c == "\t") then tok_flush
-    elif ($c == "\n" or $c == ";" or $c == "&" or $c == "|" or $c == "(" or $c == ")") then tok_sep
-    else .tok += $c | .started = true
-    end
-  )
-  | tok_flush
-  | .out;
-
-# 'nix' is a multiplexer, so it counts only when the very next word is one of the
-# store-using subcommands: 'nix --version' and a lone 'nix' are not store use,
-# and a flag before the subcommand is left unread rather than guessed at.
-def nix_invoked:
-  reduce .[] as $t (
-    { cmdpos: true, want_sub: false, found: false };
-    if .found then .
-    elif ($t.sep // false) then .cmdpos = true | .want_sub = false
-    elif .want_sub then
-      .want_sub = false
-      | if ($t.plain and ((nix_subcommands | index($t.w)) != null)) then .found = true else . end
-    elif .cmdpos then
-      if ($t.plain | not) then .cmdpos = false
-      elif ($t.w | test("^[A-Za-z_][A-Za-z0-9_]*=")) then .
-      elif ((command_prefix_words | index($t.w)) != null) then .
-      elif $t.w == "nix" then .cmdpos = false | .want_sub = true
-      elif ((nix_legacy_commands | index($t.w)) != null) then .found = true
-      else .cmdpos = false
+    { mode: "code", esc: false, prev: "", lit: "", ok: true, started: false, out: [],
+      hd_want: 0, hd_strip: false, hd_queue: [], hd_line: "", risky: false };
+    (
+      if .mode == "heredoc" then
+        (if $c == "\n" then
+           ((if .hd_queue[0].strip then (.hd_line | sub("^\t+"; "")) else .hd_line end) as $line
+            | if $line == .hd_queue[0].delim
+              then .hd_queue = .hd_queue[1:] | (if (.hd_queue | length) == 0 then .mode = "code" else . end)
+              else . end)
+           | .hd_line = ""
+         else .hd_line += $c end)
+      elif .esc then
+        (if .mode == "code" and $c == "\n" then . else .lit += $c | .started = true end) | .esc = false
+      elif .mode == "single" then (if $c == "'" then .mode = "code" else .lit += $c end)
+      elif .mode == "double" then
+        (if $c == "\\" then .esc = true
+         elif $c == "\"" then .mode = "code"
+         elif $c == "`" then .mode = "backtick" | .ok = false | .risky = true
+         elif $c == "$" then .lit += $c | .ok = false
+         else .lit += $c end)
+      elif .mode == "backtick" then (if $c == "`" then .mode = "code" else . end)
+      elif .mode == "comment" then (if $c == "\n" then .mode = "code" | tok_sep($c) else . end)
+      elif $c == "\\" then .esc = true
+      elif $c == "'" then .mode = "single" | .started = true
+      elif $c == "\"" then .mode = "double" | .started = true
+      elif $c == "`" then .mode = "backtick" | .ok = false | .started = true | .risky = true
+      elif $c == "#" and (.started | not) then .mode = "comment"
+      elif $c == "$" then .lit += $c | .ok = false | .started = true
+      elif ($c == " " or $c == "\t") then tok_push
+      elif $c == "<" then
+        # A second '<' opens a heredoc; a third makes it a here-string instead.
+        (if .prev == "<" then (if .hd_want == 1 then .hd_want = 0 else .hd_want = 1 end) else . end)
+        | .lit += $c | .started = true
+      elif $c == "(" then
+        # '(' opens a subshell only where a command may start. Directly after a
+        # word it is an array literal or a function definition; doubled it is
+        # arithmetic; after 'in' or ';;' it is a case pattern. The exceptions are
+        # the expansion prefixes $( <( >( , which DO start a command.
+        (if (.lit | test("[$<>]$")) then tok_sep($c)
+         elif .started or (.prev == "(") or pattern_pos then .lit += $c | .started = true
+         else tok_sep($c) end)
+      elif $c == "\n" then
+        tok_sep($c) | (if (.hd_queue | length) > 0 then .mode = "heredoc" | .hd_line = "" else . end)
+      elif ($c == ";" or $c == "&" or $c == "|" or $c == ")") then tok_sep($c)
+      else .lit += $c | .started = true
       end
-    else .
+    )
+    | .prev = $c
+  )
+  # A script may end without a trailing newline: close a final heredoc whose last
+  # line is its delimiter, and accept a comment that runs to the end of the text.
+  | (if .mode == "heredoc"
+       and ((if .hd_queue[0].strip then (.hd_line | sub("^\t+"; "")) else .hd_line end) == .hd_queue[0].delim)
+     then .hd_queue = .hd_queue[1:] | (if (.hd_queue | length) == 0 then .mode = "code" else . end)
+     else . end)
+  | tok_push
+  | { words: .out,
+      risky: (.risky
+              or (.mode == "single") or (.mode == "double") or (.mode == "backtick")
+              or ((.hd_queue | length) > 0) or (.hd_want != 0)) };
+
+# Split the word stream into simple commands, and drop array literals whole:
+# 'args=(nix develop)' assigns two strings and runs nothing.
+def group_commands:
+  reduce .[] as $t (
+    { cmds: [], cur: [], skip: false, risky: false };
+    if ($t.sep // null) != null then
+      (if .skip then (if $t.sep == ")" then .skip = false else .risky = (.risky or ($t.sep == "(")) end)
+       else .cmds += [.cur] end)
+      | .cur = []
+    else
+      (if .skip then .
+       elif ((.cur | length) == 0) and $t.ok and ($t.lit | test("^[A-Za-z_][A-Za-z0-9_]*(\\[[^]]*\\])?\\+?=\\("))
+       then .skip = true
+       else .cur += [$t] end)
     end
   )
-  | .found;
+  | { cmds: (.cmds + [.cur]), risky: .risky };
 
-def run_invokes_nix:
-  heredoc_free as $code
-  | if $code == null then false else ($code | shell_words | nix_invoked) end;
+def is_nix_name($w): $w.ok and ((nix_command_names | index($w.lit)) != null);
+def is_nix_subcommand($w): $w.ok and ((nix_subcommands | index($w.lit)) != null);
+def mentions_nix: any(. as $e | is_nix_name($e));
+
+# One simple command -> "nix" | "plain" | "ambiguous" | {recurse: <script>}.
+def cmd_verdict:
+  if length == 0 then "plain"
+  else
+    .[0] as $w | .[1:] as $rest
+    | if ($w.ok | not) then "ambiguous"
+      elif ($w.lit | test("^[0-9]*[<>]")) then
+        (if ($w.lit | test("^[0-9]*[<>]+$")) then ($rest[1:] | cmd_verdict) else ($rest | cmd_verdict) end)
+      elif ($w.lit | test("^[A-Za-z_][A-Za-z0-9_]*(\\[[^]]*\\])?\\+?=")) then ($rest | cmd_verdict)
+      elif (shell_keywords | index($w.lit)) != null then ($rest | cmd_verdict)
+      elif $w.lit == "nix" then
+        # 'nix' is a multiplexer: store use depends on the subcommand, so
+        # 'nix --version' is not store use and 'nix $SUB' cannot be read.
+        (if ($rest | any(. as $e | is_nix_subcommand($e))) then "nix"
+         elif ($rest | all(.ok)) then "plain"
+         else "ambiguous" end)
+      elif (nix_legacy_commands | index($w.lit)) != null then "nix"
+      elif (command_wrappers | index($w.lit)) != null then
+        # 'sudo nix build' is readable; 'sudo -u root nix build' is not, because
+        # which word is the command depends on what the option consumes.
+        (if ($rest | length) == 0 then "plain"
+         elif ($rest[0].ok | not) or ($rest[0].lit | test("^-")) then "ambiguous"
+         else ($rest | cmd_verdict) end)
+      elif (shell_interpreters | index($w.lit)) != null then
+        ([$rest | to_entries[] | select(.value.ok and .value.lit == "-c") | .key] | first) as $i
+        | (if $i == null then (if ($rest | mentions_nix) then "ambiguous" else "plain" end)
+           elif ($rest | length) <= ($i + 1) then "ambiguous"
+           elif ($rest[$i + 1].ok | not) then "ambiguous"
+           else { recurse: $rest[$i + 1].lit }
+           end)
+      elif $w.lit == "eval" then "ambiguous"
+      elif ($rest | mentions_nix) then
+        (if (inert_commands | index($w.lit)) != null then "plain" else "ambiguous" end)
+      else "plain"
+      end
+  end;
+
+# 'nix() { … }', 'function nix …' and 'alias nix=…' redefine what the word runs.
+def shadows_nix:
+  . as $ts
+  | [range(0; ($ts | length))]
+  | any(
+      . as $i
+      | ($ts[$i]) as $w
+      | ($ts[$i + 1]) as $n
+      | ($w.ok // false)
+        and (
+          ($w.lit | test("^(nix|nix-build|nix-shell|nix-store)\\("))
+          or ($w.lit | test("^(nix|nix-build|nix-shell|nix-store)="))
+          or (is_nix_name($w) and (($n.sep? // "") == "("))
+          or (($w.lit == "function") and (($n.ok? // false) and is_nix_name($n)))
+        )
+    );
+
+def run_verdict($depth):
+  (shell_words) as $lex
+  | ($lex.words | group_commands) as $g
+  | [$g.cmds[] | cmd_verdict]
+  | map(if type == "object" then (if $depth >= 3 then "ambiguous" else (.recurse | run_verdict($depth + 1)) end) else . end)
+  | if (index("nix") != null) then
+      # A script that defines or aliases a Nix command name has changed what that
+      # word runs, so a later 'nix develop' is no longer evidence of store use.
+      (if ($lex.words | shadows_nix) then "ambiguous" else "nix" end)
+    elif $lex.risky or $g.risky or (index("ambiguous") != null) then "ambiguous"
+    else "plain"
+    end;
+
+def run_verdict: run_verdict(0);
 JQ
   )"
 
@@ -179,9 +306,13 @@ JQ
         (($job.env.S31_RUNNER_FALLBACK_REASON // "") | tostring),
         (($job.env.S31_CACHE_EXEMPT_REASON // "") | tostring),
         (if ([($job.steps // [])[] | ((.uses // "") | tostring)] | any(test($setup)))
-            or ([($job.steps // [])[] | ((.run // "") | tostring)] | any(run_invokes_nix))
          then "nix-store-user"
-         else "no-nix"
+         else
+           ([($job.steps // [])[] | ((.run // "") | tostring) | run_verdict]) as $verdicts
+           | if ($verdicts | index("nix")) != null then "nix-store-user"
+             elif ($verdicts | index("ambiguous")) != null then "unreadable"
+             else "no-nix"
+             end
          end),
         ([
           (if (($workflow.env // {}) | has("S31_CACHE_EXEMPT_REASON")) then "workflow-level env.S31_CACHE_EXEMPT_REASON" else empty end),
@@ -251,6 +382,22 @@ JQ
 
     cache_capable=$((namespace_cache_primary + namespace_cache_fallback))
     namespace_venue=$((cache_capable + namespace_bare_primary + namespace_bare_fallback))
+
+    # An unreadable job is refused on EVERY venue, and this is the reason the
+    # classification has three answers instead of two. Treating "cannot tell" as
+    # "not Nix" would be safe on a cache-capable venue and unsafe on the bare one:
+    # there it would silently excuse a real Nix job from the cache labels AND from
+    # env.S31_CACHE_EXEMPT_REASON, which is the very hole the exemption exists to
+    # close. The gate therefore declines to guess, on any venue.
+    if [ "${nix_use}" = "unreadable" ]; then
+      unreadable_hint="an expanded or shadowed command name, a wrapper with options, eval, an unterminated quote or heredoc, or a nix command name handed to a command that may run it"
+      if [ "${cache_capable}" -eq 1 ]; then
+        echo "❌ ${file} job '${job}' claims the shared S31 Nix-store cache but is not a Nix-store user that this gate can confirm: its run: script uses shell syntax the gate cannot read as a command (${unreadable_hint}). Add the Nix setup action if it uses the Nix store, or write the command so it can be read" >&2
+      else
+        echo "❌ ${file} job '${job}' has a run: script whose Nix-store use cannot be determined (${unreadable_hint}): a job that uses the Nix store must declare it with the Nix setup action, or write the command so the gate can read it" >&2
+      fi
+      exit 1
+    fi
 
     if [ "${namespace_venue}" -eq 1 ]; then
       [ "${runner_type}" != "array" ] && echo "❌ ${file} job '${job}' must declare Namespace runner metadata as an array" >&2 && exit 1

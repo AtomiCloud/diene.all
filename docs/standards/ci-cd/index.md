@@ -71,15 +71,33 @@ bare venue label with no cache-size or cache-tag label; cache absence is part of
 their isolation contract.
 
 Which jobs are cache-eligible is read from what a job does, not from the labels
-it carries: a job is a Nix-store user when a step uses a Nix setup action, or
-when a `run:` script **invokes** `nix develop|build|shell|run|flake|profile|store`
-(or legacy `nix-build`, `nix-shell`, `nix-store`) as a command. A mention is not
-an invocation — `echo nix develop`, a comment, quoted text and heredoc content
-leave a job non-Nix. The gate reads `run:` with a small shell lexer rather than a
-full shell, and every form it cannot read confidently, such as a quoted, escaped
-or `$VAR`-expanded command word, counts as no invocation and so refuses the cache
-claim; a lane written that way declares itself with the Nix setup action instead.
-Such a job on the bare venue also records a non-empty job-level
+it carries. A step's `uses:` is matched as text, so a Nix setup action always
+makes a job a Nix-store user. A step's `run:` is a shell script, and the gate
+reads it with a small shell lexer that gives one of **three** answers:
+
+- **Nix** — a supported Nix command definitely runs:
+  `nix develop|build|shell|run|flake|profile|store`, or legacy `nix-build`,
+  `nix-shell`, `nix-store`, standing in command position. Assignments,
+  redirections, keywords, plain wrappers (`sudo nix build`), subshells, process
+  substitution and `sh -c '…'` are all read through.
+- **Not Nix** — the script definitely runs no Nix command. A mention is not an
+  invocation: `echo nix develop`, a comment, quoted text, heredoc content, an
+  array literal `args=(nix develop)`, an arithmetic expression, a function
+  definition and a `case` pattern are all data.
+- **Cannot be read** — the script uses syntax the lexer will not guess at: an
+  expanded command name (`$CMD develop`), a wrapper with options
+  (`sudo -u root nix develop`), `eval`, backticks, an unterminated quote or
+  heredoc, a script that redefines or aliases `nix`, or a Nix command name handed
+  to a command that might run it (`timeout 10m nix build`).
+
+The third answer is **refused on every venue** — cached, bare and GitHub-hosted —
+and is the point of having three answers rather than two. Calling an unreadable
+script "not Nix" would be safe on a cache-capable venue and unsafe on the bare
+one, where it would silently excuse a real Nix job from both the cache labels and
+the exemption marker below. The gate declines to guess instead. Only a Nix setup
+action resolves it; the alternative is to write the command so it can be read.
+
+A Nix-store user on the bare venue also records a non-empty job-level
 `env.S31_CACHE_EXEMPT_REASON`, so a deliberate isolation lane is distinguishable
 from a lane that lost its cache by accident. That exemption is only meaningful on
 the bare Namespace venue: a Nix-store user on a GitHub-hosted runner is rejected
