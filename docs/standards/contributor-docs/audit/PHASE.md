@@ -134,12 +134,19 @@ writer impossible, only a compliant one orderly.
 
 ### Canonical Docs Digest
 
-The digest hashes each document's path relative to `docsRoot`, a NUL byte, the
-file's exact bytes, and another NUL byte. Entries are sorted by relative path
-under the C locale before hashing. The path framing means a rename changes the
-digest; `find -type f` means tracked, untracked, ignored, and generated regular
+Each digest entry is framed, in order, as the document's path relative to
+`docsRoot`, a NUL byte, the object kind `regular`, a NUL byte, the regular
+file's exact decimal byte length, a NUL byte, its exact byte payload, and a
+terminating NUL byte. Entries are sorted by relative path under the C locale
+before hashing. The object-kind and length frames make arbitrary bytes,
+including NULs, unambiguous; the path frame means a rename changes the digest.
+`find -type f` means tracked, untracked, ignored, and generated regular
 documents all participate. Symlinks and directories are not regular documents
 and are not followed.
+
+This digest format is part of the initial epoch-1 build and lands before any
+mirror or state record can contain an accepted `docsDigest`; there is no
+persisted prior-format digest to migrate.
 
 Run this Bash definition from the repository root:
 
@@ -147,19 +154,27 @@ Run this Bash definition from the repository root:
 set -o pipefail
 
 docs_digest() {
-  local docs_root="${1:?docsRoot is required}"
+  local docs_root="${1:?docsRoot is required}" docs_abs
+  local docs_path="$PWD/$docs_root"
 
-  if [[ ! -d "$docs_root" ]]; then
+  if [[ ! -d "$docs_path" || -L "$docs_path" ]]; then
+    return 1
+  fi
+  docs_abs=$(realpath -e -- "$docs_path") || return 1
+  if [[ "$docs_abs" != "$PWD/"* ]]; then
     return 1
   fi
 
   (
-    cd -- "$docs_root" || exit 1
+    local doc relative_path size
+    cd -- "$docs_abs" || exit 1
     find . -type f -print0 |
       LC_ALL=C sort -z |
       while IFS= read -r -d '' doc; do
         relative_path=${doc#./}
+        size=$(stat -c '%s' -- "$doc") || exit 1
         printf '%s\0' "$relative_path"
+        printf 'regular\0%s\0' "$size"
         cat -- "$doc" || exit 1
         printf '\0'
       done
@@ -187,18 +202,18 @@ printf 'beta\n' >"$control_repo/docs/z.mdx"
 git -C "$control_repo" init -q
 git -C "$control_repo" add docs/guide/a.md
 
-known=39e77a6619ba41e414906e08eb0f1d62d3069469c2b7cd5f702058869f256fb9
-baseline=$(docs_digest "$control_repo/docs")
+known=e0f88a358606bef60008d63069584d60f374d66d881a3985a348d2fc489832fa
+baseline=$(cd -- "$control_repo" && docs_digest docs)
 test "$baseline" = "$known"
 
 printf 'Alpha\n' >"$control_repo/docs/guide/a.md"
-tracked_changed=$(docs_digest "$control_repo/docs")
+tracked_changed=$(cd -- "$control_repo" && docs_digest docs)
 test "$tracked_changed" != "$baseline"
 printf 'alpha\n' >"$control_repo/docs/guide/a.md"
-test "$(docs_digest "$control_repo/docs")" = "$baseline"
+test "$(cd -- "$control_repo" && docs_digest docs)" = "$baseline"
 
 printf 'Beta\n' >"$control_repo/docs/z.mdx"
-untracked_changed=$(docs_digest "$control_repo/docs")
+untracked_changed=$(cd -- "$control_repo" && docs_digest docs)
 test "$untracked_changed" != "$baseline"
 ```
 

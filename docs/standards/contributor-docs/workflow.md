@@ -323,10 +323,13 @@ the rename itself does not close it. Its NUL-framed manifest fingerprints file p
 object kind, exact regular-file bytes or symlink target, and absence for
 `task-state.json`, `plan-state.json`, `write-state.json`, live plan, and the fixed gap
 candidate. A write completion additionally includes its assigned document; an audit
-processor operation also includes audit state, the epoch sidecar, assigned document,
-and canonical finding artifacts. Processor helpers separately fingerprint the
-processor-state preimage. After the last semantic validation and immediately before
-`mv`, both fingerprints must still match. Otherwise return
+processor operation additionally enumerates audit state, the epoch sidecar, its
+assigned document, the complete normalized `docsRoot` tree, and canonical finding
+artifacts. The `docsRoot` membership is the root plus every entry identified by its
+path relative to `docsRoot`, in C-locale order; each manifest record fingerprints the
+path, object kind, and exact regular-file bytes or absence. Processor helpers
+separately fingerprint the processor-state preimage. After the last semantic
+validation and immediately before `mv`, both fingerprints must still match. Otherwise return
 `PROCESSOR_AUTHORITY_INVALID` (or the earlier, more specific plan/byte refusal), remove
 the staged temp, and leave the old processor state byte-identical.
 

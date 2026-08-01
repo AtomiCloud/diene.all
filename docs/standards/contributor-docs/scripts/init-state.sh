@@ -880,24 +880,26 @@ assert_record_write_authority() {
 }
 
 canonical_docs_digest() {
-  local docs_root=$1 docs_abs
-  local docs_path="$REPO_ROOT/$docs_root"
+  local docs_root=$1 digest_repo_root=${2:-$REPO_ROOT} docs_abs
+  local docs_path="$digest_repo_root/$docs_root"
 
   if [[ ! -d $docs_path || -L $docs_path ]]; then
     return 1
   fi
   docs_abs=$(realpath -e -- "$docs_path") || return 1
-  if [[ $docs_abs != "$REPO_ROOT/"* ]]; then
+  if [[ $docs_abs != "$digest_repo_root/"* ]]; then
     return 1
   fi
   (
-    local doc relative_path
+    local doc relative_path size
     cd -- "$docs_abs" || exit 1
     find . -type f -print0 |
       LC_ALL=C sort -z |
       while IFS= read -r -d '' doc; do
         relative_path=${doc#./}
+        size=$(stat -c '%s' -- "$doc") || exit 1
         printf '%s\0' "$relative_path"
+        printf 'regular\0%s\0' "$size"
         cat -- "$doc" || exit 1
         printf '\0'
       done
@@ -1350,6 +1352,113 @@ init_state_main() {
       ! rg -q "$bad_pattern" "$script"
     }
 
+    check_fact_check_docs_manifest_contract() {
+      local workflow=$1 script=${2:-"$CD_ROOT/scripts/init-state.sh"} clause
+      local required docs_tree_call sorted_tree_walk docs_root_term
+
+      printf -v docs_tree_call \
+        'append_tree_snapshot_paths "\x24%s" paths' docs_root_abs
+      printf -v sorted_tree_walk \
+        'find -P "\x24%s" -mindepth 1 -print0 | LC_ALL=C sort -z' root
+      printf -v docs_root_term '\x60%s\x60' docsRoot
+
+      clause=$(awk '
+        /Its NUL-framed manifest fingerprints file path,/ { manifest = 1 }
+        manifest { print }
+        manifest && /Processor helpers separately fingerprint/ { exit }
+      ' "$workflow")
+      if [[ $clause != *'processor operation additionally enumerates'* ]] ||
+        [[ $clause != *"the complete normalized ${docs_root_term} tree"* ]]; then
+        printf 'FACT_CHECK_DOCS_MANIFEST_DOC_MISSING full-docs membership\n' >&2
+        return 1
+      fi
+      for required in "path relative to ${docs_root_term}" 'C-locale order' 'object kind' \
+        'exact regular-file bytes or absence'; do
+        if [[ $clause != *"$required"* ]]; then
+          printf 'FACT_CHECK_DOCS_MANIFEST_DOC_INCOMPLETE %s\n' "$required" >&2
+          return 1
+        fi
+      done
+      if [[ $(rg -cF 'processor operation additionally enumerates' "$workflow" || true) != 1 ]] ||
+        [[ $(rg -cF "$docs_tree_call" "$script" || true) != 1 ]] ||
+        ! rg -qF "$sorted_tree_walk" "$script"; then
+        printf 'FACT_CHECK_DOCS_MANIFEST_RUNTIME_DRIFT full-docs enumeration\n' >&2
+        return 1
+      fi
+    }
+
+    docs_digest_entry_law() {
+      local source=$1 function_name=$2
+
+      awk -v signature="${function_name}() {" '
+        $0 == signature { in_function = 1; next }
+        in_function && $0 == "}" { exit }
+        in_function && /^[[:space:]]*find \. -type f -print0 \|$/ { law = 1 }
+        law {
+          line = $0
+          sub(/^[[:space:]]*/, "", line)
+          print line
+          if ($0 ~ /^[[:space:]]*done$/) exit
+        }
+      ' "$source"
+    }
+
+    check_docs_digest_source_contract() {
+      local audit_phase=$1 script=${2:-"$CD_ROOT/scripts/init-state.sh"}
+      local runtime_law published_law required regular_term docs_digest_term
+
+      printf -v regular_term '\x60%s\x60' regular
+      printf -v docs_digest_term '\x60%s\x60' docsDigest
+
+      runtime_law=$(docs_digest_entry_law "$script" canonical_docs_digest)
+      published_law=$(docs_digest_entry_law "$audit_phase" docs_digest)
+      if [[ -z $runtime_law || $runtime_law != "$published_law" ]]; then
+        printf 'DOCS_DIGEST_LAW_DRIFT runtime and published entry framing differ\n' >&2
+        return 1
+      fi
+      for required in "object kind ${regular_term}" 'exact decimal byte length' \
+        'including NULs, unambiguous' 'initial epoch-1 build' \
+        "accepted ${docs_digest_term}"; do
+        if ! rg -qF "$required" "$audit_phase"; then
+          printf 'DOCS_DIGEST_PROSE_LAW_MISSING %s\n' "$required" >&2
+          return 1
+        fi
+      done
+    }
+
+    run_runtime_docs_digest() {
+      local script=$1 fixture_repo=$2 docs_root=$3
+
+      bash -c '
+        source "$1"
+        canonical_docs_digest "$3" "$2"
+      ' docs-digest-runtime "$script" "$fixture_repo" "$docs_root"
+    }
+
+    run_published_docs_digest() {
+      local published_function=$1 fixture_repo=$2 docs_root=$3
+
+      bash -o pipefail -c '
+        source "$1"
+        cd -- "$2"
+        docs_digest "$3"
+      ' docs-digest-published "$published_function" "$fixture_repo" "$docs_root"
+    }
+
+    check_docs_digest_collision() {
+      local script=$1 fixture_repo=$2 two_digest one_digest
+
+      if ! two_digest=$(run_runtime_docs_digest "$script" "$fixture_repo" two) ||
+        ! one_digest=$(run_runtime_docs_digest "$script" "$fixture_repo" one); then
+        printf 'DOCS_DIGEST_COLLISION_FIXTURE_ERROR digest execution failed\n' >&2
+        return 1
+      fi
+      if [[ $two_digest == "$one_digest" ]]; then
+        printf 'DOCS_DIGEST_COLLISION two-empty-file and NUL-payload preimages matched\n' >&2
+        return 1
+      fi
+    }
+
     check_processor_contract_sources() {
       local init_script=${1:-"$CD_ROOT/scripts/init-state.sh"}
       local mark_script=${2:-"$CD_ROOT/scripts/mark-done.sh"}
@@ -1449,6 +1558,118 @@ init_state_main() {
       contract_failure 'Task-mutator inventory destructive fixture stayed green'
     elif ! check_task_mutator_inventory "$WORKFLOW"; then
       contract_failure 'Real task-mutator inventory did not recover green'
+    fi
+
+    if ! check_fact_check_docs_manifest_contract "$WORKFLOW"; then
+      contract_failure 'Fact-check full-docs authority-manifest documentation drifted'
+    fi
+    DOCS_MANIFEST_FIXTURE="$CONTROL_DIR/workflow-without-full-docs-manifest.md"
+    if ! awk '
+      index($0, "the complete normalized `docsRoot` tree") {
+        sub(/the complete normalized `docsRoot` tree/, "an incomplete document subset")
+        changed++
+      }
+      { print }
+      END { if (changed != 1) exit 1 }
+    ' "$WORKFLOW" >"$DOCS_MANIFEST_FIXTURE"; then
+      contract_failure 'Full-docs manifest fixture could not remove exactly one membership statement'
+    elif OUTPUT=$(check_fact_check_docs_manifest_contract \
+      "$DOCS_MANIFEST_FIXTURE" 2>&1); then
+      contract_failure 'Full-docs authority-manifest documentation destructive fixture stayed green'
+    elif [[ $OUTPUT != *FACT_CHECK_DOCS_MANIFEST_DOC_MISSING* ]]; then
+      contract_failure "Full-docs manifest fixture failed for the wrong reason: ${OUTPUT}"
+    elif ! check_fact_check_docs_manifest_contract "$WORKFLOW"; then
+      contract_failure 'Real full-docs authority-manifest documentation did not recover green'
+    fi
+
+    if ! check_docs_digest_source_contract "$AUDIT_PHASE"; then
+      contract_failure 'Canonical docs-digest prose/runtime law drifted'
+    fi
+    AUDIT_DIGEST_LAW_FIXTURE="$CONTROL_DIR/audit-phase-without-docs-length-frame.md"
+    if ! awk '
+      $0 == "docs_digest() {" { digest = 1 }
+      digest && index($0, "regular\\0%s\\0") && index($0, "\"$size\"") {
+        removed++
+        next
+      }
+      digest && $0 == "}" { digest = 0 }
+      { print }
+      END { if (removed != 1) exit 1 }
+    ' "$AUDIT_PHASE" >"$AUDIT_DIGEST_LAW_FIXTURE"; then
+      contract_failure 'Published docs-digest fixture could not remove exactly one length frame'
+    elif OUTPUT=$(check_docs_digest_source_contract \
+      "$AUDIT_DIGEST_LAW_FIXTURE" 2>&1); then
+      contract_failure 'Published docs-digest framing destructive fixture stayed green'
+    elif [[ $OUTPUT != *DOCS_DIGEST_LAW_DRIFT* ]]; then
+      contract_failure "Published docs-digest fixture failed for the wrong reason: ${OUTPUT}"
+    elif ! check_docs_digest_source_contract "$AUDIT_PHASE"; then
+      contract_failure 'Real docs-digest prose/runtime law did not recover green'
+    fi
+
+    PUBLISHED_DIGEST_FUNCTION="$CONTROL_DIR/published-docs-digest.sh"
+    if ! awk '
+      $0 == "docs_digest() {" { digest = 1; found++ }
+      digest { print }
+      digest && $0 == "}" { closed++; exit }
+      END { if (found != 1 || closed != 1) exit 1 }
+    ' "$AUDIT_PHASE" >"$PUBLISHED_DIGEST_FUNCTION"; then
+      contract_failure 'Could not extract exactly one published docs-digest definition'
+    fi
+
+    DIGEST_KNOWN_REPO="$CONTROL_DIR/docs-digest-known"
+    DIGEST_COLLISION_REPO="$CONTROL_DIR/docs-digest-collision"
+    mkdir -p "$DIGEST_KNOWN_REPO/docs/guide" \
+      "$DIGEST_COLLISION_REPO/two" "$DIGEST_COLLISION_REPO/one"
+    printf 'alpha\n' >"$DIGEST_KNOWN_REPO/docs/guide/a.md"
+    printf 'beta\n' >"$DIGEST_KNOWN_REPO/docs/z.mdx"
+    : >"$DIGEST_COLLISION_REPO/two/x"
+    : >"$DIGEST_COLLISION_REPO/two/y"
+    printf '\0y\0' >"$DIGEST_COLLISION_REPO/one/x"
+
+    if ! RUNTIME_DIGEST_KNOWN=$(run_runtime_docs_digest \
+      "$CD_ROOT/scripts/init-state.sh" "$DIGEST_KNOWN_REPO" docs); then
+      contract_failure 'Runtime docs-digest known-answer fixture failed to execute'
+    elif ! PUBLISHED_DIGEST_KNOWN=$(run_published_docs_digest \
+      "$PUBLISHED_DIGEST_FUNCTION" "$DIGEST_KNOWN_REPO" docs); then
+      contract_failure 'Published docs-digest known-answer fixture failed to execute'
+    elif ! DOCUMENTED_DIGEST_KNOWN=$(awk -F= '
+      /^known=/ {
+        if ($2 !~ /^[0-9a-f]+$/ || length($2) != 64) exit 1
+        print $2
+        found++
+      }
+      END { if (found != 1) exit 1 }
+    ' "$AUDIT_PHASE"); then
+      contract_failure 'Published docs-digest known answer is missing or ambiguous'
+    elif [[ $RUNTIME_DIGEST_KNOWN != "$PUBLISHED_DIGEST_KNOWN" ]] ||
+      [[ $RUNTIME_DIGEST_KNOWN != "$DOCUMENTED_DIGEST_KNOWN" ]]; then
+      contract_failure 'Runtime, published, and known-answer docs digests disagree'
+    fi
+
+    if ! check_docs_digest_collision "$CD_ROOT/scripts/init-state.sh" \
+      "$DIGEST_COLLISION_REPO"; then
+      contract_failure 'Healthy docs digest collided on arbitrary NUL-containing bytes'
+    fi
+    DIGEST_COLLISION_MUTANT="$CONTROL_DIR/init-state-without-docs-length-frame.sh"
+    if ! awk '
+      $0 == "canonical_docs_digest() {" { digest = 1 }
+      digest && index($0, "regular\\0%s\\0") && index($0, "\"$size\"") {
+        removed++
+        next
+      }
+      digest && $0 == "}" { digest = 0 }
+      { print }
+      END { if (removed != 1) exit 1 }
+    ' "$CD_ROOT/scripts/init-state.sh" >"$DIGEST_COLLISION_MUTANT"; then
+      contract_failure 'Docs-digest collision fixture could not remove exactly one length frame'
+    elif OUTPUT=$(check_docs_digest_collision "$DIGEST_COLLISION_MUTANT" \
+      "$DIGEST_COLLISION_REPO" 2>&1); then
+      contract_failure 'Docs-digest collision destructive fixture stayed green'
+    elif [[ $OUTPUT != *DOCS_DIGEST_COLLISION* ]]; then
+      contract_failure "Docs-digest collision fixture failed for the wrong reason: ${OUTPUT}"
+    elif ! check_docs_digest_collision "$CD_ROOT/scripts/init-state.sh" \
+      "$DIGEST_COLLISION_REPO"; then
+      contract_failure 'Healthy length-framed docs digest did not recover green'
     fi
 
     if ! check_epoch_sidecar_contract "$AUDIT_PHASE"; then
@@ -1600,7 +1821,7 @@ init_state_main() {
       contract_failure 'Real plan converter inputs did not recover green'
     fi
     if [[ $FAILURES -eq $CONTROL_FAILURES_BEFORE ]]; then
-      echo '✅ Authority-busy, task-mutator, epoch-sidecar, converter, and record-write usage prose controls passed'
+      echo '✅ Authority-busy, full-docs manifest, length-framed digest, epoch-sidecar, converter, and record-write prose controls passed'
     fi
 
     # A canonical marker is an exact, single HTML-comment line followed by one JSON
@@ -5008,17 +5229,7 @@ JQ
     printf '%s' "$FILE_BYTES" >"$PROCESSOR_REPO/docs/r.mdx"
     printf '%s' "$FACT_SECOND_BYTES" >"$PROCESSOR_REPO/docs/s.md"
     FACT_DOCS_DIGEST=$(
-      (
-        cd "$PROCESSOR_REPO/docs" || exit 1
-        find . -type f -print0 |
-          LC_ALL=C sort -z |
-          while IFS= read -r -d '' FACT_DOC; do
-            FACT_RELATIVE=${FACT_DOC#./}
-            printf '%s\0' "$FACT_RELATIVE"
-            cat -- "$FACT_DOC" || exit 1
-            printf '\0'
-          done
-      ) | sha256sum | cut -d ' ' -f1
+      canonical_docs_digest docs "$PROCESSOR_REPO"
     )
     FACT_AUDIT_STATE=$(jq -cn --arg digest "$FACT_DOCS_DIGEST" '{
     step:"fact_check",auditEpoch:1,docsDigest:$digest,
