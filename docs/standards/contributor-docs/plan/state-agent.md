@@ -77,6 +77,8 @@ assess.
    - `diffSummaryHash` and `planHash` are a lowercase SHA-256 or `null`;
    - `planFile` and `reviewFeedback` are a string or `null`;
    - `baseBranch` resolves to an existing ref.
+   - `docsRoot` is a normalized, non-root repository-relative directory disjoint from
+     `.contributor-docs` as required by the workflow source-snapshot invariant.
 
    On any failure, remove both files so the next run sees a clean start rather than a
    half-built pair, and report `CREATE_FAILED: <reason>`.
@@ -119,15 +121,20 @@ When prompted: "Assess plan phase state"
 2. Read and validate `.contributor-docs/task-state.json` for shared context.
 3. Check whether `.contributor-docs/diff-summary.md` and
    `.contributor-docs/doc-plan.yaml` exist, and freshly hash each existing artifact.
-4. Derive whether the live hashes equal their recorded values. After `diff_analysis`, a
+4. Parse the diff summary's marked source-snapshot record and run the canonical bound
+   validation from `docs/standards/contributor-docs/workflow.md`, including the live
+   summary hash after `record-diff-analysis`. Derive `sourceSnapshotCurrent` and the
+   complete binding/identity/outside-dirty reason.
+5. Derive whether the live hashes equal their recorded values. After `diff_analysis`, a
    diff-summary mismatch preempts every later dispatch and selects only
-   `invalidate-diff-summary`. A plan mismatch preempts `review` and `completed` dispatch
+   `invalidate-diff-summary`; a source-snapshot mismatch has the same precedence. A
+   plan mismatch preempts `review` and `completed` dispatch
    and selects `invalidate-plan`, but it does not block `classify`: on first entry the
    candidate may be absent, and after rejection the classifier is expected to replace
    the retained rejected-plan bytes. Report every mismatch without mutation; the named
    invalidation operation or `record-classification` validates and binds the complete
    next state.
-5. Report current state without mutation.
+6. Report current state without mutation.
 
 ### Report Format
 
@@ -137,6 +144,8 @@ CONTEXT:
 - diffSummaryReady: <true|false>
 - diffSummaryHash: <64 lowercase hex | absent>
 - diffSummaryHashCurrent: <true|false>
+- sourceSnapshotCurrent: <true|false>
+- sourceSnapshotMismatch: <none | summary binding, identity/digest mismatch, or sorted outside dirty paths>
 - planFile: <exists|absent>
 - planHash: <64 lowercase hex | absent>
 - planHashCurrent: <true|false>
@@ -156,34 +165,38 @@ The object must name exactly one legal operation below. A generic field patch is
 
 1. Read and completely validate both state files and the source step's stored
    structural invariants. Live artifact freshness is operation-specific:
-   `invalidate-diff-summary` is allowed to prove the summary mismatch that every later
+   `invalidate-diff-summary` is allowed to prove the summary or source-snapshot mismatch that every later
    operation must refuse, and `invalidate-plan` is allowed to prove the plan mismatch
    that every other review or completion operation must refuse.
-2. Resolve every artifact path from the repository root, refuse path escape, and
+2. Run the canonical source-snapshot validation. `record-diff-analysis` validates the
+   unbound candidate record and binds its fresh complete-artifact hash.
+   `invalidate-diff-summary` instead requires the summary binding or live identities to
+   be non-current. Every other operation requires the fully bound validation current.
+3. Resolve every artifact path from the repository root, refuse path escape, and
    freshly hash the exact bytes.
-3. Build the operation's complete candidate object; never merge caller fields into
+4. Build the operation's complete candidate object; never merge caller fields into
    state.
-4. Validate the candidate and target-step invariants before writing.
-5. Write through a temp file in `.contributor-docs/` plus atomic rename.
-6. Append the transition log only after the rename.
+5. Validate the candidate and target-step invariants before writing.
+6. Write through a temp file in `.contributor-docs/` plus atomic rename.
+7. Append the transition log only after the rename.
 
 ### Legal Operations
 
-| Operation                     | Legal source                         | Required validation and atomic effect                                                                                                                                                                                                                                                                   |
-| ----------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `record-diff-analysis`        | `diff_analysis`                      | Require `.contributor-docs/diff-summary.md` to exist and cover the complete base diff. Freshly hash it; set `diffSummaryReady: true`, record `diffSummaryHash`, clear plan identity/feedback/approval, and move to `classify`.                                                                          |
-| `invalidate-diff-summary`     | `classify`, `review`, or `completed` | Prove the live diff summary is absent or its fresh hash differs from `diffSummaryHash`. Restore the untouched `diff_analysis` object: clear summary readiness/hash, plan identity, feedback, and approval, then move to `diff_analysis`.                                                                |
-| `record-classification`       | `classify`                           | Require the recorded diff-summary hash still matches. Parse and completely validate `.contributor-docs/doc-plan.yaml`, including diff coverage, unique normalized output paths under `docsRoot`, type/tier rules, sources, and cross-links. Record its path/hash, clear feedback, and move to `review`. |
-| `reject-plan`                 | `review`                             | Require explicit non-empty user feedback and a fresh plan hash equal to `planHash`. Preserve the reviewed plan identity and feedback, keep `approved: false`, and move to `classify` for a new classification.                                                                                          |
-| `invalidate-plan`             | `review` or `completed`              | Require the diff-summary hash still matches and prove the live plan is absent or its fresh hash differs from `planHash`. Clear `planFile`, `planHash`, and any approval; set fixed feedback `Plan changed after classification; rebuild from current bytes.`, and move to `classify`.                   |
-| `approve-plan`                | `review`                             | Require an explicit user approval, current diff-summary and plan hashes, and a still-valid complete plan. In one write set `approved: true`, clear feedback, and move to `completed`.                                                                                                                   |
-| `advance-task-phase-to-write` | `completed`                          | Require completed invariants, task phase `plan`, and current artifact hashes. Atomically update only `task-state.currentPhase: "write"` and `task-state.planFile` to the exact approved path. A retry observing those same task values is an idempotent success.                                        |
+| Operation                     | Legal source                         | Required validation and atomic effect                                                                                                                                                                                                                                                                                                         |
+| ----------------------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `record-diff-analysis`        | `diff_analysis`                      | Require `.contributor-docs/diff-summary.md` to exist, cover the complete captured diff, and carry a current exact five-field source snapshot. Freshly hash it; set readiness/hash, clear downstream identity/approval, and move to `classify`.                                                                                                |
+| `invalidate-diff-summary`     | `classify`, `review`, or `completed` | Prove the live summary is absent/hash-mismatched or its source snapshot is non-current. Restore the untouched `diff_analysis` object and clear all downstream identity, feedback, and approval.                                                                                                                                               |
+| `record-classification`       | `classify`                           | Require current source and matching summary hash. Parse and completely validate `.contributor-docs/doc-plan.yaml`, including exact equality with task-state `docsRoot`, diff coverage, unique normalized relative output paths, exhaustive type/tier rules, sources, and cross-links. Record path/hash, clear feedback, and move to `review`. |
+| `reject-plan`                 | `review`                             | Require explicit non-empty user feedback and a fresh plan hash equal to `planHash`. Preserve the reviewed plan identity and feedback, keep `approved: false`, and move to `classify` for a new classification.                                                                                                                                |
+| `invalidate-plan`             | `review` or `completed`              | Require the diff-summary hash still matches and prove the live plan is absent or its fresh hash differs from `planHash`. Clear `planFile`, `planHash`, and any approval; set fixed feedback `Plan changed after classification; rebuild from current bytes.`, and move to `classify`.                                                         |
+| `approve-plan`                | `review`                             | Require an explicit user approval, current source, current summary/plan hashes, and a still-valid complete plan. In one write set `approved: true`, clear feedback, and move to `completed`.                                                                                                                                                  |
+| `advance-task-phase-to-write` | `completed`                          | Require completed invariants, task phase `plan`, current source, and current artifact hashes. Atomically update only task phase and plan path. A retry observing those same task values is an idempotent success.                                                                                                                             |
 
 An explicit user decision is input evidence, not a caller-selected state value. The
 state-agent accepts it only in `reject-plan` or `approve-plan` at `review`, and binds
 it to the fresh `planHash` before installing the corresponding fixed candidate.
 Neither invalidation accepts caller feedback or a desired hash.
-`invalidate-diff-summary` derives the mismatch and restores the exact initial object;
+`invalidate-diff-summary` derives the summary or source mismatch and restores the exact initial object;
 `invalidate-plan` derives its mismatch and fixed classifier feedback.
 
 ### Complete-Object Validation
@@ -209,6 +222,11 @@ Neither invalidation accepts caller feedback or a desired hash.
   no feedback, and `approved: true`. Live equality and continued plan validity are
   `advance-task-phase-to-write` preconditions, not resting invariants: summary drift
   selects `invalidate-diff-summary`, and plan drift selects `invalidate-plan`.
+- Every plan entry has a required type. Top-level types are exactly the six
+  `top-level-*` values in `docs/standards/contributor-docs/plan/classify.md` at
+  tier 1; `adr` is tier 1,
+  `module-overview` is tier 1, and `index` is tier 6. The plan's `docsRoot` must
+  exactly equal task state, while each plan path is relative to that root.
 - `task-state.currentPhase` remains `plan` through all plan-step operations. Only
   `advance-task-phase-to-write` may change it, and only to `write` with the exact
   approved `planFile`.

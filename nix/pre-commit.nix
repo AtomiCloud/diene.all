@@ -75,6 +75,18 @@ pre-commit-lib.run {
       language = "system";
     };
 
+    # The contributor-doc workflow is an executable state contract, not prose-only
+    # guidance. This assert-the-asserter checks its mirrored schemas and step sets,
+    # then drives healthy and destructive transition fixtures on every commit.
+    a-contributor-docs-contract = {
+      enable = true;
+      name = "Contributor-doc state contract";
+      entry = validator "docs/standards/contributor-docs/scripts/init-state.sh --check-write-contract";
+      always_run = true;
+      pass_filenames = false;
+      language = "system";
+    };
+
     a-enforce-exec = {
       enable = true;
       name = "Executable shell scripts";

@@ -163,6 +163,13 @@ If no findings exist, write `Total errors: 0`, `Warnings: 0`, and list all
 passed checks under `Clean`. Every processed file gets a finding, including a
 clean file.
 
+Every issue is one contiguous item beginning with a level-three heading in the exact
+form `### N. <description>`, and it carries exactly one `Severity` line. Its byte range
+ends immediately before the next level-three item, the next level-two section, or end
+of file. Do not group two warnings under one heading. For warning items, these exact
+bytes and the heading description are the source of the accepted-warning
+`findingHash` and `description`; caller-provided warning summaries are not evidence.
+
 Write a complete replacement finding for this invocation. Never merge with or
 append to an earlier finding.
 
