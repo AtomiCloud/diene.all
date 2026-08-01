@@ -293,6 +293,10 @@ same: read what the shell would read, and refuse rather than assume everywhere e
 - **An alias can carry the invocation.** `alias helper='nix develop'; helper` runs Nix
   under another name, so an alias whose name or value bears a Nix command name makes the
   script `unreadable` — the same rule that already covered `alias nix=echo`.
+- **An ordinary assignment is not an alias.** Literal assignment values are data, so
+  `FOO=nix nix develop` still invokes Nix: the assignment is read through and the next
+  command word decides the verdict. Only a real `alias` command can hide an invocation
+  behind its assigned name.
 - **Combined shell flags are still `-c`.** `bash -lc '<script>'` is as much a nested shell
   as `bash -c '<script>'`, and its script is now read.
 - **The inert list overclaimed.** It named commands that can delegate execution: `git`

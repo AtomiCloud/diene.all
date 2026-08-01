@@ -97,6 +97,8 @@ reads it with a small shell lexer that gives one of **three** answers:
   - a **function or alias definition** that could carry the invocation:
     `helper() { nix develop; }` may never be called, and
     `alias helper='nix develop'` renames it, so neither is proof either way;
+    an ordinary assignment is different: its literal value is data, so
+    `FOO=nix nix develop` is read through and invokes Nix;
   - a Nix command name handed to a command that is not on the small inert list —
     `timeout 10m nix build`, `git nix develop`, `bun run nix`,
     `awk 'BEGIN { system("nix develop") }'`, `./runner.sh 'nix develop'`. Only

@@ -287,26 +287,42 @@ def cmd_verdict:
 
 # 'nix() { … }', 'function nix …', 'alias nix=…' and 'alias helper="nix develop"'
 # all change what some later word runs, so no invocation in the script is
-# evidence of store use any more.
-def hides_nix:
-  . as $ts
-  | [range(0; ($ts | length))]
+# evidence of store use any more. An ordinary assignment is not an alias: in
+# 'FOO=nix nix develop', the first word sets an environment variable and the
+# second word still invokes Nix.
+def alias_hides_nix:
+  group_commands as $groups
   | any(
-      . as $i
-      | ($ts[$i]) as $w
-      | ($ts[$i + 1]) as $n
-      | ($w.ok // false)
-        and (
-          ($w.lit | test("^(nix|nix-build|nix-shell|nix-store)\\("))
-          # 'alias helper=nix develop' hides an invocation behind a new name. An
-          # array literal opens with '=(' and assigns strings, so it is excluded.
-          or (($w.lit | test("^[A-Za-z_][A-Za-z0-9_-]*="))
-              and (($w.lit | test("^[A-Za-z_][A-Za-z0-9_]*(\\[[^]]*\\])?\\+?=\\(")) | not)
-              and ($w.lit | test(nix_token_pattern)))
-          or (is_nix_name($w) and (($n.sep? // "") == "("))
-          or (($w.lit == "function") and (($n.ok? // false) and is_nix_name($n)))
+      $groups.cmds[];
+      . as $cmd
+      | (($cmd[0].ok? // false) and ($cmd[0].lit == "alias"))
+        and any(
+          $cmd[1:][];
+          (.ok? // false)
+            and (.lit | test("^[A-Za-z_][A-Za-z0-9_-]*="))
+            and ((.lit | test("^[A-Za-z_][A-Za-z0-9_]*(\\[[^]]*\\])?\\+?=\\(")) | not)
+            and (.lit | test(nix_token_pattern))
         )
     );
+
+def hides_nix:
+  . as $ts
+  | (alias_hides_nix) as $alias_hides
+  | if $alias_hides then true
+    else
+      [range(0; ($ts | length))]
+      | any(
+          . as $i
+          | ($ts[$i]) as $w
+          | ($ts[$i + 1]) as $n
+          | ($w.ok // false)
+            and (
+              ($w.lit | test("^(nix|nix-build|nix-shell|nix-store)\\("))
+              or (is_nix_name($w) and (($n.sep? // "") == "("))
+              or (($w.lit == "function") and (($n.ok? // false) and is_nix_name($n)))
+            )
+        )
+    end;
 
 # Any function definition, by either spelling. Whether such a function is ever
 # called is beyond a lexer, so a definition plus a Nix invocation anywhere in the

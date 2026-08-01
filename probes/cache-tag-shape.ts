@@ -112,6 +112,14 @@ export default {
       kind: 'baseline',
       async run(repo: any) {
         await expectGreen(repo, GATE, 'cache-tag-shape');
+        await rewrite(repo, DOCKER, [
+          { find: '      - uses: AtomiCloud/actions.setup-nix@v3\n', replace: '' },
+          {
+            find: RUN_REAL,
+            replace: 'run: FOO=nix nix develop .#cd -c ./scripts/ci/docker.sh',
+          },
+        ]);
+        await expectGreen(repo, GATE, 'cache-tag-shape assignment-prefixed nix invocation');
       },
     },
     caught(
