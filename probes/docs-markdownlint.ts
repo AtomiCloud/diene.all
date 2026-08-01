@@ -4,7 +4,8 @@ const gate = 'nix develop --no-write-lock-file .#ci -c pre-commit run a-markdown
 
 // A non-zero exit only proves the gate ran badly; it does not prove it refused
 // the planted fault. Each mutation therefore names the diagnostic it expects.
-async function expectRedFor(repo: any, command: string, label: string, ...reasons: string[]): Promise<void> {
+// Move this shared assertion to probes/lib/helpers.ts at the next unfenced generation.
+export async function expectRedFor(repo: any, command: string, label: string, ...reasons: string[]): Promise<void> {
   const result = await repo.exec(command, { timeoutMs: 240000 });
   if (result.exitCode === 0) {
     throw new Error(`${label} stayed green after sabotage`);

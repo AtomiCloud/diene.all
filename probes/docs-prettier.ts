@@ -1,21 +1,8 @@
 import { expectGreen } from './lib/helpers.ts';
+import { expectRedFor } from './docs-markdownlint.ts';
 
 const gate =
   'nix fmt --no-write-lock-file -- docs/standards .claude/skills CLAUDE.md README.md --ci --formatters prettier';
-
-// A non-zero exit only proves the gate ran badly; it does not prove it refused
-// the planted fault. Each mutation therefore names the diagnostic it expects.
-async function expectRedFor(repo: any, command: string, label: string, ...reasons: string[]): Promise<void> {
-  const result = await repo.exec(command, { timeoutMs: 240000 });
-  if (result.exitCode === 0) {
-    throw new Error(`${label} stayed green after sabotage`);
-  }
-  const output = `${result.stdout}\n${result.stderr}`;
-  const missing = reasons.filter(reason => !output.includes(reason));
-  if (missing.length > 0) {
-    throw new Error(`${label} went red for the wrong reason (missing: ${missing.join(', ')})\n${output}`);
-  }
-}
 
 export default {
   contractVersion: 1,
