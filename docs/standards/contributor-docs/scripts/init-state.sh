@@ -260,6 +260,30 @@ def processor_state_keys:
 JQ
 }
 
+extract_processor_predicate_body() {
+  local program=$1 predicate_name=$2
+
+  awk -v definition="def ${predicate_name}(" '
+    index($0, definition) == 1 {
+      in_predicate = 1
+      next
+    }
+    in_predicate {
+      body = $0
+      sub(/^[[:space:]]*/, "", body)
+      sub(/[[:space:]]+and[[:space:]]*$/, "", body)
+      sub(/;[[:space:]]*$/, "", body)
+      if (body == "") exit 1
+      print body
+      if ($0 ~ /;[[:space:]]*$/) {
+        closed = 1
+        exit
+      }
+    }
+    END { if (!in_predicate || !closed) exit 1 }
+  ' <<<"$program"
+}
+
 # Canonical pending/committed writer-report law. Runtime helpers and the executable
 # reducer import these exact definitions; no caller may substitute a SHA-shaped start
 # hash for the processor's durable authorization snapshot.
@@ -1288,7 +1312,9 @@ init_state_main() {
       local mark_script=${2:-"$CD_ROOT/scripts/mark-done.sh"}
       local source_name='processor_contract_jq_''source'
       local predicate_name='processor_config_''valid'
-      local keys_name='processor_state_''keys' program
+      local keys_name='processor_state_''keys' program predicate_body predicate_conjunct
+      local predicate_hits keys_json keys_pattern keys_hits
+      local predicate_line_count=0
 
       program=$(bash -c 'source "$1"; "$2"' processor-contract \
         "$init_script" "$source_name") || return 1
@@ -1302,15 +1328,40 @@ init_state_main() {
         ($predicate_name({}; 1) | not) and
         ($predicate_name([\"src/r.ts\"]; 0) | not) and
         ($predicate_name([\"src/r.ts\"]; 1.5) | not)" >/dev/null || return 1
+
+      predicate_body=$(extract_processor_predicate_body "$program" "$predicate_name") || return 1
+      while IFS= read -r predicate_conjunct; do
+        [[ -n $predicate_conjunct ]] || return 1
+        predicate_hits=$(
+          { rg --count-matches -F -- "$predicate_conjunct" "$init_script" "$mark_script" || true; } |
+            awk -F: '{ hits += $NF } END { print hits + 0 }'
+        )
+        [[ $predicate_hits -eq 1 ]] || return 1
+        predicate_line_count=$((predicate_line_count + 1))
+      done <<<"$predicate_body"
+      [[ $predicate_line_count -gt 0 ]] || return 1
+
+      keys_json=$(jq -cn "$program $keys_name") || return 1
+      keys_pattern=$(jq -r '
+        map(@json) |
+        join("[[:space:]]*,[[:space:]]*") |
+        "\\[[[:space:]]*" + . + "[[:space:]]*\\]"
+      ' <<<"$keys_json") || return 1
+      keys_hits=$(
+        { rg -U --count-matches -- "$keys_pattern" "$init_script" "$mark_script" || true; } |
+          awk -F: '{ hits += $NF } END { print hits + 0 }'
+      )
+      [[ $keys_hits -eq 1 ]] || return 1
+
       [[ $(rg -c "^${source_name}\\(\\) \\{" "$init_script" || true) == 1 ]] || return 1
-      [[ $(rg -cF "PROCESSOR_CONTRACT_JQ=\$(${source_name})" \
-        "$init_script" || true) == 1 ]] || return 1
-      [[ $(rg -c "$predicate_name" "$init_script" || true) == 3 ]] || return 1
-      [[ $(rg -c "$keys_name" "$init_script" || true) == 2 ]] || return 1
-      [[ $(rg -cF "program=\$(${source_name})" "$mark_script" || true) == 1 ]] || return 1
-      [[ $(rg -c "$predicate_name" "$mark_script" || true) == 1 ]] || return 1
-      [[ $(rg -c "$keys_name" "$mark_script" || true) == 1 ]] || return 1
-      ! rg -qF '(["sourcePaths","outputDir","concurrentAgents","filesToProcess",' \
+      ! rg -q "^${source_name}\\(\\) \\{" "$mark_script" || return 1
+      rg -qF "PROCESSOR_CONTRACT_JQ=\$(${source_name})" "$init_script" || return 1
+      rg -qF "${predicate_name}(\$sourcePaths; \$concurrent)" "$init_script" || return 1
+      rg -qF "(keys | sort) == (${keys_name} | sort)" "$init_script" || return 1
+      rg -qF "${predicate_name}(.sourcePaths; .concurrentAgents)" "$init_script" || return 1
+      rg -qF "program=\$(${source_name})" "$mark_script" || return 1
+      rg -qF "(\$processor | keys | sort) == (${keys_name} | sort)" "$mark_script" || return 1
+      rg -qF "${predicate_name}(\$processor.sourcePaths; \$processor.concurrentAgents)" \
         "$mark_script"
     }
 
@@ -5552,10 +5603,59 @@ JQ
     elif ! check_processor_contract_sources; then
       contract_failure 'Real processor completion consumer did not recover green'
     fi
+    PROCESSOR_INLINE_PREDICATE_FIXTURE="$CONTROL_DIR/init-state-with-inline-processor-predicate.sh"
+    PROCESSOR_PREDICATE_CONSUMER="${PROCESSOR_PREDICATE_NAME}(\$sourcePaths; \$concurrent)"
+    PROCESSOR_CONCURRENCY_CONJUNCT=$(
+      extract_processor_predicate_body "$(processor_contract_jq_source)" \
+        "$PROCESSOR_PREDICATE_NAME" | rg -F '$concurrent'
+    ) || PROCESSOR_CONCURRENCY_CONJUNCT=
+    if [[ -z $PROCESSOR_CONCURRENCY_CONJUNCT || $PROCESSOR_CONCURRENCY_CONJUNCT == *$'\n'* ]]; then
+      contract_failure 'Processor-predicate fixture could not extract one canonical concurrency conjunct'
+    elif ! awk -v consumer="$PROCESSOR_PREDICATE_CONSUMER" \
+      -v conjunct="$PROCESSOR_CONCURRENCY_CONJUNCT" '
+      index($0, consumer) != 0 {
+        print $0 " and"
+        print "      " conjunct
+        changed++
+        next
+      }
+      { print }
+      END { if (changed != 1) exit 1 }
+    ' "$CD_ROOT/scripts/init-state.sh" >"$PROCESSOR_INLINE_PREDICATE_FIXTURE"; then
+      contract_failure 'Processor-predicate fixture could not inline the concurrency conjunct once'
+    elif check_processor_contract_sources "$PROCESSOR_INLINE_PREDICATE_FIXTURE" \
+      "$CD_ROOT/scripts/mark-done.sh" 2>/dev/null; then
+      contract_failure 'Inline processor-predicate destructive fixture stayed green'
+    elif ! check_processor_contract_sources; then
+      contract_failure 'Real processor predicate body did not recover green after inline fixture'
+    fi
+    PROCESSOR_INLINE_KEYS_FIXTURE="$CONTROL_DIR/mark-done-with-inline-processor-keys.sh"
+    PROCESSOR_KEYS_CONSUMER="(${PROCESSOR_KEYS_NAME} | sort)"
+    if ! PROCESSOR_KEYS_INLINE=$(jq -cn \
+      "$(processor_contract_jq_source) ${PROCESSOR_KEYS_NAME}"); then
+      contract_failure 'Processor-key fixture could not extract the canonical key array'
+    elif ! awk -v consumer="$PROCESSOR_KEYS_CONSUMER" -v keys="$PROCESSOR_KEYS_INLINE" '
+      index($0, consumer) != 0 {
+        print
+        print "      (($processor | keys | sort) == (" keys " | sort)) and"
+        changed++
+        next
+      }
+      { print }
+      END { if (changed != 1) exit 1 }
+    ' "$CD_ROOT/scripts/mark-done.sh" >"$PROCESSOR_INLINE_KEYS_FIXTURE"; then
+      contract_failure 'Processor-key fixture could not inline the canonical key array once'
+    elif check_processor_contract_sources "$CD_ROOT/scripts/init-state.sh" \
+      "$PROCESSOR_INLINE_KEYS_FIXTURE" 2>/dev/null; then
+      contract_failure 'Inline processor-key destructive fixture stayed green'
+    elif ! check_processor_contract_sources; then
+      contract_failure 'Real processor key body did not recover green after inline fixture'
+    fi
     if [[ $FAILURES -eq $CONTROL_FAILURES_BEFORE ]]; then
       echo '✅ Canonical processor predicate, exact keys, and all consumers passed drift pins'
     fi
 
+    CONTROL_FAILURES_BEFORE=$FAILURES
     RECORD_WRITE_DEF_COUNT=$(rg -c '^def cd_record_write_authority' \
       "$CD_ROOT/scripts/init-state.sh" || true)
     if [[ $RECORD_WRITE_DEF_COUNT != 1 ]] ||
@@ -5621,7 +5721,9 @@ JQ
         contract_failure "Reducer literal is not documented: $LITERAL"
       fi
     done
-    echo '✅ Plan-authority reducer controls passed (root chain, full closure, report ledger, successor, refusals, crash adoption)'
+    if [[ $FAILURES -eq $CONTROL_FAILURES_BEFORE ]]; then
+      echo '✅ Plan-authority reducer controls passed (root chain, full closure, report ledger, successor, refusals, crash adoption)'
+    fi
 
     PLAN_REFERENCE_COUNT=$(git -C "$REPO_ROOT" grep -n 'doc-plan.yaml' -- \
       docs/standards/contributor-docs/write | wc -l | tr -d ' ')
