@@ -82,7 +82,7 @@ assess.
 5. Validate before reporting success. Every field is checked, not just parseability:
    - both files parse as JSON;
    - `currentPhase` ∈ `plan|write|audit|completed|failed`;
-   - `step` ∈ `diff_analysis|classify|review|completed`;
+   - `step` is one of the values in `canonical-block: plan-legal-steps`;
    - `diffSummaryReady` and `approved` are booleans;
    - `diffSummaryHash` and `planHash` are a lowercase SHA-256 or `null`;
    - `planFile` and `reviewFeedback` are a string or `null`;
@@ -247,7 +247,7 @@ Neither invalidation accepts caller feedback or a desired hash.
 
 - The object has exactly the seven canonical fields shown in Mode 0; unknown or
   missing fields are refused.
-- `step` is one of `diff_analysis`, `classify`, `review`, or `completed`;
+- `step` is one of the values in `canonical-block: plan-legal-steps`;
   booleans, nullable strings, and lowercase SHA-256 values have their marked types.
 - `diff_analysis` is the untouched initial object: no ready flag, hashes, plan,
   feedback, or approval.

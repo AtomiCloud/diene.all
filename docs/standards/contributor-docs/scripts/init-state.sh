@@ -99,16 +99,51 @@ append_tree_snapshot_paths() {
   if [[ -d $root && ! -L $root ]]; then
     while IFS= read -r -d '' entry; do
       destination+=("$entry")
-    done < <(find -P "$root" -mindepth 1 -print0 | sort -z)
+    done < <(find -P "$root" -mindepth 1 -print0 | LC_ALL=C sort -z)
   fi
+}
+
+# Resolve the task-owned docsRoot without admitting the volatile processor tree.
+# The normalized path law is repeated here because raw writers can race a final
+# preimage read after the operation-specific authority predicate has returned.
+canonical_fact_check_docs_root() {
+  local operation_repo_root=$1 task_state docs_root repo_abs docs_abs processor_abs
+
+  task_state="$operation_repo_root/.contributor-docs/task-state.json"
+  if ! docs_root=$(jq -er '
+      .docsRoot as $docs |
+      $docs | select(
+        type == "string" and length > 0 and . != "." and
+        (startswith("/") | not) and
+        (split("/") | all(. != "" and . != "." and . != "..")) and
+        . != ".contributor-docs" and
+        (startswith(".contributor-docs/") | not) and
+        (".contributor-docs" | startswith($docs + "/") | not)
+      )
+    ' "$task_state" 2>/dev/null); then
+    return 1
+  fi
+  repo_abs=$(realpath -e -- "$operation_repo_root") || return 1
+  if [[ ! -d $repo_abs/$docs_root || -L $repo_abs/$docs_root ]]; then
+    return 1
+  fi
+  docs_abs=$(realpath -e -- "$repo_abs/$docs_root") || return 1
+  processor_abs="$repo_abs/.contributor-docs"
+  if [[ $docs_abs != "$repo_abs/"* ]] ||
+    [[ $docs_abs == "$processor_abs" || $docs_abs == "$processor_abs/"* ]] ||
+    [[ $processor_abs == "$docs_abs/"* ]]; then
+    return 1
+  fi
+  printf '%s\n' "$docs_abs"
 }
 
 # Snapshot the exact authority files relevant to a processor operation. Write-tier
 # completion binds the assigned document. Fact-check operations also bind audit
-# state, the epoch sidecar, the assigned document, and the findings tree whose
-# canonical artifact the orchestrator just validated.
+# state, the epoch sidecar, the assigned document, the complete normalized docsRoot
+# tree, and the findings tree whose canonical artifact the orchestrator just validated.
 processor_authority_snapshot() {
   local state_file=$1 assigned_path=${2:-} operation_repo_root=${3:-$REPO_ROOT} state_abs
+  local docs_root_abs
   local -a paths=(
     "$operation_repo_root/.contributor-docs/task-state.json"
     "$operation_repo_root/.contributor-docs/plan-state.json"
@@ -130,6 +165,8 @@ processor_authority_snapshot() {
     if [[ -n $assigned_path ]]; then
       paths+=("$operation_repo_root/$assigned_path")
     fi
+    docs_root_abs=$(canonical_fact_check_docs_root "$operation_repo_root") || return 1
+    append_tree_snapshot_paths "$docs_root_abs" paths
     append_tree_snapshot_paths \
       "$operation_repo_root/.contributor-docs/fact-check/findings" paths
   fi
@@ -999,12 +1036,11 @@ assert_fact_check_completion_authority() {
     return 1
   fi
 
-  if [[ ! -d $REPO_ROOT/$docs_root || -L $REPO_ROOT/$docs_root ||
-    ! -f $REPO_ROOT/$path || -L $REPO_ROOT/$path ]]; then
+  if [[ ! -f $REPO_ROOT/$path || -L $REPO_ROOT/$path ]]; then
     fact_check_evidence_invalid
     return 1
   fi
-  docs_root_abs=$(realpath -e -- "$REPO_ROOT/$docs_root") || {
+  docs_root_abs=$(canonical_fact_check_docs_root "$REPO_ROOT") || {
     fact_check_evidence_invalid
     return 1
   }
@@ -1650,17 +1686,33 @@ init_state_main() {
     }
 
     state_machine_step_set() {
-      local file=$1 output=$2
-      awk '
-      /^## State Machine$/ { inside = 1; next }
-      inside && /^## / { exit }
-      inside {
-        while (match($0, /\[[a-z][a-z0-9_]*\]/)) {
-          print substr($0, RSTART + 1, RLENGTH - 2)
-          $0 = substr($0, RSTART + RLENGTH)
+      local file=$1 output=$2 raw="$CONTROL_DIR/state-machine-raw.$$.txt"
+
+      if ! awk '
+        /^## State Machine$/ {
+          sections++
+          if (sections == 1) {
+            inside = 1
+            next
+          }
         }
-      }
-    ' "$file" | LC_ALL=C sort -u >"$output"
+        inside && /^## / { inside = 0 }
+        inside {
+          line = $0
+          while (match(line, /\[[a-z][a-z0-9_]*\]/)) {
+            print substr(line, RSTART + 1, RLENGTH - 2)
+            steps++
+            line = substr(line, RSTART + RLENGTH)
+          }
+        }
+        END { if (sections != 1 || steps == 0) exit 1 }
+      ' "$file" >"$raw"; then
+        return 1
+      fi
+      if ! awk '/^[a-z][a-z0-9_]*$/ { next } { exit 1 }' "$raw"; then
+        return 1
+      fi
+      LC_ALL=C sort -u "$raw" >"$output"
       [[ -s $output ]]
     }
 
@@ -1781,33 +1833,6 @@ init_state_main() {
       fi
     }
 
-    plan_state_machine_step_set() {
-      local file=$1 output=$2 raw="$CONTROL_DIR/plan-machine-raw.$$.txt"
-
-      if ! awk '
-        /^## State Machine$/ {
-          sections++
-          if (sections == 1) {
-            inside = 1
-            next
-          }
-        }
-        inside && /^## / { inside = 0 }
-        inside {
-          line = $0
-          while (match(line, /\[[a-z][a-z0-9_]*\]/)) {
-            print substr(line, RSTART + 1, RLENGTH - 2)
-            steps++
-            line = substr(line, RSTART + RLENGTH)
-          }
-        }
-        END { if (sections != 1 || steps == 0) exit 1 }
-      ' "$file" >"$raw"; then
-        return 1
-      fi
-      normalise_step_lines "$raw" "$output"
-    }
-
     plan_dispatch_step_set() {
       local file=$1 output=$2 raw="$CONTROL_DIR/plan-dispatch-raw.$$.txt"
 
@@ -1849,108 +1874,10 @@ init_state_main() {
       normalise_step_lines "$raw" "$output"
     }
 
-    plan_agent_validation_step_set() {
-      local file=$1 output=$2 raw="$CONTROL_DIR/plan-validation-raw.$$.txt"
-
-      if ! awk '
-        index($0, "`step` ∈") {
-          hits++
-          if ($0 !~ /^[[:space:]]*- `step` ∈ `[a-z][a-z0-9_]*(\|[a-z][a-z0-9_]*)*`;[[:space:]]*$/) {
-            bad = 1
-            next
-          }
-          prefix = "`step` ∈ `"
-          value = substr($0, index($0, prefix) + length(prefix))
-          sub(/`;[[:space:]]*$/, "", value)
-          count = split(value, steps, "|")
-          for (part = 1; part <= count; part++) print steps[part]
-        }
-        END { if (hits != 1 || bad) exit 1 }
-      ' "$file" >"$raw"; then
-        return 1
-      fi
-      normalise_step_lines "$raw" "$output"
-    }
-
-    plan_agent_complete_step_set() {
-      local file=$1 output=$2 raw="$CONTROL_DIR/plan-complete-object-raw.$$.txt"
-
-      if ! awk '
-        index($0, "`step` is one of") {
-          hits++
-          if ($0 !~ /^[[:space:]]*- `step` is one of `[a-z][a-z0-9_]*`(, `[a-z][a-z0-9_]*`)*(, or `[a-z][a-z0-9_]*`| or `[a-z][a-z0-9_]*`)?;[[:space:]]*$/) {
-            bad = 1
-            next
-          }
-          prefix = "`step` is one of "
-          line = substr($0, index($0, prefix) + length(prefix))
-          while (match(line, /`[a-z][a-z0-9_]*`/)) {
-            print substr(line, RSTART + 1, RLENGTH - 2)
-            steps++
-            line = substr(line, RSTART + RLENGTH)
-          }
-        }
-        END { if (hits != 1 || steps == 0 || bad) exit 1 }
-      ' "$file" >"$raw"; then
-        return 1
-      fi
-      normalise_step_lines "$raw" "$output"
-    }
-
-    plan_agent_operation_step_set() {
-      local file=$1 output=$2 raw="$CONTROL_DIR/plan-operation-raw.$$.txt"
-
-      if ! awk '
-        /^### Legal Operations$/ {
-          sections++
-          if (sections == 1) {
-            inside = 1
-            next
-          }
-        }
-        inside && /^### / { inside = 0 }
-        inside && /^\| Operation[[:space:]]+\| Legal source/ {
-          headers++
-          next
-        }
-        inside && /^\| `/ {
-          fields = split($0, column, "|")
-          if (fields < 4) {
-            bad = 1
-            next
-          }
-          source = column[3]
-          sub(/^[[:space:]]*/, "", source)
-          sub(/[[:space:]]*$/, "", source)
-          if (source !~ /^`[a-z][a-z0-9_]*`(, `[a-z][a-z0-9_]*`)*(, or `[a-z][a-z0-9_]*`| or `[a-z][a-z0-9_]*`)?$/) {
-            bad = 1
-            next
-          }
-          line = source
-          while (match(line, /`[a-z][a-z0-9_]*`/)) {
-            print substr(line, RSTART + 1, RLENGTH - 2)
-            steps++
-            line = substr(line, RSTART + RLENGTH)
-          }
-          rows++
-        }
-        END {
-          if (sections != 1 || headers != 1 || rows == 0 || steps == 0 || bad) exit 1
-        }
-      ' "$file" >"$raw"; then
-        return 1
-      fi
-      if ! awk '/^[a-z][a-z0-9_]*$/ { next } { exit 1 }' "$raw"; then
-        return 1
-      fi
-      LC_ALL=C sort -u "$raw" >"$output"
-      [[ -s $output ]]
-    }
-
     check_plan_legal_steps() {
       local phase=$1 agent=$2 scratch=$3 agent_step index drift=0 concrete_drift=0
       local phase_json phase_steps agent_json agent_steps schema_steps machine_steps
-      local dispatch_steps validation_steps operation_steps complete_steps agent_schema concrete_step
+      local dispatch_steps agent_schema concrete_step
       local -a compared_steps compared_labels
 
       phase_json="$scratch/phase-steps.json"
@@ -1960,9 +1887,6 @@ init_state_main() {
       schema_steps="$scratch/schema-steps"
       machine_steps="$scratch/machine-steps"
       dispatch_steps="$scratch/dispatch-steps"
-      validation_steps="$scratch/validation-steps"
-      operation_steps="$scratch/operation-steps"
-      complete_steps="$scratch/complete-steps"
       agent_schema="$scratch/agent-schema.json"
       concrete_step="$scratch/concrete-step"
       mkdir -p "$scratch"
@@ -1978,15 +1902,14 @@ init_state_main() {
         return 1
       fi
       if ! phase_step_set "$phase" plan-state-schema "$schema_steps" ||
-        ! plan_state_machine_step_set "$phase" "$machine_steps" ||
+        ! state_machine_step_set "$phase" "$machine_steps" ||
         ! plan_dispatch_step_set "$phase" "$dispatch_steps"; then
         printf 'PLAN_LEGAL_STEP_SOURCE_INVALID phase-structure\n' >&2
         return 1
       fi
-      if ! plan_agent_validation_step_set "$agent" "$validation_steps" ||
-        ! plan_agent_operation_step_set "$agent" "$operation_steps" ||
-        ! plan_agent_complete_step_set "$agent" "$complete_steps" ||
-        ! extract_marked_json "$agent" plan-state-schema "$agent_schema" ||
+      # Legal Operations tables describe operation-specific preconditions; their
+      # dispatch laws are checked directly rather than reduced into another aggregate set.
+      if ! extract_marked_json "$agent" plan-state-schema "$agent_schema" ||
         ! agent_step=$(jq -er \
           '.step | select(type == "string" and test("^[a-z][a-z0-9_]*$"))' "$agent_schema"); then
         printf 'PLAN_LEGAL_STEP_SOURCE_INVALID state-agent-structure\n' >&2
@@ -1994,10 +1917,8 @@ init_state_main() {
       fi
       printf '%s\n' "$agent_step" >"$concrete_step"
 
-      compared_steps=("$agent_steps" "$schema_steps" "$machine_steps" "$dispatch_steps"
-        "$validation_steps" "$operation_steps" "$complete_steps")
-      compared_labels=(state-agent-marker phase-schema state-machine step-dispatch
-        state-agent-validation legal-operations state-agent-complete-object)
+      compared_steps=("$agent_steps" "$schema_steps" "$machine_steps" "$dispatch_steps")
+      compared_labels=(state-agent-marker phase-schema state-machine step-dispatch)
       for index in "${!compared_steps[@]}"; do
         if ! cmp -s "$phase_steps" "${compared_steps[$index]}"; then
           drift=1
@@ -2481,52 +2402,6 @@ init_state_main() {
     else
       exercise_plan_legal_step_fixture 'Plan Step Dispatch' "$PLAN_DISPATCH_FIXTURE" \
         "$PLAN_AGENT" "$CONTROL_DIR/plan-dispatch-fixture"
-    fi
-
-    PLAN_VALIDATION_FIXTURE="$CONTROL_DIR/plan-agent-with-retired-validation-step.md"
-    if ! awk '
-      index($0, "`step` ∈") {
-        sub(/completed/, "retired_step")
-        changed++
-      }
-      { print }
-      END { if (changed != 1) exit 1 }
-    ' "$PLAN_AGENT" >"$PLAN_VALIDATION_FIXTURE"; then
-      contract_failure 'Plan validation-prose fixture could not change exactly one step'
-    else
-      exercise_plan_legal_step_fixture 'Plan validation prose' "$PLAN_PHASE" \
-        "$PLAN_VALIDATION_FIXTURE" "$CONTROL_DIR/plan-validation-fixture"
-    fi
-
-    PLAN_OPERATION_FIXTURE="$CONTROL_DIR/plan-agent-with-retired-operation-source.md"
-    if ! awk '
-      /^### Legal Operations$/ { inside = 1 }
-      inside && /^### / && $0 != "### Legal Operations" { inside = 0 }
-      inside && /^\| `record-diff-analysis`[[:space:]]+\|/ {
-        changed += sub(/\| `diff_analysis`[[:space:]]+\|/, "| `retired_step` |")
-      }
-      { print }
-      END { if (changed != 1) exit 1 }
-    ' "$PLAN_AGENT" >"$PLAN_OPERATION_FIXTURE"; then
-      contract_failure 'Plan Legal Operations fixture could not change exactly one source step'
-    else
-      exercise_plan_legal_step_fixture 'Plan Legal Operations' "$PLAN_PHASE" \
-        "$PLAN_OPERATION_FIXTURE" "$CONTROL_DIR/plan-operation-fixture"
-    fi
-
-    PLAN_COMPLETE_PROSE_FIXTURE="$CONTROL_DIR/plan-agent-with-retired-complete-step.md"
-    if ! awk '
-      index($0, "`step` is one of") {
-        sub(/`completed`/, "`retired_step`")
-        changed++
-      }
-      { print }
-      END { if (changed != 1) exit 1 }
-    ' "$PLAN_AGENT" >"$PLAN_COMPLETE_PROSE_FIXTURE"; then
-      contract_failure 'Plan complete-object prose fixture could not change exactly one step'
-    else
-      exercise_plan_legal_step_fixture 'Plan complete-object prose' "$PLAN_PHASE" \
-        "$PLAN_COMPLETE_PROSE_FIXTURE" "$CONTROL_DIR/plan-complete-prose-fixture"
     fi
 
     PLAN_STEP_FIXTURE="$CONTROL_DIR/plan-agent-with-retired-step.md"
@@ -3373,17 +3248,12 @@ JQ
       BAD_WRITE_DATA=$(jq -cn --arg hash "$FILE_HASH" --argjson report "$REPORT" '{
       path:"docs/r.mdx",returnedHash:$hash,diskHash:$hash,writerReport:$report
     }')
-      printf '%s' "$PENDING_WRITE_STATE" >"$CONTROL_DIR/${REPORT_CASE}.before"
       if OUTPUT=$(jq -n -L "$CONTROL_DIR" --argjson state "$PENDING_WRITE_STATE" \
         --arg operation record-write --argjson data "$BAD_WRITE_DATA" \
         -f "$CONTROL_DIR/reducer.jq" 2>&1); then
         contract_failure "Malformed writer report was accepted: ${REPORT_CASE}"
       elif [[ $OUTPUT != *GAP_REPORT_SET_INVALID* ]]; then
         contract_failure "Malformed writer report failed for the wrong reason: ${REPORT_CASE}"
-      fi
-      printf '%s' "$PENDING_WRITE_STATE" >"$CONTROL_DIR/${REPORT_CASE}.after"
-      if ! cmp -s "$CONTROL_DIR/${REPORT_CASE}.before" "$CONTROL_DIR/${REPORT_CASE}.after"; then
-        contract_failure "Malformed writer report mutated state: ${REPORT_CASE}"
       fi
     done
 
@@ -3653,16 +3523,11 @@ JQ
         contract_failure "Healthy ${OPERATION} was plan-blocked"
       fi
       TAMPERED=$(jq -c --arg hash "$PLAN_C" '.livePlanHash = $hash' <<<"$PLAN_BASE")
-      printf '%s' "$TAMPERED" >"$CONTROL_DIR/${OPERATION}.before"
       if OUTPUT=$(jq -n -L "$CONTROL_DIR" --argjson state "$TAMPERED" --arg operation "$OPERATION" \
         --argjson data '{}' -f "$CONTROL_DIR/reducer.jq" 2>&1); then
         contract_failure "Post-approval tamper passed ${OPERATION}"
       elif [[ $OUTPUT != *PLAN_DRIFT_BLOCKED* ]]; then
         contract_failure "Post-approval tamper failed ${OPERATION} for the wrong reason"
-      fi
-      printf '%s' "$TAMPERED" >"$CONTROL_DIR/${OPERATION}.after"
-      if ! cmp -s "$CONTROL_DIR/${OPERATION}.before" "$CONTROL_DIR/${OPERATION}.after"; then
-        contract_failure "Post-approval tamper mutated reducer state for ${OPERATION}"
       fi
     done
     if [[ $FAILURES -eq $CONTROL_FAILURES_BEFORE ]]; then
@@ -3829,16 +3694,11 @@ JQ
     for HISTORY_CASE_INDEX in "${!HISTORY_CASE_NAMES[@]}"; do
       HISTORY_CASE=${HISTORY_CASE_NAMES[$HISTORY_CASE_INDEX]}
       HISTORY=${HISTORY_CASE_VALUES[$HISTORY_CASE_INDEX]}
-      printf '%s' "$HISTORY" >"$CONTROL_DIR/${HISTORY_CASE}.before"
       if OUTPUT=$(jq -n -L "$CONTROL_DIR" --argjson state "$HISTORY" \
         --arg operation write-dispatch --argjson data '{}' -f "$CONTROL_DIR/reducer.jq" 2>&1); then
         contract_failure "Malformed closed history was accepted: ${HISTORY_CASE}"
       elif [[ $OUTPUT != *GAP_CLOSURE_INVALID* ]]; then
         contract_failure "Malformed closed history failed for the wrong reason: ${HISTORY_CASE}"
-      fi
-      printf '%s' "$HISTORY" >"$CONTROL_DIR/${HISTORY_CASE}.after"
-      if ! cmp -s "$CONTROL_DIR/${HISTORY_CASE}.before" "$CONTROL_DIR/${HISTORY_CASE}.after"; then
-        contract_failure "Malformed closed history mutated while refusing: ${HISTORY_CASE}"
       fi
     done
     if [[ $FAILURES -eq $CONTROL_FAILURES_BEFORE ]]; then
@@ -3858,7 +3718,6 @@ JQ
     for GAP_LOOP_INDEX in "${!GAP_LOOP_NAMES[@]}"; do
       GAP_LOOP_NAME=${GAP_LOOP_NAMES[$GAP_LOOP_INDEX]}
       GAP_LOOP_STATE=${GAP_LOOP_VALUES[$GAP_LOOP_INDEX]}
-      printf '%s' "$GAP_LOOP_STATE" >"$CONTROL_DIR/${GAP_LOOP_NAME}.before"
       if OUTPUT=$(jq -n -L "$CONTROL_DIR" --argjson state "$GAP_LOOP_STATE" \
         --arg operation write-dispatch --argjson data '{}' \
         -f "$CONTROL_DIR/reducer.jq" 2>&1); then
@@ -3866,14 +3725,9 @@ JQ
       elif [[ $OUTPUT != *GAP_LOOP* ]]; then
         contract_failure "Repeated gap path failed with the wrong refusal: ${GAP_LOOP_NAME}"
       fi
-      printf '%s' "$GAP_LOOP_STATE" >"$CONTROL_DIR/${GAP_LOOP_NAME}.after"
-      if ! cmp -s "$CONTROL_DIR/${GAP_LOOP_NAME}.before" \
-        "$CONTROL_DIR/${GAP_LOOP_NAME}.after"; then
-        contract_failure "Repeated gap path mutated while refusing: ${GAP_LOOP_NAME}"
-      fi
     done
     if [[ $FAILURES -eq $CONTROL_FAILURES_BEFORE ]]; then
-      echo '✅ Closed/live repeated gap paths refused GAP_LOOP byte-identically'
+      echo '✅ Closed/live repeated gap paths refused GAP_LOOP'
     fi
 
     CONTROL_FAILURES_BEFORE=$FAILURES
@@ -3985,7 +3839,6 @@ JQ
     for CLOSURE_CASE_INDEX in "${!CLOSURE_CASE_NAMES[@]}"; do
       CLOSURE_CASE=${CLOSURE_CASE_NAMES[$CLOSURE_CASE_INDEX]}
       CLOSURE_HISTORY=${CLOSURE_CASE_VALUES[$CLOSURE_CASE_INDEX]}
-      printf '%s' "$CLOSURE_HISTORY" >"$CONTROL_DIR/${CLOSURE_CASE}.before"
       if OUTPUT=$(jq -n -L "$CONTROL_DIR" --argjson state "$CLOSURE_HISTORY" \
         --arg operation write-dispatch --argjson data '{}' \
         -f "$CONTROL_DIR/reducer.jq" 2>&1); then
@@ -3993,13 +3846,9 @@ JQ
       elif [[ $OUTPUT != *GAP_CLOSURE_INVALID* ]]; then
         contract_failure "Inexact historical closure failed for the wrong reason: ${CLOSURE_CASE}"
       fi
-      printf '%s' "$CLOSURE_HISTORY" >"$CONTROL_DIR/${CLOSURE_CASE}.after"
-      if ! cmp -s "$CONTROL_DIR/${CLOSURE_CASE}.before" "$CONTROL_DIR/${CLOSURE_CASE}.after"; then
-        contract_failure "Inexact historical closure mutated state while refusing: ${CLOSURE_CASE}"
-      fi
     done
     if [[ $FAILURES -eq $CONTROL_FAILURES_BEFORE ]]; then
-      echo '✅ Exact transitive/index closure rejected truncated, inflated, unsorted, and wrong-tier histories byte-identically'
+      echo '✅ Exact transitive/index closure rejected truncated, inflated, unsorted, and wrong-tier histories'
     fi
 
     CONTROL_FAILURES_BEFORE=$FAILURES
@@ -4105,7 +3954,6 @@ JQ
 
       CONTROL_FAILURES_BEFORE=$FAILURES
       UNRELATED_STATE=$(jq -c --arg hash "$UNRELATED_HASH" '.candidateHash = $hash' <<<"$PLAN_BASE")
-      printf '%s' "$UNRELATED_STATE" >"$CONTROL_DIR/unrelated-plan.before"
       if OUTPUT=$(jq -n -L "$CONTROL_DIR" --argjson state "$UNRELATED_STATE" \
         --arg operation authorize-gap-plan --argjson data "$UNRELATED_INPUT" \
         -f "$CONTROL_DIR/reducer.jq" 2>&1); then
@@ -4113,12 +3961,8 @@ JQ
       elif [[ $OUTPUT != *GAP_PLAN_DELTA_INVALID* ]]; then
         contract_failure 'Candidate-byte mutation failed for the wrong reason'
       fi
-      printf '%s' "$UNRELATED_STATE" >"$CONTROL_DIR/unrelated-plan.after"
-      if ! cmp -s "$CONTROL_DIR/unrelated-plan.before" "$CONTROL_DIR/unrelated-plan.after"; then
-        contract_failure 'Rejected candidate-byte mutation changed authority state'
-      fi
       if [[ $FAILURES -eq $CONTROL_FAILURES_BEFORE ]]; then
-        echo '✅ Extra semantic candidate-byte delta was rejected without changing authority'
+        echo '✅ Extra semantic candidate-byte delta was rejected'
       fi
 
       CONTROL_FAILURES_BEFORE=$FAILURES
@@ -4130,7 +3974,7 @@ JQ
         contract_failure 'Wrong gap candidate hash failed for the wrong reason'
       fi
       if [[ $FAILURES -eq $CONTROL_FAILURES_BEFORE ]]; then
-        echo '✅ Wrong gap candidate hash was rejected without changing authority'
+        echo '✅ Wrong gap candidate hash was rejected'
       fi
 
       CONTROL_FAILURES_BEFORE=$FAILURES
@@ -4142,7 +3986,7 @@ JQ
         contract_failure 'Missing gap candidate failed for the wrong reason'
       fi
       if [[ $FAILURES -eq $CONTROL_FAILURES_BEFORE ]]; then
-        echo '✅ Missing gap candidate was rejected without changing authority'
+        echo '✅ Missing gap candidate was rejected'
       fi
 
       CONTROL_FAILURES_BEFORE=$FAILURES
@@ -5508,6 +5352,76 @@ JQ
     for FACT_RACE in audit_state finding_evidence document_evidence; do
       require_fact_second_predicate_refusal "$FACT_RACE"
     done
+
+    # The second predicate has already returned when this barrier opens. Mutating
+    # an unassigned document must still invalidate the complete docsRoot preimage.
+    FACT_FINAL_FAILURES_BEFORE=$FAILURES
+    restore_fact_completion_fixture
+    printf '%s\n' "$FACT_PROCESSOR_PENDING" >"$PROCESSOR_FACT_STATE"
+    FACT_FINAL_READY="$BARRIER_ROOT/fact-docs-root-final.ready"
+    FACT_FINAL_RELEASE="$BARRIER_ROOT/fact-docs-root-final.release"
+    FACT_FINAL_OUTPUT="$BARRIER_ROOT/fact-docs-root-final.output"
+    FACT_FINAL_LOCK="$(cd "$PROCESSOR_REPO" && git rev-parse --absolute-git-dir)/contributor-docs-authority.lock"
+    mkfifo "$FACT_FINAL_RELEASE"
+    FACT_FINAL_PROCESSOR_BEFORE=$(authority_snapshot "$PROCESSOR_FACT_STATE")
+    FACT_FINAL_DOCUMENT_BEFORE=$(authority_snapshot "$PROCESSOR_REPO/docs/s.md")
+    (
+      cd "$PROCESSOR_REPO" && env CONTRIBUTOR_DOCS_CONTRACT_TEST=1 \
+        CONTRIBUTOR_DOCS_TEST_BARRIER_POINT=mark-before-final-preimage-check \
+        CONTRIBUTOR_DOCS_TEST_ROOT="$BARRIER_ROOT" \
+        CONTRIBUTOR_DOCS_TEST_READY_FILE="$FACT_FINAL_READY" \
+        CONTRIBUTOR_DOCS_TEST_RELEASE_FIFO="$FACT_FINAL_RELEASE" \
+        bash "$CD_ROOT/scripts/mark-done.sh" \
+        .contributor-docs/fact-check/state.json docs/r.mdx \
+        --plan-hash "$FACT_TWO_HASH"
+    ) >"$FACT_FINAL_OUTPUT" 2>&1 &
+    FACT_FINAL_PID=$!
+    if ! wait_for_contract_barrier "$FACT_FINAL_READY"; then
+      contract_failure 'Fact-check full-docs final-preimage barrier was not reached'
+      kill "$FACT_FINAL_PID" 2>/dev/null || true
+      wait "$FACT_FINAL_PID" 2>/dev/null || true
+    else
+      printf '%s' 'unassigned document changed after the second authority validation' \
+        >"$PROCESSOR_REPO/docs/s.md"
+      printf '%s\n' release >"$FACT_FINAL_RELEASE"
+      if wait "$FACT_FINAL_PID"; then
+        contract_failure 'Fact-check final preimage accepted an unassigned docsRoot mutation'
+      elif ! rg -qF \
+        'PROCESSOR_AUTHORITY_INVALID: authority or processor preimage changed before completion commit' \
+        "$FACT_FINAL_OUTPUT"; then
+        contract_failure 'Fact-check full-docs final-preimage race had the wrong refusal'
+      elif [[ $(authority_snapshot "$PROCESSOR_FACT_STATE") != "$FACT_FINAL_PROCESSOR_BEFORE" ]]; then
+        contract_failure 'Fact-check full-docs final-preimage refusal replaced processor state'
+      elif find "$(dirname "$PROCESSOR_FACT_STATE")" -maxdepth 1 -type f \
+        -name 'state.json.??????' -print -quit | rg -q .; then
+        contract_failure 'Fact-check full-docs final-preimage refusal left a temporary state file'
+      elif ! (
+        exec {fact_final_lock_fd}>"$FACT_FINAL_LOCK"
+        flock -xn "$fact_final_lock_fd"
+      ); then
+        contract_failure 'Fact-check full-docs final-preimage refusal leaked lock ownership'
+      fi
+    fi
+    printf '%s' "$FACT_SECOND_BYTES" >"$PROCESSOR_REPO/docs/s.md"
+    if [[ $(authority_snapshot "$PROCESSOR_REPO/docs/s.md") != "$FACT_FINAL_DOCUMENT_BEFORE" ]]; then
+      contract_failure 'Fact-check full-docs barrier did not restore the unassigned document'
+    elif ! (
+      cd "$PROCESSOR_REPO" && bash "$CD_ROOT/scripts/mark-done.sh" \
+        .contributor-docs/fact-check/state.json docs/r.mdx \
+        --plan-hash "$FACT_TWO_HASH"
+    ) >/dev/null; then
+      contract_failure 'Fact-check completion did not recover after full-docs preimage refusal'
+    elif ! jq -e '
+      .pendingFiles == ["docs/s.md"] and .processedFiles == ["docs/r.mdx"]
+    ' "$PROCESSOR_FACT_STATE" >/dev/null; then
+      contract_failure 'Fact-check full-docs preimage recovery did not land the exact completion'
+    elif find "$(dirname "$PROCESSOR_FACT_STATE")" -maxdepth 1 -type f \
+      -name 'state.json.??????' -print -quit | rg -q .; then
+      contract_failure 'Fact-check full-docs preimage recovery left a temporary state file'
+    fi
+    if [[ $FAILURES -eq $FACT_FINAL_FAILURES_BEFORE ]]; then
+      echo '✅ Fact-check final preimage refused an unassigned docsRoot mutation byte-identically and recovered unlocked'
+    fi
 
     restore_fact_completion_fixture
     printf '%s\n' "$AUTH_PLAN_STATE" >"$PROCESSOR_PLAN_STATE"
