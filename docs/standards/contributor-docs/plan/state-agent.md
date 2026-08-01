@@ -96,12 +96,15 @@ acquisition of the canonical lock defined in
 [workflow.md](../workflow.md#authority-transaction). Steps 2 through 6 run under
 that one lock: reread and revalidate the on-disk pair after acquiring it, install
 `plan-state.json`, then `task-state.json`, and append the transition log before
-releasing. Each rename is conditional on the preimages read under the lock; a
-changed preimage removes the temp file and leaves both paths byte-identical.
-Contention is `AUTHORITY_BUSY` with nothing created — never a blocking wait and
-never a second acquisition.
+releasing. Immediately before each ordinary atomic rename, reread and compare its
+relevant exact preimages. A mismatch observed by that final check removes the associated
+temp file and refuses before that replacement. The lock serializes compliant writers;
+the residual out-of-contract-writer boundary is defined by
+[Authority Transaction](../workflow.md#authority-transaction). Contention is
+`AUTHORITY_BUSY` with nothing created — never a blocking wait and never a second
+acquisition.
 
-Holding one lock across both renames removes the interleaving in which another
+Holding one lock across both renames removes the interleaving in which a compliant
 mutator observes the half-built pair. It does **not** remove the crash window:
 the process can still die between the renames, and the `plan-state.json`-only row
 of the branch table above remains exactly as documented. Ordering, not locking,
@@ -206,8 +209,10 @@ byte-identical.
    committed transition is never visible without its log entry.
 
 `advance-task-phase-to-write` writes only `task-state.json`, but it takes the same
-lock and its rename is conditional on the `plan-state.json` preimage it validated,
-so the completed plan object cannot move underneath the handoff.
+lock and performs the final exact-preimage recheck, including the validated
+`plan-state.json` preimage, immediately before an ordinary atomic rename. A mismatch
+observed by that check refuses before replacement, and a compliant plan mutation cannot
+interleave with the handoff.
 
 ### Legal Operations
 

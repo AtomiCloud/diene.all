@@ -84,10 +84,13 @@ one authority transaction from
 [workflow.md](../workflow.md#authority-transaction): acquire the lock, reread
 `task-state.json` and the current plan bytes, revalidate the source snapshot and the
 exact `docsRoot` equality against those freshly read bytes, and only then rename the
-staged file over `.contributor-docs/doc-plan.yaml`. The rename is conditional on the
-preimages read under the lock; a mismatch removes the temp file and leaves the
-existing plan byte-identical. Contention is `AUTHORITY_BUSY` — report it and let the
-orchestrator retry; do not install the staged bytes anyway.
+staged file over `.contributor-docs/doc-plan.yaml` after a final recheck of those exact
+preimages while still holding the lock. A mismatch observed by that final check removes
+the temp file and refuses before the ordinary atomic rename; the lock serializes
+compliant writers. The residual out-of-contract-writer boundary is defined by
+[Authority Transaction](../workflow.md#authority-transaction). Contention is
+`AUTHORITY_BUSY` — report it and let the orchestrator retry; do not install the staged
+bytes anyway.
 
 The state-agent's `record-classification` still freshly hashes and completely
 revalidates the installed plan in its own transaction. Installing bytes here is not

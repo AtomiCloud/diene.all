@@ -319,8 +319,10 @@ authority assessment. `init-state.sh` runs the whole initialization as one autho
 transaction from [workflow.md](../workflow.md#authority-transaction): it acquires the
 canonical lock before its first authority or state read, repeats the
 closed-chain/live-hash/candidate checks immediately before its atomic processor-state
-rename, makes that rename conditional on the processor-state preimage — including
-proven absence — and stores the supplied hash in the processor state. A refusal
+rename, and freshly rechecks the processor-state preimage — including proven absence —
+while holding that lock before performing the ordinary atomic rename. A mismatch
+observed by that final check refuses before replacement; the compliant-writer scope is
+defined by [Authority Transaction](../workflow.md#authority-transaction). A refusal
 creates no processor state and leaves no temp file.
 
 A fact-check processor carries `"recordWriteAuthorizations": null`. That field is the
@@ -389,12 +391,14 @@ bash docs/standards/contributor-docs/scripts/mark-done.sh \
 [workflow.md](../workflow.md#authority-transaction). It acquires the canonical lock
 before its first processor or authority read, requires the processor's stored authority
 to match, freshly repeats the complete chain/live-plan check, and makes its atomic
-rename conditional on the processor-state preimage it captured under the lock — so two
-concurrent marks cannot both prepare from the same preimage and lose one another. Plan
-drift or a changed preimage in the interval after finding validation leaves processor
-state byte-identical; contention is `AUTHORITY_BUSY` with nothing marked. `next-file.sh`
-stays read-only and takes no lock: it returns an observation, and every mutation derived
-from it revalidates under its own acquisition.
+rename only after a final processor-state preimage recheck under that lock. Compliant
+concurrent marks therefore cannot interleave or lose one another. Plan drift or a
+changed preimage observed by that final check leaves processor state byte-identical;
+contention is `AUTHORITY_BUSY` with nothing marked. The residual read-to-rename interval
+for an out-of-contract writer has the exact scope stated in
+[Authority Transaction](../workflow.md#authority-transaction). `next-file.sh` stays
+read-only and takes no lock: it returns an observation, and every mutation derived from
+it revalidates under its own acquisition.
 
 An agent hard error transitions the active audit step to `failed`. Its reason
 belongs in the orchestrator's audit run report and transition log; it does not

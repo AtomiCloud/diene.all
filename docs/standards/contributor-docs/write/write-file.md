@@ -187,11 +187,12 @@ The replacement's install section is a bounded sequence of at most three authori
 transaction attempts from [workflow.md](../workflow.md#authority-transaction). Every
 attempt uses `flock -xn` only — never a blocking wait or `flock -w` — then, while it
 holds the lock, performs the fresh plan check below, the fresh provenance check below,
-and the conditional rename. On contention, keep the already rendered staged temp file,
-hold no lock, wait only a short backoff, and retry only that install section. Do no
-other work between attempts: never re-render or discard the temp file early. A failed
-non-blocking lock attempt is not an acquisition. If all three attempts contend, remove
-the staged temp file, leave {filePath} byte-identical, and return `AUTHORITY_BUSY`.
+and a final preimage recheck followed by an ordinary atomic rename. On contention, keep
+the already rendered staged temp file, hold no lock, wait only a short backoff, and
+retry only that install section. Do no other work between attempts: never re-render or
+discard the temp file early. A failed non-blocking lock attempt is not an acquisition.
+If all three attempts contend, remove the staged temp file, leave {filePath}
+byte-identical, and return `AUTHORITY_BUSY`.
 
 Immediately before the authorized write, freshly hash the exact live plan and require
 equality with `{PLAN_SHA256}`. Perform this check after validation and body rendering
@@ -203,8 +204,11 @@ Before writing, confirm {filePath}'s provenance still holds. Under the same held
 hash the current bytes freshly from disk and check them against exactly these
 authorizations — the first that matches wins, and if none matches, the file changed
 under you: **stop and report instead of writing**. This pre-write hash is the
-document's preimage: the rename is conditional on it, so a byte change that lands
-between the check and the rename cannot be overwritten.
+document's preimage. While holding the canonical compliant-writer lock, recheck it
+immediately before an ordinary atomic rename. A mismatch observed by that recheck
+refuses before replacement, and compliant writers cannot interleave. The residual
+out-of-contract-writer boundary is defined by
+[Authority Transaction](../workflow.md#authority-transaction).
 
 | Provenance state                                  | Authorized if current bytes hash to                              | Meaning                                |
 | ------------------------------------------------- | ---------------------------------------------------------------- | -------------------------------------- |
@@ -228,13 +232,15 @@ the user. After a successful approved write, `record-write` consumes that approv
 Note what is _not_ authorization: `writeStatus: "pending"` by itself, and holding the
 lock. The lock is advisory: it orders the contract-compliant writers, and an editor,
 a script, or a hand-run command can change {filePath} while it is held. What catches
-that is the conditional rename against the pre-write hash and the fresh rehash in
-step 7 — never the assumption that no one else could have written. If `writtenHash`
-is recorded and the bytes do not match it, something outside this workflow changed the
-file — an outside edit, or a writer that crashed mid-write. Report it; the orchestrator
-persists the exact mismatch through state-agent `record-writer-collision` and, if the
-user approves, records a new hash-bound writer-replay approval. Never resolve it by
-changing provenance first or by writing under an old path approval.
+an observed change is the final preimage recheck; the ordinary atomic rename is not
+content-conditional. The residual out-of-contract interval is governed by
+[Authority Transaction](../workflow.md#authority-transaction), never by an assumption
+that no one else could have written. If `writtenHash` is recorded and the bytes do not
+match it, something outside this workflow changed the file — an outside edit, or a
+writer that crashed mid-write. Report it; the orchestrator persists the exact mismatch
+through state-agent `record-writer-collision` and, if the user approves, records a new
+hash-bound writer-replay approval. Never resolve it by changing provenance first or by
+writing under an old path approval.
 
 ### 7. Report
 

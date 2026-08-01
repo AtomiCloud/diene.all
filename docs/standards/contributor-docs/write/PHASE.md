@@ -541,9 +541,10 @@ precedence). `AUTHORITY_BUSY` is a fail-fast retry outcome and changes nothing.
 The byte fingerprints close the window from an operation's first authority read
 through its last authority read. The residual interval between that last read and `mv`
 is closed by the exclusive advisory lock every compliant writer takes, not by the
-rename itself. An out-of-contract writer that ignores the lock in that residual
-interval is detected by downstream assessment after commit rather than guaranteed a
-pre-rename refusal.
+rename itself. An out-of-contract same-user writer in that residual interval is not
+prevented. A later mandatory assessment detects only surviving authority or document
+drift; a raw write to the processor target that the ordinary `mv` overwrites can be
+undetectable and is outside the contract.
 
 ### 2. Process Loop
 
@@ -571,7 +572,8 @@ while next-file.sh returns files:
        authorized write/report.
   5. Spawn state-agent `record-write`. While holding the Authority Transaction lock,
      invoke the shared `init-state.sh --assert-record-write pending` law before
-     candidate construction and again after staging, before its exact preimage CAS.
+     candidate construction and again after staging, before its final preimage recheck
+     under the compliant-writer lock and ordinary atomic rename.
      The law freshly hashes the file, requires equality
      with `WRITTEN_HASH`, freshly hashes the live plan and requires equality with both
      reported `PLAN_SHA256` and `authorizedPlanHash`, validates the complete structured
@@ -1089,7 +1091,8 @@ merely exiting nonzero is not a catch. The hook runs the same command on every c
 9. **Authority transaction controls.** Deterministic internal FIFO barriers stop each
    helper after its last semantic check while it owns the lock. A second compliant
    mutator returns `AUTHORITY_BUSY`; after a deliberate raw authority replacement, the
-   final CAS returns `PROCESSOR_AUTHORITY_INVALID` before processor replacement. The
+   final preimage check reports `PROCESSOR_AUTHORITY_INVALID` on mismatch before
+   processor replacement. The
    manifest covers authority kinds/bytes/absence, processor preimage, and assigned
    document. Two concurrent marks retry to two unique processed paths, a killed holder
    releases without deleting the persistent lock file, and ordinary failure leaves no

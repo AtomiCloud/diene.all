@@ -147,10 +147,12 @@ The install is one authority transaction from
 [workflow.md](../workflow.md#authority-transaction): acquire the canonical lock,
 freshly hash the exact live plan and require equality with `{PLAN_SHA256}`, recheck the
 epoch and docs digest supplied to this run against freshly read `audit-state.json`, and
-only then rename the staged file over the report. The rename is conditional on those
-preimages and on the prior report's exact bytes or proven absence. On mismatch, remove
-the temp file, leave the prior report byte-identical, and return `PLAN_DRIFT_BLOCKED`;
-on contention return `AUTHORITY_BUSY` and install nothing.
+then freshly recheck those preimages and the prior report's exact bytes or proven
+absence while holding the lock before an ordinary atomic rename over the report. On a
+mismatch observed by that final check, remove the temp file, leave the prior report
+byte-identical, and return `PLAN_DRIFT_BLOCKED`; on contention return `AUTHORITY_BUSY`
+and install nothing. The compliant-writer scope of the final check is defined by
+[Authority Transaction](../workflow.md#authority-transaction).
 
 ```markdown
 # Big Picture Audit Report

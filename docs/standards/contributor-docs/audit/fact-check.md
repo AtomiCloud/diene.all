@@ -207,9 +207,11 @@ and its sources is long-running. Installing it is one authority transaction from
 [workflow.md](../workflow.md#authority-transaction): acquire the canonical lock,
 freshly hash the exact live plan and the assigned document, recheck the epoch and docs
 digest against freshly read state, and only then rename the staged file over the
-canonical finding path, conditional on those preimages. A mismatch removes the temp
-file and leaves the previous finding byte-identical; contention is `AUTHORITY_BUSY`
-with nothing installed and the file not marked done.
+canonical finding path after a final preimage recheck under that lock. A mismatch
+observed by that final check removes the temp file and leaves the previous finding
+byte-identical; contention is `AUTHORITY_BUSY` with nothing installed and the file not
+marked done. The compliant-writer scope of this ordinary atomic rename is defined by
+[Authority Transaction](../workflow.md#authority-transaction).
 
 The finding install and `mark-done.sh` are two separate transactions, so never hold a
 lock across the dispatch between them. That is safe because the stamps below, not the

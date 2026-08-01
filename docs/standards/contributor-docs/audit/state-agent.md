@@ -66,11 +66,14 @@ previous state byte-identical.
 Every mode that creates, changes, or removes anything does so as one authority
 transaction from [workflow.md](../workflow.md#authority-transaction): acquire the
 canonical lock once, reread and completely revalidate every input under it, record
-the operation's preimages, do only short local filesystem work, make each rename
-conditional on those preimages, append the transition log, and release. Assessment
-is read-only and takes no lock; any mutation derived from an assessment reacquires
-the lock and revalidates from disk. Contention is `AUTHORITY_BUSY` with every audit
-state file, report, finding, sidecar, and processor artifact byte-identical.
+the operation's preimages, do only short local filesystem work, rerun the operation
+predicate, freshly recheck those preimages, then perform each ordinary atomic rename
+while holding the lock. A mismatch observed by that final check refuses before
+replacement. Assessment is read-only and takes no lock; any mutation derived from an
+assessment reacquires the lock and revalidates from disk. Contention is `AUTHORITY_BUSY`
+with every audit state file, report, finding, sidecar, and processor artifact
+byte-identical. The compliant-writer scope is defined by
+[Authority Transaction](../workflow.md#authority-transaction).
 
 ## Plan Authority Validation
 
@@ -158,9 +161,10 @@ This mode creates only `audit-state.json`. The plan state-agent owns
    `auditEpoch: 1`, the computed non-null digest, false flags, zero counters, and
    an empty warning collection.
 9. Validate the complete object and freshly repeat the plan-authority/live-hash check
-   under the held lock. Then write a temporary file and, conditional on the preimages
-   recorded at acquisition — including the proven absence of `audit-state.json` —
-   atomically rename it to `.contributor-docs/audit-state.json`. Plan mutation
+   under the held lock. Then write a temporary file, freshly recheck the preimages
+   recorded at acquisition — including the proven absence of `audit-state.json` — and
+   perform an ordinary atomic rename to `.contributor-docs/audit-state.json`. A
+   mismatch observed by that final check refuses before replacement. Plan mutation
    remains fenced through acceptance.
 10. Parse the installed file and validate it again. On failure, remove only the
     audit-state file created by this mode and report `CREATE_FAILED: <reason>`.
@@ -327,12 +331,12 @@ to compare with the independently derived set, never a value to install on trust
    validation and live-plan hash under the held lock. Plan mutation is fenced until
    the operation is accepted. A mismatch takes the non-mutating plan-drift outcome.
 8. Write each changed state file through a temporary file and atomic rename, each
-   rename conditional on the preimages recorded at acquisition. Append a step or
-   phase transition after its corresponding rename and before releasing the lock.
-   `fail-audit`'s ordered audit-state-then-task-phase renames happen inside one
-   acquisition; the lock removes the interleaving but not the crash window, so the
-   documented failure pairing and its `resume-failed-task-phase` recovery are
-   unchanged.
+   after a final recheck of the preimages recorded at acquisition. A mismatch observed
+   by that final check refuses before replacement. Append a step or phase transition
+   after its corresponding rename and before releasing the lock. `fail-audit`'s ordered
+   audit-state-then-task-phase renames happen inside one acquisition; the lock removes
+   compliant-writer interleaving but not the crash window, so the documented failure
+   pairing and its `resume-failed-task-phase` recovery are unchanged.
 9. Report the selected operation and resulting fixed state. An unknown key, wrong
    envelope, wrong edge, or stale evidence is `UPDATE_REFUSED: <reason>` and leaves all
    files byte-identical except for the documented two-rename failure pairing.
@@ -420,9 +424,10 @@ acquiring it, and step 9 reports after releasing it.
    completion flags false, every counter zero, and `acceptedWarnings: []`.
 6. Validate that object and freshly repeat the full plan-authority/live-hash check.
    Fence plan mutation through the remaining reset effects, write the object to a
-   temporary file, and — conditional on the preimages recorded at acquisition —
-   atomically rename it over `audit-state.json`. This single rename commits both the
-   new epoch and every reset field together and remains the reset's commit marker.
+   temporary file, freshly recheck the preimages recorded at acquisition, and perform
+   an ordinary atomic rename over `audit-state.json`. A mismatch observed by that
+   final check refuses before replacement. This single rename commits both the new
+   epoch and every reset field together and remains the reset's commit marker.
 7. After the rename, still holding the lock, remove these stale artifacts in place:
    - `.contributor-docs/big-picture-report.md`;
    - `.contributor-docs/fact-check/state.json`;
