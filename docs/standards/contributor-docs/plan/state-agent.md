@@ -61,6 +61,9 @@ assess.
    ```
 
 4. Write `.contributor-docs/task-state.json` — **last**, as the commit marker:
+
+   <!-- canonical-block: task-state-schema -->
+
    ```json
    {
      "currentPhase": "plan",
@@ -69,6 +72,7 @@ assess.
      "planFile": null
    }
    ```
+
 5. Validate before reporting success. Every field is checked, not just parseability:
    - both files parse as JSON;
    - `currentPhase` ∈ `plan|write|audit|completed|failed`;

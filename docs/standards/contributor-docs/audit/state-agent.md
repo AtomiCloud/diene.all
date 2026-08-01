@@ -22,7 +22,7 @@ writes state JSON directly.
 marked block below mirrors its 11 top-level fields exactly so drift can be
 checked mechanically.
 
-<!-- audit-state-schema -->
+<!-- canonical-block: audit-state-schema -->
 
 ```json
 {
@@ -492,7 +492,11 @@ CONTEXT:
 
 ## Validation Rules
 
-<!-- audit-legal-steps -->
+<!-- canonical-block: audit-legal-steps -->
+
+```json
+["big_picture", "fact_check", "completed", "failed"]
+```
 
 The legal step set is exactly: `big_picture`, `fact_check`, `completed`,
 and `failed`.

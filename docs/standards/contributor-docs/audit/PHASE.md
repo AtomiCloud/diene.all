@@ -14,7 +14,11 @@ flowchart LR
 The big-picture auditor runs first (one opus agent, holistic view). Then
 fact-checkers run as a file-processor loop (one sonnet agent per document file).
 
-<!-- audit-legal-steps -->
+<!-- canonical-block: audit-legal-steps -->
+
+```json
+["big_picture", "fact_check", "completed", "failed"]
+```
 
 The legal step set is exactly: `big_picture`, `fact_check`, `completed`,
 and `failed`.
@@ -23,7 +27,7 @@ and `failed`.
 
 This is the canonical audit-state schema. It has exactly 11 top-level fields.
 
-<!-- audit-state-schema -->
+<!-- canonical-block: audit-state-schema -->
 
 ```json
 {

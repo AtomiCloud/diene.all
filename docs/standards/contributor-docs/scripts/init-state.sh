@@ -363,6 +363,232 @@ def cd_record_write_authority($mode; $task; $write; $processor; $tier; $path;
 JQ
 }
 
+# Canonical approved-plan/gap-closure law. The runtime authority helper and the
+# executable reducer import these exact definitions so neither can accept a record
+# the other later refuses.
+plan_authority_jq_source() {
+  cat <<'JQ'
+def sha256: type == "string" and test("^[0-9a-f]{64}$");
+def timestamp:
+  type == "string" and
+  test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$");
+def exact_keys($value; $want):
+  ($value | type == "object") and (($value | keys | sort) == ($want | sort));
+def normalized_path($value):
+  type == "string" and length > 0 and (startswith("/") | not) and
+  (split("/") | all(. != "" and . != "." and . != ".."));
+def dirname($path):
+  $path | split("/") | .[0:length - 1] | join("/");
+def as_set($items):
+  reduce $items[] as $item ({}; .[$item] = true);
+def plan_entries($plan):
+  ([ $plan.modules[] as $module | $module.files[] as $entry |
+      {outputPath:($plan.docsRoot + "/" + $entry.path),
+       container:("module:" + $module.name),entry:$entry} ]
+   + [ $plan.shared.files[] as $entry |
+      {outputPath:($plan.docsRoot + "/" + $entry.path),container:"shared",entry:$entry} ]
+   + [ $plan.topLevel[] as $entry |
+      {outputPath:($plan.docsRoot + "/" + $entry.path),container:"topLevel",entry:$entry} ]
+   + [ $plan.adrs[] as $entry |
+      {outputPath:($plan.docsRoot + "/" + $entry.path),container:"adrs",entry:$entry} ]
+   + [ $plan.indexes[] as $entry |
+      {outputPath:($plan.docsRoot + "/" + $entry.path),container:"indexes",entry:$entry} ]) |
+  sort_by(.outputPath);
+def valid_plan($plan):
+  exact_keys($plan; ["docsRoot","modules","shared","topLevel","adrs","indexes"])
+  and ($plan.docsRoot | normalized_path(.))
+  and ($plan.modules | type == "array")
+  and all($plan.modules[];
+    exact_keys(.; ["name","description","files"])
+    and (.name | type == "string" and length > 0)
+    and (.description | type == "string") and (.files | type == "array"))
+  and exact_keys($plan.shared; ["files"]) and ($plan.shared.files | type == "array")
+  and ($plan.topLevel | type == "array") and ($plan.adrs | type == "array")
+  and ($plan.indexes | type == "array")
+  and all(plan_entries($plan)[];
+    (.entry.path | normalized_path(.)) and
+    ((.entry.crossLinks // {}) | type == "object") and
+    all((.entry.crossLinks // {})[];
+      type == "array" and all(.[]; normalized_path(.))));
+def plan_links($plan):
+  [plan_entries($plan)[] as $wrapped |
+    (($wrapped.entry.crossLinks // {}) | to_entries[]) as $links |
+    $links.value[] as $target |
+    {reportedBy:$wrapped.outputPath,field:$links.key,
+     target:($plan.docsRoot + "/" + $target)}] |
+  sort_by([.reportedBy,.field,.target]) | unique_by([.reportedBy,.field,.target]);
+def index_paths($plan):
+  [plan_entries($plan)[] |
+    select(.container == "indexes" or .entry.type == "index") |
+    .outputPath] | unique;
+def reverse_adjacency($links; $queue_set):
+  reduce ($links[] | select($queue_set[.reportedBy] != null)) as $link
+    ({}; .[$link.target] += [$link.reportedBy]);
+def directory_indexes($indexes; $queue_set):
+  reduce ($indexes[] | select($queue_set[.] != null)) as $index
+    ({}; .[dirname($index)] += [$index]);
+def closure_set($reverse; $directory; $gaps; $reporters; $queue_set):
+  {reached:as_set($reporters | map(select($queue_set[.] != null))),
+   frontier:(($reporters + $gaps) | unique)} |
+  until((.frontier | length) == 0;
+    .reached as $reached |
+    ([.frontier[] as $path | (($reverse[$path] // [])[])] +
+     [.frontier[] as $path | (($directory[dirname($path)] // [])[])] |
+      unique) as $candidates |
+    ($candidates | map(select($reached[.] == null))) as $new |
+    {reached:(reduce $new[] as $path ($reached; .[$path] = true)),
+     frontier:$new}) |
+  .reached | keys;
+def expected_added_entries($gap_paths):
+  $gap_paths | map({outputPath:.path,type:.type,tier:.tier}) |
+  sort_by([.outputPath,.type,.tier]);
+def expected_added_links($reports):
+  [$reports[] as $report | $report.gaps[] |
+    {reportedBy:$report.reportedBy,
+     field:(if .type == "concept" then "concepts" else "algorithms" end),
+     target:.path}] |
+  sort_by([.reportedBy,.field,.target]) | unique_by([.reportedBy,.field,.target]);
+def expected_requeued($record; $queue; $live; $later_links; $later_paths):
+  as_set($queue - $later_paths) as $queue_set |
+  reverse_adjacency(plan_links($live) - $later_links; $queue_set) as $reverse |
+  directory_indexes(index_paths($live); $queue_set) as $directory |
+  ($record.gapPaths | map(.path) | unique) as $gaps |
+  (closure_set($reverse; $directory; $gaps;
+    ($record.reports | map(.reportedBy) | unique); $queue_set) - $gaps) |
+  sort;
+def expected_replay_tier($record; $provenance):
+  (($record.gapPaths | map(.tier)) +
+   [$record.requeued[] as $path | $provenance[$path].tier]) | min;
+def gap_tuples($reports):
+  [$reports[] | .gaps[] | {path:.path,type:.type,tier:.tier}];
+def derived_gap_paths($reports):
+  gap_tuples($reports) | sort_by([.path,.type,.tier]) |
+  unique_by([.path,.type,.tier]);
+def reports_consistent($reports):
+  (gap_tuples($reports) | group_by(.path) |
+    all(.[]; (map({type:.type,tier:.tier}) | unique | length) == 1));
+def gap_item($gap):
+  exact_keys($gap; ["path","type","tier","reason"])
+  and ($gap.path | normalized_path(.))
+  and ($gap.reason | type == "string" and (gsub("[[:space:]]"; "") | length) > 0)
+  and (($gap.type == "concept" and $gap.tier == 2) or
+    ($gap.type == "algorithm" and $gap.tier == 3));
+def report($value):
+  exact_keys($value; ["reportedBy","gaps"])
+  and ($value.reportedBy | normalized_path(.))
+  and ($value.gaps | type == "array" and length > 0)
+  and all($value.gaps[]; gap_item(.))
+  and (($value.gaps | map([.path,.type,.tier]) | length) ==
+    ($value.gaps | map([.path,.type,.tier]) | unique | length));
+def reports_valid($reports):
+  ($reports | type == "array" and length > 0)
+  and (($reports | map(.reportedBy) | length) ==
+    ($reports | map(.reportedBy) | unique | length))
+  and all($reports[]; report(.)) and reports_consistent($reports);
+def stored_mutation($mutation; $candidate_path; $reports; $gap_paths):
+  exact_keys($mutation;
+    ["candidatePath","fromPlanHash","toPlanHash","addedPlanEntries","addedCrossLinks"])
+  and $mutation.candidatePath == $candidate_path
+  and ($mutation.fromPlanHash | sha256)
+  and ($mutation.toPlanHash | sha256)
+  and $mutation.fromPlanHash != $mutation.toPlanHash
+  and ($mutation.addedPlanEntries | type == "array" and length > 0)
+  and $mutation.addedPlanEntries == ($mutation.addedPlanEntries | sort_by(.outputPath))
+  and (($mutation.addedPlanEntries | map(.outputPath) | length) ==
+    ($mutation.addedPlanEntries | map(.outputPath) | unique | length))
+  and all($mutation.addedPlanEntries[]; . as $added |
+    exact_keys($added; ["outputPath","container","entry"])
+    and ($added.outputPath | normalized_path(.))
+    and ($added.container | type == "string" and
+      test("^(shared|topLevel|adrs|indexes|module:[^/]+)$"))
+    and ($added.entry | type == "object")
+    and ((["path","type","tier","description","sources"] -
+      ($added.entry | keys)) | length == 0)
+    and (((($added.entry | keys) -
+      ["path","type","conceptType","tier","description","sources","crossLinks","tags"]) |
+      length) == 0)
+    and ($added.entry.path | normalized_path(.))
+    and ($added.outputPath | endswith("/" + $added.entry.path))
+    and (($added.entry.type == "concept" and $added.entry.tier == 2) or
+      ($added.entry.type == "algorithm" and $added.entry.tier == 3))
+    and ($added.entry.description | type == "string" and
+      (gsub("[[:space:]]"; "") | length) > 0)
+    and ($added.entry.sources | type == "array" and length > 0)
+    and all($added.entry.sources[]; type == "string" and length > 0)
+    and (($added.entry.conceptType // "") | type == "string")
+    and (($added.entry.crossLinks // {}) | type == "object")
+    and all(($added.entry.crossLinks // {})[]; type == "array" and
+      all(.[]; type == "string" and length > 0))
+    and (($added.entry.tags // []) | type == "array")
+    and all(($added.entry.tags // [])[]; type == "string" and length > 0))
+  and (($mutation.addedPlanEntries |
+    map({outputPath:.outputPath,type:.entry.type,tier:.entry.tier}) |
+    sort_by([.outputPath,.type,.tier])) == expected_added_entries($gap_paths))
+  and ($mutation.addedCrossLinks | type == "array" and length > 0)
+  and $mutation.addedCrossLinks ==
+    ($mutation.addedCrossLinks | sort_by([.reportedBy,.field,.target]))
+  and (($mutation.addedCrossLinks | length) ==
+    ($mutation.addedCrossLinks | unique | length))
+  and all($mutation.addedCrossLinks[]; . as $link |
+    exact_keys($link; ["reportedBy","field","target"])
+    and ($link.reportedBy | normalized_path(.))
+    and ($link.field == "concepts" or $link.field == "algorithms")
+    and ($link.target | normalized_path(.)))
+  and $mutation.addedCrossLinks == expected_added_links($reports);
+def stored_entries_current($mutation; $live):
+  (plan_entries($live)) as $current |
+  all($mutation.addedPlanEntries[]; . as $added |
+    ($current | map(select(.outputPath == $added.outputPath)) | .[0]) as $now |
+    $now != null and $now.container == $added.container and
+    (($now.entry | del(.crossLinks)) == ($added.entry | del(.crossLinks))) and
+    (($added.entry.crossLinks // {}) | to_entries |
+      all(.[]; . as $links |
+        all($links.value[]; . as $target |
+          (($now.entry.crossLinks[$links.key] // []) | index($target)) != null))));
+def closed_record($closed; $queue; $provenance; $live; $candidate_path;
+    $later_links; $later_paths):
+  exact_keys($closed;
+    ["status","reports","gapPaths","expectedScaffold","replayTier","requeued",
+     "resetTiers","cleanedTiers","openedAt","planMutation","closedAt"])
+  and $closed.status == "cleared"
+  and reports_valid($closed.reports)
+  and (($closed.gapPaths | sort_by([.path,.type,.tier])) ==
+    derived_gap_paths($closed.reports))
+  and all($closed.gapPaths[]; . as $gap |
+    ($gap.path | normalized_path(.)) and ($queue | index($gap.path)) != null)
+  and ($closed.expectedScaffold | type == "object")
+  and (($closed.expectedScaffold | keys | sort) ==
+    ($closed.gapPaths | map(.path) | sort | unique))
+  and all($closed.expectedScaffold[]; sha256)
+  and ($closed.replayTier | type == "number")
+  and ($closed.replayTier | floor) == $closed.replayTier
+  and $closed.replayTier >= 1 and $closed.replayTier <= 6
+  and ($closed.requeued | type == "array" and length > 0)
+  and all($closed.requeued[]; . as $path |
+    ($path | normalized_path(.)) and ($queue | index($path)) != null and
+    ($provenance[$path].tier | type == "number" and floor == . and . >= 1 and . <= 6))
+  and ($closed.requeued | length) == ($closed.requeued | unique | length)
+  and all($closed.reports[].reportedBy; . as $path | ($closed.requeued | index($path)) != null)
+  and all($closed.requeued[];
+    . as $path | ($closed.gapPaths | map(.path) | index($path)) == null)
+  and $closed.requeued == expected_requeued($closed; $queue; $live;
+    $later_links; $later_paths)
+  and $closed.replayTier == expected_replay_tier($closed; $provenance)
+  and ($closed.resetTiers | type == "array" and length > 0)
+  and ($closed.resetTiers == ($closed.resetTiers | sort | unique))
+  and all($closed.resetTiers[]; type == "number" and floor == . and . >= 1 and . <= 6)
+  and ($closed.resetTiers ==
+    ((($closed.gapPaths | map(.tier)) +
+      [$closed.requeued[] as $path | $provenance[$path].tier]) | sort | unique))
+  and ($closed.resetTiers | index($closed.replayTier)) != null
+  and $closed.cleanedTiers == $closed.resetTiers
+  and ($closed.openedAt | timestamp) and ($closed.closedAt | timestamp)
+  and $closed.closedAt >= $closed.openedAt
+  and stored_mutation($closed.planMutation; $candidate_path;
+    $closed.reports; $closed.gapPaths);
+JQ
+}
+
 canonical_fact_check_files_json() {
   local plan_file="$REPO_ROOT/.contributor-docs/doc-plan.yaml" plan_json result
 
@@ -805,7 +1031,7 @@ assert_plan_authority() {
   local write_state=${3:-"$REPO_ROOT/.contributor-docs/write-state.json"}
   local live_plan=${4:-"$REPO_ROOT/.contributor-docs/doc-plan.yaml"}
   local candidate_plan=${5:-"$REPO_ROOT/.contributor-docs/doc-plan.gap-candidate.yaml"}
-  local actual_hash result
+  local actual_hash plan_json result program
 
   if [[ ! $expected_hash =~ ^[0-9a-f]{64}$ ]] ||
     [[ ! -f $plan_state ]] || [[ ! -f $write_state ]] || [[ ! -f $live_plan ]]; then
@@ -816,263 +1042,60 @@ assert_plan_authority() {
     echo "PLAN_DRIFT_BLOCKED: expected=${expected_hash} actual=candidate-present" >&2
     return 1
   fi
+  if ! plan_json=$(yq -o=json '.' "$live_plan" 2>/dev/null); then
+    echo "PLAN_CONVERTER_UNAVAILABLE: yq could not convert '${live_plan}' to JSON" >&2
+    return 1
+  fi
 
   actual_hash=$(sha256sum -- "$live_plan" | cut -d ' ' -f1)
-  if ! result=$(jq -r -s --arg expected "$expected_hash" --arg actual "$actual_hash" '
-    def sha256: type == "string" and test("^[0-9a-f]{64}$");
-    def timestamp:
-      type == "string" and
-      test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$");
-    def exact_keys($value; $want):
-      ($value | type == "object") and (($value | keys | sort) == ($want | sort));
-    def normalized_path($value):
-      type == "string" and length > 0 and (startswith("/") | not) and
-      (split("/") | all(. != "" and . != "." and . != ".."));
-    def expected_added_entries($gap_paths):
-      $gap_paths | map({outputPath:.path,type:.type,tier:.tier}) |
-      sort_by([.outputPath,.type,.tier]);
-    def expected_added_links($reports):
-      [$reports[] as $report | $report.gaps[] |
-        {reportedBy:$report.reportedBy,
-         field:(if .type == "concept" then "concepts" else "algorithms" end),
-         target:.path}] |
-      sort_by([.reportedBy,.field,.target]) | unique_by([.reportedBy,.field,.target]);
-    def plan_entries($plan):
-      ([ $plan.modules[] as $module | $module.files[] as $entry |
-          {outputPath:($plan.docsRoot + "/" + $entry.path),
-           container:("module:" + $module.name),entry:$entry} ]
-       + [ $plan.shared.files[] as $entry |
-          {outputPath:($plan.docsRoot + "/" + $entry.path),container:"shared",entry:$entry} ]
-       + [ $plan.topLevel[] as $entry |
-          {outputPath:($plan.docsRoot + "/" + $entry.path),container:"topLevel",entry:$entry} ]
-       + [ $plan.adrs[] as $entry |
-          {outputPath:($plan.docsRoot + "/" + $entry.path),container:"adrs",entry:$entry} ]
-       + [ $plan.indexes[] as $entry |
-          {outputPath:($plan.docsRoot + "/" + $entry.path),container:"indexes",entry:$entry} ]) |
-      sort_by(.outputPath);
-    def valid_plan($plan):
-      exact_keys($plan; ["docsRoot","modules","shared","topLevel","adrs","indexes"])
-      and ($plan.docsRoot | normalized_path(.))
-      and ($plan.modules | type == "array")
-      and all($plan.modules[];
-        exact_keys(.; ["name","description","files"])
-        and (.name | type == "string" and length > 0)
-        and (.description | type == "string") and (.files | type == "array"))
-      and exact_keys($plan.shared; ["files"]) and ($plan.shared.files | type == "array")
-      and ($plan.topLevel | type == "array") and ($plan.adrs | type == "array")
-      and ($plan.indexes | type == "array")
-      and all(plan_entries($plan)[];
-        (.entry.path | normalized_path(.)) and
-        ((.entry.crossLinks // {}) | type == "object") and
-        all((.entry.crossLinks // {})[];
-          type == "array" and all(.[]; normalized_path(.))));
-    def plan_links($plan):
-      [plan_entries($plan)[] as $wrapped |
-        (($wrapped.entry.crossLinks // {}) | to_entries[]) as $links |
-        $links.value[] as $target |
-        {reportedBy:$wrapped.outputPath,field:$links.key,
-         target:($plan.docsRoot + "/" + $target)}] |
-      sort_by([.reportedBy,.field,.target]) | unique_by([.reportedBy,.field,.target]);
-    def dirname($path):
-      $path | split("/") | .[0:length - 1] | join("/");
-    def as_set($items):
-      reduce $items[] as $item ({}; .[$item] = true);
-    def index_paths($plan):
-      [plan_entries($plan)[] |
-        select(.container == "indexes" or .entry.type == "index") |
-        .outputPath] | unique;
-    def reverse_adjacency($links; $queue_set):
-      reduce ($links[] | select($queue_set[.reportedBy] != null)) as $link
-        ({}; .[$link.target] += [$link.reportedBy]);
-    def directory_indexes($indexes; $queue_set):
-      reduce ($indexes[] | select($queue_set[.] != null)) as $index
-        ({}; .[dirname($index)] += [$index]);
-    def closure_set($reverse; $directory; $gaps; $reporters; $queue_set):
-      {reached:as_set($reporters | map(select($queue_set[.] != null))),
-       frontier:(($reporters + $gaps) | unique)} |
-      until((.frontier | length) == 0;
-        .reached as $reached |
-        ([.frontier[] as $path | (($reverse[$path] // [])[])] +
-         [.frontier[] as $path | (($directory[dirname($path)] // [])[])] |
-          unique) as $candidates |
-        ($candidates | map(select($reached[.] == null))) as $new |
-        {reached:(reduce $new[] as $path ($reached; .[$path] = true)),
-         frontier:$new}) |
-      .reached | keys;
-    def expected_requeued($record; $queue; $live; $later_links; $later_paths):
-      as_set($queue - $later_paths) as $queue_set |
-      reverse_adjacency(plan_links($live) - $later_links; $queue_set) as $reverse |
-      directory_indexes(index_paths($live); $queue_set) as $directory |
-      ($record.gapPaths | map(.path) | unique) as $gaps |
-      (closure_set($reverse; $directory; $gaps;
-        ($record.reports | map(.reportedBy) | unique); $queue_set) - $gaps) |
-      sort;
-    def expected_replay_tier($record; $provenance):
-      (($record.gapPaths | map(.tier)) +
-       [$record.requeued[] as $path | $provenance[$path].tier]) | min;
-    def stored_entries_current($mutation; $live):
-      (plan_entries($live)) as $current |
-      all($mutation.addedPlanEntries[]; . as $added |
-        ($current | map(select(.outputPath == $added.outputPath)) | .[0]) as $now |
-        $now != null and $now.container == $added.container and
-        (($now.entry | del(.crossLinks)) == ($added.entry | del(.crossLinks))) and
-        (($added.entry.crossLinks // {}) | to_entries |
-          all(.[]; . as $links |
-            all($links.value[]; . as $target |
-              (($now.entry.crossLinks[$links.key] // []) | index($target)) != null))));
-    def mutation($value; $reports; $gap_paths; $live):
-      exact_keys($value;
-        ["candidatePath","fromPlanHash","toPlanHash","addedPlanEntries","addedCrossLinks"])
-      and $value.candidatePath == ".contributor-docs/doc-plan.gap-candidate.yaml"
-      and ($value.fromPlanHash | sha256) and ($value.toPlanHash | sha256)
-      and $value.fromPlanHash != $value.toPlanHash
-      and ($value.addedPlanEntries | type == "array" and length > 0)
-      and $value.addedPlanEntries == ($value.addedPlanEntries | sort_by(.outputPath))
-      and (($value.addedPlanEntries | map(.outputPath) | length) ==
-        ($value.addedPlanEntries | map(.outputPath) | unique | length))
-      and all($value.addedPlanEntries[]; . as $added |
-        exact_keys($added; ["outputPath","container","entry"])
-        and ($added.outputPath | normalized_path(.))
-        and ($added.container | type == "string" and
-          test("^(shared|topLevel|adrs|indexes|module:[^/]+)$"))
-        and ($added.entry | type == "object")
-        and ((["path","type","tier","description","sources"] -
-          ($added.entry | keys)) | length == 0)
-        and (((($added.entry | keys) -
-          ["path","type","conceptType","tier","description","sources","crossLinks","tags"]) |
-          length) == 0)
-        and ($added.entry.path | normalized_path(.))
-        and ($added.outputPath | endswith("/" + $added.entry.path))
-        and (($added.entry.type == "concept" and $added.entry.tier == 2) or
-          ($added.entry.type == "algorithm" and $added.entry.tier == 3))
-        and ($added.entry.description | type == "string" and
-          (gsub("[[:space:]]"; "") | length) > 0)
-        and ($added.entry.sources | type == "array" and length > 0)
-        and all($added.entry.sources[]; type == "string" and length > 0)
-        and (($added.entry.conceptType // "") | type == "string")
-        and (($added.entry.crossLinks // {}) | type == "object")
-        and all(($added.entry.crossLinks // {})[]; type == "array" and
-          all(.[]; type == "string" and length > 0))
-        and (($added.entry.tags // []) | type == "array")
-        and all(($added.entry.tags // [])[]; type == "string" and length > 0))
-      and (($value.addedPlanEntries |
-        map({outputPath:.outputPath,type:.entry.type,tier:.entry.tier}) |
-        sort_by([.outputPath,.type,.tier])) == expected_added_entries($gap_paths))
-      and ($value.addedCrossLinks | type == "array" and length > 0)
-      and $value.addedCrossLinks ==
-        ($value.addedCrossLinks | sort_by([.reportedBy,.field,.target]))
-      and (($value.addedCrossLinks | length) == ($value.addedCrossLinks | unique | length))
-      and all($value.addedCrossLinks[]; . as $link |
-        exact_keys($link; ["reportedBy","field","target"])
-        and ($link.reportedBy | normalized_path(.))
-        and ($link.field == "concepts" or $link.field == "algorithms")
-        and ($link.target | normalized_path(.)))
-      and $value.addedCrossLinks == expected_added_links($reports)
-      and stored_entries_current($value; $live)
-      and all($value.addedCrossLinks[]; . as $link |
-        (plan_links($live) | index($link)) != null);
-    def report($value):
-      exact_keys($value; ["reportedBy","gaps"])
-      and ($value.reportedBy | normalized_path(.))
-      and ($value.gaps | type == "array" and length > 0)
-      and all($value.gaps[];
-        exact_keys(.; ["path","type","tier","reason"])
-        and (.path | normalized_path(.))
-        and (.reason | type == "string" and (gsub("[[:space:]]"; "") | length) > 0)
-        and ((.type == "concept" and .tier == 2) or
-          (.type == "algorithm" and .tier == 3)))
-      and (($value.gaps | map([.path,.type,.tier]) | length) ==
-        ($value.gaps | map([.path,.type,.tier]) | unique | length));
-    def gap_tuples($reports):
-      [$reports[] | .gaps[] | {path:.path,type:.type,tier:.tier}];
-    def reports_consistent($reports):
-      (gap_tuples($reports) | group_by(.path) |
-        all(.[]; (map({type:.type,tier:.tier}) | unique | length) == 1));
-    def derived_gap_paths($reports):
-      gap_tuples($reports) | sort_by([.path,.type,.tier]) |
-      unique_by([.path,.type,.tier]);
-    def reports_valid($reports):
-      ($reports | type == "array" and length > 0)
-      and (($reports | map(.reportedBy) | length) ==
-        ($reports | map(.reportedBy) | unique | length))
-      and all($reports[]; report(.)) and reports_consistent($reports);
-    def closed_record($value; $write; $live; $later):
-      exact_keys($value;
-        ["status","reports","gapPaths","expectedScaffold","replayTier","requeued",
-         "resetTiers","cleanedTiers","openedAt","planMutation","closedAt"])
-      and $value.status == "cleared"
-      and reports_valid($value.reports)
-      and (($value.gapPaths | sort_by([.path,.type,.tier])) ==
-        derived_gap_paths($value.reports))
-      and all($value.gapPaths[]; . as $gap |
-        ($gap.path | normalized_path(.)) and ($write.writeQueue | index($gap.path)) != null)
-      and ($value.expectedScaffold | type == "object")
-      and (($value.expectedScaffold | keys | sort) ==
-        ($value.gapPaths | map(.path) | sort | unique))
-      and all($value.expectedScaffold[]; sha256)
-      and ($value.replayTier | type == "number")
-      and ($value.replayTier | floor) == $value.replayTier
-      and $value.replayTier >= 1 and $value.replayTier <= 6
-      and ($value.requeued | type == "array" and length > 0)
-      and all($value.requeued[]; . as $path |
-        ($path | normalized_path(.)) and ($write.writeQueue | index($path)) != null and
-        ($write.provenance[$path].tier | type == "number" and floor == . and . >= 1 and . <= 6))
-      and ($value.requeued | length) == ($value.requeued | unique | length)
-      and all($value.reports[].reportedBy; . as $path | ($value.requeued | index($path)) != null)
-      and all($value.requeued[];
-        . as $path | ($value.gapPaths | map(.path) | index($path)) == null)
-      and $value.requeued == expected_requeued($value; $write.writeQueue; $live;
-        [$later[] | (.planMutation.addedCrossLinks // [])[]];
-        [$later[] | (.gapPaths // [])[] | .path])
-      and $value.replayTier == expected_replay_tier($value; $write.provenance)
-      and ($value.resetTiers | type == "array" and length > 0)
-      and ($value.resetTiers == ($value.resetTiers | sort | unique))
-      and all($value.resetTiers[]; type == "number" and floor == . and . >= 1 and . <= 6)
-      and ($value.resetTiers ==
-        ((($value.gapPaths | map(.tier)) +
-          [$value.requeued[] as $path | $write.provenance[$path].tier]) | sort | unique))
-      and ($value.resetTiers | index($value.replayTier)) != null
-      and $value.cleanedTiers == $value.resetTiers
-      and ($value.openedAt | timestamp) and ($value.closedAt | timestamp)
-      and $value.closedAt >= $value.openedAt
-      and mutation($value.planMutation; $value.reports; $value.gapPaths; $live);
-    .[0] as $plan | .[1] as $write | .[2] as $live |
-    if (exact_keys($plan;
-        ["step","diffSummaryReady","diffSummaryHash","planFile","planHash","reviewFeedback","approved"])
-      and $plan.step == "completed" and $plan.diffSummaryReady == true
-      and ($plan.diffSummaryHash | sha256)
-      and $plan.planFile == ".contributor-docs/doc-plan.yaml"
-      and ($plan.planHash | sha256) and $plan.reviewFeedback == null and $plan.approved == true
-      and exact_keys($write;
-        ["step","authorizedPlanHash","scaffoldComplete","currentTier","tiersCompleted",
-         "filesWritten","filesTotal","writeQueue","provenance","approvedOverwrites",
-         "blockedCollisions","auditRepair","gapTransition","gapsResolved"])
-      and ($write.authorizedPlanHash | sha256)
-      and $write.gapTransition == null
-      and valid_plan($live)) | not
-    then "PLAN_DRIFT_BLOCKED"
-    elif ($write.gapsResolved | type != "array")
-    then "GAP_CLOSURE_INVALID"
-    elif ([ $write.gapsResolved[] | [(.gapPaths // [])[] | .path] | unique[] ]) as $closed_paths |
-      ($closed_paths | length) != ($closed_paths | unique | length)
-    then "GAP_LOOP"
-    elif (([range(0; $write.gapsResolved | length)] | all(. as $index |
-        closed_record($write.gapsResolved[$index]; $write; $live;
-          $write.gapsResolved[$index:]))) and
-      (($write.gapsResolved | map(.openedAt) | length) ==
-       ($write.gapsResolved | map(.openedAt) | unique | length))) | not
-    then "GAP_CLOSURE_INVALID"
+  program=$(plan_authority_jq_source)
+  if ! result=$(jq -r -s --arg expected "$expected_hash" --arg actual "$actual_hash" \
+    --argjson live "$plan_json" \
+    "$program
+    def stored_closed_record(\$value; \$write; \$live; \$later):
+      closed_record(\$value; \$write.writeQueue; \$write.provenance; \$live;
+        \".contributor-docs/doc-plan.gap-candidate.yaml\";
+        [\$later[] | (.planMutation.addedCrossLinks // [])[]];
+        [\$later[] | (.gapPaths // [])[] | .path])
+      and stored_entries_current(\$value.planMutation; \$live)
+      and all(\$value.planMutation.addedCrossLinks[]; . as \$link |
+        (plan_links(\$live) | index(\$link)) != null);
+    .[0] as \$plan | .[1] as \$write | \$live as \$live |
+    if (exact_keys(\$plan;
+        [\"step\",\"diffSummaryReady\",\"diffSummaryHash\",\"planFile\",\"planHash\",\"reviewFeedback\",\"approved\"])
+      and \$plan.step == \"completed\" and \$plan.diffSummaryReady == true
+      and (\$plan.diffSummaryHash | sha256)
+      and \$plan.planFile == \".contributor-docs/doc-plan.yaml\"
+      and (\$plan.planHash | sha256) and \$plan.reviewFeedback == null and \$plan.approved == true
+      and exact_keys(\$write;
+        [\"step\",\"authorizedPlanHash\",\"scaffoldComplete\",\"currentTier\",\"tiersCompleted\",
+         \"filesWritten\",\"filesTotal\",\"writeQueue\",\"provenance\",\"approvedOverwrites\",
+         \"blockedCollisions\",\"auditRepair\",\"gapTransition\",\"gapsResolved\"])
+      and (\$write.authorizedPlanHash | sha256)
+      and \$write.gapTransition == null
+      and valid_plan(\$live)) | not
+    then \"PLAN_DRIFT_BLOCKED\"
+    elif (\$write.gapsResolved | type != \"array\")
+    then \"GAP_CLOSURE_INVALID\"
+    elif ([ \$write.gapsResolved[] | [(.gapPaths // [])[] | .path] | unique[] ]) as \$closed_paths |
+      (\$closed_paths | length) != (\$closed_paths | unique | length)
+    then \"GAP_LOOP\"
+    elif (([range(0; \$write.gapsResolved | length)] | all(. as \$index |
+        stored_closed_record(\$write.gapsResolved[\$index]; \$write; \$live;
+          \$write.gapsResolved[\$index:]))) and
+      ((\$write.gapsResolved | map(.openedAt) | length) ==
+       (\$write.gapsResolved | map(.openedAt) | unique | length))) | not
+    then \"GAP_CLOSURE_INVALID\"
     else
-      (reduce $write.gapsResolved[] as $closed
-        ({ok:true,cursor:$plan.planHash};
-          if .ok and $closed.planMutation.fromPlanHash == .cursor
-          then {ok:true,cursor:$closed.planMutation.toPlanHash}
-          else {ok:false,cursor:.cursor} end)) as $walk |
-      if $walk.ok and $walk.cursor == $write.authorizedPlanHash
-        and $write.authorizedPlanHash == $expected and $actual == $expected
-      then "OK" else "PLAN_DRIFT_BLOCKED" end
-    end
-  ' "$plan_state" "$write_state" <(yq -o=json '.' "$live_plan")); then
+      (reduce \$write.gapsResolved[] as \$closed
+        ({ok:true,cursor:\$plan.planHash};
+          if .ok and \$closed.planMutation.fromPlanHash == .cursor
+          then {ok:true,cursor:\$closed.planMutation.toPlanHash}
+          else {ok:false,cursor:.cursor} end)) as \$walk |
+      if \$walk.ok and \$walk.cursor == \$write.authorizedPlanHash
+        and \$write.authorizedPlanHash == \$expected and \$actual == \$expected
+      then \"OK\" else \"PLAN_DRIFT_BLOCKED\" end
+    end" "$plan_state" "$write_state"); then
     echo "PLAN_DRIFT_BLOCKED: expected=${expected_hash} actual=${actual_hash}" >&2
     return 1
   fi
@@ -1132,6 +1155,7 @@ init_state_main() {
     WRITE_PHASE="$CD_ROOT/write/PHASE.md"
     WRITE_AGENT="$CD_ROOT/write/state-agent.md"
     WRITE_FILE="$CD_ROOT/write/write-file.md"
+    PLAN_PHASE="$CD_ROOT/plan/PHASE.md"
     PLAN_AGENT="$CD_ROOT/plan/state-agent.md"
     AUDIT_PHASE="$CD_ROOT/audit/PHASE.md"
     AUDIT_AGENT="$CD_ROOT/audit/state-agent.md"
@@ -1206,14 +1230,16 @@ init_state_main() {
     }
 
     check_epoch_sidecar_contract() {
-      local audit_phase=$1
+      local audit_phase=$1 script=${2:-"$CD_ROOT/scripts/init-state.sh"} tail
 
-      rg -qF 'second, separate Authority' "$audit_phase" &&
-        rg -qF 'mismatched sidecar as a stale cache' "$audit_phase" &&
-        ! awk '
-        /^\[\[ \$# -eq 6 / { main = 1 }
+      rg -qF 'second, separate Authority' "$audit_phase" || return 1
+      rg -qF 'mismatched sidecar as a stale cache' "$audit_phase" || return 1
+      tail=$(awk '
+        /^[[:space:]]*\[\[ \$# -eq 6 / { main = 1 }
         main { print }
-      ' "$CD_ROOT/scripts/init-state.sh" | rg -qF 'epoch.json'
+      ' "$script")
+      [[ -n $tail ]] || return 1
+      ! rg -qF 'epoch.json' <<<"$tail"
     }
 
     check_record_write_usage_contract() {
@@ -1225,6 +1251,17 @@ init_state_main() {
       invocation_count=$(rg -n --glob '*.md' \
         '^[[:space:]]+--assert-record-write pending[[:space:]]*\\$' "$CD_ROOT" | wc -l | tr -d ' ')
       [[ $invocation_count -eq 1 ]]
+    }
+
+    check_plan_converter_contract() {
+      local script=${1:-"$CD_ROOT/scripts/init-state.sh"} bad_pattern
+
+      rg -qF 'PLAN_CONVERTER_UNAVAILABLE' "$WORKFLOW" || return 1
+      rg -qF '`yq`' "$WORKFLOW" || return 1
+      rg -qF 'PLAN_CONVERTER_UNAVAILABLE' "$script" || return 1
+      bad_pattern='PLAN_DRIFT_BLOCKED.*'
+      bad_pattern+='yq|<\(yq '
+      ! rg -q "$bad_pattern" "$script"
     }
 
     wait_for_contract_barrier() {
@@ -1281,11 +1318,62 @@ init_state_main() {
       contract_failure 'Real epoch-sidecar documentation did not recover green'
     fi
 
+    EPOCH_SIDECAR_SCRIPT_FIXTURE="$CONTROL_DIR/init-state-with-audit-metadata.sh"
+    if ! awk '
+      /^[[:space:]]*STATE_FILE="\$1"$/ {
+        print
+        print "  echo epoch.json >/dev/null"
+        added++
+        next
+      }
+      { print }
+      END { if (added != 1) exit 1 }
+    ' "$CD_ROOT/scripts/init-state.sh" >"$EPOCH_SIDECAR_SCRIPT_FIXTURE"; then
+      contract_failure 'Epoch-sidecar script fixture could not add exactly one metadata write'
+    elif check_epoch_sidecar_contract "$AUDIT_PHASE" "$EPOCH_SIDECAR_SCRIPT_FIXTURE" 2>/dev/null; then
+      contract_failure 'Epoch-sidecar script destructive fixture stayed green'
+    fi
+
+    EPOCH_ANCHOR_FIXTURE="$CONTROL_DIR/init-state-without-usage-anchor.sh"
+    if ! awk '
+      /^[[:space:]]*\[\[ \$# -eq 6 / {
+        removed++
+        next
+      }
+      { print }
+      END { if (removed != 1) exit 1 }
+    ' "$CD_ROOT/scripts/init-state.sh" >"$EPOCH_ANCHOR_FIXTURE"; then
+      contract_failure 'Epoch-sidecar anchor fixture could not remove exactly one usage anchor'
+    elif check_epoch_sidecar_contract "$AUDIT_PHASE" "$EPOCH_ANCHOR_FIXTURE" 2>/dev/null; then
+      contract_failure 'Epoch-sidecar anchor-liveness fixture stayed green'
+    elif ! check_epoch_sidecar_contract "$AUDIT_PHASE"; then
+      contract_failure 'Real epoch-sidecar inputs did not recover green'
+    fi
+
     if ! check_record_write_usage_contract; then
       contract_failure '--assert-record-write usage/canonical invocation contract drifted'
     fi
+    if ! check_plan_converter_contract; then
+      contract_failure 'Plan converter refusal/prerequisite contract drifted'
+    fi
+    PLAN_CONVERTER_FIXTURE="$CONTROL_DIR/init-state-with-yq-process-substitution.sh"
+    if ! awk '
+      /^[[:space:]]*--argjson live "\$plan_json"/ {
+        sub(/--argjson live "\$plan_json"/,
+          "<(" "yq -o=json \".\" \"$live_plan\")")
+        changed++
+      }
+      { print }
+      END { if (changed != 1) exit 1 }
+    ' "$CD_ROOT/scripts/init-state.sh" >"$PLAN_CONVERTER_FIXTURE"; then
+      contract_failure 'Plan converter fixture could not restore exactly one process substitution'
+    elif check_plan_converter_contract "$PLAN_CONVERTER_FIXTURE" 2>/dev/null; then
+      contract_failure 'Plan converter process-substitution destructive fixture stayed green'
+    elif ! check_plan_converter_contract; then
+      contract_failure 'Real plan converter inputs did not recover green'
+    fi
     if [[ $FAILURES -eq $CONTROL_FAILURES_BEFORE ]]; then
-      echo '✅ Authority-busy, task-mutator, epoch-sidecar, and record-write usage prose controls passed'
+      echo '✅ Authority-busy, task-mutator, epoch-sidecar, converter, and record-write usage prose controls passed'
     fi
 
     # A canonical marker is an exact, single HTML-comment line followed by one JSON
@@ -1348,9 +1436,10 @@ init_state_main() {
     }
 
     phase_step_set() {
-      local output=$1 schema="$CONTROL_DIR/phase-write-state-schema.json"
-      local array="$CONTROL_DIR/phase-write-legal-steps.json"
-      if ! extract_marked_json "$WRITE_PHASE" write-state-schema "$schema" ||
+      local file=$1 marker=$2 output=$3
+      local schema="$CONTROL_DIR/phase-${marker}-schema.$$.json"
+      local array="$CONTROL_DIR/phase-${marker}-legal-steps.$$.json"
+      if ! extract_marked_json "$file" "$marker" "$schema" ||
         ! jq -ce '
         if type == "object" and (.step | type == "string") then
           .step | split("|") | map(gsub("^[[:space:]]+|[[:space:]]+$"; ""))
@@ -1362,7 +1451,7 @@ init_state_main() {
     }
 
     state_machine_step_set() {
-      local output=$1
+      local file=$1 output=$2
       awk '
       /^## State Machine$/ { inside = 1; next }
       inside && /^## / { exit }
@@ -1372,7 +1461,7 @@ init_state_main() {
           $0 = substr($0, RSTART + RLENGTH)
         }
       }
-    ' "$WRITE_PHASE" | LC_ALL=C sort -u >"$output"
+    ' "$file" | LC_ALL=C sort -u >"$output"
       [[ -s $output ]]
     }
 
@@ -1406,7 +1495,7 @@ init_state_main() {
       machine_steps="$scratch/machine-steps"
       dispatch_steps="$scratch/dispatch-steps"
       mkdir -p "$scratch"
-      if ! phase_step_set "$phase_steps"; then
+      if ! phase_step_set "$WRITE_PHASE" write-state-schema "$phase_steps"; then
         printf 'WRITE_LEGAL_STEP_SOURCE_INVALID phase\n' >&2
         return 1
       fi
@@ -1415,7 +1504,8 @@ init_state_main() {
         printf 'WRITE_LEGAL_STEP_SOURCE_INVALID state-agent\n' >&2
         return 1
       fi
-      if ! state_machine_step_set "$machine_steps" || ! dispatch_step_set "$dispatch_steps"; then
+      if ! state_machine_step_set "$WRITE_PHASE" "$machine_steps" ||
+        ! dispatch_step_set "$dispatch_steps"; then
         printf 'WRITE_LEGAL_STEP_SOURCE_INVALID phase-structure\n' >&2
         return 1
       fi
@@ -1424,6 +1514,68 @@ init_state_main() {
         ! cmp -s "$phase_steps" "$dispatch_steps"; then
         printf 'WRITE_LEGAL_STEP_DRIFT\n' >&2
         diff -u "$phase_steps" "$agent_steps" || true
+        diff -u "$phase_steps" "$machine_steps" || true
+        diff -u "$phase_steps" "$dispatch_steps" || true
+        return 1
+      fi
+    }
+
+    audit_dispatch_step_set() {
+      local file=$1 output=$2 raw="$CONTROL_DIR/audit-dispatch-raw.$$.txt"
+
+      awk '
+      /^## Step Dispatch$/ { inside = 1; next }
+      inside && /^## / { exit }
+      inside {
+        line = $0
+        while (match(line, /step: "[a-z][a-z0-9_]*"/)) {
+          value = substr(line, RSTART + 7, RLENGTH - 8)
+          print value
+          line = substr(line, RSTART + RLENGTH)
+        }
+      }
+    ' "$file" >"$raw"
+      [[ -s $raw ]] || return 1
+      if ! awk '/^[a-z][a-z0-9_]*$/ { next } { exit 1 }' "$raw"; then
+        return 1
+      fi
+      LC_ALL=C sort -u "$raw" >"$output"
+    }
+
+    check_audit_legal_steps() {
+      local phase=$1 agent=$2 scratch=$3
+      local phase_json phase_steps agent_json agent_steps schema_steps machine_steps dispatch_steps
+      phase_json="$scratch/phase-steps.json"
+      phase_steps="$scratch/phase-steps"
+      agent_json="$scratch/agent-steps.json"
+      agent_steps="$scratch/agent-steps"
+      schema_steps="$scratch/schema-steps"
+      machine_steps="$scratch/machine-steps"
+      dispatch_steps="$scratch/dispatch-steps"
+      mkdir -p "$scratch"
+      if ! extract_marked_json "$phase" audit-legal-steps "$phase_json" ||
+        ! normalise_step_array "$phase_json" "$phase_steps"; then
+        printf 'AUDIT_LEGAL_STEP_SOURCE_INVALID phase\n' >&2
+        return 1
+      fi
+      if ! extract_marked_json "$agent" audit-legal-steps "$agent_json" ||
+        ! normalise_step_array "$agent_json" "$agent_steps"; then
+        printf 'AUDIT_LEGAL_STEP_SOURCE_INVALID state-agent\n' >&2
+        return 1
+      fi
+      if ! phase_step_set "$phase" audit-state-schema "$schema_steps" ||
+        ! state_machine_step_set "$phase" "$machine_steps" ||
+        ! audit_dispatch_step_set "$phase" "$dispatch_steps"; then
+        printf 'AUDIT_LEGAL_STEP_SOURCE_INVALID phase-structure\n' >&2
+        return 1
+      fi
+      if ! cmp -s "$phase_steps" "$agent_steps" ||
+        ! cmp -s "$phase_steps" "$schema_steps" ||
+        ! cmp -s "$phase_steps" "$machine_steps" ||
+        ! cmp -s "$phase_steps" "$dispatch_steps"; then
+        printf 'AUDIT_LEGAL_STEP_DRIFT\n' >&2
+        diff -u "$phase_steps" "$agent_steps" || true
+        diff -u "$phase_steps" "$schema_steps" || true
         diff -u "$phase_steps" "$machine_steps" || true
         diff -u "$phase_steps" "$dispatch_steps" || true
         return 1
@@ -1452,6 +1604,105 @@ init_state_main() {
       fi
     }
 
+    check_exact_canonical_pair() {
+      local phase=$1 agent=$2 marker=$3 scratch=$4
+      local phase_json="$scratch/phase.json" agent_json="$scratch/agent.json"
+      local phase_normal="$scratch/phase.normal" agent_normal="$scratch/agent.normal"
+
+      mkdir -p "$scratch"
+      if ! extract_marked_json "$phase" "$marker" "$phase_json" ||
+        ! extract_marked_json "$agent" "$marker" "$agent_json" ||
+        ! jq -ceS . "$phase_json" >"$phase_normal" ||
+        ! jq -ceS . "$agent_json" >"$agent_normal" ||
+        ! cmp -s "$phase_normal" "$agent_normal"; then
+        printf 'Canonical block drift: %s\n' "$marker" >&2
+        return 1
+      fi
+    }
+
+    check_plan_state_schema() {
+      local phase=$1 agent=$2 scratch=$3 agent_step
+      local phase_json="$scratch/phase.json" agent_json="$scratch/agent.json"
+      local phase_shape="$scratch/phase.shape" agent_shape="$scratch/agent.shape"
+      local phase_steps="$scratch/phase-steps" expected_steps="$scratch/expected-steps"
+
+      mkdir -p "$scratch"
+      if ! extract_marked_json "$phase" plan-state-schema "$phase_json" ||
+        ! extract_marked_json "$agent" plan-state-schema "$agent_json" ||
+        ! jq -ceS 'del(.step)' "$phase_json" >"$phase_shape" ||
+        ! jq -ceS 'del(.step)' "$agent_json" >"$agent_shape" ||
+        ! cmp -s "$phase_shape" "$agent_shape" ||
+        ! phase_step_set "$phase" plan-state-schema "$phase_steps"; then
+        printf 'Canonical block drift: plan-state-schema\n' >&2
+        return 1
+      fi
+      jq -cn '["diff_analysis","classify","review","completed"]' |
+        jq -r '.[]' | LC_ALL=C sort >"$expected_steps"
+      if ! cmp -s "$phase_steps" "$expected_steps" ||
+        ! agent_step=$(jq -er '.step | select(type == "string")' "$agent_json") ||
+        ! rg -qxF "$agent_step" "$phase_steps"; then
+        printf 'Canonical block drift: plan-state-schema\n' >&2
+        return 1
+      fi
+    }
+
+    extract_script_key_array() {
+      local script=$1 needle=$2 output=$3 awk_needle
+
+      awk_needle=${needle//\\/\\\\}
+
+      awk -v needle="$awk_needle" '
+      {
+        text = $0
+        if (index(text, needle) != 0) {
+          hits++
+          if (hits == 1) {
+            text = substr(text, index(text, needle) + length(needle))
+            opening = index(text, "[")
+            if (opening == 0) {
+              waiting = 1
+              next
+            }
+            text = substr(text, opening)
+            collecting = 1
+          }
+        } else if (waiting && !collecting) {
+          opening = index(text, "[")
+          if (opening != 0) {
+            text = substr(text, opening)
+            collecting = 1
+            waiting = 0
+          }
+        }
+        if (collecting) {
+          gsub("\\\\\"", "\"", text)
+          closing = index(text, "]")
+          if (closing != 0) {
+            print substr(text, 1, closing)
+            collecting = 0
+            done = 1
+          } else {
+            print text
+          }
+        }
+      }
+      END { if (hits != 1 || !done || collecting || waiting) exit 1 }
+    ' "$script" >"$output"
+    }
+
+    check_script_key_set() {
+      local script=$1 needle=$2 expected=$3 label=$4
+      local json="$CONTROL_DIR/script-${label// /-}.$$.json"
+
+      if ! extract_script_key_array "$script" "$needle" "$json" ||
+        ! jq -e --argjson expected "$expected" '
+          type == "array" and ((sort) == ($expected | sort))
+        ' "$json" >/dev/null; then
+        printf 'Script key set drifted from the canonical %s block\n' "$label" >&2
+        return 1
+      fi
+    }
+
     MARKERS=(
       write-state-schema
       write-provenance-record
@@ -1471,6 +1722,18 @@ init_state_main() {
       fi
     done
 
+    AUDIT_MARKERS=(audit-state-schema accepted-warning-record)
+    for MARKER in "${AUDIT_MARKERS[@]}"; do
+      if ! check_exact_canonical_pair "$AUDIT_PHASE" "$AUDIT_AGENT" "$MARKER" \
+        "$CONTROL_DIR/audit-pair-$MARKER"; then
+        contract_failure "Canonical block drift: $MARKER"
+      fi
+    done
+    if ! check_plan_state_schema "$PLAN_PHASE" "$PLAN_AGENT" \
+      "$CONTROL_DIR/plan-state-schema"; then
+      contract_failure 'Canonical block drift: plan-state-schema'
+    fi
+
     assert_object_shape 'write state schema' "$WRITE_PHASE" write-state-schema 14 authorizedPlanHash
     assert_object_shape 'write state schema mirror' "$WRITE_AGENT" write-state-schema 14 authorizedPlanHash
     assert_object_shape 'writer report' "$WRITE_PHASE" write-writer-report-record 5 gaps
@@ -1479,7 +1742,20 @@ init_state_main() {
     assert_object_shape 'gap transition mirror' "$WRITE_AGENT" gap-transition-record 10 planMutation
     assert_object_shape 'gap plan mutation' "$WRITE_PHASE" gap-plan-mutation-record 5 candidatePath
     assert_object_shape 'gap plan mutation mirror' "$WRITE_AGENT" gap-plan-mutation-record 5 candidatePath
+    assert_object_shape 'audit state schema' "$AUDIT_PHASE" audit-state-schema 11 totalErrors
+    assert_object_shape 'audit state schema mirror' "$AUDIT_AGENT" audit-state-schema 11 totalErrors
+    assert_object_shape 'accepted warning record' "$AUDIT_PHASE" accepted-warning-record 10 severity
+    assert_object_shape 'accepted warning record mirror' "$AUDIT_AGENT" accepted-warning-record 10 severity
+    assert_object_shape 'plan state schema' "$PLAN_PHASE" plan-state-schema 7 reviewFeedback
+    assert_object_shape 'plan state schema mirror' "$PLAN_AGENT" plan-state-schema 7 reviewFeedback
+    assert_object_shape 'task state schema' "$PLAN_AGENT" task-state-schema 4 docsRoot
     WRITE_SCHEMA_KEYS='["step","scaffoldComplete","currentTier","tiersCompleted","filesWritten","filesTotal","writeQueue","provenance","approvedOverwrites","blockedCollisions","auditRepair","gapTransition","gapsResolved","authorizedPlanHash"]'
+    AUDIT_SCHEMA_KEYS='["step","auditEpoch","docsDigest","bigPictureComplete","bigPictureErrors","bigPictureWarnings","factCheckComplete","factCheckErrors","factCheckWarnings","totalErrors","acceptedWarnings"]'
+    ACCEPTED_WARNING_KEYS='["artifactPath","artifactHash","auditEpoch","docsDigest","documentPath","documentHash","findingOrdinal","findingHash","severity","description"]'
+    PLAN_SCHEMA_KEYS='["step","diffSummaryReady","diffSummaryHash","planFile","planHash","reviewFeedback","approved"]'
+    TASK_SCHEMA_KEYS='["currentPhase","baseBranch","docsRoot","planFile"]'
+    SCRIPT_NEEDLE_DOLLAR='$'
+    SCRIPT_NEEDLE_ESCAPED_DOLLAR='\$'
     GAP_KEYS='["status","reports","gapPaths","expectedScaffold","replayTier","requeued","resetTiers","cleanedTiers","openedAt","planMutation"]'
     GAP_MUTATION_KEYS='["candidatePath","fromPlanHash","toPlanHash","addedPlanEntries","addedCrossLinks"]'
     WRITER_REPORT_KEYS='["reportedBy","authorizedPlanHash","authorizedFromHash","writtenHash","gaps"]'
@@ -1491,6 +1767,35 @@ init_state_main() {
     assert_exact_keys 'gap plan mutation mirror' "$WRITE_AGENT" gap-plan-mutation-record "$GAP_MUTATION_KEYS"
     assert_exact_keys 'writer report' "$WRITE_PHASE" write-writer-report-record "$WRITER_REPORT_KEYS"
     assert_exact_keys 'writer report mirror' "$WRITE_AGENT" write-writer-report-record "$WRITER_REPORT_KEYS"
+    assert_exact_keys 'audit state schema' "$AUDIT_PHASE" audit-state-schema "$AUDIT_SCHEMA_KEYS"
+    assert_exact_keys 'audit state schema mirror' "$AUDIT_AGENT" audit-state-schema "$AUDIT_SCHEMA_KEYS"
+    assert_exact_keys 'accepted warning record' "$AUDIT_PHASE" accepted-warning-record "$ACCEPTED_WARNING_KEYS"
+    assert_exact_keys 'accepted warning record mirror' "$AUDIT_AGENT" accepted-warning-record "$ACCEPTED_WARNING_KEYS"
+    assert_exact_keys 'plan state schema' "$PLAN_PHASE" plan-state-schema "$PLAN_SCHEMA_KEYS"
+    assert_exact_keys 'plan state schema mirror' "$PLAN_AGENT" plan-state-schema "$PLAN_SCHEMA_KEYS"
+    assert_exact_keys 'task state schema' "$PLAN_AGENT" task-state-schema "$TASK_SCHEMA_KEYS"
+
+    SCRIPT_PATH="$CD_ROOT/scripts/init-state.sh"
+    if ! check_script_key_set "$SCRIPT_PATH" "exact_keys(${SCRIPT_NEEDLE_DOLLAR}task[0];" \
+      "$TASK_SCHEMA_KEYS" task-state-schema; then
+      contract_failure 'Script key set drifted from the canonical task-state-schema block'
+    fi
+    if ! check_script_key_set "$SCRIPT_PATH" "exact_keys(${SCRIPT_NEEDLE_DOLLAR}audit[0];" \
+      "$AUDIT_SCHEMA_KEYS" audit-state-schema; then
+      contract_failure 'Script key set drifted from the canonical audit-state-schema block'
+    fi
+    if ! check_script_key_set "$SCRIPT_PATH" "if (exact_keys(${SCRIPT_NEEDLE_ESCAPED_DOLLAR}plan;" \
+      "$PLAN_SCHEMA_KEYS" plan-state-schema; then
+      contract_failure 'Script key set drifted from the canonical plan-state-schema block'
+    fi
+    if ! check_script_key_set "$SCRIPT_PATH" "exact_keys(${SCRIPT_NEEDLE_DOLLAR}write[0];" \
+      "$WRITE_SCHEMA_KEYS" write-state-schema-fact-check; then
+      contract_failure 'Script key set drifted from the canonical write-state-schema block'
+    fi
+    if ! check_script_key_set "$SCRIPT_PATH" "and exact_keys(${SCRIPT_NEEDLE_ESCAPED_DOLLAR}write;" \
+      "$WRITE_SCHEMA_KEYS" write-state-schema-plan-authority; then
+      contract_failure 'Script key set drifted from the canonical write-state-schema block'
+    fi
 
     WRITER_REPORT_CONTRACT="$CONTROL_DIR/writer-report-contract.json"
     GAP_TRANSITION_CONTRACT="$CONTROL_DIR/gap-transition-contract.json"
@@ -1513,6 +1818,10 @@ init_state_main() {
 
     if ! check_write_legal_steps "$WRITE_AGENT" "$CONTROL_DIR/real-legal-steps"; then
       contract_failure 'WRITE_LEGAL_STEP_DRIFT or malformed legal-step source'
+    fi
+    if ! check_audit_legal_steps "$AUDIT_PHASE" "$AUDIT_AGENT" \
+      "$CONTROL_DIR/real-audit-legal-steps"; then
+      contract_failure 'AUDIT_LEGAL_STEP_DRIFT or malformed legal-step source'
     fi
 
     FIXTURE_AGENT="$CONTROL_DIR/state-agent-without-write-tier-5.md"
@@ -1544,6 +1853,214 @@ init_state_main() {
       fi
     fi
 
+    AUDIT_SCHEMA_FIXTURE="$CONTROL_DIR/audit-agent-without-total-errors.md"
+    if ! awk '
+      {
+        line = $0
+        sub(/^[[:space:]]*/, "", line)
+        sub(/[[:space:]]*$/, "", line)
+      }
+      line == "<!-- canonical-block: audit-state-schema -->" { in_schema = 1 }
+      in_schema && /"totalErrors":[[:space:]]*0,/ {
+        removed++
+        next
+      }
+      { print }
+      END { if (removed != 1) exit 1 }
+    ' "$AUDIT_AGENT" >"$AUDIT_SCHEMA_FIXTURE"; then
+      contract_failure 'Audit schema fixture could not remove exactly one totalErrors field'
+    elif FIXTURE_OUTPUT=$(check_exact_canonical_pair "$AUDIT_PHASE" \
+      "$AUDIT_SCHEMA_FIXTURE" audit-state-schema "$CONTROL_DIR/audit-schema-fixture" 2>&1); then
+      contract_failure 'Audit schema destructive fixture stayed green'
+    elif [[ $FIXTURE_OUTPUT != *'Canonical block drift: audit-state-schema'* ]]; then
+      contract_failure 'Audit schema destructive fixture failed for the wrong reason'
+    elif ! check_exact_canonical_pair "$AUDIT_PHASE" "$AUDIT_AGENT" audit-state-schema \
+      "$CONTROL_DIR/audit-schema-recovery"; then
+      contract_failure 'Real audit-state-schema inputs did not recover green'
+    fi
+
+    ACCEPTED_WARNING_FIXTURE="$CONTROL_DIR/audit-agent-without-warning-severity.md"
+    if ! awk '
+      {
+        line = $0
+        sub(/^[[:space:]]*/, "", line)
+        sub(/[[:space:]]*$/, "", line)
+      }
+      line == "<!-- canonical-block: accepted-warning-record -->" { in_record = 1 }
+      in_record && /"severity":[[:space:]]*"warning",/ {
+        removed++
+        next
+      }
+      { print }
+      END { if (removed != 1) exit 1 }
+    ' "$AUDIT_AGENT" >"$ACCEPTED_WARNING_FIXTURE"; then
+      contract_failure 'Accepted-warning fixture could not remove exactly one severity field'
+    elif FIXTURE_OUTPUT=$(check_exact_canonical_pair "$AUDIT_PHASE" \
+      "$ACCEPTED_WARNING_FIXTURE" accepted-warning-record \
+      "$CONTROL_DIR/accepted-warning-fixture" 2>&1); then
+      contract_failure 'Accepted-warning destructive fixture stayed green'
+    elif [[ $FIXTURE_OUTPUT != *'Canonical block drift: accepted-warning-record'* ]]; then
+      contract_failure 'Accepted-warning destructive fixture failed for the wrong reason'
+    elif ! check_exact_canonical_pair "$AUDIT_PHASE" "$AUDIT_AGENT" accepted-warning-record \
+      "$CONTROL_DIR/accepted-warning-recovery"; then
+      contract_failure 'Real accepted-warning-record inputs did not recover green'
+    fi
+
+    PLAN_SCHEMA_FIXTURE="$CONTROL_DIR/plan-agent-without-review-feedback.md"
+    if ! awk '
+      {
+        line = $0
+        sub(/^[[:space:]]*/, "", line)
+        sub(/[[:space:]]*$/, "", line)
+      }
+      line == "<!-- canonical-block: plan-state-schema -->" { in_schema = 1 }
+      in_schema && /"reviewFeedback":[[:space:]]*null,/ {
+        removed++
+        next
+      }
+      { print }
+      END { if (removed != 1) exit 1 }
+    ' "$PLAN_AGENT" >"$PLAN_SCHEMA_FIXTURE"; then
+      contract_failure 'Plan schema fixture could not remove exactly one reviewFeedback field'
+    elif FIXTURE_OUTPUT=$(check_plan_state_schema "$PLAN_PHASE" "$PLAN_SCHEMA_FIXTURE" \
+      "$CONTROL_DIR/plan-schema-fixture" 2>&1); then
+      contract_failure 'Plan schema destructive fixture stayed green'
+    elif [[ $FIXTURE_OUTPUT != *'Canonical block drift: plan-state-schema'* ]]; then
+      contract_failure 'Plan schema destructive fixture failed for the wrong reason'
+    elif ! check_plan_state_schema "$PLAN_PHASE" "$PLAN_AGENT" \
+      "$CONTROL_DIR/plan-schema-recovery"; then
+      contract_failure 'Real plan-state-schema inputs did not recover green'
+    fi
+
+    PLAN_STEP_FIXTURE="$CONTROL_DIR/plan-agent-with-retired-step.md"
+    if ! awk '
+      {
+        line = $0
+        sub(/^[[:space:]]*/, "", line)
+        sub(/[[:space:]]*$/, "", line)
+      }
+      line == "<!-- canonical-block: plan-state-schema -->" { in_schema = 1 }
+      in_schema && /"step":[[:space:]]*"diff_analysis",/ {
+        sub(/"diff_analysis"/, "\"retired_step\"")
+        changed++
+      }
+      { print }
+      END { if (changed != 1) exit 1 }
+    ' "$PLAN_AGENT" >"$PLAN_STEP_FIXTURE"; then
+      contract_failure 'Plan-step fixture could not change exactly one marked step'
+    elif FIXTURE_OUTPUT=$(check_plan_state_schema "$PLAN_PHASE" "$PLAN_STEP_FIXTURE" \
+      "$CONTROL_DIR/plan-step-fixture" 2>&1); then
+      contract_failure 'Plan-step destructive fixture stayed green'
+    elif [[ $FIXTURE_OUTPUT != *'Canonical block drift: plan-state-schema'* ]]; then
+      contract_failure 'Plan-step destructive fixture failed for the wrong reason'
+    elif ! check_plan_state_schema "$PLAN_PHASE" "$PLAN_AGENT" \
+      "$CONTROL_DIR/plan-step-recovery"; then
+      contract_failure 'Real plan-state step membership did not recover green'
+    fi
+
+    AUDIT_STEP_FIXTURE="$CONTROL_DIR/audit-agent-without-failed-step.md"
+    if ! awk '
+      {
+        line = $0
+        sub(/^[[:space:]]*/, "", line)
+        sub(/[[:space:]]*$/, "", line)
+      }
+      line == "<!-- canonical-block: audit-legal-steps -->" { in_steps = 1 }
+      in_steps && /, "failed"/ {
+        sub(/, "failed"/, "")
+        changed++
+      }
+      { print }
+      END { if (changed != 1) exit 1 }
+    ' "$AUDIT_AGENT" >"$AUDIT_STEP_FIXTURE"; then
+      contract_failure 'Audit-step fixture could not remove exactly one marked step'
+    elif FIXTURE_OUTPUT=$(check_audit_legal_steps "$AUDIT_PHASE" "$AUDIT_STEP_FIXTURE" \
+      "$CONTROL_DIR/audit-step-fixture" 2>&1); then
+      contract_failure 'Audit-step destructive fixture stayed green'
+    elif [[ $FIXTURE_OUTPUT != *AUDIT_LEGAL_STEP_DRIFT* ]]; then
+      contract_failure 'Audit-step destructive fixture failed for the wrong reason'
+    elif ! check_audit_legal_steps "$AUDIT_PHASE" "$AUDIT_AGENT" \
+      "$CONTROL_DIR/audit-step-recovery"; then
+      contract_failure 'Real audit legal-step inputs did not recover green'
+    fi
+
+    AUDIT_DISPATCH_FIXTURE="$CONTROL_DIR/audit-phase-with-halted-dispatch.md"
+    if ! awk '
+      /^## Step Dispatch$/ { inside = 1 }
+      inside && /^## / && $0 != "## Step Dispatch" { inside = 0 }
+      inside && /^\| `step: "failed"`[[:space:]]+\|/ {
+        sub(/step: "failed"/, "step: \"halted\"")
+        changed++
+      }
+      { print }
+      END { if (changed != 1) exit 1 }
+    ' "$AUDIT_PHASE" >"$AUDIT_DISPATCH_FIXTURE"; then
+      contract_failure 'Audit-dispatch fixture could not change exactly one failed row'
+    elif FIXTURE_OUTPUT=$(check_audit_legal_steps "$AUDIT_DISPATCH_FIXTURE" "$AUDIT_AGENT" \
+      "$CONTROL_DIR/audit-dispatch-fixture" 2>&1); then
+      contract_failure 'Audit-dispatch destructive fixture stayed green'
+    elif [[ $FIXTURE_OUTPUT != *AUDIT_LEGAL_STEP_DRIFT* ]]; then
+      contract_failure 'Audit-dispatch destructive fixture failed for the wrong reason'
+    elif ! check_audit_legal_steps "$AUDIT_PHASE" "$AUDIT_AGENT" \
+      "$CONTROL_DIR/audit-dispatch-recovery"; then
+      contract_failure 'Real audit dispatch steps did not recover green'
+    fi
+
+    AUDIT_KEYS_FIXTURE="$CONTROL_DIR/init-state-without-audit-total-errors.sh"
+    if ! awk '
+      index($0, "exact_keys(" "$audit[0];") {
+        in_keys = 1
+        print
+        next
+      }
+      in_keys && /"totalErrors",/ {
+        sub(/"totalErrors",/, "")
+        changed++
+      }
+      { print }
+      in_keys && /\]/ { in_keys = 0 }
+      END { if (changed != 1) exit 1 }
+    ' "$SCRIPT_PATH" >"$AUDIT_KEYS_FIXTURE"; then
+      contract_failure 'Audit script-key fixture could not remove exactly one totalErrors key'
+    elif FIXTURE_OUTPUT=$(check_script_key_set "$AUDIT_KEYS_FIXTURE" \
+      "exact_keys(${SCRIPT_NEEDLE_DOLLAR}audit[0];" "$AUDIT_SCHEMA_KEYS" \
+      audit-state-schema 2>&1); then
+      contract_failure 'Audit script-key destructive fixture stayed green'
+    elif [[ $FIXTURE_OUTPUT != *'Script key set drifted from the canonical audit-state-schema block'* ]]; then
+      contract_failure 'Audit script-key destructive fixture failed for the wrong reason'
+    elif ! check_script_key_set "$SCRIPT_PATH" \
+      "exact_keys(${SCRIPT_NEEDLE_DOLLAR}audit[0];" \
+      "$AUDIT_SCHEMA_KEYS" audit-state-schema; then
+      contract_failure 'Real audit script key set did not recover green'
+    fi
+
+    MARKER_NAMESPACE_FIXTURE="$CONTROL_DIR/audit-phase-outside-marker-namespace.md"
+    if ! awk '
+      {
+        line = $0
+        sub(/^[[:space:]]*/, "", line)
+        sub(/[[:space:]]*$/, "", line)
+      }
+      line == "<!-- canonical-block: audit-state-schema -->" {
+        sub(/canonical-block: /, "")
+        changed++
+      }
+      { print }
+      END { if (changed != 1) exit 1 }
+    ' "$AUDIT_PHASE" >"$MARKER_NAMESPACE_FIXTURE"; then
+      contract_failure 'Marker-namespace fixture could not revert exactly one marker'
+    elif FIXTURE_OUTPUT=$(check_exact_canonical_pair "$MARKER_NAMESPACE_FIXTURE" \
+      "$AUDIT_AGENT" audit-state-schema "$CONTROL_DIR/marker-namespace-fixture" 2>&1); then
+      contract_failure 'Marker-namespace destructive fixture stayed green'
+    elif [[ $FIXTURE_OUTPUT != *'MARKER_INVALID audit-state-schema count=0'* ]]; then
+      contract_failure 'Marker-namespace destructive fixture failed for the wrong reason'
+    elif ! check_exact_canonical_pair "$AUDIT_PHASE" "$AUDIT_AGENT" audit-state-schema \
+      "$CONTROL_DIR/marker-namespace-recovery"; then
+      contract_failure 'Real canonical marker namespace did not recover green'
+    else
+      echo '✅ Audit/plan schema, legal-step, key-set, and marker destructive fixtures recovered green'
+    fi
+
     RETIRED_TIERS='completed''Tiers'
     RETIRED_ERRORS='"''errors''"[[:space:]]*:'
     if git -C "$REPO_ROOT" grep -En "$RETIRED_TIERS|$RETIRED_ERRORS" -- \
@@ -1560,86 +2077,14 @@ init_state_main() {
     fi
 
     record_write_jq_source >"$CONTROL_DIR/record-write.jq"
+    plan_authority_jq_source >"$CONTROL_DIR/plan-authority.jq"
     cat >"$CONTROL_DIR/reducer.jq" <<'JQ'
 	include "record-write";
+	include "plan-authority";
 	def refuse($code): error($code);
 	def next_gap($status):
 	  {enqueued:"planned", planned:"prepared", prepared:"scaffolded",
 	   scaffolded:"reset", reset:"cleaned", cleaned:"cleared"}[$status];
-	def sha256: type == "string" and test("^[0-9a-f]{64}$");
-	def timestamp:
-	  type == "string" and
-	  test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$");
-	def exact_keys($value; $want):
-	  ($value | type == "object") and (($value | keys | sort) == ($want | sort));
-	def normalized_path($value):
-	  type == "string" and length > 0 and (startswith("/") | not) and
-	  (split("/") | all(. != "" and . != "." and . != ".."));
-	def expected_added_entries($gap_paths):
-	  $gap_paths | map({outputPath:.path,type:.type,tier:.tier}) |
-	  sort_by([.outputPath,.type,.tier]);
-	def expected_added_links($reports):
-	  [$reports[] as $report | $report.gaps[] |
-	    {reportedBy:$report.reportedBy,
-	     field:(if .type == "concept" then "concepts" else "algorithms" end),
-	     target:.path}] |
-	  sort_by([.reportedBy,.field,.target]) | unique_by([.reportedBy,.field,.target]);
-	def stored_mutation($mutation; $candidate_path; $reports; $gap_paths):
-	  exact_keys($mutation;
-	    ["candidatePath","fromPlanHash","toPlanHash","addedPlanEntries","addedCrossLinks"])
-	  and $mutation.candidatePath == $candidate_path
-	  and ($mutation.fromPlanHash | sha256)
-	  and ($mutation.toPlanHash | sha256)
-	  and $mutation.fromPlanHash != $mutation.toPlanHash
-	  and ($mutation.addedPlanEntries | type == "array" and length > 0)
-	  and $mutation.addedPlanEntries == ($mutation.addedPlanEntries | sort_by(.outputPath))
-	  and (($mutation.addedPlanEntries | map(.outputPath) | length) ==
-	    ($mutation.addedPlanEntries | map(.outputPath) | unique | length))
-	  and all($mutation.addedPlanEntries[]; . as $added |
-	    exact_keys($added; ["outputPath","container","entry"])
-	    and ($added.outputPath | normalized_path(.))
-	    and ($added.container | type == "string" and
-	      test("^(shared|topLevel|adrs|indexes|module:[^/]+)$"))
-	    and ($added.entry | type == "object")
-	    and ((["path","type","tier","description","sources"] -
-	      ($added.entry | keys)) | length == 0)
-	    and (((($added.entry | keys) -
-	      ["path","type","conceptType","tier","description","sources","crossLinks","tags"]) |
-	      length) == 0)
-	    and ($added.entry.path | normalized_path(.))
-	    and ($added.outputPath | endswith("/" + $added.entry.path))
-	    and (($added.entry.type == "concept" and $added.entry.tier == 2) or
-	      ($added.entry.type == "algorithm" and $added.entry.tier == 3))
-	    and ($added.entry.description | type == "string" and
-	      (gsub("[[:space:]]"; "") | length) > 0)
-	    and ($added.entry.sources | type == "array" and length > 0)
-	    and all($added.entry.sources[]; type == "string" and length > 0)
-	    and (($added.entry.conceptType // "") | type == "string")
-	    and (($added.entry.crossLinks // {}) | type == "object")
-	    and all(($added.entry.crossLinks // {})[]; type == "array" and
-	      all(.[]; type == "string" and length > 0))
-	    and (($added.entry.tags // []) | type == "array")
-	    and all(($added.entry.tags // [])[]; type == "string" and length > 0))
-	  and (($mutation.addedPlanEntries |
-	    map({outputPath:.outputPath,type:.entry.type,tier:.entry.tier}) |
-	    sort_by([.outputPath,.type,.tier])) == expected_added_entries($gap_paths))
-	  and ($mutation.addedCrossLinks | type == "array" and length > 0)
-	  and $mutation.addedCrossLinks ==
-	    ($mutation.addedCrossLinks | sort_by([.reportedBy,.field,.target]))
-	  and (($mutation.addedCrossLinks | length) ==
-	    ($mutation.addedCrossLinks | unique | length))
-	  and all($mutation.addedCrossLinks[]; . as $link |
-	    exact_keys($link; ["reportedBy","field","target"])
-	    and ($link.reportedBy | normalized_path(.))
-	    and ($link.field == "concepts" or $link.field == "algorithms")
-	    and ($link.target | normalized_path(.)))
-	  and $mutation.addedCrossLinks == expected_added_links($reports);
-	def gap_item($gap):
-	  exact_keys($gap; ["path","type","tier","reason"])
-	  and ($gap.path | normalized_path(.))
-	  and ($gap.reason | type == "string" and (gsub("[[:space:]]"; "") | length) > 0)
-	  and (($gap.type == "concept" and $gap.tier == 2) or
-	    ($gap.type == "algorithm" and $gap.tier == 3));
 	def ledger_reports($state):
 	  [$state.writeQueue[] as $path | $state.provenance[$path] as $entry |
 	    select($entry.tier == $state.currentTier and $entry.writeStatus == "written") |
@@ -1649,140 +2094,7 @@ init_state_main() {
 	    then select(($entry.writerReport.gaps | length) > 0) |
 	      {reportedBy:$path,gaps:$entry.writerReport.gaps}
 	    else refuse("WRITE_REPORT_MISSING") end] | sort_by(.reportedBy);
-	def reported_gap_tuples($reports):
-	  [$reports[] | .gaps[] | {path:.path, type:.type, tier:.tier}];
-	def derived_gap_paths($reports):
-	  reported_gap_tuples($reports) | sort_by([.path,.type,.tier]) |
-	  unique_by([.path,.type,.tier]);
-	def reports_consistent($reports):
-	  (reported_gap_tuples($reports) | group_by(.path) |
-	    all(.[]; (map({type:.type,tier:.tier}) | unique | length) == 1));
-	def reports_valid($reports):
-	  ($reports | type == "array") and ($reports | length) > 0 and
-	  (($reports | map(.reportedBy) | length) == ($reports | map(.reportedBy) | unique | length)) and
-	  all($reports[];
-	    exact_keys(.; ["reportedBy","gaps"])
-	    and (.reportedBy | type == "string" and length > 0)
-	    and (.gaps | type == "array" and length > 0)
-	    and all(.gaps[]; gap_item(.))
-	    and ((.gaps | map([.path,.type,.tier]) | length) ==
-	      (.gaps | map([.path,.type,.tier]) | unique | length))) and
-	  reports_consistent($reports);
 	def parse_plan($bytes): try ($bytes | fromjson) catch refuse("GAP_PLAN_DELTA_INVALID");
-	def plan_entries($plan):
-	  ([ $plan.modules[] as $module | $module.files[] as $entry |
-	      {outputPath:($plan.docsRoot + "/" + $entry.path),
-	       container:("module:" + $module.name),entry:$entry} ]
-	   + [ $plan.shared.files[] as $entry |
-	      {outputPath:($plan.docsRoot + "/" + $entry.path),container:"shared",entry:$entry} ]
-	   + [ $plan.topLevel[] as $entry |
-	      {outputPath:($plan.docsRoot + "/" + $entry.path),container:"topLevel",entry:$entry} ]
-	   + [ $plan.adrs[] as $entry |
-	      {outputPath:($plan.docsRoot + "/" + $entry.path),container:"adrs",entry:$entry} ]
-	   + [ $plan.indexes[] as $entry |
-	      {outputPath:($plan.docsRoot + "/" + $entry.path),container:"indexes",entry:$entry} ]);
-	def valid_plan($plan):
-	  exact_keys($plan; ["docsRoot","modules","shared","topLevel","adrs","indexes"])
-	  and ($plan.docsRoot | normalized_path(.))
-	  and ($plan.modules | type == "array")
-	  and all($plan.modules[];
-	    exact_keys(.; ["name","description","files"])
-	    and (.name | type == "string" and length > 0)
-	    and (.description | type == "string") and (.files | type == "array"))
-	  and exact_keys($plan.shared; ["files"]) and ($plan.shared.files | type == "array")
-	  and ($plan.topLevel | type == "array")
-	  and ($plan.adrs | type == "array") and ($plan.indexes | type == "array")
-	  and all(plan_entries($plan)[];
-	    (.entry.path | normalized_path(.)) and
-	    ((.entry.crossLinks // {}) | type == "object") and
-	    all((.entry.crossLinks // {})[];
-	      type == "array" and all(.[]; normalized_path(.))));
-	def plan_links($plan):
-	  [plan_entries($plan)[] as $wrapped |
-	    (($wrapped.entry.crossLinks // {}) | to_entries[]) as $links |
-	    $links.value[] as $target |
-	    {reportedBy:$wrapped.outputPath,field:$links.key,
-	     target:($plan.docsRoot + "/" + $target)}] |
-	  sort_by([.reportedBy,.field,.target]) | unique_by([.reportedBy,.field,.target]);
-	def dirname($path):
-	  $path | split("/") | .[0:length - 1] | join("/");
-	def as_set($items):
-	  reduce $items[] as $item ({}; .[$item] = true);
-	def index_paths($plan):
-	  [plan_entries($plan)[] |
-	    select(.container == "indexes" or .entry.type == "index") |
-	    .outputPath] | unique;
-	def reverse_adjacency($links; $queue_set):
-	  reduce ($links[] | select($queue_set[.reportedBy] != null)) as $link
-	    ({}; .[$link.target] += [$link.reportedBy]);
-	def directory_indexes($indexes; $queue_set):
-	  reduce ($indexes[] | select($queue_set[.] != null)) as $index
-	    ({}; .[dirname($index)] += [$index]);
-	def closure_set($reverse; $directory; $gaps; $reporters; $queue_set):
-	  {reached:as_set($reporters | map(select($queue_set[.] != null))),
-	   frontier:(($reporters + $gaps) | unique)} |
-	  until((.frontier | length) == 0;
-	    .reached as $reached |
-	    ([.frontier[] as $path | (($reverse[$path] // [])[])] +
-	     [.frontier[] as $path | (($directory[dirname($path)] // [])[])] |
-	      unique) as $candidates |
-	    ($candidates | map(select($reached[.] == null))) as $new |
-	    {reached:(reduce $new[] as $path ($reached; .[$path] = true)),
-	     frontier:$new}) |
-	  .reached | keys;
-	def expected_requeued($record; $queue; $live; $later_links; $later_paths):
-	  as_set($queue - $later_paths) as $queue_set |
-	  reverse_adjacency(plan_links($live) - $later_links; $queue_set) as $reverse |
-	  directory_indexes(index_paths($live); $queue_set) as $directory |
-	  ($record.gapPaths | map(.path) | unique) as $gaps |
-	  (closure_set($reverse; $directory; $gaps;
-	    ($record.reports | map(.reportedBy) | unique); $queue_set) - $gaps) |
-	  sort;
-	def expected_replay_tier($record; $provenance):
-	  (($record.gapPaths | map(.tier)) +
-	   [$record.requeued[] as $path | $provenance[$path].tier]) | min;
-	def closed_record($closed; $state; $later):
-	  exact_keys($closed;
-	    ["status","reports","gapPaths","expectedScaffold","replayTier","requeued",
-	     "resetTiers","cleanedTiers","openedAt","planMutation","closedAt"])
-	  and $closed.status == "cleared"
-	  and reports_valid($closed.reports)
-	  and (($closed.gapPaths | sort_by([.path,.type,.tier])) ==
-	    derived_gap_paths($closed.reports))
-	  and all($closed.gapPaths[]; . as $gap |
-	    ($gap.path | normalized_path(.)) and ($state.writeQueue | index($gap.path)) != null)
-	  and ($closed.expectedScaffold | type == "object")
-	  and (($closed.expectedScaffold | keys | sort) ==
-	    ($closed.gapPaths | map(.path) | sort | unique))
-	  and all($closed.expectedScaffold[]; sha256)
-	  and ($closed.replayTier | type == "number") and ($closed.replayTier | floor) == $closed.replayTier
-	  and $closed.replayTier >= 1 and $closed.replayTier <= 6
-	  and ($closed.requeued | type == "array" and length > 0)
-	  and all($closed.requeued[]; . as $path |
-	    ($path | normalized_path(.)) and ($state.writeQueue | index($path)) != null and
-	    ($state.provenance[$path].tier | type == "number" and floor == . and . >= 1 and . <= 6))
-	  and ($closed.requeued | length) == ($closed.requeued | unique | length)
-	  and all($closed.reports[].reportedBy; . as $path | ($closed.requeued | index($path)) != null)
-	  and all($closed.requeued[];
-	    . as $path | ($closed.gapPaths | map(.path) | index($path)) == null)
-	  and $closed.requeued == expected_requeued($closed; $state.writeQueue; $state.livePlan;
-	    [$later[] | (.planMutation.addedCrossLinks // [])[]] +
-	      (($state.gapPlanMutation.addedCrossLinks) // []);
-	    [$later[] | (.gapPaths // [])[] | .path] +
-	      ((($state.gapRecord.gapPaths) // []) | map(.path)))
-	  and $closed.replayTier == expected_replay_tier($closed; $state.provenance)
-	  and ($closed.resetTiers | type == "array" and length > 0)
-	  and $closed.resetTiers == ($closed.resetTiers | sort | unique)
-	  and all($closed.resetTiers[]; type == "number" and floor == . and . >= 1 and . <= 6)
-	  and ($closed.resetTiers ==
-	    ((($closed.gapPaths | map(.tier)) +
-	      [$closed.requeued[] as $path | $state.provenance[$path].tier]) | sort | unique))
-	  and ($closed.resetTiers | index($closed.replayTier)) != null
-	  and $closed.cleanedTiers == $closed.resetTiers
-	  and ($closed.openedAt | timestamp) and ($closed.closedAt | timestamp)
-	  and $closed.closedAt >= $closed.openedAt
-	  and stored_mutation($closed.planMutation; $state.canonicalCandidatePath;
-	    $closed.reports; $closed.gapPaths);
 	def closed_cursor($state):
 	  if ((($state.planStateHash | sha256) and
 	      ($state.approvedPlanHash | sha256) and
@@ -1805,8 +2117,13 @@ init_state_main() {
 	         .path as $path | ($closed_paths | index($path)) != null))
 	    then refuse("GAP_LOOP")
 	    elif (([range(0; $state.gapsResolved | length)] | all(. as $index |
-	        closed_record($state.gapsResolved[$index]; $state;
-	          $state.gapsResolved[$index:]))) and
+	        closed_record($state.gapsResolved[$index]; $state.writeQueue;
+	          $state.provenance; $state.livePlan; $state.canonicalCandidatePath;
+	          [$state.gapsResolved[$index:][] |
+	            (.planMutation.addedCrossLinks // [])[]] +
+	            (($state.gapPlanMutation.addedCrossLinks) // []);
+	          [$state.gapsResolved[$index:][] | (.gapPaths // [])[] | .path] +
+	            ((($state.gapRecord.gapPaths) // []) | map(.path))))) and
 	      (($state.gapsResolved | map(.openedAt) | length) ==
 	       ($state.gapsResolved | map(.openedAt) | unique | length))) | not
 	    then refuse("GAP_CLOSURE_INVALID")
@@ -2029,7 +2346,10 @@ init_state_main() {
 	      elif ($state.gapRecord.cleanedTiers != $state.gapRecord.resetTiers)
 	      then refuse("GAP_CLEANUP_INCOMPLETE")
 	      else (.gapRecord + {status:"cleared",closedAt:$data.closedAt}) as $closed |
-	      if (closed_record($closed; $state; []) | not)
+	      if (closed_record($closed; $state.writeQueue; $state.provenance;
+	        $state.livePlan; $state.canonicalCandidatePath;
+	        (($state.gapPlanMutation.addedCrossLinks) // []);
+	        ((($state.gapRecord.gapPaths) // []) | map(.path))) | not)
 	      then refuse("GAP_CLOSURE_INVALID")
 	      elif any($state.gapsResolved[]; .openedAt == $closed.openedAt)
 	      then if any($state.gapsResolved[]; . == $closed)
@@ -2231,6 +2551,44 @@ JQ
 	    .candidatePlan = null | .livePlan = $livePlan |
 	    .gapStatus = "planned" | .gapRecord.status = "planned"
 	  ' <<<"$ENQUEUED_STATE")
+
+    CONTROL_FAILURES_BEFORE=$FAILURES
+    REPORTER_PATH_CASES=(
+      'docs/r.mdx'
+      '/etc/passwd'
+      '../escape.mdx'
+      'docs/./r.mdx'
+      ''
+      'docs/r.mdx/'
+    )
+    REPORTER_PATH_EXPECTED=(true false false false false false)
+    for REPORTER_PATH_INDEX in "${!REPORTER_PATH_CASES[@]}"; do
+      REPORTER_PATH=${REPORTER_PATH_CASES[$REPORTER_PATH_INDEX]}
+      REPORTER_REPORTS=$(jq -cn --arg reporter "$REPORTER_PATH" '[{
+        reportedBy:$reporter,gaps:[{
+          path:"docs/a.mdx",type:"concept",tier:2,reason:"Reporter needs the concept"
+        }]
+      }]')
+      if ! REPORTER_PATH_ACTUAL=$(jq -n -L "$CONTROL_DIR" \
+        --argjson reports "$REPORTER_REPORTS" '
+          include "plan-''authority";
+          reports_valid($reports)
+        '); then
+        contract_failure "Shared reports_valid could not evaluate reporter path: ${REPORTER_PATH}"
+      elif [[ $REPORTER_PATH_ACTUAL != "${REPORTER_PATH_EXPECTED[$REPORTER_PATH_INDEX]}" ]]; then
+        contract_failure "Shared reports_valid returned ${REPORTER_PATH_ACTUAL} for reporter path: ${REPORTER_PATH}"
+      fi
+    done
+    if ! PLAN_ENTRY_PATHS=$(jq -n -L "$CONTROL_DIR" --argjson plan "$SECOND_PLAN_BYTES" '
+        include "plan-''authority";
+        plan_entries($plan) | map(.outputPath)
+      ') || ! cmp -s <(jq -c . <<<"$PLAN_ENTRY_PATHS") \
+      <(jq -c 'sort' <<<"$PLAN_ENTRY_PATHS"); then
+      contract_failure 'Shared plan_entries did not return lexicographically sorted output paths'
+    fi
+    if [[ $FAILURES -eq $CONTROL_FAILURES_BEFORE ]]; then
+      echo '✅ Shared plan-authority reporter normalization and plan-entry ordering controls passed'
+    fi
 
     CONTROL_FAILURES_BEFORE=$FAILURES
     COMPLEX_PRODUCER_REPORT=$(jq -cn --arg plan "$COMPLEX_PLAN_ROOT" \
@@ -3886,6 +4244,103 @@ JQ
       contract_failure 'Processor initialization changed state while refusing a stale slice'
     fi
 
+    mkdir -p "$CONTROL_DIR/no-yq-bin"
+    printf '%s\n' '#!/usr/bin/env bash' 'exit 127' >"$CONTROL_DIR/no-yq-bin/yq"
+    chmod +x "$CONTROL_DIR/no-yq-bin/yq"
+    cp "$PROCESSOR_STATE" "$CONTROL_DIR/init-converter.before"
+    CONVERTER_TEMPS_BEFORE=$(find "$(dirname "$PROCESSOR_STATE")" -maxdepth 1 -type f \
+      -name 'state.json.??????' -print | LC_ALL=C sort)
+    if OUTPUT=$(printf '%s\n' 'docs/r.mdx' | (
+      cd "$PROCESSOR_REPO" && PATH="$CONTROL_DIR/no-yq-bin:$PATH" \
+        bash "$CD_ROOT/scripts/init-state.sh" \
+        .contributor-docs/write-tier-4/state.json '["src/r.ts"]' 1 \
+        .contributor-docs/write-tier-4/findings --plan-hash "$PLAN_A"
+    ) 2>&1); then
+      contract_failure 'Processor initialization accepted an unavailable plan converter'
+    elif [[ $OUTPUT != *PLAN_CONVERTER_UNAVAILABLE* ]]; then
+      contract_failure "Unavailable plan converter failed with the wrong refusal: ${OUTPUT}"
+    elif [[ $OUTPUT == *PLAN_DRIFT_BLOCKED* ]]; then
+      contract_failure 'Unavailable plan converter masqueraded as plan drift'
+    elif ! cmp -s "$PROCESSOR_STATE" "$CONTROL_DIR/init-converter.before"; then
+      contract_failure 'Unavailable plan converter changed existing processor state'
+    elif [[ $(find "$(dirname "$PROCESSOR_STATE")" -maxdepth 1 -type f \
+      -name 'state.json.??????' -print | LC_ALL=C sort) != "$CONVERTER_TEMPS_BEFORE" ]]; then
+      contract_failure 'Unavailable plan converter changed the processor temp-file set'
+    fi
+
+    printf '%s\n' "$PROCESSOR_PENDING_WRITE" >"$PROCESSOR_WRITE_STATE"
+    MALFORMED_PROCESSOR_CONFIGS=(
+      '{}|1'
+      '"src/r.ts"|1'
+      'null|1'
+      '[""]|1'
+      '[1]|1'
+      '["src/r.ts"]|0'
+      '["src/r.ts"]|-1'
+      '["src/r.ts"]|1.5'
+      '["src/r.ts"]|"1"'
+      '["src/r.ts"]|null'
+      'not-json|1'
+      '["src/r.ts"]|not-json'
+    )
+    for MALFORMED_ROW in "${MALFORMED_PROCESSOR_CONFIGS[@]}"; do
+      IFS='|' read -r MALFORMED_SOURCE_PATHS MALFORMED_CONCURRENT <<<"$MALFORMED_ROW"
+      cp "$PROCESSOR_STATE" "$CONTROL_DIR/init-config.before"
+      MALFORMED_TEMPS_BEFORE=$(find "$(dirname "$PROCESSOR_STATE")" -maxdepth 1 -type f \
+        -name 'state.json.??????' -print | LC_ALL=C sort)
+      if OUTPUT=$(printf '%s\n' 'docs/r.mdx' | (
+        cd "$PROCESSOR_REPO" && bash "$CD_ROOT/scripts/init-state.sh" \
+          .contributor-docs/write-tier-4/state.json "$MALFORMED_SOURCE_PATHS" \
+          "$MALFORMED_CONCURRENT" .contributor-docs/write-tier-4/findings \
+          --plan-hash "$PLAN_A"
+      ) 2>&1); then
+        contract_failure "Processor initialization accepted malformed configuration: ${MALFORMED_ROW}"
+      elif [[ $OUTPUT != *'PROCESSOR_AUTHORITY_INVALID: malformed processor configuration'* ]]; then
+        contract_failure "Malformed processor configuration failed with the wrong refusal: ${MALFORMED_ROW}"
+      elif [[ $OUTPUT == *AUTHORITY_BUSY* ]]; then
+        contract_failure "Malformed processor configuration reached lock acquisition: ${MALFORMED_ROW}"
+      elif ! cmp -s "$PROCESSOR_STATE" "$CONTROL_DIR/init-config.before"; then
+        contract_failure "Malformed processor configuration changed existing state: ${MALFORMED_ROW}"
+      elif [[ $(find "$(dirname "$PROCESSOR_STATE")" -maxdepth 1 -type f \
+        -name 'state.json.??????' -print | LC_ALL=C sort) != "$MALFORMED_TEMPS_BEFORE" ]]; then
+        contract_failure "Malformed processor configuration left a temp file: ${MALFORMED_ROW}"
+      fi
+      if ! printf '%s\n' 'docs/r.mdx' | (
+        cd "$PROCESSOR_REPO" && bash "$CD_ROOT/scripts/init-state.sh" \
+          .contributor-docs/write-tier-4/state.json '["src/r.ts"]' 1 \
+          .contributor-docs/write-tier-4/findings --plan-hash "$PLAN_A"
+      ) >/dev/null; then
+        contract_failure "Healthy initialization could not follow malformed refusal: ${MALFORMED_ROW}"
+      fi
+    done
+
+    if ! printf '%s\n' 'docs/r.mdx' | (
+      cd "$PROCESSOR_REPO" && bash "$CD_ROOT/scripts/init-state.sh" \
+        .contributor-docs/write-tier-4/state.json '["src/r.ts"]' 1 \
+        .contributor-docs/write-tier-4/findings --plan-hash "$PLAN_A"
+    ) >/dev/null; then
+      contract_failure 'Healthy processor configuration was refused after malformed variants'
+    fi
+    printf '%s\n' "$AUTH_WRITE_STATE" >"$PROCESSOR_WRITE_STATE"
+    if ! (
+      cd "$PROCESSOR_REPO" && bash "$CD_ROOT/scripts/mark-done.sh" \
+        .contributor-docs/write-tier-4/state.json docs/r.mdx --plan-hash "$PLAN_A"
+    ) >/dev/null || ! jq -e '
+      .pendingFiles == [] and .processedFiles == ["docs/r.mdx"]
+    ' "$PROCESSOR_STATE" >/dev/null; then
+      contract_failure 'Healthy processor configuration did not complete end to end'
+    fi
+    printf '%s\n' "$PROCESSOR_PENDING_WRITE" >"$PROCESSOR_WRITE_STATE"
+    if ! printf '%s\n' 'docs/r.mdx' | (
+      cd "$PROCESSOR_REPO" && bash "$CD_ROOT/scripts/init-state.sh" \
+        .contributor-docs/write-tier-4/state.json '["src/r.ts"]' 1 \
+        .contributor-docs/write-tier-4/findings --plan-hash "$PLAN_A"
+    ) >/dev/null; then
+      contract_failure 'Processor fixture did not recover after malformed-configuration controls'
+    else
+      echo '✅ Converter and malformed processor configuration refusals were non-mutating and recovered end to end'
+    fi
+
     printf '%s\n' "$PROCESSOR_PENDING_WRITE" >"$PROCESSOR_WRITE_STATE"
     cp "$PROCESSOR_STATE" "$CONTROL_DIR/init-drift.before"
     printf '%s' "$UNRELATED_PLAN_BYTES" >"$PROCESSOR_PLAN"
@@ -4884,12 +5339,98 @@ JQ
       echo '✅ Shared lock, contention, death release, and final-preimage controls passed for both helpers'
     fi
 
+    CONTROL_FAILURES_BEFORE=$FAILURES
+    DIFFERENTIAL_DIR="$CONTROL_DIR/plan-authority-differential"
+    mkdir -p "$DIFFERENTIAL_DIR"
+    DIFFERENTIAL_PLAN_STATE="$DIFFERENTIAL_DIR/plan-state.json"
+    DIFFERENTIAL_WRITE_STATE="$DIFFERENTIAL_DIR/write-state.json"
+    DIFFERENTIAL_PLAN="$DIFFERENTIAL_DIR/doc-plan.yaml"
+    DIFFERENTIAL_CANDIDATE="$DIFFERENTIAL_DIR/doc-plan.gap-candidate.yaml"
+    DIFFERENTIAL_BAD_WRITE=$(jq -c '
+      .gapsResolved[0].reports[0].reportedBy = "/etc/passwd"
+    ' <<<"$CHAIN_WRITE_STATE")
+    DIFFERENTIAL_BAD_REDUCER=$(jq -c '
+      .gapsResolved[0].reports[0].reportedBy = "/etc/passwd"
+    ' <<<"$VALID_CLOSED_CHAIN")
+    printf '%s\n' "$AUTH_PLAN_STATE" >"$DIFFERENTIAL_PLAN_STATE"
+    printf '%s\n' "$DIFFERENTIAL_BAD_WRITE" >"$DIFFERENTIAL_WRITE_STATE"
+    printf '%s' "$SECOND_PLAN_BYTES" >"$DIFFERENTIAL_PLAN"
+    DIFFERENTIAL_PREIMAGE=$(authority_snapshot "$DIFFERENTIAL_PLAN_STATE" \
+      "$DIFFERENTIAL_WRITE_STATE" "$DIFFERENTIAL_PLAN" "$DIFFERENTIAL_CANDIDATE")
+    if OUTPUT=$(assert_plan_authority "$PLAN_C" "$DIFFERENTIAL_PLAN_STATE" \
+      "$DIFFERENTIAL_WRITE_STATE" "$DIFFERENTIAL_PLAN" "$DIFFERENTIAL_CANDIDATE" 2>&1); then
+      contract_failure 'Runtime plan authority accepted an absolute reportedBy path'
+    elif [[ $OUTPUT != *GAP_CLOSURE_INVALID* ]]; then
+      contract_failure "Runtime plan authority rejected an absolute reporter for the wrong reason: ${OUTPUT}"
+    fi
+    if OUTPUT=$(jq -n -L "$CONTROL_DIR" --argjson state "$DIFFERENTIAL_BAD_REDUCER" \
+      --arg operation write-dispatch --argjson data '{}' \
+      -f "$CONTROL_DIR/reducer.jq" 2>&1); then
+      contract_failure 'Reducer plan authority accepted an absolute reportedBy path'
+    elif [[ $OUTPUT != *GAP_CLOSURE_INVALID* ]]; then
+      contract_failure "Reducer plan authority rejected an absolute reporter for the wrong reason: ${OUTPUT}"
+    elif [[ $(authority_snapshot "$DIFFERENTIAL_PLAN_STATE" "$DIFFERENTIAL_WRITE_STATE" \
+      "$DIFFERENTIAL_PLAN" "$DIFFERENTIAL_CANDIDATE") != "$DIFFERENTIAL_PREIMAGE" ]]; then
+      contract_failure 'Runtime/reducer reporter-path differential mutated its stored inputs'
+    fi
+    if [[ $FAILURES -eq $CONTROL_FAILURES_BEFORE ]]; then
+      echo '✅ Runtime and reducer agreed on the shared normalized reportedBy path law'
+    fi
+
     RECORD_WRITE_DEF_COUNT=$(rg -c '^def cd_record_write_authority' \
       "$CD_ROOT/scripts/init-state.sh" || true)
     if [[ $RECORD_WRITE_DEF_COUNT != 1 ]] ||
       rg -q '^[[:space:]]*def writer_report|^[[:space:]]*assert_processor_completion_authority\(\)' \
         "$CD_ROOT/scripts/init-state.sh" "$CD_ROOT/scripts/mark-done.sh"; then
       contract_failure 'Shared record-write predicate was duplicated or shadowed'
+    fi
+
+    PLAN_AUTHORITY_ONE_DEF=(
+      dirname as_set valid_plan plan_entries plan_links index_paths reverse_adjacency
+      directory_indexes closure_set expected_added_entries expected_added_links
+      expected_requeued expected_replay_tier gap_tuples derived_gap_paths
+      reports_consistent report reports_valid gap_item stored_mutation
+      stored_entries_current closed_record
+    )
+    PLAN_AUTHORITY_NO_DEF=(reported_gap_tuples mutation)
+    PLAN_AUTHORITY_PRIMITIVE_PINS=(sha256:3 timestamp:2 exact_keys:4 normalized_path:4)
+    PLAN_AUTHORITY_SOURCE_VALID=1
+    for PLAN_AUTHORITY_NAME in "${PLAN_AUTHORITY_ONE_DEF[@]}"; do
+      PLAN_AUTHORITY_COUNT=$(rg -c \
+        "^[[:space:]]*def ${PLAN_AUTHORITY_NAME}[:(]" "$CD_ROOT/scripts/init-state.sh" || true)
+      if [[ ${PLAN_AUTHORITY_COUNT:-0} != 1 ]] || rg -q \
+        "^[[:space:]]*def ${PLAN_AUTHORITY_NAME}[:(]" "$CD_ROOT/scripts/mark-done.sh"; then
+        PLAN_AUTHORITY_SOURCE_VALID=0
+      fi
+    done
+    for PLAN_AUTHORITY_NAME in "${PLAN_AUTHORITY_NO_DEF[@]}"; do
+      if rg -q "^[[:space:]]*def ${PLAN_AUTHORITY_NAME}[:(]" \
+        "$CD_ROOT/scripts/init-state.sh" "$CD_ROOT/scripts/mark-done.sh"; then
+        PLAN_AUTHORITY_SOURCE_VALID=0
+      fi
+    done
+    for PLAN_AUTHORITY_PIN in "${PLAN_AUTHORITY_PRIMITIVE_PINS[@]}"; do
+      PLAN_AUTHORITY_NAME=${PLAN_AUTHORITY_PIN%%:*}
+      PLAN_AUTHORITY_EXPECTED=${PLAN_AUTHORITY_PIN#*:}
+      PLAN_AUTHORITY_COUNT=$(rg -c \
+        "^[[:space:]]*def ${PLAN_AUTHORITY_NAME}[:(]" "$CD_ROOT/scripts/init-state.sh" || true)
+      if [[ ${PLAN_AUTHORITY_COUNT:-0} != "$PLAN_AUTHORITY_EXPECTED" ]] || rg -q \
+        "^[[:space:]]*def ${PLAN_AUTHORITY_NAME}[:(]" "$CD_ROOT/scripts/mark-done.sh"; then
+        PLAN_AUTHORITY_SOURCE_VALID=0
+      fi
+    done
+    if [[ $(rg -c '^plan_authority_jq_source\(\) \{' \
+      "$CD_ROOT/scripts/init-state.sh" || true) != 1 ]] ||
+      [[ $(rg -c '^[[:space:]]*plan_authority_jq_source >"\$CONTROL_DIR/plan-authority\.jq"$' \
+        "$CD_ROOT/scripts/init-state.sh" || true) != 1 ]] ||
+      [[ $(rg -c '^[[:space:]]*include "plan-authority";$' \
+        "$CD_ROOT/scripts/init-state.sh" || true) != 1 ]] ||
+      [[ $(rg -c '^[[:space:]]*program=\$\(plan_authority_jq_source\)$' \
+        "$CD_ROOT/scripts/init-state.sh" || true) != 1 ]]; then
+      PLAN_AUTHORITY_SOURCE_VALID=0
+    fi
+    if [[ $PLAN_AUTHORITY_SOURCE_VALID != 1 ]]; then
+      contract_failure 'Shared plan-authority law was duplicated or shadowed'
     fi
 
     for LITERAL in authorizedPlanHash authorize-gap-plan apply-gap-plan PLAN_DRIFT_BLOCKED \
@@ -4930,6 +5471,17 @@ JQ
   CONCURRENT="$3"
   OUTPUT_DIR="$4"
   PLAN_HASH="$6"
+
+  if ! jq -e -n --args '
+      ($ARGS.positional[0] | fromjson? // null) as $sourcePaths |
+      ($ARGS.positional[1] | fromjson? // null) as $concurrent |
+      ($sourcePaths | type == "array") and
+      all($sourcePaths[]; type == "string" and length > 0) and
+      ($concurrent | type == "number" and floor == . and . >= 1)
+    ' -- "$SOURCE_PATHS" "$CONCURRENT" >/dev/null 2>&1; then
+    echo "PROCESSOR_AUTHORITY_INVALID: malformed processor configuration (source-paths must be a JSON array of non-empty strings; concurrent must be an integer >= 1)" >&2
+    exit 1
+  fi
 
   assert_processor_state_path "$STATE_FILE" "$OUTPUT_DIR" >/dev/null
   FILES_JSON=$(jq -R -s 'split("\n") | map(select(. != ""))')
@@ -4991,7 +5543,10 @@ JQ
       ((keys | sort) == (["sourcePaths","outputDir","concurrentAgents","filesToProcess",
         "processedFiles","pendingFiles","startTime","authorizedPlanHash",
         "recordWriteAuthorizations"] | sort)) and
+      (.sourcePaths | type == "array") and
+      all(.sourcePaths[]; type == "string" and length > 0) and
       .sourcePaths == $sourcePaths and .outputDir == $outputDir and
+      (.concurrentAgents | type == "number" and floor == . and . >= 1) and
       .concurrentAgents == $concurrent and .filesToProcess == $files and
       .processedFiles == [] and .pendingFiles == $files and
       .authorizedPlanHash == $planHash and

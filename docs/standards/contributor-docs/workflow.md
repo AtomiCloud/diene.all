@@ -218,6 +218,9 @@ may finish that pending state update. Any other missing plan, broken lineage, or
 hash mismatch is
 `PLAN_DRIFT_BLOCKED: expected=<hash> actual=<hash-or-absent>` and leaves state,
 processor files, task phase, and audit artifacts byte-identical.
+A converter that cannot produce JSON from the live plan is
+`PLAN_CONVERTER_UNAVAILABLE: <reason>`, a non-mutating dead end that is not plan
+drift and carries no expected/actual hash pair.
 
 The source-snapshot dirty-path exception deliberately permits `.contributor-docs/`, so
 `sourceSnapshotCurrent: true` does not imply that either plan is authorized. Source
@@ -524,6 +527,7 @@ context loss; re-running resumes from where it left off.
 
 - Git (for diff analysis)
 - `jq` (for file-processor scripts)
+- `yq` (for reading `doc-plan.yaml`)
 - `flock` with file-descriptor, exclusive, and nonblocking support
 - Current branch must have commits ahead of the base branch
 
