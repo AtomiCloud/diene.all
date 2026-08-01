@@ -119,9 +119,13 @@ lock and revalidates from disk.
 The canonical lock in [workflow.md](../workflow.md#authority-transaction) is advisory
 and orders only the contract-compliant mutators listed there. A raw editor write to a
 document, a plan, or a state file cannot be prevented by it. Such a write is caught the
-same way it always was: by the conditional renames inside each transaction before it
-commits, and by the fresh source, plan, digest, and document hashes above once it has
-landed. Direct state or plan mutation stays invalid — the lock does not make a hostile
+same way it always was: by transaction byte fingerprints from the first authority read
+through the last authority read, and by the fresh source, plan, digest, and document
+hashes above once it has landed. The residual interval between that last read and `mv`
+is closed by the exclusive advisory lock every compliant writer takes, not by the
+rename itself. An out-of-contract writer that ignores the lock in that interval is
+detected by downstream assessment after commit rather than guaranteed a pre-rename
+refusal. Direct state or plan mutation stays invalid — the lock does not make a hostile
 writer impossible, only a compliant one orderly.
 
 ### Canonical Docs Digest
@@ -325,8 +329,13 @@ and never call `record-write`, so there is no start authority to capture and an
 explicit `null` is required rather than an absent key. Contention while initializing
 is `AUTHORITY_BUSY`, leaving processor state, the sidecar, and findings byte-identical.
 
-Immediately after initialization, inside the same acquisition, atomically write this
-sibling file with the current values:
+Immediately after `init-state.sh` returns, take a second, separate Authority
+Transaction to write this sibling file. Acquire the canonical lock again; contention
+is `AUTHORITY_BUSY` and leaves the processor state exactly as initialization left it.
+Under that second acquisition, freshly reread `audit-state.json` for the current
+`auditEpoch`, recompute `docsDigest`, stage the sibling in
+`.contributor-docs/fact-check/`, and atomically `mv` it into place with the current
+values:
 
 ```json
 {
@@ -334,6 +343,12 @@ sibling file with the current values:
   "docsDigest": "39e77a6619ba41e414906e08eb0f1d62d3069469c2b7cd5f702058869f256fb9"
 }
 ```
+
+There is deliberately a crash window between initialization and this second
+acquisition. If the process dies there, the sidecar is absent. The existing
+**Initialize or Resume** staleness rule in this section classifies a missing or
+mismatched sidecar as a stale cache: remove processor state, sidecar, and findings, then
+reinitialize.
 
 The sibling exists because `init-state.sh` and its processor-state format are
 shared with the write phase. They are not audit-specific and must not be

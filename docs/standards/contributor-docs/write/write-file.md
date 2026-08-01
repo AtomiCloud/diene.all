@@ -43,6 +43,15 @@ hashes, and exact gap tuples/reasons. Only then may the processor be marked done
 absent, malformed, blank-reason, duplicate, or conflicting gap record refuses the whole
 completion update; it is never dropped while the document is declared written.
 
+`AUTHORITY_BUSY` is an error report, not a successful write. Report it as
+`RESULT: error` with
+`ERROR: AUTHORITY_BUSY: contributor-doc authority transaction is active`,
+`AUTHORIZED_FROM_HASH: none`, `WRITTEN_HASH: none`, and `GAPS: none`. Never report
+`RESULT: success` for a write that did not happen, never report a `WRITTEN_HASH` for
+bytes that were not renamed into place, and never report gaps on an `AUTHORITY_BUSY`
+return. Gaps become durable only through `record-write`, which requires a written file;
+a successful replay reports them again.
+
 **Do NOT update state files.** Report back to orchestrator only.
 
 ## Task
@@ -174,9 +183,15 @@ Write the complete file (frontmatter + body) to {filePath}, replacing the scaffo
 
 Render the complete document and stage it to a temp file in {filePath}'s own
 directory **outside** any lock. Authoring is long-running and must never hold one.
-The replacement itself is one authority transaction from
-[workflow.md](../workflow.md#authority-transaction): acquire the lock, then inside
-it perform the plan check below, the provenance check below, and the rename.
+The replacement's install section is a bounded sequence of at most three authority
+transaction attempts from [workflow.md](../workflow.md#authority-transaction). Every
+attempt uses `flock -xn` only — never a blocking wait or `flock -w` — then, while it
+holds the lock, performs the fresh plan check below, the fresh provenance check below,
+and the conditional rename. On contention, keep the already rendered staged temp file,
+hold no lock, wait only a short backoff, and retry only that install section. Do no
+other work between attempts: never re-render or discard the temp file early. A failed
+non-blocking lock attempt is not an acquisition. If all three attempts contend, remove
+the staged temp file, leave {filePath} byte-identical, and return `AUTHORITY_BUSY`.
 
 Immediately before the authorized write, freshly hash the exact live plan and require
 equality with `{PLAN_SHA256}`. Perform this check after validation and body rendering
@@ -222,6 +237,11 @@ user approves, records a new hash-bound writer-replay approval. Never resolve it
 changing provenance first or by writing under an old path approval.
 
 ### 7. Report
+
+If all bounded install attempts returned `AUTHORITY_BUSY`, use the error report above:
+the file has not been written, `record-write` is not reachable, and no write hash or
+gap is reportable. Do not turn that result into success merely because the document was
+rendered.
 
 Freshly hash the complete file after writing and report the result with file path,
 accepted `PLAN_SHA256`, pre-write authorization hash, written hash, and line count.

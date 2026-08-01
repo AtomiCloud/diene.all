@@ -538,6 +538,12 @@ staging, and compares both preimages immediately before its `mv`. A changed slic
 tier, collision, ledger, authority byte, assigned document, or processor preimage is
 `PROCESSOR_AUTHORITY_INVALID` (with plan/byte drift retaining its more specific
 precedence). `AUTHORITY_BUSY` is a fail-fast retry outcome and changes nothing.
+The byte fingerprints close the window from an operation's first authority read
+through its last authority read. The residual interval between that last read and `mv`
+is closed by the exclusive advisory lock every compliant writer takes, not by the
+rename itself. An out-of-contract writer that ignores the lock in that residual
+interval is detected by downstream assessment after commit rather than guaranteed a
+pre-rename refusal.
 
 ### 2. Process Loop
 
@@ -550,10 +556,19 @@ while next-file.sh returns files:
      - Provide: the tier number
      - Provide: `PLAN_SHA256 = authorizedPlanHash`
   3. Wait for all agents in batch to complete.
-  4. For each successful report, require lowercase 64-hex `PLAN_SHA256`,
-     `AUTHORIZED_FROM_HASH`, and `WRITTEN_HASH` values. The writer must have hashed the
-     exact plan before consuming metadata and again immediately before its authorized
-     write/report.
+  4. Classify each writer report before accepting success:
+     - `ERROR: AUTHORITY_BUSY` is neither a file failure nor a malformed report. Keep
+       that path's `writeStatus: "pending"`; do not invoke `record-write`, record no
+       collision, and re-dispatch the untouched pending path in the next batch.
+       `next-file.sh` already selects pending paths, so it needs no special path
+       handling. Cap that re-dispatch at three passes per path per tier. On exhaustion,
+       stop the tier and report the busy outcome without marking the path failed or
+       written. `AUTHORITY_BUSY` is distinct from `PLAN_DRIFT_BLOCKED` and from a
+       writer collision.
+     - For each successful report, require lowercase 64-hex `PLAN_SHA256`,
+       `AUTHORIZED_FROM_HASH`, and `WRITTEN_HASH` values. The writer must have hashed
+       the exact plan before consuming metadata and again immediately before its
+       authorized write/report.
   5. Spawn state-agent `record-write`. While holding the Authority Transaction lock,
      invoke the shared `init-state.sh --assert-record-write pending` law before
      candidate construction and again after staging, before its exact preimage CAS.
@@ -575,6 +590,10 @@ while next-file.sh returns files:
      consumed, while the normal branch must not have consumed it.
      bash docs/standards/contributor-docs/scripts/mark-done.sh .contributor-docs/write-tier-N/state.json <filename> --plan-hash '<returned authorizedPlanHash>'
 ```
+
+The canonical `--assert-record-write` invocation and its pending-view stdin object are
+documented once in `docs/standards/contributor-docs/write/state-agent.md`; this phase
+relies on that block rather than duplicating it.
 
 The order is canonical state first, processor state second. Reversing it can make a
 file disappear from the processor while provenance still says pending. The chosen

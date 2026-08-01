@@ -223,59 +223,6 @@ The source-snapshot dirty-path exception deliberately permits `.contributor-docs
 `sourceSnapshotCurrent: true` does not imply that either plan is authorized. Source
 and plan identity remain separate ordered guards on every later dispatch and update.
 
-## Authority Transaction
-
-Every accepted contributor-doc mutation is one short, exclusive authority transaction.
-The canonical lock is the persistent file
-`$(git rev-parse --absolute-git-dir)/contributor-docs-authority.lock`; linked worktrees
-therefore have separate locks in their own Git metadata. A writer opens the file on a
-Bash-owned descriptor and acquires `flock -xn <fd>`. Contention returns
-`AUTHORITY_BUSY` before touching workflow files. The lock file is never unlinked or
-renamed: only the kernel-held open-file-description lock means ownership, and process
-death releases it without a PID, lease, or stale-lock recovery algorithm.
-
-Render expensive candidate bytes before acquiring the lock when their authority does
-not have to be read under it. Once locked, freshly read and completely validate every
-input, validate the staged candidate against those exact inputs, record the
-operation-specific preimages, perform only bounded local filesystem work, and rename
-the commit marker before releasing the descriptor. Never dispatch an agent, wait for a
-human, perform network work, or launch a background child while holding the lock. An
-operation acquires the lock at most once; read-only assertion modes reuse a
-caller-owned descriptor and never unlock it.
-
-The following inventory is exhaustive. The named writer and every artifact installer
-or cleanup acting for it participates in this same transaction:
-
-| Mutable authority or cache | Legal transaction writer |
-| --- | --- |
-| `plan-state.json`, `task-state.json`, `diff-summary.md`, initial `doc-plan.yaml` | Plan state-agent and diff/classification installers |
-| `doc-plan.gap-candidate.yaml` | Orchestrator candidate installer and write state-agent `apply-gap-plan` |
-| Approved live `doc-plan.yaml` successor | Write state-agent `apply-gap-plan` only |
-| `write-state.json`, tier processor state/findings, and documentation under `docsRoot` | Write state-agent, processor helpers, scaffolder, and doc writer |
-| `audit-state.json`, audit reports/findings, `fact-check/epoch.json`, and fact-check processor state | Audit state-agent, audit artifact installers, and processor helpers |
-| Cleanup-owned processor/findings trees | The named write/audit reset operation |
-| `transitions.log` | The state-agent committing the corresponding transition |
-
-The transaction keeps an exact compare-and-swap backstop even though every compliant
-writer takes the lock. Its NUL-framed manifest fingerprints file path, object kind,
-exact regular-file bytes or symlink target, and absence for `task-state.json`,
-`plan-state.json`, `write-state.json`, live plan, and the fixed gap candidate. A write
-completion additionally includes its assigned document; an audit processor operation
-also includes audit state, the epoch sidecar, assigned document, and canonical finding
-artifacts. Processor helpers separately fingerprint the processor-state preimage.
-After the last semantic validation and immediately before `mv`, both fingerprints must
-still match. Otherwise return `PROCESSOR_AUTHORITY_INVALID` (or the earlier, more
-specific plan/byte refusal), remove the staged temp, and leave the old processor state
-byte-identical.
-
-Normal `apply-gap-plan` holds one lock across candidate-to-live rename, installed-byte
-verification, and the write-state rename. A crash after the plan rename still leaves
-the documented adoptable `enqueued/from + live/to + candidate absent` tuple; retry
-adopts it exactly once. Cleanup-first reset edges keep their documented commit marker:
-losing only a cache is safe, and retry verifies absence before committing. Direct
-out-of-contract writes cannot be forced to honor the advisory lock; the fresh semantic
-fence and final byte CAS reject one before commit, while downstream assessment detects
-one after commit.
 
 ### Clean Start (the first transition)
 
@@ -330,6 +277,65 @@ for partial states lives in
 
 Each phase state-agent applies rules 1, 2, 5 and 6 to its own phase-state file
 (`write-state.json`, `audit-state.json`) with that phase's initial step.
+
+## Authority Transaction
+
+Every accepted contributor-doc mutation is one short, exclusive authority transaction.
+The canonical lock is the persistent file
+`$(git rev-parse --absolute-git-dir)/contributor-docs-authority.lock`; linked worktrees
+therefore have separate locks in their own Git metadata. A writer opens the file on a
+Bash-owned descriptor and acquires `flock -xn <fd>`. Contention returns
+`AUTHORITY_BUSY` before touching workflow files. The lock file is never unlinked or
+renamed: only the kernel-held open-file-description lock means ownership, and process
+death releases it without a PID, lease, or stale-lock recovery algorithm.
+
+Render expensive candidate bytes before acquiring the lock when their authority does
+not have to be read under it. Once locked, freshly read and completely validate every
+input, validate the staged candidate against those exact inputs, record the
+operation-specific preimages, perform only bounded local filesystem work, and rename
+the commit marker before releasing the descriptor. Never dispatch an agent, wait for a
+human, perform network work, or launch a background child while holding the lock. An
+operation holds the lock at most once; a failed non-blocking attempt is not an
+acquisition, and a bounded retry of a staged install section is permitted provided no
+lock is held between attempts. Read-only assertion modes take no lock at all; lock
+ownership is process-local and is never inherited across a process boundary.
+
+The following inventory is exhaustive. The named writer and every artifact installer
+or cleanup acting for it participates in this same transaction:
+
+| Mutable authority or cache | Legal transaction writer |
+| --- | --- |
+| `plan-state.json`, `diff-summary.md`, initial `doc-plan.yaml` | Plan state-agent and diff/classification installers |
+| `task-state.json` — creation and every task-phase edge | Plan state-agent (`create`, `advance-task-phase-to-write`); write state-agent (`reopen-audit-repair`, `resume-audit-repair-phase`, `advance-task-phase-to-audit`); audit state-agent (`fail-audit`, `resume-failed-task-phase`, `advance-task-phase-to-completed`, reset step 8) |
+| `doc-plan.gap-candidate.yaml` | Orchestrator candidate installer and write state-agent `apply-gap-plan` |
+| Approved live `doc-plan.yaml` successor | Write state-agent `apply-gap-plan` only |
+| `write-state.json`, tier processor state/findings, and documentation under `docsRoot` | Write state-agent, processor helpers, scaffolder, and doc writer |
+| `audit-state.json`, audit reports/findings, `fact-check/epoch.json`, and fact-check processor state | Audit state-agent, audit artifact installers, and processor helpers |
+| Cleanup-owned processor/findings trees | The named write/audit reset operation |
+| `transitions.log` | The state-agent committing the corresponding transition |
+
+The transaction's byte fingerprints close the window from an operation's first
+authority read through its last authority read. The residual interval between that last
+read and `mv` is closed by the exclusive advisory lock every compliant writer takes;
+the rename itself does not close it. Its NUL-framed manifest fingerprints file path,
+object kind, exact regular-file bytes or symlink target, and absence for
+`task-state.json`, `plan-state.json`, `write-state.json`, live plan, and the fixed gap
+candidate. A write completion additionally includes its assigned document; an audit
+processor operation also includes audit state, the epoch sidecar, assigned document,
+and canonical finding artifacts. Processor helpers separately fingerprint the
+processor-state preimage. After the last semantic validation and immediately before
+`mv`, both fingerprints must still match. Otherwise return
+`PROCESSOR_AUTHORITY_INVALID` (or the earlier, more specific plan/byte refusal), remove
+the staged temp, and leave the old processor state byte-identical.
+
+Normal `apply-gap-plan` holds one lock across candidate-to-live rename, installed-byte
+verification, and the write-state rename. A crash after the plan rename still leaves
+the documented adoptable `enqueued/from + live/to + candidate absent` tuple; retry
+adopts it exactly once. Cleanup-first reset edges keep their documented commit marker:
+losing only a cache is safe, and retry verifies absence before committing. Direct
+out-of-contract writes cannot be forced to honor the advisory lock. An out-of-contract
+writer that ignores it and lands inside the residual read-to-rename interval is detected
+by downstream assessment after commit, not refused before it.
 
 ## Top-Level State Machine
 

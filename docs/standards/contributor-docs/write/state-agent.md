@@ -282,6 +282,37 @@ approvals, malformed hashes, extra/missing keys, or a mismatched ordered slice a
 `PROCESSOR_AUTHORITY_INVALID`. Fact-check processors store
 `recordWriteAuthorizations: null`.
 
+`record-write` constructs the pending assertion with this canonical invocation:
+
+```bash
+jq -n --argjson report "$writer_report" --arg written "$WRITTEN_HASH" \
+  '{writerReport: $report, returnedHash: $written}' |
+  bash docs/standards/contributor-docs/scripts/init-state.sh \
+    --assert-record-write pending \
+    .contributor-docs/write-tier-N/state.json \
+    <path> <plan-hash>
+```
+
+The pending view reads this operation object from stdin; the committed view reads no
+stdin and derives both values from `write-state.json`:
+
+```json
+{
+  "writerReport": {
+    "reportedBy": "docs/contributor/orders/features/checkout.mdx",
+    "authorizedPlanHash": "<PLAN_SHA256>",
+    "authorizedFromHash": "<AUTHORIZED_FROM_HASH>",
+    "writtenHash": "<WRITTEN_HASH>",
+    "gaps": []
+  },
+  "returnedHash": "<WRITTEN_HASH>"
+}
+```
+
+Its stdout is exactly `normal` or `approval:<ledgerIndex>`. On stderr it refuses with
+`PROCESSOR_AUTHORITY_INVALID`, `GAP_REPORT_SET_INVALID`, `PLAN_DRIFT_BLOCKED`,
+`WRITE_HASH_MISMATCH`, `WRITTEN_BYTES_CHANGED`, or `WRITE_INCOMPLETE`.
+
 `record-write` accepts `AUTHORIZED_FROM_HASH` only from that durable snapshot. The
 normal branch must still equal the current pending provenance basis. The approval
 branch must still resolve at its stored index to the same path, purpose, hash, and
@@ -633,7 +664,7 @@ containment under `docsRoot`, concept/algorithm type-to-tier rules, no current q
 member, the loop guard, and independently
 recompute `requeued`, `replayTier`, and `resetTiers` from `writeQueue` plus current
 authorized plan metadata. Use the monotone reverse-link and same-directory index
-fixpoint defined in `write/PHASE.md`; store `requeued` sorted and duplicate-free, set
+fixpoint defined in `docs/standards/contributor-docs/write/PHASE.md`; store `requeued` sorted and duplicate-free, set
 `replayTier` to the exact minimum tier over `gapPaths ∪ requeued`, and set `resetTiers`
 to their sorted distinct tiers. `replayTier` may not exceed `currentTier`.
 
