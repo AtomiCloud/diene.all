@@ -96,10 +96,10 @@ const runBlock = (...lines: string[]) => ['run: |', ...lines.map(line => `      
 
 // The run: texts the mention sequence walks through, each replacing the last.
 const RUN_REAL = 'run: nix develop .#cd -c ./scripts/ci/docker.sh';
-const RUN_ECHO = 'run: echo nix develop';
-const RUN_ARRAY = runBlock('args=(nix develop)', `printf '%s\\n' "\${args[*]}"`);
+const RUN_ECHO = 'run: echo nix develop; ./scripts/ci/docker.sh';
+const RUN_ARRAY = runBlock('args=(nix develop)', `printf '%s\\n' "\${args[*]}"`, './scripts/ci/docker.sh');
 const RUN_CASE_PATTERN = runBlock('case "$1" in', '  nix-build)', '    ./scripts/ci/docker.sh', '    ;;', 'esac');
-const RUN_NIX_VERSION = 'run: nix --version develop';
+const RUN_NIX_VERSION = 'run: nix --version develop; ./scripts/ci/docker.sh';
 
 export default {
   contractVersion: 1,
