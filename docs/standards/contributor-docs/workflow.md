@@ -223,7 +223,6 @@ The source-snapshot dirty-path exception deliberately permits `.contributor-docs
 `sourceSnapshotCurrent: true` does not imply that either plan is authorized. Source
 and plan identity remain separate ordered guards on every later dispatch and update.
 
-
 ### Clean Start (the first transition)
 
 A clean invocation has no `.contributor-docs/` directory at all. Exactly one
@@ -303,16 +302,16 @@ ownership is process-local and is never inherited across a process boundary.
 The following inventory is exhaustive. The named writer and every artifact installer
 or cleanup acting for it participates in this same transaction:
 
-| Mutable authority or cache | Legal transaction writer |
-| --- | --- |
-| `plan-state.json`, `diff-summary.md`, initial `doc-plan.yaml` | Plan state-agent and diff/classification installers |
-| `task-state.json` — creation and every task-phase edge | Plan state-agent (`create`, `advance-task-phase-to-write`); write state-agent (`reopen-audit-repair`, `resume-audit-repair-phase`, `advance-task-phase-to-audit`); audit state-agent (`fail-audit`, `resume-failed-task-phase`, `advance-task-phase-to-completed`, reset step 8) |
-| `doc-plan.gap-candidate.yaml` | Orchestrator candidate installer and write state-agent `apply-gap-plan` |
-| Approved live `doc-plan.yaml` successor | Write state-agent `apply-gap-plan` only |
-| `write-state.json`, tier processor state/findings, and documentation under `docsRoot` | Write state-agent, processor helpers, scaffolder, and doc writer |
-| `audit-state.json`, audit reports/findings, `fact-check/epoch.json`, and fact-check processor state | Audit state-agent, audit artifact installers, and processor helpers |
-| Cleanup-owned processor/findings trees | The named write/audit reset operation |
-| `transitions.log` | The state-agent committing the corresponding transition |
+| Mutable authority or cache                                                                          | Legal transaction writer                                                                                                                                                                                                                                                         |
+| --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `plan-state.json`, `diff-summary.md`, initial `doc-plan.yaml`                                       | Plan state-agent and diff/classification installers                                                                                                                                                                                                                              |
+| `task-state.json` — creation and every task-phase edge                                              | Plan state-agent (`create`, `advance-task-phase-to-write`); write state-agent (`reopen-audit-repair`, `resume-audit-repair-phase`, `advance-task-phase-to-audit`); audit state-agent (`fail-audit`, `resume-failed-task-phase`, `advance-task-phase-to-completed`, reset step 8) |
+| `doc-plan.gap-candidate.yaml`                                                                       | Orchestrator candidate installer and write state-agent `apply-gap-plan`                                                                                                                                                                                                          |
+| Approved live `doc-plan.yaml` successor                                                             | Write state-agent `apply-gap-plan` only                                                                                                                                                                                                                                          |
+| `write-state.json`, tier processor state/findings, and documentation under `docsRoot`               | Write state-agent, processor helpers, scaffolder, and doc writer                                                                                                                                                                                                                 |
+| `audit-state.json`, audit reports/findings, `fact-check/epoch.json`, and fact-check processor state | Audit state-agent, audit artifact installers, and processor helpers                                                                                                                                                                                                              |
+| Cleanup-owned processor/findings trees                                                              | The named write/audit reset operation                                                                                                                                                                                                                                            |
+| `transitions.log`                                                                                   | The state-agent committing the corresponding transition                                                                                                                                                                                                                          |
 
 The transaction's byte fingerprints close the window from an operation's first
 authority read through its last authority read. The residual interval between that last
