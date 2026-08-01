@@ -502,8 +502,15 @@ the processor state for every tier it resets before it clears itself.
 
 `init-state.sh` independently revalidates the complete approved-root/closed-transition
 chain, the exact live plan hash, the absent candidate, and null live transition before
-its processor-state rename. The state-agent result therefore scopes the input, while
-the helper's fresh fence closes the authorization-to-rename crash window.
+its processor-state rename. For a write-tier processor it also re-derives the exact
+ordered pending slice from the current queue/provenance, requires the matching current
+tier and an empty collision set, and repeats that complete check immediately before the
+rename. `mark-done.sh` repeats the current-tier/collision fence, complete writer-report
+validation, and fresh `writtenHash` comparison before its own rename. A changed slice,
+tier, or collision set is `PROCESSOR_AUTHORITY_INVALID`; neither helper may consume a
+still-current plan hash as standing processor authority. The state-agent result
+therefore scopes the input, while the helpers' fresh fences close the
+authorization-to-rename crash window.
 
 ### 2. Process Loop
 
@@ -769,8 +776,10 @@ the latest field:
    completed approved plan state.
 2. Before walking hashes, require every `gapsResolved` item to have the complete ten
    transition fields plus `closedAt`, status `cleared`, valid complete report/reason and
-   gap-tuple evidence, complete cleanup evidence, and an `openedAt` unique across the
-   log. A malformed history is `GAP_CLOSURE_INVALID`.
+   gap-tuple evidence, unique reporters and tuples, the exact reporter/requeue/reset
+   relationships, complete cleanup evidence, and typed, sorted added-entry/link
+   evidence equal to the reported gaps. Require an `openedAt` unique across the log. A
+   malformed history is `GAP_CLOSURE_INVALID`.
 3. Walk those records in append order. Require each
    `planMutation.fromPlanHash == cursor`, then advance `cursor` to `toPlanHash`.
 4. With no live gap, require

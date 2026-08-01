@@ -262,6 +262,15 @@ to the fresh disk hash. `GAP_REPORT_SET_INVALID` leaves canonical and processor 
 byte-identical, so a malformed report cannot be silently dropped while its file is
 declared complete.
 
+The processor helpers do not treat those read-only authorizations as standing
+capabilities. Immediately before each processor-state rename, `init-state.sh`
+independently re-derives the exact ordered pending slice and requires the same current
+tier with no collision; `mark-done.sh` independently requires the same current tier,
+no collision, the complete bound writer report, and live bytes equal to `writtenHash`.
+They repeat those checks after preparing the temporary state and before the rename. A
+changed tier, collision set, or slice is `PROCESSOR_AUTHORITY_INVALID` and leaves the
+processor state byte-identical.
+
 `reopen-audit-repair` never blesses changed bytes. Its `completed` source invariant
 requires all queue entries to be written but deliberately does not require live hashes;
 the operation performs that fresh comparison itself. A selected file that still hashes
@@ -734,7 +743,8 @@ ERROR: <named refusal, if any>
   immutable `plan-state.planHash` to the live transition/current authorized hash.
 - `PLAN_DRIFT_BLOCKED`, `GAP_PLAN_DELTA_INVALID`, `GAP_PLAN_HASH_INVALID`,
   `GAP_PLAN_CANDIDATE_MISSING`, `GAP_IN_FLIGHT`, `GAP_REPORTER_INVALID`,
-  `GAP_REPORT_SET_INVALID`, `GAP_CLOSURE_INVALID`, `GAP_PATH_INVALID`,
+  `GAP_REPORT_SET_INVALID`, `GAP_CLOSURE_INVALID`, `PROCESSOR_AUTHORITY_INVALID`,
+  `GAP_PATH_INVALID`,
   `GAP_ALREADY_QUEUED`, `GAP_LOOP`,
   `GAP_TIER_INVALID`, `GAP_MANIFEST_INVALID`, `GAP_COLLISION`,
   `GAP_TRANSITION_INVALID`, `GAP_CLEANUP_INCOMPLETE`, and `WRITE_REPORT_MISSING` leave

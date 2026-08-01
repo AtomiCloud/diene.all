@@ -19,23 +19,30 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 STATE_FILE_ABS=$(realpath -m -- "$STATE_FILE")
 
-bash "$SCRIPT_DIR/init-state.sh" --assert-plan-authority "$PLAN_HASH"
+assert_processor_completion_authority() {
+  local prefix="$REPO_ROOT/.contributor-docs/write-tier-" suffix="/state.json"
+  local tier write_state target_file expected_hash actual_hash
 
-if ! jq -e --arg hash "$PLAN_HASH" '.authorizedPlanHash == $hash' "$STATE_FILE" >/dev/null; then
-  echo "PLAN_DRIFT_BLOCKED: processor authority does not match ${PLAN_HASH}" >&2
-  exit 1
-fi
-
-# Write-tier completion additionally requires the canonical record-write commit. Audit
-# fact-check processors share this helper but have their own stamped durable evidence.
-if [[ $STATE_FILE_ABS == "$REPO_ROOT"/.contributor-docs/write-tier-*/state.json ]]; then
-  WRITE_STATE="$REPO_ROOT/.contributor-docs/write-state.json"
+  if [[ $STATE_FILE_ABS != "$prefix"*"$suffix" ]]; then
+    return 0
+  fi
+  tier=${STATE_FILE_ABS#"$prefix"}
+  tier=${tier%"$suffix"}
+  write_state="$REPO_ROOT/.contributor-docs/write-state.json"
+  if [[ ! $tier =~ ^[1-6]$ ]] || ! jq -e --arg f "$FILENAME" --argjson tier "$tier" '
+    .step == ("write_tier_" + ($tier | tostring)) and .currentTier == $tier and
+    (.blockedCollisions | type == "array" and length == 0) and .gapTransition == null and
+    (.writeQueue | index($f)) != null and .provenance[$f].tier == $tier
+  ' "$write_state" >/dev/null; then
+    echo "PROCESSOR_AUTHORITY_INVALID: current tier or collision set changed" >&2
+    return 1
+  fi
   if ! jq -e --arg f "$FILENAME" '
     .provenance[$f].writeStatus == "written" and
     (.provenance[$f].writtenHash | type == "string" and test("^[0-9a-f]{64}$"))
-  ' "$WRITE_STATE" >/dev/null; then
+  ' "$write_state" >/dev/null; then
     echo "WRITE_INCOMPLETE: '${FILENAME}' has no canonical written record" >&2
-    exit 1
+    return 1
   fi
   if ! jq -e --arg f "$FILENAME" --arg hash "$PLAN_HASH" '
     def sha256: type == "string" and test("^[0-9a-f]{64}$");
@@ -61,11 +68,34 @@ if [[ $STATE_FILE_ABS == "$REPO_ROOT"/.contributor-docs/write-tier-*/state.json 
       ($entry.writerReport.gaps | map([.path,.type,.tier]) | unique | length)) and
     ($entry.writerReport.gaps | group_by(.path) |
       all(.[]; (map({type:.type,tier:.tier}) | unique | length) == 1))
-  ' "$WRITE_STATE" >/dev/null; then
+  ' "$write_state" >/dev/null; then
     echo "GAP_REPORT_SET_INVALID: '${FILENAME}' has no bound writer report" >&2
-    exit 1
+    return 1
   fi
+  target_file=$(realpath -m -- "$REPO_ROOT/$FILENAME")
+  expected_hash=$(jq -r --arg f "$FILENAME" '.provenance[$f].writtenHash' "$write_state")
+  if [[ $target_file != "$REPO_ROOT/"* ]] || [[ ! -f $target_file ]]; then
+    echo "WRITTEN_BYTES_CHANGED: '${FILENAME}' is absent or outside the repository" >&2
+    return 1
+  fi
+  actual_hash=$(sha256sum -- "$target_file" | cut -d ' ' -f1)
+  if [[ $actual_hash != "$expected_hash" ]]; then
+    echo "WRITTEN_BYTES_CHANGED: '${FILENAME}' expected=${expected_hash} actual=${actual_hash}" >&2
+    return 1
+  fi
+}
+
+bash "$SCRIPT_DIR/init-state.sh" --assert-plan-authority "$PLAN_HASH"
+
+if ! jq -e --arg hash "$PLAN_HASH" '.authorizedPlanHash == $hash' "$STATE_FILE" >/dev/null; then
+  echo "PLAN_DRIFT_BLOCKED: processor authority does not match ${PLAN_HASH}" >&2
+  exit 1
 fi
+
+# Write-tier completion additionally revalidates the exact operation snapshot and
+# canonical record-write commit. Audit fact-check processors share this helper but
+# have their own stamped durable evidence.
+assert_processor_completion_authority
 
 # Precondition, evaluated before anything is written: the filename must be known
 # to this state file, either still pending or already processed. jq -e sets a
@@ -94,5 +124,6 @@ if ! jq -e --arg hash "$PLAN_HASH" '.authorizedPlanHash == $hash' "$STATE_FILE" 
   echo "PLAN_DRIFT_BLOCKED: processor authority does not match ${PLAN_HASH}" >&2
   exit 1
 fi
+assert_processor_completion_authority
 mv "$TEMP" "$STATE_FILE"
 trap - EXIT
