@@ -1321,10 +1321,18 @@ log() {
 active_instance_json() {
   local listed_id="${1:-${id}}"
   local cpu=16 memory=32768 kubernetes='1.33'
+  local label_form="${NSC_SHIM_LIST_LABELS:-exact}"
   [ "${NSC_SHIM_LIST_SHAPE:-}" != 'wrong' ] || {
     cpu=4
     memory=8192
   }
+  case "${label_form}" in
+  exact | wrong-generation | wrong-node) ;;
+  *)
+    echo "shim: unmodeled list labels ${label_form}" >&2
+    return 55
+    ;;
+  esac
   # Match the pinned client's direct non-TTY interface: one plain JSON array,
   # with no terminal renderer or modeled ANSI envelope between the client and
   # the production capture boundary.
@@ -1332,10 +1340,18 @@ active_instance_json() {
     --arg id "${listed_id}" \
     --argjson cpu "${cpu}" \
     --argjson memory "${memory}" \
-    --arg kubernetes "${kubernetes}" '
-      [{cluster_id:$id,labels:{"ratchet-node":"fleet","ratchet-generation":"7"},
+    --arg kubernetes "${kubernetes}" \
+    --arg labelForm "${label_form}" '
+      [{cluster_id:$id,labels:{"ratchet-node":"fleet","ratchet-generation":"9"},
         shape:{virtual_cpu:$cpu,memory_megabytes:$memory,machine_arch:"amd64",os:"linux"},
         kubernetes:$kubernetes}]
+      | if $labelForm == "wrong-generation" then
+          .[0].labels["ratchet-generation"] = "7"
+        elif $labelForm == "wrong-node" then
+          .[0].labels["ratchet-node"] = "not-fleet"
+        else
+          .
+        end
     '
 }
 
@@ -1453,7 +1469,7 @@ create)
   done
   expected=(
     --ephemeral --duration 2h --machine_type 16x32 --enable=kubernetes:1.33
-    --wait_kube_system --label ratchet-node=fleet --label ratchet-generation=7
+    --wait_kube_system --label ratchet-node=fleet --label ratchet-generation=9
     --purpose 'fleet full L0-L9 Namespace built-in-k3s proof'
     --cidfile "${cid}" --output json --output_json_to "${metadata}"
   )
@@ -1563,7 +1579,7 @@ list)
     printf '\033[0K'
     ;;
   invalid-utf8)
-    printf '[{"cluster_id":"%s","labels":{"ratchet-node":"fleet","ratchet-generation":"7"},"shape":{"virtual_cpu":16,"memory_megabytes":32768,"machine_arch":"amd64","os":"linux"},"kubernetes":"1.33","ignored":"audited-' "${id}"
+    printf '[{"cluster_id":"%s","labels":{"ratchet-node":"fleet","ratchet-generation":"9"},"shape":{"virtual_cpu":16,"memory_megabytes":32768,"machine_arch":"amd64","os":"linux"},"kubernetes":"1.33","ignored":"audited-' "${id}"
     printf '\xff'
     printf -- '-byte"}]\n'
     ;;
@@ -1750,7 +1766,7 @@ NSL_NSC_SHIM
     .argv == [
       "--ephemeral","--duration","2h","--machine_type","16x32",
       "--enable=kubernetes:1.33","--wait_kube_system",
-      "--label","ratchet-node=fleet","--label","ratchet-generation=7",
+      "--label","ratchet-node=fleet","--label","ratchet-generation=9",
       "--purpose","fleet full L0-L9 Namespace built-in-k3s proof",
       "--cidfile",$cid,"--output","json","--output_json_to",$metadata
     ]
@@ -1781,6 +1797,7 @@ NSL_NSC_SHIM
   # and validated files. Stderr is a separate capture even when stdout is valid.
   nsl_list_before="${nsl_report}/lifecycle/list-before-use.json"
   nsl_list_after="${nsl_report}/lifecycle/destroy-attempt-1/list-after-destroy-1.json"
+  nsl_success_list_before="${nsl_list_before}"
   for nsl_listing in "${nsl_list_before}" "${nsl_list_after}"; do
     test -s "${nsl_listing}" && test -e "${nsl_listing}.raw" &&
       test -e "${nsl_listing}.stderr" ||
@@ -1820,6 +1837,38 @@ NSL_NSC_SHIM
       fail "Namespace lifecycle ${name}: list stderr was not retained separately"
     grep -qF "${reason}" "${nsl_root}/cases/${name}/stderr.txt" ||
       fail "Namespace lifecycle ${name}: expected list refusal reason was not emitted"
+  }
+
+  nsl_assert_single_live_label_delta() {
+    local name="$1" key="$2" wrong_value="$3" reviewed_value="$4"
+    local listing="${nsl_report}/lifecycle/list-before-use.json"
+    if ! { test -s "${listing}" && cmp -s "${listing}.raw" "${listing}"; }; then
+      fail "Namespace lifecycle ${name}: live-label fixture did not cross the validated direct-list boundary intact"
+    fi
+    jq -e \
+      --arg key "${key}" \
+      --arg wrongValue "${wrong_value}" \
+      --arg reviewedValue "${reviewed_value}" \
+      --slurpfile reviewedListing "${nsl_success_list_before}" '
+        type == "array" and length == 1 and
+        .[0].labels[$key] == $wrongValue and
+        (. as $actual |
+          ($actual | .[0].labels[$key] = $reviewedValue) == $reviewedListing[0])
+      ' "${listing}" >/dev/null ||
+      fail "Namespace lifecycle ${name}: the fixture changed more than its one stale live label"
+  }
+
+  nsl_assert_live_label_refusal() {
+    local name="$1" key="$2" wrong_value="$3" reviewed_value="$4"
+    nsl_assert_closed_cleanup "${name}"
+    nsl_assert_single_live_label_delta \
+      "${name}" "${key}" "${wrong_value}" "${reviewed_value}"
+    grep -qxF \
+      'fleet SIT proof failed: live Namespace instance disagrees with exact id, labels, or reviewed shape' \
+      "${nsl_root}/cases/${name}/stderr.txt" ||
+      fail "Namespace lifecycle ${name}: exact live-disagreement diagnostic was not emitted"
+    jq -e '. == null' "${nsl_report}/lifecycle/list-after-destroy.json" >/dev/null ||
+      fail "Namespace lifecycle ${name}: exact-id cleanup retained no JSON-null absence proof"
   }
 
   nsl_run list-empty fail NSC_SHIM_LIST_FORM=empty
@@ -1890,6 +1939,17 @@ NSL_NSC_SHIM
     "${nsl_root}/cases/list-missing-exact-id/stderr.txt" ||
     fail 'Namespace lifecycle array without the exact id was not refused before first use'
 
+  # The exact-id live listing may be fully success-shaped yet still carry stale
+  # provenance. Compare each negative fixture with the ordinary success listing
+  # after correcting only the targeted label, then require the production
+  # validate_live_instance diagnostic and closed exact-id cleanup.
+  nsl_run wrong-live-generation fail NSC_SHIM_LIST_LABELS=wrong-generation
+  nsl_assert_live_label_refusal \
+    wrong-live-generation ratchet-generation 7 9
+  nsl_run wrong-live-node fail NSC_SHIM_LIST_LABELS=wrong-node
+  nsl_assert_live_label_refusal \
+    wrong-live-node ratchet-node not-fleet fleet
+
   # Install deliberately guard-deleted production variants in the committed
   # lifecycle fixture. A mutant that does not alter the relevant case is a weak
   # test and fails here; no copied parser is involved.
@@ -1915,6 +1975,35 @@ NSL_NSC_SHIM
     fi
     git -C "${nsl_fixture}" commit --quiet \
       -m "Remove ${label} list guard" --only scripts/ci/fleet-sit-proof.sh
+  }
+
+  nsl_install_live_label_guard_mutant() {
+    local label="$1" clause="$2"
+    local proof_path='scripts/ci/fleet-sit-proof.sh'
+    local expected_stat=$'0\t1\tscripts/ci/fleet-sit-proof.sh'
+    local mutation_stat
+    awk -v clause="${clause}" '
+      BEGIN { found = 0 }
+      $0 == clause { found++; next }
+      { print }
+      END { if (found != 1) exit 89 }
+    ' "${nsl_proof_baseline}" >"${nsl_fixture}/${proof_path}" ||
+      fail "could not install the ${label} live-label guard mutation"
+    git -C "${nsl_fixture}" add "${proof_path}"
+    if git -C "${nsl_fixture}" diff --cached --quiet; then
+      fail "the ${label} live-label guard mutation changed no production bytes"
+    fi
+    mutation_stat="$(git -C "${nsl_fixture}" diff --cached --numstat -- "${proof_path}")"
+    [ "${mutation_stat}" = "${expected_stat}" ] ||
+      fail "the ${label} live-label guard mutation did not delete exactly one production line"
+    git -C "${nsl_fixture}" diff --cached --unified=0 -- "${proof_path}" |
+      grep -qxF -- "-${clause}" ||
+      fail "the ${label} live-label guard mutation deleted a different production line"
+    git -C "${nsl_fixture}" commit --quiet \
+      -m "Remove ${label} live-label guard" --only "${proof_path}"
+    mutation_stat="$(git -C "${nsl_fixture}" diff-tree --no-commit-id --numstat -r HEAD)"
+    [ "${mutation_stat}" = "${expected_stat}" ] ||
+      fail "the committed ${label} live-label mutant changed more than one production line"
   }
 
   nsl_restore_list_proof() {
@@ -1980,6 +2069,29 @@ NSL_NSC_SHIM
     length == 1 and (.[0] | type) == "array" and .[0][0].cluster_id == $id
   ' "${nsl_list_before}" >/dev/null ||
     fail 'the UTF-8 guard mutant did not prove jq alone accepts the invalid success-shaped list'
+  nsl_restore_list_proof
+
+  # Delete exactly one jq clause from the committed production wrapper. The
+  # same one-label-delta fixtures that fail above must pass only when their own
+  # guard is absent; the other live-label guard remains production-authentic.
+  # The jq variable names are literal production bytes, not shell expansions.
+  # shellcheck disable=SC2016
+  nsl_install_live_label_guard_mutant \
+    generation '      $matches[0].labels[$generationKey] == $generationValue and'
+  nsl_run mutation-live-generation-guard pass NSC_SHIM_LIST_LABELS=wrong-generation
+  nsl_assert_exact_destroy mutation-live-generation-guard
+  nsl_assert_single_live_label_delta \
+    mutation-live-generation-guard ratchet-generation 7 9
+  nsl_restore_list_proof
+
+  # The jq variable names are literal production bytes, not shell expansions.
+  # shellcheck disable=SC2016
+  nsl_install_live_label_guard_mutant \
+    node '      $matches[0].labels[$nodeKey] == $nodeValue and'
+  nsl_run mutation-live-node-guard pass NSC_SHIM_LIST_LABELS=wrong-node
+  nsl_assert_exact_destroy mutation-live-node-guard
+  nsl_assert_single_live_label_delta \
+    mutation-live-node-guard ratchet-node not-fleet fleet
   nsl_restore_list_proof
 
   cmp -s "${nsl_proof_baseline}" "${nsl_fixture}/scripts/ci/fleet-sit-proof.sh" ||
