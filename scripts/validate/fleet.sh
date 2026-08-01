@@ -1175,6 +1175,12 @@ sit-namespace-lifecycle | sit-proof-lifecycle)
     fail 'created-instance recovery no longer tries the cidfile, receipt, and stdout surfaces independently'
   rg -qF 'validate_create_cidfile' "${proof_source}" ||
     fail 'the harness no longer validates the generated cidfile against the pinned instance id'
+  if rg -n "script -q.*nsc list|nsc list.*script -q" "${proof_source}"; then
+    fail 'the production Namespace list path still allocates a pseudo-terminal'
+  fi
+  rg -qF 'nsc list --output json </dev/null >"${raw}" 2>"${output}.stderr"' \
+    "${proof_source}" ||
+    fail 'the production Namespace list path is not the direct non-TTY client interface'
   rg -qF 'namespace_first_line_receipt apk info --who-owns "${path}"' "${sit_source}" ||
     fail 'Wolfi BusyBox tool receipts no longer use fail-closed package ownership'
   if rg -n '(sha256sum|tar|timeout)[[:space:]]+--version' "${sit_source}"; then
@@ -1255,6 +1261,8 @@ NSL_TOOL_RECEIPT_DRIVER
     "${nsl_fixture}/scripts/validate/fleet-sit" \
     "${nsl_bin}"
   cp "${proof_source}" "${nsl_fixture}/scripts/ci/fleet-sit-proof.sh"
+  nsl_proof_baseline="${nsl_root}/fleet-sit-proof.baseline.sh"
+  cp "${proof_source}" "${nsl_proof_baseline}"
   cp "${pins_source}" "${nsl_fixture}/scripts/validate/fleet-sit/pins.env"
   printf '%s\n' fixture >"${nsl_fixture}/platforms/canary/services.yaml"
   printf '%s\n' fixture >"${nsl_fixture}/registry/charts/diene-platform/fixture.yaml"
@@ -1286,6 +1294,13 @@ exit 0
 NSL_SLEEP_SHIM
   chmod +x "${nsl_bin}/sleep"
 
+  cat >"${nsl_bin}/script" <<'NSL_SCRIPT_SHIM'
+#!/usr/bin/env sh
+echo 'the lifecycle fixture forbids pseudo-terminal allocation' >&2
+exit 97
+NSL_SCRIPT_SHIM
+  chmod +x "${nsl_bin}/script"
+
   cat >"${nsl_bin}/nsc" <<'NSL_NSC_SHIM'
 #!/usr/bin/env bash
 set -Eeuo pipefail
@@ -1299,19 +1314,17 @@ log() {
 }
 
 active_instance_json() {
+  local listed_id="${1:-${id}}"
   local cpu=16 memory=32768 kubernetes='1.33'
   [ "${NSC_SHIM_LIST_SHAPE:-}" != 'wrong' ] || {
     cpu=4
     memory=8192
   }
-  # -M is load-bearing, not cosmetic. This is the only shim branch the wrapper
-  # reads through `script -qec ... /dev/null`, which allocates a pty, and jq
-  # colorizes on a tty. Real `nsc --output json` never colorizes, so a colorized
-  # fixture is an unfaithful fixture: it injects ESC bytes that correctly trip
-  # the wrapper's residual-escape guard and make the gate unrunnable in an
-  # ordinary terminal. Keep the production guard strict and the fixture honest.
+  # Match the pinned client's direct non-TTY interface: one plain JSON array,
+  # with no terminal renderer or modeled ANSI envelope between the client and
+  # the production capture boundary.
   jq -nM \
-    --arg id "${id}" \
+    --arg id "${listed_id}" \
     --argjson cpu "${cpu}" \
     --argjson memory "${memory}" \
     --arg kubernetes "${kubernetes}" '
@@ -1511,13 +1524,45 @@ create)
   ;;
 list)
   log 'list'
-  printf '\033[?25l\033[0J\033[0K'
-  if { [ -f "${state}/destroyed" ] && [ "${NSC_SHIM_FAIL_STAGE:-}" != 'absence' ]; }; then
-    printf 'null\n'
-  else
-    active_instance_json
+  [ "${1:-}" = '--output' ] && [ "${2:-}" = 'json' ] && [ "$#" -eq 2 ] || {
+    echo 'shim: list must use exactly --output json' >&2
+    exit 52
+  }
+  [ ! -t 0 ] && [ ! -t 1 ] || {
+    echo 'shim: list must run with direct non-TTY stdin and stdout' >&2
+    exit 53
+  }
+  printf 'fixture direct-list stderr\n' >&2
+  if [ -f "${state}/destroyed" ]; then
+    if [ "${NSC_SHIM_FAIL_STAGE:-}" = 'absence' ]; then
+      active_instance_json
+    else
+      printf 'null\n'
+    fi
+    exit 0
   fi
-  printf '\033[0J\033[?25h'
+  case "${NSC_SHIM_LIST_FORM:-array}" in
+  array) active_instance_json ;;
+  empty) : ;;
+  nonzero-valid)
+    active_instance_json
+    exit 29
+    ;;
+  multiple)
+    active_instance_json
+    active_instance_json
+    ;;
+  malformed) printf '[{"cluster_id":"%s"}' "${id}" ;;
+  escape)
+    active_instance_json
+    printf '\033[0K'
+    ;;
+  missing-id) active_instance_json 'zzzzzzzzzzzzz' ;;
+  *)
+    echo "shim: unmodeled list form ${NSC_SHIM_LIST_FORM:-}" >&2
+    exit 54
+    ;;
+  esac
   ;;
 destroy)
   log "destroy"$'\t'"${1:-}"$'\t'"${2:-}"
@@ -1721,6 +1766,200 @@ NSL_NSC_SHIM
     fail 'successful Namespace lifecycle did not retain the full metadata receipt separately'
   nsl_assert_exact_destroy success
 
+  # The ordinary path pins the live interface itself: one nonempty array before
+  # first use, one JSON null after exact destroy, and byte-identical retained raw
+  # and validated files. Stderr is a separate capture even when stdout is valid.
+  nsl_list_before="${nsl_report}/lifecycle/list-before-use.json"
+  nsl_list_after="${nsl_report}/lifecycle/destroy-attempt-1/list-after-destroy-1.json"
+  for nsl_listing in "${nsl_list_before}" "${nsl_list_after}"; do
+    test -s "${nsl_listing}" && test -e "${nsl_listing}.raw" &&
+      test -e "${nsl_listing}.stderr" ||
+      fail 'successful Namespace lifecycle did not retain list JSON, raw stdout, and stderr separately'
+    cmp -s "${nsl_listing}.raw" "${nsl_listing}" ||
+      fail 'successful Namespace lifecycle rewrote the direct list JSON bytes'
+    grep -qxF 'fixture direct-list stderr' "${nsl_listing}.stderr" ||
+      fail 'successful Namespace lifecycle did not keep list stderr out of raw stdout'
+  done
+  jq -e --arg id "${nsl_id}" '
+    type == "array" and length == 1 and .[0].cluster_id == $id
+  ' "${nsl_list_before}" >/dev/null ||
+    fail 'successful Namespace lifecycle pre-use list is not the live-shaped nonempty array'
+  jq -e '. == null' "${nsl_list_after}" >/dev/null ||
+    fail 'successful Namespace lifecycle post-destroy list is not JSON null'
+
+  nsl_assert_closed_cleanup() {
+    local name="$1"
+    nsl_assert_exact_destroy "${name}"
+    nsl_assert_failed_lifecycle "${name}"
+    jq -e '
+      .cleanup.destroySucceeded == true and
+      .cleanup.exactIdAbsenceProven == true
+    ' "${nsl_report}/lifecycle/lifecycle.json" >/dev/null ||
+      fail "Namespace lifecycle ${name}: refusal did not finish exact destroy and null absence proof"
+  }
+
+  nsl_assert_list_boundary_refusal() {
+    local name="$1" reason="$2"
+    local listing="${nsl_report}/lifecycle/list-before-use.json"
+    nsl_assert_closed_cleanup "${name}"
+    test -e "${listing}.raw" && test -e "${listing}.stderr" ||
+      fail "Namespace lifecycle ${name}: rejected list did not retain raw stdout and stderr"
+    test ! -e "${listing}" ||
+      fail "Namespace lifecycle ${name}: rejected raw list bytes reached the validated output"
+    grep -qxF 'fixture direct-list stderr' "${listing}.stderr" ||
+      fail "Namespace lifecycle ${name}: list stderr was not retained separately"
+    grep -qF "${reason}" "${nsl_root}/cases/${name}/stderr.txt" ||
+      fail "Namespace lifecycle ${name}: expected list refusal reason was not emitted"
+  }
+
+  nsl_run list-empty fail NSC_SHIM_LIST_FORM=empty
+  nsl_assert_list_boundary_refusal list-empty 'nsc list returned empty stdout'
+  test ! -s "${nsl_report}/lifecycle/list-before-use.json.raw" ||
+    fail 'Namespace lifecycle list-empty fixture emitted nonempty stdout'
+
+  nsl_run list-nonzero-valid fail NSC_SHIM_LIST_FORM=nonzero-valid
+  nsl_assert_list_boundary_refusal \
+    list-nonzero-valid 'nsc list exited 29; refusing its retained stdout'
+  jq -e --arg id "${nsl_id}" '
+    type == "array" and any(.[]; .cluster_id == $id)
+  ' "${nsl_report}/lifecycle/list-before-use.json.raw" >/dev/null ||
+    fail 'Namespace lifecycle nonzero-list fixture did not retain its valid-looking partial stdout'
+
+  nsl_run list-multiple-values fail NSC_SHIM_LIST_FORM=multiple
+  nsl_assert_list_boundary_refusal \
+    list-multiple-values 'nsc list stdout is not exactly one JSON null or array value'
+  jq -e -s --arg id "${nsl_id}" '
+    length == 2 and all(.[]; type == "array" and any(.[]; .cluster_id == $id))
+  ' "${nsl_report}/lifecycle/list-before-use.json.raw" >/dev/null ||
+    fail 'Namespace lifecycle multiple-list fixture is not two success-shaped arrays'
+
+  nsl_run list-malformed fail NSC_SHIM_LIST_FORM=malformed
+  nsl_assert_list_boundary_refusal \
+    list-malformed 'nsc list stdout is not exactly one JSON null or array value'
+  if jq -e -s . "${nsl_report}/lifecycle/list-before-use.json.raw" >/dev/null 2>&1; then
+    fail 'Namespace lifecycle malformed-list fixture unexpectedly parses as complete JSON'
+  fi
+
+  nsl_run list-escape fail NSC_SHIM_LIST_FORM=escape
+  nsl_assert_list_boundary_refusal list-escape 'nsc list stdout contains an ESC byte'
+  LC_ALL=C grep -q $'\033' "${nsl_report}/lifecycle/list-before-use.json.raw" ||
+    fail 'Namespace lifecycle escape-list fixture contains no literal ESC byte'
+
+  # A syntactically valid array reaches the exact-id selection predicate but
+  # cannot authorize first use unless it contains the one registered id.
+  nsl_run list-missing-exact-id fail NSC_SHIM_LIST_FORM=missing-id
+  nsl_assert_closed_cleanup list-missing-exact-id
+  nsl_list_before="${nsl_report}/lifecycle/list-before-use.json"
+  if ! { test -s "${nsl_list_before}" &&
+    cmp -s "${nsl_list_before}.raw" "${nsl_list_before}"; }; then
+    fail 'Namespace lifecycle missing-id fixture did not cross the validated direct-list boundary intact'
+  fi
+  jq -e --arg id "${nsl_id}" '
+    type == "array" and length == 1 and all(.[]; .cluster_id != $id)
+  ' "${nsl_list_before}" >/dev/null ||
+    fail 'Namespace lifecycle missing-id fixture accidentally contains the exact registered id'
+  grep -qF 'live Namespace instance disagrees with exact id, labels, or reviewed shape' \
+    "${nsl_root}/cases/list-missing-exact-id/stderr.txt" ||
+    fail 'Namespace lifecycle array without the exact id was not refused before first use'
+
+  # Install deliberately guard-deleted production variants in the committed
+  # lifecycle fixture. A mutant that does not alter the relevant case is a weak
+  # test and fails here; no copied parser is involved.
+  nsl_install_list_guard_mutant() {
+    local label="$1" marker="$2"
+    awk -v marker="${marker}" -v label="${label}" '
+      BEGIN { found = 0; skipping = 0 }
+      $0 == marker {
+        found++
+        print
+        print "  : # lifecycle mutation removed " label
+        skipping = 1
+        next
+      }
+      skipping && $0 == "  fi" { skipping = 0; next }
+      !skipping { print }
+      END { if (found != 1 || skipping) exit 89 }
+    ' "${nsl_proof_baseline}" >"${nsl_fixture}/scripts/ci/fleet-sit-proof.sh" ||
+      fail "could not install the ${label} list-guard mutation"
+    git -C "${nsl_fixture}" add scripts/ci/fleet-sit-proof.sh
+    if git -C "${nsl_fixture}" diff --cached --quiet; then
+      fail "the ${label} list-guard mutation changed no production bytes"
+    fi
+    git -C "${nsl_fixture}" commit --quiet \
+      -m "Remove ${label} list guard" --only scripts/ci/fleet-sit-proof.sh
+  }
+
+  nsl_restore_list_proof() {
+    cp "${nsl_proof_baseline}" "${nsl_fixture}/scripts/ci/fleet-sit-proof.sh"
+    git -C "${nsl_fixture}" add scripts/ci/fleet-sit-proof.sh
+    if ! git -C "${nsl_fixture}" diff --cached --quiet; then
+      git -C "${nsl_fixture}" commit --quiet \
+        -m 'Restore direct list guards' --only scripts/ci/fleet-sit-proof.sh
+    fi
+  }
+
+  nsl_install_list_guard_mutant \
+    exit-status '  # The command status remains authoritative even when stdout looks complete.'
+  nsl_run mutation-list-exit-guard pass NSC_SHIM_LIST_FORM=nonzero-valid
+  nsl_assert_exact_destroy mutation-list-exit-guard
+  nsl_restore_list_proof
+
+  nsl_install_list_guard_mutant \
+    empty-output '  # Empty stdout is a distinct client failure, not an empty instance set.'
+  nsl_run mutation-list-empty-guard fail NSC_SHIM_LIST_FORM=empty
+  nsl_assert_closed_cleanup mutation-list-empty-guard
+  if grep -qF 'nsc list returned empty stdout' \
+    "${nsl_root}/cases/mutation-list-empty-guard/stderr.txt"; then
+    fail 'removing the empty-list guard left the empty-list refusal assertion green'
+  fi
+  grep -qF 'nsc list stdout is not exactly one JSON null or array value' \
+    "${nsl_root}/cases/mutation-list-empty-guard/stderr.txt" ||
+    fail 'the empty-list mutant did not reach the later single-value guard'
+  nsl_restore_list_proof
+
+  nsl_install_list_guard_mutant \
+    single-value '  # jq must observe exactly one complete top-level null or array value.'
+  nsl_run mutation-list-single-value-guard pass NSC_SHIM_LIST_FORM=multiple
+  nsl_assert_exact_destroy mutation-list-single-value-guard
+  nsl_restore_list_proof
+
+  nsl_install_list_guard_mutant \
+    escape-byte '  # Never sanitize control bytes into evidence that the client did not emit.'
+  nsl_run mutation-list-escape-guard fail NSC_SHIM_LIST_FORM=escape
+  nsl_assert_closed_cleanup mutation-list-escape-guard
+  if grep -qF 'nsc list stdout contains an ESC byte' \
+    "${nsl_root}/cases/mutation-list-escape-guard/stderr.txt"; then
+    fail 'removing the ESC-byte guard left the escape-list refusal assertion green'
+  fi
+  grep -qF 'nsc list stdout is not exactly one JSON null or array value' \
+    "${nsl_root}/cases/mutation-list-escape-guard/stderr.txt" ||
+    fail 'the escape-list mutant did not reach the later JSON boundary'
+  nsl_restore_list_proof
+  cmp -s "${nsl_proof_baseline}" "${nsl_fixture}/scripts/ci/fleet-sit-proof.sh" ||
+    fail 'the lifecycle fixture did not restore the unmutated production list guards'
+  test -z "$(git -C "${nsl_fixture}" status --porcelain --untracked-files=all)" ||
+    fail 'the lifecycle fixture remained dirty after list-guard mutation proofs'
+
+  # A success-shaped exact-id array after destroy is not absence. The wrapper
+  # must exhaust its bounded probes, retain the direct bytes, and refuse pass.
+  nsl_run list-present-after-destroy fail NSC_SHIM_FAIL_STAGE=absence
+  nsl_assert_exact_destroy list-present-after-destroy
+  nsl_assert_failed_lifecycle list-present-after-destroy
+  nsl_list_after="${nsl_report}/lifecycle/destroy-attempt-1/list-after-destroy-10.json"
+  if ! { test -s "${nsl_list_after}" &&
+    cmp -s "${nsl_list_after}.raw" "${nsl_list_after}"; }; then
+    fail 'Namespace lifecycle retained no validated direct array after the failed absence probes'
+  fi
+  jq -e --arg id "${nsl_id}" '
+    type == "array" and any(.[]; .cluster_id == $id)
+  ' "${nsl_list_after}" >/dev/null ||
+    fail 'Namespace lifecycle post-destroy refusal fixture no longer contains the exact id'
+  jq -e '
+    .cleanup.destroySucceeded == true and
+    .cleanup.exactIdAbsenceProven == false
+  ' "${nsl_report}/lifecycle/lifecycle.json" >/dev/null ||
+    fail 'Namespace lifecycle accepted an exact-id array as post-destroy absence'
+
   # A lead-provided instance/receipt skips create, is still fully validated,
   # and remains owned by the exact-id cleanup path.
   nsl_precreated_receipt="${nsl_root}/precreated-create.json"
@@ -1784,7 +2023,7 @@ NSL_NSC_SHIM
   # exact-id destroy path. The report-validation case proves outer bytes do not
   # trust an inner success claim; destroy/absence cases prove pass is ordered
   # after cleanup, never before it.
-  for nsl_stage in create-signal create-nonzero upload setup inner wrong-k3s archive download report-validation destroy absence hostname; do
+  for nsl_stage in create-signal create-nonzero upload setup inner wrong-k3s archive download report-validation destroy hostname; do
     nsl_run "failure-${nsl_stage}" fail "NSC_SHIM_FAIL_STAGE=${nsl_stage}"
     nsl_assert_exact_destroy "failure-${nsl_stage}"
     nsl_assert_failed_lifecycle "failure-${nsl_stage}"
