@@ -27,8 +27,9 @@ their trigger block:
 
 Callers grant permissions, pass only repository-specific values, and use
 `secrets: inherit`. The `a-workflows` gate enforces that every orchestrator
-job resolves to a repository-local reusable workflow and that each reusable
-workflow calls an existing, executable `scripts/ci` entry point.
+job resolves to a repository-local reusable workflow, that each reusable
+workflow calls an existing, executable `scripts/ci` entry point, and that the
+selected runner and Namespace cache tag satisfy the S31 shape below.
 
 `AtomiCloud/actions.setup-nix` checks out the repository, so do not add an
 adjacent `actions/checkout`.
@@ -42,14 +43,28 @@ plus its tag in a trailing comment. Which actions are trusted is recorded in
 fails any action used in a workflow that has no classification, so adding an
 action means adding its entry there.
 
-Every nscloud Nix job carries exactly one shared tag:
+Runner selection is 26.04-first. GitHub-hosted jobs select `ubuntu-26.04`;
+Namespace jobs select `nscloud-ubuntu-26.04-amd64-16x32`. The only permitted
+fallbacks are `ubuntu-24.04` and `nscloud-ubuntu-24.04-amd64-16x32`. A job that
+selects a fallback records a non-empty reason in job-level
+`env.S31_RUNNER_FALLBACK_REASON`; primary jobs do not carry that fallback
+record. Primary and fallback Namespace venue labels are never combined.
+
+Every Namespace Nix job carries exactly one shared OS-sensitive tag. The two
+valid label/tag pairs are:
 
 ```text
-nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
+nscloud-ubuntu-26.04-amd64-16x32
+nscloud-cache-tag-atomi-nix-store-cache-ubuntu-26.04-amd64
+
+nscloud-ubuntu-24.04-amd64-16x32
+nscloud-cache-tag-atomi-nix-store-cache-ubuntu-24.04-amd64
 ```
 
-The organization stays constant; only runner OS and architecture vary. Never
-introduce per-platform or per-service cache tags.
+The organization stays constant; only runner OS and architecture vary. An OS
+change rotates the tag and starts with one cold build before warm reuse. Never
+alias or carry a 24.04 cache into 26.04, and never introduce per-platform or
+per-service cache tags.
 
 ## Local reproduction
 

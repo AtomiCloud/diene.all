@@ -118,7 +118,9 @@ Nix jobs use a single shared store cache — **not** per-service — so the cach
 deliberately not namespaced by platform or service. The tags in use are declared on the
 `runs-on:` lines of the reusable workflows in
 [`.github/workflows/`](../../../.github/workflows): read a cached job's runner list to
-see the tag it carries and how the OS and architecture appear in it. Never introduce a
+see the tag it carries and how the OS and architecture appear in it. The family is
+`nscloud-cache-tag-atomi-nix-store-cache-{os}-{arch}`; selecting another OS rotates the
+tag and starts cold rather than aliasing another OS's cache. Never introduce a
 per-platform or per-service tag.
 
 ### Platform / Service usage
