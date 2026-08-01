@@ -464,6 +464,7 @@ JQ
     expectedAddedCrossLinks:[{reportedBy:"docs/r.mdx",field:"concepts",target:"docs/a.mdx"}]
   }')
 
+  CONTROL_FAILURES_BEFORE=$FAILURES
   for OPERATION in write-dispatch audit-dispatch advance-task-phase-to-audit advance-task-phase-to-completed; do
     if ! jq -n -L "$CONTROL_DIR" --argjson state "$PLAN_BASE" --arg operation "$OPERATION" \
       --argjson data '{}' -f "$CONTROL_DIR/reducer.jq" >/dev/null; then
@@ -482,7 +483,11 @@ JQ
       contract_failure "Post-approval tamper mutated reducer state for ${OPERATION}"
     fi
   done
+  if [[ $FAILURES -eq $CONTROL_FAILURES_BEFORE ]]; then
+    echo '✅ Ordinary write/audit dispatch and both terminal handoffs rejected post-approval plan tampering'
+  fi
 
+  CONTROL_FAILURES_BEFORE=$FAILURES
   if ! AUTHORIZED=$(jq -n -L "$CONTROL_DIR" --argjson state \
     "$(jq -c --arg hash "$PLAN_B" '.candidateHash = $hash' <<<"$PLAN_BASE")" \
     --arg operation authorize-gap-plan --argjson data "$PLAN_MUTATION" -f "$CONTROL_DIR/reducer.jq"); then
@@ -502,7 +507,11 @@ JQ
         --argjson data '{}' -f "$CONTROL_DIR/reducer.jq" >/dev/null; then
       contract_failure 'Gap successor did not authorize ordinary dispatch'
     fi
+    if [[ $FAILURES -eq $CONTROL_FAILURES_BEFORE ]]; then
+      echo '✅ Exact discovered-gap successor was authorized, applied, and accepted by ordinary dispatch'
+    fi
 
+    CONTROL_FAILURES_BEFORE=$FAILURES
     BAD_DELTA=$(jq -c '.addedPlanEntries += [{outputPath:"docs/extra.mdx",container:"shared",entry:{path:"extra.mdx",type:"concept",tier:1}}]' <<<"$PLAN_MUTATION")
     if OUTPUT=$(jq -n -L "$CONTROL_DIR" --argjson state \
       "$(jq -c --arg hash "$PLAN_B" '.candidateHash = $hash' <<<"$PLAN_BASE")" \
@@ -511,7 +520,11 @@ JQ
     elif [[ $OUTPUT != *GAP_PLAN_DELTA_INVALID* ]]; then
       contract_failure 'Extra semantic gap delta failed for the wrong reason'
     fi
+    if [[ $FAILURES -eq $CONTROL_FAILURES_BEFORE ]]; then
+      echo '✅ Extra semantic gap delta was rejected without changing authority'
+    fi
 
+    CONTROL_FAILURES_BEFORE=$FAILURES
     WRONG_CANDIDATE=$(jq -c --arg hash "$PLAN_C" '.candidateHash = $hash' <<<"$AUTHORIZED")
     if OUTPUT=$(jq -n -L "$CONTROL_DIR" --argjson state "$WRONG_CANDIDATE" \
       --arg operation apply-gap-plan --argjson data '{}' -f "$CONTROL_DIR/reducer.jq" 2>&1); then
@@ -519,7 +532,11 @@ JQ
     elif [[ $OUTPUT != *GAP_PLAN_HASH_INVALID* ]]; then
       contract_failure 'Wrong gap candidate hash failed for the wrong reason'
     fi
+    if [[ $FAILURES -eq $CONTROL_FAILURES_BEFORE ]]; then
+      echo '✅ Wrong gap candidate hash was rejected without changing authority'
+    fi
 
+    CONTROL_FAILURES_BEFORE=$FAILURES
     MISSING_CANDIDATE=$(jq -c '.candidateHash = null' <<<"$AUTHORIZED")
     if OUTPUT=$(jq -n -L "$CONTROL_DIR" --argjson state "$MISSING_CANDIDATE" \
       --arg operation apply-gap-plan --argjson data '{}' -f "$CONTROL_DIR/reducer.jq" 2>&1); then
@@ -527,7 +544,11 @@ JQ
     elif [[ $OUTPUT != *GAP_PLAN_CANDIDATE_MISSING* ]]; then
       contract_failure 'Missing gap candidate failed for the wrong reason'
     fi
+    if [[ $FAILURES -eq $CONTROL_FAILURES_BEFORE ]]; then
+      echo '✅ Missing gap candidate was rejected without changing authority'
+    fi
 
+    CONTROL_FAILURES_BEFORE=$FAILURES
     CRASH_TUPLE=$(jq -c --arg hash "$PLAN_B" '.livePlanHash = $hash | .candidateHash = null' <<<"$AUTHORIZED")
     if ! CRASH_ADOPTED=$(jq -n -L "$CONTROL_DIR" --argjson state "$CRASH_TUPLE" \
       --arg operation apply-gap-plan --argjson data '{}' -f "$CONTROL_DIR/reducer.jq") ||
@@ -535,6 +556,9 @@ JQ
         --arg operation apply-gap-plan --argjson data '{}' -f "$CONTROL_DIR/reducer.jq") ||
       ! cmp -s <(jq -cS . <<<"$CRASH_ADOPTED") <(jq -cS . <<<"$CRASH_IDEMPOTENT"); then
       contract_failure 'Rename-before-state crash tuple was not adopted idempotently'
+    fi
+    if [[ $FAILURES -eq $CONTROL_FAILURES_BEFORE ]]; then
+      echo '✅ Rename-before-state crash tuple was adopted and replayed idempotently'
     fi
   fi
 
