@@ -63,6 +63,15 @@ Every write uses a temporary file in `.contributor-docs/` followed by `mv`.
 Validation happens before the rename. A refusal or validation failure leaves the
 previous state byte-identical.
 
+Every mode that creates, changes, or removes anything does so as one authority
+transaction from [workflow.md](../workflow.md#authority-transaction): acquire the
+canonical lock once, reread and completely revalidate every input under it, record
+the operation's preimages, do only short local filesystem work, make each rename
+conditional on those preimages, append the transition log, and release. Assessment
+is read-only and takes no lock; any mutation derived from an assessment reacquires
+the lock and revalidates from disk. Contention is `AUTHORITY_BUSY` with every audit
+state file, report, finding, sidecar, and processor artifact byte-identical.
+
 ## Plan Authority Validation
 
 Every mode uses this one read-only validation before it creates, reports, changes, or
@@ -148,10 +157,11 @@ This mode creates only `audit-state.json`. The plan state-agent owns
 8. Build the exact mirrored object above with `step: "big_picture"`,
    `auditEpoch: 1`, the computed non-null digest, false flags, zero counters, and
    an empty warning collection.
-9. Validate the complete object and freshly repeat the plan-authority/live-hash check.
-   Then write a temporary file and atomically rename it to
-   `.contributor-docs/audit-state.json`. Plan mutation remains fenced through
-   acceptance.
+9. Validate the complete object and freshly repeat the plan-authority/live-hash check
+   under the held lock. Then write a temporary file and, conditional on the preimages
+   recorded at acquisition — including the proven absence of `audit-state.json` —
+   atomically rename it to `.contributor-docs/audit-state.json`. Plan mutation
+   remains fenced through acceptance.
 10. Parse the installed file and validate it again. On failure, remove only the
     audit-state file created by this mode and report `CREATE_FAILED: <reason>`.
 
@@ -314,10 +324,15 @@ to compare with the independently derived set, never a value to install on trust
    hashes, counters, and operation-specific rules below. Validate the complete
    candidate object before any write.
 7. Immediately before the first effect, freshly rerun the complete authority-chain
-   validation and live-plan hash. Plan mutation is fenced until the operation is
-   accepted. A mismatch takes the non-mutating plan-drift outcome.
-8. Write each changed state file through a temporary file and atomic rename. Append a
-   step or phase transition only after its corresponding rename.
+   validation and live-plan hash under the held lock. Plan mutation is fenced until
+   the operation is accepted. A mismatch takes the non-mutating plan-drift outcome.
+8. Write each changed state file through a temporary file and atomic rename, each
+   rename conditional on the preimages recorded at acquisition. Append a step or
+   phase transition after its corresponding rename and before releasing the lock.
+   `fail-audit`'s ordered audit-state-then-task-phase renames happen inside one
+   acquisition; the lock removes the interleaving but not the crash window, so the
+   documented failure pairing and its `resume-failed-task-phase` recovery are
+   unchanged.
 9. Report the selected operation and resulting fixed state. An unknown key, wrong
    envelope, wrong edge, or stale evidence is `UPDATE_REFUSED: <reason>` and leaves all
    files byte-identical except for the documented two-rename failure pairing.
@@ -366,6 +381,10 @@ complete next-epoch state.
 
 ### Procedure
 
+Steps 1 through 8 run inside one acquisition of the canonical lock from
+[workflow.md](../workflow.md#authority-transaction); every read below is taken after
+acquiring it, and step 9 reports after releasing it.
+
 1. Read and validate audit, task, plan, and write state files and resolve `docsRoot`.
    The complete write state and its plan lineage are required on both a new reset and
    every cleanup/task-phase resume.
@@ -401,18 +420,27 @@ complete next-epoch state.
    completion flags false, every counter zero, and `acceptedWarnings: []`.
 6. Validate that object and freshly repeat the full plan-authority/live-hash check.
    Fence plan mutation through the remaining reset effects, write the object to a
-   temporary file, and atomically rename it over `audit-state.json`. This single
-   rename commits both the new epoch and every reset field together.
-7. After the rename, remove these stale artifacts in place:
+   temporary file, and — conditional on the preimages recorded at acquisition —
+   atomically rename it over `audit-state.json`. This single rename commits both the
+   new epoch and every reset field together and remains the reset's commit marker.
+7. After the rename, still holding the lock, remove these stale artifacts in place:
    - `.contributor-docs/big-picture-report.md`;
    - `.contributor-docs/fact-check/state.json`;
    - `.contributor-docs/fact-check/epoch.json`;
    - every artifact under `.contributor-docs/fact-check/findings/`.
 8. Only after cleanup succeeds, atomically set task phase `failed → audit` for the
-   no-current-content-error path and append its phase transition. For a completed content
-   repair, require task phase already `audit` and leave it byte-identical.
+   no-current-content-error path and append its phase transition before releasing the
+   lock. For a completed content repair, require task phase already `audit` and leave
+   it byte-identical.
 9. Report the committed epoch and the number of artifacts actually removed, together
    with the six exact plan-identity fields.
+
+Ordering here is deliberate and unchanged by the lock: the epoch rename commits, then
+cleanup runs, then the task phase moves. Every crash tuple in Recovery below is still
+reachable, because process death releases the lock without undoing a landed rename.
+The reset-owned artifacts are recognized as the unfinished-cleanup marker exactly as
+documented; resume repeats cleanup under a fresh acquisition and does not re-increment
+the epoch.
 
 Do not archive artifacts or change their canonical paths. Missing paths count as
 already removed, so cleanup is idempotent.

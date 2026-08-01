@@ -140,9 +140,17 @@ Evaluate each of the six check categories above. For every finding, record:
 
 Write `.contributor-docs/big-picture-report.md` with the three comments immediately
 after the title. Substitute the exact supplied values; do not copy the example values
-literally. Render the complete report before changing the canonical path, then freshly
-hash the exact live plan immediately before the report write. On mismatch, leave the
-prior report byte-identical and return `PLAN_DRIFT_BLOCKED`.
+literally. Render the complete report to a staged temp file in `.contributor-docs/`
+before changing the canonical path, and hold no lock while rendering.
+
+The install is one authority transaction from
+[workflow.md](../workflow.md#authority-transaction): acquire the canonical lock,
+freshly hash the exact live plan and require equality with `{PLAN_SHA256}`, recheck the
+epoch and docs digest supplied to this run against freshly read `audit-state.json`, and
+only then rename the staged file over the report. The rename is conditional on those
+preimages and on the prior report's exact bytes or proven absence. On mismatch, remove
+the temp file, leave the prior report byte-identical, and return `PLAN_DRIFT_BLOCKED`;
+on contention return `AUTHORITY_BUSY` and install nothing.
 
 ```markdown
 # Big Picture Audit Report

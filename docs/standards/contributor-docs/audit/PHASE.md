@@ -112,7 +112,17 @@ findings, the big-picture report, and reset-owned artifacts remain byte-identica
 Assessment reports the exact derived fields `approvedPlanHash`,
 `authorizedPlanHash`, `livePlanHash`, `planHashCurrent`, `planHashMismatch`, and
 `gapPlanApplyRequired`; `planHashCurrent` is true only when the complete chain and
-ordinary live identity are current.
+ordinary live identity are current. Assessment is a read-only observation and takes no
+lock; it confers no capability, so any mutation based on it reacquires the canonical
+lock and revalidates from disk.
+
+The canonical lock in [workflow.md](../workflow.md#authority-transaction) is advisory
+and orders only the contract-compliant mutators listed there. A raw editor write to a
+document, a plan, or a state file cannot be prevented by it. Such a write is caught the
+same way it always was: by the conditional renames inside each transaction before it
+commits, and by the fresh source, plan, digest, and document hashes above once it has
+landed. Direct state or plan mutation stays invalid — the lock does not make a hostile
+writer impossible, only a compliant one orderly.
 
 ### Canonical Docs Digest
 
@@ -301,12 +311,22 @@ printf '%s\n' "${all_doc_files[@]}" |
 ```
 
 The audit state-agent supplies `authorized_plan_hash` only after its fresh complete
-authority assessment. `init-state.sh` repeats the closed-chain/live-hash/candidate
-checks immediately before its atomic processor-state rename and stores that hash in
-the processor state. A refusal creates no processor state.
+authority assessment. `init-state.sh` runs the whole initialization as one authority
+transaction from [workflow.md](../workflow.md#authority-transaction): it acquires the
+canonical lock before its first authority or state read, repeats the
+closed-chain/live-hash/candidate checks immediately before its atomic processor-state
+rename, makes that rename conditional on the processor-state preimage — including
+proven absence — and stores the supplied hash in the processor state. A refusal
+creates no processor state and leaves no temp file.
 
-Immediately after initialization, atomically write this sibling file with the
-current values:
+A fact-check processor carries `"recordWriteAuthorizations": null`. That field is the
+durable start-authority map for write-tier processors only; fact-checkers audit bytes
+and never call `record-write`, so there is no start authority to capture and an
+explicit `null` is required rather than an absent key. Contention while initializing
+is `AUTHORITY_BUSY`, leaving processor state, the sidecar, and findings byte-identical.
+
+Immediately after initialization, inside the same acquisition, atomically write this
+sibling file with the current values:
 
 ```json
 {
@@ -350,9 +370,16 @@ bash docs/standards/contributor-docs/scripts/mark-done.sh \
   --plan-hash "$authorized_plan_hash"
 ```
 
-`mark-done.sh` requires the processor's stored authority to match, then freshly repeats
-the complete chain/live-plan check immediately before its atomic rename. Plan drift in
-the interval after finding validation therefore leaves processor state byte-identical.
+`mark-done.sh` runs as one authority transaction from
+[workflow.md](../workflow.md#authority-transaction). It acquires the canonical lock
+before its first processor or authority read, requires the processor's stored authority
+to match, freshly repeats the complete chain/live-plan check, and makes its atomic
+rename conditional on the processor-state preimage it captured under the lock — so two
+concurrent marks cannot both prepare from the same preimage and lose one another. Plan
+drift or a changed preimage in the interval after finding validation leaves processor
+state byte-identical; contention is `AUTHORITY_BUSY` with nothing marked. `next-file.sh`
+stays read-only and takes no lock: it returns an observation, and every mutation derived
+from it revalidates under its own acquisition.
 
 An agent hard error transitions the active audit step to `failed`. Its reason
 belongs in the orchestrator's audit run report and transition log; it does not
@@ -484,12 +511,14 @@ is no manual state-file call or generic retry branch:
    temp-file rename. That rename is the reset's commit marker. The reset and every
    cleanup/task-phase resume revalidate current plan identity immediately before their
    next effect; `PLAN_DRIFT_BLOCKED` leaves state and artifacts byte-identical.
-5. Only after the commit marker lands, remove
-   `.contributor-docs/big-picture-report.md`,
+5. Only after the commit marker lands, and still inside the same authority
+   transaction, remove `.contributor-docs/big-picture-report.md`,
    `.contributor-docs/fact-check/state.json`,
    `.contributor-docs/fact-check/epoch.json`, and every findings artifact under
    `.contributor-docs/fact-check/findings/`. Remove them in place; do not
-   archive or rename the canonical paths.
+   archive or rename the canonical paths. The lock does not reorder this: the commit
+   marker still lands before deletion, and a crash between them still leaves the
+   documented resume-cleanup tuple.
 6. If task phase is still `failed` (the no-current-content-error path), set it to `audit`.
    A content-repair replay already returned it to `audit`. Re-audit from the top;
    partial re-audits are not permitted.

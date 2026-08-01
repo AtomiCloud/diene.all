@@ -172,14 +172,24 @@ Before writing:
 
 Write the complete file (frontmatter + body) to {filePath}, replacing the scaffolded version.
 
+Render the complete document and stage it to a temp file in {filePath}'s own
+directory **outside** any lock. Authoring is long-running and must never hold one.
+The replacement itself is one authority transaction from
+[workflow.md](../workflow.md#authority-transaction): acquire the lock, then inside
+it perform the plan check below, the provenance check below, and the rename.
+
 Immediately before the authorized write, freshly hash the exact live plan and require
 equality with `{PLAN_SHA256}`. Perform this check after validation and body rendering
-but before any document bytes change. On mismatch, return `PLAN_DRIFT_BLOCKED` and
+but before any document bytes change, and repeat it under the lock against freshly
+read bytes. On mismatch, return `PLAN_DRIFT_BLOCKED`, remove the staged temp file, and
 leave the document byte-identical.
 
-Before writing, confirm {filePath}'s provenance still holds. Hash the current bytes and
-check them against exactly these authorizations — the first that matches wins, and if
-none matches, the file changed under you: **stop and report instead of writing**.
+Before writing, confirm {filePath}'s provenance still holds. Under the same held lock,
+hash the current bytes freshly from disk and check them against exactly these
+authorizations — the first that matches wins, and if none matches, the file changed
+under you: **stop and report instead of writing**. This pre-write hash is the
+document's preimage: the rename is conditional on it, so a byte change that lands
+between the check and the rename cannot be overwritten.
 
 | Provenance state                                  | Authorized if current bytes hash to                              | Meaning                                |
 | ------------------------------------------------- | ---------------------------------------------------------------- | -------------------------------------- |
@@ -200,7 +210,11 @@ retained `writtenHash`. When bytes differ from both normal hashes, stop first. T
 orchestrator may append a fresh approval only after showing that exact collision to
 the user. After a successful approved write, `record-write` consumes that approval.
 
-Note what is _not_ authorization: `writeStatus: "pending"` by itself. If `writtenHash`
+Note what is _not_ authorization: `writeStatus: "pending"` by itself, and holding the
+lock. The lock is advisory: it orders the contract-compliant writers, and an editor,
+a script, or a hand-run command can change {filePath} while it is held. What catches
+that is the conditional rename against the pre-write hash and the fresh rehash in
+step 7 — never the assumption that no one else could have written. If `writtenHash`
 is recorded and the bytes do not match it, something outside this workflow changed the
 file — an outside edit, or a writer that crashed mid-write. Report it; the orchestrator
 persists the exact mismatch through state-agent `record-writer-collision` and, if the

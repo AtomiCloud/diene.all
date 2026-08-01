@@ -91,6 +91,22 @@ through a temp file in `.contributor-docs/` followed by `mv`, so an interrupted
 run never leaves a partially written state file. Atomicity per file plus the
 commit-marker ordering is what makes the two-file creation crash safe.
 
+**One authority transaction.** Both bootstrap renames happen inside a single
+acquisition of the canonical lock defined in
+[workflow.md](../workflow.md#authority-transaction). Steps 2 through 6 run under
+that one lock: reread and revalidate the on-disk pair after acquiring it, install
+`plan-state.json`, then `task-state.json`, and append the transition log before
+releasing. Each rename is conditional on the preimages read under the lock; a
+changed preimage removes the temp file and leaves both paths byte-identical.
+Contention is `AUTHORITY_BUSY` with nothing created — never a blocking wait and
+never a second acquisition.
+
+Holding one lock across both renames removes the interleaving in which another
+mutator observes the half-built pair. It does **not** remove the crash window:
+the process can still die between the renames, and the `plan-state.json`-only row
+of the branch table above remains exactly as documented. Ordering, not locking,
+is what makes that window recoverable.
+
 ### Recovery Is Retryable
 
 Re-running `create` after a crash is always legal and always converges: the branch
@@ -163,8 +179,14 @@ The object must name exactly one legal operation below. A generic field patch is
 
 ### Universal Procedure
 
+Render any expensive content first, then acquire the canonical lock from
+[workflow.md](../workflow.md#authority-transaction) exactly once. Every step below
+runs under that single acquisition; contention is `AUTHORITY_BUSY` with every file
+byte-identical.
+
 1. Read and completely validate both state files and the source step's stored
-   structural invariants. Live artifact freshness is operation-specific:
+   structural invariants — freshly, after acquiring the lock, never from an
+   observation taken before it. Live artifact freshness is operation-specific:
    `invalidate-diff-summary` is allowed to prove the summary or source-snapshot mismatch that every later
    operation must refuse, and `invalidate-plan` is allowed to prove the plan mismatch
    that every other review or completion operation must refuse.
@@ -177,8 +199,15 @@ The object must name exactly one legal operation below. A generic field patch is
 4. Build the operation's complete candidate object; never merge caller fields into
    state.
 5. Validate the candidate and target-step invariants before writing.
-6. Write through a temp file in `.contributor-docs/` plus atomic rename.
-7. Append the transition log only after the rename.
+6. Stage the candidate to a temp file in `.contributor-docs/`, then immediately
+   before the rename recheck the preimages recorded in step 1. A mismatch removes
+   the temp file and refuses without replacing state.
+7. Append the transition log after the rename and before releasing the lock, so a
+   committed transition is never visible without its log entry.
+
+`advance-task-phase-to-write` writes only `task-state.json`, but it takes the same
+lock and its rename is conditional on the `plan-state.json` preimage it validated,
+so the completed plan object cannot move underneath the handoff.
 
 ### Legal Operations
 

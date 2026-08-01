@@ -78,6 +78,21 @@ Write `.contributor-docs/doc-plan.yaml`. Its `docsRoot` must exactly equal
 `.contributor-docs/task-state.json.docsRoot`; task state is the authority, and the
 plan may not select a second output root. Every `path` below is relative to that root.
 
+Render the complete YAML to a staged temp file in `.contributor-docs/` **before**
+taking any lock — classification is long-running and must never hold one. Then run
+one authority transaction from
+[workflow.md](../workflow.md#authority-transaction): acquire the lock, reread
+`task-state.json` and the current plan bytes, revalidate the source snapshot and the
+exact `docsRoot` equality against those freshly read bytes, and only then rename the
+staged file over `.contributor-docs/doc-plan.yaml`. The rename is conditional on the
+preimages read under the lock; a mismatch removes the temp file and leaves the
+existing plan byte-identical. Contention is `AUTHORITY_BUSY` — report it and let the
+orchestrator retry; do not install the staged bytes anyway.
+
+The state-agent's `record-classification` still freshly hashes and completely
+revalidates the installed plan in its own transaction. Installing bytes here is not
+recording plan identity.
+
 ```yaml
 docsRoot: docs/contributor
 modules:

@@ -87,6 +87,14 @@ No operation accepts a caller-supplied target step, approval flag, counter, path
 task phase as a generic patch. A wrong source step, stale required hash, absent artifact,
 invalid plan, or unrecognized operation leaves both state files byte-identical.
 
+Every edge above, the clean-start bootstrap, and the diff-summary and classifier
+artifact installs run as one authority transaction each — see
+[workflow.md](../workflow.md#authority-transaction). Inputs are reread and fully
+revalidated after the lock is acquired, the rename is conditional on those exact
+preimages, and the transition log is appended before the lock is released.
+Contention returns `AUTHORITY_BUSY` and mutates nothing, so the orchestrator
+reassesses and retries rather than queueing behind a held lock.
+
 ## Review Loop
 
 If the user rejects the plan:

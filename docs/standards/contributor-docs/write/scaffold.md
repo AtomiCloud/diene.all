@@ -150,9 +150,20 @@ distinguishes coincidental pre-existence from a crash-completed prepared write.
 Anything else is a collision: write nothing further and report the exact current
 hash and line count. Never turn a create-time mismatch into an approval yourself.
 
+Re-render and classify the whole set **outside** any lock; that work is long-running
+and must never hold one. The install is then one authority transaction from
+[workflow.md](../workflow.md#authority-transaction) covering the entire handed set:
+acquire the lock once, revalidate below, create or adopt every path, and release.
+Never take the lock per file — a partially installed set behind separate
+acquisitions is exactly the interleaving the whole-set classification exists to
+prevent. Contention is `AUTHORITY_BUSY` with no directory, file, or manifest
+produced.
+
 After the complete set has been re-rendered and classified, freshly hash the exact
 live plan and require equality with `{PLAN_SHA256}` immediately before the first
-directory creation, file creation, or adoption result. A mismatch is
+directory creation, file creation, or adoption result, rereading the plan bytes under
+the lock. Recheck each target's exact preimage — its expected hash, or proven absence
+for a `new` create — immediately before that path's rename. A mismatch is
 `PLAN_DRIFT_BLOCKED` and leaves every target and parent byte-identical. The orchestrator
 must keep plan mutation fenced until it accepts the result. Recheck the exact plan once
 more after the complete set is created or adopted and immediately before returning a
@@ -174,6 +185,13 @@ state-agent, not this agent, finalizes provenance and consumes approvals.
 The hashes are what make ownership provable on the next run. Without them, "is this
 my scaffold or someone's draft?" can only be guessed from the body's shape, and that
 guess is what silently overwrites real documentation.
+
+The lock does not replace them. It is advisory, so it orders the contract-compliant
+scaffolder and writers but cannot stop an editor or an ad-hoc script from creating a
+path mid-transaction. The per-path preimage recheck is what turns that into a
+collision instead of a silent overwrite; the absence check for a `new` create is a
+preimage like any other and must be re-proven under the lock, not inherited from the
+disk classification earlier in this step.
 
 Example scaffolded file:
 

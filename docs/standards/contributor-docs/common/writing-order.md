@@ -211,7 +211,9 @@ scaffold hashes are never touched.
 Re-entering a tier does not mean rewriting it. The transition puts back into
 `pending` only the paths that are actually stale: the new gap files, the file
 that reported the gap, everything whose cross-links transitively reach a gap
-path, and the indexes that list them. Everything else keeps its completed bytes
+path, and every queued same-directory entry the plan declares as an index —
+one in the `indexes` collection or carrying `type: index`. Ancestor indexes and
+module overviews are not implied. Everything else keeps its completed bytes
 and its `written` status, and never appears in a tier's input again. Resetting a
 downstream tier resets its **processor state**, so the tier re-runs against the
 current queue — it does not re-run its contents.

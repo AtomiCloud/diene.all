@@ -201,6 +201,22 @@ bytes and the heading description are the source of the accepted-warning
 Write a complete replacement finding for this invocation. Never merge with or
 append to an earlier finding.
 
+Render the complete finding to a staged temp file in
+`.contributor-docs/fact-check/findings/` while holding no lock — auditing the document
+and its sources is long-running. Installing it is one authority transaction from
+[workflow.md](../workflow.md#authority-transaction): acquire the canonical lock,
+freshly hash the exact live plan and the assigned document, recheck the epoch and docs
+digest against freshly read state, and only then rename the staged file over the
+canonical finding path, conditional on those preimages. A mismatch removes the temp
+file and leaves the previous finding byte-identical; contention is `AUTHORITY_BUSY`
+with nothing installed and the file not marked done.
+
+The finding install and `mark-done.sh` are two separate transactions, so never hold a
+lock across the dispatch between them. That is safe because the stamps below, not the
+lock, are what make a finding evidence: a finding installed under a now-stale epoch,
+digest, plan hash, or document hash is rejected at acceptance regardless of how it was
+installed.
+
 ### 8. Report
 
 Freshly hash the exact live plan immediately before returning. Return the exact epoch,
