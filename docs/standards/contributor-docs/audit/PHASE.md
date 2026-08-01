@@ -296,8 +296,14 @@ printf '%s\n' "${all_doc_files[@]}" |
   .contributor-docs/fact-check/state.json \
   "$source_paths_json" \
   "$concurrent_agents" \
-  '.contributor-docs/fact-check/findings'
+  '.contributor-docs/fact-check/findings' \
+  --plan-hash "$authorized_plan_hash"
 ```
+
+The audit state-agent supplies `authorized_plan_hash` only after its fresh complete
+authority assessment. `init-state.sh` repeats the closed-chain/live-hash/candidate
+checks immediately before its atomic processor-state rename and stores that hash in
+the processor state. A refusal creates no processor state.
 
 Immediately after initialization, atomically write this sibling file with the
 current values:
@@ -340,8 +346,13 @@ bash docs/standards/contributor-docs/scripts/next-file.sh \
 sha256sum -- "$document_path" | cut -d ' ' -f1
 
 bash docs/standards/contributor-docs/scripts/mark-done.sh \
-  .contributor-docs/fact-check/state.json "$document_path"
+  .contributor-docs/fact-check/state.json "$document_path" \
+  --plan-hash "$authorized_plan_hash"
 ```
+
+`mark-done.sh` requires the processor's stored authority to match, then freshly repeats
+the complete chain/live-plan check immediately before its atomic rename. Plan drift in
+the interval after finding validation therefore leaves processor state byte-identical.
 
 An agent hard error transitions the active audit step to `failed`. Its reason
 belongs in the orchestrator's audit run report and transition log; it does not

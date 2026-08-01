@@ -36,8 +36,12 @@ from a forgotten one.
 `AUTHORIZED_FROM_HASH` identifies the exact snapshot the writer replaced.
 `WRITTEN_HASH` identifies the exact bytes it left on disk. Both are required lowercase
 SHA-256 values on success. The state-agent validates the first against provenance or
-one unconsumed approval, freshly validates the second against disk, and records
-completion before the processor is marked done.
+one unconsumed approval, freshly validates the second against disk, and normalizes the
+complete `GAPS` field. In one atomic `record-write` update it stores written status/hash
+and a bound provenance `writerReport` containing the reporter, accepted plan/start/write
+hashes, and exact gap tuples/reasons. Only then may the processor be marked done. An
+absent, malformed, blank-reason, duplicate, or conflicting gap record refuses the whole
+completion update; it is never dropped while the document is declared written.
 
 **Do NOT update state files.** Report back to orchestrator only.
 
@@ -215,7 +219,9 @@ The accepting write state-agent freshly hashes the plan again during `record-wri
 and requires equality among the report's `PLAN_SHA256`, `authorizedPlanHash`, and the
 live hash. If they disagree it returns `PLAN_DRIFT_BLOCKED` and leaves write state and
 processor artifacts byte-identical. A success report missing any of the three hashes
-is an error and must not be marked done.
+or the explicit structured `GAPS` field is an error and must not be marked done. A
+successful empty gap report is durably represented as `writerReport.gaps: []`, not
+`writerReport: null`.
 
 ## Important
 

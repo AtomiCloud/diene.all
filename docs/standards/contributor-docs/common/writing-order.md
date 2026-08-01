@@ -164,9 +164,12 @@ gap is one of several running in the same tier, has no view of the queue, and
 must not touch state files. So it reports the gap — proposed path, section type,
 the tier that section type belongs to, and why the feature needs it — finishes
 the rest of its file, and leaves the outbound link unwritten rather than
-explaining the concept inline. The orchestrator collects reports at the **tier
-boundary**, never mid-tier, so the whole batch's gaps are considered together and
-two writers reporting the same missing path produce one transition.
+explaining the concept inline. The accepting state-agent commits that structured
+report into the file's provenance in the same atomic `record-write` update as its
+written hash, before processor completion can forget the agent result. At the **tier
+boundary**, the complete batch is derived only from that durable ledger, never from an
+orchestrator transcript, so a crash cannot erase a report and two writers reporting
+the same missing path still produce one transition.
 
 The transition preserves the complete reporter→gap mapping — exact path, type, tier,
 and reason — not just the union of missing paths. Conflicting type/tier reports for
@@ -234,9 +237,11 @@ finish it before any tier may dispatch.
 stop and report instead of opening a third transition. A gap that keeps coming back is a planning
 failure, and retrying it forever looks like progress while nothing converges.
 
-**Writer death before reporting.** Writers never persist state, so a dead writer's
-processor path remains pending and is retried without introducing a parallel-writer
-race. If the retry omits the same gap, fact-check compares the document's significant
+**Writer death before reporting.** Writers never persist state, so a writer that dies
+before `record-write` leaves its processor path pending and is retried without
+introducing a parallel-writer race. A writer that returns successfully has its complete
+gap report committed before that path is marked done. If the retry omits the same gap,
+fact-check compares the document's significant
 source behavior with its planned dependency links and the complete planned-path set.
 It records a normal completeness error when the target was already planned, or a
 stamped `missing-dependency` error when the target is truly unplanned, even though no

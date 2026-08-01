@@ -201,12 +201,14 @@ plan. `apply-gap-plan` installs those exact candidate bytes and advances
 `authorizedPlanHash`; no other operation may change that field.
 
 Every write and audit assessment validates the complete authority chain. Starting at
-the immutable `plan-state.planHash`, it walks `gapsResolved` in append order, requiring
-each cleared record's `planMutation.fromPlanHash` to equal the cursor before advancing
-to `toPlanHash`. A live transition must extend that same cursor. With no live gap, the
-derived cursor, `authorizedPlanHash`, and a fresh hash of the live plan must be equal,
-and the candidate sidecar must be absent. From `planned` onward the live transition's
-`toPlanHash` is the current authorized/live hash and the sidecar is absent.
+the immutable `plan-state.planHash`, it first requires each `gapsResolved` item to be a
+complete ten-field transition plus `closedAt`, with valid report/reason and cleanup
+metadata and a unique `openedAt`. It then walks those records in append order,
+requiring each cleared record's `planMutation.fromPlanHash` to equal the cursor before
+advancing to `toPlanHash`. A live transition must extend that same cursor. With no live
+gap, the derived cursor, `authorizedPlanHash`, and a fresh hash of the live plan must be
+equal, and the candidate sidecar must be absent. From `planned` onward the live
+transition's `toPlanHash` is the current authorized/live hash and the sidecar is absent.
 
 The only live-plan mismatch that may mutate anything is the fenced `enqueued` crash
 recovery: stored authority is fully valid, `authorizedPlanHash == fromPlanHash` equals
@@ -415,20 +417,25 @@ The write phase (per-tier) and audit fact-check use the file-processor loop. Scr
 # 1. Initialize: pipe file list into init-state.sh.
 # Use printf, not echo: Bash's echo emits the backslash-n literally, which
 # records ONE pending file named "file1.mdx\nfile2.mdx" instead of two.
-printf '%s\n' file1.mdx file2.mdx | bash docs/standards/contributor-docs/scripts/init-state.sh <state-file> '<source-paths>' <N> '<output-dir>'
+printf '%s\n' file1.mdx file2.mdx | bash docs/standards/contributor-docs/scripts/init-state.sh <state-file> '<source-paths>' <N> '<output-dir>' --plan-hash '<authorizedPlanHash>'
 
 # 2. Loop: get next batch and spawn agents
 bash docs/standards/contributor-docs/scripts/next-file.sh <state-file> --batch <N>
 
 # 3. Validate the phase-specific durable result first.
-#    Write: state-agent record-write verifies returned/start/disk hashes.
+#    Write: state-agent record-write verifies returned/start/disk hashes and stores the
+#           complete bound writer report atomically with canonical completion.
 #    Audit: verify epoch, digest, and fresh per-file hash.
 
 # 4. Only after that validation succeeds:
-bash docs/standards/contributor-docs/scripts/mark-done.sh <state-file> <filename>
+bash docs/standards/contributor-docs/scripts/mark-done.sh <state-file> <filename> --plan-hash '<authorizedPlanHash>'
 ```
 
-Progress survives context loss. Re-running resumes from where it left off.
+Both mutating helpers independently revalidate the complete approved-root/successor
+chain, exact live hash, null live transition, and absent candidate immediately before
+their atomic processor-state rename. Processor state persists the authorized hash and
+is reusable only while it equals the fresh authority. Progress survives context loss;
+re-running resumes from where it left off.
 
 ## Rules
 
