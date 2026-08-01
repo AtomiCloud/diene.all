@@ -11,6 +11,441 @@ set -euo pipefail
 
 REPO_ROOT=$(git rev-parse --show-toplevel)
 
+# One fail-fast lock serializes every contributor-doc authority mutation in this
+# worktree. The lock file is deliberately persistent: only the kernel lock on the
+# open descriptor denotes ownership, so there is no stale-file reclamation race.
+CONTRIBUTOR_DOCS_LOCK_FD=${CONTRIBUTOR_DOCS_LOCK_FD:-}
+CONTRIBUTOR_DOCS_LOCK_ACQUIRED_HERE=0
+CONTRIBUTOR_DOCS_TEMP_FILE=${CONTRIBUTOR_DOCS_TEMP_FILE:-}
+
+acquire_authority_lock() {
+  local git_dir lock_path
+
+  if [[ -n ${CONTRIBUTOR_DOCS_LOCK_FD:-} ]]; then
+    CONTRIBUTOR_DOCS_LOCK_ACQUIRED_HERE=0
+    return 0
+  fi
+  git_dir=$(git rev-parse --absolute-git-dir)
+  lock_path="$git_dir/contributor-docs-authority.lock"
+  exec {CONTRIBUTOR_DOCS_LOCK_FD}>"$lock_path"
+  if ! flock -xn "$CONTRIBUTOR_DOCS_LOCK_FD"; then
+    exec {CONTRIBUTOR_DOCS_LOCK_FD}>&-
+    CONTRIBUTOR_DOCS_LOCK_FD=
+    echo "AUTHORITY_BUSY: contributor-doc authority transaction is active" >&2
+    return 1
+  fi
+  CONTRIBUTOR_DOCS_LOCK_ACQUIRED_HERE=1
+}
+
+release_authority_lock() {
+  if [[ ${CONTRIBUTOR_DOCS_LOCK_ACQUIRED_HERE:-0} == 1 ]] &&
+    [[ -n ${CONTRIBUTOR_DOCS_LOCK_FD:-} ]]; then
+    exec {CONTRIBUTOR_DOCS_LOCK_FD}>&-
+    CONTRIBUTOR_DOCS_LOCK_FD=
+  fi
+  CONTRIBUTOR_DOCS_LOCK_ACQUIRED_HERE=0
+}
+
+authority_transaction_cleanup() {
+  local status=${1:-0}
+
+  if [[ -n ${CONTRIBUTOR_DOCS_TEMP_FILE:-} ]]; then
+    rm -f -- "$CONTRIBUTOR_DOCS_TEMP_FILE"
+    CONTRIBUTOR_DOCS_TEMP_FILE=
+  fi
+  release_authority_lock
+  return "$status"
+}
+
+# Hash a NUL-framed manifest that distinguishes absence, regular bytes, symlink
+# targets, directories, and other filesystem object kinds. File length frames the
+# byte payload, so arbitrary bytes (including NULs) remain unambiguous.
+authority_snapshot() {
+  {
+    local path size kind target
+
+    printf 'contributor-docs-authority-v1\0'
+    for path in "$@"; do
+      printf 'path\0%s\0' "$path"
+      if [[ -L $path ]]; then
+        target=$(readlink -- "$path")
+        printf 'symlink\0%s\0%s\0' "${#target}" "$target"
+      elif [[ -f $path ]]; then
+        size=$(stat -c '%s' -- "$path")
+        printf 'regular\0%s\0' "$size"
+        cat -- "$path"
+        printf '\0'
+      elif [[ -d $path ]]; then
+        printf 'directory\0'
+      elif [[ -e $path ]]; then
+        kind=$(stat -c '%F:%f' -- "$path")
+        printf 'other\0%s\0' "$kind"
+      else
+        printf 'absent\0'
+      fi
+    done
+  } | sha256sum | cut -d ' ' -f1
+}
+
+append_tree_snapshot_paths() {
+  local root=$1 array_name=$2 entry
+  local -n destination=$array_name
+
+  destination+=("$root")
+  if [[ -d $root && ! -L $root ]]; then
+    while IFS= read -r -d '' entry; do
+      destination+=("$entry")
+    done < <(find -P "$root" -mindepth 1 -print0 | sort -z)
+  fi
+}
+
+# Snapshot the exact authority files relevant to a processor operation. Write-tier
+# completion binds the assigned document. Fact-check operations also bind audit
+# state, the epoch sidecar, the assigned document, and the findings tree whose
+# canonical artifact the orchestrator just validated.
+processor_authority_snapshot() {
+  local state_file=$1 assigned_path=${2:-} operation_repo_root=${3:-$REPO_ROOT} state_abs
+  local -a paths=(
+    "$operation_repo_root/.contributor-docs/task-state.json"
+    "$operation_repo_root/.contributor-docs/plan-state.json"
+    "$operation_repo_root/.contributor-docs/write-state.json"
+    "$operation_repo_root/.contributor-docs/doc-plan.yaml"
+    "$operation_repo_root/.contributor-docs/doc-plan.gap-candidate.yaml"
+  )
+
+  state_abs=$(realpath -m -- "$state_file")
+  if [[ $state_abs == "$operation_repo_root/.contributor-docs/write-tier-"*"/state.json" ]]; then
+    if [[ -n $assigned_path ]]; then
+      paths+=("$operation_repo_root/$assigned_path")
+    fi
+  elif [[ $state_abs == "$operation_repo_root/.contributor-docs/fact-check/state.json" ]]; then
+    paths+=(
+      "$operation_repo_root/.contributor-docs/audit-state.json"
+      "$operation_repo_root/.contributor-docs/fact-check/epoch.json"
+    )
+    if [[ -n $assigned_path ]]; then
+      paths+=("$operation_repo_root/$assigned_path")
+    fi
+    append_tree_snapshot_paths \
+      "$operation_repo_root/.contributor-docs/fact-check/findings" paths
+  fi
+  authority_snapshot "${paths[@]}"
+}
+
+processor_write_tier() {
+  local state_file_abs prefix suffix tier
+
+  state_file_abs=$(realpath -m -- "$1")
+  prefix="$REPO_ROOT/.contributor-docs/write-tier-"
+  suffix="/state.json"
+  if [[ $state_file_abs != "$prefix"*"$suffix" ]]; then
+    return 1
+  fi
+  tier=${state_file_abs#"$prefix"}
+  tier=${tier%"$suffix"}
+  [[ $tier =~ ^[1-6]$ ]] || return 1
+  printf '%s\n' "$tier"
+}
+
+# Internal deterministic contract barrier. It accepts only data paths below the
+# declared test root and reads a release token from a FIFO; it never evaluates text
+# supplied through the environment.
+authority_contract_test_barrier() {
+  local point=$1 root ready release root_abs ready_abs release_abs token
+
+  [[ ${CONTRIBUTOR_DOCS_CONTRACT_TEST:-0} == 1 ]] || return 0
+  [[ ${CONTRIBUTOR_DOCS_TEST_BARRIER_POINT:-} == "$point" ]] || return 0
+  root=${CONTRIBUTOR_DOCS_TEST_ROOT:-}
+  ready=${CONTRIBUTOR_DOCS_TEST_READY_FILE:-}
+  release=${CONTRIBUTOR_DOCS_TEST_RELEASE_FIFO:-}
+  if [[ -z $root || -z $ready || -z $release || ! -d $root || ! -p $release ]]; then
+    echo "PROCESSOR_AUTHORITY_INVALID: malformed internal contract barrier" >&2
+    return 1
+  fi
+  root_abs=$(realpath -e -- "$root")
+  ready_abs=$(realpath -m -- "$ready")
+  release_abs=$(realpath -e -- "$release")
+  if [[ $ready_abs != "$root_abs/"* || $release_abs != "$root_abs/"* ]]; then
+    echo "PROCESSOR_AUTHORITY_INVALID: contract barrier escaped its test root" >&2
+    return 1
+  fi
+  : >"$ready_abs"
+  IFS= read -r token <"$release_abs" || {
+    echo "PROCESSOR_AUTHORITY_INVALID: contract barrier release failed" >&2
+    return 1
+  }
+  [[ $token == release ]] || {
+    echo "PROCESSOR_AUTHORITY_INVALID: invalid contract barrier release" >&2
+    return 1
+  }
+}
+
+# Canonical pending/committed writer-report law. Runtime helpers and the executable
+# reducer import these exact definitions; no caller may substitute a SHA-shaped start
+# hash for the processor's durable authorization snapshot.
+record_write_jq_source() {
+  cat <<'JQ'
+def cd_refuse($code): error($code);
+def cd_sha256: type == "string" and test("^[0-9a-f]{64}$");
+def cd_exact_keys($value; $want):
+  ($value | type == "object") and (($value | keys | sort) == ($want | sort));
+def cd_normalized_path:
+  type == "string" and length > 0 and (startswith("/") | not) and
+  (split("/") | all(. != "" and . != "." and . != ".."));
+def cd_docs_contains($root; $path):
+  ($root | cd_normalized_path) and $root != "." and
+  ($path | cd_normalized_path) and ($path | startswith($root + "/"));
+def cd_gap_item($root; $gap):
+  cd_exact_keys($gap; ["path","type","tier","reason"]) and
+  cd_docs_contains($root; $gap.path) and
+  ($gap.reason | type == "string" and (gsub("[[:space:]]"; "") | length) > 0) and
+  (($gap.type == "concept" and $gap.tier == 2) or
+   ($gap.type == "algorithm" and $gap.tier == 3));
+def cd_report_shape($root; $report; $path; $plan; $disk; $contained):
+  $contained == true and
+  cd_exact_keys($report;
+    ["reportedBy","authorizedPlanHash","authorizedFromHash","writtenHash","gaps"]) and
+  $report.reportedBy == $path and cd_docs_contains($root; $path) and
+  $report.authorizedPlanHash == $plan and ($report.authorizedPlanHash | cd_sha256) and
+  ($report.authorizedFromHash | cd_sha256) and
+  $report.writtenHash == $disk and ($report.writtenHash | cd_sha256) and
+  ($report.gaps | type == "array") and
+  all($report.gaps[]; cd_gap_item($root; .)) and
+  (($report.gaps | map([.path,.type,.tier]) | length) ==
+   ($report.gaps | map([.path,.type,.tier]) | unique | length)) and
+  ($report.gaps | group_by(.path) |
+    all(.[]; (map({type:.type,tier:.tier}) | unique | length) == 1));
+def cd_approval_shape($approval; $path; $hash):
+  cd_exact_keys($approval; ["path","approvedHash","purpose","approvedAt","consumedAt"]) and
+  $approval.path == $path and $approval.purpose == "writer-replay" and
+  $approval.approvedHash == $hash and ($approval.approvedHash | cd_sha256) and
+  ($approval.approvedAt | type == "string");
+def cd_authorization_shape($authorization):
+  cd_exact_keys($authorization; ["normalHash","replayApproval"]) and
+  ($authorization.normalHash | cd_sha256) and
+  (($authorization.replayApproval == null) or
+   (cd_exact_keys($authorization.replayApproval; ["ledgerIndex","approvedHash"]) and
+    ($authorization.replayApproval.ledgerIndex | type == "number" and floor == . and . >= 0) and
+    ($authorization.replayApproval.approvedHash | cd_sha256)));
+def cd_derived_written_count($write):
+  [$write.writeQueue[] as $path |
+    select($write.provenance[$path].writeStatus == "written")] | length;
+def cd_record_write_authority($mode; $task; $write; $processor; $tier; $path;
+    $report; $plan; $disk; $returned; $contained):
+  if ($mode != "pending" and $mode != "committed") then
+    cd_refuse("PROCESSOR_AUTHORITY_INVALID")
+  elif (($task | type) != "object") or
+    (($task.docsRoot | cd_normalized_path) | not) or $task.docsRoot == "." then
+    cd_refuse("GAP_REPORT_SET_INVALID")
+  elif (($processor | type) != "object") or
+    (($processor | has("recordWriteAuthorizations")) | not) or
+    (($processor.recordWriteAuthorizations | type) != "object") or
+    (($processor.filesToProcess | type) != "array") or
+    (($processor.recordWriteAuthorizations | keys_unsorted) != $processor.filesToProcess) or
+    (($processor.filesToProcess | index($path)) == null) or
+    $processor.authorizedPlanHash != $plan or
+    (cd_authorization_shape($processor.recordWriteAuthorizations[$path]) | not) then
+    cd_refuse("PROCESSOR_AUTHORITY_INVALID")
+  elif (($tier | type) != "number") or ($tier | floor) != $tier or
+    $write.step != ("write_tier_" + ($tier | tostring)) or
+    $write.currentTier != $tier or $write.authorizedPlanHash != $plan or
+    (($write.blockedCollisions | type) != "array") or
+    ($write.blockedCollisions | length) != 0 or $write.gapTransition != null or
+    (($write.writeQueue | index($path)) == null) or
+    $write.provenance[$path].tier != $tier then
+    cd_refuse("PROCESSOR_AUTHORITY_INVALID")
+  elif (cd_docs_contains($task.docsRoot; $path) | not) or
+    (cd_report_shape($task.docsRoot; $report; $path; $plan; $disk; $contained) | not) then
+    cd_refuse("GAP_REPORT_SET_INVALID")
+  elif $mode == "pending" and ($returned != $disk or $report.writtenHash != $disk) then
+    cd_refuse("WRITE_HASH_MISMATCH")
+  elif $mode == "pending" and
+    ($write.provenance[$path].writeStatus != "pending" or
+     $write.provenance[$path].writerReport != null) then
+    cd_refuse("WRITE_INCOMPLETE")
+  elif $mode == "committed" and
+    ($write.provenance[$path].writeStatus != "written" or
+     $write.provenance[$path].writtenHash != $disk or
+     $write.provenance[$path].writerReport != $report or
+     $write.filesWritten != cd_derived_written_count($write)) then
+    cd_refuse("WRITE_INCOMPLETE")
+  else
+    $processor.recordWriteAuthorizations[$path] as $authorization |
+    ($authorization.replayApproval // null) as $snapshot_approval |
+    (if $snapshot_approval == null then null
+     else $write.approvedOverwrites[$snapshot_approval.ledgerIndex] // null end) as $ledger |
+    (if $write.provenance[$path].writtenHash != null
+     then $write.provenance[$path].writtenHash
+     else $write.provenance[$path].scaffoldHash end) as $pending_basis |
+    ($report.authorizedFromHash == $authorization.normalHash and
+      ($mode == "committed" or $authorization.normalHash == $pending_basis) and
+      ($snapshot_approval == null or
+       (cd_approval_shape($ledger; $path; $snapshot_approval.approvedHash) and
+        $ledger.consumedAt == null))) as $normal |
+    ($snapshot_approval != null and
+      $report.authorizedFromHash == $snapshot_approval.approvedHash and
+      cd_approval_shape($ledger; $path; $snapshot_approval.approvedHash) and
+      (if $mode == "pending" then $ledger.consumedAt == null
+       else ($ledger.consumedAt | type == "string") end)) as $approval |
+    if $normal then "normal"
+    elif $approval then "approval:" + ($snapshot_approval.ledgerIndex | tostring)
+    else cd_refuse("PROCESSOR_AUTHORITY_INVALID") end
+  end;
+JQ
+}
+
+derive_record_write_authorizations() {
+  local state_file=$1 files_json=$2 tier write_state task_state result
+
+  if ! tier=$(processor_write_tier "$state_file"); then
+    printf 'null\n'
+    return 0
+  fi
+  write_state="$REPO_ROOT/.contributor-docs/write-state.json"
+  task_state="$REPO_ROOT/.contributor-docs/task-state.json"
+  if ! result=$(jq -c -n --argjson tier "$tier" --argjson files "$files_json" \
+    --slurpfile write "$write_state" --slurpfile task "$task_state" '
+      def sha256: type == "string" and test("^[0-9a-f]{64}$");
+      def normalized_path:
+        type == "string" and length > 0 and (startswith("/") | not) and
+        (split("/") | all(. != "" and . != "." and . != ".."));
+      def contained($root; $path):
+        ($root | normalized_path) and $root != "." and
+        ($path | normalized_path) and ($path | startswith($root + "/"));
+      ($write[0]) as $state | ($task[0].docsRoot) as $root |
+      if (($files | type) != "array") or
+        (($files | length) != ($files | unique | length)) or
+        (all($files[]; type == "string" and contained($root; .)) | not) or
+        $state.step != ("write_tier_" + ($tier | tostring)) or
+        $state.currentTier != $tier or
+        (($state.blockedCollisions | type) != "array") or
+        ($state.blockedCollisions | length) != 0 or $state.gapTransition != null or
+        ([ $state.writeQueue[] as $path | $state.provenance[$path] as $entry |
+          select($entry.tier == $tier and $entry.writeStatus == "pending") | $path] != $files)
+      then error("PROCESSOR_AUTHORITY_INVALID")
+      else reduce $files[] as $path ({};
+        $state.provenance[$path] as $entry |
+        ([range(0; $state.approvedOverwrites | length) as $index |
+          $state.approvedOverwrites[$index] as $approval |
+          select($approval.path == $path and $approval.purpose == "writer-replay" and
+            $approval.consumedAt == null) |
+          {ledgerIndex:$index,approvedHash:$approval.approvedHash}] ) as $approvals |
+        (if $entry.writtenHash != null then $entry.writtenHash
+         else $entry.scaffoldHash end) as $normal |
+        if ($normal | sha256 | not) or ($approvals | length) > 1 or
+          (all($approvals[]; .approvedHash | sha256) | not)
+        then error("PROCESSOR_AUTHORITY_INVALID")
+        else .[$path] = {
+          normalHash:$normal,
+          replayApproval:(if ($approvals | length) == 1 then $approvals[0] else null end)
+        } end)
+      end
+    ' 2>&1); then
+    printf '%s\n' "$result" >&2
+    echo "PROCESSOR_AUTHORITY_INVALID: cannot derive record-write authorization snapshot" >&2
+    return 1
+  fi
+  printf '%s\n' "$result"
+}
+
+reporter_file_identity() {
+  local path=$1 mode=$2 task_state docs_root docs_root_abs path_abs
+
+  task_state="$REPO_ROOT/.contributor-docs/task-state.json"
+  if ! docs_root=$(jq -er '
+      .docsRoot | select(type == "string" and length > 0 and . != "." and
+        (startswith("/") | not) and
+        (split("/") | all(. != "" and . != "." and . != "..")))
+    ' "$task_state" 2>/dev/null); then
+    echo "GAP_REPORT_SET_INVALID: invalid docsRoot" >&2
+    return 1
+  fi
+  if ! jq -en --arg root "$docs_root" --arg path "$path" '
+      ($path | type == "string" and length > 0 and (startswith("/") | not) and
+        (split("/") | all(. != "" and . != "." and . != ".."))) and
+      ($path | startswith($root + "/"))
+    ' >/dev/null; then
+    echo "GAP_REPORT_SET_INVALID: reporter is outside docsRoot" >&2
+    return 1
+  fi
+  if [[ ! -d $REPO_ROOT/$docs_root ]]; then
+    echo "GAP_REPORT_SET_INVALID: docsRoot is absent" >&2
+    return 1
+  fi
+  docs_root_abs=$(realpath -e -- "$REPO_ROOT/$docs_root")
+  if [[ $docs_root_abs != "$REPO_ROOT/"* ]] || [[ ! -f $REPO_ROOT/$path ]]; then
+    if [[ $mode == committed ]]; then
+      echo "WRITTEN_BYTES_CHANGED: '${path}' is absent or outside docsRoot" >&2
+    else
+      echo "WRITE_HASH_MISMATCH: '${path}' is absent or outside docsRoot" >&2
+    fi
+    return 1
+  fi
+  path_abs=$(realpath -e -- "$REPO_ROOT/$path")
+  if [[ $path_abs != "$docs_root_abs/"* ]] || [[ ! -f $path_abs ]]; then
+    echo "GAP_REPORT_SET_INVALID: reporter escapes docsRoot through a symlink" >&2
+    return 1
+  fi
+  sha256sum -- "$path_abs" | cut -d ' ' -f1
+}
+
+assert_record_write_authority() {
+  local mode=$1 state_file=$2 path=$3 plan_hash=$4 operation_json=${5:-}
+  local tier task_state write_state report returned disk expected result program
+
+  if ! tier=$(processor_write_tier "$state_file"); then
+    echo "PROCESSOR_AUTHORITY_INVALID: record-write requires an exact write-tier state path" >&2
+    return 1
+  fi
+  assert_plan_authority "$plan_hash"
+  task_state="$REPO_ROOT/.contributor-docs/task-state.json"
+  write_state="$REPO_ROOT/.contributor-docs/write-state.json"
+  if [[ $mode == pending ]]; then
+    if ! report=$(jq -ce '.writerReport' <<<"$operation_json" 2>/dev/null) ||
+      ! returned=$(jq -er '.returnedHash | select(type == "string")' \
+        <<<"$operation_json" 2>/dev/null); then
+      echo "GAP_REPORT_SET_INVALID: malformed record-write operation" >&2
+      return 1
+    fi
+  elif [[ $mode == committed ]]; then
+    if ! jq -e --arg path "$path" '
+        .provenance[$path].writeStatus == "written" and
+        (.provenance[$path].writtenHash | type == "string" and test("^[0-9a-f]{64}$"))
+      ' "$write_state" >/dev/null; then
+      echo "WRITE_INCOMPLETE: '${path}' has no canonical written record" >&2
+      return 1
+    fi
+    report=$(jq -c --arg path "$path" '.provenance[$path].writerReport' "$write_state")
+    returned=$(jq -r --arg path "$path" '.provenance[$path].writtenHash' "$write_state")
+  else
+    echo "PROCESSOR_AUTHORITY_INVALID: unknown record-write view" >&2
+    return 1
+  fi
+  if ! disk=$(reporter_file_identity "$path" "$mode"); then
+    return 1
+  fi
+  if [[ $mode == committed ]]; then
+    expected=$(jq -r --arg path "$path" '.provenance[$path].writtenHash' "$write_state")
+    if [[ $disk != "$expected" ]]; then
+      echo "WRITTEN_BYTES_CHANGED: '${path}' expected=${expected} actual=${disk}" >&2
+      return 1
+    fi
+  fi
+  program=$(record_write_jq_source)
+  if ! result=$(jq -n -r \
+    --slurpfile task "$task_state" --slurpfile write "$write_state" \
+    --slurpfile processor "$state_file" --arg mode "$mode" --argjson tier "$tier" \
+    --arg path "$path" --arg plan "$plan_hash" --arg disk "$disk" \
+    --arg returned "$returned" --argjson report "$report" \
+    "$program
+      cd_record_write_authority(\$mode; \$task[0]; \$write[0]; \$processor[0];
+        \$tier; \$path; \$report; \$plan; \$disk; \$returned; true)" 2>&1); then
+    printf '%s\n' "$result" >&2
+    return 1
+  fi
+  printf '%s\n' "$result"
+}
+
 # Validate the immutable approved-plan root, every complete closed successor, the
 # current authorized hash, the exact live-plan bytes, and the absent candidate. The
 # processor helpers call this again immediately before their atomic rename so an
@@ -53,17 +488,6 @@ assert_plan_authority() {
          field:(if .type == "concept" then "concepts" else "algorithms" end),
          target:.path}] |
       sort_by([.reportedBy,.field,.target]) | unique_by([.reportedBy,.field,.target]);
-    def valid_plan($plan):
-      exact_keys($plan; ["docsRoot","modules","shared","topLevel","adrs","indexes"])
-      and ($plan.docsRoot | normalized_path(.))
-      and ($plan.modules | type == "array")
-      and all($plan.modules[];
-        exact_keys(.; ["name","description","files"])
-        and (.name | type == "string" and length > 0)
-        and (.description | type == "string") and (.files | type == "array"))
-      and exact_keys($plan.shared; ["files"]) and ($plan.shared.files | type == "array")
-      and ($plan.topLevel | type == "array") and ($plan.adrs | type == "array")
-      and ($plan.indexes | type == "array");
     def plan_entries($plan):
       ([ $plan.modules[] as $module | $module.files[] as $entry |
           {outputPath:($plan.docsRoot + "/" + $entry.path),
@@ -77,6 +501,22 @@ assert_plan_authority() {
        + [ $plan.indexes[] as $entry |
           {outputPath:($plan.docsRoot + "/" + $entry.path),container:"indexes",entry:$entry} ]) |
       sort_by(.outputPath);
+    def valid_plan($plan):
+      exact_keys($plan; ["docsRoot","modules","shared","topLevel","adrs","indexes"])
+      and ($plan.docsRoot | normalized_path(.))
+      and ($plan.modules | type == "array")
+      and all($plan.modules[];
+        exact_keys(.; ["name","description","files"])
+        and (.name | type == "string" and length > 0)
+        and (.description | type == "string") and (.files | type == "array"))
+      and exact_keys($plan.shared; ["files"]) and ($plan.shared.files | type == "array")
+      and ($plan.topLevel | type == "array") and ($plan.adrs | type == "array")
+      and ($plan.indexes | type == "array")
+      and all(plan_entries($plan)[];
+        (.entry.path | normalized_path(.)) and
+        ((.entry.crossLinks // {}) | type == "object") and
+        all((.entry.crossLinks // {})[];
+          type == "array" and all(.[]; normalized_path(.))));
     def plan_links($plan):
       [plan_entries($plan)[] as $wrapped |
         (($wrapped.entry.crossLinks // {}) | to_entries[]) as $links |
@@ -84,6 +524,43 @@ assert_plan_authority() {
         {reportedBy:$wrapped.outputPath,field:$links.key,
          target:($plan.docsRoot + "/" + $target)}] |
       sort_by([.reportedBy,.field,.target]) | unique_by([.reportedBy,.field,.target]);
+    def dirname($path):
+      $path | split("/") | .[0:length - 1] | join("/");
+    def as_set($items):
+      reduce $items[] as $item ({}; .[$item] = true);
+    def index_paths($plan):
+      [plan_entries($plan)[] |
+        select(.container == "indexes" or .entry.type == "index") |
+        .outputPath] | unique;
+    def reverse_adjacency($links; $queue_set):
+      reduce ($links[] | select($queue_set[.reportedBy] != null)) as $link
+        ({}; .[$link.target] += [$link.reportedBy]);
+    def directory_indexes($indexes; $queue_set):
+      reduce ($indexes[] | select($queue_set[.] != null)) as $index
+        ({}; .[dirname($index)] += [$index]);
+    def closure_set($reverse; $directory; $gaps; $reporters; $queue_set):
+      {reached:as_set($reporters | map(select($queue_set[.] != null))),
+       frontier:(($reporters + $gaps) | unique)} |
+      until((.frontier | length) == 0;
+        .reached as $reached |
+        ([.frontier[] as $path | (($reverse[$path] // [])[])] +
+         [.frontier[] as $path | (($directory[dirname($path)] // [])[])] |
+          unique) as $candidates |
+        ($candidates | map(select($reached[.] == null))) as $new |
+        {reached:(reduce $new[] as $path ($reached; .[$path] = true)),
+         frontier:$new}) |
+      .reached | keys;
+    def expected_requeued($record; $queue; $live; $later_links; $later_paths):
+      as_set($queue - $later_paths) as $queue_set |
+      reverse_adjacency(plan_links($live) - $later_links; $queue_set) as $reverse |
+      directory_indexes(index_paths($live); $queue_set) as $directory |
+      ($record.gapPaths | map(.path) | unique) as $gaps |
+      (closure_set($reverse; $directory; $gaps;
+        ($record.reports | map(.reportedBy) | unique); $queue_set) - $gaps) |
+      sort;
+    def expected_replay_tier($record; $provenance):
+      (($record.gapPaths | map(.tier)) +
+       [$record.requeued[] as $path | $provenance[$path].tier]) | min;
     def stored_entries_current($mutation; $live):
       (plan_entries($live)) as $current |
       all($mutation.addedPlanEntries[]; . as $added |
@@ -170,7 +647,7 @@ assert_plan_authority() {
       and (($reports | map(.reportedBy) | length) ==
         ($reports | map(.reportedBy) | unique | length))
       and all($reports[]; report(.)) and reports_consistent($reports);
-    def closed_record($value; $write; $live):
+    def closed_record($value; $write; $live; $later):
       exact_keys($value;
         ["status","reports","gapPaths","expectedScaffold","replayTier","requeued",
          "resetTiers","cleanedTiers","openedAt","planMutation","closedAt"])
@@ -187,7 +664,6 @@ assert_plan_authority() {
       and ($value.replayTier | type == "number")
       and ($value.replayTier | floor) == $value.replayTier
       and $value.replayTier >= 1 and $value.replayTier <= 6
-      and $value.replayTier <= ($value.gapPaths | map(.tier) | min)
       and ($value.requeued | type == "array" and length > 0)
       and all($value.requeued[]; . as $path |
         ($path | normalized_path(.)) and ($write.writeQueue | index($path)) != null and
@@ -196,6 +672,10 @@ assert_plan_authority() {
       and all($value.reports[].reportedBy; . as $path | ($value.requeued | index($path)) != null)
       and all($value.requeued[];
         . as $path | ($value.gapPaths | map(.path) | index($path)) == null)
+      and $value.requeued == expected_requeued($value; $write.writeQueue; $live;
+        [$later[] | (.planMutation.addedCrossLinks // [])[]];
+        [$later[] | (.gapPaths // [])[] | .path])
+      and $value.replayTier == expected_replay_tier($value; $write.provenance)
       and ($value.resetTiers | type == "array" and length > 0)
       and ($value.resetTiers == ($value.resetTiers | sort | unique))
       and all($value.resetTiers[]; type == "number" and floor == . and . >= 1 and . <= 6)
@@ -222,7 +702,12 @@ assert_plan_authority() {
       and $write.gapTransition == null and ($write.gapsResolved | type == "array")
       and valid_plan($live)) | not
     then "PLAN_DRIFT_BLOCKED"
-    elif (all($write.gapsResolved[]; closed_record(.; $write; $live)) and
+    elif ([ $write.gapsResolved[] | [(.gapPaths // [])[] | .path] | unique[] ]) as $closed_paths |
+      ($closed_paths | length) != ($closed_paths | unique | length)
+    then "GAP_LOOP"
+    elif (([range(0; $write.gapsResolved | length)] | all(. as $index |
+        closed_record($write.gapsResolved[$index]; $write; $live;
+          $write.gapsResolved[$index:]))) and
       (($write.gapsResolved | map(.openedAt) | length) ==
        ($write.gapsResolved | map(.openedAt) | unique | length))) | not
     then "GAP_CLOSURE_INVALID"
@@ -251,39 +736,42 @@ assert_plan_authority() {
 # change the plan hash, so the helper independently re-derives the exact pending input
 # immediately before it creates or replaces processor state.
 assert_processor_init_authority() {
-  local expected_hash=$1 state_file=$2 files_json=$3
-  local state_file_abs prefix suffix tier write_state
+  local expected_hash=$1 state_file=$2 files_json=$3 authorizations
 
-  assert_plan_authority "$expected_hash"
-  state_file_abs=$(realpath -m -- "$state_file")
-  prefix="$REPO_ROOT/.contributor-docs/write-tier-"
-  suffix="/state.json"
-  if [[ $state_file_abs != "$prefix"*"$suffix" ]]; then
-    return 0
-  fi
-  tier=${state_file_abs#"$prefix"}
-  tier=${tier%"$suffix"}
-  write_state="$REPO_ROOT/.contributor-docs/write-state.json"
-  if [[ ! $tier =~ ^[1-6]$ ]] || ! jq -e --argjson tier "$tier" --argjson files "$files_json" '
-    ($files | type == "array") and
-    (($files | length) == ($files | unique | length)) and
-    all($files[]; type == "string" and length > 0) and
-    .step == ("write_tier_" + ($tier | tostring)) and .currentTier == $tier and
-    (.blockedCollisions | type == "array" and length == 0) and .gapTransition == null and
-    ([.writeQueue[] as $path | .provenance[$path] as $entry |
-      select($entry.tier == $tier and $entry.writeStatus == "pending") | $path] == $files)
-  ' "$write_state" >/dev/null; then
-    echo "PROCESSOR_AUTHORITY_INVALID: current tier, collision set, or pending slice changed" >&2
+  if ! assert_plan_authority "$expected_hash"; then
     return 1
   fi
+  if ! authorizations=$(derive_record_write_authorizations "$state_file" "$files_json"); then
+    echo "PROCESSOR_AUTHORITY_INVALID: current tier, collision set, pending slice, or approval ledger changed" >&2
+    return 1
+  fi
+  printf '%s\n' "$authorizations"
 }
 
+init_state_main() {
 if [[ ${1:-} == "--assert-plan-authority" ]]; then
   [[ $# -ge 2 ]] || {
     echo "❌ Usage: init-state.sh --assert-plan-authority <plan-hash> [plan-state] [write-state] [live-plan] [candidate-plan]" >&2
     exit 1
   }
   assert_plan_authority "$2" "${3:-}" "${4:-}" "${5:-}" "${6:-}"
+  exit 0
+fi
+
+if [[ ${1:-} == "--assert-record-write" ]]; then
+  [[ $# -eq 5 && ($2 == pending || $2 == committed) && $5 =~ ^[0-9a-f]{64}$ ]] || {
+    echo "❌ Usage: init-state.sh --assert-record-write <pending|committed> <state-file> <path> <plan-hash>" >&2
+    exit 1
+  }
+  if [[ $2 == pending ]]; then
+    RECORD_WRITE_OPERATION=$(jq -c '.') || {
+      echo "GAP_REPORT_SET_INVALID: malformed record-write operation" >&2
+      exit 1
+    }
+  else
+    RECORD_WRITE_OPERATION=
+  fi
+  assert_record_write_authority "$2" "$3" "$4" "$5" "$RECORD_WRITE_OPERATION"
   exit 0
 fi
 
@@ -298,6 +786,25 @@ if [[ ${1:-} == "--check-write-contract" ]]; then
   contract_failure() {
     printf '❌ %s\n' "$1" >&2
     FAILURES=$((FAILURES + 1))
+  }
+
+  wait_for_contract_barrier() {
+    local ready=$1 index
+
+    for ((index = 0; index < 1000; index++)); do
+      [[ -e $ready ]] && return 0
+      sleep 0.01
+    done
+    return 1
+  }
+
+  processor_fixture_manifest() {
+    local fixture_repo=$1 processor_state=$2 assigned_path=${3:-}
+
+    {
+      processor_authority_snapshot "$processor_state" "$assigned_path" "$fixture_repo"
+      authority_snapshot "$processor_state"
+    } | sha256sum | cut -d ' ' -f1
   }
 
   # A canonical marker is an exact, single HTML-comment line followed by one JSON
@@ -571,7 +1078,10 @@ if [[ ${1:-} == "--check-write-contract" ]]; then
     FAILURES=$((FAILURES + 1))
   fi
 
+
+  record_write_jq_source >"$CONTROL_DIR/record-write.jq"
   cat >"$CONTROL_DIR/reducer.jq" <<'JQ'
+	include "record-write";
 	def refuse($code): error($code);
 	def next_gap($status):
 	  {enqueued:"planned", planned:"prepared", prepared:"scaffolded",
@@ -650,23 +1160,12 @@ if [[ ${1:-} == "--check-write-contract" ]]; then
 	  and ($gap.reason | type == "string" and (gsub("[[:space:]]"; "") | length) > 0)
 	  and (($gap.type == "concept" and $gap.tier == 2) or
 	    ($gap.type == "algorithm" and $gap.tier == 3));
-	def writer_report($report; $path; $authorized; $written):
-	  exact_keys($report;
-	    ["reportedBy","authorizedPlanHash","authorizedFromHash","writtenHash","gaps"])
-	  and $report.reportedBy == $path
-	  and $report.authorizedPlanHash == $authorized
-	  and ($report.authorizedFromHash | sha256)
-	  and $report.writtenHash == $written and ($report.writtenHash | sha256)
-	  and ($report.gaps | type == "array")
-	  and all($report.gaps[]; gap_item(.))
-	  and (($report.gaps | map([.path,.type,.tier]) | length) ==
-	    ($report.gaps | map([.path,.type,.tier]) | unique | length))
-	  and ($report.gaps | group_by(.path) |
-	    all(.[]; (map({type:.type,tier:.tier}) | unique | length) == 1));
 	def ledger_reports($state):
 	  [$state.writeQueue[] as $path | $state.provenance[$path] as $entry |
 	    select($entry.tier == $state.currentTier and $entry.writeStatus == "written") |
-	    if writer_report($entry.writerReport; $path; $state.authorizedPlanHash; $entry.writtenHash)
+	    if cd_record_write_authority("committed"; $state.taskState; $state;
+	      $state.processorState; $state.currentTier; $path; $entry.writerReport;
+	      $state.authorizedPlanHash; $entry.writtenHash; $entry.writtenHash; true)
 	    then select(($entry.writerReport.gaps | length) > 0) |
 	      {reportedBy:$path,gaps:$entry.writerReport.gaps}
 	    else refuse("WRITE_REPORT_MISSING") end] | sort_by(.reportedBy);
@@ -689,7 +1188,80 @@ if [[ ${1:-} == "--check-write-contract" ]]; then
 	    and ((.gaps | map([.path,.type,.tier]) | length) ==
 	      (.gaps | map([.path,.type,.tier]) | unique | length))) and
 	  reports_consistent($reports);
-	def closed_record($closed; $state):
+	def parse_plan($bytes): try ($bytes | fromjson) catch refuse("GAP_PLAN_DELTA_INVALID");
+	def plan_entries($plan):
+	  ([ $plan.modules[] as $module | $module.files[] as $entry |
+	      {outputPath:($plan.docsRoot + "/" + $entry.path),
+	       container:("module:" + $module.name),entry:$entry} ]
+	   + [ $plan.shared.files[] as $entry |
+	      {outputPath:($plan.docsRoot + "/" + $entry.path),container:"shared",entry:$entry} ]
+	   + [ $plan.topLevel[] as $entry |
+	      {outputPath:($plan.docsRoot + "/" + $entry.path),container:"topLevel",entry:$entry} ]
+	   + [ $plan.adrs[] as $entry |
+	      {outputPath:($plan.docsRoot + "/" + $entry.path),container:"adrs",entry:$entry} ]
+	   + [ $plan.indexes[] as $entry |
+	      {outputPath:($plan.docsRoot + "/" + $entry.path),container:"indexes",entry:$entry} ]);
+	def valid_plan($plan):
+	  exact_keys($plan; ["docsRoot","modules","shared","topLevel","adrs","indexes"])
+	  and ($plan.docsRoot | normalized_path(.))
+	  and ($plan.modules | type == "array")
+	  and all($plan.modules[];
+	    exact_keys(.; ["name","description","files"])
+	    and (.name | type == "string" and length > 0)
+	    and (.description | type == "string") and (.files | type == "array"))
+	  and exact_keys($plan.shared; ["files"]) and ($plan.shared.files | type == "array")
+	  and ($plan.topLevel | type == "array")
+	  and ($plan.adrs | type == "array") and ($plan.indexes | type == "array")
+	  and all(plan_entries($plan)[];
+	    (.entry.path | normalized_path(.)) and
+	    ((.entry.crossLinks // {}) | type == "object") and
+	    all((.entry.crossLinks // {})[];
+	      type == "array" and all(.[]; normalized_path(.))));
+	def plan_links($plan):
+	  [plan_entries($plan)[] as $wrapped |
+	    (($wrapped.entry.crossLinks // {}) | to_entries[]) as $links |
+	    $links.value[] as $target |
+	    {reportedBy:$wrapped.outputPath,field:$links.key,
+	     target:($plan.docsRoot + "/" + $target)}] |
+	  sort_by([.reportedBy,.field,.target]) | unique_by([.reportedBy,.field,.target]);
+	def dirname($path):
+	  $path | split("/") | .[0:length - 1] | join("/");
+	def as_set($items):
+	  reduce $items[] as $item ({}; .[$item] = true);
+	def index_paths($plan):
+	  [plan_entries($plan)[] |
+	    select(.container == "indexes" or .entry.type == "index") |
+	    .outputPath] | unique;
+	def reverse_adjacency($links; $queue_set):
+	  reduce ($links[] | select($queue_set[.reportedBy] != null)) as $link
+	    ({}; .[$link.target] += [$link.reportedBy]);
+	def directory_indexes($indexes; $queue_set):
+	  reduce ($indexes[] | select($queue_set[.] != null)) as $index
+	    ({}; .[dirname($index)] += [$index]);
+	def closure_set($reverse; $directory; $gaps; $reporters; $queue_set):
+	  {reached:as_set($reporters | map(select($queue_set[.] != null))),
+	   frontier:(($reporters + $gaps) | unique)} |
+	  until((.frontier | length) == 0;
+	    .reached as $reached |
+	    ([.frontier[] as $path | (($reverse[$path] // [])[])] +
+	     [.frontier[] as $path | (($directory[dirname($path)] // [])[])] |
+	      unique) as $candidates |
+	    ($candidates | map(select($reached[.] == null))) as $new |
+	    {reached:(reduce $new[] as $path ($reached; .[$path] = true)),
+	     frontier:$new}) |
+	  .reached | keys;
+	def expected_requeued($record; $queue; $live; $later_links; $later_paths):
+	  as_set($queue - $later_paths) as $queue_set |
+	  reverse_adjacency(plan_links($live) - $later_links; $queue_set) as $reverse |
+	  directory_indexes(index_paths($live); $queue_set) as $directory |
+	  ($record.gapPaths | map(.path) | unique) as $gaps |
+	  (closure_set($reverse; $directory; $gaps;
+	    ($record.reports | map(.reportedBy) | unique); $queue_set) - $gaps) |
+	  sort;
+	def expected_replay_tier($record; $provenance):
+	  (($record.gapPaths | map(.tier)) +
+	   [$record.requeued[] as $path | $provenance[$path].tier]) | min;
+	def closed_record($closed; $state; $later):
 	  exact_keys($closed;
 	    ["status","reports","gapPaths","expectedScaffold","replayTier","requeued",
 	     "resetTiers","cleanedTiers","openedAt","planMutation","closedAt"])
@@ -705,7 +1277,6 @@ if [[ ${1:-} == "--check-write-contract" ]]; then
 	  and all($closed.expectedScaffold[]; sha256)
 	  and ($closed.replayTier | type == "number") and ($closed.replayTier | floor) == $closed.replayTier
 	  and $closed.replayTier >= 1 and $closed.replayTier <= 6
-	  and $closed.replayTier <= ($closed.gapPaths | map(.tier) | min)
 	  and ($closed.requeued | type == "array" and length > 0)
 	  and all($closed.requeued[]; . as $path |
 	    ($path | normalized_path(.)) and ($state.writeQueue | index($path)) != null and
@@ -714,6 +1285,12 @@ if [[ ${1:-} == "--check-write-contract" ]]; then
 	  and all($closed.reports[].reportedBy; . as $path | ($closed.requeued | index($path)) != null)
 	  and all($closed.requeued[];
 	    . as $path | ($closed.gapPaths | map(.path) | index($path)) == null)
+	  and $closed.requeued == expected_requeued($closed; $state.writeQueue; $state.livePlan;
+	    [$later[] | (.planMutation.addedCrossLinks // [])[]] +
+	      (($state.gapPlanMutation.addedCrossLinks) // []);
+	    [$later[] | (.gapPaths // [])[] | .path] +
+	      ((($state.gapRecord.gapPaths) // []) | map(.path)))
+	  and $closed.replayTier == expected_replay_tier($closed; $state.provenance)
 	  and ($closed.resetTiers | type == "array" and length > 0)
 	  and $closed.resetTiers == ($closed.resetTiers | sort | unique)
 	  and all($closed.resetTiers[]; type == "number" and floor == . and . >= 1 and . <= 6)
@@ -731,8 +1308,18 @@ if [[ ${1:-} == "--check-write-contract" ]]; then
 	    ($state.approvedPlanHash | sha256) and
 	    $state.approvedPlanHash == $state.planStateHash and
 	    ($state.gapsResolved | type == "array") and
-	    ($state.canonicalCandidatePath | type == "string") then
-	    if (all($state.gapsResolved[]; closed_record(.; $state)) and
+	    ($state.canonicalCandidatePath | type == "string") and
+	    valid_plan($state.livePlan) and
+	    all($state.gapsResolved[]; (.planMutation.addedCrossLinks // [])[] as $link |
+	      (plan_links($state.livePlan) | index($link)) != null) then
+	    ([ $state.gapsResolved[] | [(.gapPaths // [])[] | .path] | unique[] ]) as $closed_paths |
+	    if (($closed_paths | length) != ($closed_paths | unique | length) or
+	       any((($state.gapRecord.gapPaths // [])[]);
+	         .path as $path | ($closed_paths | index($path)) != null))
+	    then refuse("GAP_LOOP")
+	    elif (([range(0; $state.gapsResolved | length)] | all(. as $index |
+	        closed_record($state.gapsResolved[$index]; $state;
+	          $state.gapsResolved[$index:]))) and
 	      (($state.gapsResolved | map(.openedAt) | length) ==
 	       ($state.gapsResolved | map(.openedAt) | unique | length))) | not
 	    then refuse("GAP_CLOSURE_INVALID")
@@ -747,7 +1334,8 @@ if [[ ${1:-} == "--check-write-contract" ]]; then
 	  if $state.gapStatus == null and
 	    $state.authorizedPlanHash == $cursor and
 	    $state.livePlanHash == $state.authorizedPlanHash and
-	    ($state.candidateHash // null) == null then
+	    ($state.candidateHash // null) == null and
+	    ($state.candidatePlan // null) == null then
 	    $state
 	  elif (["planned","prepared","scaffolded","reset","cleaned"] | index($state.gapStatus)) != null and
 	    stored_mutation($state.gapPlanMutation; $state.canonicalCandidatePath;
@@ -755,43 +1343,13 @@ if [[ ${1:-} == "--check-write-contract" ]]; then
 	    $state.gapPlanMutation.fromPlanHash == $cursor and
 	    $state.authorizedPlanHash == $state.gapPlanMutation.toPlanHash and
 	    $state.livePlanHash == $state.authorizedPlanHash and
-	    ($state.candidateHash // null) == null then
+	    ($state.candidateHash // null) == null and
+	    ($state.candidatePlan // null) == null then
 	    $state
 	  else refuse("PLAN_DRIFT_BLOCKED") end;
-	def parse_plan($bytes): try ($bytes | fromjson) catch refuse("GAP_PLAN_DELTA_INVALID");
-	def valid_plan($plan):
-	  exact_keys($plan; ["docsRoot","modules","shared","topLevel","adrs","indexes"])
-	  and ($plan.docsRoot | type == "string" and length > 0)
-	  and ($plan.modules | type == "array")
-	  and all($plan.modules[];
-	    exact_keys(.; ["name","description","files"])
-	    and (.name | type == "string" and length > 0)
-	    and (.description | type == "string") and (.files | type == "array"))
-	  and exact_keys($plan.shared; ["files"]) and ($plan.shared.files | type == "array")
-	  and ($plan.topLevel | type == "array")
-	  and ($plan.adrs | type == "array") and ($plan.indexes | type == "array");
-	def plan_entries($plan):
-	  ([ $plan.modules[] as $module | $module.files[] as $entry |
-	      {outputPath:($plan.docsRoot + "/" + $entry.path),
-	       container:("module:" + $module.name),entry:$entry} ]
-	   + [ $plan.shared.files[] as $entry |
-	      {outputPath:($plan.docsRoot + "/" + $entry.path),container:"shared",entry:$entry} ]
-	   + [ $plan.topLevel[] as $entry |
-	      {outputPath:($plan.docsRoot + "/" + $entry.path),container:"topLevel",entry:$entry} ]
-	   + [ $plan.adrs[] as $entry |
-	      {outputPath:($plan.docsRoot + "/" + $entry.path),container:"adrs",entry:$entry} ]
-	   + [ $plan.indexes[] as $entry |
-	      {outputPath:($plan.docsRoot + "/" + $entry.path),container:"indexes",entry:$entry} ]);
 	def plan_skeleton($plan):
 	  $plan | .modules = [.modules[] | .files = []] | .shared.files = [] |
 	  .topLevel = [] | .adrs = [] | .indexes = [];
-	def plan_links($plan):
-	  [plan_entries($plan)[] as $wrapped |
-	    (($wrapped.entry.crossLinks // {}) | to_entries[]) as $links |
-	    $links.value[] as $target |
-	    {reportedBy:$wrapped.outputPath,field:$links.key,
-	     target:($plan.docsRoot + "/" + $target)}] |
-	  sort_by([.reportedBy,.field,.target]) | unique_by([.reportedBy,.field,.target]);
 	def strip_added_links($wrapped; $added_links; $docs_root):
 	  reduce ($added_links[] | select(.reportedBy == $wrapped.outputPath)) as $link
 	    ($wrapped;
@@ -854,28 +1412,37 @@ if [[ ${1:-} == "--check-write-contract" ]]; then
 	    elif ($state.candidateHash // null) == null then refuse("GAP_PLAN_CANDIDATE_MISSING")
 	    elif (reports_valid($reports) | not) then refuse("GAP_REPORT_SET_INVALID")
 	    elif ($data.openedAt | timestamp | not) then refuse("GAP_TRANSITION_INVALID")
-	    else derive_mutation($state; $data; $reports; $gap_paths) as $mutation |
-	      if $mutation.fromPlanHash != $cursor or
-	        $state.candidateHash != $mutation.toPlanHash then refuse("GAP_PLAN_HASH_INVALID")
-	      else $state | .gapStatus = "enqueued" | .gapPlanMutation = $mutation |
-	        .gapRecord = {
-	          status:"enqueued",reports:$reports,gapPaths:$gap_paths,
-	          expectedScaffold:{},replayTier:($gap_paths | map(.tier) | min),
-	          requeued:($reports | map(.reportedBy) | sort | unique),
-	          resetTiers:((($gap_paths | map(.tier)) + [$state.currentTier]) | sort | unique),
-	          cleanedTiers:[],openedAt:$data.openedAt,planMutation:$mutation
-	        }
+	    else parse_plan($data.livePlanBytes) as $live_plan |
+	      parse_plan($data.candidatePlanBytes) as $candidate_plan |
+	      if $live_plan != $state.livePlan then refuse("PLAN_DRIFT_BLOCKED")
+	      else derive_mutation($state; $data; $reports; $gap_paths) as $mutation |
+	        ({gapPaths:$gap_paths,reports:$reports} |
+	          expected_requeued(.; $state.writeQueue; $live_plan; []; [])) as $requeued |
+	        ((($gap_paths | map(.tier)) +
+	          [$requeued[] as $path | $state.provenance[$path].tier])) as $tiers |
+	        if $mutation.fromPlanHash != $cursor or
+	          $state.candidateHash != $mutation.toPlanHash then refuse("GAP_PLAN_HASH_INVALID")
+	        else $state | .gapStatus = "enqueued" | .gapPlanMutation = $mutation |
+	          .candidatePlan = $candidate_plan |
+	          .gapRecord = {
+	            status:"enqueued",reports:$reports,gapPaths:$gap_paths,
+	            expectedScaffold:{},replayTier:($tiers | min),
+	            requeued:$requeued,resetTiers:($tiers | sort | unique),
+	            cleanedTiers:[],openedAt:$data.openedAt,planMutation:$mutation
+	          }
+	        end
 	      end
 	    end
   elif $operation == "apply-gap-plan" then
     closed_cursor($state) as $cursor |
-    if $state.gapStatus == "planned" and
+	    if $state.gapStatus == "planned" and
       stored_mutation(gap_mutation($state); $state.canonicalCandidatePath;
         $state.gapRecord.reports; $state.gapRecord.gapPaths) and
       gap_mutation($state).fromPlanHash == $cursor and
-      $state.authorizedPlanHash == gap_mutation($state).toPlanHash and
-      $state.authorizedPlanHash == $state.livePlanHash and
-      ($state.candidateHash // null) == null then $state
+	      $state.authorizedPlanHash == gap_mutation($state).toPlanHash and
+	      $state.authorizedPlanHash == $state.livePlanHash and
+	      ($state.candidateHash // null) == null and
+	      ($state.candidatePlan // null) == null then $state
     elif $state.gapStatus != "enqueued" then refuse("GAP_TRANSITION_INVALID")
     elif (stored_mutation(gap_mutation($state); $state.canonicalCandidatePath;
       $state.gapRecord.reports; $state.gapRecord.gapPaths) | not) then
@@ -890,9 +1457,11 @@ if [[ ${1:-} == "--check-write-contract" ]]; then
 	      $state.candidateHash == gap_mutation($state).toPlanHash then
 	      $state | .livePlanHash = gap_mutation($state).toPlanHash |
 	        .authorizedPlanHash = gap_mutation($state).toPlanHash |
+	        .livePlan = .candidatePlan | .candidatePlan = null |
 	        .candidateHash = null | .gapStatus = "planned" | .gapRecord.status = "planned"
 	    elif $state.livePlanHash == gap_mutation($state).toPlanHash and
-	      ($state.candidateHash // null) == null then
+	      ($state.candidateHash // null) == null and
+	      ($state.candidatePlan // null) == null then
 	      $state | .authorizedPlanHash = gap_mutation($state).toPlanHash |
 	        .gapStatus = "planned" | .gapRecord.status = "planned"
 	    else refuse("GAP_PLAN_HASH_INVALID") end
@@ -922,7 +1491,10 @@ if [[ ${1:-} == "--check-write-contract" ]]; then
 	    elif any($state.writeQueue[];
 	      . as $path | $state.provenance[$path] as $entry |
 	      $entry.tier == $state.currentTier and $entry.writeStatus == "written" and
-	      (writer_report($entry.writerReport; $path; $state.authorizedPlanHash; $entry.writtenHash) | not))
+	      ((try cd_record_write_authority("committed"; $state.taskState; $state;
+	        $state.processorState; $state.currentTier; $path; $entry.writerReport;
+	        $state.authorizedPlanHash; $entry.writtenHash; $entry.writtenHash; true)
+	        catch false) | not))
 	      then refuse("WRITE_REPORT_MISSING")
 	    else $state | .step = "completed" end
 	  elif $operation == "record-write" then
@@ -931,13 +1503,25 @@ if [[ ${1:-} == "--check-write-contract" ]]; then
 	    elif ($data.path | type != "string") or (($state.writeQueue | index($data.path)) == null) or
 	      ($state.provenance[$data.path] == null) or
 	      $state.provenance[$data.path].writeStatus != "pending" then refuse("WRITE_INCOMPLETE")
-	    elif (writer_report($data.writerReport; $data.path; $state.authorizedPlanHash; $data.diskHash) | not)
-	      then refuse("GAP_REPORT_SET_INVALID")
-	    else $state |
-	      .provenance[$data.path].writeStatus = "written" |
-	      .provenance[$data.path].writtenHash = $data.diskHash |
-	      .provenance[$data.path].writerReport = $data.writerReport |
-	      .pending -= [$data.path]
+	    else
+	      ($data | if has("reporterContained") then .reporterContained else true end) as $contained |
+	      cd_record_write_authority("pending"; $state.taskState; $state;
+	        $state.processorState; $state.currentTier; $data.path; $data.writerReport;
+	        $state.authorizedPlanHash; $data.diskHash; $data.returnedHash; $contained) as $branch |
+	      ($state |
+	        .provenance[$data.path].writeStatus = "written" |
+	        .provenance[$data.path].writtenHash = $data.diskHash |
+	        .provenance[$data.path].writerReport = $data.writerReport |
+	        .pending -= [$data.path] |
+	        .filesWritten = cd_derived_written_count(.) |
+	        if ($branch | startswith("approval:")) then
+	          .approvedOverwrites[($branch | ltrimstr("approval:") | tonumber)].consumedAt =
+	            $data.consumedAt
+	        else . end) as $next |
+	      cd_record_write_authority("committed"; $next.taskState; $next;
+	        $next.processorState; $next.currentTier; $data.path; $data.writerReport;
+	        $next.authorizedPlanHash; $data.diskHash; $data.returnedHash; $contained) as $committed |
+	      if $committed == $branch then $next else refuse("PROCESSOR_AUTHORITY_INVALID") end
 	    end
   elif $operation == "gap-advance" then
     if $state.gapStatus == "enqueued" then refuse("GAP_TRANSITION_INVALID")
@@ -958,7 +1542,7 @@ if [[ ${1:-} == "--check-write-contract" ]]; then
 	      elif ($state.gapRecord.cleanedTiers != $state.gapRecord.resetTiers)
 	      then refuse("GAP_CLEANUP_INCOMPLETE")
 	      else (.gapRecord + {status:"cleared",closedAt:$data.closedAt}) as $closed |
-	      if (closed_record($closed; $state) | not)
+	      if (closed_record($closed; $state; []) | not)
 	      then refuse("GAP_CLOSURE_INVALID")
 	      elif any($state.gapsResolved[]; .openedAt == $closed.openedAt)
 	      then if any($state.gapsResolved[]; . == $closed)
@@ -1017,9 +1601,37 @@ JQ
 	      sources:["src/r.ts"],crossLinks:{concepts:[],algorithms:[]},tags:["orders"]
 	    }]
 	  ' <<<"$CANDIDATE_PLAN_BYTES")
+  COMPLEX_BASE_PLAN_BYTES=$(jq -cn '{
+	    docsRoot:"docs",
+	    modules:[{name:"orders",description:"Order documentation",files:[
+	      {path:"r.mdx",type:"feature",tier:4,description:"Reporter",
+	       sources:["src/r.ts"],crossLinks:{concepts:[],algorithms:[]},tags:["orders"]},
+	      {path:"dep.mdx",type:"algorithm",tier:3,description:"Depends on reporter",
+	       sources:["src/dep.ts"],crossLinks:{concepts:["r.mdx"],algorithms:[]},tags:["orders"]},
+	      {path:"top.mdx",type:"module-overview",tier:1,description:"Depends on dependency",
+	       sources:["src/top.ts"],crossLinks:{concepts:[],algorithms:["dep.mdx"]},tags:["orders"]},
+	      {path:"nav.mdx",type:"surface",tier:5,description:"Depends on area index",
+	       sources:["src/nav.ts"],crossLinks:{concepts:["area/index.mdx"],algorithms:[]},tags:["orders"]},
+	      {path:"unrelated.mdx",type:"feature",tier:4,description:"Unaffected queued file",
+	       sources:["src/unrelated.ts"],crossLinks:{concepts:[],algorithms:[]},tags:["orders"]}
+	    ]}],
+	    shared:{files:[]},topLevel:[],adrs:[],indexes:[{
+	      path:"area/index.mdx",type:"index",tier:6,description:"Area index",
+	      sources:["src/area.ts"],crossLinks:{concepts:[],algorithms:[]},tags:["orders"]
+	    }]
+	  }')
+  COMPLEX_PLAN_BYTES=$(jq -c '
+	    .modules[0].files[0].crossLinks.concepts = ["area/gap.mdx"] |
+	    .shared.files = [{
+	      path:"area/gap.mdx",type:"concept",tier:2,description:"Discovered area concept",
+	      sources:["src/r.ts"],crossLinks:{concepts:[],algorithms:[]},tags:["orders"]
+	    }]
+	  ' <<<"$COMPLEX_BASE_PLAN_BYTES")
   PLAN_A=$(printf '%s' "$LIVE_PLAN_BYTES" | sha256sum | cut -d ' ' -f1)
   PLAN_B=$(printf '%s' "$CANDIDATE_PLAN_BYTES" | sha256sum | cut -d ' ' -f1)
   PLAN_C=$(printf '%s' "$SECOND_PLAN_BYTES" | sha256sum | cut -d ' ' -f1)
+  COMPLEX_PLAN_ROOT=$(printf '%s' "$COMPLEX_BASE_PLAN_BYTES" | sha256sum | cut -d ' ' -f1)
+  COMPLEX_PLAN_FINAL=$(printf '%s' "$COMPLEX_PLAN_BYTES" | sha256sum | cut -d ' ' -f1)
   UNRELATED_HASH=$(printf '%s' "$UNRELATED_PLAN_BYTES" | sha256sum | cut -d ' ' -f1)
   FILE_BYTES='complete writer output'
   FILE_HASH=$(printf '%s' "$FILE_BYTES" | sha256sum | cut -d ' ' -f1)
@@ -1027,11 +1639,22 @@ JQ
   SCAFFOLD_A=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
   SCAFFOLD_B=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
   BASE_STATE=$(jq -cn --arg hash "$PLAN_A" --arg fileHash "$FILE_HASH" \
-    --arg fromHash "$FROM_HASH" --arg candidate "$CONTRACT_CANDIDATE_PATH" '{
+    --arg fromHash "$FROM_HASH" --arg candidate "$CONTRACT_CANDIDATE_PATH" \
+    --argjson livePlan "$LIVE_PLAN_BYTES" '{
 	      step:"scaffold",pending:[],writeQueue:["docs/r.mdx"],currentTier:4,gapStatus:null,
+	      taskState:{docsRoot:"docs"},approvedOverwrites:[],blockedCollisions:[],
+	      gapTransition:null,filesWritten:1,
 	      planStateHash:$hash,approvedPlanHash:$hash,authorizedPlanHash:$hash,livePlanHash:$hash,
-	      candidateHash:null,canonicalCandidatePath:$candidate,gapsResolved:[],
+	      candidateHash:null,candidatePlan:null,canonicalCandidatePath:$candidate,
+	      livePlan:$livePlan,gapsResolved:[],
 	      gapPlanMutation:null,gapRecord:null,
+	      processorState:{
+	        filesToProcess:["docs/r.mdx"],pendingFiles:["docs/r.mdx"],processedFiles:[],
+	        authorizedPlanHash:$hash,
+	        recordWriteAuthorizations:{
+	          "docs/r.mdx":{normalHash:$fromHash,replayApproval:null}
+	        }
+	      },
 	      provenance:{"docs/r.mdx":{
 	        tier:4,writeStatus:"written",scaffoldHash:$fromHash,writtenHash:$fileHash,
 	        writerReport:{reportedBy:"docs/r.mdx",authorizedPlanHash:$hash,
@@ -1051,6 +1674,17 @@ JQ
 	      fromPlanHash:$from,toPlanHash:$to,candidatePath:$candidate,
 	      addedPlanEntries:[{outputPath:"docs/b.mdx",container:"shared",entry:$plan.shared.files[1]}],
 	      addedCrossLinks:[{reportedBy:"docs/r.mdx",field:"algorithms",target:"docs/b.mdx"}]
+	    }')
+  COMPLEX_STORED_MUTATION=$(jq -cn --arg from "$COMPLEX_PLAN_ROOT" \
+    --arg to "$COMPLEX_PLAN_FINAL" --arg candidate "$CONTRACT_CANDIDATE_PATH" \
+    --argjson plan "$COMPLEX_PLAN_BYTES" '{
+	      fromPlanHash:$from,toPlanHash:$to,candidatePath:$candidate,
+	      addedPlanEntries:[{
+	        outputPath:"docs/area/gap.mdx",container:"shared",entry:$plan.shared.files[0]
+	      }],
+	      addedCrossLinks:[{
+	        reportedBy:"docs/r.mdx",field:"concepts",target:"docs/area/gap.mdx"
+	      }]
 	    }')
   GAP_RECORD=$(jq -cn --argjson mutation "$STORED_PLAN_MUTATION" '{
 	    status:"enqueued",
@@ -1088,15 +1722,93 @@ JQ
 	      resetTiers:[3,4],cleanedTiers:[3,4],openedAt:"2026-08-01T00:01:00Z",
 	      planMutation:$mutation,closedAt:"2026-08-01T00:01:01Z"
 	    }')
+  COMPLEX_CLOSED_RECORD=$(jq -cn --argjson mutation "$COMPLEX_STORED_MUTATION" \
+    --arg scaffold "$SCAFFOLD_A" '{
+	      status:"cleared",reports:[{reportedBy:"docs/r.mdx",gaps:[{
+	        path:"docs/area/gap.mdx",type:"concept",tier:2,
+	        reason:"Reporter needs the area concept"
+	      }]}],gapPaths:[{path:"docs/area/gap.mdx",type:"concept",tier:2}],
+	      expectedScaffold:{"docs/area/gap.mdx":$scaffold},replayTier:1,
+	      requeued:["docs/area/index.mdx","docs/dep.mdx","docs/nav.mdx","docs/r.mdx","docs/top.mdx"],
+	      resetTiers:[1,2,3,4,5,6],cleanedTiers:[1,2,3,4,5,6],
+	      openedAt:"2026-08-01T00:02:00Z",planMutation:$mutation,
+	      closedAt:"2026-08-01T00:02:01Z"
+	    }')
   ENQUEUED_STATE=$(jq -c --arg hash "$PLAN_B" --argjson mutation "$STORED_PLAN_MUTATION" \
-    --argjson record "$GAP_RECORD" '
+    --argjson record "$GAP_RECORD" --argjson candidatePlan "$CANDIDATE_PLAN_BYTES" '
 	      .candidateHash = $hash | .gapStatus = "enqueued" | .gapPlanMutation = $mutation |
-	      .gapRecord = $record
+	      .candidatePlan = $candidatePlan | .gapRecord = $record
 	    ' <<<"$BASE_STATE")
-  PLANNED_STATE=$(jq -c --arg hash "$PLAN_B" '
+  PLANNED_STATE=$(jq -c --arg hash "$PLAN_B" --argjson livePlan "$CANDIDATE_PLAN_BYTES" '
 	    .candidateHash = null | .authorizedPlanHash = $hash | .livePlanHash = $hash |
+	    .candidatePlan = null | .livePlan = $livePlan |
 	    .gapStatus = "planned" | .gapRecord.status = "planned"
 	  ' <<<"$ENQUEUED_STATE")
+
+  CONTROL_FAILURES_BEFORE=$FAILURES
+  COMPLEX_PRODUCER_REPORT=$(jq -cn --arg plan "$COMPLEX_PLAN_ROOT" \
+    --arg from "$SCAFFOLD_A" --arg written "$FILE_HASH" '{
+      reportedBy:"docs/r.mdx",authorizedPlanHash:$plan,authorizedFromHash:$from,
+      writtenHash:$written,gaps:[{
+        path:"docs/area/gap.mdx",type:"concept",tier:2,
+        reason:"Reporter needs the area concept"
+      }]
+    }')
+  COMPLEX_PRODUCER_STATE=$(jq -c --arg root "$COMPLEX_PLAN_ROOT" \
+    --arg final "$COMPLEX_PLAN_FINAL" --arg scaffold "$SCAFFOLD_A" \
+    --arg written "$FILE_HASH" --argjson report "$COMPLEX_PRODUCER_REPORT" \
+    --argjson livePlan "$COMPLEX_BASE_PLAN_BYTES" '
+      .step = "write_tier_4" | .currentTier = 4 |
+      .planStateHash = $root | .approvedPlanHash = $root |
+      .authorizedPlanHash = $root | .livePlanHash = $root | .livePlan = $livePlan |
+      .candidateHash = $final | .candidatePlan = null | .gapStatus = null |
+      .gapPlanMutation = null | .gapRecord = null | .gapsResolved = [] |
+      .filesWritten = 1 |
+      .writeQueue = [
+        "docs/r.mdx","docs/dep.mdx","docs/top.mdx","docs/nav.mdx",
+        "docs/unrelated.mdx","docs/area/index.mdx"
+      ] |
+      .provenance = {
+        "docs/r.mdx":{tier:4,writeStatus:"written",scaffoldHash:$scaffold,
+          writtenHash:$written,writerReport:$report},
+        "docs/dep.mdx":{tier:3,writeStatus:"pending",scaffoldHash:$scaffold,
+          writtenHash:null,writerReport:null},
+        "docs/top.mdx":{tier:1,writeStatus:"pending",scaffoldHash:$scaffold,
+          writtenHash:null,writerReport:null},
+        "docs/nav.mdx":{tier:5,writeStatus:"pending",scaffoldHash:$scaffold,
+          writtenHash:null,writerReport:null},
+        "docs/unrelated.mdx":{tier:4,writeStatus:"pending",scaffoldHash:$scaffold,
+          writtenHash:null,writerReport:null},
+        "docs/area/index.mdx":{tier:6,writeStatus:"pending",scaffoldHash:$scaffold,
+          writtenHash:null,writerReport:null}
+      } |
+      .processorState = {
+        filesToProcess:["docs/r.mdx"],pendingFiles:[],processedFiles:["docs/r.mdx"],
+        authorizedPlanHash:$root,
+        recordWriteAuthorizations:{
+          "docs/r.mdx":{normalHash:$scaffold,replayApproval:null}
+        }
+      }
+    ' <<<"$BASE_STATE")
+  COMPLEX_PRODUCER_INPUT=$(jq -cn --arg live "$COMPLEX_BASE_PLAN_BYTES" \
+    --arg candidate "$COMPLEX_PLAN_BYTES" '{
+      livePlanBytes:$live,candidatePlanBytes:$candidate,
+      openedAt:"2026-08-01T00:02:00Z"
+    }')
+  if ! COMPLEX_PRODUCED=$(jq -n -L "$CONTROL_DIR" \
+    --argjson state "$COMPLEX_PRODUCER_STATE" --arg operation authorize-gap-plan \
+    --argjson data "$COMPLEX_PRODUCER_INPUT" -f "$CONTROL_DIR/reducer.jq") ||
+    ! jq -e '
+      .gapRecord.requeued == [
+        "docs/area/index.mdx","docs/dep.mdx","docs/nav.mdx","docs/r.mdx","docs/top.mdx"
+      ] and .gapRecord.replayTier == 1 and
+      .gapRecord.resetTiers == [1,2,3,4,5,6]
+    ' <<<"$COMPLEX_PRODUCED" >/dev/null; then
+    contract_failure 'authorize-gap-plan did not derive the exact transitive/index closure and tiers'
+  fi
+  if [[ $FAILURES -eq $CONTROL_FAILURES_BEFORE ]]; then
+    echo '✅ authorize-gap-plan produced the exact transitive/index closure, replay tier, and reset tiers'
+  fi
 
   if OUTPUT=$(jq -n -L "$CONTROL_DIR" --argjson state "$BASE_STATE" \
     --arg operation create-scaffold --argjson data '{}' -f "$CONTROL_DIR/reducer.jq" 2>&1); then
@@ -1162,7 +1874,9 @@ JQ
 
   PENDING_WRITE_STATE=$(jq -c '
     .step = "write_tier_4" | .pending = ["docs/r.mdx"] |
+    .filesWritten = 0 |
     .provenance["docs/r.mdx"].writeStatus = "pending" |
+    .provenance["docs/r.mdx"].writtenHash = null |
     .provenance["docs/r.mdx"].writerReport = null
   ' <<<"$BASE_STATE")
   WRITE_REPORT_NONE=$(jq -cn --arg plan "$PLAN_A" --arg from "$FROM_HASH" \
@@ -1233,6 +1947,157 @@ JQ
       contract_failure "Malformed writer report mutated state: ${REPORT_CASE}"
     fi
   done
+
+  REPORT_PATH_CASES=(
+    /abs.mdx
+    ../escape.mdx
+    docs/../escape.mdx
+    docs//x.mdx
+    docs2/lookalike.mdx
+    docs/.
+    outside/x.mdx
+  )
+  for REPORT_PATH in "${REPORT_PATH_CASES[@]}"; do
+    BAD_PATH_REPORT=$(jq -c --arg path "$REPORT_PATH" '.gaps[0].path = $path' \
+      <<<"$WRITE_REPORT_VALID")
+    BAD_PATH_DATA=$(jq -cn --arg hash "$FILE_HASH" --argjson report "$BAD_PATH_REPORT" '{
+      path:"docs/r.mdx",returnedHash:$hash,diskHash:$hash,writerReport:$report
+    }')
+    if OUTPUT=$(jq -n -L "$CONTROL_DIR" --argjson state "$PENDING_WRITE_STATE" \
+      --arg operation record-write --argjson data "$BAD_PATH_DATA" \
+      -f "$CONTROL_DIR/reducer.jq" 2>&1); then
+      contract_failure "Out-of-root or unnormalized gap path was accepted: ${REPORT_PATH}"
+    elif [[ $OUTPUT != *GAP_REPORT_SET_INVALID* ]]; then
+      contract_failure "Invalid gap path failed with the wrong refusal: ${REPORT_PATH}"
+    fi
+  done
+  ESCAPED_REPORTER_DATA=$(jq -c '.reporterContained = false' <<<"$WRITE_DATA_VALID")
+  if OUTPUT=$(jq -n -L "$CONTROL_DIR" --argjson state "$PENDING_WRITE_STATE" \
+    --arg operation record-write --argjson data "$ESCAPED_REPORTER_DATA" \
+    -f "$CONTROL_DIR/reducer.jq" 2>&1); then
+    contract_failure 'Symlink-escaped reporter witness was accepted by the shared report law'
+  elif [[ $OUTPUT != *GAP_REPORT_SET_INVALID* ]]; then
+    contract_failure 'Symlink-escaped reporter witness failed with the wrong refusal'
+  fi
+
+  RANDOM_START_REPORT=$(jq -c \
+    '.authorizedFromHash = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"' \
+    <<<"$WRITE_REPORT_VALID")
+  RANDOM_START_DATA=$(jq -cn --arg hash "$FILE_HASH" --argjson report "$RANDOM_START_REPORT" '{
+    path:"docs/r.mdx",returnedHash:$hash,diskHash:$hash,writerReport:$report
+  }')
+  if OUTPUT=$(jq -n -L "$CONTROL_DIR" --argjson state "$PENDING_WRITE_STATE" \
+    --arg operation record-write --argjson data "$RANDOM_START_DATA" \
+    -f "$CONTROL_DIR/reducer.jq" 2>&1); then
+    contract_failure 'Random SHA-shaped writer start authority was accepted'
+  elif [[ $OUTPUT != *PROCESSOR_AUTHORITY_INVALID* ]]; then
+    contract_failure 'Random writer start authority failed with the wrong refusal'
+  fi
+
+  RETAINED_HASH=abababababababababababababababababababababababababababababababab
+  OTHER_NORMAL_HASH=cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd
+  RETAINED_REPORT=$(jq -c --arg from "$RETAINED_HASH" '.authorizedFromHash = $from' \
+    <<<"$WRITE_REPORT_VALID")
+  RETAINED_DATA=$(jq -cn --arg hash "$FILE_HASH" --argjson report "$RETAINED_REPORT" '{
+    path:"docs/r.mdx",returnedHash:$hash,diskHash:$hash,writerReport:$report
+  }')
+  RETAINED_MISMATCH_STATE=$(jq -c --arg retained "$RETAINED_HASH" \
+    --arg other "$OTHER_NORMAL_HASH" '
+      .provenance["docs/r.mdx"].writtenHash = $retained |
+      .processorState.recordWriteAuthorizations["docs/r.mdx"].normalHash = $other
+    ' <<<"$PENDING_WRITE_STATE")
+  if OUTPUT=$(jq -n -L "$CONTROL_DIR" --argjson state "$RETAINED_MISMATCH_STATE" \
+    --arg operation record-write --argjson data "$RETAINED_DATA" \
+    -f "$CONTROL_DIR/reducer.jq" 2>&1); then
+    contract_failure 'Retained replay hash absent from the processor snapshot was accepted'
+  elif [[ $OUTPUT != *PROCESSOR_AUTHORITY_INVALID* ]]; then
+    contract_failure 'Mismatched retained replay snapshot failed with the wrong refusal'
+  fi
+
+  APPROVED_HASH=dededededededededededededededededededededededededededededededede
+  APPROVAL_REPORT=$(jq -c --arg from "$APPROVED_HASH" '.authorizedFromHash = $from' \
+    <<<"$WRITE_REPORT_VALID")
+  APPROVAL_DATA=$(jq -cn --arg hash "$FILE_HASH" --argjson report "$APPROVAL_REPORT" '{
+    path:"docs/r.mdx",returnedHash:$hash,diskHash:$hash,writerReport:$report,
+    consumedAt:"2026-08-01T00:04:00Z"
+  }')
+  APPROVAL_PENDING_STATE=$(jq -c --arg approved "$APPROVED_HASH" '
+    .approvedOverwrites = [{
+      path:"docs/r.mdx",approvedHash:$approved,purpose:"writer-replay",
+      approvedAt:"2026-08-01T00:03:00Z",consumedAt:null
+    }] |
+    .processorState.recordWriteAuthorizations["docs/r.mdx"].replayApproval = {
+      ledgerIndex:0,approvedHash:$approved
+    }
+  ' <<<"$PENDING_WRITE_STATE")
+  if ! APPROVAL_WRITTEN=$(jq -n -L "$CONTROL_DIR" \
+    --argjson state "$APPROVAL_PENDING_STATE" --arg operation record-write \
+    --argjson data "$APPROVAL_DATA" -f "$CONTROL_DIR/reducer.jq") ||
+    ! jq -e --argjson report "$APPROVAL_REPORT" '
+      .approvedOverwrites[0].consumedAt == "2026-08-01T00:04:00Z" and
+      .provenance["docs/r.mdx"].writerReport == $report
+    ' <<<"$APPROVAL_WRITTEN" >/dev/null; then
+    contract_failure 'Exact unconsumed replay approval was not consumed and committed atomically'
+  fi
+
+  APPROVAL_BAD_INDEX=$(jq -c '
+    .processorState.recordWriteAuthorizations["docs/r.mdx"].replayApproval.ledgerIndex = 1
+  ' <<<"$APPROVAL_PENDING_STATE")
+  APPROVAL_BAD_PATH=$(jq -c '.approvedOverwrites[0].path = "docs/other.mdx"' \
+    <<<"$APPROVAL_PENDING_STATE")
+  APPROVAL_BAD_PURPOSE=$(jq -c '.approvedOverwrites[0].purpose = "scaffold"' \
+    <<<"$APPROVAL_PENDING_STATE")
+  APPROVAL_BAD_HASH=$(jq -c \
+    '.approvedOverwrites[0].approvedHash = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"' \
+    <<<"$APPROVAL_PENDING_STATE")
+  APPROVAL_ALREADY_CONSUMED=$(jq -c \
+    '.approvedOverwrites[0].consumedAt = "2026-08-01T00:03:30Z"' \
+    <<<"$APPROVAL_PENDING_STATE")
+  APPROVAL_CASE_NAMES=(APPROVAL_BAD_INDEX APPROVAL_BAD_PATH APPROVAL_BAD_PURPOSE
+    APPROVAL_BAD_HASH APPROVAL_ALREADY_CONSUMED)
+  APPROVAL_CASE_VALUES=("$APPROVAL_BAD_INDEX" "$APPROVAL_BAD_PATH" "$APPROVAL_BAD_PURPOSE"
+    "$APPROVAL_BAD_HASH" "$APPROVAL_ALREADY_CONSUMED")
+  for APPROVAL_CASE_INDEX in "${!APPROVAL_CASE_NAMES[@]}"; do
+    APPROVAL_CASE=${APPROVAL_CASE_NAMES[$APPROVAL_CASE_INDEX]}
+    APPROVAL_STATE=${APPROVAL_CASE_VALUES[$APPROVAL_CASE_INDEX]}
+    if OUTPUT=$(jq -n -L "$CONTROL_DIR" --argjson state "$APPROVAL_STATE" \
+      --arg operation record-write --argjson data "$APPROVAL_DATA" \
+      -f "$CONTROL_DIR/reducer.jq" 2>&1); then
+      contract_failure "Malformed/stale replay approval was accepted: ${APPROVAL_CASE}"
+    elif [[ $OUTPUT != *PROCESSOR_AUTHORITY_INVALID* ]]; then
+      contract_failure "Malformed replay approval failed with the wrong refusal: ${APPROVAL_CASE}"
+    fi
+  done
+
+  APPROVAL_NOT_CONSUMED=$(jq -c '.approvedOverwrites[0].consumedAt = null' \
+    <<<"$APPROVAL_WRITTEN")
+  if OUTPUT=$(jq -n -L "$CONTROL_DIR" --argjson state "$APPROVAL_NOT_CONSUMED" \
+    --arg operation complete-tier --argjson data '{}' -f "$CONTROL_DIR/reducer.jq" 2>&1); then
+    contract_failure 'Committed approval branch was accepted without consumption'
+  elif [[ $OUTPUT != *WRITE_REPORT_MISSING* ]]; then
+    contract_failure 'Unconsumed committed approval failed with the wrong refusal'
+  fi
+  APPROVAL_REUSE_STATE=$(jq -c '
+    .pending = ["docs/r.mdx"] | .filesWritten = 0 |
+    .provenance["docs/r.mdx"].writeStatus = "pending" |
+    .provenance["docs/r.mdx"].writerReport = null
+  ' <<<"$APPROVAL_WRITTEN")
+  if OUTPUT=$(jq -n -L "$CONTROL_DIR" --argjson state "$APPROVAL_REUSE_STATE" \
+    --arg operation record-write --argjson data "$APPROVAL_DATA" \
+    -f "$CONTROL_DIR/reducer.jq" 2>&1); then
+    contract_failure 'Consumed replay approval was reused'
+  elif [[ $OUTPUT != *PROCESSOR_AUTHORITY_INVALID* ]]; then
+    contract_failure 'Reused approval failed with the wrong refusal'
+  fi
+
+  NORMAL_WITH_APPROVAL=$(jq -n -L "$CONTROL_DIR" \
+    --argjson state "$APPROVAL_PENDING_STATE" --arg operation record-write \
+    --argjson data "$WRITE_DATA_VALID" -f "$CONTROL_DIR/reducer.jq") || true
+  if [[ -z $NORMAL_WITH_APPROVAL ]] || ! jq -e \
+    '.approvedOverwrites[0].consumedAt == null' <<<"$NORMAL_WITH_APPROVAL" >/dev/null; then
+    contract_failure 'Normal start branch consumed an unrelated replay approval'
+  fi
+
   NULL_REPORT_STATE=$(jq -c '
     .step = "write_tier_4" | .pending = [] |
     .provenance["docs/r.mdx"].writerReport = null
@@ -1292,7 +2157,7 @@ JQ
   # shapes are tied back to the marked Markdown sources below.  It proves that every
   # ordinary dispatch/handoff shares the same approved-plan guard and that the only
   # successor is the named gap candidate transaction.
-  PLAN_BASE=$(jq -c '.step = "write_tier_1"' <<<"$BASE_STATE")
+  PLAN_BASE=$(jq -c '.step = "write_tier_4"' <<<"$BASE_STATE")
 
   CONTROL_FAILURES_BEFORE=$FAILURES
   for OPERATION in write-dispatch audit-dispatch advance-task-phase-to-audit advance-task-phase-to-completed; do
@@ -1333,11 +2198,29 @@ JQ
   elif [[ $OUTPUT != *PLAN_DRIFT_BLOCKED* ]]; then
     contract_failure 'Silent authority rebind failed for the wrong reason'
   fi
+  TRAILING_ROOT_PLAN=$(jq -c '.livePlan.docsRoot = "docs/"' <<<"$PLAN_BASE")
+  DOT_TARGET_PLAN=$(jq -c '
+    .livePlan.modules[0].files[0].crossLinks.concepts = ["./a.mdx"]
+  ' <<<"$PLAN_BASE")
+  NORMALIZATION_CASE_NAMES=(TRAILING_ROOT_PLAN DOT_TARGET_PLAN)
+  NORMALIZATION_CASE_VALUES=("$TRAILING_ROOT_PLAN" "$DOT_TARGET_PLAN")
+  for NORMALIZATION_CASE_INDEX in "${!NORMALIZATION_CASE_NAMES[@]}"; do
+    NORMALIZATION_CASE=${NORMALIZATION_CASE_NAMES[$NORMALIZATION_CASE_INDEX]}
+    NORMALIZATION_STATE=${NORMALIZATION_CASE_VALUES[$NORMALIZATION_CASE_INDEX]}
+    if OUTPUT=$(jq -n -L "$CONTROL_DIR" --argjson state "$NORMALIZATION_STATE" \
+      --arg operation write-dispatch --argjson data '{}' \
+      -f "$CONTROL_DIR/reducer.jq" 2>&1); then
+      contract_failure "Unnormalized live-plan metadata was accepted: ${NORMALIZATION_CASE}"
+    elif [[ $OUTPUT != *PLAN_DRIFT_BLOCKED* ]]; then
+      contract_failure "Unnormalized live-plan metadata failed with the wrong refusal: ${NORMALIZATION_CASE}"
+    fi
+  done
   VALID_CLOSED_CHAIN=$(jq -c --arg hash "$PLAN_C" --argjson first "$CLOSED_RECORD_AB" \
     --argjson second "$CLOSED_RECORD_BC" --arg scaffoldA "$SCAFFOLD_A" \
-    --arg scaffoldB "$SCAFFOLD_B" '
+    --arg scaffoldB "$SCAFFOLD_B" --argjson livePlan "$SECOND_PLAN_BYTES" '
       .gapsResolved = [$first,$second] |
       .authorizedPlanHash = $hash | .livePlanHash = $hash |
+      .livePlan = $livePlan |
       .writeQueue += ["docs/a.mdx","docs/b.mdx"] |
       .provenance["docs/a.mdx"] = {
         tier:2,writeStatus:"pending",scaffoldHash:$scaffoldA,
@@ -1351,6 +2234,16 @@ JQ
   if ! jq -n -L "$CONTROL_DIR" --argjson state "$VALID_CLOSED_CHAIN" \
     --arg operation write-dispatch --argjson data '{}' -f "$CONTROL_DIR/reducer.jq" >/dev/null; then
     contract_failure 'Valid two-link closed plan-mutation chain was rejected'
+  fi
+  OMITTED_STORED_LINK=$(jq -c '
+    .livePlan.modules[0].files[0].crossLinks.concepts = []
+  ' <<<"$VALID_CLOSED_CHAIN")
+  if OUTPUT=$(jq -n -L "$CONTROL_DIR" --argjson state "$OMITTED_STORED_LINK" \
+    --arg operation write-dispatch --argjson data '{}' \
+    -f "$CONTROL_DIR/reducer.jq" 2>&1); then
+    contract_failure 'Live plan omitting a stored added link was accepted'
+  elif [[ $OUTPUT != *PLAN_DRIFT_BLOCKED* ]]; then
+    contract_failure 'Omitted stored added link failed with the wrong refusal'
   fi
   REORDERED_CLOSED_CHAIN=$(jq -c '.gapsResolved |= reverse' <<<"$VALID_CLOSED_CHAIN")
   if OUTPUT=$(jq -n -L "$CONTROL_DIR" --argjson state "$REORDERED_CLOSED_CHAIN" \
@@ -1407,26 +2300,194 @@ JQ
   MISSING_ADDED_LINK_HISTORY=$(jq -c '
     .gapsResolved[0].planMutation.addedCrossLinks = []
   ' <<<"$VALID_CLOSED_CHAIN")
+  MISSING_LATER_PLAN_MUTATION=$(jq -c 'del(.gapsResolved[1].planMutation)' \
+    <<<"$VALID_CLOSED_CHAIN")
+  MISSING_LATER_GAP_PATHS=$(jq -c 'del(.gapsResolved[1].gapPaths)' \
+    <<<"$VALID_CLOSED_CHAIN")
   HISTORY_CASE_NAMES=(TRUNCATED_HISTORY NO_REPORT_HISTORY BLANK_REASON_HISTORY
     CONFLICTING_HISTORY DUPLICATE_OPENED_HISTORY NO_CLOSED_AT_HISTORY
     DUPLICATE_REPORTER_HISTORY EMPTY_REQUEUED_HISTORY EMPTY_RESET_HISTORY
-    RESET_WITHOUT_REPLAY_HISTORY WRONG_ADDED_ENTRY_HISTORY MISSING_ADDED_LINK_HISTORY)
+    RESET_WITHOUT_REPLAY_HISTORY WRONG_ADDED_ENTRY_HISTORY MISSING_ADDED_LINK_HISTORY
+    MISSING_LATER_PLAN_MUTATION MISSING_LATER_GAP_PATHS)
   HISTORY_CASE_VALUES=("$TRUNCATED_HISTORY" "$NO_REPORT_HISTORY" "$BLANK_REASON_HISTORY"
     "$CONFLICTING_HISTORY" "$DUPLICATE_OPENED_HISTORY" "$NO_CLOSED_AT_HISTORY"
     "$DUPLICATE_REPORTER_HISTORY" "$EMPTY_REQUEUED_HISTORY" "$EMPTY_RESET_HISTORY"
-    "$RESET_WITHOUT_REPLAY_HISTORY" "$WRONG_ADDED_ENTRY_HISTORY" "$MISSING_ADDED_LINK_HISTORY")
+    "$RESET_WITHOUT_REPLAY_HISTORY" "$WRONG_ADDED_ENTRY_HISTORY" "$MISSING_ADDED_LINK_HISTORY"
+    "$MISSING_LATER_PLAN_MUTATION" "$MISSING_LATER_GAP_PATHS")
   for HISTORY_CASE_INDEX in "${!HISTORY_CASE_NAMES[@]}"; do
     HISTORY_CASE=${HISTORY_CASE_NAMES[$HISTORY_CASE_INDEX]}
     HISTORY=${HISTORY_CASE_VALUES[$HISTORY_CASE_INDEX]}
+    printf '%s' "$HISTORY" >"$CONTROL_DIR/${HISTORY_CASE}.before"
     if OUTPUT=$(jq -n -L "$CONTROL_DIR" --argjson state "$HISTORY" \
       --arg operation write-dispatch --argjson data '{}' -f "$CONTROL_DIR/reducer.jq" 2>&1); then
       contract_failure "Malformed closed history was accepted: ${HISTORY_CASE}"
     elif [[ $OUTPUT != *GAP_CLOSURE_INVALID* ]]; then
       contract_failure "Malformed closed history failed for the wrong reason: ${HISTORY_CASE}"
     fi
+    printf '%s' "$HISTORY" >"$CONTROL_DIR/${HISTORY_CASE}.after"
+    if ! cmp -s "$CONTROL_DIR/${HISTORY_CASE}.before" "$CONTROL_DIR/${HISTORY_CASE}.after"; then
+      contract_failure "Malformed closed history mutated while refusing: ${HISTORY_CASE}"
+    fi
   done
   if [[ $FAILURES -eq $CONTROL_FAILURES_BEFORE ]]; then
     echo '✅ Complete ordered two-link history rejected reordering, skipped links, and malformed closures'
+  fi
+
+  CONTROL_FAILURES_BEFORE=$FAILURES
+  DUPLICATE_CLOSED_GAP=$(jq -c '
+    .gapsResolved[1].gapPaths[0].path = .gapsResolved[0].gapPaths[0].path
+  ' <<<"$VALID_CLOSED_CHAIN")
+  LIVE_REPEATED_GAP=$(jq -c --argjson live "$GAP_RECORD" '
+    .gapsResolved = [.gapsResolved[0]] |
+    .gapStatus = "enqueued" | .gapRecord = $live
+  ' <<<"$VALID_CLOSED_CHAIN")
+  GAP_LOOP_NAMES=(DUPLICATE_CLOSED_GAP LIVE_REPEATED_GAP)
+  GAP_LOOP_VALUES=("$DUPLICATE_CLOSED_GAP" "$LIVE_REPEATED_GAP")
+  for GAP_LOOP_INDEX in "${!GAP_LOOP_NAMES[@]}"; do
+    GAP_LOOP_NAME=${GAP_LOOP_NAMES[$GAP_LOOP_INDEX]}
+    GAP_LOOP_STATE=${GAP_LOOP_VALUES[$GAP_LOOP_INDEX]}
+    printf '%s' "$GAP_LOOP_STATE" >"$CONTROL_DIR/${GAP_LOOP_NAME}.before"
+    if OUTPUT=$(jq -n -L "$CONTROL_DIR" --argjson state "$GAP_LOOP_STATE" \
+      --arg operation write-dispatch --argjson data '{}' \
+      -f "$CONTROL_DIR/reducer.jq" 2>&1); then
+      contract_failure "Repeated gap path was accepted: ${GAP_LOOP_NAME}"
+    elif [[ $OUTPUT != *GAP_LOOP* ]]; then
+      contract_failure "Repeated gap path failed with the wrong refusal: ${GAP_LOOP_NAME}"
+    fi
+    printf '%s' "$GAP_LOOP_STATE" >"$CONTROL_DIR/${GAP_LOOP_NAME}.after"
+    if ! cmp -s "$CONTROL_DIR/${GAP_LOOP_NAME}.before" \
+      "$CONTROL_DIR/${GAP_LOOP_NAME}.after"; then
+      contract_failure "Repeated gap path mutated while refusing: ${GAP_LOOP_NAME}"
+    fi
+  done
+  if [[ $FAILURES -eq $CONTROL_FAILURES_BEFORE ]]; then
+    echo '✅ Closed/live repeated gap paths refused GAP_LOOP byte-identically'
+  fi
+
+  CONTROL_FAILURES_BEFORE=$FAILURES
+  COMPLEX_CLOSURE_STATE=$(jq -c --arg root "$COMPLEX_PLAN_ROOT" \
+    --arg final "$COMPLEX_PLAN_FINAL" --argjson livePlan "$COMPLEX_PLAN_BYTES" \
+    --argjson closed "$COMPLEX_CLOSED_RECORD" --arg scaffold "$SCAFFOLD_A" '
+      .planStateHash = $root | .approvedPlanHash = $root |
+      .authorizedPlanHash = $final | .livePlanHash = $final | .livePlan = $livePlan |
+      .candidateHash = null | .candidatePlan = null | .gapStatus = null |
+      .gapPlanMutation = null | .gapRecord = null | .gapsResolved = [$closed] |
+      .currentTier = 4 |
+      .writeQueue = [
+        "docs/r.mdx","docs/dep.mdx","docs/top.mdx","docs/nav.mdx",
+        "docs/unrelated.mdx","docs/area/index.mdx","docs/area/gap.mdx"
+      ] |
+      .provenance = {
+        "docs/r.mdx":{tier:4,writeStatus:"pending",scaffoldHash:$scaffold,
+          writtenHash:null,writerReport:null},
+        "docs/dep.mdx":{tier:3,writeStatus:"pending",scaffoldHash:$scaffold,
+          writtenHash:null,writerReport:null},
+        "docs/top.mdx":{tier:1,writeStatus:"pending",scaffoldHash:$scaffold,
+          writtenHash:null,writerReport:null},
+        "docs/nav.mdx":{tier:5,writeStatus:"pending",scaffoldHash:$scaffold,
+          writtenHash:null,writerReport:null},
+        "docs/unrelated.mdx":{tier:4,writeStatus:"pending",scaffoldHash:$scaffold,
+          writtenHash:null,writerReport:null},
+        "docs/area/index.mdx":{tier:6,writeStatus:"pending",scaffoldHash:$scaffold,
+          writtenHash:null,writerReport:null},
+        "docs/area/gap.mdx":{tier:2,writeStatus:"pending",scaffoldHash:$scaffold,
+          writtenHash:null,writerReport:null}
+      }
+    ' <<<"$PLAN_BASE")
+  if ! jq -n -L "$CONTROL_DIR" --argjson state "$COMPLEX_CLOSURE_STATE" \
+    --arg operation write-dispatch --argjson data '{}' -f "$CONTROL_DIR/reducer.jq" \
+    >/dev/null; then
+    contract_failure 'Healthy transitive reverse-link and same-directory index closure was rejected'
+  fi
+
+  LIVE_SUCCESSOR_PLAN=$(jq -c '
+    .modules[0].files[] |=
+      if .path == "unrelated.mdx" then
+        .crossLinks.concepts = ["area/future.mdx"]
+      else . end |
+    .shared.files += [{
+      path:"area/future.mdx",type:"concept",tier:2,
+      description:"Later live discovered concept",sources:["src/unrelated.ts"],
+      crossLinks:{concepts:["r.mdx"],algorithms:[]},tags:["orders"]
+    }]
+  ' <<<"$COMPLEX_PLAN_BYTES")
+  LIVE_SUCCESSOR_HASH=$(printf '%s' "$LIVE_SUCCESSOR_PLAN" | sha256sum | cut -d ' ' -f1)
+  LIVE_SUCCESSOR_MUTATION=$(jq -cn --arg from "$COMPLEX_PLAN_FINAL" \
+    --arg to "$LIVE_SUCCESSOR_HASH" --arg candidate "$CONTRACT_CANDIDATE_PATH" \
+    --argjson plan "$LIVE_SUCCESSOR_PLAN" '{
+      candidatePath:$candidate,fromPlanHash:$from,toPlanHash:$to,
+      addedPlanEntries:[{
+        outputPath:"docs/area/future.mdx",container:"shared",entry:$plan.shared.files[1]
+      }],
+      addedCrossLinks:[{
+        reportedBy:"docs/unrelated.mdx",field:"concepts",target:"docs/area/future.mdx"
+      }]
+    }')
+  LIVE_SUCCESSOR_RECORD=$(jq -cn --argjson mutation "$LIVE_SUCCESSOR_MUTATION" \
+    --arg scaffold "$SCAFFOLD_B" '{
+      status:"scaffolded",reports:[{reportedBy:"docs/unrelated.mdx",gaps:[{
+        path:"docs/area/future.mdx",type:"concept",tier:2,
+        reason:"Later transition needs a future area concept"
+      }]}],gapPaths:[{path:"docs/area/future.mdx",type:"concept",tier:2}],
+      expectedScaffold:{"docs/area/future.mdx":$scaffold},replayTier:2,
+      requeued:["docs/unrelated.mdx"],resetTiers:[2,4],cleanedTiers:[],
+      openedAt:"2026-08-01T00:03:00Z",planMutation:$mutation
+    }')
+  CLOSED_WITH_LIVE_SUCCESSOR=$(jq -c --arg hash "$LIVE_SUCCESSOR_HASH" \
+    --argjson plan "$LIVE_SUCCESSOR_PLAN" --argjson mutation "$LIVE_SUCCESSOR_MUTATION" \
+    --argjson record "$LIVE_SUCCESSOR_RECORD" --arg scaffold "$SCAFFOLD_B" '
+      .authorizedPlanHash = $hash | .livePlanHash = $hash | .livePlan = $plan |
+      .gapStatus = "scaffolded" | .gapPlanMutation = $mutation | .gapRecord = $record |
+      .writeQueue += ["docs/area/future.mdx"] |
+      .provenance["docs/area/future.mdx"] = {
+        tier:2,writeStatus:"pending",scaffoldHash:$scaffold,
+        writtenHash:null,writerReport:null
+      }
+    ' <<<"$COMPLEX_CLOSURE_STATE")
+  if ! jq -n -L "$CONTROL_DIR" --argjson state "$CLOSED_WITH_LIVE_SUCCESSOR" \
+    --arg operation write-dispatch --argjson data '{}' \
+    -f "$CONTROL_DIR/reducer.jq" >/dev/null; then
+    contract_failure 'Closed-history validation failed to remove a scaffolded live gap path from the older queue'
+  fi
+
+  TRUNCATED_CLOSURE=$(jq -c '
+    .gapsResolved[0].requeued |= map(select(. != "docs/top.mdx")) |
+    .gapsResolved[0].replayTier = 2 |
+    .gapsResolved[0].resetTiers = [2,3,4,5,6] |
+    .gapsResolved[0].cleanedTiers = [2,3,4,5,6]
+  ' <<<"$COMPLEX_CLOSURE_STATE")
+  INFLATED_CLOSURE=$(jq -c '
+    .gapsResolved[0].requeued = [
+      "docs/area/index.mdx","docs/dep.mdx","docs/nav.mdx","docs/r.mdx",
+      "docs/top.mdx","docs/unrelated.mdx"
+    ]
+  ' <<<"$COMPLEX_CLOSURE_STATE")
+  UNSORTED_CLOSURE=$(jq -c '.gapsResolved[0].requeued |= reverse' \
+    <<<"$COMPLEX_CLOSURE_STATE")
+  WRONG_REPLAY_TIER_CLOSURE=$(jq -c '.gapsResolved[0].replayTier = 2' \
+    <<<"$COMPLEX_CLOSURE_STATE")
+  CLOSURE_CASE_NAMES=(TRUNCATED_CLOSURE INFLATED_CLOSURE UNSORTED_CLOSURE
+    WRONG_REPLAY_TIER_CLOSURE)
+  CLOSURE_CASE_VALUES=("$TRUNCATED_CLOSURE" "$INFLATED_CLOSURE" "$UNSORTED_CLOSURE"
+    "$WRONG_REPLAY_TIER_CLOSURE")
+  for CLOSURE_CASE_INDEX in "${!CLOSURE_CASE_NAMES[@]}"; do
+    CLOSURE_CASE=${CLOSURE_CASE_NAMES[$CLOSURE_CASE_INDEX]}
+    CLOSURE_HISTORY=${CLOSURE_CASE_VALUES[$CLOSURE_CASE_INDEX]}
+    printf '%s' "$CLOSURE_HISTORY" >"$CONTROL_DIR/${CLOSURE_CASE}.before"
+    if OUTPUT=$(jq -n -L "$CONTROL_DIR" --argjson state "$CLOSURE_HISTORY" \
+      --arg operation write-dispatch --argjson data '{}' \
+      -f "$CONTROL_DIR/reducer.jq" 2>&1); then
+      contract_failure "Inexact historical closure was accepted: ${CLOSURE_CASE}"
+    elif [[ $OUTPUT != *GAP_CLOSURE_INVALID* ]]; then
+      contract_failure "Inexact historical closure failed for the wrong reason: ${CLOSURE_CASE}"
+    fi
+    printf '%s' "$CLOSURE_HISTORY" >"$CONTROL_DIR/${CLOSURE_CASE}.after"
+    if ! cmp -s "$CONTROL_DIR/${CLOSURE_CASE}.before" "$CONTROL_DIR/${CLOSURE_CASE}.after"; then
+      contract_failure "Inexact historical closure mutated state while refusing: ${CLOSURE_CASE}"
+    fi
+  done
+  if [[ $FAILURES -eq $CONTROL_FAILURES_BEFORE ]]; then
+    echo '✅ Exact transitive/index closure rejected truncated, inflated, unsorted, and wrong-tier histories byte-identically'
   fi
 
   CONTROL_FAILURES_BEFORE=$FAILURES
@@ -1447,12 +2508,19 @@ JQ
     --arg from "$FROM_HASH" --arg written "$SECOND_FILE_HASH" '
       .candidateHash = $hash |
       .writeQueue += ["docs/s.mdx"] |
+      .filesWritten = 2 |
       .provenance["docs/s.mdx"] = {
         tier:4,writeStatus:"written",scaffoldHash:$from,writtenHash:$written,
         writerReport:{reportedBy:"docs/s.mdx",authorizedPlanHash:$plan,
           authorizedFromHash:$from,writtenHash:$written,gaps:[{
             path:"docs/a.mdx",type:"algorithm",tier:3,reason:"Conflicting reporter metadata"
           }]}
+      } |
+      .processorState.filesToProcess += ["docs/s.mdx"] |
+      .processorState.pendingFiles = [] |
+      .processorState.processedFiles = ["docs/r.mdx","docs/s.mdx"] |
+      .processorState.recordWriteAuthorizations["docs/s.mdx"] = {
+        normalHash:$from,replayApproval:null
       }
     ' <<<"$PLAN_BASE")
   if OUTPUT=$(jq -n -L "$CONTROL_DIR" --argjson state "$CONFLICTING_LEDGER" \
@@ -1486,6 +2554,15 @@ JQ
 
   CONTROL_FAILURES_BEFORE=$FAILURES
   AUTHORIZABLE_STATE=$(jq -c --arg hash "$PLAN_B" '.candidateHash = $hash' <<<"$PLAN_BASE")
+  MISMATCHED_LIVE_INPUT=$(jq -c --arg live "$UNRELATED_PLAN_BYTES" \
+    '.livePlanBytes = $live' <<<"$PLAN_INPUT")
+  if OUTPUT=$(jq -n -L "$CONTROL_DIR" --argjson state "$AUTHORIZABLE_STATE" \
+    --arg operation authorize-gap-plan --argjson data "$MISMATCHED_LIVE_INPUT" \
+    -f "$CONTROL_DIR/reducer.jq" 2>&1); then
+    contract_failure 'authorize-gap-plan accepted livePlanBytes that differed from state.livePlan'
+  elif [[ $OUTPUT != *PLAN_DRIFT_BLOCKED* ]]; then
+    contract_failure 'Mismatched livePlanBytes failed with the wrong refusal'
+  fi
   if ! AUTHORIZED=$(jq -n -L "$CONTROL_DIR" --argjson state "$AUTHORIZABLE_STATE" \
     --arg operation authorize-gap-plan --argjson data "$PLAN_INPUT" -f "$CONTROL_DIR/reducer.jq"); then
     contract_failure 'Valid authorize-gap-plan was refused'
@@ -1503,6 +2580,9 @@ JQ
       contract_failure 'Valid apply-gap-plan was refused'
     elif [[ $(jq -r '.gapStatus' <<<"$APPLIED") != planned ]] ||
       [[ $(jq -r '.authorizedPlanHash' <<<"$APPLIED") != "$PLAN_B" ]] ||
+      ! jq -e --argjson candidate "$CANDIDATE_PLAN_BYTES" '
+        .livePlan == $candidate and .candidatePlan == null
+      ' <<<"$APPLIED" >/dev/null ||
       ! jq -n -L "$CONTROL_DIR" --argjson state "$APPLIED" --arg operation write-dispatch \
         --argjson data '{}' -f "$CONTROL_DIR/reducer.jq" >/dev/null; then
       contract_failure 'Gap successor did not authorize ordinary dispatch'
@@ -1554,7 +2634,10 @@ JQ
     fi
 
     CONTROL_FAILURES_BEFORE=$FAILURES
-    CRASH_TUPLE=$(jq -c --arg hash "$PLAN_B" '.livePlanHash = $hash | .candidateHash = null' <<<"$AUTHORIZED")
+    CRASH_TUPLE=$(jq -c --arg hash "$PLAN_B" --argjson livePlan "$CANDIDATE_PLAN_BYTES" '
+      .livePlanHash = $hash | .livePlan = $livePlan |
+      .candidateHash = null | .candidatePlan = null
+    ' <<<"$AUTHORIZED")
     if ! CRASH_ADOPTED=$(jq -n -L "$CONTROL_DIR" --argjson state "$CRASH_TUPLE" \
       --arg operation apply-gap-plan --argjson data '{}' -f "$CONTROL_DIR/reducer.jq") ||
       ! CRASH_IDEMPOTENT=$(jq -n -L "$CONTROL_DIR" --argjson state "$CRASH_ADOPTED" \
@@ -1569,13 +2652,15 @@ JQ
 
   CONTROL_FAILURES_BEFORE=$FAILURES
   AFTER_ONE_CLOSED=$(jq -c --arg hash "$PLAN_B" --argjson closed "$CLOSED_RECORD_AB" \
-    --arg scaffold "$SCAFFOLD_A" '
+    --arg scaffold "$SCAFFOLD_A" --argjson livePlan "$CANDIDATE_PLAN_BYTES" '
     .gapsResolved = [$closed] | .authorizedPlanHash = $hash | .livePlanHash = $hash |
+    .livePlan = $livePlan |
     .writeQueue += ["docs/a.mdx"] |
     .provenance["docs/a.mdx"] = {
       tier:2,writeStatus:"pending",scaffoldHash:$scaffold,
       writtenHash:null,writerReport:null
     } |
+    .processorState.authorizedPlanHash = $hash |
     .provenance["docs/r.mdx"].writerReport.authorizedPlanHash = $hash |
     .provenance["docs/r.mdx"].writerReport.gaps = [{
       path:"docs/b.mdx",type:"algorithm",tier:3,reason:"Reporter needs the algorithm"
@@ -1627,6 +2712,34 @@ JQ
     "$AUTH_PLAN_FILE" "$AUTH_CANDIDATE_FILE"; then
     contract_failure 'Healthy direct authority helper call was refused'
   fi
+
+  HELPER_TRAILING_ROOT_BYTES=$(jq -c '.docsRoot = "docs/"' <<<"$LIVE_PLAN_BYTES")
+  HELPER_DOT_TARGET_BYTES=$(jq -c '
+    .modules[0].files[0].crossLinks.concepts = ["./a.mdx"]
+  ' <<<"$LIVE_PLAN_BYTES")
+  HELPER_NORMALIZATION_NAMES=(HELPER_TRAILING_ROOT_BYTES HELPER_DOT_TARGET_BYTES)
+  HELPER_NORMALIZATION_VALUES=("$HELPER_TRAILING_ROOT_BYTES" "$HELPER_DOT_TARGET_BYTES")
+  for HELPER_NORMALIZATION_INDEX in "${!HELPER_NORMALIZATION_NAMES[@]}"; do
+    HELPER_NORMALIZATION_NAME=${HELPER_NORMALIZATION_NAMES[$HELPER_NORMALIZATION_INDEX]}
+    HELPER_NORMALIZATION_BYTES=${HELPER_NORMALIZATION_VALUES[$HELPER_NORMALIZATION_INDEX]}
+    HELPER_NORMALIZATION_HASH=$(printf '%s' "$HELPER_NORMALIZATION_BYTES" | \
+      sha256sum | cut -d ' ' -f1)
+    jq -c --arg hash "$HELPER_NORMALIZATION_HASH" '.planHash = $hash' \
+      <<<"$AUTH_PLAN_STATE" >"$AUTH_PLAN_STATE_FILE"
+    jq -c --arg hash "$HELPER_NORMALIZATION_HASH" '.authorizedPlanHash = $hash' \
+      <<<"$AUTH_WRITE_STATE" >"$AUTH_WRITE_STATE_FILE"
+    printf '%s' "$HELPER_NORMALIZATION_BYTES" >"$AUTH_PLAN_FILE"
+    if OUTPUT=$(assert_plan_authority "$HELPER_NORMALIZATION_HASH" \
+      "$AUTH_PLAN_STATE_FILE" "$AUTH_WRITE_STATE_FILE" "$AUTH_PLAN_FILE" \
+      "$AUTH_CANDIDATE_FILE" 2>&1); then
+      contract_failure "Direct authority helper accepted unnormalized plan metadata: ${HELPER_NORMALIZATION_NAME}"
+    elif [[ $OUTPUT != *PLAN_DRIFT_BLOCKED* ]]; then
+      contract_failure "Direct authority helper reported unnormalized plan metadata with the wrong refusal: ${HELPER_NORMALIZATION_NAME}"
+    fi
+  done
+  printf '%s\n' "$AUTH_PLAN_STATE" >"$AUTH_PLAN_STATE_FILE"
+  printf '%s\n' "$AUTH_WRITE_STATE" >"$AUTH_WRITE_STATE_FILE"
+  printf '%s' "$LIVE_PLAN_BYTES" >"$AUTH_PLAN_FILE"
 
   GUTTED_WRITE_STATE=$(jq -cn --arg hash "$PLAN_A" '{
     authorizedPlanHash:$hash,gapTransition:null,gapsResolved:[],
@@ -1714,12 +2827,18 @@ JQ
   HELPER_MISSING_ADDED_LINK=$(jq -c '
     .gapsResolved[0].planMutation.addedCrossLinks = []
   ' <<<"$CHAIN_WRITE_STATE")
+  HELPER_MISSING_LATER_PLAN_MUTATION=$(jq -c 'del(.gapsResolved[1].planMutation)' \
+    <<<"$CHAIN_WRITE_STATE")
+  HELPER_MISSING_LATER_GAP_PATHS=$(jq -c 'del(.gapsResolved[1].gapPaths)' \
+    <<<"$CHAIN_WRITE_STATE")
   HELPER_CASE_NAMES=(HELPER_TRUNCATED HELPER_DUPLICATE_REPORTER HELPER_EMPTY_REQUEUED
     HELPER_EMPTY_RESET HELPER_RESET_WITHOUT_REPLAY HELPER_WRONG_ADDED_ENTRY
-    HELPER_WRONG_ADDED_DESCRIPTION HELPER_MISSING_ADDED_LINK)
+    HELPER_WRONG_ADDED_DESCRIPTION HELPER_MISSING_ADDED_LINK
+    HELPER_MISSING_LATER_PLAN_MUTATION HELPER_MISSING_LATER_GAP_PATHS)
   HELPER_CASE_VALUES=("$HELPER_TRUNCATED" "$HELPER_DUPLICATE_REPORTER" "$HELPER_EMPTY_REQUEUED"
     "$HELPER_EMPTY_RESET" "$HELPER_RESET_WITHOUT_REPLAY" "$HELPER_WRONG_ADDED_ENTRY"
-    "$HELPER_WRONG_ADDED_DESCRIPTION" "$HELPER_MISSING_ADDED_LINK")
+    "$HELPER_WRONG_ADDED_DESCRIPTION" "$HELPER_MISSING_ADDED_LINK"
+    "$HELPER_MISSING_LATER_PLAN_MUTATION" "$HELPER_MISSING_LATER_GAP_PATHS")
   for HELPER_CASE_INDEX in "${!HELPER_CASE_NAMES[@]}"; do
     HELPER_CASE=${HELPER_CASE_NAMES[$HELPER_CASE_INDEX]}
     HELPER_HISTORY=${HELPER_CASE_VALUES[$HELPER_CASE_INDEX]}
@@ -1734,8 +2853,103 @@ JQ
       contract_failure "Direct authority helper mutated malformed history while refusing: ${HELPER_CASE}"
     fi
   done
+
+  HELPER_DUPLICATE_GAP=$(jq -c '
+    .gapsResolved[1].gapPaths[0].path = .gapsResolved[0].gapPaths[0].path
+  ' <<<"$CHAIN_WRITE_STATE")
+  printf '%s\n' "$HELPER_DUPLICATE_GAP" >"$AUTH_WRITE_STATE_FILE"
+  cp "$AUTH_WRITE_STATE_FILE" "$CONTROL_DIR/helper-duplicate-gap.before"
+  if OUTPUT=$(assert_plan_authority "$PLAN_C" "$AUTH_PLAN_STATE_FILE" \
+    "$AUTH_WRITE_STATE_FILE" "$AUTH_PLAN_FILE" "$AUTH_CANDIDATE_FILE" 2>&1); then
+    contract_failure 'Direct authority helper accepted a repeated closed gap path'
+  elif [[ $OUTPUT != *GAP_LOOP* ]]; then
+    contract_failure 'Direct authority helper reported a repeated gap with the wrong refusal'
+  elif ! cmp -s "$AUTH_WRITE_STATE_FILE" "$CONTROL_DIR/helper-duplicate-gap.before"; then
+    contract_failure 'Direct authority helper mutated repeated-gap history while refusing'
+  fi
+  printf '%s\n' "$CHAIN_WRITE_STATE" >"$AUTH_WRITE_STATE_FILE"
+
+  COMPLEX_AUTH_PLAN_STATE=$(jq -c --arg hash "$COMPLEX_PLAN_ROOT" \
+    '.planHash = $hash' <<<"$AUTH_PLAN_STATE")
+  COMPLEX_AUTH_WRITE_STATE=$(jq -c --arg hash "$COMPLEX_PLAN_FINAL" \
+    --argjson closed "$COMPLEX_CLOSED_RECORD" --arg scaffold "$SCAFFOLD_A" '
+      .step = "write_tier_1" | .authorizedPlanHash = $hash | .currentTier = 1 |
+      .tiersCompleted = [] | .filesWritten = 0 | .filesTotal = 7 |
+      .writeQueue = [
+        "docs/r.mdx","docs/dep.mdx","docs/top.mdx","docs/nav.mdx",
+        "docs/unrelated.mdx","docs/area/index.mdx","docs/area/gap.mdx"
+      ] |
+      .provenance = {
+        "docs/r.mdx":{origin:"planned",scaffoldHash:$scaffold,
+          scaffoldedAt:"2026-08-01T00:00:00Z",tier:4,writeStatus:"pending",
+          writtenHash:null,writerReport:null},
+        "docs/dep.mdx":{origin:"planned",scaffoldHash:$scaffold,
+          scaffoldedAt:"2026-08-01T00:00:00Z",tier:3,writeStatus:"pending",
+          writtenHash:null,writerReport:null},
+        "docs/top.mdx":{origin:"planned",scaffoldHash:$scaffold,
+          scaffoldedAt:"2026-08-01T00:00:00Z",tier:1,writeStatus:"pending",
+          writtenHash:null,writerReport:null},
+        "docs/nav.mdx":{origin:"planned",scaffoldHash:$scaffold,
+          scaffoldedAt:"2026-08-01T00:00:00Z",tier:5,writeStatus:"pending",
+          writtenHash:null,writerReport:null},
+        "docs/unrelated.mdx":{origin:"planned",scaffoldHash:$scaffold,
+          scaffoldedAt:"2026-08-01T00:00:00Z",tier:4,writeStatus:"pending",
+          writtenHash:null,writerReport:null},
+        "docs/area/index.mdx":{origin:"planned",scaffoldHash:$scaffold,
+          scaffoldedAt:"2026-08-01T00:00:00Z",tier:6,writeStatus:"pending",
+          writtenHash:null,writerReport:null},
+        "docs/area/gap.mdx":{origin:"new",scaffoldHash:$scaffold,
+          scaffoldedAt:"2026-08-01T00:02:00Z",tier:2,writeStatus:"pending",
+          writtenHash:null,writerReport:null}
+      } | .gapsResolved = [$closed]
+    ' <<<"$AUTH_WRITE_STATE")
+  printf '%s\n' "$COMPLEX_AUTH_PLAN_STATE" >"$AUTH_PLAN_STATE_FILE"
+  printf '%s\n' "$COMPLEX_AUTH_WRITE_STATE" >"$AUTH_WRITE_STATE_FILE"
+  printf '%s' "$COMPLEX_PLAN_BYTES" >"$AUTH_PLAN_FILE"
+  if ! assert_plan_authority "$COMPLEX_PLAN_FINAL" "$AUTH_PLAN_STATE_FILE" \
+    "$AUTH_WRITE_STATE_FILE" "$AUTH_PLAN_FILE" "$AUTH_CANDIDATE_FILE"; then
+    contract_failure 'Direct authority helper rejected healthy transitive/index closure'
+  fi
+
+  HELPER_TRUNCATED_CLOSURE=$(jq -c '
+    .gapsResolved[0].requeued |= map(select(. != "docs/top.mdx")) |
+    .gapsResolved[0].replayTier = 2 |
+    .gapsResolved[0].resetTiers = [2,3,4,5,6] |
+    .gapsResolved[0].cleanedTiers = [2,3,4,5,6]
+  ' <<<"$COMPLEX_AUTH_WRITE_STATE")
+  HELPER_INFLATED_CLOSURE=$(jq -c '
+    .gapsResolved[0].requeued = [
+      "docs/area/index.mdx","docs/dep.mdx","docs/nav.mdx","docs/r.mdx",
+      "docs/top.mdx","docs/unrelated.mdx"
+    ]
+  ' <<<"$COMPLEX_AUTH_WRITE_STATE")
+  HELPER_UNSORTED_CLOSURE=$(jq -c '.gapsResolved[0].requeued |= reverse' \
+    <<<"$COMPLEX_AUTH_WRITE_STATE")
+  HELPER_WRONG_REPLAY_TIER=$(jq -c '.gapsResolved[0].replayTier = 2' \
+    <<<"$COMPLEX_AUTH_WRITE_STATE")
+  HELPER_CLOSURE_CASE_NAMES=(HELPER_TRUNCATED_CLOSURE HELPER_INFLATED_CLOSURE
+    HELPER_UNSORTED_CLOSURE HELPER_WRONG_REPLAY_TIER)
+  HELPER_CLOSURE_CASE_VALUES=("$HELPER_TRUNCATED_CLOSURE" "$HELPER_INFLATED_CLOSURE"
+    "$HELPER_UNSORTED_CLOSURE" "$HELPER_WRONG_REPLAY_TIER")
+  for HELPER_CLOSURE_CASE_INDEX in "${!HELPER_CLOSURE_CASE_NAMES[@]}"; do
+    HELPER_CLOSURE_CASE=${HELPER_CLOSURE_CASE_NAMES[$HELPER_CLOSURE_CASE_INDEX]}
+    HELPER_CLOSURE_HISTORY=${HELPER_CLOSURE_CASE_VALUES[$HELPER_CLOSURE_CASE_INDEX]}
+    printf '%s\n' "$HELPER_CLOSURE_HISTORY" >"$AUTH_WRITE_STATE_FILE"
+    cp "$AUTH_WRITE_STATE_FILE" "$CONTROL_DIR/${HELPER_CLOSURE_CASE}.before"
+    if OUTPUT=$(assert_plan_authority "$COMPLEX_PLAN_FINAL" "$AUTH_PLAN_STATE_FILE" \
+      "$AUTH_WRITE_STATE_FILE" "$AUTH_PLAN_FILE" "$AUTH_CANDIDATE_FILE" 2>&1); then
+      contract_failure "Direct authority helper accepted inexact closure: ${HELPER_CLOSURE_CASE}"
+    elif [[ $OUTPUT != *GAP_CLOSURE_INVALID* ]]; then
+      contract_failure "Direct authority helper reported inexact closure with the wrong refusal: ${HELPER_CLOSURE_CASE}"
+    elif ! cmp -s "$AUTH_WRITE_STATE_FILE" "$CONTROL_DIR/${HELPER_CLOSURE_CASE}.before"; then
+      contract_failure "Direct authority helper mutated inexact closure while refusing: ${HELPER_CLOSURE_CASE}"
+    fi
+  done
+  printf '%s\n' "$AUTH_PLAN_STATE" >"$AUTH_PLAN_STATE_FILE"
+  printf '%s\n' "$AUTH_WRITE_STATE" >"$AUTH_WRITE_STATE_FILE"
+  printf '%s' "$LIVE_PLAN_BYTES" >"$AUTH_PLAN_FILE"
   if [[ $FAILURES -eq $CONTROL_FAILURES_BEFORE ]]; then
-    echo '✅ Direct authority helper enforced live bytes, candidate absence, and complete chain identity'
+    echo '✅ Direct authority helper enforced live bytes, complete chain identity, and exact transitive/index closure'
   fi
 
   CONTROL_FAILURES_BEFORE=$FAILURES
@@ -1743,6 +2957,7 @@ JQ
   git init -q "$PROCESSOR_REPO"
   mkdir -p "$PROCESSOR_REPO/.contributor-docs" "$PROCESSOR_REPO/docs"
   PROCESSOR_PLAN_STATE="$PROCESSOR_REPO/.contributor-docs/plan-state.json"
+  PROCESSOR_TASK_STATE="$PROCESSOR_REPO/.contributor-docs/task-state.json"
   PROCESSOR_WRITE_STATE="$PROCESSOR_REPO/.contributor-docs/write-state.json"
   PROCESSOR_PLAN="$PROCESSOR_REPO/.contributor-docs/doc-plan.yaml"
   PROCESSOR_STATE="$PROCESSOR_REPO/.contributor-docs/write-tier-4/state.json"
@@ -1753,6 +2968,7 @@ JQ
     .provenance["docs/r.mdx"].writerReport = null
   ' <<<"$AUTH_WRITE_STATE")
   printf '%s\n' "$AUTH_PLAN_STATE" >"$PROCESSOR_PLAN_STATE"
+  printf '%s\n' '{"docsRoot":"docs"}' >"$PROCESSOR_TASK_STATE"
   printf '%s\n' "$PROCESSOR_PENDING_WRITE" >"$PROCESSOR_WRITE_STATE"
   printf '%s' "$LIVE_PLAN_BYTES" >"$PROCESSOR_PLAN"
   printf '%s' "$FILE_BYTES" >"$PROCESSOR_REPO/docs/r.mdx"
@@ -1762,10 +2978,69 @@ JQ
       --plan-hash "$PLAN_A"
   ) >/dev/null; then
     contract_failure 'Healthy processor initialization was refused'
-  elif ! jq -e --arg hash "$PLAN_A" '
-    .authorizedPlanHash == $hash and .pendingFiles == ["docs/r.mdx"]
+  elif ! jq -e --arg hash "$PLAN_A" --arg normal "$FROM_HASH" '
+    .authorizedPlanHash == $hash and .pendingFiles == ["docs/r.mdx"] and
+    .recordWriteAuthorizations == {
+      "docs/r.mdx":{normalHash:$normal,replayApproval:null}
+    }
   ' "$PROCESSOR_STATE" >/dev/null; then
-    contract_failure 'Processor initialization did not persist its authority token and queue'
+    contract_failure 'Processor initialization did not persist its exact authority snapshot and queue'
+  fi
+
+  PROCESSOR_REPLAY_WRITE=$(jq -c --arg retained "$RETAINED_HASH" '
+    .provenance["docs/r.mdx"].writtenHash = $retained
+  ' <<<"$PROCESSOR_PENDING_WRITE")
+  printf '%s\n' "$PROCESSOR_REPLAY_WRITE" >"$PROCESSOR_WRITE_STATE"
+  if ! printf '%s\n' 'docs/r.mdx' | (
+    cd "$PROCESSOR_REPO" && bash "$CD_ROOT/scripts/init-state.sh" \
+      .contributor-docs/write-tier-4/state.json '["src/r.ts"]' 1 out \
+      --plan-hash "$PLAN_A"
+  ) >/dev/null || ! jq -e --arg retained "$RETAINED_HASH" '
+    .recordWriteAuthorizations["docs/r.mdx"] == {
+      normalHash:$retained,replayApproval:null
+    }
+  ' "$PROCESSOR_STATE" >/dev/null; then
+    contract_failure 'Replay processor initialization did not retain writtenHash as normal authority'
+  fi
+
+  PROCESSOR_APPROVAL_WRITE=$(jq -c --arg retained "$RETAINED_HASH" \
+    --arg approved "$APPROVED_HASH" '
+      .provenance["docs/r.mdx"].writtenHash = $retained |
+      .approvedOverwrites = [{
+        path:"docs/r.mdx",approvedHash:$approved,purpose:"writer-replay",
+        approvedAt:"2026-08-01T00:03:00Z",consumedAt:null
+      }]
+    ' <<<"$PROCESSOR_PENDING_WRITE")
+  printf '%s\n' "$PROCESSOR_APPROVAL_WRITE" >"$PROCESSOR_WRITE_STATE"
+  if ! printf '%s\n' 'docs/r.mdx' | (
+    cd "$PROCESSOR_REPO" && bash "$CD_ROOT/scripts/init-state.sh" \
+      .contributor-docs/write-tier-4/state.json '["src/r.ts"]' 1 out \
+      --plan-hash "$PLAN_A"
+  ) >/dev/null || ! jq -e --arg retained "$RETAINED_HASH" --arg approved "$APPROVED_HASH" '
+    .recordWriteAuthorizations["docs/r.mdx"] == {
+      normalHash:$retained,replayApproval:{ledgerIndex:0,approvedHash:$approved}
+    }
+  ' "$PROCESSOR_STATE" >/dev/null; then
+    contract_failure 'Processor initialization did not persist the exact approval ledger index/hash'
+  fi
+
+  PROCESSOR_FACT_STATE="$PROCESSOR_REPO/.contributor-docs/fact-check/state.json"
+  if ! printf '%s\n' 'docs/r.mdx' | (
+    cd "$PROCESSOR_REPO" && bash "$CD_ROOT/scripts/init-state.sh" \
+      .contributor-docs/fact-check/state.json '["src/r.ts"]' 1 \
+      .contributor-docs/fact-check/findings --plan-hash "$PLAN_A"
+  ) >/dev/null || ! jq -e '.recordWriteAuthorizations == null' \
+    "$PROCESSOR_FACT_STATE" >/dev/null; then
+    contract_failure 'Fact-check processor initialization did not persist null write authorization'
+  fi
+
+  printf '%s\n' "$PROCESSOR_PENDING_WRITE" >"$PROCESSOR_WRITE_STATE"
+  if ! printf '%s\n' 'docs/r.mdx' | (
+    cd "$PROCESSOR_REPO" && bash "$CD_ROOT/scripts/init-state.sh" \
+      .contributor-docs/write-tier-4/state.json '["src/r.ts"]' 1 out \
+      --plan-hash "$PLAN_A"
+  ) >/dev/null; then
+    contract_failure 'Processor fixture could not restore the first-write authorization snapshot'
   fi
 
   INIT_COLLISION_WRITE=$(jq -c '.blockedCollisions = [{path:"docs/r.mdx"}]' \
@@ -1808,7 +3083,7 @@ JQ
   ) 2>&1); then
     contract_failure 'Processor initialization accepted live-plan drift'
   elif [[ $OUTPUT != *PLAN_DRIFT_BLOCKED* ]]; then
-    contract_failure 'Processor initialization reported live-plan drift with the wrong refusal'
+    contract_failure "Processor initialization reported live-plan drift with the wrong refusal: ${OUTPUT}"
   elif ! cmp -s "$PROCESSOR_STATE" "$CONTROL_DIR/init-drift.before"; then
     contract_failure 'Processor initialization changed its state while refusing plan drift'
   fi
@@ -1853,7 +3128,7 @@ JQ
   ); then
     contract_failure 'Processor completion accepted written-byte drift after authorization'
   elif [[ $OUTPUT != *WRITTEN_BYTES_CHANGED* ]]; then
-    contract_failure 'Processor completion reported written-byte drift with the wrong refusal'
+    contract_failure "Processor completion reported written-byte drift with the wrong refusal: ${OUTPUT}"
   elif ! cmp -s "$PROCESSOR_STATE" "$CONTROL_DIR/mark-bytes.before"; then
     contract_failure 'Processor completion changed state while refusing written-byte drift'
   fi
@@ -1869,7 +3144,7 @@ JQ
   ); then
     contract_failure 'Processor completion accepted a missing canonical writer report'
   elif [[ $OUTPUT != *GAP_REPORT_SET_INVALID* ]]; then
-    contract_failure 'Processor completion reported a missing writer report with the wrong refusal'
+    contract_failure "Processor completion reported a missing writer report with the wrong refusal: ${OUTPUT}"
   elif ! cmp -s "$PROCESSOR_STATE" "$CONTROL_DIR/mark-report.before"; then
     contract_failure 'Processor completion changed state while refusing a missing report'
   fi
@@ -1885,10 +3160,61 @@ JQ
   ); then
     contract_failure 'Processor completion accepted an unknown writer-report field'
   elif [[ $OUTPUT != *GAP_REPORT_SET_INVALID* ]]; then
-    contract_failure 'Malformed processor writer report failed with the wrong refusal'
+    contract_failure "Malformed processor writer report failed with the wrong refusal: ${OUTPUT}"
   elif ! cmp -s "$PROCESSOR_STATE" "$CONTROL_DIR/mark-malformed-report.before"; then
     contract_failure 'Processor completion changed state while refusing a malformed report'
   fi
+
+  printf '%s\n' "$AUTH_WRITE_STATE" >"$PROCESSOR_WRITE_STATE"
+  cp "$PROCESSOR_STATE" "$CONTROL_DIR/processor-current-format.json"
+  jq 'del(.recordWriteAuthorizations)' "$PROCESSOR_STATE" >"$CONTROL_DIR/processor-legacy.json"
+  cp "$CONTROL_DIR/processor-legacy.json" "$PROCESSOR_STATE"
+  if OUTPUT=$(
+    cd "$PROCESSOR_REPO" && bash "$CD_ROOT/scripts/mark-done.sh" \
+      .contributor-docs/write-tier-4/state.json docs/r.mdx --plan-hash "$PLAN_A" 2>&1
+  ); then
+    contract_failure 'Legacy processor missing recordWriteAuthorizations was accepted'
+  elif [[ $OUTPUT != *PROCESSOR_AUTHORITY_INVALID* ]]; then
+    contract_failure 'Legacy processor format failed with the wrong refusal'
+  fi
+  cp "$CONTROL_DIR/processor-current-format.json" "$PROCESSOR_STATE"
+
+  mkdir -p "$PROCESSOR_REPO/outside"
+  printf '%s' "$FILE_BYTES" >"$PROCESSOR_REPO/outside/escape.mdx"
+  ln -s ../outside "$PROCESSOR_REPO/docs/escape-link"
+  ESCAPE_PATH=docs/escape-link/escape.mdx
+  ESCAPE_REPORT=$(jq -cn --arg path "$ESCAPE_PATH" --arg plan "$PLAN_A" \
+    --arg from "$FROM_HASH" --arg written "$FILE_HASH" '{
+      reportedBy:$path,authorizedPlanHash:$plan,authorizedFromHash:$from,
+      writtenHash:$written,gaps:[]
+    }')
+  ESCAPE_WRITE_STATE=$(jq -c --arg path "$ESCAPE_PATH" --arg scaffold "$FROM_HASH" \
+    --arg written "$FILE_HASH" --argjson report "$ESCAPE_REPORT" '
+      .writeQueue = [$path] | .filesWritten = 1 | .filesTotal = 1 |
+      .provenance = {($path):{
+        origin:"new",scaffoldHash:$scaffold,scaffoldedAt:"2026-08-01T00:00:00Z",
+        tier:4,writeStatus:"written",writtenHash:$written,writerReport:$report
+      }}
+    ' <<<"$AUTH_WRITE_STATE")
+  ESCAPE_PROCESSOR_STATE=$(jq -c --arg path "$ESCAPE_PATH" --arg from "$FROM_HASH" '
+    .filesToProcess = [$path] | .pendingFiles = [$path] | .processedFiles = [] |
+    .recordWriteAuthorizations = {($path):{normalHash:$from,replayApproval:null}}
+  ' "$PROCESSOR_STATE")
+  printf '%s\n' "$ESCAPE_WRITE_STATE" >"$PROCESSOR_WRITE_STATE"
+  printf '%s\n' "$ESCAPE_PROCESSOR_STATE" >"$PROCESSOR_STATE"
+  cp "$PROCESSOR_STATE" "$CONTROL_DIR/symlink-escape.before"
+  if OUTPUT=$(
+    cd "$PROCESSOR_REPO" && bash "$CD_ROOT/scripts/mark-done.sh" \
+      .contributor-docs/write-tier-4/state.json "$ESCAPE_PATH" --plan-hash "$PLAN_A" 2>&1
+  ); then
+    contract_failure 'Processor completion accepted an existing-parent symlink escape'
+  elif [[ $OUTPUT != *GAP_REPORT_SET_INVALID* ]]; then
+    contract_failure 'Symlink-escaped reporter failed with the wrong refusal'
+  elif ! cmp -s "$PROCESSOR_STATE" "$CONTROL_DIR/symlink-escape.before"; then
+    contract_failure 'Symlink-escaped reporter mutated processor state while refusing'
+  fi
+  printf '%s\n' "$AUTH_WRITE_STATE" >"$PROCESSOR_WRITE_STATE"
+  cp "$CONTROL_DIR/processor-current-format.json" "$PROCESSOR_STATE"
 
   printf '%s\n' "$AUTH_WRITE_STATE" >"$PROCESSOR_WRITE_STATE"
   if ! (
@@ -1905,10 +3231,335 @@ JQ
     echo '✅ Processor fences refused plan, collision, slice, report, and byte drift byte-identically'
   fi
 
+  CONTROL_FAILURES_BEFORE=$FAILURES
+  BARRIER_ROOT="$CONTROL_DIR/authority-barriers"
+  mkdir -p "$BARRIER_ROOT"
+
+  # init-state: a compliant concurrent initializer must fail fast while the first
+  # owns the lock, without changing authority or processor state.
+  printf '%s\n' "$PROCESSOR_PENDING_WRITE" >"$PROCESSOR_WRITE_STATE"
+  if ! printf '%s\n' 'docs/r.mdx' | (
+    cd "$PROCESSOR_REPO" && bash "$CD_ROOT/scripts/init-state.sh" \
+      .contributor-docs/write-tier-4/state.json '["src/r.ts"]' 1 out \
+      --plan-hash "$PLAN_A"
+  ) >/dev/null; then
+    contract_failure 'Could not prepare init contention fixture'
+  fi
+  INIT_READY="$BARRIER_ROOT/init-contention.ready"
+  INIT_RELEASE="$BARRIER_ROOT/init-contention.release"
+  INIT_OUTPUT="$BARRIER_ROOT/init-contention.output"
+  mkfifo "$INIT_RELEASE"
+  INIT_MANIFEST_BEFORE=$(processor_fixture_manifest "$PROCESSOR_REPO" \
+    "$PROCESSOR_STATE" docs/r.mdx)
+  (
+    cd "$PROCESSOR_REPO" && printf '%s\n' 'docs/r.mdx' | \
+      env CONTRIBUTOR_DOCS_CONTRACT_TEST=1 \
+        CONTRIBUTOR_DOCS_TEST_BARRIER_POINT=init-before-cas \
+        CONTRIBUTOR_DOCS_TEST_ROOT="$BARRIER_ROOT" \
+        CONTRIBUTOR_DOCS_TEST_READY_FILE="$INIT_READY" \
+        CONTRIBUTOR_DOCS_TEST_RELEASE_FIFO="$INIT_RELEASE" \
+        bash "$CD_ROOT/scripts/init-state.sh" \
+          .contributor-docs/write-tier-4/state.json '["src/r.ts"]' 1 out \
+          --plan-hash "$PLAN_A"
+  ) >"$INIT_OUTPUT" 2>&1 &
+  INIT_PID=$!
+  if ! wait_for_contract_barrier "$INIT_READY"; then
+    contract_failure 'init-state contention barrier was not reached'
+    kill "$INIT_PID" 2>/dev/null || true
+  else
+    if OUTPUT=$(printf '%s\n' 'docs/r.mdx' | (
+      cd "$PROCESSOR_REPO" && bash "$CD_ROOT/scripts/init-state.sh" \
+        .contributor-docs/write-tier-4/state.json '["src/r.ts"]' 1 out \
+        --plan-hash "$PLAN_A"
+    ) 2>&1); then
+      contract_failure 'Concurrent compliant initializer did not fail fast'
+    elif [[ $OUTPUT != *AUTHORITY_BUSY* ]]; then
+      contract_failure 'Concurrent initializer failed with the wrong refusal'
+    fi
+    INIT_MANIFEST_BUSY=$(processor_fixture_manifest "$PROCESSOR_REPO" \
+      "$PROCESSOR_STATE" docs/r.mdx)
+    if [[ $INIT_MANIFEST_BUSY != "$INIT_MANIFEST_BEFORE" ]]; then
+      contract_failure 'Busy initializer changed authority or processor state'
+    fi
+    printf '%s\n' release >"$INIT_RELEASE"
+    if ! wait "$INIT_PID"; then
+      contract_failure 'Lock-owning initializer failed after contention release'
+    fi
+  fi
+
+  # init-state: mutate canonical authority only after the last semantic check.
+  INIT_RAW_READY="$BARRIER_ROOT/init-raw.ready"
+  INIT_RAW_RELEASE="$BARRIER_ROOT/init-raw.release"
+  INIT_RAW_OUTPUT="$BARRIER_ROOT/init-raw.output"
+  mkfifo "$INIT_RAW_RELEASE"
+  printf '%s\n' "$PROCESSOR_PENDING_WRITE" >"$PROCESSOR_WRITE_STATE"
+  INIT_RAW_PROCESSOR_BEFORE=$(authority_snapshot "$PROCESSOR_STATE")
+  (
+    cd "$PROCESSOR_REPO" && printf '%s\n' 'docs/r.mdx' | \
+      env CONTRIBUTOR_DOCS_CONTRACT_TEST=1 \
+        CONTRIBUTOR_DOCS_TEST_BARRIER_POINT=init-before-cas \
+        CONTRIBUTOR_DOCS_TEST_ROOT="$BARRIER_ROOT" \
+        CONTRIBUTOR_DOCS_TEST_READY_FILE="$INIT_RAW_READY" \
+        CONTRIBUTOR_DOCS_TEST_RELEASE_FIFO="$INIT_RAW_RELEASE" \
+        bash "$CD_ROOT/scripts/init-state.sh" \
+          .contributor-docs/write-tier-4/state.json '["src/r.ts"]' 1 out \
+          --plan-hash "$PLAN_A"
+  ) >"$INIT_RAW_OUTPUT" 2>&1 &
+  INIT_RAW_PID=$!
+  if ! wait_for_contract_barrier "$INIT_RAW_READY"; then
+    contract_failure 'init-state raw-mutation barrier was not reached'
+    kill "$INIT_RAW_PID" 2>/dev/null || true
+  else
+    RAW_WRITE_TEMP=$(mktemp "${PROCESSOR_WRITE_STATE}.raw.XXXXXX")
+    jq '.blockedCollisions = [{path:"docs/r.mdx"}]' \
+      "$PROCESSOR_WRITE_STATE" >"$RAW_WRITE_TEMP"
+    mv "$RAW_WRITE_TEMP" "$PROCESSOR_WRITE_STATE"
+    printf '%s\n' release >"$INIT_RAW_RELEASE"
+    if wait "$INIT_RAW_PID"; then
+      contract_failure 'init-state CAS accepted a raw final-interval authority mutation'
+    elif ! rg -qF PROCESSOR_AUTHORITY_INVALID "$INIT_RAW_OUTPUT"; then
+      contract_failure 'init-state raw mutation failed with the wrong refusal'
+    fi
+  fi
+  printf '%s\n' "$PROCESSOR_PENDING_WRITE" >"$PROCESSOR_WRITE_STATE"
+  if [[ $(authority_snapshot "$PROCESSOR_STATE") != "$INIT_RAW_PROCESSOR_BEFORE" ]]; then
+    contract_failure 'init-state CAS failure replaced processor state'
+  fi
+  if find "$(dirname "$PROCESSOR_STATE")" -maxdepth 1 -type f \
+    -name 'state.json.??????' -print -quit | rg -q .; then
+    contract_failure 'init-state ordinary CAS failure left a temporary state file'
+  fi
+
+  # mark-done: prove lock contention, then prove its own final CAS detects a raw
+  # writer-report mutation before processor replacement.
+  if ! printf '%s\n' 'docs/r.mdx' | (
+    cd "$PROCESSOR_REPO" && bash "$CD_ROOT/scripts/init-state.sh" \
+      .contributor-docs/write-tier-4/state.json '["src/r.ts"]' 1 out \
+      --plan-hash "$PLAN_A"
+  ) >/dev/null; then
+    contract_failure 'Could not prepare mark contention fixture'
+  fi
+  printf '%s\n' "$AUTH_WRITE_STATE" >"$PROCESSOR_WRITE_STATE"
+  MARK_READY="$BARRIER_ROOT/mark-contention.ready"
+  MARK_RELEASE="$BARRIER_ROOT/mark-contention.release"
+  MARK_OUTPUT="$BARRIER_ROOT/mark-contention.output"
+  mkfifo "$MARK_RELEASE"
+  MARK_MANIFEST_BEFORE=$(processor_fixture_manifest "$PROCESSOR_REPO" \
+    "$PROCESSOR_STATE" docs/r.mdx)
+  (
+    cd "$PROCESSOR_REPO" && env CONTRIBUTOR_DOCS_CONTRACT_TEST=1 \
+      CONTRIBUTOR_DOCS_TEST_BARRIER_POINT=mark-before-cas \
+      CONTRIBUTOR_DOCS_TEST_ROOT="$BARRIER_ROOT" \
+      CONTRIBUTOR_DOCS_TEST_READY_FILE="$MARK_READY" \
+      CONTRIBUTOR_DOCS_TEST_RELEASE_FIFO="$MARK_RELEASE" \
+      bash "$CD_ROOT/scripts/mark-done.sh" \
+        .contributor-docs/write-tier-4/state.json docs/r.mdx --plan-hash "$PLAN_A"
+  ) >"$MARK_OUTPUT" 2>&1 &
+  MARK_PID=$!
+  if ! wait_for_contract_barrier "$MARK_READY"; then
+    contract_failure 'mark-done contention barrier was not reached'
+    kill "$MARK_PID" 2>/dev/null || true
+  else
+    if OUTPUT=$(
+      cd "$PROCESSOR_REPO" && bash "$CD_ROOT/scripts/mark-done.sh" \
+        .contributor-docs/write-tier-4/state.json docs/r.mdx --plan-hash "$PLAN_A" 2>&1
+    ); then
+      contract_failure 'Concurrent compliant mark did not fail fast'
+    elif [[ $OUTPUT != *AUTHORITY_BUSY* ]]; then
+      contract_failure 'Concurrent mark failed with the wrong refusal'
+    fi
+    MARK_MANIFEST_BUSY=$(processor_fixture_manifest "$PROCESSOR_REPO" \
+      "$PROCESSOR_STATE" docs/r.mdx)
+    if [[ $MARK_MANIFEST_BUSY != "$MARK_MANIFEST_BEFORE" ]]; then
+      contract_failure 'Busy mark changed authority or processor state'
+    fi
+    printf '%s\n' release >"$MARK_RELEASE"
+    if ! wait "$MARK_PID"; then
+      contract_failure 'Lock-owning mark failed after contention release'
+    fi
+  fi
+
+  printf '%s\n' "$PROCESSOR_PENDING_WRITE" >"$PROCESSOR_WRITE_STATE"
+  if ! printf '%s\n' 'docs/r.mdx' | (
+    cd "$PROCESSOR_REPO" && bash "$CD_ROOT/scripts/init-state.sh" \
+      .contributor-docs/write-tier-4/state.json '["src/r.ts"]' 1 out \
+      --plan-hash "$PLAN_A"
+  ) >/dev/null; then
+    contract_failure 'Could not prepare mark raw-mutation fixture'
+  fi
+  printf '%s\n' "$AUTH_WRITE_STATE" >"$PROCESSOR_WRITE_STATE"
+  MARK_RAW_READY="$BARRIER_ROOT/mark-raw.ready"
+  MARK_RAW_RELEASE="$BARRIER_ROOT/mark-raw.release"
+  MARK_RAW_OUTPUT="$BARRIER_ROOT/mark-raw.output"
+  mkfifo "$MARK_RAW_RELEASE"
+  MARK_RAW_PROCESSOR_BEFORE=$(authority_snapshot "$PROCESSOR_STATE")
+  (
+    cd "$PROCESSOR_REPO" && env CONTRIBUTOR_DOCS_CONTRACT_TEST=1 \
+      CONTRIBUTOR_DOCS_TEST_BARRIER_POINT=mark-before-cas \
+      CONTRIBUTOR_DOCS_TEST_ROOT="$BARRIER_ROOT" \
+      CONTRIBUTOR_DOCS_TEST_READY_FILE="$MARK_RAW_READY" \
+      CONTRIBUTOR_DOCS_TEST_RELEASE_FIFO="$MARK_RAW_RELEASE" \
+      bash "$CD_ROOT/scripts/mark-done.sh" \
+        .contributor-docs/write-tier-4/state.json docs/r.mdx --plan-hash "$PLAN_A"
+  ) >"$MARK_RAW_OUTPUT" 2>&1 &
+  MARK_RAW_PID=$!
+  if ! wait_for_contract_barrier "$MARK_RAW_READY"; then
+    contract_failure 'mark-done raw-mutation barrier was not reached'
+    kill "$MARK_RAW_PID" 2>/dev/null || true
+  else
+    RAW_MARK_TEMP=$(mktemp "${PROCESSOR_WRITE_STATE}.raw.XXXXXX")
+    jq '.provenance["docs/r.mdx"].writerReport.authorizedFromHash =
+      "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"' \
+      "$PROCESSOR_WRITE_STATE" >"$RAW_MARK_TEMP"
+    mv "$RAW_MARK_TEMP" "$PROCESSOR_WRITE_STATE"
+    printf '%s\n' release >"$MARK_RAW_RELEASE"
+    if wait "$MARK_RAW_PID"; then
+      contract_failure 'mark-done CAS accepted a raw final-interval authority mutation'
+    elif ! rg -qF PROCESSOR_AUTHORITY_INVALID "$MARK_RAW_OUTPUT"; then
+      contract_failure 'mark-done raw mutation failed with the wrong refusal'
+    fi
+  fi
+  printf '%s\n' "$AUTH_WRITE_STATE" >"$PROCESSOR_WRITE_STATE"
+  if [[ $(authority_snapshot "$PROCESSOR_STATE") != "$MARK_RAW_PROCESSOR_BEFORE" ]]; then
+    contract_failure 'mark-done CAS failure replaced processor state'
+  fi
+  if find "$(dirname "$PROCESSOR_STATE")" -maxdepth 1 -type f \
+    -name 'state.json.??????' -print -quit | rg -q .; then
+    contract_failure 'mark-done ordinary CAS failure left a temporary state file'
+  fi
+
+  SECOND_FILE_BYTES='second complete writer output'
+  SECOND_FILE_HASH=$(printf '%s' "$SECOND_FILE_BYTES" | sha256sum | cut -d ' ' -f1)
+  printf '%s' "$SECOND_FILE_BYTES" >"$PROCESSOR_REPO/docs/s.mdx"
+  SECOND_REPORT=$(jq -cn --arg plan "$PLAN_A" --arg from "$SCAFFOLD_A" \
+    --arg written "$SECOND_FILE_HASH" '{
+      reportedBy:"docs/s.mdx",authorizedPlanHash:$plan,authorizedFromHash:$from,
+      writtenHash:$written,gaps:[]
+    }')
+  TWO_PATH_PENDING=$(jq -c --arg scaffold "$SCAFFOLD_A" '
+    .filesWritten = 0 | .filesTotal = 2 | .writeQueue = ["docs/r.mdx","docs/s.mdx"] |
+    .provenance["docs/r.mdx"].writeStatus = "pending" |
+    .provenance["docs/r.mdx"].writtenHash = null |
+    .provenance["docs/r.mdx"].writerReport = null |
+    .provenance["docs/s.mdx"] = {
+      origin:"new",scaffoldHash:$scaffold,scaffoldedAt:"2026-08-01T00:00:00Z",
+      tier:4,writeStatus:"pending",writtenHash:null,writerReport:null
+    }
+  ' <<<"$AUTH_WRITE_STATE")
+  TWO_PATH_COMMITTED=$(jq -c --arg written "$SECOND_FILE_HASH" \
+    --argjson report "$SECOND_REPORT" --arg rWritten "$FILE_HASH" \
+    --argjson rReport "$WRITE_REPORT_VALID" '
+      .filesWritten = 2 |
+      .provenance["docs/r.mdx"].writeStatus = "written" |
+      .provenance["docs/r.mdx"].writtenHash = $rWritten |
+      .provenance["docs/r.mdx"].writerReport = $rReport |
+      .provenance["docs/s.mdx"].writeStatus = "written" |
+      .provenance["docs/s.mdx"].writtenHash = $written |
+      .provenance["docs/s.mdx"].writerReport = $report
+    ' <<<"$TWO_PATH_PENDING")
+  printf '%s\n' "$TWO_PATH_PENDING" >"$PROCESSOR_WRITE_STATE"
+  if ! printf '%s\n' docs/r.mdx docs/s.mdx | (
+    cd "$PROCESSOR_REPO" && bash "$CD_ROOT/scripts/init-state.sh" \
+      .contributor-docs/write-tier-4/state.json '["src/r.ts"]' 2 out \
+      --plan-hash "$PLAN_A"
+  ) >/dev/null; then
+    contract_failure 'Could not initialize two-path lost-update fixture'
+  fi
+  printf '%s\n' "$TWO_PATH_COMMITTED" >"$PROCESSOR_WRITE_STATE"
+  TWO_MARK_READY="$BARRIER_ROOT/two-mark.ready"
+  TWO_MARK_RELEASE="$BARRIER_ROOT/two-mark.release"
+  TWO_MARK_OUTPUT="$BARRIER_ROOT/two-mark.output"
+  mkfifo "$TWO_MARK_RELEASE"
+  (
+    cd "$PROCESSOR_REPO" && env CONTRIBUTOR_DOCS_CONTRACT_TEST=1 \
+      CONTRIBUTOR_DOCS_TEST_BARRIER_POINT=mark-before-cas \
+      CONTRIBUTOR_DOCS_TEST_ROOT="$BARRIER_ROOT" \
+      CONTRIBUTOR_DOCS_TEST_READY_FILE="$TWO_MARK_READY" \
+      CONTRIBUTOR_DOCS_TEST_RELEASE_FIFO="$TWO_MARK_RELEASE" \
+      bash "$CD_ROOT/scripts/mark-done.sh" \
+        .contributor-docs/write-tier-4/state.json docs/r.mdx --plan-hash "$PLAN_A"
+  ) >"$TWO_MARK_OUTPUT" 2>&1 &
+  TWO_MARK_PID=$!
+  if ! wait_for_contract_barrier "$TWO_MARK_READY"; then
+    contract_failure 'Two-path mark barrier was not reached'
+    kill "$TWO_MARK_PID" 2>/dev/null || true
+  else
+    if OUTPUT=$(
+      cd "$PROCESSOR_REPO" && bash "$CD_ROOT/scripts/mark-done.sh" \
+        .contributor-docs/write-tier-4/state.json docs/s.mdx --plan-hash "$PLAN_A" 2>&1
+    ); then
+      contract_failure 'Second path bypassed an active mark transaction'
+    elif [[ $OUTPUT != *AUTHORITY_BUSY* ]]; then
+      contract_failure 'Second path contention failed with the wrong refusal'
+    fi
+    printf '%s\n' release >"$TWO_MARK_RELEASE"
+    if ! wait "$TWO_MARK_PID"; then
+      contract_failure 'First path failed after two-path barrier release'
+    elif ! (
+      cd "$PROCESSOR_REPO" && bash "$CD_ROOT/scripts/mark-done.sh" \
+        .contributor-docs/write-tier-4/state.json docs/s.mdx --plan-hash "$PLAN_A"
+    ) >/dev/null; then
+      contract_failure 'Second path retry failed after the first mark committed'
+    elif ! jq -e '
+      .pendingFiles == [] and
+      (.processedFiles | sort) == ["docs/r.mdx","docs/s.mdx"] and
+      (.processedFiles | length) == 2
+    ' "$PROCESSOR_STATE" >/dev/null; then
+      contract_failure 'Concurrent marks lost or duplicated a processed path'
+    fi
+  fi
+
+  # A killed holder releases the kernel lock automatically; the persistent lock file
+  # remains and an ordinary retry succeeds without stale-lock reclamation.
+  printf '%s\n' "$PROCESSOR_PENDING_WRITE" >"$PROCESSOR_WRITE_STATE"
+  KILL_READY="$BARRIER_ROOT/init-kill.ready"
+  KILL_RELEASE="$BARRIER_ROOT/init-kill.release"
+  KILL_OUTPUT="$BARRIER_ROOT/init-kill.output"
+  mkfifo "$KILL_RELEASE"
+  (
+    KILL_GIT_DIR=$(git -C "$PROCESSOR_REPO" rev-parse --absolute-git-dir)
+    exec {KILL_FD}>"$KILL_GIT_DIR/contributor-docs-authority.lock"
+    flock -xn "$KILL_FD"
+    : >"$KILL_READY"
+    IFS= read -r _ <"$KILL_RELEASE"
+  ) >"$KILL_OUTPUT" 2>&1 &
+  KILL_PID=$!
+  if ! wait_for_contract_barrier "$KILL_READY"; then
+    contract_failure 'Killed-holder barrier was not reached'
+  else
+    kill -9 "$KILL_PID" 2>/dev/null || true
+    wait "$KILL_PID" 2>/dev/null || true
+    if ! printf '%s\n' 'docs/r.mdx' | (
+      cd "$PROCESSOR_REPO" && bash "$CD_ROOT/scripts/init-state.sh" \
+        .contributor-docs/write-tier-4/state.json '["src/r.ts"]' 1 out \
+        --plan-hash "$PLAN_A"
+    ) >/dev/null; then
+      contract_failure 'Retry could not acquire the persistent lock after holder death'
+    fi
+  fi
+  PROCESSOR_GIT_DIR=$(git -C "$PROCESSOR_REPO" rev-parse --absolute-git-dir)
+  if [[ ! -f $PROCESSOR_GIT_DIR/contributor-docs-authority.lock ]]; then
+    contract_failure 'Authority lock file was unlinked instead of left persistent'
+  fi
+  find "$(dirname "$PROCESSOR_STATE")" -maxdepth 1 -type f \
+    -name 'state.json.??????' -delete
+
+  if [[ $FAILURES -eq $CONTROL_FAILURES_BEFORE ]]; then
+    echo '✅ Shared lock, contention, death release, and final-interval CAS controls passed for both helpers'
+  fi
+
+  RECORD_WRITE_DEF_COUNT=$(rg -c '^def cd_record_write_authority' \
+    "$CD_ROOT/scripts/init-state.sh" || true)
+  if [[ $RECORD_WRITE_DEF_COUNT != 1 ]] ||
+    rg -q '^[[:space:]]*def writer_report|^[[:space:]]*assert_processor_completion_authority\(\)' \
+      "$CD_ROOT/scripts/init-state.sh" "$CD_ROOT/scripts/mark-done.sh"; then
+    contract_failure 'Shared record-write predicate was duplicated or shadowed'
+  fi
+
   for LITERAL in authorizedPlanHash authorize-gap-plan apply-gap-plan PLAN_DRIFT_BLOCKED \
     GAP_PLAN_DELTA_INVALID GAP_PLAN_HASH_INVALID GAP_PLAN_CANDIDATE_MISSING \
-    GAP_REPORT_SET_INVALID GAP_CLOSURE_INVALID WRITE_REPORT_MISSING \
-    PROCESSOR_AUTHORITY_INVALID; do
+    GAP_REPORT_SET_INVALID GAP_CLOSURE_INVALID GAP_LOOP WRITE_REPORT_MISSING \
+    PROCESSOR_AUTHORITY_INVALID AUTHORITY_BUSY recordWriteAuthorizations; do
     if ! rg -qF "$LITERAL" "$WRITE_PHASE" || ! rg -qF "$LITERAL" "$WRITE_AGENT"; then
       contract_failure "Reducer literal is not documented: $LITERAL"
     fi
@@ -1930,7 +3581,7 @@ JQ
   exit 0
 fi
 
-[[ $# -eq 6 && $5 == "--plan-hash" ]] || {
+[[ $# -eq 6 && $5 == "--plan-hash" && $6 =~ ^[0-9a-f]{64}$ ]] || {
   echo "❌ Usage: <file-list> | init-state.sh <state-file> <source-paths-json> <concurrent> <output-dir> --plan-hash <64-hex>" >&2
   exit 1
 }
@@ -1942,7 +3593,12 @@ OUTPUT_DIR="$4"
 PLAN_HASH="$6"
 
 FILES_JSON=$(jq -R -s 'split("\n") | map(select(. != ""))')
-assert_processor_init_authority "$PLAN_HASH" "$STATE_FILE" "$FILES_JSON"
+acquire_authority_lock
+trap 'authority_transaction_cleanup "$?"' EXIT
+
+RECORD_WRITE_AUTHORIZATIONS=$(
+  assert_processor_init_authority "$PLAN_HASH" "$STATE_FILE" "$FILES_JSON"
+)
 
 # Both paths are routinely nested (write-tier and fact-check state live under
 # their own subdirectories), so create and validate both parents before writing.
@@ -1958,16 +3614,18 @@ for dir in "$STATE_DIR" "$OUTPUT_DIR"; do
     exit 1
   }
 done
+AUTHORITY_PREIMAGE=$(processor_authority_snapshot "$STATE_FILE")
+PROCESSOR_PREIMAGE=$(authority_snapshot "$STATE_FILE")
 
 # Written through a temp file in the destination directory so an interrupted run
 # never leaves a half-written state file behind.
-TEMP=$(mktemp "${STATE_FILE}.XXXXXX")
-trap 'rm -f "${TEMP}"' EXIT
+CONTRIBUTOR_DOCS_TEMP_FILE=$(mktemp "${STATE_FILE}.XXXXXX")
 jq -n \
   --argjson sourcePaths "$SOURCE_PATHS" \
   --arg outputDir "$OUTPUT_DIR" \
   --argjson concurrent "$CONCURRENT" \
   --argjson files "$FILES_JSON" \
+  --argjson recordWriteAuthorizations "$RECORD_WRITE_AUTHORIZATIONS" \
   --arg startTime "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --arg planHash "$PLAN_HASH" \
   '{
@@ -1978,10 +3636,47 @@ jq -n \
     processedFiles: [],
     pendingFiles: $files,
     startTime: $startTime,
-    authorizedPlanHash: $planHash
-  }' >"$TEMP"
-assert_processor_init_authority "$PLAN_HASH" "$STATE_FILE" "$FILES_JSON"
-mv "$TEMP" "$STATE_FILE"
+    authorizedPlanHash: $planHash,
+    recordWriteAuthorizations: $recordWriteAuthorizations
+  }' >"$CONTRIBUTOR_DOCS_TEMP_FILE"
+
+FRESH_RECORD_WRITE_AUTHORIZATIONS=$(
+  assert_processor_init_authority "$PLAN_HASH" "$STATE_FILE" "$FILES_JSON"
+)
+if [[ $FRESH_RECORD_WRITE_AUTHORIZATIONS != "$RECORD_WRITE_AUTHORIZATIONS" ]] ||
+  ! jq -e --argjson sourcePaths "$SOURCE_PATHS" --arg outputDir "$OUTPUT_DIR" \
+    --argjson concurrent "$CONCURRENT" --argjson files "$FILES_JSON" \
+    --arg planHash "$PLAN_HASH" \
+    --argjson authorizations "$RECORD_WRITE_AUTHORIZATIONS" '
+      ((keys | sort) == (["sourcePaths","outputDir","concurrentAgents","filesToProcess",
+        "processedFiles","pendingFiles","startTime","authorizedPlanHash",
+        "recordWriteAuthorizations"] | sort)) and
+      .sourcePaths == $sourcePaths and .outputDir == $outputDir and
+      .concurrentAgents == $concurrent and .filesToProcess == $files and
+      .processedFiles == [] and .pendingFiles == $files and
+      .authorizedPlanHash == $planHash and
+      .recordWriteAuthorizations == $authorizations and
+      (.startTime | type == "string" and
+        test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"))
+    ' "$CONTRIBUTOR_DOCS_TEMP_FILE" >/dev/null; then
+  echo "PROCESSOR_AUTHORITY_INVALID: staged processor state is not bound to fresh authority" >&2
+  exit 1
+fi
+
+authority_contract_test_barrier init-before-cas
+if [[ $(processor_authority_snapshot "$STATE_FILE") != "$AUTHORITY_PREIMAGE" ]] ||
+  [[ $(authority_snapshot "$STATE_FILE") != "$PROCESSOR_PREIMAGE" ]]; then
+  echo "PROCESSOR_AUTHORITY_INVALID: authority or processor preimage changed before initialization commit" >&2
+  exit 1
+fi
+mv "$CONTRIBUTOR_DOCS_TEMP_FILE" "$STATE_FILE"
+CONTRIBUTOR_DOCS_TEMP_FILE=
+release_authority_lock
 trap - EXIT
 
-echo "✅ Initialized with $(echo "$FILES_JSON" | jq length) files"
+echo "✅ Initialized with $(jq length <<<"$FILES_JSON") files"
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  init_state_main "$@"
+fi

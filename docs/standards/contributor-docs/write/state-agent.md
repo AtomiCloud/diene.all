@@ -69,6 +69,15 @@ This agent creates **only** `write-state.json`. It never creates `task-state.jso
    `authorizedPlanHash` is copied from the freshly verified approved `planHash`; it is
    never accepted from the caller.
 
+Mode 0 is one canonical
+[Authority Transaction](../workflow.md#authority-transaction). Prepare the candidate
+object before acquiring the lock, then acquire once, reread every state/plan/source
+input under the lock, and prove the exact absence preimage of `write-state.json` before
+creating the directory or installing the file. `AUTHORITY_BUSY` creates nothing. The
+final rename is conditional on the same NUL-framed authority preimage and absence
+still matching immediately before installation; append any corresponding transition
+log record before releasing the lock.
+
 The legal write-step allowlist is this marked ten-element JSON array. Validation uses
 this block rather than a free-form prose list.
 
@@ -107,13 +116,14 @@ this block rather than a free-form prose list.
 
    On any failure, delete what was written and report `CREATE_FAILED: <reason>`.
 
-**Atomic writes.** Every write in this file — Modes 0, 2 and 3 alike — goes through a
-temp file in `.contributor-docs/` followed by `mv`. Every Mode 3 edge is individually
-atomic, and `gapTransition` is the commit marker for the multi-edge operation: its
-recorded `status` says exactly which effects already landed, so an interrupted
-transition is resumed rather than guessed at. This is the same
-commit-marker discipline the plan state-agent uses for the two-file clean start
-(`docs/standards/contributor-docs/plan/state-agent.md`).
+**Atomic writes.** Every write in this file — Modes 0, 2 and 3 alike — follows that
+transaction and goes through a temp file in `.contributor-docs/` followed by `mv`
+only after exact preimage CAS. Every Mode 3 edge is individually atomic, and
+`gapTransition` is the commit marker for the multi-edge operation: its recorded
+`status` says exactly which effects already landed, so an interrupted transition is
+resumed rather than guessed at. The lock removes interleaving, not those meaningful
+crash tuples. This is the same commit-marker discipline the plan state-agent uses for
+the two-file clean start (`docs/standards/contributor-docs/plan/state-agent.md`).
 
 ### Report Format
 
@@ -205,6 +215,22 @@ or counter by supplying its desired value.
 
 ### Universal Procedure
 
+Every mutating Mode 2 operation is one
+[Authority Transaction](../workflow.md#authority-transaction). Render any expensive
+candidate bytes that do not depend on a locked observation before acquiring the
+lock. Acquire it once, fail with `AUTHORITY_BUSY` without mutation on contention, and
+perform steps 1–7 below from fresh reads while holding it. Record an exact NUL-framed
+preimage for every authority input and affected canonical/cache artifact, including
+absence and filesystem kind, plus the exact processor-state preimage when applicable.
+After staging, rerun the full operation predicate and compare those same preimages
+immediately before every conditional rename. A mismatch refuses without installing
+the candidate. Append a transition record before unlocking, never afterward.
+
+The two `authorize-processor-*` operations are read-only observations and do not turn
+their results into capabilities. The subsequently invoked helper acquires this same
+lock and revalidates the complete committed view from disk before it mutates processor
+state.
+
 1. Read and completely validate write, task, and immutable approved plan state. For
    either audit-repair operation, also validate audit state and every cited current
    artifact.
@@ -223,8 +249,11 @@ or counter by supplying its desired value.
    acceptance time.
 7. Build the operation's complete candidate object, derive both counters, and enforce
    the source step, target step, and target invariants below.
-8. Validate before writing, then use a temp file plus atomic rename.
-9. When the step changes, append the transition only after the rename.
+8. Validate the staged complete object, rerun the operation-specific semantic law,
+   and require the exact authority and affected-file preimages still match.
+9. Use the conditional atomic rename, then append the transition before releasing the
+   same lock. Process death may preserve an already-landed documented commit marker;
+   retry validates and adopts that tuple rather than rolling it back.
 
 ### Legal Operations
 
@@ -237,18 +266,27 @@ or counter by supplying its desired value.
 | `reopen-audit-repair`          | `completed`         | Require task/audit failure with nonzero current stamped errors, an existing marker that is null or older than the current audit epoch, and a non-empty exact set of queued paths named by those errors. Validate the completed resting state without requiring live hashes, then measure mismatches as collisions. Remove and verify absent every processor state/findings tree from the lowest selected tier through 6. Atomically install the current epoch-bound `auditRepair: replaying` marker, restore only those paths to pending while retaining `writtenHash` and clearing `writerReport`, truncate tier completion, derive counters, and enter the lowest selected tier. After that rename, move task phase `failed → write`. |
 | `resume-audit-repair-phase`    | `write_tier_N`      | Crash reconciliation for the prior operation: require task phase still `failed`, audit step `failed`, and at least one pending path that retains a `writtenHash` and is named by current stamped errors. A collided path still satisfies this retained-provenance test. Require the matching `auditRepair: replaying` marker, then update only task phase to `write`.                                                                                                                                                                                                                                                                                                                                                                   |
 | `record-writer-collision`      | `write_tier_N`      | Freshly hash one pending path that differs from its retained normal authority, atomically replace that path's collision record with exact observed/expected hashes, and keep the tier step. Any nonempty collision set blocks dispatch.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `approve-writer-replay`        | `write_tier_N`      | Require an existing collision and an explicit user decision, freshly match `observedHash`, append an unconsumed `purpose: "writer-replay"` approval, and remove that collision atomically. A changed path is remeasured and remains blocked.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `authorize-processor-init`     | `write_tier_N`      | Read-only. After the universal fresh fence, require no collision and derive the exact current-tier pending slice from queue/provenance. Return that slice and `authorizedPlanHash` for `init-state.sh`; accept neither from the caller. An empty slice is still an authorized result.                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `authorize-processor-complete` | `write_tier_N`      | Read-only. After the universal fresh fence, require the exact path in the current tier, written status, a complete bound `writerReport`, and a fresh disk hash equal to `writtenHash`. Return `authorizedPlanHash` for the immediately following `mark-done.sh`; mutate nothing.                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `record-write`                 | `write_tier_N`      | Require the path in the current tier, pending status, a report carrying current `PLAN_SHA256`, valid `AUTHORIZED_FROM_HASH` and `WRITTEN_HASH`, a complete structured `GAPS` field, and a legal start authorization. Freshly rehash plan and disk; validate and normalize every gap; then atomically record written status/hash plus the complete bound `writerReport`, derive `filesWritten`, and consume the exact replay approval if one authorized it.                                                                                                                                                                                                                                                                              |
+| `approve-writer-replay`        | `write_tier_N`      | Require an existing collision and an explicit user decision and freshly match `observedHash`. Under one lock, remove and verify absent the current tier processor `state.json` and findings tree first; only then append one unconsumed `purpose: "writer-replay"` approval and remove that collision in the conditional write-state rename. A changed path is remeasured and remains blocked.                                                                                                                                                                                                                                                                                                                                             |
+| `authorize-processor-init`     | `write_tier_N`      | Read-only. After the universal fresh fence, require no collision and derive the exact ordered current-tier pending slice from queue/provenance. For each path derive `normalHash` as non-null retained `writtenHash`, otherwise `scaffoldHash`, and at most one exact unconsumed writer-replay approval ledger index/hash. Return the slice and `authorizedPlanHash`; `init-state.sh` independently re-derives and persists the map under its lock. An empty slice is still authorized.                                                                                                                                                                                                          |
+| `authorize-processor-complete` | `write_tier_N`      | Read-only. After the universal fresh fence, require the exact path in the current tier, written status, a complete bound `writerReport`, and a fresh disk hash equal to `writtenHash`. Validate the processor snapshot and shared record-write law in committed view, then return `authorizedPlanHash` for the immediately following `mark-done.sh`; mutate nothing.                                                                                                                                                                                                                                                                                                         |
+| `record-write`                 | `write_tier_N`      | Under one lock, require the path in the current tier and pending, then invoke the shared `init-state.sh --assert-record-write pending` law before candidate construction and again after staging immediately before exact-preimage CAS/rename. Freshly rehash plan and disk, validate the complete structured report, atomically record written status/hash plus the bound `writerReport`, and derive `filesWritten`. The law returns only `normal` or `approval:<ledgerIndex>`; consume an approval only for that exact returned index in the same rename.                                                                                                                                         |
 | `complete-tier`                | `write_tier_N`      | Require current plan identity, zero collisions, the processor empty, every tier path written with a non-null complete `writerReport`, and every fresh disk hash equal to `writtenHash`. Append N once. Advance to tier N+1, or keep `currentTier: 6` and reach `completed` after tier 6.                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `advance-task-phase-to-audit`  | `completed`         | Require current full plan authority, complete-step invariants, and fresh live hashes. On the initial write, atomically update task phase `write → audit`. During repair, require the matching `auditRepair: replaying` marker and failed audit, freshly verify every marked path, atomically set the marker to `completed`, then update task phase `write → audit`. A retry that sees the completed marker with task phase still `write` finishes only the second rename.                                                                                                                                                                                                                                                               |
 
-`record-write` accepts a start authorization only when
-`AUTHORIZED_FROM_HASH` equals the first-write `scaffoldHash`, the retained replay
-`writtenHash`, or the `approvedHash` of one unconsumed writer-replay approval for the
-same path. An approval does not mutate `writtenHash` and cannot be selected twice.
-The writer performs the same fresh pre-write check; the state-agent independently
+Every write-tier processor has an exact `recordWriteAuthorizations` object whose key
+order equals `filesToProcess`. For each and only each path, `normalHash` is the
+non-null retained `writtenHash`, otherwise `scaffoldHash`; `replayApproval` is null or
+the stable append-only `ledgerIndex` and `approvedHash` of the sole unconsumed approval
+whose path matches and whose purpose is `writer-replay`. Multiple applicable
+approvals, malformed hashes, extra/missing keys, or a mismatched ordered slice are
+`PROCESSOR_AUTHORITY_INVALID`. Fact-check processors store
+`recordWriteAuthorizations: null`.
+
+`record-write` accepts `AUTHORIZED_FROM_HASH` only from that durable snapshot. The
+normal branch must still equal the current pending provenance basis. The approval
+branch must still resolve at its stored index to the same path, purpose, hash, and
+unconsumed state. An approval does not mutate `writtenHash` and cannot be selected
+twice. The writer performs the same fresh pre-write check; the state-agent independently
 checks the returned bytes before completion.
 
 The writer report is part of that same commit, not a later collection step. Normalize
@@ -263,13 +301,15 @@ byte-identical, so a malformed report cannot be silently dropped while its file 
 declared complete.
 
 The processor helpers do not treat those read-only authorizations as standing
-capabilities. Immediately before each processor-state rename, `init-state.sh`
-independently re-derives the exact ordered pending slice and requires the same current
-tier with no collision; `mark-done.sh` independently requires the same current tier,
-no collision, the complete bound writer report, and live bytes equal to `writtenHash`.
-They repeat those checks after preparing the temporary state and before the rename. A
-changed tier, collision set, or slice is `PROCESSOR_AUTHORITY_INVALID` and leaves the
-processor state byte-identical.
+capabilities. `init-state.sh` acquires the shared lock and independently re-derives the
+exact ordered pending slice and authorization map. `mark-done.sh` sources the same
+implementation and applies the same writer-report law in committed view: a selected
+approval must now be consumed at the stored index, while the normal branch must not
+consume one. Each helper captures the exact authority manifest and processor preimage,
+repeats its full semantic check after staging, and compares both preimages immediately
+before the rename. A changed tier, collision set, slice, ledger, document byte, file
+kind, or processor preimage is `PROCESSOR_AUTHORITY_INVALID` (subject to earlier
+specific plan/byte refusals) and leaves processor state byte-identical.
 
 `reopen-audit-repair` never blesses changed bytes. Its `completed` source invariant
 requires all queue entries to be written but deliberately does not require live hashes;
@@ -348,6 +388,15 @@ state with pending work. A same-step update not named above is also refused.
   least one current error, is already queued with written provenance, and appears
   once. It never accepts a warning-only or caller-invented path.
 - Unknown fields in any object are refused, never merged.
+
+Complete-object validation also covers any processor cache consulted by the operation.
+A current write-tier processor must have exactly the ordered authorization map above;
+present-but-malformed or mismatched data is `PROCESSOR_AUTHORITY_INVALID`. A legacy
+write-tier processor that omits `recordWriteAuthorizations` is stale cache, not
+canonical write-state corruption and never inferred authority: reconcile any already
+written canonical paths, remove the stale processor state/findings under the Authority
+Transaction, then reinitialize it. Fact-check processor validation instead requires
+the field to be present and exactly `null`.
 
 ### Canonical Record Mirrors
 
@@ -458,6 +507,16 @@ Next validate the complete plan-authority chain. `authorize-gap-plan` and every 
 after `planned` require ordinary current plan identity. `apply-gap-plan` alone accepts
 the exact `enqueued` candidate/live tuples described below; no other mismatch may
 mutate anything.
+
+Every Mode 3 mutator — `authorize-gap-plan`, `apply-gap-plan`, `prepare`,
+`approve-collision`, `scaffold`, `apply`, `clean`, and `clear` — is one
+[Authority Transaction](../workflow.md#authority-transaction). It acquires the lock
+once, rereads and revalidates every authority and operation preimage, stages its next
+state, reruns the complete edge predicate, and performs only preimage-conditional
+renames before logging and unlocking. `AUTHORITY_BUSY` and any failed CAS leave plans,
+state, documents, processor artifacts, and cleanup evidence unchanged. Candidate
+rendering and agent work happen before acquisition; no edge waits or dispatches while
+holding the lock.
 
 ### The transition record
 
@@ -573,7 +632,10 @@ conflicting type/tier reports for one path or any malformed ledger item. Validat
 containment under `docsRoot`, concept/algorithm type-to-tier rules, no current queue
 member, the loop guard, and independently
 recompute `requeued`, `replayTier`, and `resetTiers` from `writeQueue` plus current
-authorized plan metadata. `replayTier` may not exceed `currentTier`.
+authorized plan metadata. Use the monotone reverse-link and same-directory index
+fixpoint defined in `write/PHASE.md`; store `requeued` sorted and duplicate-free, set
+`replayTier` to the exact minimum tier over `gapPaths ∪ requeued`, and set `resetTiers`
+to their sorted distinct tiers. `replayTier` may not exceed `currentTier`.
 
 Parse and completely validate both current and candidate plans. Independently derive
 the exact semantic delta; never accept `planMutation` from the caller. Candidate-only
@@ -601,10 +663,10 @@ Require `candidatePath` to be the fixed sidecar and
 `authorizedPlanHash == fromPlanHash == derived cursor`.
 
 - Normal tuple: live plan freshly hashes to `fromPlanHash`, and the candidate exists
-  and freshly hashes to `toPlanHash`. Atomically rename that exact candidate over
-  `.contributor-docs/doc-plan.yaml`, freshly rehash the installed bytes, then
-  atomically set `authorizedPlanHash = toPlanHash` and status `planned` in the same
-  write-state rename.
+  and freshly hashes to `toPlanHash`. Hold one Authority Transaction lock across the
+  exact candidate-to-`.contributor-docs/doc-plan.yaml` rename, fresh installed-byte
+  verification, and the conditional write-state rename that sets
+  `authorizedPlanHash = toPlanHash` and status `planned`.
 - Crash tuple: live plan already hashes to `toPlanHash`, the candidate is absent, and
   state is still enqueued/from. The candidate rename committed before the state
   rename; perform only that same authorized-hash/status state update.
@@ -681,8 +743,9 @@ applies the edge once.
 
 Legal only from `reset`. Freshly require current plan identity and candidate absence.
 Select the first `resetTiers` member absent from `cleanedTiers`. Remove its exact
-processor `state.json` and findings tree, then verify both are absent. Only after that
-verification does one atomic state write append the tier. When the sorted, unique
+processor `state.json` and findings tree under the same Authority Transaction, then
+verify both are absent and that all locked authority/preimages still match. Only after
+that verification does one conditional atomic state write append the tier. When the sorted, unique
 `cleanedTiers` set equals `resetTiers`, the same write sets `status: "cleaned"`. A
 failed removal reports `GAP_CLEANUP_INCOMPLETE` and changes no state. Missing artifacts
 are already absent, so retries are idempotent.

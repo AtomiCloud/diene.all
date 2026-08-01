@@ -7,123 +7,114 @@
 # state in a way the next run cannot detect.
 set -euo pipefail
 
-[[ $# -eq 4 && $3 == "--plan-hash" && $4 =~ ^[0-9a-f]{64}$ ]] || {
-  echo "❌ Usage: mark-done.sh <state-file> <filename> --plan-hash <64-hex>" >&2
-  exit 1
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+# shellcheck source=docs/standards/contributor-docs/scripts/init-state.sh
+source "$SCRIPT_DIR/init-state.sh"
+
+assert_processor_membership() {
+  local state_file=$1 filename=$2 plan_hash=$3 state_abs
+
+  state_abs=$(realpath -m -- "$state_file")
+  if [[ ! -f $state_file ]] || ! jq -e --arg file "$filename" --arg hash "$plan_hash" '
+      . as $processor |
+      ($processor.authorizedPlanHash == $hash) and
+      ($processor | has("recordWriteAuthorizations")) and
+      ($processor.filesToProcess | type == "array") and
+      (($processor.filesToProcess | length) ==
+        ($processor.filesToProcess | unique | length)) and
+      ($processor.pendingFiles | type == "array") and
+      (($processor.pendingFiles | length) ==
+        ($processor.pendingFiles | unique | length)) and
+      ($processor.processedFiles | type == "array") and
+      (($processor.processedFiles | length) ==
+        ($processor.processedFiles | unique | length)) and
+      (($processor.filesToProcess | index($file)) != null) and
+      (all($processor.pendingFiles[]; . as $path |
+        ($processor.filesToProcess | index($path)) != null)) and
+      (all($processor.processedFiles[]; . as $path |
+        ($processor.filesToProcess | index($path)) != null)) and
+      (all($processor.pendingFiles[]; . as $path |
+        ($processor.processedFiles | index($path)) == null)) and
+      ((($processor.pendingFiles + $processor.processedFiles) | sort) ==
+        ($processor.filesToProcess | sort))
+    ' "$state_file" >/dev/null; then
+    echo "PROCESSOR_AUTHORITY_INVALID: processor membership or plan authority changed" >&2
+    return 1
+  fi
+  if [[ $state_abs == "$REPO_ROOT/.contributor-docs/fact-check/state.json" ]] &&
+    ! jq -e '.recordWriteAuthorizations == null' "$state_file" >/dev/null; then
+    echo "PROCESSOR_AUTHORITY_INVALID: fact-check processor has stale authorization format" >&2
+    return 1
+  fi
 }
 
-STATE_FILE="$1"
-FILENAME="$2"
-PLAN_HASH="$4"
-REPO_ROOT=$(git rev-parse --show-toplevel)
-SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-STATE_FILE_ABS=$(realpath -m -- "$STATE_FILE")
+assert_completion_authority() {
+  local state_file=$1 filename=$2 plan_hash=$3 state_abs
 
-assert_processor_completion_authority() {
-  local prefix="$REPO_ROOT/.contributor-docs/write-tier-" suffix="/state.json"
-  local tier write_state target_file expected_hash actual_hash
+  assert_plan_authority "$plan_hash"
+  assert_processor_membership "$state_file" "$filename" "$plan_hash"
+  state_abs=$(realpath -m -- "$state_file")
+  if [[ $state_abs == "$REPO_ROOT/.contributor-docs/write-tier-"*"/state.json" ]]; then
+    assert_record_write_authority committed "$state_file" "$filename" "$plan_hash" >/dev/null
+  fi
+}
 
-  if [[ $STATE_FILE_ABS != "$prefix"*"$suffix" ]]; then
+mark_done_main() {
+  [[ $# -eq 4 && $3 == "--plan-hash" && $4 =~ ^[0-9a-f]{64}$ ]] || {
+    echo "❌ Usage: mark-done.sh <state-file> <filename> --plan-hash <64-hex>" >&2
+    exit 1
+  }
+
+  local state_file=$1 filename=$2 plan_hash=$4
+  local authority_preimage processor_preimage
+
+  acquire_authority_lock
+  trap 'authority_transaction_cleanup "$?"' EXIT
+
+  assert_completion_authority "$state_file" "$filename" "$plan_hash"
+
+  # Already processed is an idempotent success only after the same fresh authority,
+  # report, disk, and processor-format validation required for a new commit.
+  if jq -e --arg file "$filename" \
+    '.processedFiles | index($file) != null' "$state_file" >/dev/null; then
+    echo "✅ '${filename}' already marked done"
+    release_authority_lock
+    trap - EXIT
     return 0
   fi
-  tier=${STATE_FILE_ABS#"$prefix"}
-  tier=${tier%"$suffix"}
-  write_state="$REPO_ROOT/.contributor-docs/write-state.json"
-  if [[ ! $tier =~ ^[1-6]$ ]] || ! jq -e --arg f "$FILENAME" --argjson tier "$tier" '
-    .step == ("write_tier_" + ($tier | tostring)) and .currentTier == $tier and
-    (.blockedCollisions | type == "array" and length == 0) and .gapTransition == null and
-    (.writeQueue | index($f)) != null and .provenance[$f].tier == $tier
-  ' "$write_state" >/dev/null; then
-    echo "PROCESSOR_AUTHORITY_INVALID: current tier or collision set changed" >&2
-    return 1
+
+  authority_preimage=$(processor_authority_snapshot "$state_file" "$filename")
+  processor_preimage=$(authority_snapshot "$state_file")
+
+  CONTRIBUTOR_DOCS_TEMP_FILE=$(mktemp "${state_file}.XXXXXX")
+  jq --arg file "$filename" '
+    .pendingFiles -= [$file] |
+    .processedFiles += [$file] |
+    .processedFiles |= unique
+  ' "$state_file" >"$CONTRIBUTOR_DOCS_TEMP_FILE"
+
+  assert_completion_authority "$state_file" "$filename" "$plan_hash"
+  if ! jq -e -s --arg file "$filename" '
+      .[1] == (.[0] |
+        .pendingFiles -= [$file] |
+        .processedFiles += [$file] |
+        .processedFiles |= unique)
+    ' "$state_file" "$CONTRIBUTOR_DOCS_TEMP_FILE" >/dev/null; then
+    echo "PROCESSOR_AUTHORITY_INVALID: staged completion is not the exact processor transition" >&2
+    exit 1
   fi
-  if ! jq -e --arg f "$FILENAME" '
-    .provenance[$f].writeStatus == "written" and
-    (.provenance[$f].writtenHash | type == "string" and test("^[0-9a-f]{64}$"))
-  ' "$write_state" >/dev/null; then
-    echo "WRITE_INCOMPLETE: '${FILENAME}' has no canonical written record" >&2
-    return 1
+
+  authority_contract_test_barrier mark-before-cas
+  if [[ $(processor_authority_snapshot "$state_file" "$filename") != "$authority_preimage" ]] ||
+    [[ $(authority_snapshot "$state_file") != "$processor_preimage" ]]; then
+    echo "PROCESSOR_AUTHORITY_INVALID: authority or processor preimage changed before completion commit" >&2
+    exit 1
   fi
-  if ! jq -e --arg f "$FILENAME" --arg hash "$PLAN_HASH" '
-    def sha256: type == "string" and test("^[0-9a-f]{64}$");
-    def exact_keys($value; $want):
-      ($value | type == "object") and (($value | keys | sort) == ($want | sort));
-    def gap_item($gap):
-      exact_keys($gap; ["path","type","tier","reason"])
-      and ($gap.path | type == "string" and length > 0)
-      and ($gap.reason | type == "string" and (gsub("[[:space:]]"; "") | length) > 0)
-      and (($gap.type == "concept" and $gap.tier == 2) or
-        ($gap.type == "algorithm" and $gap.tier == 3));
-    .provenance[$f] as $entry |
-    exact_keys($entry.writerReport;
-      ["reportedBy","authorizedPlanHash","authorizedFromHash","writtenHash","gaps"]) and
-    $entry.writerReport.reportedBy == $f and
-    $entry.writerReport.authorizedPlanHash == $hash and
-    ($entry.writerReport.authorizedFromHash | sha256) and
-    $entry.writerReport.writtenHash == $entry.writtenHash and
-    ($entry.writerReport.writtenHash | sha256) and
-    ($entry.writerReport.gaps | type == "array") and
-    all($entry.writerReport.gaps[]; gap_item(.)) and
-    (($entry.writerReport.gaps | map([.path,.type,.tier]) | length) ==
-      ($entry.writerReport.gaps | map([.path,.type,.tier]) | unique | length)) and
-    ($entry.writerReport.gaps | group_by(.path) |
-      all(.[]; (map({type:.type,tier:.tier}) | unique | length) == 1))
-  ' "$write_state" >/dev/null; then
-    echo "GAP_REPORT_SET_INVALID: '${FILENAME}' has no bound writer report" >&2
-    return 1
-  fi
-  target_file=$(realpath -m -- "$REPO_ROOT/$FILENAME")
-  expected_hash=$(jq -r --arg f "$FILENAME" '.provenance[$f].writtenHash' "$write_state")
-  if [[ $target_file != "$REPO_ROOT/"* ]] || [[ ! -f $target_file ]]; then
-    echo "WRITTEN_BYTES_CHANGED: '${FILENAME}' is absent or outside the repository" >&2
-    return 1
-  fi
-  actual_hash=$(sha256sum -- "$target_file" | cut -d ' ' -f1)
-  if [[ $actual_hash != "$expected_hash" ]]; then
-    echo "WRITTEN_BYTES_CHANGED: '${FILENAME}' expected=${expected_hash} actual=${actual_hash}" >&2
-    return 1
-  fi
+
+  mv "$CONTRIBUTOR_DOCS_TEMP_FILE" "$state_file"
+  CONTRIBUTOR_DOCS_TEMP_FILE=
+  release_authority_lock
+  trap - EXIT
 }
 
-bash "$SCRIPT_DIR/init-state.sh" --assert-plan-authority "$PLAN_HASH"
-
-if ! jq -e --arg hash "$PLAN_HASH" '.authorizedPlanHash == $hash' "$STATE_FILE" >/dev/null; then
-  echo "PLAN_DRIFT_BLOCKED: processor authority does not match ${PLAN_HASH}" >&2
-  exit 1
-fi
-
-# Write-tier completion additionally revalidates the exact operation snapshot and
-# canonical record-write commit. Audit fact-check processors share this helper but
-# have their own stamped durable evidence.
-assert_processor_completion_authority
-
-# Precondition, evaluated before anything is written: the filename must be known
-# to this state file, either still pending or already processed. jq -e sets a
-# non-zero exit for a false/null result, which is what gates the write.
-if ! jq -e --arg f "$FILENAME" \
-  '(.filesToProcess // []) | index($f) != null' \
-  "$STATE_FILE" >/dev/null; then
-  echo "❌ '${FILENAME}' was never queued in ${STATE_FILE}" >&2
-  exit 1
-fi
-
-# Already processed: nothing to do. Return success so a retried batch is
-# idempotent, and leave the file untouched rather than rewriting it.
-if jq -e --arg f "$FILENAME" '.processedFiles | index($f) != null' "$STATE_FILE" >/dev/null; then
-  echo "✅ '${FILENAME}' already marked done"
-  exit 0
-fi
-
-TEMP=$(mktemp "${STATE_FILE}.XXXXXX")
-trap 'rm -f "${TEMP}"' EXIT
-jq --arg f "$FILENAME" \
-  '.pendingFiles -= [$f] | .processedFiles += [$f] | .processedFiles |= unique' \
-  "$STATE_FILE" >"$TEMP"
-bash "$SCRIPT_DIR/init-state.sh" --assert-plan-authority "$PLAN_HASH"
-if ! jq -e --arg hash "$PLAN_HASH" '.authorizedPlanHash == $hash' "$STATE_FILE" >/dev/null; then
-  echo "PLAN_DRIFT_BLOCKED: processor authority does not match ${PLAN_HASH}" >&2
-  exit 1
-fi
-assert_processor_completion_authority
-mv "$TEMP" "$STATE_FILE"
-trap - EXIT
+mark_done_main "$@"

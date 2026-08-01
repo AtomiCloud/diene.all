@@ -492,25 +492,52 @@ Pipe that list — and only that list — into init-state.sh:
   --plan-hash '<authorizedPlanHash returned by authorize-processor-init>'
 ```
 
-Reuse an existing `.contributor-docs/write-tier-N/state.json` **only if its file set is
-exactly the computed tier input and its `authorizedPlanHash` equals the freshly returned
-authority** (resumability). On any difference — extra files, missing files, stale plan
-authority, or a state left behind by an earlier pass — re-initialize from scratch. "It
-exists and something is still pending" is not evidence that it describes the current
-queue; after a gap transition it usually does not, which is why the transition deletes
-the processor state for every tier it resets before it clears itself.
+Every write-tier processor persists the exact ordered operation snapshot below. Its
+object keys, in insertion order, equal `filesToProcess`; there is one entry for every
+and only every pending tier path:
 
-`init-state.sh` independently revalidates the complete approved-root/closed-transition
-chain, the exact live plan hash, the absent candidate, and null live transition before
-its processor-state rename. For a write-tier processor it also re-derives the exact
-ordered pending slice from the current queue/provenance, requires the matching current
-tier and an empty collision set, and repeats that complete check immediately before the
-rename. `mark-done.sh` repeats the current-tier/collision fence, complete writer-report
-validation, and fresh `writtenHash` comparison before its own rename. A changed slice,
-tier, or collision set is `PROCESSOR_AUTHORITY_INVALID`; neither helper may consume a
-still-current plan hash as standing processor authority. The state-agent result
-therefore scopes the input, while the helpers' fresh fences close the
-authorization-to-rename crash window.
+```json
+{
+  "recordWriteAuthorizations": {
+    "docs/contributor/orders/features/checkout.mdx": {
+      "normalHash": "<retained writtenHash, otherwise scaffoldHash>",
+      "replayApproval": {
+        "ledgerIndex": 3,
+        "approvedHash": "<exact unconsumed writer-replay approval hash>"
+      }
+    }
+  }
+}
+```
+
+`replayApproval` is `null` when none applies. Initialization derives the sole
+unconsumed approval's stable append-only array index and hash; multiple applicable
+approvals or a malformed hash refuse initialization. This snapshot is not new
+canonical write authority: it is bound to the processor's `authorizedPlanHash`, tier,
+and exact file list so completion can prove the pre-write authority after canonical
+provenance has changed. Shared fact-check processors store
+`recordWriteAuthorizations: null`. A write-tier processor missing the field is a stale
+legacy cache and must be removed and reinitialized; authority is never inferred.
+
+Reuse an existing `.contributor-docs/write-tier-N/state.json` **only if its file set is
+exactly the computed tier input, its `authorizedPlanHash` equals the freshly returned
+authority, and its authorization map exactly matches the durable snapshot captured at
+that initialization** (resumability). On any difference — extra files, missing files,
+stale plan authority, missing/legacy map, or a state left behind by an earlier pass —
+re-initialize from scratch. "It exists and something is still pending" is not evidence
+that it describes the current queue; after a gap transition it usually does not, which
+is why the transition deletes the processor state for every tier it resets before it
+clears itself.
+
+Both helpers participate in the canonical
+[Authority Transaction](../workflow.md#authority-transaction). `init-state.sh`
+re-derives the exact ordered pending slice and authorization map under the lock;
+`mark-done.sh` applies the same committed writer-report law described below. Each
+captures exact authority and processor preimages, reruns the semantic fence after
+staging, and compares both preimages immediately before its `mv`. A changed slice,
+tier, collision, ledger, authority byte, assigned document, or processor preimage is
+`PROCESSOR_AUTHORITY_INVALID` (with plan/byte drift retaining its more specific
+precedence). `AUTHORITY_BUSY` is a fail-fast retry outcome and changes nothing.
 
 ### 2. Process Loop
 
@@ -527,18 +554,25 @@ while next-file.sh returns files:
      `AUTHORIZED_FROM_HASH`, and `WRITTEN_HASH` values. The writer must have hashed the
      exact plan before consuming metadata and again immediately before its authorized
      write/report.
-  5. Spawn state-agent `record-write`. It freshly hashes the file, requires equality
+  5. Spawn state-agent `record-write`. While holding the Authority Transaction lock,
+     invoke the shared `init-state.sh --assert-record-write pending` law before
+     candidate construction and again after staging, before its exact preimage CAS.
+     The law freshly hashes the file, requires equality
      with `WRITTEN_HASH`, freshly hashes the live plan and requires equality with both
      reported `PLAN_SHA256` and `authorizedPlanHash`, validates the complete structured
      `GAPS` field, and atomically records `writeStatus: "written"`, that exact
      `writtenHash`, and the bound five-field `writerReport`. The same rename derives
      `filesWritten` and consumes any writer-replay approval. A file or malformed-report
-     mismatch remains pending;
+     mismatch remains pending. Its returned branch is exactly `normal` or
+     `approval:<ledgerIndex>`; only the latter consumes that exact approval in the same
+     canonical rename;
      state-agent `record-writer-collision` persists the observed and expected hashes in
      `blockedCollisions`, which blocks dispatch. A plan mismatch is instead the
      non-mutating `PLAN_DRIFT_BLOCKED` outcome.
   6. Only after `record-write` succeeds, invoke state-agent
-     `authorize-processor-complete` for that exact path, then run:
+     `authorize-processor-complete` for that exact path, then run `mark-done.sh`. The
+     helper invokes the same law in `committed` view: a selected approval must now be
+     consumed, while the normal branch must not have consumed it.
      bash docs/standards/contributor-docs/scripts/mark-done.sh .contributor-docs/write-tier-N/state.json <filename> --plan-hash '<returned authorizedPlanHash>'
 ```
 
@@ -550,11 +584,30 @@ independently repeats the full chain/live-hash check immediately before its atom
 rename. An outside edit or plan change between the writer's return and either fresh
 check therefore cannot be blessed as workflow output or processor completion.
 
+The pending and committed views are one predicate, not two similar validators. It
+requires the exact five writer-report keys; a normalized reporter and every gap path
+strictly below normalized non-root `task-state.docsRoot`; and an actual regular
+reporter whose resolved path remains below the resolved docs root (including existing
+parent symlinks). The current processor path/tier/file list, write queue/provenance,
+plan hash, empty collision set, and null gap must agree. Plan, start, and written hashes
+are lowercase SHA-256 values; the written hash equals returned bytes, fresh disk bytes,
+and committed provenance as applicable. Every gap has exactly path/type/tier/reason,
+a nonblank reason, concept→2 or algorithm→3, a unique tuple, and no conflicting
+metadata for one path. `authorizedFromHash` equals either the snapshot's `normalHash`
+or its exact approval index/hash. Pending view requires that approval unconsumed and
+normal authority still equal to current pending provenance; committed view requires a
+selected approval consumed and a normal-branch approval still unconsumed. Missing
+snapshot authority is `PROCESSOR_AUTHORITY_INVALID`; malformed or escaped report data
+is `GAP_REPORT_SET_INVALID`.
+
 When the user approves a writer collision, `approve-writer-replay` first re-hashes the
-path and requires equality with the recorded `observedHash`, appends one unconsumed
-approval for that exact snapshot, and atomically removes the collision. A changed
-snapshot is remeasured and stays blocked. The next writer consumes the approval only
-after `WRITTEN_HASH` is freshly verified.
+path and requires equality with the recorded `observedHash`. Under one Authority
+Transaction it removes and verifies absent the current tier processor state/findings
+before appending the unconsumed approval and removing the collision. Cleanup-first is
+safe if the process crashes; retry repeats it. Reinitialization then captures the new
+stable ledger index/hash, so a stale processor cannot acquire a later approval. A
+changed snapshot is remeasured and stays blocked. The next writer consumes the
+approval only after `WRITTEN_HASH` is freshly verified.
 
 ### 3. Tier Complete
 
@@ -778,8 +831,10 @@ the latest field:
    transition fields plus `closedAt`, status `cleared`, valid complete report/reason and
    gap-tuple evidence, unique reporters and tuples, the exact reporter/requeue/reset
    relationships, complete cleanup evidence, and typed, sorted added-entry/link
-   evidence equal to the reported gaps. Require an `openedAt` unique across the log. A
-   malformed history is `GAP_CLOSURE_INVALID`.
+   evidence equal to the reported gaps. Reconstruct that record's open-time link graph
+   and queue, then require `requeued`, `replayTier`, and `resetTiers` to equal the
+   mechanically re-derived values exactly. Require an `openedAt` unique across the log.
+   A malformed history is `GAP_CLOSURE_INVALID`.
 3. Walk those records in append order. Require each
    `planMutation.fromPlanHash == cursor`, then advance `cursor` to `toPlanHash`.
 4. With no live gap, require
@@ -837,9 +892,11 @@ of the gap paths, restricted to work that is already queued:
 ```
 G  = the set of gapPaths
 R₀ = { every reports[*].reportedBy }
-Rₙ₊₁ = Rₙ ∪ { p ∈ writeQueue : crossLinks(p) ∩ (Rₙ ∪ G) ≠ ∅ }
+Rₙ₊₁ = Rₙ
+       ∪ { p ∈ writeQueue : crossLinks(p) ∩ (Rₙ ∪ G) ≠ ∅ }
+       ∪ indexClosure(Rₙ ∪ G)
 R  = the fixpoint of that iteration
-requeued = (R ∩ writeQueue) \ G, plus the index closure below
+requeued = sorted((R ∩ writeQueue) \ G)
 ```
 
 `crossLinks(p)` is read from `p`'s live `doc-plan.yaml` entry only after that file
@@ -853,14 +910,34 @@ concept, the feature is stale; if a surface links to that feature, the surface m
 describe it wrongly too. Stopping at direct dependants would leave exactly the
 second-order drift the tier order exists to prevent.
 
-**Index closure.** Indexes and navigation entries list the files in their directory, so
-they depend on a new file without ever naming it in `crossLinks`. For every path in
-`R ∪ G`, add the queued `index.mdx` of that path's directory, and any queued navigation
-or index entry whose plan entry lists that directory. These are added to `requeued` the
-same way and follow the same rules.
+**Index closure.** Indexes list the files in their directory, so they depend on a new
+file without naming it in `crossLinks`. At each iteration, for every path newly under
+consideration from `Rₙ ∪ G`, add every queued plan entry whose directory is the same
+and whose plan metadata declares it as an index: the entry is in the `indexes`
+collection or has `type: index`. Ancestor indexes and module overviews are not implied.
+Index entries join the same monotone fixpoint as cross-link dependants, so a queued
+path that links to an affected index is reached on the next iteration.
 
-**`replayTier`** = the lowest `tier` among `G ∪ requeued`. Tier order is the whole point:
-re-entering above the lowest affected tier would write a dependant before its dependency.
+Closed-history validation uses the metadata and membership that existed when each
+record opened, not today's accumulated successor. Starting from the current authorized
+plan and append-only queue, it removes that record's and every later closed record's
+`addedCrossLinks` and `gapPaths`, plus the corresponding fields of any live transition.
+The reconstruction is exact because gap successors are the only legal plan-growth path,
+their complete additions are stored in order, and gap scaffolding is the only operation
+that extends `writeQueue`. The record's own reporter-to-gap links may be included or
+removed without changing the result because every reporter is already in `R₀`.
+The state-agent/reducer performs the additional live-transition subtraction because it
+validates ordinary dispatch while a later transition is present. The production
+processor helper requires `gapTransition: null`, so its equivalent reconstruction has
+no live-transition terms; both copies use the same closed-record suffix rule.
+
+**`replayTier`** equals the lowest `tier` among `G ∪ requeued`; it is not merely bounded
+by that value. Tier order is the whole point: re-entering above the lowest affected tier
+would write a dependant before its dependency. Because every reporter is a current-tier
+queued path and is included in `requeued`, the derived value cannot exceed
+`currentTier` **when the transition opens**. A closed historical record is validated
+against its stored queue/provenance reconstruction after the live `currentTier` may
+have advanced, so it is never compared with today's tier.
 
 **`resetTiers`** = the sorted distinct tiers of `G ∪ requeued` — every tier that actually
 holds a path going back to `pending`. Tiers at or above `replayTier` that hold no
@@ -876,7 +953,7 @@ again.
 | Condition                                                                                         | Refusal                      |
 | ------------------------------------------------------------------------------------------------- | ---------------------------- |
 | Outside the exact `enqueued` recovery tuple, live plan is absent/mismatched or lineage is invalid | `PLAN_DRIFT_BLOCKED`         |
-| Any closed record is incomplete, has invalid report/cleanup metadata, or repeats `openedAt`       | `GAP_CLOSURE_INVALID`        |
+| Any closed record is incomplete, repeats `openedAt`, or differs from its re-derived closure/tier/cleanup metadata | `GAP_CLOSURE_INVALID`        |
 | Candidate is absent when `authorize-gap-plan` or a normal `apply-gap-plan` requires it            | `GAP_PLAN_CANDIDATE_MISSING` |
 | Candidate's parsed delta is wider/narrower than the exact reported entries and reporter links     | `GAP_PLAN_DELTA_INVALID`     |
 | Candidate/live bytes do not hash to the stored endpoint required by `apply-gap-plan`              | `GAP_PLAN_HASH_INVALID`      |
@@ -887,7 +964,7 @@ again.
 | Any path is absolute, escapes `docsRoot`, is duplicated, or has a type/tier mismatch              | `GAP_PATH_INVALID`           |
 | `replayTier > currentTier`                                                                        | `GAP_TIER_INVALID`           |
 | A proposed gap path is already on `writeQueue`                                                    | `GAP_ALREADY_QUEUED`         |
-| A gap path appears in two or more prior `gapsResolved` entries                                    | `GAP_LOOP`                   |
+| A gap path repeats across `gapsResolved`, or a live gap repeats a closed path                     | `GAP_LOOP`                   |
 | `expectedScaffold` keys differ from the gap set or a value is not a SHA-256                       | `GAP_MANIFEST_INVALID`       |
 | A gap file lacks exact-hash approval or prepared-hash ownership                                   | `GAP_COLLISION`              |
 | A requested status skips or reverses the transition graph                                         | `GAP_TRANSITION_INVALID`     |
@@ -984,6 +1061,27 @@ merely exiting nonzero is not a catch. The hook runs the same command on every c
    processor initialization/completion. Existing controls still cover skipped gap
    statuses, incomplete manifests, fabricated cleanup, collisions, and returned/disk
    writer hash mismatch.
+8. **Shared report/authorization controls.** The reducer imports the same jq law used
+   by both helpers. Healthy first-write, retained replay, and exact ledger-index
+   approval branches pass pending then committed views. Random SHA-shaped start hashes;
+   wrong/missing approval index, path, purpose, hash, or consumption state; approval
+   reuse; unknown report fields; conflicting gaps; root lookalikes; absolute/dot/parent
+   paths; and an existing-parent symlink escape return the named refusal byte-identically.
+9. **Authority transaction controls.** Deterministic internal FIFO barriers stop each
+   helper after its last semantic check while it owns the lock. A second compliant
+   mutator returns `AUTHORITY_BUSY`; after a deliberate raw authority replacement, the
+   final CAS returns `PROCESSOR_AUTHORITY_INVALID` before processor replacement. The
+   manifest covers authority kinds/bytes/absence, processor preimage, and assigned
+   document. Two concurrent marks retry to two unique processed paths, a killed holder
+   releases without deleting the persistent lock file, and ordinary failure leaves no
+   temp file.
+10. **Historical reconstruction controls.** Producer output is pinned to the exact
+    transitive/index closure and tiers. Two linked closed records make later queue-path
+    rollback observable; a closed record plus scaffolded live successor pins live-path
+    rollback. Missing later `planMutation`/`gapPaths` returns
+    `GAP_CLOSURE_INVALID`, repeated closed/live gap paths return `GAP_LOOP`, and
+    unnormalized plan paths/links return `PLAN_DRIFT_BLOCKED` rather than narrowing the
+    closure.
 
 ## State Transitions
 
