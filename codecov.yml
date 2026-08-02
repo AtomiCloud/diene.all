@@ -13,14 +13,17 @@ coverage:
         threshold: 1% # tolerate up to a 1% patch coverage drop
         informational: true
 
+# One flag per tier, each scoped to the same source the tier's local ledger measures, so the
+# uploaded trend and the blocking local threshold are reading the same thing. Tiers are never
+# merged into a single number.
 flags:
   unit:
     paths:
-      - src/
+      - src/lib/
     carryforward: true
   int:
     paths:
-      - src/
+      - src/adapters/
     carryforward: true
 
 comment:

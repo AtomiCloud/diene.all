@@ -1,7 +1,14 @@
 [test]
 root = "tests/unit"
+# Loads every src/lib module before the suite runs, so the ledger is all-files: a domain file with
+# no test is a 0% row in the report rather than an absent one the threshold cannot see.
+preload = ["./tests/support/unit-ledger.ts"]
 coverageReporter = ["text", "lcov"]
 coverageDir = "coverage/unit"
 coverageSkipTestFiles = true
 # Unit ledger = the domain tier only (src/lib, 100% goal); adapters/glue belong to other tiers, tests/** never counts.
 coveragePathIgnorePatterns = ["src/adapters/**", "src/index.ts", "tests/**"]
+# The domain tier is held at 100%; anything less is a gap, not a rounding error.
+# Scalar form only: bun 1.3.13 parses the table forms without complaint and then ignores them, so
+# `{ line = 1.0, ... }` reads like a gate while exiting 0 under target. Measured, not assumed.
+coverageThreshold = 1.0
