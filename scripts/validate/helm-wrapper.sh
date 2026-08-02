@@ -54,59 +54,114 @@ config-vendoring)
   yq eval-all -o=json '.' "${tmp}/config.yaml" | jq -s -e 'map(select(.kind == "ConfigMap" and .metadata.name == "wrapper-config"))[0].data | has("application.yaml") and has("application.example.yaml")' >/dev/null
   ;;
 labels)
-  # Every object each stack owns, keyed by kind/name. Naming them is what keeps the
-  # projection assertion non-vacuous: an object that stops rendering, or is renamed,
-  # is reported as missing instead of quietly shrinking coverage to whatever
-  # survived. The landscape overlay alone renders thirteen CR-bearing objects; the
-  # cluster overlay disables the custom resources and leaves six.
-  example_objects='["ConfigMap/wrapper-config","ConfigMap/wrapper-contracts","Service/wrapper-gateway","Service/wrapper-api","Deployment/wrapper-api","CloudflareDeploy/wrapper-edge","ExternalSecret/wrapper-secrets","HTTPRoute/wrapper-webhooks","LogtoApp/wrapper-identityexample","PlatformDependency/wrapper-dependencies","Problem/wrapper-problems","VirtualLandscapeService/wrapper-vls","Job/wrapper-migration"]'
+  # The wrapper redefines two named templates the pinned dependency owns —
+  # bjw-s.common.lib.metadata.globalLabels/globalAnnotations — because upstream
+  # binds `$name := $k` and only `tpl`-renders the VALUE, so a map KEY reaches
+  # every rendered upstream object verbatim and no prefix override could move it.
+  # That override is sound only while the dependency still owns those two names
+  # and still leaves its own keys un-templated, so the interface is asserted
+  # before any projection is: a bump that renames them would make the wrapper
+  # redefine nothing and silently drop every upstream service-tree key, and a
+  # bump that starts templating them would make the override redundant. Either
+  # way the answer is to re-measure, not to keep asserting against a stale pin.
+  upstream_version="$(yq -r '.dependencies[] | select(.alias == "upstream") | .version' chart/Chart.yaml)"
+  measured_upstream_version=5.0.1
+  if [ "${upstream_version}" != "${measured_upstream_version}" ]; then
+    echo "❌ the pinned upstream dependency is ${upstream_version}, but the metadata-template override was measured against ${measured_upstream_version}" >&2
+    exit 1
+  fi
+  mkdir -p "${tmp}/upstream"
+  tar -xzf "chart/charts/app-template-${upstream_version}.tgz" -C "${tmp}/upstream"
+  for template in globalLabels globalAnnotations; do
+    definition="${tmp}/upstream/app-template/charts/common/templates/lib/metadata/_${template}.tpl"
+    if [ ! -s "${definition}" ]; then
+      echo "❌ the pinned dependency no longer carries lib/metadata/_${template}.tpl; re-measure the wrapper's override" >&2
+      exit 1
+    fi
+    grep -qF "define \"bjw-s.common.lib.metadata.${template}\"" "${definition}" || {
+      echo "❌ the pinned dependency no longer defines bjw-s.common.lib.metadata.${template}; re-measure the wrapper's override" >&2
+      exit 1
+    }
+    # Go template text, not a shell expansion: the single quotes are what keep the
+    # measured `$name := $k` binding literal.
+    # shellcheck disable=SC2016
+    grep -qF '$name := $k' "${definition}" || {
+      echo "❌ the pinned dependency no longer binds its ${template} map key verbatim; the wrapper's override may now be redundant or wrong" >&2
+      exit 1
+    }
+    grep -qF "define \"bjw-s.common.lib.metadata.${template}\"" chart/templates/_helpers.tpl || {
+      echo "❌ the wrapper no longer redefines bjw-s.common.lib.metadata.${template}; an upstream metadata key would stop following labelPrefix" >&2
+      exit 1
+    }
+  done
+
+  # Every object each stack owns, keyed by kind/name, split by the module each one
+  # projects. Naming them is what keeps the projection assertion non-vacuous: an
+  # object that stops rendering, or is renamed, is reported as missing instead of
+  # quietly shrinking coverage to whatever survived. The base and landscape stacks
+  # each render thirteen wrapper-owned objects; the cluster overlay disables the
+  # custom resources and leaves six. The pinned dependency's two objects are named
+  # in their own list, so an upstream Deployment or Service that stopped rendering
+  # can no longer make the upstream half of this gate assert nothing.
+  base_objects='["ConfigMap/wrapper-config","ConfigMap/wrapper-contracts","Service/wrapper-gateway","Service/wrapper-api","Deployment/wrapper-api","CloudflareDeploy/wrapper-edge","ExternalSecret/wrapper-secrets","HTTPRoute/wrapper-webhooks","LogtoApp/wrapper-identityexample","PlatformDependency/wrapper-dependencies","Problem/wrapper-problems","VirtualLandscapeService/wrapper-vls","Job/wrapper-migration"]'
+  example_objects="${base_objects}"
   lapras_objects='["ConfigMap/wrapper-config","ConfigMap/wrapper-contracts","Service/wrapper-gateway","Service/wrapper-api","Deployment/wrapper-api","Job/wrapper-migration"]'
-  # The cluster slot is contributed by the cluster overlay only, so the landscape
-  # stack must not be asked for it and the stacked one must be.
+  upstream_objects='["Deployment/wrapper-upstream","Service/wrapper-upstream"]'
+  # The landscape slot is contributed by the landscape overlay and the cluster slot
+  # by the cluster overlay, so the base stack must be asked for neither, the
+  # landscape stack for the first only, and the stacked one for both.
+  base_projection='{"platform":"sample","service":"wrapper","layer":"2"}'
   example_projection='{"platform":"sample","service":"wrapper","layer":"2","landscape":"example"}'
   lapras_projection='{"platform":"sample","service":"wrapper","layer":"2","landscape":"example","cluster":"lapras"}'
+  # The recorded physical instance is read from the values file rather than pinned
+  # here, so the assertion tracks the authorized minter's value instead of a copy.
+  instance_original="$(yq -r '.instance.original' chart/values.yaml)"
 
   # Assert the service-tree projection per rendered object, in both the labels and
   # the annotations, under the prefix in force. The module slot is resolved per
   # resource rather than once for the stack, because the stack is not one module:
-  # the pinned upstream dependency renders wrapper-upstream* objects whose module is
-  # "upstream" while every wrapper-owned object stays "api". A wrapper-owned object
-  # must carry the whole projection; an upstream object is checked against the same
-  # per-slot truth for whatever prefixed keys it does carry, since how much of the
-  # projection reaches a third-party subchart is that dependency's interface, not
-  # this gate's. Anything that is neither is reported, so a new wrapper resource
-  # cannot slip out of coverage by simply not being on the list.
+  # the pinned upstream dependency renders wrapper-upstream objects whose module is
+  # "upstream" while every wrapper-owned object stays "api". Both families are then
+  # held to the SAME rule — every slot present and exact in both maps, plus the
+  # recorded instance pair in the annotations. The upstream family used to be
+  # excused twice over: the whole check was skipped unless the object already
+  # carried a key under the prefix in force, and each missing slot defaulted to its
+  # own expected value. Under a prefix override an upstream object carried no such
+  # key, so both escapes fired at once and the object was waved through with every
+  # key still under the old prefix. Nothing is excused now, so an object outside
+  # either named list is reported and a new wrapper resource cannot slip out of
+  # coverage by simply not being on the list.
   carries_projection() {
     local description="$1" file="$2" prefix="$3" forbidden="$4" objects="$5" projection="$6"
     local offenders
     offenders="$(yq eval-all -o=json '.' "${file}" | jq -s -r \
-      --arg prefix "${prefix}" --arg forbidden "${forbidden}" \
-      --argjson objects "${objects}" --argjson projection "${projection}" '
+      --arg prefix "${prefix}" --arg forbidden "${forbidden}" --arg instance "${instance_original}" \
+      --argjson objects "${objects}" --argjson upstream "${upstream_objects}" --argjson projection "${projection}" '
         def slot($key): "\($prefix)/\($key)";
-        def stale($id; $keys): select($forbidden != "")
-          | $keys[] | select(startswith("\($forbidden)/")) | "\($id): stale key \(.)";
         map(select(.kind != null)) as $rendered
         | ($rendered | map("\(.kind)/\(.metadata.name)")) as $ids
         | [ (if ($rendered | length) == 0 then "no object rendered" else empty end)
-          , (($objects - $ids)[] | "missing object \(.)")
+          , ((($objects + $upstream) - $ids)[] | "missing object \(.)")
           , ( $rendered[]
               | "\(.kind)/\(.metadata.name)" as $id
               | (.metadata.labels // {}) as $labels
               | (.metadata.annotations // {}) as $annotations
               | (($labels | keys) + ($annotations | keys)) as $keys
-              | if ($objects | index($id)) then
-                  ( ( ($projection + {module: "api"}) | to_entries[]
+              | (if ($objects | index($id)) then "api"
+                 elif ($upstream | index($id)) then "upstream"
+                 else null end) as $module
+              | if $module == null then
+                  "\($id): neither a named wrapper-owned object nor a named upstream dependency object"
+                else
+                  ( ( ($projection + {module: $module}) | to_entries[]
                       | select($labels[slot(.key)] != .value or $annotations[slot(.key)] != .value)
                       | "\($id): \(slot(.key)) label=\($labels[slot(.key)] // "absent") annotation=\($annotations[slot(.key)] // "absent") want=\(.value)" )
-                  , stale($id; $keys) )
-                elif (.metadata.name | startswith("wrapper-upstream")) then
-                  ( select($keys | any(startswith("\($prefix)/")))
-                    | ( ( ($projection + {module: "upstream"}) | to_entries[]
-                          | select(($labels[slot(.key)] // .value) != .value or ($annotations[slot(.key)] // .value) != .value)
-                          | "\($id): \(slot(.key)) label=\($labels[slot(.key)] // "absent") annotation=\($annotations[slot(.key)] // "absent") want=\(.value)" )
-                      , stale($id; $keys) ) )
-                else
-                  "\($id): neither a wrapper-owned object nor a wrapper-upstream dependency object"
+                  , ( ["instance-original", "instance-label"][]
+                      | select($annotations[slot(.)] != $instance)
+                      | "\($id): \(slot(.)) annotation=\($annotations[slot(.)] // "absent") want=\($instance)" )
+                  , ( select($forbidden != "")
+                      | $keys[] | select(startswith("\($forbidden)/"))
+                      | "\($id): stale key \(.)" ) )
                 end ) ] | .[]')"
     if [ -n "${offenders}" ]; then
       echo "❌ ${description}" >&2
@@ -115,18 +170,46 @@ labels)
     fi
   }
 
+  helm template "${release}" chart --namespace "${namespace}" >"${tmp}/base.yaml"
   helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml >"${tmp}/example.yaml"
   helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml --values chart/values.lapras.yaml >"${tmp}/lapras.yaml"
-  helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml --set labelPrefix=example.dev >"${tmp}/example-override.yaml"
-  helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml --values chart/values.lapras.yaml --set labelPrefix=example.dev >"${tmp}/lapras-override.yaml"
+  helm template "${release}" chart --namespace "${namespace}" --set global.labelPrefix=example.dev >"${tmp}/base-override.yaml"
+  helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml --set global.labelPrefix=example.dev >"${tmp}/example-override.yaml"
+  helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml --values chart/values.lapras.yaml --set global.labelPrefix=example.dev >"${tmp}/lapras-override.yaml"
 
+  carries_projection "the base stack projection" "${tmp}/base.yaml" atomi.cloud '' "${base_objects}" "${base_projection}"
   carries_projection "the example stack projection" "${tmp}/example.yaml" atomi.cloud '' "${example_objects}" "${example_projection}"
   carries_projection "the example+lapras stack projection" "${tmp}/lapras.yaml" atomi.cloud '' "${lapras_objects}" "${lapras_projection}"
   # The override runs re-assert the same per-object truth under the new prefix and
   # additionally require that no key under the default prefix survives, so an
-  # override that merely adds keys cannot pass.
+  # override that merely adds keys cannot pass. `example.dev` is a different number
+  # of dot-separated segments from `atomi.cloud`, so a prefix that was fused into a
+  # rendered key by string surgery rather than carried whole is caught here too.
+  carries_projection "the base stack prefix override" "${tmp}/base-override.yaml" example.dev atomi.cloud "${base_objects}" "${base_projection}"
   carries_projection "the example stack prefix override" "${tmp}/example-override.yaml" example.dev atomi.cloud "${example_objects}" "${example_projection}"
   carries_projection "the example+lapras stack prefix override" "${tmp}/lapras-override.yaml" example.dev atomi.cloud "${lapras_objects}" "${lapras_projection}"
+
+  # A prefix that cannot be a Kubernetes label-key prefix is refused at BOTH
+  # boundaries independently — once by the generated values schema before a
+  # template runs, and once with --skip-schema-validation so the same bytes reach
+  # the helper and its named reason is what refuses. The forward projection now
+  # computes keys rather than spelling them out, so an unvalidated prefix would
+  # render objects the API server rejects long after this chart claimed success.
+  refuses_prefix_at_both_boundaries() {
+    local label="$1" prefix="$2" schema_reason="$3" helper_reason="$4"
+    refuses "${label}, at the values schema" "${schema_reason}" --set-string "global.labelPrefix=${prefix}"
+    refuses "${label}, at the prefix helper" "${helper_reason}" --skip-schema-validation --set-string "global.labelPrefix=${prefix}"
+  }
+
+  refuses_prefix_at_both_boundaries "a leading-dash label prefix" -example.dev \
+    "at '/global/labelPrefix': '-example.dev' does not match pattern" \
+    'LabelPrefixInvalid: segment "-example" of label prefix "-example.dev"'
+  refuses_prefix_at_both_boundaries "an empty label-prefix segment" example..dev \
+    "at '/global/labelPrefix': 'example..dev' does not match pattern" \
+    'LabelPrefixInvalid: segment 2 of label prefix "example..dev" is empty'
+  refuses_prefix_at_both_boundaries "an uppercase label prefix" Example.dev \
+    "at '/global/labelPrefix': 'Example.dev' does not match pattern" \
+    'LabelPrefixInvalid: segment "Example" of label prefix "Example.dev"'
   ;;
 reloader)
   helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml >"${tmp}/default.yaml"

@@ -12,10 +12,11 @@ webhookRoute:
 primordial:
   enabled: false
 
-# The cluster slot is contributed here, exactly as the wrapper-owned helpers do.
+# The cluster slot is contributed here, exactly as the wrapper-owned helpers do:
+# the overlay owns the value, `global.labelPrefix` owns the key.
 upstream:
   global:
     labels:
-      atomi.cloud/cluster: lapras
+      '{{ .Values.global.labelPrefix }}/cluster': lapras
     annotations:
-      atomi.cloud/cluster: lapras
+      '{{ .Values.global.labelPrefix }}/cluster': lapras

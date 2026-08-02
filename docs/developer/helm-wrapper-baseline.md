@@ -16,7 +16,7 @@ Run `pls build`, `pls example:lapras:template`, or `pls test:unit`. `pls test:in
 
 ## Identity and naming
 
-- `labelPrefix` is the only prefix input. Every service-tree label and annotation helper reads it.
+- `global.labelPrefix` is the only prefix input. Every service-tree label and annotation key reads it — wrapper-owned and pinned-dependency alike — and it must be one DNS-1123 subdomain, refused at the values schema and again at the helper. It lives under `global` because Helm propagates that table verbatim into every dependency, which is what lets one wrapper decision reach an upstream object; see [Upstream metadata interface](#upstream-metadata-interface).
 - LPSM remains `{landscape, platform, service, module}`. The platform hostname slot always comes from the release namespace; a values file cannot stamp another platform.
 - Ordinary hostnames are `<module>.<service>.<namespace>.<landscape>.<zone>`.
 - Optional physical-instance hostnames are `<module>.<service>.<namespace>.<instance>.<landscape>.<zone>`. Instance is returned separately by the parser and never becomes an LPSM slot.
@@ -24,6 +24,20 @@ Run `pls build`, `pls example:lapras:template`, or `pls test:unit`. `pls test:in
 - Resource names use `<service>-<token>` with exactly one dash. Tokens fuse components (`main-cache` → `maincache`). Every enabled dependency receives an explicit conforming `fullnameOverride`.
 
 The helpers are generic by design. Final environment-owned instance segments, hosted profile fixtures, and exposure semantics stay outside this node until their owning work lands.
+
+### Upstream metadata interface
+
+The pinned dependency is `app-template 5.0.1`, whose `bjw-s.common` library stamps `global.labels` and `global.annotations` onto every object it renders. Both library templates bind `$name := $k` and only `tpl`-render the **value**, so a map **key** reaches a rendered upstream object verbatim. A prefix override therefore used to move every wrapper-owned key while the upstream Deployment and Service kept `atomi.cloud` — and the labels gate excused them, so nothing reported it.
+
+The wrapper closes that with one narrow, pinned interface:
+
+- `global.labelPrefix` is a top-level `global` entry, so Helm copies it into the dependency's own values and an upstream template context can read it.
+- `upstream.global.labels` and `upstream.global.annotations` write their keys as Helm templates — `'{{ .Values.global.labelPrefix }}/module'` — instead of literal strings. Overlays contribute their own slot the same way: the overlay owns the value, the shared prefix owns the key.
+- `chart/templates/_helpers.tpl` **redefines** `bjw-s.common.lib.metadata.globalLabels` and `bjw-s.common.lib.metadata.globalAnnotations`. Helm's template namespace is global and `sortTemplates` parses deeper paths first, so the wrapper's shallow `templates/_helpers.tpl` is parsed after the dependency's `charts/upstream/charts/common/templates/lib/metadata/*.tpl` and a same-named definition replaces it for the whole render — including when the wrapper is rendered from a packaged archive, whose relative depths are identical. The replacements reproduce the upstream emission byte-for-byte and add exactly one thing: the key is `tpl`-rendered too. Every rendered key is then judged as a Kubernetes qualified name, so a computed key the API server would reject refuses at render instead of at apply.
+
+This is a pinned coupling to a third-party template, not a public extension point, so `scripts/validate/helm-wrapper.sh labels` re-checks the interface against the vendored archive before it asserts any projection: the dependency version must be the measured one, both library templates must still exist under their measured names, they must still bind their map key verbatim, and the wrapper must still redefine both. A dependency bump that renames them would otherwise make the wrapper redefine nothing and silently drop every upstream service-tree key; a bump that starts templating its own keys makes the override redundant. Either finding means re-measure, not re-pin. The vendored archive itself is never edited.
+
+The gate then holds both object families to the same rule under both the default prefix and an override: every slot of the stack's projection present and exact in labels **and** annotations, the recorded instance pair present in the annotations, and — under an override — no key surviving under the old prefix. Wrapper-owned objects project module `api` and the dependency's objects project module `upstream`; both lists are named, so an object that stops rendering is reported missing instead of quietly shrinking coverage. `probes/wrapper-lpsm-labels.ts` sabotages exactly one upstream label key back to a literal `atomi.cloud/…`, which leaves every default-prefix render byte-identical and can only be caught by the override runs.
 
 ### Preview identity boundary
 
@@ -121,8 +135,8 @@ Tokenize these isolated scalars when materializing an instance:
 
 - chart and release name;
 - `serviceTree` platform/service/module/layer values;
-- `labelPrefix`;
-- upstream chart name/version/repository and vendored archive filename;
+- `global.labelPrefix`;
+- upstream chart name/version/repository and vendored archive filename, plus the measured dependency version the metadata-template override is pinned to;
 - upstream image references used by `latest`;
 - OCI organization/repository path and secondary git repository URL;
 - landscape and cluster overlay filenames;

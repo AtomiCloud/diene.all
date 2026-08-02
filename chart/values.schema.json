@@ -130,6 +130,19 @@
                 }
             }
         },
+        "global": {
+            "description": "Chart-wide values. Helm propagates this table verbatim into every pinned dependency, so it is the only lever a wrapper decision has over an upstream object.",
+            "type": "object",
+            "properties": {
+                "labelPrefix": {
+                    "description": "Prefix used by every service-tree label and annotation key, wrapper-owned and upstream alike. It must be one DNS-1123 subdomain.",
+                    "type": "string",
+                    "pattern": "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$",
+                    "maxLength": 253,
+                    "minLength": 1
+                }
+            }
+        },
         "instance": {
             "description": "Optional physical-instance metadata. The instance remains outside LPSM and is never minted here.",
             "type": "object",
@@ -271,12 +284,6 @@
                     }
                 }
             }
-        },
-        "labelPrefix": {
-            "description": "Prefix used by every service-tree label and annotation helper.",
-            "type": "string",
-            "pattern": "^[a-z0-9.-]+$",
-            "minLength": 1
         },
         "migration": {
             "description": "Separate pre-sync migration hook. It never owns or recreates the Deployment.",
@@ -886,27 +893,10 @@
                     "type": "object",
                     "properties": {
                         "annotations": {
-                            "description": "Default-prefix service-tree annotations stamped on every upstream object.",
+                            "description": "Service-tree annotations stamped on every upstream object. Keys are templated on the same `global.labelPrefix` as the labels above.",
                             "type": "object",
-                            "properties": {
-                                "atomi.cloud/instance-label": {
-                                    "type": "string"
-                                },
-                                "atomi.cloud/instance-original": {
-                                    "type": "string"
-                                },
-                                "atomi.cloud/layer": {
-                                    "type": "string"
-                                },
-                                "atomi.cloud/module": {
-                                    "type": "string"
-                                },
-                                "atomi.cloud/platform": {
-                                    "type": "string"
-                                },
-                                "atomi.cloud/service": {
-                                    "type": "string"
-                                }
+                            "additionalProperties": {
+                                "type": "string"
                             }
                         },
                         "createDefaultServiceAccount": {
@@ -914,21 +904,10 @@
                             "type": "boolean"
                         },
                         "labels": {
-                            "description": "Default-prefix service-tree labels stamped on every upstream object.",
+                            "description": "Service-tree labels stamped on every upstream object. Keys are Helm templates rendered against the dependency context, so `global.labelPrefix` reaches an upstream key exactly as it reaches a wrapper-owned one.",
                             "type": "object",
-                            "properties": {
-                                "atomi.cloud/layer": {
-                                    "type": "string"
-                                },
-                                "atomi.cloud/module": {
-                                    "type": "string"
-                                },
-                                "atomi.cloud/platform": {
-                                    "type": "string"
-                                },
-                                "atomi.cloud/service": {
-                                    "type": "string"
-                                }
+                            "additionalProperties": {
+                                "type": "string"
                             }
                         }
                     }

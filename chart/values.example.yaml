@@ -6,10 +6,12 @@ primordial:
   targetLandscape: example
 
 # The upstream dependency cannot read the wrapper's service-tree helpers, so each
-# overlay contributes its own slot to the static projection the subchart stamps.
+# overlay contributes its own slot to the projection the subchart stamps. Only the
+# VALUE is overlay-owned: the key is templated on the shared `global.labelPrefix`,
+# exactly as the base projection is, so a prefix override moves this slot too.
 upstream:
   global:
     labels:
-      atomi.cloud/landscape: example
+      '{{ .Values.global.labelPrefix }}/landscape': example
     annotations:
-      atomi.cloud/landscape: example
+      '{{ .Values.global.labelPrefix }}/landscape': example

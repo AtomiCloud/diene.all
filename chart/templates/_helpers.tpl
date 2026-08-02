@@ -3,9 +3,45 @@
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
-{{/* The one and only service-tree label/annotation prefix. */}}
+{{/*
+  One DNS-1123 subdomain, judged the way Kubernetes judges a label-key prefix:
+  at most 253 bytes, dot-separated lowercase alphanumeric labels with internal
+  dashes only. Nothing here lowercases, trims, or truncates a byte to make an
+  unusable prefix fit — an invalid prefix is refused at the boundary, because a
+  prefix that cannot be a key would otherwise render an object the API server
+  rejects long after the chart claimed success.
+*/}}
+{{- define "diene-helm-wrapper.assertLabelPrefix" -}}
+{{- $prefix := . | toString -}}
+{{- if eq $prefix "" -}}
+{{- fail "LabelPrefixInvalid: the label prefix is empty; it must be one DNS-1123 subdomain" -}}
+{{- end -}}
+{{- if gt (len $prefix) 253 -}}
+{{- fail (printf "LabelPrefixInvalid: label prefix %q is %d bytes; a label-key prefix is at most 253 bytes and this chart never truncates one" $prefix (len $prefix)) -}}
+{{- end -}}
+{{- range $index, $label := splitList "." $prefix -}}
+{{- if eq $label "" -}}
+{{- fail (printf "LabelPrefixInvalid: segment %d of label prefix %q is empty; every dot-separated segment is one DNS-1123 label" (add1 $index) $prefix) -}}
+{{- end -}}
+{{- if gt (len $label) 63 -}}
+{{- fail (printf "LabelPrefixInvalid: segment %d of label prefix %q is %d bytes; a DNS-1123 label is at most 63 bytes" (add1 $index) $prefix (len $label)) -}}
+{{- end -}}
+{{- if not (regexMatch "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$" $label) -}}
+{{- fail (printf "LabelPrefixInvalid: segment %q of label prefix %q must start and end with a lowercase alphanumeric byte and hold only lowercase alphanumerics and internal dashes" $label $prefix) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+  The one and only service-tree label/annotation prefix. It lives under `global`
+  because Helm propagates that table verbatim into every pinned dependency, so
+  the single wrapper decision is readable from an upstream template context too;
+  a chart-local value would stop at the wrapper's own objects.
+*/}}
 {{- define "diene-helm-wrapper.labelPrefix" -}}
-{{- required "labelPrefix is required" .Values.labelPrefix | trimSuffix "/" -}}
+{{- $prefix := required "global.labelPrefix is required" ((.Values.global | default dict).labelPrefix) | toString | trimSuffix "/" -}}
+{{- include "diene-helm-wrapper.assertLabelPrefix" $prefix -}}
+{{- $prefix -}}
 {{- end -}}
 
 {{/* Validate the base LPSM projection without requiring overlay-owned fields. */}}
@@ -230,6 +266,73 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- with include "diene-helm-wrapper.instanceSegment" . }}
 {{ printf "%s/instance-original" $prefix }}: {{ . | quote }}
 {{ printf "%s/instance-label" $prefix }}: {{ . | quote }}
+{{- end }}
+{{- end -}}
+
+{{/*
+  One rendered metadata key, judged as a Kubernetes qualified name. The upstream
+  maps below are the only place a key is computed rather than written, so a key
+  the API server would reject is refused here instead of reaching a manifest.
+*/}}
+{{- define "diene-helm-wrapper.assertMetadataKey" -}}
+{{- $slot := .slot -}}
+{{- $key := .key | toString -}}
+{{- $parts := splitList "/" $key -}}
+{{- if gt (len $parts) 2 -}}
+{{- fail (printf "UpstreamMetadataKeyInvalid: rendered %s key %q carries more than one %q separator" $slot $key "/") -}}
+{{- end -}}
+{{- if eq (len $parts) 2 -}}
+{{- include "diene-helm-wrapper.assertLabelPrefix" (first $parts) -}}
+{{- end -}}
+{{- $name := last $parts -}}
+{{- if eq $name "" -}}
+{{- fail (printf "UpstreamMetadataKeyInvalid: rendered %s key %q has an empty name segment" $slot $key) -}}
+{{- end -}}
+{{- if gt (len $name) 63 -}}
+{{- fail (printf "UpstreamMetadataKeyInvalid: rendered %s key %q has a %d-byte name segment; a qualified name is at most 63 bytes" $slot $key (len $name)) -}}
+{{- end -}}
+{{- if not (regexMatch "^[A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9])?$" $name) -}}
+{{- fail (printf "UpstreamMetadataKeyInvalid: rendered %s key %q has a name segment that is not a Kubernetes qualified name" $slot $key) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+  PINNED UPSTREAM INTERFACE — app-template 5.0.1 / bjw-s.common 5.0.1.
+
+  Upstream's own `globalLabels`/`globalAnnotations` bind `$name := $k` and only
+  `tpl` the VALUE, so a map KEY reaches every rendered upstream object verbatim.
+  That is why a `global.labelPrefix` override used to move every wrapper-owned
+  key while the upstream Deployment and Service kept the old prefix.
+
+  Helm's template namespace is global and, because `sortTemplates` parses deeper
+  paths first, the wrapper's shallow `templates/_helpers.tpl` is parsed after the
+  dependency's `charts/upstream/charts/common/templates/lib/metadata/*.tpl`. A
+  same-named definition here therefore REPLACES the upstream one for the whole
+  render, including when the wrapper is rendered from a packaged archive. These
+  two definitions reproduce the upstream emission byte-for-byte — one leading
+  newline per entry, the value `tpl`-rendered against the dependency context, no
+  trailing newline — and add exactly one thing: the key is `tpl`-rendered too.
+
+  `scripts/validate/helm-wrapper.sh labels` re-checks that pinned interface
+  against the vendored archive before it asserts a projection, so a dependency
+  bump that renames these templates or starts templating its own keys is
+  reported rather than silently dropping every upstream service-tree key.
+*/}}
+{{- define "bjw-s.common.lib.metadata.globalLabels" -}}
+{{- include "diene-helm-wrapper.upstreamGlobalMetadata" (dict "root" . "slot" "label" "entries" ((.Values.global | default dict).labels | default dict)) -}}
+{{- end -}}
+
+{{- define "bjw-s.common.lib.metadata.globalAnnotations" -}}
+{{- include "diene-helm-wrapper.upstreamGlobalMetadata" (dict "root" . "slot" "annotation" "entries" ((.Values.global | default dict).annotations | default dict)) -}}
+{{- end -}}
+
+{{- define "diene-helm-wrapper.upstreamGlobalMetadata" -}}
+{{- $root := .root -}}
+{{- $slot := .slot -}}
+{{- range $key, $value := .entries }}
+{{- $renderedKey := tpl $key $root }}
+{{- include "diene-helm-wrapper.assertMetadataKey" (dict "slot" $slot "key" $renderedKey) }}
+{{ $renderedKey }}: {{ tpl $value $root | quote }}
 {{- end }}
 {{- end -}}
 

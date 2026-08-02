@@ -1,6 +1,8 @@
-# @schema pattern:^[a-z0-9.-]+$;minLength:1
-# -- Prefix used by every service-tree label and annotation helper.
-labelPrefix: atomi.cloud
+# -- Chart-wide values. Helm propagates this table verbatim into every pinned dependency, so it is the only lever a wrapper decision has over an upstream object.
+global:
+  # @schema pattern:^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$;minLength:1;maxLength:253
+  # -- Prefix used by every service-tree label and annotation key, wrapper-owned and upstream alike. It must be one DNS-1123 subdomain.
+  labelPrefix: atomi.cloud
 
 # @schema pattern:^[a-z0-9]+-[a-z0-9]+$;required:true
 # -- Primary workload fullname. It must be `<service>-<dashless-token>`.
@@ -280,20 +282,24 @@ upstream:
   global:
     # -- No upstream-owned ServiceAccount: the dependency must not mint resource names the wrapper did not authorize.
     createDefaultServiceAccount: false
-    # -- Default-prefix service-tree labels stamped on every upstream object.
+    # @schema skipProperties:true
+    # @schema additionalProperties:{"type":"string"}
+    # -- Service-tree labels stamped on every upstream object. Keys are Helm templates rendered against the dependency context, so `global.labelPrefix` reaches an upstream key exactly as it reaches a wrapper-owned one.
     labels:
-      atomi.cloud/platform: sample
-      atomi.cloud/service: wrapper
-      atomi.cloud/module: upstream
-      atomi.cloud/layer: '2'
-    # -- Default-prefix service-tree annotations stamped on every upstream object.
+      '{{ .Values.global.labelPrefix }}/platform': sample
+      '{{ .Values.global.labelPrefix }}/service': wrapper
+      '{{ .Values.global.labelPrefix }}/module': upstream
+      '{{ .Values.global.labelPrefix }}/layer': '2'
+    # @schema skipProperties:true
+    # @schema additionalProperties:{"type":"string"}
+    # -- Service-tree annotations stamped on every upstream object. Keys are templated on the same `global.labelPrefix` as the labels above.
     annotations:
-      atomi.cloud/platform: sample
-      atomi.cloud/service: wrapper
-      atomi.cloud/module: upstream
-      atomi.cloud/layer: '2'
-      atomi.cloud/instance-original: example-repository-run-001
-      atomi.cloud/instance-label: example-repository-run-001
+      '{{ .Values.global.labelPrefix }}/platform': sample
+      '{{ .Values.global.labelPrefix }}/service': wrapper
+      '{{ .Values.global.labelPrefix }}/module': upstream
+      '{{ .Values.global.labelPrefix }}/layer': '2'
+      '{{ .Values.global.labelPrefix }}/instance-original': example-repository-run-001
+      '{{ .Values.global.labelPrefix }}/instance-label': example-repository-run-001
   # -- Exactly one controller, so the rendered Deployment keeps the unsuffixed `wrapper-upstream` name.
   controllers:
     main:
