@@ -57,7 +57,8 @@ helm-docs --version >/dev/null
 helm-docs --dry-run --chart-search-root infra/root_chart >/dev/null 2>&1
 
 helm version --short >/dev/null
-[ -n "$(helm template dotnet-base infra/root_chart)" ] && echo "❌ empty R16 chart rendered an unexpected manifest" >&2 && exit 1
+rendered="$(helm template dotnet-base infra/root_chart)"
+[ -n "${rendered}" ] && echo "❌ empty R16 chart rendered an unexpected manifest" >&2 && exit 1
 printf '%s\n' 'apiVersion: v1' 'kind: ConfigMap' 'metadata:' '  name: probe' >"${tmp}/manifest.yaml"
 kubeconform -strict -summary "${tmp}/manifest.yaml" >/dev/null
 
