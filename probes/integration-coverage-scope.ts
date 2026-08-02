@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedWithDiagnostic } from './lib/helpers.ts';
 import { plantGoFile } from './lib/go.ts';
 
 export default {
@@ -24,10 +24,11 @@ export default {
       expectedImpact: ['deadcode-whole-repo', 'deadcode-production'],
       async run(repo: any) {
         await plantGoFile(repo, 'adapters/**/*.go', 'probe_uncovered.go', 'func ProbeUncovered() int { return 1 }');
-        await expectRed(
+        await expectRedWithDiagnostic(
           repo,
           'nix develop .#ci -c ./scripts/local/test.sh int true false',
           'integration-coverage-scope',
+          /int coverage .* is below/,
         );
       },
     },

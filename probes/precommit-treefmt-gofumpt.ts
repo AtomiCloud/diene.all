@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedWithDiagnostic } from './lib/helpers.ts';
 import { unformatGo } from './lib/go.ts';
 
 const gate = 'nix develop .#ci -c pre-commit run treefmt --all-files';
@@ -21,7 +21,12 @@ export default {
       kind: 'mutation',
       async run(repo: any) {
         await unformatGo(repo);
-        await expectRed(repo, gate, 'precommit-treefmt-gofumpt');
+        await expectRedWithDiagnostic(
+          repo,
+          gate,
+          'precommit-treefmt-gofumpt',
+          /[.]go.*(formatted|changed)|would reformat/i,
+        );
       },
     },
   ],

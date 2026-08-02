@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedWithDiagnostic } from './lib/helpers.ts';
 import { breakGoWorkflow } from './lib/go.ts';
 
 const gate = 'nix develop .#ci -c ./scripts/validate/workflows.sh wiring';
@@ -21,7 +21,7 @@ export default {
       kind: 'mutation',
       async run(repo: any) {
         await breakGoWorkflow(repo);
-        await expectRed(repo, gate, 'go-workflow-wiring');
+        await expectRedWithDiagnostic(repo, gate, 'go-workflow-wiring', /workflow references missing script/);
       },
     },
   ],

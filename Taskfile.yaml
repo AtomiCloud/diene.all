@@ -47,8 +47,8 @@ tasks:
       - ./scripts/local/deadcode.sh strict
 
   test:
-    desc: Run unit and integration tiers
-    deps: [test:unit, test:int]
+    desc: Run unit, integration, and system integration tiers
+    deps: [test:unit, test:int, test:sit]
 
   test:unit:
     desc: Run black-box unit tests
@@ -61,6 +61,12 @@ tasks:
     cmds:
       - task: gotest:run
         vars: { MODE: int }
+
+  test:sit:
+    desc: Run the compiled-artifact Redis journey
+    deps: [build]
+    cmds:
+      - go test ./tests/sit/...
 
   test:coverage:
     desc: Run every coverage ledger

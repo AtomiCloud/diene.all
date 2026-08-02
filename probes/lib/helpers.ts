@@ -1,5 +1,5 @@
-export async function expectGreen(repo: any, command: string, label: string): Promise<void> {
-  const result = await repo.exec(command, { timeoutMs: 240000 });
+export async function expectGreen(repo: any, command: string, label: string, timeoutMs = 240000): Promise<void> {
+  const result = await repo.exec(command, { timeoutMs });
   if (result.exitCode !== 0) {
     throw new Error(`${label} failed on the healthy repo: ${result.stderr || result.stdout}`);
   }
@@ -9,6 +9,23 @@ export async function expectRed(repo: any, command: string, label: string): Prom
   const result = await repo.exec(command, { timeoutMs: 240000 });
   if (result.exitCode === 0) {
     throw new Error(`${label} stayed green after sabotage`);
+  }
+}
+
+export async function expectRedWithDiagnostic(
+  repo: any,
+  command: string,
+  label: string,
+  expected: RegExp,
+  timeoutMs = 240000,
+): Promise<void> {
+  const result = await repo.exec(command, { timeoutMs });
+  if (result.exitCode === 0) {
+    throw new Error(`${label} stayed green after sabotage`);
+  }
+  const diagnostic = `${result.stdout}\n${result.stderr}`;
+  if (!expected.test(diagnostic)) {
+    throw new Error(`${label} failed for the wrong reason; expected ${expected}: ${diagnostic}`);
   }
 }
 

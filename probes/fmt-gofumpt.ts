@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedWithDiagnostic } from './lib/helpers.ts';
 import { unformatGo } from './lib/go.ts';
 
 const gate = 'nix fmt --no-write-lock-file -- --ci --formatters gofumpt';
@@ -21,7 +21,7 @@ export default {
       kind: 'mutation',
       async run(repo: any) {
         await unformatGo(repo);
-        await expectRed(repo, gate, 'fmt-gofumpt');
+        await expectRedWithDiagnostic(repo, gate, 'fmt-gofumpt', /[.]go.*(formatted|changed)|would reformat/i);
       },
     },
   ],

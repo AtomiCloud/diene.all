@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedWithDiagnostic } from './lib/helpers.ts';
 
 export default {
   contractVersion: 1,
@@ -22,10 +22,11 @@ export default {
       kind: 'mutation',
       async run(repo: any) {
         await repo.patch('infra/Dockerfile', { find: 'USER 65532:65532', replace: 'USER 0:0' });
-        await expectRed(
+        await expectRedWithDiagnostic(
           repo,
           'nix develop .#ci -c ./scripts/validate/go-image-policy.sh nonroot',
           'nonroot-image-policy',
+          /final runtime image must run as 65532:65532/,
         );
       },
     },

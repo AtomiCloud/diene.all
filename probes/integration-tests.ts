@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedWithDiagnostic } from './lib/helpers.ts';
 import { breakAdapter } from './lib/go.ts';
 
 export default {
@@ -19,7 +19,12 @@ export default {
       kind: 'mutation',
       async run(repo: any) {
         await breakAdapter(repo);
-        await expectRed(repo, 'nix develop .#ci -c ./scripts/local/test.sh int false false', 'integration-tests');
+        await expectRedWithDiagnostic(
+          repo,
+          'nix develop .#ci -c ./scripts/local/test.sh int false false',
+          'integration-tests',
+          /Load\(\) = .* want/,
+        );
       },
     },
   ],

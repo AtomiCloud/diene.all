@@ -1,5 +1,6 @@
 package kv
 
+// DOMAIN WIRING: replaceable Note Redis adapter.
 import (
 	"context"
 
@@ -25,3 +26,5 @@ func (store *RedisStore) Load(ctx context.Context, key string) (string, error) {
 func (store *RedisStore) Close() error {
 	return store.client.Close()
 }
+
+// END DOMAIN WIRING

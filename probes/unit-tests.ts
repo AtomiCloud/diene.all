@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedWithDiagnostic } from './lib/helpers.ts';
 import { flipGoAssertion } from './lib/go.ts';
 
 export default {
@@ -19,7 +19,12 @@ export default {
       kind: 'mutation',
       async run(repo: any) {
         await flipGoAssertion(repo);
-        await expectRed(repo, 'nix develop .#ci -c ./scripts/local/test.sh unit false false', 'unit-tests');
+        await expectRedWithDiagnostic(
+          repo,
+          'nix develop .#ci -c ./scripts/local/test.sh unit false false',
+          'unit-tests',
+          /Slug\(\) =/,
+        );
       },
     },
   ],

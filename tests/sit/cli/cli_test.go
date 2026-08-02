@@ -1,16 +1,16 @@
-package kv_test
+package cli_test
 
-// DOMAIN WIRING: replaceable Note Redis adapter integration test.
+// DOMAIN WIRING: replaceable Note/KV compiled-artifact Redis journey.
 import (
 	"context"
+	"os/exec"
 	"testing"
 
-	"github.com/AtomiCloud/diene.go-base/adapters/kv"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-func TestRedisStore(t *testing.T) {
+func TestCompiledArtifactRedisJourney(t *testing.T) {
 	ctx := context.Background()
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
@@ -33,19 +33,13 @@ func TestRedisStore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve Redis endpoint: %v", err)
 	}
-	store := kv.NewRedisStore(endpoint)
-	if saveErr := store.Save(ctx, "notes:integration", "connected"); saveErr != nil {
-		t.Fatalf("Save() error = %v", saveErr)
-	}
-	got, err := store.Load(ctx, "notes:integration")
+	// #nosec G204 -- the executable is fixed; only the isolated testcontainer endpoint is dynamic.
+	output, err := exec.CommandContext(ctx, "../../../dist/go-base", "note", endpoint, "Sample Journey", "connected").CombinedOutput()
 	if err != nil {
-		t.Fatalf("Load() error = %v", err)
+		t.Fatalf("run compiled artifact: %v\n%s", err, output)
 	}
-	if got != "connected" {
-		t.Fatalf("Load() = %q, want %q", got, "connected")
-	}
-	if err := store.Close(); err != nil {
-		t.Fatalf("Close() error = %v", err)
+	if got, want := string(output), "sample-journey=connected\n"; got != want {
+		t.Fatalf("compiled artifact output = %q, want %q", got, want)
 	}
 }
 

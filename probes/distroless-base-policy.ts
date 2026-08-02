@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedWithDiagnostic } from './lib/helpers.ts';
 
 export default {
   contractVersion: 1,
@@ -25,10 +25,11 @@ export default {
           find: 'FROM gcr.io/distroless/static-debian12:nonroot AS runtime',
           replace: 'FROM alpine:3.22 AS runtime',
         });
-        await expectRed(
+        await expectRedWithDiagnostic(
           repo,
           'nix develop .#ci -c ./scripts/validate/go-image-policy.sh distroless',
           'distroless-base-policy',
+          /final runtime image must use the distroless nonroot base/,
         );
       },
     },

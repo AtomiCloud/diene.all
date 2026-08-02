@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedWithDiagnostic } from './lib/helpers.ts';
 import { plantGoFile } from './lib/go.ts';
 
 export default {
@@ -29,7 +29,12 @@ export default {
       ],
       async run(repo: any) {
         await plantGoFile(repo, 'lib/**/*.go', 'probe_type_error.go', 'var ProbeTypeError int = "wrong"');
-        await expectRed(repo, 'nix develop .#ci -c ./scripts/local/typecheck.sh', 'go-typecheck');
+        await expectRedWithDiagnostic(
+          repo,
+          'nix develop .#ci -c ./scripts/local/typecheck.sh',
+          'go-typecheck',
+          /cannot use "wrong" .* as int value/,
+        );
       },
     },
   ],

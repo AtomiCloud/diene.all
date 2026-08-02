@@ -23,6 +23,9 @@ jobs:
         env:
           TEST_MODE: ${{ inputs.mode }}
         run: nix develop .#ci -c ./scripts/ci/test.sh "${TEST_MODE}"
+      - name: Run compiled-artifact Redis journey
+        if: inputs.mode == 'int'
+        run: nix develop .#ci -c pls test:sit
       - name: Upload coverage
         uses: codecov/codecov-action@v5
         with:

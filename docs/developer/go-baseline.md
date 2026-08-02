@@ -22,17 +22,22 @@ exclusion.
 - `tests/unit/` imports domain packages only through their public API.
 - `tests/int/` proves adapters against real dependencies with
   testcontainers-go.
+- `tests/sit/` exercises compiled artifacts from a client's perspective.
 
-The Note/Redis code is a replaceable sample fenced by these structural
-directories. Downstream templates may replace the sample while retaining the
-same gates and tier boundaries.
+The Note/Redis code is a replaceable sample fenced by `DOMAIN WIRING` and
+`END DOMAIN WIRING` comments in `lib/note/note.go`, `adapters/kv/redis.go`, and
+`cmd/go-base/main.go`, with matching boundaries in
+`tests/unit/note/note_test.go`, `tests/int/kv/redis_test.go`, and
+`tests/sit/cli/cli_test.go`. Downstream templates may replace only the bytes
+inside those fences while retaining the same gates and tier boundaries.
 
 ## Commands
 
 - `pls setup` installs modules and synchronizes vendored skills.
 - `pls build` creates `dist/go-base`.
 - `pls typecheck` compiles source packages without running tests.
-- `pls test`, `pls test:unit`, and `pls test:int` run the tiered suites.
+- `pls test`, `pls test:unit`, `pls test:int`, and `pls test:sit` run the
+  tiered suites; `pls test:sit` runs the compiled-artifact Redis journey.
 - `pls test:coverage`, `pls test:unit:coverage`, and
   `pls test:int:coverage` enforce the scoped ledgers.
 - `pls test:watch` watches the unit tier.
