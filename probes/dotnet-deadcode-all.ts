@@ -1,4 +1,5 @@
 import { expectGreen, expectRed } from './lib/helpers.ts';
+import { discoverDotnetProject } from './lib/dotnet.ts';
 
 export default {
   contractVersion: 1,
@@ -23,15 +24,17 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
+        const tests = await discoverDotnetProject(repo, 'UnitTest*/*.csproj');
         await repo.write(
-          'UnitTest/DeadExport.cs',
-          'namespace AtomiCloud.DotnetBase.UnitTest;\n\ninternal static class DeadExport\n{\n    public static int NeverUsed() => 42;\n}\n',
+          `${tests.directory}/DeadExport.cs`,
+          `namespace ${tests.rootNamespace};\n\ninternal static class DeadExport\n{\n    public static int NeverUsed() => 42;\n}\n`,
         );
         await expectRed(
           repo,
           'nix develop .#ci -c ./scripts/local/dotnet-dead-code.sh --strict-all',
           'dotnet-deadcode-all',
           900000,
+          'DeadExport',
         );
       },
     },

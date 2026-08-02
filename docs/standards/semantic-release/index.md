@@ -24,7 +24,7 @@ releaser conventions
 releaser release -c atomi_release.yaml
 ```
 
-`releaser conventions` maintains the file named by `conventionMarkdown.path` in
+`releaser conventions` maintains the file named by `conventions.path` in
 `atomi_release.yaml`. That generated file must not be edited by hand.
 
 ## Configuration

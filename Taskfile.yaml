@@ -5,8 +5,6 @@ includes:
   helm: tasks/Taskfile.helm.yaml
   secret: tasks/Taskfile.secret.yaml
 
-  # ### dotnet-base-test-includes
-  # #### source: dotnet-base
   unit:
     taskfile: tasks/Taskfile.test.yaml
     vars:
@@ -21,8 +19,6 @@ tasks:
     desc: Set up generated workspace assets
     cmds:
       - ./scripts/local/skills-sync.sh
-      # ### dotnet-base-setup
-      # #### source: dotnet-base
       - ./scripts/local/setup.sh
 
   lint:
@@ -35,8 +31,6 @@ tasks:
     cmds:
       - ./scripts/local/skills-sync.sh
 
-  # ### dotnet-base-tasks
-  # #### source: dotnet-base
   clean:
     desc: Remove .NET build and test artifacts
     cmds:

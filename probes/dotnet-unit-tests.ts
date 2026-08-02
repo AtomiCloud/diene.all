@@ -20,7 +20,7 @@ export default {
       expectedImpact: ['dotnet-unit-coverage', 'dotnet-multi-project-coverage'],
       async run(repo: any) {
         await flipAssertion(repo, { globs: ['UnitTest*/**/*.cs'] });
-        await expectRed(repo, 'nix develop .#ci -c pls test:unit', 'dotnet-unit-tests', 600000);
+        await expectRed(repo, 'nix develop .#ci -c pls test:unit', 'dotnet-unit-tests', 600000, 'Expected');
       },
     },
   ],

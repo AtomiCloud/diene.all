@@ -1,4 +1,5 @@
 import { expectGreen, expectRed } from './lib/helpers.ts';
+import { discoverDotnetProject } from './lib/dotnet.ts';
 
 export default {
   contractVersion: 1,
@@ -35,15 +36,17 @@ export default {
         'dotnet-preview',
       ],
       async run(repo: any) {
+        const library = await discoverDotnetProject(repo, 'Lib*/*.csproj');
         await repo.write(
-          'Lib/AnalyzerViolation.cs',
-          'namespace AtomiCloud.DotnetBase.Lib;\n\npublic static class AnalyzerViolation\n{\n    public static string Value => 42;\n}\n',
+          `${library.directory}/AnalyzerViolation.cs`,
+          `namespace ${library.rootNamespace};\n\npublic static class AnalyzerViolation\n{\n    public static string Value => 42;\n}\n`,
         );
         await expectRed(
           repo,
           'nix develop .#ci -c dotnet build dotnet-base.slnx -c Release',
           'dotnet-analyzers',
           600000,
+          'CS0029',
         );
       },
     },

@@ -15,9 +15,9 @@ and `clean:` task per Dockerfile, keyed by the Dockerfile's own name — bare
 Pass an optional tag **suffix** after `--`; it is appended to the `:local` tag:
 
 ```bash
-pls docker:build:main            # -> diene-workspace:local
-pls docker:build:main -- 1       # -> diene-workspace:local-1
-pls docker:build:main -- hello   # -> diene-workspace:local-hello
+pls docker:build:main            # -> diene-dotnet-base:local
+pls docker:build:main -- 1       # -> diene-dotnet-base:local-1
+pls docker:build:main -- hello   # -> diene-dotnet-base:local-hello
 ```
 
 `run` and `clean` take the same suffix so they act on the image you built.

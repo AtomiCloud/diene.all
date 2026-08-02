@@ -1,5 +1,3 @@
-# ### dotnet-base-reusable-test
-# #### source: dotnet-base
 name: ⚡ Reusable Test
 
 on:
@@ -24,7 +22,7 @@ jobs:
       - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
     steps:
       - uses: AtomiCloud/actions.setup-nix@v3
-      - uses: AtomiCloud/actions.cache-nuget@v1
+      - uses: AtomiCloud/actions.cache-nuget@v2
       - uses: AtomiCloud/actions.setup-docker@v2
       - name: Run ${{ inputs.name }} coverage
         env:

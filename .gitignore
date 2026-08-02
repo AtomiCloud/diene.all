@@ -20,8 +20,6 @@ Thumbs.db
 desktop.ini
 infra/root_chart/uploads/
 
-### dotnet-base
-#### source: dotnet-base
 **/bin/
 **/obj/
 TestResults/
