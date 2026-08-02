@@ -9,3 +9,8 @@ tiers:
     packages: ./adapters/...
     pathMarker: /adapters/
     threshold: 100
+  sit:
+    tests: ./tests/sit/...
+    packages: ''
+    pathMarker: ''
+    threshold: 0

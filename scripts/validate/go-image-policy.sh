@@ -17,24 +17,15 @@ final_from="$(sed -n "${final_from_line}p" "${dockerfile}")"
 final_user="$(tail -n "+${final_from_line}" "${dockerfile}" | rg '^USER ' | tail -n 1 || true)"
 
 # Keep the violated-rule phrase stable because sabotage probes assert it.
-case "${policy}" in
-distroless)
-  diagnostic="final runtime image must use the distroless nonroot base"
-  subject="final stage base image"
-  observed="${final_from}"
-  expected="FROM gcr.io/distroless/static-debian12:nonroot AS runtime"
-  ;;
-nonroot)
-  diagnostic="final runtime image must run as 65532:65532"
-  subject="final stage effective user"
-  observed="${final_user:-<none declared>}"
-  expected="USER 65532:65532"
-  ;;
-*)
-  echo "❌ unknown image policy '${policy}'" >&2
-  exit 1
-  ;;
-esac
+declare -A diagnostics=([distroless]='final runtime image must use the distroless nonroot base' [nonroot]='final runtime image must run as 65532:65532')
+declare -A subjects=([distroless]='final stage base image' [nonroot]='final stage effective user')
+declare -A observations=([distroless]="${final_from}" [nonroot]="${final_user:-<none declared>}")
+declare -A expectations=([distroless]='FROM gcr.io/distroless/static-debian12:nonroot AS runtime' [nonroot]='USER 65532:65532')
+diagnostic="${diagnostics[${policy}]:-}"
+[ -z "${diagnostic}" ] && echo "❌ unknown image policy '${policy}'" >&2 && exit 1
+subject="${subjects[${policy}]}"
+observed="${observations[${policy}]}"
+expected="${expectations[${policy}]}"
 
 [ "${observed}" != "${expected}" ] && echo "❌ ${diagnostic}: ${subject} is '${observed}', expected '${expected}'" >&2 && exit 1
 
