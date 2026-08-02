@@ -60,15 +60,15 @@ workflow you want to reproduce and run it verbatim, for example:
 nix develop .#ci -c ./scripts/ci/pre-commit.sh
 ```
 
-The Docker and Helm scripts build locally by default. Their reusable workflows
-set the documented environment contract to enable publishing.
+The Helm script builds locally by default. Its reusable workflow sets the
+documented environment contract to enable publishing.
 
 ## Artifact publishing
 
-Docker and Helm callers pass per-repository image or chart values through
-workflow `with:` inputs. Empty release versions produce commit builds; CD passes
-the tag as the version. Add another image or chart as another caller job rather
-than putting repository-specific branching into the reusable workflow.
+Helm callers pass per-repository chart values through workflow `with:` inputs.
+Empty release versions produce commit builds; CD passes the tag as the version.
+Add another chart as another caller job rather than putting repository-specific
+branching into the reusable workflow.
 
 Release execution is wired now but awaits the C2 step-2p `tools/releaser` fold;
 the workspace does not claim a working `releaser` binary before then.

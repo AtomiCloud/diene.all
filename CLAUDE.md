@@ -30,10 +30,6 @@ See [docs/standards/validation/index.md](docs/standards/validation/index.md).
 
 See [docs/standards/datetime/index.md](docs/standards/datetime/index.md).
 
-## Docker build and publishing
-
-See [docs/standards/docker/index.md](docs/standards/docker/index.md).
-
 ## Domain-driven design
 
 See [docs/standards/domain-driven-design/index.md](docs/standards/domain-driven-design/index.md).
