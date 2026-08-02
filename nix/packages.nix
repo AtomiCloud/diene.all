@@ -69,6 +69,7 @@ let
           infisical
           kubeconform
           kyverno
+          nodejs
           pre-commit
           ripgrep
           shellcheck

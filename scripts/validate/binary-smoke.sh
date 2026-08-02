@@ -5,7 +5,7 @@ repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "${repository_root}"
 export PATH="${repository_root}/node_modules/.bin:${PATH}"
 
-for binary in actionlint bash biome bun cyanprint docker git gomplate hadolint helm helm-docs infisical jq k3d knip kubeconform kubectl kyverno nix pls pre-commit rg sg shellcheck skopeo task treefmt tsc yq; do
+for binary in actionlint bash biome bun cyanprint docker git gomplate hadolint helm helm-docs infisical jq k3d knip kubeconform kubectl kyverno nix node pls pre-commit rg sg shellcheck skopeo task treefmt tsc yq; do
   command -v "${binary}" >/dev/null || {
     echo "❌ binary '${binary}' is missing" >&2
     exit 1
@@ -83,6 +83,10 @@ printf '%s\n' '{"probe":{"ok":true}}' | kyverno jp query 'probe.ok' 2>/dev/null 
 
 nix --version >/dev/null
 nix flake metadata --no-write-lock-file --json . | jq -e '.url | type == "string"' >/dev/null
+
+node --version >/dev/null
+node --help >/dev/null
+[ "$(node -e 'process.stdout.write(String(1 + 1))')" != "2" ] && echo "❌ node failed a real invocation" >&2 && exit 1
 
 pls --help >/dev/null 2>&1
 pls --list >/dev/null

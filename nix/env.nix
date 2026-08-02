@@ -15,6 +15,7 @@ with packages;
     infralint
     kubeconform
     kyverno
+    nodejs
     pre-commit
     ripgrep
     shellcheck
