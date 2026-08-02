@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "🔍 Running production staticcheck without test analysis"
-staticcheck -tests=false ./...
-
 echo "🔍 Running production deadcode without test reachability"
 report="$(deadcode -json ./...)"
 # deadcode prints `null` when it finds nothing, so an empty report means it never looked.

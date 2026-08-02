@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "🔍 Running whole-repository staticcheck with test analysis"
-staticcheck -tests=true ./...
-
 echo "🔍 Running whole-repository deadcode with test reachability"
 report="$(deadcode -json -test ./...)"
 # deadcode prints `null` when it finds nothing, so an empty report means it never looked.

@@ -13,6 +13,13 @@ jobs:
     uses: ./.github/workflows/⚡reusable-precommit.yaml
     secrets: inherit
 
+  typecheck:
+    name: Typecheck
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-go-typecheck.yaml
+    secrets: inherit
+
   unit:
     name: Unit Tests
     permissions:

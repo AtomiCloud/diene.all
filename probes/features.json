@@ -257,12 +257,27 @@
   },
   {
     "template": "diene/go-base",
+    "name": "staticcheck-whole-repo",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
     "name": "deadcode-whole-repo",
     "class": "gate"
   },
   {
     "template": "diene/go-base",
+    "name": "staticcheck-production",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
     "name": "deadcode-production",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "hook-deadcode-strict",
     "class": "gate"
   },
   {
@@ -303,6 +318,11 @@
   {
     "template": "diene/go-base",
     "name": "sample-domain-journey",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "system-integration-tests",
     "class": "smoke"
   },
   {

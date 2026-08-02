@@ -23,7 +23,7 @@ let
     ];
   };
   go-lint = "${pkgs.bash}/bin/bash -c 'export PATH=${go-lint-runtime}/bin; export CGO_ENABLED=0; export GOPROXY=file://${go-deps.goModules}; export GOSUMDB=off; export GOMODCACHE=\"\${TMPDIR:-/tmp}/go-base-mod-cache\"; exec ${packages.golangci-lint}/bin/golangci-lint run --timeout 5m ./...'";
-  # Both strict passes load every package, so they need the lint hook's vendored proxy; jq counts the JSON findings.
+  # Every strict component loads all packages, so they need the lint hook's vendored proxy; jq counts the JSON findings.
   go-deadcode-runtime = pkgs.buildEnv {
     name = "go-base-deadcode-runtime";
     paths = [
@@ -36,12 +36,14 @@ let
       pkgs.jq
     ];
   };
-  # Both modes of one runner, as CI pairs them, stopping at the first non-zero exit; the nonblocking lax feed stays out.
+  # The four strict components in CI's order, stopping at the first non-zero exit; the nonblocking lax feed stays out.
   go-deadcode = "${pkgs.bash}/bin/bash -c 'export PATH=${go-deadcode-runtime}/bin; export CGO_ENABLED=0; export GOPROXY=file://${go-deps.goModules}; export GOSUMDB=off; export GOMODCACHE=\"\${TMPDIR:-/tmp}/go-base-mod-cache\"; ${
     builtins.concatStringsSep " && " (
-      map (mode: "${pkgs.bash}/bin/bash ./scripts/local/deadcode.sh ${mode}") [
-        "whole"
-        "production"
+      map (component: "${pkgs.bash}/bin/bash ./scripts/local/${component}.sh") [
+        "staticcheck-whole"
+        "deadcode-whole"
+        "staticcheck-production"
+        "deadcode-production"
       ]
     )
   }'";
@@ -249,7 +251,7 @@ pre-commit-lib.run {
       language = "system";
     };
 
-    # Blocking like the CI deadcode job: two modes of one runner share the hook, and each invocation keeps its own probe mutation.
+    # Blocking like the CI deadcode job: the four strict components share one hook, and the hook itself is a proven mechanism.
     a-deadcode = {
       enable = true;
       name = "Go deadcode strict passes";
