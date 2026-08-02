@@ -51,8 +51,7 @@ let
       )
     }'";
 
-  # skills-sync resolves usage skills from the ambient Go module cache. Give its
-  # freshness hook the Go toolchain without redirecting GOMODCACHE to go-deps.
+  # Give skills freshness the ambient Go cache so partial isolated caches cannot decide the result.
   go-ambient-validator-runtime = pkgs.buildEnv {
     name = "go-base-ambient-validator-runtime";
     paths = [
@@ -197,8 +196,7 @@ pre-commit-lib.run {
     a-shellcheck = {
       enable = true;
       name = "Shellcheck";
-      # Follow sourced repository scripts even when pre-commit splits a large
-      # filename set across multiple invocations.
+      # Follow sourced scripts when pre-commit splits a large filename set across invocations.
       entry = "${packages.shellcheck}/bin/shellcheck -x";
       files = ".*\\.sh$";
       pass_filenames = true;

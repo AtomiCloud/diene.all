@@ -1,6 +1,8 @@
 import { expectGreen, expectRedWithDiagnostic } from './lib/helpers.ts';
 import { flipGoAssertion } from './lib/go.ts';
 
+const gate = 'nix develop .#ci -c pls test:unit';
+
 export default {
   contractVersion: 1,
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
@@ -10,7 +12,7 @@ export default {
       description: 'Black-box unit tests pass against the public domain surface.',
       kind: 'baseline',
       async run(repo: any) {
-        await expectGreen(repo, 'nix develop .#ci -c ./scripts/local/test.sh unit false false', 'unit-tests');
+        await expectGreen(repo, gate, 'unit-tests');
       },
     },
     {
@@ -19,12 +21,7 @@ export default {
       kind: 'mutation',
       async run(repo: any) {
         await flipGoAssertion(repo);
-        await expectRedWithDiagnostic(
-          repo,
-          'nix develop .#ci -c ./scripts/local/test.sh unit false false',
-          'unit-tests',
-          /Slug\(\) =/,
-        );
+        await expectRedWithDiagnostic(repo, gate, 'unit-tests', /Slug\(\) =/);
       },
     },
   ],

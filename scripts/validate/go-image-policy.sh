@@ -8,7 +8,10 @@ dockerfile="infra/Dockerfile"
 [ ! -f "${dockerfile}" ] && echo "❌ '${dockerfile}' not found" >&2 && exit 1
 
 # Read policy from the shipped final stage so an earlier compliant stage cannot vouch for a later unsafe one.
-final_from_line="$(rg -n '^FROM ' "${dockerfile}" | tail -n 1 | cut -d ':' -f 1 || true)"
+reader_status=0
+from_lines="$(rg -n '^FROM ' "${dockerfile}" 2>&1)" || reader_status=$?
+[ "${reader_status}" -gt 1 ] && echo "❌ could not inspect '${dockerfile}' image stages: ${from_lines}" >&2 && exit 1
+final_from_line="$(tail -n 1 <<<"${from_lines}" | cut -d ':' -f 1)"
 [ -z "${final_from_line}" ] && echo "❌ '${dockerfile}' declares no image stage" >&2 && exit 1
 
 final_from="$(sed -n "${final_from_line}p" "${dockerfile}")"

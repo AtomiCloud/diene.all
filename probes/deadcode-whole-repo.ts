@@ -1,5 +1,8 @@
-import { expectGreen, expectRedWithDiagnostic } from './lib/helpers.ts';
+import { expectGreen, expectRedWithDiagnostic, restoreProbeState } from './lib/helpers.ts';
 import { plantGoFile } from './lib/go.ts';
+
+// Keep the whole-repository pass independent from the composite `pls deadcode` task.
+const gate = 'nix develop .#ci -c ./scripts/local/deadcode.sh whole';
 
 export default {
   contractVersion: 1,
@@ -10,7 +13,7 @@ export default {
       description: 'Deadcode and staticcheck find no unreachable code with tests included.',
       kind: 'baseline',
       async run(repo: any) {
-        await expectGreen(repo, 'nix develop .#ci -c ./scripts/local/deadcode.sh whole', 'deadcode-whole-repo');
+        await expectGreen(repo, gate, 'deadcode-whole-repo');
       },
     },
     {
@@ -19,13 +22,12 @@ export default {
       kind: 'mutation',
       expectedImpact: ['deadcode-production', 'unit-coverage-scope'],
       async run(repo: any) {
-        await plantGoFile(repo, 'lib/**/*.go', 'probe_dead.go', 'func ProbeDead() int { return 1 }');
-        await expectRedWithDiagnostic(
-          repo,
-          'nix develop .#ci -c ./scripts/local/deadcode.sh whole',
-          'deadcode-whole-repo',
-          /ProbeDead/,
-        );
+        const planted = await plantGoFile(repo, 'lib/**/*.go', 'probe_dead.go', 'func ProbeDead() int { return 1 }');
+        try {
+          await expectRedWithDiagnostic(repo, gate, 'deadcode-whole-repo', /ProbeDead/);
+        } finally {
+          await restoreProbeState(repo, [planted]);
+        }
       },
     },
   ],

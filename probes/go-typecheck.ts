@@ -1,5 +1,7 @@
-import { expectGreen, expectRedWithDiagnostic } from './lib/helpers.ts';
+import { expectGreen, expectRedWithDiagnostic, restoreProbeState } from './lib/helpers.ts';
 import { plantGoFile } from './lib/go.ts';
+
+const gate = 'nix develop .#ci -c pls typecheck';
 
 export default {
   contractVersion: 1,
@@ -10,7 +12,7 @@ export default {
       description: 'Go source packages compile through the dedicated typecheck entrypoint.',
       kind: 'baseline',
       async run(repo: any) {
-        await expectGreen(repo, 'nix develop .#ci -c ./scripts/local/typecheck.sh', 'go-typecheck');
+        await expectGreen(repo, gate, 'go-typecheck');
       },
     },
     {
@@ -28,13 +30,17 @@ export default {
         'sample-domain-journey',
       ],
       async run(repo: any) {
-        await plantGoFile(repo, 'lib/**/*.go', 'probe_type_error.go', 'var ProbeTypeError int = "wrong"');
-        await expectRedWithDiagnostic(
+        const planted = await plantGoFile(
           repo,
-          'nix develop .#ci -c ./scripts/local/typecheck.sh',
-          'go-typecheck',
-          /cannot use "wrong" .* as int value/,
+          'lib/**/*.go',
+          'probe_type_error.go',
+          'var ProbeTypeError int = "wrong"',
         );
+        try {
+          await expectRedWithDiagnostic(repo, gate, 'go-typecheck', /cannot use "wrong" .* as int value/);
+        } finally {
+          await restoreProbeState(repo, [planted]);
+        }
       },
     },
   ],

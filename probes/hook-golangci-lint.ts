@@ -3,16 +3,11 @@ import { plantGoFile } from './lib/go.ts';
 
 const gate = 'nix develop .#ci -c pre-commit run a-golangci-lint --all-files';
 
-// The violation is planted beside whichever Go source the glob selects instead of
-// rewriting a named seed function: a probe keyed on one file and on the body of
-// one seed implementation stops proving the hook the moment that seed is renamed,
-// rewritten, or replaced by the template consumer.
+// Plant beside a structural Go target so sample renames cannot defuse the probe.
 const goSources = 'lib/**/*.go';
 const fixture = 'probe_ineffectual_assignment.go';
 
-// Exported on purpose. An unexported probe symbol is dead code, so `unused` would
-// turn the hook red by itself and the ineffassign finding under test would never
-// have to fire.
+// Export the fixture so ineffassign, not unused, owns the red diagnostic.
 const ineffectualAssignment = [
   'func ProbeIneffectualAssignment() string {',
   '\tvalue := "probe"',
@@ -47,8 +42,6 @@ export default {
             /probe_ineffectual_assignment\.go:\d+:\d+: ineffectual assignment to \w+ \(ineffassign\)/,
           );
         } finally {
-          // The fixture is untracked, so restoring the git snapshot alone would hand
-          // the next probe a repository that is still lint-red.
           await restoreProbeState(repo, [planted]);
         }
       },

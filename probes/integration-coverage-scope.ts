@@ -1,5 +1,7 @@
-import { expectGreen, expectRedWithDiagnostic } from './lib/helpers.ts';
+import { expectGreen, expectRedWithDiagnostic, restoreProbeState } from './lib/helpers.ts';
 import { plantGoFile } from './lib/go.ts';
+
+const gate = 'nix develop .#ci -c pls test:int:coverage';
 
 export default {
   contractVersion: 1,
@@ -10,11 +12,7 @@ export default {
       description: 'The integration coverprofile contains only adapter packages at threshold.',
       kind: 'baseline',
       async run(repo: any) {
-        await expectGreen(
-          repo,
-          'nix develop .#ci -c ./scripts/local/test.sh int true false',
-          'integration-coverage-scope',
-        );
+        await expectGreen(repo, gate, 'integration-coverage-scope');
       },
     },
     {
@@ -23,13 +21,17 @@ export default {
       kind: 'mutation',
       expectedImpact: ['deadcode-whole-repo', 'deadcode-production'],
       async run(repo: any) {
-        await plantGoFile(repo, 'adapters/**/*.go', 'probe_uncovered.go', 'func ProbeUncovered() int { return 1 }');
-        await expectRedWithDiagnostic(
+        const planted = await plantGoFile(
           repo,
-          'nix develop .#ci -c ./scripts/local/test.sh int true false',
-          'integration-coverage-scope',
-          /int coverage .* is below/,
+          'adapters/**/*.go',
+          'probe_uncovered.go',
+          'func ProbeUncovered() int { return 1 }',
         );
+        try {
+          await expectRedWithDiagnostic(repo, gate, 'integration-coverage-scope', /int coverage .* is below/);
+        } finally {
+          await restoreProbeState(repo, [planted]);
+        }
       },
     },
   ],

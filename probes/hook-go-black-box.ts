@@ -1,4 +1,4 @@
-import { expectGreen, expectRedWithDiagnostic } from './lib/helpers.ts';
+import { expectGreen, expectRedWithDiagnostic, restoreProbeState } from './lib/helpers.ts';
 import { plantWhiteBoxTest } from './lib/go.ts';
 
 const gate = 'nix develop .#ci -c pre-commit run a-go-black-box --all-files';
@@ -20,8 +20,12 @@ export default {
       description: 'A white-box Go test package must turn the owning hook red.',
       kind: 'mutation',
       async run(repo: any) {
-        await plantWhiteBoxTest(repo);
-        await expectRedWithDiagnostic(repo, gate, 'hook-go-black-box', /white-box test package .* is forbidden/);
+        const planted = await plantWhiteBoxTest(repo);
+        try {
+          await expectRedWithDiagnostic(repo, gate, 'hook-go-black-box', /white-box test package .* is forbidden/);
+        } finally {
+          await restoreProbeState(repo, [planted]);
+        }
       },
     },
   ],

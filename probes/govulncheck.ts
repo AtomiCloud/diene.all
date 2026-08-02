@@ -1,9 +1,6 @@
 import { expectGreen, expectRedWithDiagnostic } from './lib/helpers.ts';
 
-// Both rows drive `scripts/ci/vuln.sh`, the exact entrypoint
-// `⚡reusable-go-vuln.yaml` runs. The thinner `scripts/local/vuln.sh` skips the
-// wrapper's `scripts/ci/setup.sh` step, so binding it would leave the CI lane's
-// own composition — setup ordering included — unproven by either row.
+// Drive the exact self-contained CI vulnerability entrypoint in both arms.
 const ciVulnGate = './scripts/ci/vuln.sh';
 
 export default {
@@ -23,9 +20,6 @@ export default {
       description: 'Routing the pinned vulnerable fixture through the scanner double must redden the CI gate.',
       kind: 'mutation',
       async run(repo: any) {
-        // The fixture env is handed to the CI wrapper, not to the inner script,
-        // so the row also proves the wrapper forwards the scanner selection
-        // instead of pinning a scanner of its own.
         await expectRedWithDiagnostic(
           repo,
           `nix develop .#ci -c env GOVULNCHECK_BIN=./tests/fixtures/govulncheck-double.sh GOVULNCHECK_TARGET=./tests/fixtures/vulnerable ${ciVulnGate}`,
