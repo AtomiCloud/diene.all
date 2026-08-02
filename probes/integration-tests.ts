@@ -1,4 +1,4 @@
-import { expectGreen, expectRedWithDiagnostic } from './lib/helpers.ts';
+import { expectGreen, expectRedWithDiagnostic, restoreProbeState } from './lib/helpers.ts';
 import { breakAdapter } from './lib/go.ts';
 
 const gate = 'nix develop .#ci -c pls test:int';
@@ -19,13 +19,18 @@ export default {
       name: 'mutation-integration-tests-caught',
       description: 'Breaking an adapter write must turn the integration tier red.',
       kind: 'mutation',
-      // The broken write survives the gate, so every row that reads a value back
-      // through the same adapter sees it: the integration ledger reruns this tier,
-      // and the sample journey round-trips the compiled artifact against Redis.
-      expectedImpact: ['integration-coverage-scope', 'sample-domain-journey'],
+      // The write lands under a different key, so the read-back misses entirely
+      // and the tier fails on the Load error rather than on a value mismatch.
+      // The adapter is tracked and reverted to HEAD once this row's assertion has
+      // run, so every other row still meets a clean tree: no collateral.
+      expectedImpact: [],
       async run(repo: any) {
         await breakAdapter(repo);
-        await expectRedWithDiagnostic(repo, gate, 'integration-tests', /Load\(\) = .* want/);
+        try {
+          await expectRedWithDiagnostic(repo, gate, 'integration-tests', /Load\(\) error = redis: nil/);
+        } finally {
+          await restoreProbeState(repo, ['adapters']);
+        }
       },
     },
   ],

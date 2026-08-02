@@ -1,7 +1,12 @@
-import { expectGreen, expectRedWithDiagnostic } from './lib/helpers.ts';
+import { expectGreen, expectRedWithDiagnostic, restoreProbeState } from './lib/helpers.ts';
 import { unformatGo } from './lib/go.ts';
 
 const gate = 'nix develop .#ci -c pre-commit run treefmt --all-files';
+
+// treefmt names the offending file as "file has changed path=<path>", a bare
+// gofumpt run says "would reformat <path>", and older summaries put the verb
+// after the path; the red must name a Go path in one of those shapes.
+const goFormatting = /(file has changed path=|would reformat )\S+[.]go|[.]go.*(formatted|changed)/i;
 
 export default {
   contractVersion: 1,
@@ -19,23 +24,17 @@ export default {
       name: 'mutation-treefmt-gofumpt-hook-caught',
       description: 'An unformatted Go declaration must turn the generated treefmt hook red.',
       kind: 'mutation',
-      // The same violation reaches the direct treefmt entrypoint, and the hook
-      // fails as one unit, so every inherited member row reddens with it.
-      expectedImpact: [
-        'fmt-gofumpt',
-        'precommit-treefmt-actionlint',
-        'precommit-treefmt-nixfmt',
-        'precommit-treefmt-prettier',
-        'precommit-treefmt-shfmt',
-      ],
+      // The violation is an in-place rewrite of a tracked lib source, and it is
+      // reverted to HEAD the moment this row's own assertion has run, so every
+      // other row still meets a clean tree: this mutation has no collateral.
+      expectedImpact: [],
       async run(repo: any) {
         await unformatGo(repo);
-        await expectRedWithDiagnostic(
-          repo,
-          gate,
-          'precommit-treefmt-gofumpt',
-          /[.]go.*(formatted|changed)|would reformat/i,
-        );
+        try {
+          await expectRedWithDiagnostic(repo, gate, 'precommit-treefmt-gofumpt', goFormatting);
+        } finally {
+          await restoreProbeState(repo, ['lib']);
+        }
       },
     },
   ],

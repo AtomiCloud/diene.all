@@ -23,7 +23,8 @@ conventions.
 
 - `pls build` — create `dist/go-base`.
 - `pls typecheck` — compile every source package without running tests.
-- `pls test` / `pls test:coverage` — run both tiers normally or with scoped ledgers.
+- `pls test` — run the unit, integration, and system integration tiers.
+- `pls test:coverage` — enforce the scoped unit and integration coverage ledgers.
 - `pls deadcode` — run strict whole-repository and production passes plus the LLM-lax report.
 - `pls run -- slug "Hello World"` — execute from source.
 - `pls preview -- slug "Hello World"` — execute the compiled artifact.
