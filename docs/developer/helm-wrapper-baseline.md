@@ -66,15 +66,18 @@ The Deployment always uses `RollingUpdate`; the hook never recreates it.
 
 ## Rendered-manifest validation
 
-`scripts/validate/helm-wrapper.sh rendered-manifests` runs the generic chart-bearing-repository stage:
+`scripts/validate/helm-wrapper.sh rendered-manifests` runs the generic chart-bearing-repository stage over **all three value stacks** — `values.yaml` alone, `values.yaml` → `values.example.yaml`, and `values.yaml` → `values.example.yaml` → `values.lapras.yaml`. The overlays disable objects the base stack renders, so a stage that only ever rendered the deepest stack would never schema-check or policy-check the CR-bearing shapes. Each stack runs the same four steps:
 
-1. Helm renders the stacked values.
-2. kubeconform validates Kubernetes objects plus the checked-in local CR schemas.
-3. Kyverno CLI evaluates definition-only native ValidatingAdmissionPolicy fixtures against the resources named by those policies' `resourceRules`. kubeconform still validates the complete render; the narrow Kyverno input avoids its offline GVR lookup failure on unrelated custom resources.
+1. Helm renders that stack.
+2. kubeconform validates every rendered object against Kubernetes plus the checked-in local CR schemas.
+3. Kyverno CLI evaluates the definition-only native ValidatingAdmissionPolicy set, as a whole, against the rendered objects whose API group is named by the pinned policies' `resourceRules`.
+4. The same objects are re-evaluated **one definition at a time**. Each definition must apply cleanly and report at least one `pass` in its detailed results, so a definition that silently stops matching anything is caught instead of hiding inside a green aggregate summary.
 
-The checked-in definition set is an exact, object-only extraction from the measured `charts/vap-policies` artifact at commit `6a57a34064c76b7424f5f2466417d01233b82514`. That artifact is **not ratchet-accepted** at this build: `policies/vap-interface.json` records the source files and every extracted definition hash so later acceptance can compare exact bytes without turning the measurement into authority. No bindings or per-rule fixtures are borrowed.
+The Kyverno input is filtered by API **group**, never by kind. Today `resourceRules` name `""`, `apps`, and `batch`, so core objects no current rule matches — ConfigMaps included — are still fed in. That breadth is deliberate: a group-level filter keeps whatever kinds those rules grow into, so a future rule cannot be quietly excluded by a stale kind list, while still keeping out the custom resources whose GVRs Kyverno cannot resolve offline. kubeconform still validates the complete render, so nothing is dropped from schema checking.
 
-The six offline definitions cover explicit non-latest tags, NodePort, privilege escalation, non-root execution, requests/limits, and restricted volume types. This wrapper owns only the generic render → kubeconform → policy-engine interface and one `:latest` wiring sabotage. The downstream `charts/vap-policies` node owns policy materialization, bindings, and per-rule negative fixtures; its graph edge follows this wrapper, so the snapshot is not a dependency claim.
+The checked-in definition set is an exact, object-only extraction from the measured `charts/vap-policies` artifact. `policies/vap-interface.json` is the single source of that provenance — it records the source ref, the extraction commit under `sourceArtifactCommit`, the ratchet acceptance state at build under `ratchetAcceptanceAtBuild`, the extraction contract, and a SHA-256 for every definition. Read the lock for the commit and the acceptance state rather than this page; they move without a documentation edit, and later acceptance compares exact bytes without turning the measurement into authority. `scripts/validate/vap-interface.sh` re-checks the file set and every hash with `sha256sum` — coreutils rather than `nix hash file`, so the lock stays verifiable wherever the CI toolchain runs without Nix — and the rendered-manifest stage refuses to start until that passes. Because the bytes are pinned, `policies/vap/**` is excluded from the tree formatter in `nix/fmt.nix`; reformatting a borrowed definition would break its own lock. No bindings or per-rule fixtures are borrowed.
+
+The six offline definitions cover explicit non-latest tags, NodePort, privilege escalation, non-root execution, requests/limits, and restricted volume types, and the per-definition loop proves each of the six is exercised by every stack. This wrapper owns only the generic render → kubeconform → policy-engine interface and one `:latest` wiring sabotage. The downstream `charts/vap-policies` node owns policy materialization, bindings, and per-rule negative fixtures; its graph edge follows this wrapper, so the snapshot is not a dependency claim.
 
 ## Primordial helpers
 

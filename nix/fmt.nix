@@ -14,6 +14,8 @@ let
           "docs/developer/CommitConventions.md"
           "infra/root_chart/**"
           "chart/**"
+          # Byte-pinned by policies/vap-interface.json: reformatting these borrowed
+          # definitions would break the interface lock they are measured against.
           "policies/vap/**"
         ];
       };

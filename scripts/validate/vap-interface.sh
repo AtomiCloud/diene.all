@@ -19,8 +19,10 @@ jq -r '.definitions[].path | sub("^policies/vap/"; "")' "${lock}" | sort >"${exp
 find policies/vap -maxdepth 1 -type f -name '*.yaml' -exec basename {} \; | sort >"${actual_files}"
 cmp "${expected_files}" "${actual_files}"
 
+# Hash with coreutils rather than `nix hash file` so the lock stays verifiable in any
+# venue that carries the CI toolchain without Nix.
 while IFS=$'\t' read -r path expected; do
-  actual="$(nix hash file --type sha256 --base16 "${path}")"
+  actual="$(sha256sum "${path}" | awk '{ print $1 }')"
   if [ "${actual}" != "${expected}" ]; then
     echo "❌ VAP interface drift: ${path} expected ${expected}, got ${actual}" >&2
     exit 1

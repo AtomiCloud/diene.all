@@ -150,12 +150,38 @@ rendered-manifests)
   if [ "$(realpath -m "${vap_definitions}")" = "$(realpath -m policies/vap)" ]; then
     bash ./scripts/validate/vap-interface.sh >/dev/null
   fi
-  helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml --values chart/values.lapras.yaml >"${tmp}/rendered.yaml"
-  kubeconform -strict -summary -schema-location default -schema-location 'schemas/{{ .ResourceKind }}.json' "${tmp}/rendered.yaml"
+  # Filter by the API groups the pinned resourceRules name, never by kind: a group-level
+  # filter keeps whatever kinds those rules grow into, while still excluding the custom
+  # resources whose GVRs kyverno cannot resolve offline.
   policy_groups="$(find "${vap_definitions}" -maxdepth 1 -type f -name '*.yaml' -exec yq -r '.spec.matchConstraints.resourceRules[].apiGroups[]' {} \; | sort -u | jq -Rsc 'split("\n") | .[0:-1] | unique')"
-  yq eval-all -o=json '.' "${tmp}/rendered.yaml" | jq -s --argjson groups "${policy_groups}" 'map(select(.kind != null) | select((.apiVersion | split("/") | if length == 1 then "" else .[0] end) as $group | $groups | index($group)))' | yq -P '.[] | split_doc' >"${tmp}/vap-resources.yaml"
-  yq eval-all -o=json '.' "${tmp}/vap-resources.yaml" | jq -s -e 'length > 0' >/dev/null
-  kyverno apply "${vap_definitions}" --resource "${tmp}/vap-resources.yaml" --detailed-results --remove-color
+  # The landscape and cluster overlays disable objects the base stack renders, so every
+  # stack is rendered, schema-checked, and policy-checked in its own right.
+  for stack in base example example+lapras; do
+    case "${stack}" in
+    base) stack_values=() ;;
+    example) stack_values=(--values chart/values.example.yaml) ;;
+    example+lapras) stack_values=(--values chart/values.example.yaml --values chart/values.lapras.yaml) ;;
+    esac
+    echo "📝 Validating the ${stack} value stack"
+    helm template "${release}" chart --namespace "${namespace}" "${stack_values[@]}" >"${tmp}/${stack}.yaml"
+    kubeconform -strict -summary -schema-location default -schema-location 'schemas/{{ .ResourceKind }}.json' "${tmp}/${stack}.yaml"
+    yq eval-all -o=json '.' "${tmp}/${stack}.yaml" | jq -s --argjson groups "${policy_groups}" 'map(select(.kind != null) | select((.apiVersion | split("/") | if length == 1 then "" else .[0] end) as $group | $groups | index($group)))' | yq -P '.[] | split_doc' >"${tmp}/vap-${stack}.yaml"
+    yq eval-all -o=json '.' "${tmp}/vap-${stack}.yaml" | jq -s -e 'length > 0' >/dev/null
+    kyverno apply "${vap_definitions}" --resource "${tmp}/vap-${stack}.yaml" --detailed-results --remove-color
+    # Re-run one definition at a time: the aggregate summary stays green when a single
+    # definition silently stops matching anything, so each one must report its own pass.
+    for policy in "${vap_definitions}"/*.yaml; do
+      if ! policy_output="$(kyverno apply "${policy}" --resource "${tmp}/vap-${stack}.yaml" --detailed-results --remove-color 2>&1)"; then
+        echo "❌ '${policy}' rejected the ${stack} stack" >&2
+        printf '%s\n' "${policy_output}" >&2
+        exit 1
+      fi
+      policy_passes="$(awk -F '[:,]' '/^pass:/ { gsub(/ /, "", $2); print $2 }' <<<"${policy_output}")"
+      [ -z "${policy_passes}" ] && echo "❌ '${policy}' reported no detailed-results summary for the ${stack} stack" >&2 && exit 1
+      [ "${policy_passes}" -lt 1 ] && echo "❌ '${policy}' matched no ${stack} stack resource, so the pinned definition is unexercised" >&2 && exit 1
+    done
+    echo "🔐 Every pinned definition passed at least one ${stack} stack resource"
+  done
   ;;
 publish-git)
   PUBLISH_MODE=git PUBLISH_DRY_RUN=true RELEASE_VERSION=v0.1.0 PUBLISH_OUTPUT_DIR="${tmp}/git" bash ./scripts/ci/publish.sh >/dev/null
