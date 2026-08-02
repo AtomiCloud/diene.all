@@ -151,12 +151,32 @@ contracts:
     provider: example # @schema pattern:^[a-z0-9-]+$
     pathPrefix: /internal/webhooks # @schema pattern:^/.*
   lpsm:
-    landscape: example # @schema pattern:^[a-z0-9-]+$
-    module: api # @schema pattern:^[a-z0-9-]+$
-    service: wrapper # @schema pattern:^[a-z0-9-]+$
-    instance: run001 # @schema pattern:^[a-z0-9-]+$
+    # Every coordinate slot is exactly one DNS-1123 label: start and end
+    # alphanumeric, internal dashes only, at most 63 bytes. The forward hostname
+    # helper applies the identical rule to the identical bytes, so a label that
+    # reaches a rendered coordinate always parses back out of it. A looser
+    # pattern here is what let `-example` and a 64-byte slot render.
+    # @schema pattern:^[a-z0-9]([a-z0-9-]*[a-z0-9])?$;maxLength:63
+    landscape: example
+    # @schema pattern:^[a-z0-9]([a-z0-9-]*[a-z0-9])?$;maxLength:63
+    module: api
+    # @schema pattern:^[a-z0-9]([a-z0-9-]*[a-z0-9])?$;maxLength:63
+    service: wrapper
+    # The instance slot stays optional: empty selects the four-slot form. Any
+    # supplied value is still one whole DNS-1123 label.
+    # @schema pattern:^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)?$;maxLength:63
+    instance: run001
+    # A zone is one or more dot-separated DNS-1123 labels, each bounded at 63
+    # bytes by the segment pattern itself; the chart appends it verbatim, so a
+    # malformed segment is a malformed hostname label.
+    # @schema pattern:^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$;minLength:1
     ordinaryZone: cluster.atomi.cloud
+    # @schema pattern:^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$;minLength:1
     instanceZone: local.example.invalid
+    # Deliberately unconstrained: this is the INVERSE boundary's input, and the
+    # parser's own refusal is the thing under test. Constraining it here would
+    # move every parser vector's refusal to the schema and leave the parser
+    # asserted by nothing.
     parseHostname: ''
 
 # -- Optional Gateway API route scaffold for a webhook receiver.

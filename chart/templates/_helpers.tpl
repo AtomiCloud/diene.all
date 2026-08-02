@@ -240,24 +240,67 @@ reloader.stakater.com/auto: 'true'
 {{- end }}
 {{- end -}}
 
+{{/*
+  One DNS-1123 label, judged on the bytes it was handed. The inverse parser below
+  has always demanded start/end alphanumerics and a 63-byte bound, so the forward
+  derivation demands exactly the same: anything looser mints a coordinate the
+  chart cannot read back. Every refusal names its slot AND its rule, and nothing
+  here lowercases, trims, truncates, or pads a byte to make an invalid label fit —
+  an unusable label is refused at the boundary, never repaired past it.
+*/}}
+{{- define "diene-helm-wrapper.dnsLabel" -}}
+{{- $slot := .slot -}}
+{{- $label := .label | toString -}}
+{{- if eq $label "" -}}
+{{- fail (printf "HostnameLabelInvalid: %s is empty; every hostname slot must carry exactly one DNS-1123 label" $slot) -}}
+{{- end -}}
+{{- if gt (len $label) 63 -}}
+{{- fail (printf "HostnameLabelInvalid: %s %q is %d bytes; a DNS-1123 label is at most 63 bytes and this chart never truncates one" $slot $label (len $label)) -}}
+{{- end -}}
+{{- if not (regexMatch "^[a-z0-9]" $label) -}}
+{{- fail (printf "HostnameLabelInvalid: %s %q must start with a lowercase alphanumeric byte; this chart never normalizes an invalid byte away" $slot $label) -}}
+{{- end -}}
+{{- if not (regexMatch "[a-z0-9]$" $label) -}}
+{{- fail (printf "HostnameLabelInvalid: %s %q must end with a lowercase alphanumeric byte; this chart never normalizes an invalid byte away" $slot $label) -}}
+{{- end -}}
+{{- if not (regexMatch "^[a-z0-9-]+$" $label) -}}
+{{- fail (printf "HostnameLabelInvalid: %s %q may hold only lowercase alphanumerics and internal dashes; this chart never lowercases or strips a byte to make one fit" $slot $label) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+  A zone is one or more dot-separated DNS-1123 labels, each judged by the same
+  rule as a coordinate slot. Validating the zone as a whole string is what let a
+  malformed segment through before: the zone is appended verbatim to the dotted
+  name, so a bad segment is a bad hostname label exactly like a bad module is.
+*/}}
+{{- define "diene-helm-wrapper.dnsZone" -}}
+{{- $zone := .zone | toString -}}
+{{- if eq $zone "" -}}
+{{- fail "HostnameZoneInvalid: the hostname zone is empty; a zone is one or more dot-separated DNS-1123 labels" -}}
+{{- end -}}
+{{- range $index, $label := splitList "." $zone -}}
+{{- include "diene-helm-wrapper.dnsLabel" (dict "slot" (printf "zone label %d of %q" (add1 $index) $zone) "label" $label) -}}
+{{- end -}}
+{{- end -}}
+
 {{/* Derive ordinary or instance-qualified dotted hostnames. Platform always comes from namespace. */}}
 {{- define "diene-helm-wrapper.hostname" -}}
 {{- $root := .root -}}
-{{- $module := required "hostname module is required" .module | lower -}}
-{{- $service := required "hostname service is required" .service | lower -}}
-{{- $landscape := required "hostname landscape is required" .landscape | lower -}}
-{{- $zone := required "hostname zone is required" .zone | lower | trimPrefix "." -}}
-{{- $platform := $root.Release.Namespace | lower -}}
-{{- $instance := default "" .instance | lower -}}
-{{- range $label := list $module $service $platform $landscape }}
-{{- if not (regexMatch "^[a-z0-9-]+$" $label) -}}
-{{- fail (printf "hostname label %q is not DNS-compatible" $label) -}}
-{{- end -}}
-{{- end -}}
+{{- $module := required "hostname module is required" .module | toString -}}
+{{- $service := required "hostname service is required" .service | toString -}}
+{{- $landscape := required "hostname landscape is required" .landscape | toString -}}
+{{/* Verbatim: trimming a leading dot here would repair an invalid zone into valid bytes, which is the one thing this boundary must never do. */}}
+{{- $zone := required "hostname zone is required" .zone | toString -}}
+{{- $platform := $root.Release.Namespace | toString -}}
+{{- $instance := default "" .instance | toString -}}
+{{- include "diene-helm-wrapper.dnsLabel" (dict "slot" "module label" "label" $module) -}}
+{{- include "diene-helm-wrapper.dnsLabel" (dict "slot" "service label" "label" $service) -}}
+{{- include "diene-helm-wrapper.dnsLabel" (dict "slot" "platform label" "label" $platform) -}}
+{{- include "diene-helm-wrapper.dnsLabel" (dict "slot" "landscape label" "label" $landscape) -}}
+{{- include "diene-helm-wrapper.dnsZone" (dict "zone" $zone) -}}
 {{- if $instance -}}
-{{- if not (regexMatch "^[a-z0-9-]+$" $instance) -}}
-{{- fail (printf "hostname instance %q is not DNS-compatible" $instance) -}}
-{{- end -}}
+{{- include "diene-helm-wrapper.dnsLabel" (dict "slot" "instance label" "label" $instance) -}}
 {{- printf "%s.%s.%s.%s.%s.%s" $module $service $platform $instance $landscape $zone -}}
 {{- else -}}
 {{- printf "%s.%s.%s.%s.%s" $module $service $platform $landscape $zone -}}

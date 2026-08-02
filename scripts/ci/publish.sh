@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-mode="${PUBLISH_MODE:-git}"
+# OCI is the primary distribution channel, so it is what an omitted PUBLISH_MODE
+# selects. The git chart repository stays supported as the secondary channel, but
+# only when it is asked for by name.
+mode="${PUBLISH_MODE:-oci}"
 dry_run="${PUBLISH_DRY_RUN:-true}"
 release_version="${RELEASE_VERSION:-}"
 output_dir="${PUBLISH_OUTPUT_DIR:-dist/${mode}}"

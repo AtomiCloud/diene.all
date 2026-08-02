@@ -44,6 +44,94 @@ const LAPRAS = [
 // namespace and the declared platform together and watching the slot follow.
 const OTHER_NAMESPACE = 'otherplatform';
 
+// A VALID hostname, independent of every slot the DNS-1123 vectors move. Left to
+// its default, `parseHostname` is derived from the slot under test, so a vector
+// that moved the landscape would be refused by the INVERSE parser reading the
+// derived garbage and would prove nothing about the forward derivation. Pinning
+// it makes the forward helper the only thing that can own those refusals.
+const VALID_PARSE_INPUT = 'api.wrapper.sample.run001.example.local.example.invalid';
+const PINNED_PARSE = `--set-string contracts.lpsm.parseHostname=${VALID_PARSE_INPUT}`;
+const OVERLONG_LABEL = 'a'.repeat(64);
+
+// The forward derivation once accepted labels its own inverse parser rejects, so
+// each DNS-1123 vector is asserted at BOTH boundaries in its own right: the
+// generated values schema refuses the malformed value before a template runs,
+// and the same bytes re-run under --skip-schema-validation reach the helper,
+// whose named reason is then the only thing that can refuse. Asserting one half
+// alone would let the helper go slack again behind the schema — which is exactly
+// how the defect survived the first time.
+const SKIP_SCHEMA = '--skip-schema-validation';
+type Boundary = { name: string; flags: string[]; schema: string; helper: string };
+const DNS_1123: Boundary[] = [
+  {
+    name: 'leading-dash-landscape-label',
+    flags: ['--set-string contracts.lpsm.landscape=-example', PINNED_PARSE],
+    schema: "at '/contracts/lpsm/landscape': '-example' does not match pattern",
+    helper: 'HostnameLabelInvalid: landscape label "-example" must start with a lowercase alphanumeric byte',
+  },
+  {
+    name: 'leading-dash-service-label',
+    flags: ['--set-string contracts.lpsm.service=-wrapper', PINNED_PARSE],
+    schema: "at '/contracts/lpsm/service': '-wrapper' does not match pattern",
+    helper: 'HostnameLabelInvalid: service label "-wrapper" must start with a lowercase alphanumeric byte',
+  },
+  {
+    name: 'trailing-dash-module-label',
+    flags: ['--set-string contracts.lpsm.module=api-', PINNED_PARSE],
+    schema: "at '/contracts/lpsm/module': 'api-' does not match pattern",
+    helper: 'HostnameLabelInvalid: module label "api-" must end with a lowercase alphanumeric byte',
+  },
+  {
+    name: 'trailing-dash-optional-instance-label',
+    flags: ['--set-string contracts.lpsm.instance=run001-', PINNED_PARSE],
+    schema: "at '/contracts/lpsm/instance': 'run001-' does not match pattern",
+    helper: 'HostnameLabelInvalid: instance label "run001-" must end with a lowercase alphanumeric byte',
+  },
+  {
+    name: 'sixty-four-byte-landscape-label',
+    flags: [`--set-string contracts.lpsm.landscape=${OVERLONG_LABEL}`, PINNED_PARSE],
+    schema: "at '/contracts/lpsm/landscape': maxLength: got 64, want 63",
+    helper: `HostnameLabelInvalid: landscape label "${OVERLONG_LABEL}" is 64 bytes`,
+  },
+  // The zone vectors move `ordinaryZone`, which no parser ever reads, so the
+  // forward derivation is the only boundary that can own them at all.
+  {
+    name: 'trailing-dash-zone-segment',
+    flags: ['--set-string contracts.lpsm.ordinaryZone=bad-.atomi.cloud'],
+    schema: "at '/contracts/lpsm/ordinaryZone': 'bad-.atomi.cloud' does not match pattern",
+    helper:
+      'HostnameLabelInvalid: zone label 1 of "bad-.atomi.cloud" "bad-" must end with a lowercase alphanumeric byte',
+  },
+  {
+    name: 'empty-zone-segment',
+    flags: ['--set-string contracts.lpsm.ordinaryZone=cluster..atomi.cloud'],
+    schema: "at '/contracts/lpsm/ordinaryZone': 'cluster..atomi.cloud' does not match pattern",
+    helper: 'HostnameLabelInvalid: zone label 2 of "cluster..atomi.cloud" is empty',
+  },
+  {
+    // A leading dot is not a separator this boundary may absorb: trimming it
+    // would repair an invalid zone into valid bytes before anything judged it.
+    name: 'leading-dot-zone',
+    flags: ['--set-string contracts.lpsm.ordinaryZone=.atomi.cloud'],
+    schema: "at '/contracts/lpsm/ordinaryZone': '.atomi.cloud' does not match pattern",
+    helper: 'HostnameLabelInvalid: zone label 1 of ".atomi.cloud" is empty',
+  },
+  {
+    name: 'uppercase-zone-segment',
+    flags: ['--set-string contracts.lpsm.ordinaryZone=cluster.Atomi.cloud'],
+    schema: "at '/contracts/lpsm/ordinaryZone': 'cluster.Atomi.cloud' does not match pattern",
+    helper:
+      'HostnameLabelInvalid: zone label 2 of "cluster.Atomi.cloud" "Atomi" must start with a lowercase alphanumeric byte',
+  },
+  {
+    name: 'inner-uppercase-zone-segment',
+    flags: ['--set-string contracts.lpsm.ordinaryZone=cluster.atOmi.cloud'],
+    schema: "at '/contracts/lpsm/ordinaryZone': 'cluster.atOmi.cloud' does not match pattern",
+    helper:
+      'HostnameLabelInvalid: zone label 2 of "cluster.atOmi.cloud" "atOmi" may hold only lowercase alphanumerics and internal dashes',
+  },
+];
+
 // A mint that had to disambiguate: the same base petname was already held live by
 // an allocation with a DIFFERENT full digest.
 const COLLIDED = [
@@ -272,6 +360,15 @@ const REFUSES: Refuses[] = [
   },
 ];
 
+// Each DNS-1123 pair becomes two vectors, never one with two alternative reasons:
+// an OR would go green the moment either boundary carried the whole refusal.
+for (const vector of DNS_1123) {
+  REFUSES.push(
+    { name: `${vector.name}-at-the-values-schema`, flags: vector.flags, because: [vector.schema] },
+    { name: `${vector.name}-at-the-hostname-helper`, flags: [...vector.flags, SKIP_SCHEMA], because: [vector.helper] },
+  );
+}
+
 // A branch that moved (or was renamed) after mint cannot move the rendered
 // hostname: nothing outward is recomputed from the manifest.
 const STABLE: Stable[] = [
@@ -364,7 +461,7 @@ export default defineSmoke({
   baseline: {
     name: 'baseline-wrapper-lpsm-hostnames-green',
     description:
-      'Ordinary and optional-instance dotted derivation across the ENTEI dev, ABSOL localhost, and Boron/lapras canonical zones, namespace-sourced platform, separate-instance parsing, dash-fused rejection, and the preview boundary that accepts only verified assembler output.',
+      'Ordinary and optional-instance dotted derivation across the ENTEI dev, ABSOL localhost, and Boron/lapras canonical zones, namespace-sourced platform, separate-instance parsing, dash-fused rejection, DNS-1123 label and dotted-zone refusal proven at the values schema and again at the hostname helper, and the preview boundary that accepts only verified assembler output.',
     async run(repo: any) {
       await withCleanProbeState(repo, [SCRIPT_PATH], async () => {
         await repo.write(SCRIPT_PATH, vectorScript());

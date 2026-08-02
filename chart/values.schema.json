@@ -28,28 +28,36 @@
                     "properties": {
                         "instance": {
                             "type": "string",
-                            "pattern": "^[a-z0-9-]+$"
+                            "pattern": "^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)?$",
+                            "maxLength": 63
                         },
                         "instanceZone": {
-                            "type": "string"
+                            "type": "string",
+                            "pattern": "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$",
+                            "minLength": 1
                         },
                         "landscape": {
                             "type": "string",
-                            "pattern": "^[a-z0-9-]+$"
+                            "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$",
+                            "maxLength": 63
                         },
                         "module": {
                             "type": "string",
-                            "pattern": "^[a-z0-9-]+$"
+                            "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$",
+                            "maxLength": 63
                         },
                         "ordinaryZone": {
-                            "type": "string"
+                            "type": "string",
+                            "pattern": "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$",
+                            "minLength": 1
                         },
                         "parseHostname": {
                             "type": "string"
                         },
                         "service": {
                             "type": "string",
-                            "pattern": "^[a-z0-9-]+$"
+                            "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$",
+                            "maxLength": 63
                         }
                     }
                 },

@@ -238,6 +238,79 @@ lpsm)
   refuses "an unnormalized physical instance id" "does not match pattern" --set-string instance.original=repository-a:pr-123
   refuses "a dash-fused Garden hostname" "must use the canonical dotted LPSM form" --set-string contracts.lpsm.parseHostname=api-wrapper-sample-run001-example.local.example.invalid
   refuses "an uppercase parser input" "must be a lowercase DNS-1123 label" --set-string contracts.lpsm.parseHostname=API.wrapper.sample.run001.example.local.example.invalid
+
+  # The forward derivation once accepted labels its own inverse parser rejects, so
+  # every vector below is asserted at BOTH boundaries independently: once as the
+  # generated values schema refusing the malformed value before a template runs,
+  # and once with --skip-schema-validation so the same bytes reach the helper and
+  # its named reason is what refuses. Asserting only the pair's outer half would
+  # let the helper go slack again behind the schema, which is exactly how the
+  # defect survived.
+  #
+  # `parseHostname` is pinned to a VALID, independent hostname in every label
+  # vector. Left to default it is derived from the very slot under test, so the
+  # inverse parser would refuse the derived garbage and the vector would pass
+  # while proving nothing about the forward derivation. The zone vectors move
+  # `ordinaryZone`, which no parser ever reads, for the same reason.
+  valid_parse=api.wrapper.sample.run001.example.local.example.invalid
+  overlong_label="$(printf 'a%.0s' {1..64})"
+
+  refuses_at_both_boundaries() {
+    local label="$1" schema_reason="$2" helper_reason="$3"
+    shift 3
+    refuses "${label}, at the values schema" "${schema_reason}" "$@"
+    refuses "${label}, at the hostname helper" "${helper_reason}" --skip-schema-validation "$@"
+  }
+
+  refuses_at_both_boundaries "a leading-dash landscape label" \
+    "at '/contracts/lpsm/landscape': '-example' does not match pattern" \
+    'HostnameLabelInvalid: landscape label "-example" must start with a lowercase alphanumeric byte' \
+    --set-string contracts.lpsm.landscape=-example --set-string "contracts.lpsm.parseHostname=${valid_parse}"
+
+  refuses_at_both_boundaries "a leading-dash service label" \
+    "at '/contracts/lpsm/service': '-wrapper' does not match pattern" \
+    'HostnameLabelInvalid: service label "-wrapper" must start with a lowercase alphanumeric byte' \
+    --set-string contracts.lpsm.service=-wrapper --set-string "contracts.lpsm.parseHostname=${valid_parse}"
+
+  refuses_at_both_boundaries "a trailing-dash module label" \
+    "at '/contracts/lpsm/module': 'api-' does not match pattern" \
+    'HostnameLabelInvalid: module label "api-" must end with a lowercase alphanumeric byte' \
+    --set-string contracts.lpsm.module=api- --set-string "contracts.lpsm.parseHostname=${valid_parse}"
+
+  refuses_at_both_boundaries "a trailing-dash optional-instance label" \
+    "at '/contracts/lpsm/instance': 'run001-' does not match pattern" \
+    'HostnameLabelInvalid: instance label "run001-" must end with a lowercase alphanumeric byte' \
+    --set-string contracts.lpsm.instance=run001- --set-string "contracts.lpsm.parseHostname=${valid_parse}"
+
+  refuses_at_both_boundaries "a 64-byte landscape label" \
+    "at '/contracts/lpsm/landscape': maxLength: got 64, want 63" \
+    "HostnameLabelInvalid: landscape label \"${overlong_label}\" is 64 bytes" \
+    --set-string "contracts.lpsm.landscape=${overlong_label}" --set-string "contracts.lpsm.parseHostname=${valid_parse}"
+
+  refuses_at_both_boundaries "a trailing-dash zone segment" \
+    "at '/contracts/lpsm/ordinaryZone': 'bad-.atomi.cloud' does not match pattern" \
+    'HostnameLabelInvalid: zone label 1 of "bad-.atomi.cloud" "bad-" must end with a lowercase alphanumeric byte' \
+    --set-string contracts.lpsm.ordinaryZone=bad-.atomi.cloud
+
+  refuses_at_both_boundaries "an empty zone segment" \
+    "at '/contracts/lpsm/ordinaryZone': 'cluster..atomi.cloud' does not match pattern" \
+    'HostnameLabelInvalid: zone label 2 of "cluster..atomi.cloud" is empty' \
+    --set-string contracts.lpsm.ordinaryZone=cluster..atomi.cloud
+
+  refuses_at_both_boundaries "a leading-dot zone" \
+    "at '/contracts/lpsm/ordinaryZone': '.atomi.cloud' does not match pattern" \
+    'HostnameLabelInvalid: zone label 1 of ".atomi.cloud" is empty' \
+    --set-string contracts.lpsm.ordinaryZone=.atomi.cloud
+
+  refuses_at_both_boundaries "an uppercase zone segment" \
+    "at '/contracts/lpsm/ordinaryZone': 'cluster.Atomi.cloud' does not match pattern" \
+    'HostnameLabelInvalid: zone label 2 of "cluster.Atomi.cloud" "Atomi" must start with a lowercase alphanumeric byte' \
+    --set-string contracts.lpsm.ordinaryZone=cluster.Atomi.cloud
+
+  refuses_at_both_boundaries "an inner-uppercase zone segment" \
+    "at '/contracts/lpsm/ordinaryZone': 'cluster.atOmi.cloud' does not match pattern" \
+    'HostnameLabelInvalid: zone label 2 of "cluster.atOmi.cloud" "atOmi" may hold only lowercase alphanumerics and internal dashes' \
+    --set-string contracts.lpsm.ordinaryZone=cluster.atOmi.cloud
   ;;
 lb)
   helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml --set gateway.provider=digitalocean >"${tmp}/do.yaml"
@@ -310,9 +383,104 @@ publish-git)
   yq eval-all -o=json '.' "${tmp}/packaged.yaml" | jq -s -e 'map(select(.kind == "ConfigMap" and .metadata.name == "wrapper-config")) | (length == 1) and (.[0].data | has("application.yaml") and has("application.example.yaml"))' >/dev/null
   ;;
 publish-oci)
+  # A shim ahead of the real binary on PATH. It forwards every helm invocation
+  # the packaging path needs and intercepts only the two that would reach a
+  # registry, recording each attempt and refusing it. That turns "no external
+  # publish happened" into an assertion about what was attempted rather than
+  # trust in the dry-run flag, and it holds even if a future edit drops the flag.
+  attempts="${tmp}/registry-attempts.log"
+  stub_dir="${tmp}/stub"
+  real_helm="$(command -v helm)"
+  mkdir -p "${stub_dir}"
+  cat >"${stub_dir}/helm" <<EOF
+#!/usr/bin/env bash
+case "\$1 \${2:-}" in
+"push "* | "registry login")
+  printf '%s\n' "helm \$*" >>"${attempts}"
+  echo "❌ the publish stub intercepted a real registry call" >&2
+  exit 97
+  ;;
+esac
+exec "${real_helm}" "\$@"
+EOF
+  chmod +x "${stub_dir}/helm"
+  : >"${attempts}"
+
+  # Run publish.sh under the shim with the given environment, and report the
+  # script's own exit status rather than the status of whatever ran last.
+  # PUBLISH_MODE is unset on EVERY call before the caller's own assignments land,
+  # so a default-mode assertion always tests the script's default rather than an
+  # exported caller environment, and an explicit-mode assertion tests exactly the
+  # mode it names. The unset lives here rather than at the call sites because
+  # `env` rejects `-u` once a NAME=VALUE argument has been seen.
+  publishes() {
+    local status=0
+    (
+      unset PUBLISH_MODE
+      export PATH="${stub_dir}:${PATH}"
+      env "$@" bash ./scripts/ci/publish.sh
+    ) 2>&1 || status=$?
+    return "${status}"
+  }
+
+  # Omitting PUBLISH_MODE must select OCI. The completion line names the mode, the
+  # OCI-only ref file is written, and the git-only repository index is NOT — so a
+  # default that silently fell back to git cannot read as a pass.
+  if ! default_out="$(publishes OCI_REGISTRY=ghcr.io OCI_REPOSITORY=atomicloud/diene.all PUBLISH_DRY_RUN=true RELEASE_VERSION=v0.1.0 PUBLISH_OUTPUT_DIR="${tmp}/default")"; then
+    echo "❌ publishing with PUBLISH_MODE omitted failed" >&2
+    printf '%s\n' "${default_out}" >&2
+    exit 1
+  fi
+  grep -qF '✅ oci chart publish dry-run complete for 0.1.0' <<<"${default_out}" || {
+    echo "❌ an omitted PUBLISH_MODE did not select OCI" >&2
+    printf '%s\n' "${default_out}" >&2
+    exit 1
+  }
+  [ ! -s "${tmp}/default/diene-helm-wrapper-0.1.0.tgz" ] && echo "❌ default-mode chart package missing" >&2 && exit 1
+  rg -q '^oci://ghcr.io/atomicloud/diene.all$' "${tmp}/default/oci-ref.txt"
+  [ -e "${tmp}/default/index.yaml" ] && echo "❌ an omitted PUBLISH_MODE wrote a git chart-repository index" >&2 && exit 1
+  [ -s "${attempts}" ] && echo "❌ the default OCI dry run attempted a real registry call" >&2 && cat "${attempts}" >&2 && exit 1
+
+  # The control for the two assertions above: with the dry run switched off, the
+  # very same PATH must reach `helm push`, and the shim must record and refuse it.
+  # Without this, an unloaded shim and a clean run look identical — an empty log
+  # would prove nothing at all. The registry is the reserved `.invalid` TLD, which
+  # by RFC 6761 never resolves, so even the failure mode this control exists to
+  # catch — a shim that stopped intercepting — cannot reach a real registry.
+  if publishes OCI_REGISTRY=registry.invalid OCI_REPOSITORY=atomicloud/diene.all PUBLISH_DRY_RUN=false RELEASE_VERSION=v0.1.0 PUBLISH_OUTPUT_DIR="${tmp}/intercepted" >/dev/null; then
+    echo "❌ a non-dry-run publish succeeded without reaching the intercepting stub" >&2
+    exit 1
+  fi
+  grep -qE '^helm push .*oci://registry\.invalid/atomicloud/diene\.all$' "${attempts}" || {
+    echo "❌ the stub never saw the default mode's push, so its silence proves nothing" >&2
+    cat "${attempts}" >&2
+    exit 1
+  }
+  : >"${attempts}"
+
+  # Explicit modes still win over the default, in both directions.
   OCI_REGISTRY=ghcr.io OCI_REPOSITORY=atomicloud/diene.all PUBLISH_MODE=oci PUBLISH_DRY_RUN=true RELEASE_VERSION=v0.1.0 PUBLISH_OUTPUT_DIR="${tmp}/oci" bash ./scripts/ci/publish.sh >/dev/null
   [ ! -s "${tmp}/oci/diene-helm-wrapper-0.1.0.tgz" ] && echo "❌ OCI chart package missing" >&2 && exit 1
   rg -q '^oci://ghcr.io/atomicloud/diene.all$' "${tmp}/oci/oci-ref.txt"
+  if ! git_out="$(publishes PUBLISH_MODE=git PUBLISH_DRY_RUN=true RELEASE_VERSION=v0.1.0 PUBLISH_OUTPUT_DIR="${tmp}/explicit-git")"; then
+    echo "❌ the explicit git mode failed" >&2
+    printf '%s\n' "${git_out}" >&2
+    exit 1
+  fi
+  grep -qF '✅ git chart publish dry-run complete for 0.1.0' <<<"${git_out}" || {
+    echo "❌ an explicit PUBLISH_MODE=git was overridden by the OCI default" >&2
+    printf '%s\n' "${git_out}" >&2
+    exit 1
+  }
+  [ ! -s "${tmp}/explicit-git/index.yaml" ] && echo "❌ the explicit git mode wrote no chart-repository index" >&2 && exit 1
+  [ -e "${tmp}/explicit-git/oci-ref.txt" ] && echo "❌ the explicit git mode wrote an OCI ref" >&2 && exit 1
+
+  if output="$(publishes PUBLISH_MODE=svn PUBLISH_DRY_RUN=true RELEASE_VERSION=v0.1.0 PUBLISH_OUTPUT_DIR="${tmp}/unknown")"; then
+    echo "❌ an unknown PUBLISH_MODE was accepted" >&2
+    exit 1
+  fi
+  grep -qF 'PUBLISH_MODE must be git or oci' <<<"${output}"
+
   if output="$(OCI_REGISTRY=ghcr.io OCI_REPOSITORY=AtomiCloud/diene.all PUBLISH_MODE=oci PUBLISH_DRY_RUN=true RELEASE_VERSION=v0.1.0 PUBLISH_OUTPUT_DIR="${tmp}/uppercase" bash ./scripts/ci/publish.sh 2>&1)"; then
     echo "❌ an uppercase OCI repository was accepted" >&2
     exit 1
