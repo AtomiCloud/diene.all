@@ -171,14 +171,10 @@ rendered-manifests)
     # Re-run one definition at a time: the aggregate summary stays green when a single
     # definition silently stops matching anything, so each one must report its own pass.
     for policy in "${vap_definitions}"/*.yaml; do
-      if ! policy_output="$(kyverno apply "${policy}" --resource "${tmp}/vap-${stack}.yaml" --detailed-results --remove-color 2>&1)"; then
-        echo "❌ '${policy}' rejected the ${stack} stack" >&2
-        printf '%s\n' "${policy_output}" >&2
+      if ! kyverno apply "${policy}" --resource "${tmp}/vap-${stack}.yaml" --detailed-results --remove-color --warn-no-pass --warn-exit-code 1; then
+        echo "❌ '${policy}' rejected or matched no ${stack} stack resource" >&2
         exit 1
       fi
-      policy_passes="$(awk -F '[:,]' '/^pass:/ { gsub(/ /, "", $2); print $2 }' <<<"${policy_output}")"
-      [ -z "${policy_passes}" ] && echo "❌ '${policy}' reported no detailed-results summary for the ${stack} stack" >&2 && exit 1
-      [ "${policy_passes}" -lt 1 ] && echo "❌ '${policy}' matched no ${stack} stack resource, so the pinned definition is unexercised" >&2 && exit 1
     done
     echo "🔐 Every pinned definition passed at least one ${stack} stack resource"
   done
