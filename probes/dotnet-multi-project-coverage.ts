@@ -1,4 +1,4 @@
-import { addSecondUnitProject, discoverDotnetProject } from './lib/dotnet.ts';
+import { addSecondUnitProject, discoverDotnetLayout, discoverDotnetProject } from './lib/dotnet.ts';
 import { expectGreen, expectRed } from './lib/helpers.ts';
 
 const REPORT = 'TestResults/unit/coverage/coverage.cobertura.xml';
@@ -12,9 +12,10 @@ export default {
       description: 'A registered Lib2 and UnitTest2 automatically join the merged unit ledger.',
       kind: 'baseline',
       async run(repo: any) {
+        const layout = await discoverDotnetLayout(repo);
         const original = await discoverDotnetProject(repo, 'Lib*/*.csproj');
-        const solution = await repo.read('dotnet-base.slnx');
-        const testConfig = await repo.read('.config/dotnet-base.test.yaml');
+        const solution = await repo.read(layout.solution);
+        const testConfig = await repo.read(layout.testConfig);
         try {
           await addSecondUnitProject(repo, false);
           await expectGreen(
@@ -37,8 +38,8 @@ export default {
             );
           }
         } finally {
-          await repo.write('dotnet-base.slnx', solution);
-          await repo.write('.config/dotnet-base.test.yaml', testConfig);
+          await repo.write(layout.solution, solution);
+          await repo.write(layout.testConfig, testConfig);
           await repo.exec('rm -rf Lib2 UnitTest2');
         }
       },

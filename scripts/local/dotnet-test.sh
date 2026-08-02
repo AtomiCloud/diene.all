@@ -4,7 +4,7 @@ set -euo pipefail
 kind="${1:-}"
 mode="${2:-normal}"
 
-[ "${kind}" != "unit" ] && [ "${kind}" != "int" ] && echo "❌ Usage: dotnet-test.sh <unit|int> [--watch|--coverage]" >&2 && exit 1
+[ "${kind}" != "unit" ] && [ "${kind}" != "int" ] && [ "${kind}" != "meta" ] && echo "❌ Usage: dotnet-test.sh <unit|int|meta> [--watch|--coverage]" >&2 && exit 1
 [ "${mode}" != "normal" ] && [ "${mode}" != "--watch" ] && [ "${mode}" != "--coverage" ] && echo "❌ Unknown mode '${mode}'" >&2 && exit 1
 
 root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
@@ -19,6 +19,7 @@ exclude="$(yq -er ".coverage.${kind}.exclude // [] | join(\"%2c\")" "${config}")
 results="${root}/TestResults/${kind}"
 coverage="${results}/coverage"
 
+[ "${#projects[@]}" -eq 0 ] && [ "${kind}" = "meta" ] && echo "ℹ️ meta tier dormant: no TestHelper project is registered" && exit 0
 [ "${#projects[@]}" -eq 0 ] && echo "❌ Missing .coverage.${kind}.projects entries in ${config}" >&2 && exit 1
 [ -z "${minimum}" ] && echo "❌ Missing .coverage.${kind}.minimum in ${config}" >&2 && exit 1
 [ -z "${include}" ] && echo "❌ Missing .coverage.${kind}.include in ${config}" >&2 && exit 1
@@ -111,9 +112,14 @@ while IFS=$'\t' read -r assembly line_rate; do
       echo "❌ unit coverage escaped its [Lib*]* ledger: ${assembly}" >&2
       exit 1
     }
-  else
+  elif [ "${kind}" = "int" ]; then
     [[ ${assembly} =~ ^App.*$ ]] || {
       echo "❌ int coverage escaped its [App*]* ledger: ${assembly}" >&2
+      exit 1
+    }
+  else
+    [[ ${assembly} =~ \.TestHelper$ ]] || {
+      echo "❌ meta coverage escaped its [*.TestHelper]* ledger: ${assembly}" >&2
       exit 1
     }
   fi

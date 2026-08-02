@@ -20,9 +20,11 @@ shared workspace, standards, Docker, Helm, secret, and release surfaces.
 | `pls run -- <args>`              | Run the App in development mode.                               |
 | `pls preview -- <args>`          | Build and run the compiled Release artifact.                   |
 | `pls up` / `pls down`            | Start or stop the local Redis dependency.                      |
-| `pls test`                       | Run unit and integration tiers.                                |
-| `pls test:unit` / `pls test:int` | Run one tier.                                                  |
-| `pls test:coverage`              | Enforce both merged coverage ledgers.                          |
+| `pls test`                       | Run unit, integration, and registered meta tiers.              |
+| `pls test:unit` / `pls test:int` | Run one application tier.                                      |
+| `pls test:meta`                  | Run TestHelper tests when registered; otherwise no-op.         |
+| `pls test:coverage`              | Enforce every registered merged coverage ledger.               |
+| `pls test:meta:coverage`         | Enforce TestHelper coverage when registered; otherwise no-op.  |
 | `pls test:watch`                 | Watch the fast unit tier.                                      |
 | `pls deadcode`                   | Emit the broad, non-blocking LLM review.                       |
 | `pls lint`                       | Run every generated pre-commit hook.                           |
@@ -48,9 +50,9 @@ and production dead-code project discovery follow the naming convention
 automatically. Codecov remains informational.
 
 The same config carries a dormant 100% meta ledger for `[*.TestHelper]*`
-assemblies. It is intentionally not exposed as a task or Codecov upload until a
-descendant opts into a TestHelper; that descendant registers its meta test project
-without redefining the inherited filter or threshold.
+assemblies. `pls test:meta` and `pls test:meta:coverage` are successful no-ops until
+a descendant registers a TestHelper test project; the task, runner whitelist,
+filter, threshold, and informational Codecov flag need no descendant surgery.
 
 ## Dead code and supply chain
 

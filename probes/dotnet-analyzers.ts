@@ -1,5 +1,5 @@
 import { expectGreen, expectRed } from './lib/helpers.ts';
-import { discoverDotnetProject } from './lib/dotnet.ts';
+import { discoverDotnetLayout, discoverDotnetProject } from './lib/dotnet.ts';
 
 export default {
   contractVersion: 1,
@@ -10,9 +10,10 @@ export default {
       description: 'Release compilation with analyzers and warnings-as-errors is green.',
       kind: 'baseline',
       async run(repo: any) {
+        const layout = await discoverDotnetLayout(repo);
         await expectGreen(
           repo,
-          'nix develop .#ci -c dotnet build dotnet-base.slnx -c Release',
+          `nix develop .#ci -c dotnet build ${layout.solution} -c Release`,
           'dotnet-analyzers',
           600000,
         );
@@ -36,6 +37,7 @@ export default {
         'dotnet-preview',
       ],
       async run(repo: any) {
+        const layout = await discoverDotnetLayout(repo);
         const library = await discoverDotnetProject(repo, 'Lib*/*.csproj');
         await repo.write(
           `${library.directory}/AnalyzerViolation.cs`,
@@ -43,7 +45,7 @@ export default {
         );
         await expectRed(
           repo,
-          'nix develop .#ci -c dotnet build dotnet-base.slnx -c Release',
+          `nix develop .#ci -c dotnet build ${layout.solution} -c Release`,
           'dotnet-analyzers',
           600000,
           'CS0029',
