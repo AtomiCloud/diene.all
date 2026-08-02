@@ -12,9 +12,7 @@ if compgen -G '*.slnx' >/dev/null; then
   dotnet restore >/dev/null
 fi
 
-# Same ordering rule for Go: skills-sync resolves diene skill modules out of the
-# Go module cache and refuses to publish a partial vendor tree, so the declared
-# modules are downloaded before it runs rather than after.
+# Populate the declared Go module cache before skills-sync so it cannot publish a partial vendor tree.
 if [ -f go.mod ]; then
   echo "🔧 Downloading declared Go modules before vendoring their skills..."
   go mod download

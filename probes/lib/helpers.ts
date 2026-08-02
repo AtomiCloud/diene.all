@@ -33,10 +33,7 @@ function shellArgument(value: string): string {
   return "'" + value.replaceAll("'", "'\\''") + "'";
 }
 
-// Restore only the caller's tracked targets to HEAD and drop its own fixtures.
-// Fixtures are made writable first: a probe that proves read-only package content
-// is vendored leaves read-only trees behind, and both `git clean` and a later
-// `rm -rf` fail on those unless the permission is restored.
+// Make owned targets writable before restoring them because vendoring probes can leave read-only fixture trees.
 export async function restoreProbeState(repo: any, cleanTargets: readonly string[]): Promise<void> {
   if (cleanTargets.length === 0) {
     throw new Error('probe cleanup requires at least one owned target');
@@ -60,9 +57,7 @@ export async function restoreProbeState(repo: any, cleanTargets: readonly string
   }
 }
 
-// Run `body` between two restores: the leading one so a previous probe's residue
-// cannot decide this outcome, the trailing one so a failure still hands the next
-// probe a clean sandbox.
+// Restore before and after the body so neither prior residue nor this body's failure contaminates another row.
 export async function withCleanProbeState(
   repo: any,
   cleanTargets: readonly string[],

@@ -2,7 +2,9 @@
 set -euo pipefail
 
 container="diene-go-base-journey-$$"
-trap 'docker rm -f "${container}" >/dev/null 2>&1 || true' EXIT
+status=0
+cleanup_status=0
+trap 'status=$?; cleanup_status=0; docker rm -f "${container}" >/dev/null 2>&1 || cleanup_status=$?; [ "${status}" -ne 0 ] && exit "${status}"; [ "${cleanup_status}" -ne 0 ] && echo "❌ could not remove sample journey container" >&2 && exit "${cleanup_status}"; true' EXIT
 
 source_result="$(pls run -- slug "Sample Journey" | tail -n 1)"
 [ "${source_result}" != "sample-journey" ] && echo "❌ source task returned '${source_result}'" >&2 && exit 1

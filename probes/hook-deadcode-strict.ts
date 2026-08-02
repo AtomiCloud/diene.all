@@ -5,8 +5,7 @@ import { plantProductionOnlySymbol } from './lib/go.ts';
 const gate = 'nix develop .#ci -c pre-commit run a-deadcode --all-files';
 const gateTimeoutMs = 600000;
 
-// A test-only symbol clears the two staticcheck components and the whole-repository deadcode component, so the
-// hook can only redden on its last strict component — which proves the hook ran the whole sequence.
+// A test-only symbol clears the first three strict components so only the hook's final production deadcode pass can red.
 const productionOnlyFinding = /"Name": "ProbeProductionOnly",[\s\S]*?"File": "[^"]*probe_production_only\.go"/;
 
 export default {

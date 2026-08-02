@@ -3,9 +3,7 @@ set -euo pipefail
 
 container="diene-go-base-redis"
 
-# Absence of this exact container is the only tolerated no-op. A listing that
-# fails because the daemon is unreachable or the socket is forbidden must not be
-# read as "already stopped", so both the listing and the removal propagate.
+# Treat only absence of the exact container as a no-op so Docker daemon and permission failures propagate.
 existing="$(docker ps --all --quiet --filter "name=^/${container}$")"
 [ -z "${existing}" ] && echo "✅ Local dependencies already stopped" && exit 0
 

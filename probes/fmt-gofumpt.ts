@@ -3,9 +3,7 @@ import { unformatGo } from './lib/go.ts';
 
 const gate = 'nix fmt --no-write-lock-file -- --ci --formatters gofumpt';
 
-// treefmt names the offending file as "file has changed path=<path>", a bare
-// gofumpt run says "would reformat <path>", and older summaries put the verb
-// after the path; the red must name a Go path in one of those shapes.
+// Accept treefmt's path-after-verb diagnostic, gofumpt's reformat diagnostic, and the older path-before-verb shape.
 const goFormatting = /(file has changed path=|would reformat )\S+[.]go|[.]go.*(formatted|changed)/i;
 
 export default {
@@ -24,10 +22,6 @@ export default {
       name: 'mutation-fmt-gofumpt-caught',
       description: 'An unformatted Go declaration must turn the direct formatter red.',
       kind: 'mutation',
-      // The violation is an in-place rewrite of a tracked lib source, and it is
-      // reverted to HEAD the moment this row's own assertion has run, so every
-      // other row still meets a clean tree: this mutation has no collateral.
-      expectedImpact: [],
       async run(repo: any) {
         const mutated = await unformatGo(repo);
         try {

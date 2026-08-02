@@ -11,6 +11,21 @@ workflows=(.github/workflows/⚡reusable-go-*.yaml)
 shopt -u nullglob
 [ "${#workflows[@]}" -eq 0 ] && echo "❌ no '⚡reusable-go-*.yaml' workflow exists under '.github/workflows'" >&2 && exit 1
 
+# Pin every blocking Go lane to its reusable workflow and test mode so deleting or rerouting a CI job fails closed.
+while IFS=$'\t' read -r job reusable mode; do
+  mapping_status=0
+  mapping="$(job="${job}" yq -r '[.jobs[strenv(job)].uses // "-", .jobs[strenv(job)].with.mode // "-"] | @tsv' .github/workflows/ci.yaml 2>&1)" || mapping_status=$?
+  [ "${mapping_status}" -ne 0 ] && echo "❌ could not parse required Go CI job '${job}': ${mapping}" >&2 && exit 1
+  [ "${mapping}" != "${reusable}"$'\t'"${mode}" ] && echo "❌ required Go CI job '${job}' maps to '${mapping}', expected '${reusable}"$'\t'"${mode}'" >&2 && exit 1
+done <<'JOBS'
+typecheck	./.github/workflows/⚡reusable-go-typecheck.yaml	-
+unit	./.github/workflows/⚡reusable-go-test.yaml	unit
+integration	./.github/workflows/⚡reusable-go-test.yaml	int
+go-build	./.github/workflows/⚡reusable-go-build.yaml	-
+deadcode	./.github/workflows/⚡reusable-go-deadcode.yaml	-
+vulnerability	./.github/workflows/⚡reusable-go-vuln.yaml	-
+JOBS
+
 for workflow in "${workflows[@]}"; do
   # Read through the YAML parser: a Go workflow the parser cannot read is unverifiable, not compliant.
   jobs_status=0

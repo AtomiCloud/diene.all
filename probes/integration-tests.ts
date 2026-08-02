@@ -19,11 +19,6 @@ export default {
       name: 'mutation-integration-tests-caught',
       description: 'Breaking an adapter write must turn the integration tier red.',
       kind: 'mutation',
-      // The write lands under a different key, so the read-back misses entirely
-      // and the tier fails on the Load error rather than on a value mismatch.
-      // The adapter is tracked and reverted to HEAD once this row's assertion has
-      // run, so every other row still meets a clean tree: no collateral.
-      expectedImpact: [],
       async run(repo: any) {
         const mutated = await breakAdapter(repo);
         try {

@@ -1,14 +1,12 @@
 import { expectGreen } from './lib/helpers.ts';
 
-// `reports/` is both git-ignored and docker-ignored, so the exported archive never
-// re-enters the build context and never shows up as sandbox state.
+// Export under the git-ignored and docker-ignored reports tree so the archive never enters the build context.
 const artifacts = 'reports/docker-oci';
 const archive = `${artifacts}/diene-go-base.oci.tar`;
 const platforms = 'linux/arm64,linux/amd64';
 const published = ['amd64', 'arm64'];
 
-// The leading removal is what makes the assertion mean something: a stale archive from an
-// earlier run must never be the thing skopeo reads.
+// Remove stale output before building so skopeo can only inspect this run's archive.
 const build = [
   `rm -rf ${artifacts}`,
   `mkdir -p ${artifacts}`,
@@ -33,8 +31,7 @@ export default {
           if (inspected.exitCode !== 0) {
             throw new Error(`docker-build left no readable OCI index: ${inspected.stderr || inspected.stdout}`);
           }
-          // A single-architecture export carries no `manifests` list at all, so treat that as zero architectures
-          // rather than letting it crash on a property read.
+          // Treat an absent manifests list as zero architectures so a single-architecture export fails clearly.
           const architectures = (JSON.parse(inspected.stdout).manifests ?? []).map(
             (entry: any) => entry.platform?.architecture,
           );
