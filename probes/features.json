@@ -295,7 +295,7 @@
     "class": "presence"
   },
   {
-    "template": "diene/dotnet-base",
+    "template": "diene/workspace",
     "name": "hook-releaser-commit",
     "class": "gate"
   }

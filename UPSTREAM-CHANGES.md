@@ -335,6 +335,13 @@ specialization: dotnet-base requires a deliberately empty stub chart with only
 `templates/.gitkeep`. It is not an upstream deletion request and must not be propagated
 back into the shared parent.
 
+The releaser and generic probe hardening deliberately lead on this node because they are
+explicit dotnet-base replay/currency deliverables, while the accepted shared parent is a
+completed, immutable epoch-1 input and its separate epoch-2 review patch is already
+queued. This node must not reopen or mutate that parent under its dotnet-base lease.
+Propagation to shared and siblings therefore belongs to the shared epoch-2/cascade
+owner; this replay records the debt and remains based exactly on the accepted parent.
+
 ## Open items deliberately not recorded
 
 - The point-at-truth rule's documentation home is **pending the user's ruling**. The rule

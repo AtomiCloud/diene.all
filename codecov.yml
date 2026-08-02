@@ -21,6 +21,10 @@ flags:
     paths:
       - App*/
     carryforward: true
+  meta:
+    paths:
+      - TestHelper*/
+    carryforward: true
 
 comment:
   layout: 'reach, diff, flags, files'

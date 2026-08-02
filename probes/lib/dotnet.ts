@@ -2,6 +2,15 @@ import { expectGreen } from './helpers.ts';
 
 export type DotnetProject = { path: string; directory: string; rootNamespace: string; assemblyName: string };
 
+export async function discoverDotnetLayout(repo: any): Promise<{ solution: string; testConfig: string }> {
+  const solutions = (await repo.glob('*.slnx')).sort();
+  const testConfigs = (await repo.glob('.config/*.test.yaml')).sort();
+  if (solutions.length !== 1 || testConfigs.length !== 1) {
+    throw new Error(`expected one solution and one test config, found ${solutions.length} and ${testConfigs.length}`);
+  }
+  return { solution: solutions[0], testConfig: testConfigs[0] };
+}
+
 export async function discoverDotnetProject(repo: any, glob: string): Promise<DotnetProject> {
   const paths = (await repo.glob(glob)).sort();
   if (paths.length === 0) {
@@ -50,6 +59,7 @@ export async function runWithRedis(repo: any, name: string, command: string): Pr
 }
 
 export async function addSecondUnitProject(repo: any, uncovered: boolean): Promise<void> {
+  const layout = await discoverDotnetLayout(repo);
   await repo.write(
     'Lib2/Lib2.csproj',
     `<Project Sdk="Microsoft.NET.Sdk">\n  <PropertyGroup>\n    <RootNamespace>AtomiCloud.DotnetBase.Lib2</RootNamespace>\n  </PropertyGroup>\n</Project>\n`,
@@ -68,15 +78,15 @@ export async function addSecondUnitProject(repo: any, uncovered: boolean): Promi
     'UnitTest2/Calculator_Add.cs',
     `using AtomiCloud.DotnetBase.Lib2;\nusing FluentAssertions;\n\nnamespace AtomiCloud.DotnetBase.UnitTest2;\n\npublic class Calculator_Add\n{\n    [Fact]\n    public void It_should_add_two_numbers()\n    {\n        // Arrange\n        var subject = new Calculator();\n\n        // Act\n        var actual = subject.Add(2, 3);\n\n        // Assert\n        actual.Should().Be(5);\n    }\n}\n`,
   );
-  await repo.patch('dotnet-base.slnx', {
+  await repo.patch(layout.solution, {
     find: '  <Project Path="Lib/Lib.csproj" />',
     replace: '  <Project Path="Lib/Lib.csproj" />\n  <Project Path="Lib2/Lib2.csproj" />',
   });
-  await repo.patch('dotnet-base.slnx', {
+  await repo.patch(layout.solution, {
     find: '  <Project Path="UnitTest/UnitTest.csproj" />',
     replace: '  <Project Path="UnitTest/UnitTest.csproj" />\n  <Project Path="UnitTest2/UnitTest2.csproj" />',
   });
-  await repo.patch('.config/dotnet-base.test.yaml', {
+  await repo.patch(layout.testConfig, {
     find: '      - UnitTest/UnitTest.csproj',
     replace: '      - UnitTest/UnitTest.csproj\n      - UnitTest2/UnitTest2.csproj',
   });
