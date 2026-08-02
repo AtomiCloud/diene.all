@@ -1,5 +1,10 @@
 import { defineGate } from './lib/definition.ts';
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRed, withCleanProbeState } from './lib/helpers.ts';
+
+// The committed landscape overlay. The base lint never reads it, so a break
+// planted here only turns lint red while the overlay is genuinely stacked on.
+const OVERLAY = 'chart/values.example.yaml';
+const COMMAND = 'nix develop .#ci -c ./scripts/validate/helm-wrapper.sh lint';
 
 export default defineGate({
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
@@ -7,22 +12,23 @@ export default defineGate({
     name: 'baseline-wrapper-helm-lint-green',
     description: 'Every committed wrapper values stack passes Helm lint.',
     async run(repo: any) {
-      await expectGreen(repo, 'nix develop .#ci -c ./scripts/validate/helm-wrapper.sh lint', 'wrapper-helm-lint');
+      await expectGreen(repo, COMMAND, 'wrapper-helm-lint');
     },
   },
   mutation: {
     name: 'mutation-wrapper-helm-lint-caught',
-    description: 'Invalid chart metadata turns wrapper Helm lint red.',
+    description: 'An invalid pull policy in the committed landscape overlay turns wrapper Helm lint red.',
     expectedImpact: [],
     async run(repo: any) {
-      const path = 'chart/Chart.yaml';
-      const original = await repo.read(path);
-      try {
-        await repo.patch(path, { find: 'apiVersion: v2', replace: 'apiVersion: invalid' });
-        await expectRed(repo, 'nix develop .#ci -c ./scripts/validate/helm-wrapper.sh lint', 'wrapper-helm-lint');
-      } finally {
-        await repo.write(path, original);
-      }
+      // Breaking a stacked overlay rather than the chart's own apiVersion keeps the
+      // mutation inside the surface the gate exists to defend: lint must reject bad
+      // values arriving through the overlays, not merely malformed chart metadata
+      // that would fail every Helm command alike.
+      await withCleanProbeState(repo, [OVERLAY], async () => {
+        const original = await repo.read(OVERLAY);
+        await repo.write(OVERLAY, `${original}\nworkload:\n  image:\n    pullPolicy: Sometimes\n`);
+        await expectRed(repo, COMMAND, 'wrapper-helm-lint');
+      });
     },
   },
 });

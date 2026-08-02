@@ -20,6 +20,30 @@ const PREVIEW_ZONE = 'kube.entei.dev.atomi.cloud';
 
 const PREVIEW = ['--set instance.preview.enabled=true', `--set-string contracts.lpsm.instanceZone=${PREVIEW_ZONE}`];
 
+// The same five-slot dotted coordinate in the other two canonical zones: the ABSOL
+// localhost zone a developer resolves locally, and the Boron/lapras canonical
+// admin zone. Each moves a different slot as well as the zone, so a derivation
+// that quietly reads a slot off the service tree instead of the LPSM contract
+// cannot survive them the way it survives the committed defaults.
+const LOCALHOST_ZONE = 'localhost';
+const ADMIN_ZONE = 'admin.atomi.cloud';
+const ABSOL = [
+  '--set-string contracts.lpsm.landscape=absol',
+  '--set-string contracts.lpsm.instance=run42',
+  `--set-string contracts.lpsm.instanceZone=${LOCALHOST_ZONE}`,
+];
+const LAPRAS = [
+  '--set-string contracts.lpsm.service=lithium',
+  '--set-string contracts.lpsm.instance=kirin',
+  '--set-string contracts.lpsm.landscape=lapras',
+  `--set-string contracts.lpsm.instanceZone=${ADMIN_ZONE}`,
+];
+
+// The platform slot is the release namespace, never a values file. The refusal
+// below proves the negative half; this proves the positive one by moving the
+// namespace and the declared platform together and watching the slot follow.
+const OTHER_NAMESPACE = 'otherplatform';
+
 // A mint that had to disambiguate: the same base petname was already held live by
 // an allocation with a DIFFERENT full digest.
 const COLLIDED = [
@@ -33,7 +57,7 @@ const pin = (key: string, value: string) => `--set-string 'instance.preview.mani
 const resolution = (key: string, field: string, value: string) =>
   `--set-string 'instance.preview.manifest.branchResolutions.${key}.${field}=${value}'`;
 
-type Accepts = { name: string; flags: string[]; key: string; expected: string };
+type Accepts = { name: string; flags: string[]; key: string; expected: string; namespace?: string };
 type Refuses = { name: string; flags: string[]; because: string[] };
 type Stable = { name: string; key: string; left: string[]; right: string[] };
 
@@ -91,6 +115,37 @@ const ACCEPTS: Accepts[] = [
     flags: COLLIDED,
     key: 'preview.hostname',
     expected: `api.wrapper.sample.${SUFFIXED}.castform.${PREVIEW_ZONE}`,
+  },
+  {
+    name: 'absol-localhost-coordinate',
+    flags: ABSOL,
+    key: 'lpsm.instanceHostname',
+    expected: `api.wrapper.sample.run42.absol.${LOCALHOST_ZONE}`,
+  },
+  {
+    name: 'absol-localhost-parses-back',
+    flags: ABSOL,
+    key: 'lpsm.parsed',
+    expected: '{"instance":"run42","landscape":"absol","module":"api","platform":"sample","service":"wrapper"}',
+  },
+  {
+    name: 'boron-lapras-canonical-coordinate',
+    flags: LAPRAS,
+    key: 'lpsm.instanceHostname',
+    expected: `api.lithium.sample.kirin.lapras.${ADMIN_ZONE}`,
+  },
+  {
+    name: 'boron-lapras-parses-back',
+    flags: LAPRAS,
+    key: 'lpsm.parsed',
+    expected: '{"instance":"kirin","landscape":"lapras","module":"api","platform":"sample","service":"lithium"}',
+  },
+  {
+    name: 'platform-slot-follows-the-release-namespace',
+    flags: [`--set-string serviceTree.platform=${OTHER_NAMESPACE}`],
+    namespace: OTHER_NAMESPACE,
+    key: 'lpsm.ordinaryHostname',
+    expected: `api.wrapper.${OTHER_NAMESPACE}.example.cluster.atomi.cloud`,
   },
 ];
 
@@ -228,13 +283,16 @@ const STABLE: Stable[] = [
   },
 ];
 
-function renderCommand(flags: string[]): string {
-  return ['helm template helm-wrapper chart --namespace sample --values chart/values.example.yaml', ...flags].join(' ');
+function renderCommand(flags: string[], namespace = 'sample'): string {
+  return [
+    `helm template helm-wrapper chart --namespace ${namespace} --values chart/values.example.yaml`,
+    ...flags,
+  ].join(' ');
 }
 
-function readCommand(flags: string[], key: string): string {
+function readCommand(flags: string[], key: string, namespace?: string): string {
   const selector = `select(.kind == "ConfigMap" and .metadata.name == "wrapper-contracts") | .data."${key}"`;
-  return `${renderCommand(flags)} | yq -r '${selector}'`;
+  return `${renderCommand(flags, namespace)} | yq -r '${selector}'`;
 }
 
 function vectorScript(): string {
@@ -250,7 +308,7 @@ function vectorScript(): string {
   for (const vector of ACCEPTS) {
     lines.push(
       `want=${shellQuote(vector.expected)}`,
-      `got="$(${readCommand(vector.flags, vector.key)} 2>&1)"`,
+      `got="$(${readCommand(vector.flags, vector.key, vector.namespace)} 2>&1)"`,
       'if [ "$got" != "$want" ]; then',
       `  printf '%s\\n' "❌ ${vector.name}: expected $want" >&2`,
       `  printf '%s\\n' "   got: $got" >&2`,
@@ -306,7 +364,7 @@ export default defineSmoke({
   baseline: {
     name: 'baseline-wrapper-lpsm-hostnames-green',
     description:
-      'Ordinary and optional-instance dotted derivation, namespace-sourced platform, separate-instance parsing, dash-fused rejection, and the preview boundary that accepts only verified assembler output.',
+      'Ordinary and optional-instance dotted derivation across the ENTEI dev, ABSOL localhost, and Boron/lapras canonical zones, namespace-sourced platform, separate-instance parsing, dash-fused rejection, and the preview boundary that accepts only verified assembler output.',
     async run(repo: any) {
       await withCleanProbeState(repo, [SCRIPT_PATH], async () => {
         await repo.write(SCRIPT_PATH, vectorScript());

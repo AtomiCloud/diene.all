@@ -54,16 +54,89 @@ config-vendoring)
   yq eval-all -o=json '.' "${tmp}/config.yaml" | jq -s -e 'map(select(.kind == "ConfigMap" and .metadata.name == "wrapper-config"))[0].data | has("application.yaml") and has("application.example.yaml")' >/dev/null
   ;;
 labels)
-  helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml --values chart/values.lapras.yaml >"${tmp}/rendered.yaml"
-  yq eval-all -o=json '.' "${tmp}/rendered.yaml" | jq -s -e 'map(select(.kind != null)) | length > 0 and all(.[]; .metadata.labels["atomi.cloud/platform"] == "sample" and .metadata.labels["atomi.cloud/service"] == "wrapper" and .metadata.labels["atomi.cloud/module"] == "api" and .metadata.labels["atomi.cloud/layer"] == "2" and .metadata.labels["atomi.cloud/landscape"] == "example" and .metadata.labels["atomi.cloud/cluster"] == "lapras" and .metadata.annotations["atomi.cloud/platform"] == "sample")' >/dev/null
-  helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml --values chart/values.lapras.yaml --set labelPrefix=example.dev >"${tmp}/override.yaml"
-  yq eval-all -o=json '.' "${tmp}/override.yaml" | jq -s -e 'map(select(.kind != null)) | length > 0 and all(.[]; .metadata.labels["example.dev/platform"] == "sample" and .metadata.annotations["example.dev/service"] == "wrapper" and .metadata.labels["atomi.cloud/platform"] == null and .metadata.annotations["atomi.cloud/service"] == null)' >/dev/null
+  # Every object each stack owns, keyed by kind/name. Naming them is what keeps the
+  # projection assertion non-vacuous: an object that stops rendering, or is renamed,
+  # is reported as missing instead of quietly shrinking coverage to whatever
+  # survived. The landscape overlay alone renders thirteen CR-bearing objects; the
+  # cluster overlay disables the custom resources and leaves six.
+  example_objects='["ConfigMap/wrapper-config","ConfigMap/wrapper-contracts","Service/wrapper-gateway","Service/wrapper-api","Deployment/wrapper-api","CloudflareDeploy/wrapper-edge","ExternalSecret/wrapper-secrets","HTTPRoute/wrapper-webhooks","LogtoApp/wrapper-identityexample","PlatformDependency/wrapper-dependencies","Problem/wrapper-problems","VirtualLandscapeService/wrapper-vls","Job/wrapper-migration"]'
+  lapras_objects='["ConfigMap/wrapper-config","ConfigMap/wrapper-contracts","Service/wrapper-gateway","Service/wrapper-api","Deployment/wrapper-api","Job/wrapper-migration"]'
+  # The cluster slot is contributed by the cluster overlay only, so the landscape
+  # stack must not be asked for it and the stacked one must be.
+  example_projection='{"platform":"sample","service":"wrapper","layer":"2","landscape":"example"}'
+  lapras_projection='{"platform":"sample","service":"wrapper","layer":"2","landscape":"example","cluster":"lapras"}'
+
+  # Assert the service-tree projection per rendered object, in both the labels and
+  # the annotations, under the prefix in force. The module slot is resolved per
+  # resource rather than once for the stack, because the stack is not one module:
+  # the pinned upstream dependency renders wrapper-upstream* objects whose module is
+  # "upstream" while every wrapper-owned object stays "api". A wrapper-owned object
+  # must carry the whole projection; an upstream object is checked against the same
+  # per-slot truth for whatever prefixed keys it does carry, since how much of the
+  # projection reaches a third-party subchart is that dependency's interface, not
+  # this gate's. Anything that is neither is reported, so a new wrapper resource
+  # cannot slip out of coverage by simply not being on the list.
+  carries_projection() {
+    local description="$1" file="$2" prefix="$3" forbidden="$4" objects="$5" projection="$6"
+    local offenders
+    offenders="$(yq eval-all -o=json '.' "${file}" | jq -s -r \
+      --arg prefix "${prefix}" --arg forbidden "${forbidden}" \
+      --argjson objects "${objects}" --argjson projection "${projection}" '
+        def slot($key): "\($prefix)/\($key)";
+        def stale($id; $keys): select($forbidden != "")
+          | $keys[] | select(startswith("\($forbidden)/")) | "\($id): stale key \(.)";
+        map(select(.kind != null)) as $rendered
+        | ($rendered | map("\(.kind)/\(.metadata.name)")) as $ids
+        | [ (if ($rendered | length) == 0 then "no object rendered" else empty end)
+          , (($objects - $ids)[] | "missing object \(.)")
+          , ( $rendered[]
+              | "\(.kind)/\(.metadata.name)" as $id
+              | (.metadata.labels // {}) as $labels
+              | (.metadata.annotations // {}) as $annotations
+              | (($labels | keys) + ($annotations | keys)) as $keys
+              | if ($objects | index($id)) then
+                  ( ( ($projection + {module: "api"}) | to_entries[]
+                      | select($labels[slot(.key)] != .value or $annotations[slot(.key)] != .value)
+                      | "\($id): \(slot(.key)) label=\($labels[slot(.key)] // "absent") annotation=\($annotations[slot(.key)] // "absent") want=\(.value)" )
+                  , stale($id; $keys) )
+                elif (.metadata.name | startswith("wrapper-upstream")) then
+                  ( select($keys | any(startswith("\($prefix)/")))
+                    | ( ( ($projection + {module: "upstream"}) | to_entries[]
+                          | select(($labels[slot(.key)] // .value) != .value or ($annotations[slot(.key)] // .value) != .value)
+                          | "\($id): \(slot(.key)) label=\($labels[slot(.key)] // "absent") annotation=\($annotations[slot(.key)] // "absent") want=\(.value)" )
+                      , stale($id; $keys) ) )
+                else
+                  "\($id): neither a wrapper-owned object nor a wrapper-upstream dependency object"
+                end ) ] | .[]')"
+    if [ -n "${offenders}" ]; then
+      echo "❌ ${description}" >&2
+      printf '%s\n' "${offenders}" >&2
+      exit 1
+    fi
+  }
+
+  helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml >"${tmp}/example.yaml"
+  helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml --values chart/values.lapras.yaml >"${tmp}/lapras.yaml"
+  helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml --set labelPrefix=example.dev >"${tmp}/example-override.yaml"
+  helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml --values chart/values.lapras.yaml --set labelPrefix=example.dev >"${tmp}/lapras-override.yaml"
+
+  carries_projection "the example stack projection" "${tmp}/example.yaml" atomi.cloud '' "${example_objects}" "${example_projection}"
+  carries_projection "the example+lapras stack projection" "${tmp}/lapras.yaml" atomi.cloud '' "${lapras_objects}" "${lapras_projection}"
+  # The override runs re-assert the same per-object truth under the new prefix and
+  # additionally require that no key under the default prefix survives, so an
+  # override that merely adds keys cannot pass.
+  carries_projection "the example stack prefix override" "${tmp}/example-override.yaml" example.dev atomi.cloud "${example_objects}" "${example_projection}"
+  carries_projection "the example+lapras stack prefix override" "${tmp}/lapras-override.yaml" example.dev atomi.cloud "${lapras_objects}" "${lapras_projection}"
   ;;
 reloader)
   helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml >"${tmp}/default.yaml"
   yq eval-all -o=json '.' "${tmp}/default.yaml" | jq -s -e 'map(select(.kind == "Deployment" or .kind == "StatefulSet" or .kind == "DaemonSet" or .kind == "Job")) | length > 0 and all(.[]; .metadata.annotations["reloader.stakater.com/auto"] == "true")' >/dev/null
   helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml --set workload.reloader.enabled=false >"${tmp}/optout.yaml"
-  yq eval-all -o=json '.' "${tmp}/optout.yaml" | jq -s -e 'map(select(.kind == "Deployment"))[0].metadata.annotations["reloader.stakater.com/auto"] == null' >/dev/null
+  # The opt-out is scoped to the wrapper workload, so name it: the pinned upstream
+  # dependency renders a second Deployment and a positional pick would now read
+  # that one instead. Every other workload must still carry the annotation, or an
+  # opt-out that switched reloader off everywhere would read as a pass.
+  yq eval-all -o=json '.' "${tmp}/optout.yaml" | jq -s -e 'map(select(.kind == "Deployment" or .kind == "StatefulSet" or .kind == "DaemonSet" or .kind == "Job")) as $workloads | ($workloads | map(select(.kind == "Deployment" and .metadata.name == "wrapper-api")) | length == 1 and .[0].metadata.annotations["reloader.stakater.com/auto"] == null) and ($workloads | map(select(.metadata.name != "wrapper-api")) | length > 0 and all(.[]; .metadata.annotations["reloader.stakater.com/auto"] == "true"))' >/dev/null
   ;;
 secret)
   helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml --set secret.enabled=true >"${tmp}/secret.yaml"
@@ -76,7 +149,11 @@ fullname)
   yq eval-all -o=json '.' "${tmp}/names.yaml" | jq -s -e 'map(select(.kind != null) | .metadata.name) | length > 0 and all(.[]; test("^[a-z0-9]+-[a-z0-9]+$"))' >/dev/null
   yq -e '.upstream.fullnameOverride | test("^[a-z0-9]+-[a-z0-9]+$")' chart/values.yaml >/dev/null
   helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml --set serviceTree.module=maincache --set fullnameOverride=wrapper-maincache >"${tmp}/maincache.yaml"
-  yq eval-all -o=json '.' "${tmp}/maincache.yaml" | jq -s -e 'map(select(.kind == "Deployment")) | length == 1 and .[0].metadata.name == "wrapper-maincache" and .[0].metadata.labels["atomi.cloud/module"] == "maincache"' >/dev/null
+  # Select the renamed workload by name. The pinned upstream dependency renders a
+  # second Deployment of its own, so a positional pick would assert against
+  # whichever Deployment happened to sort first; the old wrapper name must also be
+  # gone, or a rename that only added an object would still pass.
+  yq eval-all -o=json '.' "${tmp}/maincache.yaml" | jq -s -e 'map(select(.kind == "Deployment")) as $deployments | ($deployments | map(select(.metadata.name == "wrapper-maincache")) | length == 1 and .[0].metadata.labels["atomi.cloud/module"] == "maincache") and ($deployments | any(.metadata.name == "wrapper-api") | not)' >/dev/null
   refuses "a module/fullname mismatch" 'fullnameOverride must be "wrapper-maincache"' --set serviceTree.module=maincache
   ;;
 primordial)
@@ -104,6 +181,42 @@ lpsm)
   jq -e '.landscape == "example" and .platform == "sample" and .service == "wrapper" and .module == "api" and .instance == "run001"' <<<"${parsed}" >/dev/null
   [ "${original}" != "${expected_original}" ] && echo "❌ recorded instance original does not equal the supplied value" >&2 && exit 1
   [ "${label}" != "${expected_original}" ] && echo "❌ recorded instance label does not equal the authorized minter value" >&2 && exit 1
+
+  # Accepted coordinates outside the ENTEI dev zone. Each proves the same five-slot
+  # dotted derivation and its parse round-trip in a different canonical zone, with
+  # the platform slot still taken from the release namespace rather than a values
+  # file — the refusal below proves the negative half of that same rule.
+  accepts_coordinate() {
+    local description="$1" expected_hostname="$2" expected_parse="$3"
+    shift 3
+    local hostname parse
+    helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml "$@" >"${tmp}/accepted.yaml"
+    hostname="$(yq -r "${contracts} | .data.\"lpsm.instanceHostname\"" "${tmp}/accepted.yaml")"
+    parse="$(yq -r "${contracts} | .data.\"lpsm.parsed\"" "${tmp}/accepted.yaml")"
+    if [ "${hostname}" != "${expected_hostname}" ]; then
+      echo "❌ ${description}: expected '${expected_hostname}', got '${hostname}'" >&2
+      exit 1
+    fi
+    if [ "${parse}" != "${expected_parse}" ]; then
+      echo "❌ ${description}: parse round-trip returned '${parse}'" >&2
+      exit 1
+    fi
+  }
+
+  accepts_coordinate "the ABSOL localhost coordinate" \
+    api.wrapper.sample.run42.absol.localhost \
+    '{"instance":"run42","landscape":"absol","module":"api","platform":"sample","service":"wrapper"}' \
+    --set-string contracts.lpsm.landscape=absol \
+    --set-string contracts.lpsm.instance=run42 \
+    --set-string contracts.lpsm.instanceZone=localhost
+
+  accepts_coordinate "the Boron lapras coordinate" \
+    api.lithium.sample.kirin.lapras.admin.atomi.cloud \
+    '{"instance":"kirin","landscape":"lapras","module":"api","platform":"sample","service":"lithium"}' \
+    --set-string contracts.lpsm.service=lithium \
+    --set-string contracts.lpsm.instance=kirin \
+    --set-string contracts.lpsm.landscape=lapras \
+    --set-string contracts.lpsm.instanceZone=admin.atomi.cloud
 
   helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml \
     --set instance.preview.enabled=true --set-string "contracts.lpsm.instanceZone=${zone}" >"${tmp}/preview.yaml"
