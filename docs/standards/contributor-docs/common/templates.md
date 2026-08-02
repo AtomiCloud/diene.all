@@ -124,7 +124,6 @@ flowchart TD
     A[Input] --> B[Step]
     B --> C[Output]
 ```
-````
 
 ## Why This Way
 
@@ -148,10 +147,10 @@ Performance characteristics, complexity costs.
 ## Related
 
 - Links to related concepts, algorithms
-
 ````
 
 **Rules:**
+
 - `## Why This Way` is the most important section. It must document rejected alternatives and roadblocks -- not just "how it works."
 - `## Approach` uses a Mermaid diagram. No step-by-step pseudocode. Minimal code.
 - Code snippets (if any) should be short (<15 lines) and illustrate a key insight, not the full implementation.
@@ -160,7 +159,7 @@ Performance characteristics, complexity costs.
 
 ## Surface Template
 
-```mdx
+````mdx
 ---
 (frontmatter)
 ---
@@ -170,11 +169,13 @@ One-line summary.
 ## Endpoint
 
 For API:
+
 - **Method**: `GET`
 - **Path**: `/v1/users/:id`
 - **Auth**: Bearer token
 
 For CLI:
+
 - **Command**: `app cache clear`
 - **Flags**: `--force`, `--dry-run`
 
@@ -185,10 +186,10 @@ Use typed code blocks.
 
 ```typescript
 interface RequestBody {
-  name: string
-  email: string
+  name: string;
+  email: string;
 }
-````
+```
 
 ## Response
 
@@ -212,10 +213,10 @@ Response schema, status codes.
 ## Related
 
 - Links to related surfaces, features
-
 ````
 
 **Rules:**
+
 - One file per endpoint/command. Never combine multiple endpoints.
 - Request and response schemas use typed code blocks (TypeScript interfaces, JSON examples).
 - All possible error responses are documented in a table.
@@ -252,7 +253,7 @@ What was chosen and the reasoning.
 ## Consequences
 
 What changes as a result. Impact on existing code/patterns.
-````
+```
 
 **Rules:**
 
@@ -295,16 +296,14 @@ graph LR
 ```
 ````
 
-````
-
 ---
 
 ## Index File Template
 
 ```mdx
 ---
-title: "Module X -- Features"
-description: "Feature map for Module X"
+title: 'Module X -- Features'
+description: 'Feature map for Module X'
 ---
 
 ## Overview
@@ -321,10 +320,186 @@ How features in this module are organized/grouped.
 ### Group B
 
 - [Feature 3](./feature-3.mdx) -- one-line description
-````
+```
 
 **Rules:**
 
 - Every file in the directory must appear in the index. No orphans.
 - Group items logically (by sub-domain, by lifecycle, by user-facing vs internal).
 - Each list item has a one-line description after the link.
+
+---
+
+## Top-Level Templates
+
+Top-level plan types are not a generic bucket. Each type below has one body shape, and
+all use the minimal top-level frontmatter from
+`docs/standards/contributor-docs/frontmatter.md`.
+
+### Project Overview (`top-level-overview`)
+
+```mdx
+---
+title: 'Project Name'
+description: 'What this project is and who it serves'
+---
+
+One-paragraph project orientation.
+
+## Purpose
+
+The problem this project solves and its boundary.
+
+## Technology
+
+The runtime, primary frameworks, and external systems.
+
+## Modules
+
+- [Module](./module/overview.mdx) -- one-line responsibility.
+
+## Start Here
+
+Links to architecture and development guidance.
+```
+
+### Architecture Overview (`top-level-architecture`)
+
+````mdx
+---
+title: 'Architecture'
+description: 'System boundaries, components, and deployment topology'
+---
+
+## System Context
+
+```mermaid
+graph LR
+    User --> System
+    System --> Dependency
+```
+
+## Components
+
+Responsibilities and relationships of the major components.
+
+## Data and Control Flow
+
+The important end-to-end flows and their boundaries.
+
+## Deployment Topology
+
+Where components run and which external systems they use.
+
+## Decisions
+
+Links to the applicable ADRs.
+````
+
+### Module Map (`top-level-modules`)
+
+````mdx
+---
+title: 'Modules'
+description: 'Bounded contexts and their dependencies'
+---
+
+## Module Inventory
+
+| Module | Responsibility | Depends on |
+| ------ | -------------- | ---------- |
+| Name   | Boundary       | Other      |
+
+## Dependency Map
+
+```mermaid
+graph LR
+    ModuleA --> ModuleB
+```
+
+## Boundary Rules
+
+The allowed direction of dependencies and shared responsibilities.
+````
+
+### Development Guide (`top-level-development`)
+
+```mdx
+---
+title: 'Development'
+description: 'Setup and everyday development workflow'
+---
+
+## Prerequisites
+
+Required tools and access.
+
+## Setup
+
+The canonical setup entry point.
+
+## Workflow
+
+The normal edit, verify, and review loop.
+
+## References
+
+- [Folder Structure](./folder-structure.mdx)
+- [Commands](./commands.mdx)
+```
+
+### Folder Structure (`top-level-folder-structure`)
+
+````mdx
+---
+title: 'Folder Structure'
+description: 'Repository directories and their responsibilities'
+---
+
+## Repository Tree
+
+```text
+src/
+tests/
+docs/
+```
+
+## Directory Responsibilities
+
+Explain the ownership and dependency boundary of each meaningful directory.
+
+## Placement Rules
+
+How to choose the correct location for new code and tests.
+````
+
+### Command Reference (`top-level-commands`)
+
+```mdx
+---
+title: 'Commands'
+description: 'Supported project commands and when to use them'
+---
+
+## Commands
+
+| Command | Purpose | Preconditions  |
+| ------- | ------- | -------------- |
+| command | Action  | Required state |
+
+## Common Workflows
+
+Ordered command sequences for setup, verification, and local execution.
+
+## Failure Recovery
+
+How to interpret and recover from expected command failures.
+```
+
+**Rules:**
+
+- The type/path pairs are fixed by
+  `docs/standards/contributor-docs/frontmatter.md#top-level-files`.
+- Do not substitute an index or module-overview template for a top-level type.
+- Point at repository-owned commands and configuration; do not duplicate mutable
+  inventories.
