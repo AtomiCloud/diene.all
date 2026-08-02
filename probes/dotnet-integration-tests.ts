@@ -37,7 +37,7 @@ export default {
           break;
         }
         if (!mutated) throw new Error('no adapter return statement found for the integration-test sabotage');
-        await expectRed(repo, 'nix develop .#ci -c pls test:int', 'dotnet-integration-tests', 600000);
+        await expectRed(repo, 'nix develop .#ci -c pls test:int', 'dotnet-integration-tests', 600000, 'probe');
       },
     },
   ],

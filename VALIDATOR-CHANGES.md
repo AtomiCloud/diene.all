@@ -79,12 +79,22 @@ definition for every declared feature, so a feature row without its probe file �
 reverse — would be a genuine red rather than a leftover. All three were **green** when
 removed; none was dropped to avoid a failure.
 
+### Dotnet-base Helm-docs reintroduction
+
+The historical workspace trim above remains accurate for the shared parent. The
+dotnet-base node's later, explicit Helm deliverable reintroduces `a-helm-docs`, its
+probe, and its `diene/workspace#hook-helm-docs` gate row together. The hook is required
+here because this template carries generated chart documentation and its node goal
+requires documentation drift to be a blocking mechanism. `presence-probe-artifacts`
+now checks both row-to-file and file-to-row directions, so the three artifacts cannot
+silently diverge again.
+
 One consequence worth naming: `ci.yaml`'s filename is no longer asserted. The
 `release-trigger` mode still requires `.on.workflow_run.workflows == ["CI"]`, which
 validates the workflow name referenced by the release trigger but does not bind that name
 to `.github/workflows/ci.yaml`. Renaming the file can therefore pass this check.
 
-## Resulting hook set
+## Resulting shared hook set
 
 The trim yielded twelve hook IDs, down from twenty — eleven at the pre-commit stage plus
 the commit-msg hook. The later shared documentation payload added `a-claude-links`,
@@ -93,6 +103,10 @@ fifteen IDs: fourteen at the pre-commit stage plus the commit-msg hook. Those fo
 pre-commit IDs execute seventeen expanded checks because `a-action-pins` runs two modes
 and `a-workflows` runs three. `nix/pre-commit.nix` remains the authoritative statement of
 the set; `docs/standards/linting/index.md` explains how to read it.
+
+Dotnet-base subsequently adds `a-helm-docs` and `dotnetlint`. It deliberately does not
+add a second release-vocabulary hook: the merged `a-release-config` mechanism already
+enforces the complete canonical type set and the required `VERSION` release asset.
 
 ## Upstream classification
 

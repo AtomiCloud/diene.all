@@ -22,7 +22,8 @@ chart a task acts on, or run `pls --list`.
 
 Pass extra `helm template` arguments after `--`. Chart linting is available
 directly and also runs in `pls lint`. Generated chart docs are produced by
-`helm-docs` from each chart's own values; no commit-time gate enforces them.
+`helm-docs` from each chart's own values; the `a-helm-docs` pre-commit hook
+rejects generated documentation drift.
 
 Adding a chart means adding its own task set under its own key. Never generalize
 the existing tasks into one `lint` that switches on a shared chart variable.

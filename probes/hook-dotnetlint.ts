@@ -1,4 +1,5 @@
 import { expectGreen, expectRed } from './lib/helpers.ts';
+import { discoverDotnetProject } from './lib/dotnet.ts';
 
 export default {
   contractVersion: 1,
@@ -26,12 +27,22 @@ export default {
         'dotnet-deadcode-production',
       ],
       async run(repo: any) {
-        await repo.write('Lib/.editorconfig', '[*.cs]\ndotnet_diagnostic.IDE0005.severity = suggestion\n');
+        const library = await discoverDotnetProject(repo, 'Lib*/*.csproj');
         await repo.write(
-          'Lib/LintViolation.cs',
-          'using System.Text;\n\nnamespace AtomiCloud.DotnetBase.Lib;\n\npublic static class LintViolation\n{\n    public static int Value => 1;\n}\n',
+          `${library.directory}/.editorconfig`,
+          '[*.cs]\ndotnet_diagnostic.IDE0005.severity = suggestion\n',
         );
-        await expectRed(repo, 'nix develop .#ci -c pre-commit run dotnetlint --all-files', 'hook-dotnetlint', 600000);
+        await repo.write(
+          `${library.directory}/LintViolation.cs`,
+          `using System.Text;\n\nnamespace ${library.rootNamespace};\n\npublic static class LintViolation\n{\n    public static int Value => 1;\n}\n`,
+        );
+        await expectRed(
+          repo,
+          'nix develop .#ci -c pre-commit run dotnetlint --all-files',
+          'hook-dotnetlint',
+          600000,
+          'IDE0005',
+        );
       },
     },
   ],

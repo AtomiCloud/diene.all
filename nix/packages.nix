@@ -68,7 +68,6 @@ let
       {
         inherit
           actionlint
-          docker-client
           git
           go-task
           infisical
@@ -92,8 +91,6 @@ let
     root = {
       inherit cyanprint;
 
-      # ### dotnet-base-releaser
-      # #### source: dotnet-base
       releaser = releaser-src.packages.${pkgs.stdenv.hostPlatform.system}.releaser;
     };
   };

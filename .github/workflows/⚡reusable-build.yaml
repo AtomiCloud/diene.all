@@ -1,5 +1,3 @@
-# ### dotnet-base-reusable-build
-# #### source: dotnet-base
 name: ⚡ Reusable Build
 
 on:
@@ -14,6 +12,6 @@ jobs:
       - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
     steps:
       - uses: AtomiCloud/actions.setup-nix@v3
-      - uses: AtomiCloud/actions.cache-nuget@v1
+      - uses: AtomiCloud/actions.cache-nuget@v2
       - name: Build solution
         run: nix develop .#ci -c ./scripts/ci/build.sh

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-for binary in actionlint bash cyanprint dn-inspect docker dotnet dotnetlint git gomplate hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pls pre-commit releaser rg shellcheck skopeo task treefmt yq; do
+for binary in actionlint bash cyanprint dn-inspect docker dotnet dotnetlint git gomplate hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pls pre-commit releaser rg shellcheck skopeo task treefmt xmlstarlet yq; do
   command -v "${binary}" >/dev/null || {
     echo "❌ binary '${binary}' is missing" >&2
     exit 1
@@ -115,6 +115,10 @@ task --list >/dev/null
 treefmt --version >/dev/null
 treefmt --completion bash >"${tmp}/treefmt-completion.bash"
 [ ! -s "${tmp}/treefmt-completion.bash" ] && echo "❌ treefmt completion generation failed" >&2 && exit 1
+
+xmlstarlet --version >/dev/null 2>&1
+printf '%s\n' '<probe><ok>true</ok></probe>' >"${tmp}/probe.xml"
+xmlstarlet sel -t -v '/probe/ok' "${tmp}/probe.xml" | rg -qx true
 
 yq --version >/dev/null
 yq -en '.ok = true | .ok == true' >/dev/null

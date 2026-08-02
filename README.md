@@ -43,7 +43,7 @@ Common commands:
 - `pls build`, `pls dev`, `pls run`, and `pls preview`
 - `pls test`, `pls test:unit`, `pls test:int`, and the coverage variants
 - `pls deadcode` for the non-blocking review; CI owns strict dn-inspect
-- `pls docker:build` and `pls helm:lint` / `pls helm:template`
+- `pls docker:build:main` and `pls helm:root_chart:lint` / `pls helm:root_chart:template`
 
 The illustrative Note domain is documented in [docs/domain/note.md](docs/domain/note.md).
 Production observability is intentionally absent until the observability add-back.

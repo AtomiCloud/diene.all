@@ -13,8 +13,6 @@ jobs:
     uses: ./.github/workflows/⚡reusable-precommit.yaml
     secrets: inherit
 
-  # ### dotnet-base-ci
-  # #### source: dotnet-base
   deadcode:
     name: Dead Code
     permissions:

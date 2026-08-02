@@ -1,4 +1,5 @@
 import { expectGreen, expectRed } from './lib/helpers.ts';
+import { discoverDotnetProject } from './lib/dotnet.ts';
 
 export default {
   contractVersion: 1,
@@ -18,12 +19,19 @@ export default {
       kind: 'mutation',
       expectedImpact: ['dotnet-deadcode-all', 'dotnet-deadcode-production'],
       async run(repo: any) {
+        const application = await discoverDotnetProject(repo, 'App*/*.csproj');
         const lines = Array.from({ length: 40 }, (_, index) => `        total += ${index + 1};`).join('\n');
         await repo.write(
-          'App/CoverageGap.cs',
-          `namespace AtomiCloud.DotnetBase.App;\n\npublic class CoverageGap\n{\n    public int Uncovered()\n    {\n        var total = 0;\n${lines}\n        return total;\n    }\n}\n`,
+          `${application.directory}/CoverageGap.cs`,
+          `namespace ${application.rootNamespace};\n\npublic class CoverageGap\n{\n    public int Uncovered()\n    {\n        var total = 0;\n${lines}\n        return total;\n    }\n}\n`,
         );
-        await expectRed(repo, 'nix develop .#ci -c pls test:int:coverage', 'dotnet-integration-coverage', 600000);
+        await expectRed(
+          repo,
+          'nix develop .#ci -c pls test:int:coverage',
+          'dotnet-integration-coverage',
+          600000,
+          'int tests or merged coverage failed',
+        );
       },
     },
   ],

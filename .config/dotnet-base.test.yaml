@@ -7,6 +7,7 @@ coverage:
       - '[Lib*]*'
     exclude:
       - '[App*]*'
+      - '[*.TestHelper]*'
       - '[*]*.Program'
   int:
     minimum: 80
@@ -16,4 +17,15 @@ coverage:
       - '[App*]*'
     exclude:
       - '[Lib*]*'
+      - '[*]*.Program'
+  # Dormant until a descendant opts into a TestHelper. The shared filter and
+  # threshold live here once; that descendant only registers its meta test project.
+  meta:
+    minimum: 100
+    projects: []
+    include:
+      - '[*.TestHelper]*'
+    exclude:
+      - '[Lib*]*'
+      - '[App*]*'
       - '[*]*.Program'

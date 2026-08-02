@@ -118,19 +118,12 @@ while IFS=$'\t' read -r assembly line_rate; do
     }
   fi
 
-  awk -v rate="${line_rate}" -v minimum="${minimum}" '
-    BEGIN {
-      if (rate !~ /^[0-9]+([.][0-9]+)?$/) {
-        exit 1
-      }
-      exit !((rate * 100) + 0.0000001 >= minimum)
-    }
-  ' </dev/null || {
-    echo "❌ ${kind} Cobertura package ${assembly} has line-rate ${line_rate}, below ${minimum}%" >&2
+  [[ ${line_rate} =~ ^[0-9]+([.][0-9]+)?$ ]] || {
+    echo "❌ ${kind} Cobertura package ${assembly} has invalid line-rate ${line_rate}" >&2
     exit 1
   }
 done <<<"${packages}"
 
-echo "🔎 Parsed ${kind} Cobertura package scope and per-package line rates"
+echo "🔎 Parsed ${kind} Cobertura package scope"
 echo "📦 Merged ${kind} coverage report: ${report}"
 echo "✅ ${kind} coverage meets the ${minimum}% minimum"

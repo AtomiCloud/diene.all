@@ -42,12 +42,12 @@ cannot drift independently.
 ## Finding your generated conventions
 
 Each project generates a commit-conventions document from `atomi_release.yaml`
-using the `releaser` tool. Its output path is the `conventionMarkdown.path` value
+using the `releaser` tool. Its output path is the `conventions.path` value
 in `atomi_release.yaml`:
 
 ```bash
 # View the generated file
-cat "$(yq -r '.conventionMarkdown.path' atomi_release.yaml)"
+cat "$(yq -r '.conventions.path' atomi_release.yaml)"
 
 # Regenerate (if needed)
 releaser conventions
@@ -80,6 +80,6 @@ The footer keywords that count as breaking are the `keywords:` list in
 | ----------------- | ----------------------------------------------------- |
 | **Format**        | `type(scope): description`                            |
 | **Configuration** | `atomi_release.yaml`                                  |
-| **Reference**     | the file named by its `conventionMarkdown.path`       |
+| **Reference**     | the file named by its `conventions.path`              |
 | **Release**       | each scope's `release:` value in `atomi_release.yaml` |
 | **Breaking**      | Add `!` or a footer keyword from `keywords:`          |

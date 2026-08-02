@@ -38,14 +38,19 @@ tier:
 - integration: every `[App*]*` assembly at 80%.
 
 The runner then parses the merged `coverage.cobertura.xml` with `xmlstarlet`: it
-rejects a report that measured zero lines, rejects any package whose assembly name
-escapes the tier ledger, and re-checks the tier minimum against every package's own
-`line-rate` rather than the merged total alone.
+rejects a report that measured zero lines and rejects any package whose assembly
+name escapes the tier ledger. Coverlet enforces the single merged threshold once,
+on the final registered test-project invocation.
 
 Adding `Lib2` and `UnitTest2` requires one solution line per project and one YAML
 list entry for `UnitTest2`. Assembly filters, merged thresholds, Codecov globs,
 and production dead-code project discovery follow the naming convention
 automatically. Codecov remains informational.
+
+The same config carries a dormant 100% meta ledger for `[*.TestHelper]*`
+assemblies. It is intentionally not exposed as a task or Codecov upload until a
+descendant opts into a TestHelper; that descendant registers its meta test project
+without redefining the inherited filter or threshold.
 
 ## Dead code and supply chain
 

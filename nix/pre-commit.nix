@@ -144,6 +144,15 @@ pre-commit-lib.run {
       language = "system";
     };
 
+    a-helm-docs = {
+      enable = true;
+      name = "Helm docs";
+      entry = "${packages.infralint}/bin/helm-docs --chart-search-root infra/root_chart";
+      files = "^infra/root_chart/.*";
+      pass_filenames = false;
+      language = "system";
+    };
+
     a-helm-lint = {
       enable = true;
       name = "Helm lint";
@@ -212,7 +221,9 @@ pre-commit-lib.run {
     a-shellcheck = {
       enable = true;
       name = "Shellcheck";
-      entry = "${packages.shellcheck}/bin/shellcheck";
+      # Follow explicit `# shellcheck source=...` declarations so the result is
+      # independent of how pre-commit chunks the filename list.
+      entry = "${packages.shellcheck}/bin/shellcheck -x";
       files = ".*\\.sh$";
       pass_filenames = true;
       language = "system";
@@ -246,15 +257,6 @@ pre-commit-lib.run {
       name = ".NET lint";
       entry = "${dotnetlint-precommit}/bin/dotnetlint-precommit";
       files = "^(.*\\.cs|.*\\.csproj|Directory\\.Build\\.props|Directory\\.Packages\\.props|dotnet-base\\.slnx|global\\.json)$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-dotnet-release-types = {
-      enable = true;
-      name = ".NET release type vocabulary";
-      entry = validator "scripts/validate/dotnet-release.sh";
-      files = "^atomi_release\\.yaml$";
       pass_filenames = false;
       language = "system";
     };

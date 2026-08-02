@@ -24,7 +24,6 @@ with packages;
 
   main = [
     cyanprint
-    docker-client
     dotnet-sdk_10
     git
     go-task

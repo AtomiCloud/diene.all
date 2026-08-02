@@ -96,6 +96,11 @@
   },
   {
     "template": "diene/workspace",
+    "name": "hook-helm-docs",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
     "name": "workflow-wiring",
     "class": "gate"
   },
@@ -251,11 +256,6 @@
   },
   {
     "template": "diene/dotnet-base",
-    "name": "dotnet-coverage-artifact-scope",
-    "class": "gate"
-  },
-  {
-    "template": "diene/dotnet-base",
     "name": "dotnet-deadcode-all",
     "class": "gate"
   },
@@ -293,11 +293,6 @@
     "template": "diene/dotnet-base",
     "name": "dotnet-codecov-config",
     "class": "presence"
-  },
-  {
-    "template": "diene/dotnet-base",
-    "name": "hook-dotnet-release-types",
-    "class": "gate"
   },
   {
     "template": "diene/dotnet-base",

@@ -22,7 +22,13 @@ export default {
           find: 'description: Helm chart for diene/dotnet-base',
           replace: 'description: Changed probe description',
         });
-        await expectRed(repo, 'nix develop .#ci -c pre-commit run a-helm-docs --all-files', 'hook-helm-docs');
+        await expectRed(
+          repo,
+          'nix develop .#ci -c pre-commit run a-helm-docs --all-files',
+          'hook-helm-docs',
+          240000,
+          'files were modified by this hook',
+        );
       },
     },
   ],

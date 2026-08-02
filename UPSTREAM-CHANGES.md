@@ -319,6 +319,22 @@ references to the removed packages were repointed successfully in workspace-owne
 `packages.infrautils`), and `nix develop .#ci -c pre-commit run --all-files` then passed
 all 14 pre-commit hook IDs (17 expanded checks), so no failure output needed recording.
 
+## Dotnet-base replay audit
+
+The dotnet-base replay was classified against the accepted shared parent at
+`da43d94dc782354f35cb455523762a1ce84f2069`. Its language projects, coverage
+registration, .NET tasks/scripts, empty R16 chart specialization, dotnetlint hook, and
+chain-side probes are node-owned additions. The Helm docs hook is an explicit
+dotnet-base goal requirement over workspace-born chart documentation, so it is restored
+locally with its probe and feature row. The pure-Nix releaser path and deterministic
+ShellCheck `-x` entry are corrections within the workspace-owned hook region. No
+chain-root-owned content change is owed upstream from this replay.
+
+The removal of `infra/root_chart/templates/configmap.yaml` is the authorized R16
+specialization: dotnet-base requires a deliberately empty stub chart with only
+`templates/.gitkeep`. It is not an upstream deletion request and must not be propagated
+back into the shared parent.
+
 ## Open items deliberately not recorded
 
 - The point-at-truth rule's documentation home is **pending the user's ruling**. The rule
