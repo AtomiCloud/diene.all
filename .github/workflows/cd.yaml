@@ -7,6 +7,7 @@ on:
 
 jobs:
   chart:
+    # Wrapper platform chart — the OCI publish/consume path owned by this node.
     name: OCI Chart
     permissions:
       contents: read
@@ -14,4 +15,19 @@ jobs:
     uses: ./.github/workflows/⚡reusable-chart-publish.yaml
     secrets: inherit
     with:
+      version: ${{ github.ref_name }}
+
+  root-chart:
+    # Inherited infra/root_chart baseline — preserved alongside the wrapper chart
+    # so the minimal workspace chart still publishes on tag. Auth is GITHUB_TOKEN
+    # (scripts/ci/helm.sh logs in with DOCKER_PASSWORD/DOCKER_USER, no keyless
+    # OIDC), so it needs only contents:read + packages:write, not id-token:write.
+    name: Root baseline chart
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/⚡reusable-helm.yaml
+    secrets: inherit
+    with:
+      chart_path: ./infra/root_chart
       version: ${{ github.ref_name }}
