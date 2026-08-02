@@ -123,16 +123,3 @@ export async function unformatGo(repo: ProbeRepo): Promise<void> {
   const unformatted = `func ${signature[1]}( ${signature[2]} )${signature[3]}{`;
   await repo.write(path, source.replace(signature[0], unformatted));
 }
-
-export async function breakGoWorkflow(repo: ProbeRepo): Promise<void> {
-  const paths = (await repo.glob('.github/workflows/⚡reusable-go-*.yaml')).sort();
-  for (const path of paths) {
-    const source = await repo.read(path);
-    const match = source.match(/\.\/scripts\/ci\/[A-Za-z0-9._/-]+\.sh/);
-    if (match) {
-      await repo.write(path, source.replace(match[0], './scripts/ci/probe-missing.sh'));
-      return;
-    }
-  }
-  throw new Error('no Go workflow script target found');
-}

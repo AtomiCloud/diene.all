@@ -41,8 +41,9 @@ inside those fences while retaining the same gates and tier boundaries.
 - `pls test:coverage`, `pls test:unit:coverage`, and
   `pls test:int:coverage` enforce the scoped ledgers.
 - `pls test:watch` watches the unit tier.
-- `pls deadcode` runs whole-repository and production-only strict passes, then
-  writes the nonblocking review feed to `reports/deadcode-llm.txt`.
+- `pls deadcode` runs staticcheck and deadcode independently across the
+  whole-repository and production-only scopes, then writes the nonblocking
+  review feed to `reports/deadcode-llm.txt`.
 - `pls run -- slug "Hello World"` runs from source.
 - `pls preview -- slug "Hello World"` runs the compiled artifact.
 - `pls up` and `pls down` manage the local Redis dependency.
@@ -60,12 +61,13 @@ flags are informational and carry forward independently.
 
 ## Deadcode and vulnerability law
 
-The whole-repository pass runs deadcode with tests enabled and staticcheck with
-test analysis. The production pass disables test reachability so a symbol used
-only by tests fails. Neither pass has an exclusion list. Govulncheck is a
-blocking CI-only job; its negative proof routes a pinned vulnerable fixture
-through a deterministic scanner double, while the healthy path uses the real
-vulnerability database.
+Four independently invoked strict components cover unused code: staticcheck and
+deadcode each run once with test analysis/reachability enabled and once against
+production packages only. The production deadcode component therefore rejects
+a symbol reachable only from tests. None of the components has an exclusion
+list. Govulncheck is a blocking CI-only job; its negative proof routes a pinned
+vulnerable fixture through a deterministic scanner double, while the healthy
+path uses the real vulnerability database.
 
 ## Docker and Helm
 
@@ -80,5 +82,6 @@ chart design.
 Downstream authors may adapt package/module identity, sample domain code,
 coverage thresholds after adding real surface, the Docker entrypoint, chart
 metadata, and README badges. They must preserve black-box tests, tier scoping,
-both deadcode passes, the CI-only vulnerability gate, one composition root,
-distroless nonroot runtime policy, and generated hook/probe coverage.
+all four staticcheck/deadcode components, the CI-only vulnerability gate, one
+composition root, distroless nonroot runtime policy, and generated hook/probe
+coverage.
