@@ -27,13 +27,15 @@ export default {
         if (tests.length === 0) {
           throw new Error('no test file found to give the planted module its test-only consumer');
         }
-        await repo.write(planted, 'export const probeTestOnly = (): number => 1;\n');
+        // A scalar, not a function: the planted module lands in the unit ledger through the
+        // all-files preload, and an uncalled function there would redden the coverage control too.
+        await repo.write(planted, 'export const probeTestOnly = 1;\n');
         // From a TEST: a module nothing imports at all is unused under both configs and discriminates nothing.
         const test = tests[0];
         const relative = '../'.repeat(test.split('/').length - 1);
         await repo.write(
           test,
-          `import { probeTestOnly } from '${relative}src/lib/__probe_test_only__';\n${await repo.read(test)}\nif (probeTestOnly() < 0) throw new Error('probe fixture');\n`,
+          `import { probeTestOnly } from '${relative}src/lib/__probe_test_only__';\n${await repo.read(test)}\nif (probeTestOnly < 0) throw new Error('probe fixture');\n`,
         );
         await expectRedBecause(repo, gate, 'bun-knip-production', ['Unused files', planted]);
       },

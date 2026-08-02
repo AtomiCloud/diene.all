@@ -20,7 +20,7 @@ export default {
       name: 'mutation-bun-typecheck-caught',
       description: 'A wrong return type must be refused as TS2322, not merely fail.',
       kind: 'mutation',
-      expectedImpact: ['bun-knip-repository'],
+      expectedImpact: [],
       async run(repo: any) {
         const paths = (await repo.glob('src/lib/**/*.ts')).sort();
         if (paths.length === 0) {
@@ -28,9 +28,11 @@ export default {
         }
         const path = paths[0];
         const source = await repo.read(path);
+        // A top-level local, not an exported function: it runs on import so coverage stays whole,
+        // and it exports nothing so Knip stays quiet. `void` keeps Biome's noUnusedVariables happy.
         await repo.write(
           path,
-          `${source.trimEnd()}\n\nexport function probeTypeError(seed: string): number {\n  return seed;\n}\n`,
+          `${source.trimEnd()}\n\n// Probe sabotage: a local type mismatch TypeScript must refuse.\nconst probeTypeError: number = 'not a number';\nvoid probeTypeError;\n`,
         );
         await expectRedBecause(repo, gate, 'bun-typecheck', ['error TS2322', path]);
       },

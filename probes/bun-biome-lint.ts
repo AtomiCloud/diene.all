@@ -20,7 +20,7 @@ export default {
       name: 'mutation-bun-biome-lint-caught',
       description: 'A loose equality must be refused as noDoubleEquals, not merely fail.',
       kind: 'mutation',
-      expectedImpact: ['bun-knip-repository'],
+      expectedImpact: [],
       async run(repo: any) {
         const paths = (await repo.glob('src/lib/**/*.ts')).sort();
         if (paths.length === 0) {
@@ -28,9 +28,11 @@ export default {
         }
         const path = paths[0];
         const source = await repo.read(path);
+        // A top-level local, not an exported function: it runs on import so coverage stays whole,
+        // and it exports nothing so Knip stays quiet. `Number(1)` keeps the operands same-typed.
         await repo.write(
           path,
-          `${source.trimEnd()}\n\nexport function probeBiomeViolation(value: number): boolean {\n  return value == 1;\n}\n`,
+          `${source.trimEnd()}\n\n// Probe sabotage: a loose equality Biome must refuse.\nconst probeBiomeViolation = Number(1) == 1;\nvoid probeBiomeViolation;\n`,
         );
         await expectRedBecause(repo, gate, 'bun-biome-lint', ['lint/suspicious/noDoubleEquals', path]);
       },

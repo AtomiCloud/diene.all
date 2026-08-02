@@ -200,7 +200,21 @@ describe('coverage sabotage sizing', () => {
     const block = uncoveredSourceBlock('probeUncovered', 5);
 
     expect(block.split('\n').filter(line => line.trim().startsWith('total +=')).length).toBe(5);
-    expect(block).toContain('export function probeUncovered(seed: number): number {');
+    expect(block).toContain('function probeUncovered(seed: number): number {');
+  });
+
+  // Orthogonality: the coverage fault must redden the coverage gate and nothing else.
+  test('keeps the coverage fault unexported so it is not also an unused export', () => {
+    const block = uncoveredSourceBlock('probeUncovered', 3);
+
+    expect(block).not.toContain('export function probeUncovered');
+    expect(block).not.toContain('export const probeUncovered');
+  });
+
+  test('references the coverage fault so it is not also an unused local', () => {
+    const block = uncoveredSourceBlock('probeUncovered', 3);
+
+    expect(block).toContain('void probeUncovered;');
   });
 
   test('appends the fault to the file the ledger already measures', async () => {
@@ -210,7 +224,8 @@ describe('coverage sabotage sizing', () => {
 
     expect(actual.path).toBe('src/lib/a.ts');
     expect(await repo.read('src/lib/a.ts')).toContain('export const a = 1;');
-    expect(await repo.read('src/lib/a.ts')).toContain('export function probeUncovered');
+    expect(await repo.read('src/lib/a.ts')).toContain('function probeUncovered');
+    expect(await repo.read('src/lib/a.ts')).not.toContain('export function probeUncovered');
   });
 });
 
@@ -265,7 +280,19 @@ describe('structural source mutators', () => {
     const actual = await plantDeadExport(repo);
 
     expect(actual.path).toBe('src/lib/a.ts');
-    expect(await repo.read('src/lib/a.ts')).toContain('export const probeDeadExport');
+    expect(await repo.read('src/lib/a.ts')).toContain('export const probeDeadExport = 1;');
+  });
+
+  // Orthogonality: a dead export that is a function arrives in the unit ledger uncalled and takes
+  // the coverage control down with it, so the row stops being evidence about Knip alone.
+  test('keeps the dead export free of any function so coverage stays whole', async () => {
+    const repo = new FakeRepo({ 'src/lib/a.ts': 'export const a = 1;\n' });
+
+    await plantDeadExport(repo);
+
+    const source = await repo.read('src/lib/a.ts');
+    expect(source).not.toContain('=>');
+    expect(source).not.toContain('function');
   });
 
   test('reports a missing dead-export target instead of silently mutating nothing', async () => {

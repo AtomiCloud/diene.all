@@ -212,16 +212,21 @@ export function uncoveredLinesNeeded(records: readonly LcovRecord[], threshold: 
 }
 
 // A brand-new module nothing imports never enters a Bun ledger, so the fault rides an existing file.
+//
+// Orthogonality: the function is NOT exported and its symbol is referenced by `void`, so the only
+// gate this reddens is the coverage one. An exported symbol would also be an unused export and take
+// the repository-Knip control down with it; an unreferenced one would trip Biome's noUnusedVariables.
 export function uncoveredSourceBlock(symbol: string, uncoveredLines: number): string {
   const statements = Array.from({ length: Math.max(1, uncoveredLines) }, (_, index) => `  total += ${index + 1};`);
   return [
     '',
-    `// Probe sabotage: ${symbol} is never called, so every line below is uncovered.`,
-    `export function ${symbol}(seed: number): number {`,
+    `// Probe sabotage: ${symbol} is referenced but never called, so every line below is uncovered.`,
+    `function ${symbol}(seed: number): number {`,
     '  let total = seed;',
     ...statements,
     '  return total;',
     '}',
+    `void ${symbol};`,
     '',
   ].join('\n');
 }
@@ -260,6 +265,10 @@ export async function breakAdapterRead(repo: any, options?: { globs?: string[] }
 }
 
 // Glob-selected rather than sample-named, so swapping the sample cannot silently disarm it.
+//
+// Orthogonality: the dead export is a scalar, not a function. A function would arrive in the unit
+// ledger uncalled and take the coverage control down with it, so the row would no longer be
+// evidence about Knip alone.
 export async function plantDeadExport(
   repo: any,
   options?: { globs?: string[]; symbol?: string },
@@ -271,7 +280,7 @@ export async function plantDeadExport(
     if (paths.length === 0) continue;
     const path = paths[0];
     const source = await repo.read(path);
-    await repo.write(path, `${source.trimEnd()}\n\nexport const ${symbol} = (): number => 1;\n`);
+    await repo.write(path, `${source.trimEnd()}\n\nexport const ${symbol} = 1;\n`);
     return { path };
   }
   throw new Error(`no source file found for a dead export in ${globs.join(', ')}`);
