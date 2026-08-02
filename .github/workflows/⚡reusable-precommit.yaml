@@ -1,5 +1,3 @@
-# ### workspace-reusable-precommit
-# #### source: workspace
 name: ⚡ Reusable Pre-Commit
 
 on:

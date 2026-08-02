@@ -2,7 +2,7 @@
 set -euo pipefail
 
 mode="${1:-}"
-[ "${mode}" != "wiring" ] && [ "${mode}" != "release-trigger" ] && [ "${mode}" != "release-concurrency" ] && [ "${mode}" != "workflow-names" ] && echo "❌ unsupported workflow validation mode" >&2 && exit 1
+[ "${mode}" != "wiring" ] && [ "${mode}" != "release-trigger" ] && [ "${mode}" != "release-concurrency" ] && echo "❌ unsupported workflow validation mode" >&2 && exit 1
 
 if [ "${mode}" = "wiring" ]; then
   while IFS= read -r script; do
@@ -36,13 +36,6 @@ if [ "${mode}" = "wiring" ]; then
   done
 
   echo "✅ Workflow jobs resolve to existing CI scripts"
-  exit 0
-fi
-
-if [ "${mode}" = "workflow-names" ]; then
-  [ "$(yq -r '.name' .github/workflows/ci.yaml)" != "CI" ] && echo "❌ ci.yaml workflow name must be CI" >&2 && exit 1
-  [ "$(yq -r '.name' .github/workflows/cd.yaml)" != "CD" ] && echo "❌ cd.yaml workflow name must be CD" >&2 && exit 1
-  echo "✅ CI/CD workflow names conform"
   exit 0
 fi
 

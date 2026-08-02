@@ -1,5 +1,3 @@
-# ### workspace-release
-# #### source: workspace
 conventionMarkdown:
   path: docs/developer/CommitConventions.md
   template: |

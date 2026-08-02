@@ -21,71 +21,47 @@ dep(patch): update a pinned dependency
 ci: add workflow cache validation
 ```
 
-## Commit Types
+## Reading the vocabulary
 
-Commit types and scopes are defined in `atomi_release.yaml`. The workspace
-baseline uses the unified D3 vocabulary:
+`atomi_release.yaml` owns the commit types, their scopes, and what each one does
+to the version. Read its `types:` list like this:
 
-```text
-amend, build, chore, ci, config, dep, docs, feat, fix, perf, refactor, style, test
-```
+- each entry's `type:` is the word before the colon in a commit subject, and its
+  `desc:` says when to use it;
+- each entry's `scopes:` map gives the scopes valid for that type. `default:`
+  applies when you write no scope at all; any other key is a scope you may put in
+  parentheses, as in `dep(patch):`;
+- each scope's `release:` value is the version bump it causes — `major`, `minor`,
+  `patch`, or `false` for no release;
+- an optional `section:` is the changelog heading that type's commits group under.
 
-**Important**: Always refer to your project's generated `CommitConventions.md` for:
+`specialScopes:` at the top level are scopes usable with any type. Both commit
+validation and release calculation consume this same file, so the vocabularies
+cannot drift independently.
 
-- Available types
-- Available scopes for each type
-- Release behavior (which types trigger releases)
+## Finding your generated conventions
 
-## Finding Your Commit Conventions
-
-Each project generates `CommitConventions.md` from its `atomi_release.yaml` configuration using the `releaser` tool. This file contains:
-
-1. All available commit types
-2. Available scopes for each type
-3. Release behavior (major/minor/patch/no-release)
-4. VAE examples for applicable types
-
-To view or regenerate the conventions after `tools/releaser` lands at C2 step
-2p:
+Each project generates a commit-conventions document from `atomi_release.yaml`
+using the `releaser` tool. Its output path is the `conventionMarkdown.path` value
+in `atomi_release.yaml`. To view or regenerate it after `tools/releaser` lands at
+C2 step 2p:
 
 ```bash
 # View the generated file
-cat docs/developer/CommitConventions.md
+cat "$(yq -r '.conventionMarkdown.path' atomi_release.yaml)"
 
 # Regenerate (if needed)
 releaser conventions
 ```
 
 Before step 2p, treat `atomi_release.yaml` as authoritative. The checked-in
-generated document carries an explicit bootstrap notice, and the repository
-does not claim that the `releaser` command is available yet.
-
-## Release Behavior
-
-Different commit types trigger different release levels:
-
-- **major**: Breaking changes
-- **minor**: New features, non-breaking changes
-- **patch**: Bug fixes
-- **no-release**: Changes that don't trigger a release
-
-The specific behavior is defined in your project's `atomi_release.yaml` and reflected in `CommitConventions.md`.
-
-## Release-relevant types
-
-| Type       | Purpose               | Release    |
-| ---------- | --------------------- | ---------- |
-| `feat`     | New feature           | minor      |
-| `fix`      | Bug fix               | patch      |
-| `docs`     | Documentation changes | no-release |
-| `ci`       | CI configuration      | no-release |
-| `refactor` | Code refactoring      | minor      |
-| `test`     | Adding/updating tests | minor      |
-| `build`    | Build system changes  | no-release |
+generated document carries an explicit bootstrap notice, and the repository does
+not claim that the `releaser` command is available yet.
 
 ## Breaking Changes
 
-To indicate a breaking change, add `!` after the type/scope or add `BREAKING CHANGE:` footer:
+To indicate a breaking change, add `!` after the type/scope or add a breaking
+footer:
 
 ```
 feat!: remove deprecated behavior
@@ -97,12 +73,15 @@ feat: add replacement behavior
 BREAKING CHANGE: This changes the API contract
 ```
 
+The footer keywords that count as breaking are the `keywords:` list in
+`atomi_release.yaml`.
+
 ## Summary
 
-| Aspect            | Pattern                                      |
-| ----------------- | -------------------------------------------- |
-| **Format**        | `type(scope): description`                   |
-| **Configuration** | `atomi_release.yaml`                         |
-| **Reference**     | `docs/developer/CommitConventions.md`        |
-| **Release**       | Type-specific (major/minor/patch/no-release) |
-| **Breaking**      | Add `!` or `BREAKING CHANGE:` footer         |
+| Aspect            | Pattern                                               |
+| ----------------- | ----------------------------------------------------- |
+| **Format**        | `type(scope): description`                            |
+| **Configuration** | `atomi_release.yaml`                                  |
+| **Reference**     | the file named by its `conventionMarkdown.path`       |
+| **Release**       | each scope's `release:` value in `atomi_release.yaml` |
+| **Breaking**      | Add `!` or a footer keyword from `keywords:`          |
