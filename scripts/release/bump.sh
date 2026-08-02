@@ -6,5 +6,6 @@ version="${1:-}"
 
 printf '%s\n' "${version#v}" >VERSION
 yq eval -i ".version = \"${version#v}\"" chart/Chart.yaml
+helm-docs --chart-search-root chart
 
-echo "✅ VERSION and chart manifest stamped to ${version#v}"
+echo "✅ VERSION, chart manifest, and Helm docs stamped to ${version#v}"

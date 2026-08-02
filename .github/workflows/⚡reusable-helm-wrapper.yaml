@@ -16,3 +16,21 @@ jobs:
       - uses: AtomiCloud/actions.setup-nix@v3
       - name: Run wrapper validation
         run: nix develop .#ci -c ./scripts/ci/helm-wrapper.sh
+
+  probes:
+    name: Probe Helm Wrapper
+    runs-on:
+      - nscloud-ubuntu-22.04-amd64-4x8-with-cache
+      - nscloud-cache-size-50gb
+      - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
+    steps:
+      - uses: AtomiCloud/actions.setup-nix@v3
+      - name: Run full probe matrix
+        run: nix develop .#ci -c cyanprint probe . --probes ./probes --features probes/features.json --parallel 1 --timeout 1800 --report cyanprint-wrapper.json
+      - name: Upload probe report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: cyanprint-wrapper
+          path: cyanprint-wrapper.json
+          if-no-files-found: error

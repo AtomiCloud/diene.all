@@ -13,12 +13,14 @@ oci_password="${OCI_PASSWORD:-}"
 
 [ -z "${release_version}" ] && echo "❌ 'RELEASE_VERSION' env var not set" >&2 && exit 1
 [ "${mode}" != "git" ] && [ "${mode}" != "oci" ] && echo "❌ PUBLISH_MODE must be git or oci" >&2 && exit 1
+[ "${oci_repository}" != "${oci_repository,,}" ] && echo "❌ OCI_REPOSITORY must be lowercase, got '${oci_repository}'" >&2 && exit 1
 
 version="${release_version#v}"
 manifest_version="$(yq -r '.version' chart/Chart.yaml)"
 [ "${manifest_version}" != "${version}" ] && echo "❌ Chart version ${manifest_version} does not match tag ${version}" >&2 && exit 1
 
 bash ./scripts/ci/setup.sh
+bash ./scripts/local/vendor-chart-config.sh
 helm-docs --chart-search-root chart
 mkdir -p "${output_dir}"
 helm dependency build chart

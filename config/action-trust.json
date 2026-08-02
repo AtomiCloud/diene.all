@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "actions": {
     "AtomiCloud/actions.setup-nix": "trusted",
+    "actions/upload-artifact": "non-trusted",
     "upsidr/merge-gatekeeper": "non-trusted"
   }
 }

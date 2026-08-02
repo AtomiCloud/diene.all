@@ -29,8 +29,13 @@ documents() {
 
 # A target landscape the identity helper must refuse outright.
 refuse() {
-  if helm template helm-wrapper chart --namespace sample --values chart/values.example.yaml --set primordial.enabled=true --set primordial.targetLandscape="$1" >/dev/null 2>&1; then
+  value="$1"
+  message="$2"
+  reason="$3"
+  if output="$(helm template helm-wrapper chart --namespace sample --values chart/values.example.yaml --set primordial.enabled=true --set primordial.targetLandscape="$value" 2>&1)"; then
     fail "$2"
+  elif ! grep -qF "$reason" <<<"$output"; then
+    fail "$message: refused for the wrong reason (expected $reason)"
   fi
 }
 
@@ -83,9 +88,9 @@ other_endpoint="$(documents "$work/other.yaml" LogtoApp | jq -r '.[0].metadata.a
 [ "$other_platform" = nitroso ] || fail "identityRef.platform is not sourced from the release namespace"
 [ "$other_endpoint" = "api.lithium.aldehyde.serving.cluster.atomi.cloud" ] || fail "the consumer platform leaked into the identity endpoint"
 
-refuse example-vlandscape "a virtual landscape was accepted as an issuer segment"
-refuse sample "the consumer platform was accepted as an issuer segment"
-refuse serving.cluster "a multi-segment landscape was accepted as an issuer segment"
+refuse example-vlandscape "a virtual landscape was accepted as an issuer segment" "virtual landscape"
+refuse sample "the consumer platform was accepted as an issuer segment" "consumer platform"
+refuse serving.cluster "a multi-segment landscape was accepted as an issuer segment" "must be exactly one concrete landscape label"
 
 # Problem carries the LPSM module and tracks the service tree rather than a free value.
 documents "$work/serving.yaml" Problem |
@@ -125,7 +130,7 @@ export default defineGate({
   },
   mutation: {
     name: 'mutation-wrapper-primordial-crs-caught',
-    description: 'A removed sharing field is rejected by the PlatformDependency schema.',
+    description: 'An added sharing field is rejected by the PlatformDependency schema.',
     expectedImpact: [],
     async run(repo: any) {
       const path = 'chart/templates/primordial-resources.yaml';

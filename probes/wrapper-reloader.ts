@@ -1,5 +1,5 @@
 import { defineGate } from './lib/definition.ts';
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRed, withCleanProbeState } from './lib/helpers.ts';
 
 export default defineGate({
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
@@ -15,8 +15,10 @@ export default defineGate({
     description: 'Removing the opt-out branch makes reloader conformance red.',
     expectedImpact: [],
     async run(repo: any) {
-      await repo.patch('chart/templates/_helpers.tpl', { find: '{{- if .enabled }}', replace: '{{- if true }}' });
-      await expectRed(repo, 'nix develop .#ci -c ./scripts/validate/helm-wrapper.sh reloader', 'wrapper-reloader');
+      await withCleanProbeState(repo, ['chart/templates/_helpers.tpl'], async () => {
+        await repo.patch('chart/templates/_helpers.tpl', { find: '{{- if .enabled }}', replace: '{{- if true }}' });
+        await expectRed(repo, 'nix develop .#ci -c ./scripts/validate/helm-wrapper.sh reloader', 'wrapper-reloader');
+      });
     },
   },
 });

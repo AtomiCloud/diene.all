@@ -1,5 +1,5 @@
 import { defineGate } from './lib/definition.ts';
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRed, withCleanProbeState } from './lib/helpers.ts';
 
 export default defineGate({
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
@@ -15,12 +15,14 @@ export default defineGate({
     description: 'An unsupported provider value is rejected by the generated schema.',
     expectedImpact: [],
     async run(repo: any) {
-      await repo.write('chart/values.probe-invalid.yaml', 'gateway:\n  provider: unsupported\n');
-      await expectRed(
-        repo,
-        'nix develop .#ci -c helm lint chart --values chart/values.probe-invalid.yaml',
-        'wrapper-values-schema',
-      );
+      await withCleanProbeState(repo, ['chart/values.probe-invalid.yaml'], async () => {
+        await repo.write('chart/values.probe-invalid.yaml', 'gateway:\n  provider: unsupported\n');
+        await expectRed(
+          repo,
+          'nix develop .#ci -c helm lint chart --values chart/values.probe-invalid.yaml',
+          'wrapper-values-schema',
+        );
+      });
     },
   },
 });

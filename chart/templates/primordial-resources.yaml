@@ -31,6 +31,13 @@ never reach this form.
 
 {{- if .Values.primordial.enabled -}}
 {{- include "diene-helm-wrapper.validateServiceTree" . -}}
+{{- $dependencyModules := .Values.primordial.platformDependency.modules -}}
+{{- $dependencyGroups := list "database" "kv" "cache" "store" -}}
+{{- range $group, $_ := $dependencyModules -}}
+{{- if not (has $group $dependencyGroups) -}}
+{{- fail (printf "primordial.platformDependency.modules contains unsupported group %q" $group) -}}
+{{- end -}}
+{{- end -}}
 apiVersion: {{ .Values.primordial.apiVersions.fleet }}
 kind: PlatformDependency
 metadata:
@@ -44,7 +51,12 @@ spec:
   landscape: {{ .Values.primordial.targetLandscape }}
   placement:
     preferredHost: {{ .Values.primordial.placement.preferredHost }}
-  {{- toYaml .Values.primordial.platformDependency.modules | nindent 2 }}
+  {{- range $group := $dependencyGroups }}
+  {{- with index $dependencyModules $group }}
+  {{ $group }}:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- end }}
   deletionPolicy:
     retainSecret: 168h
 ---

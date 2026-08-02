@@ -1,5 +1,5 @@
 import { defineGate } from './lib/definition.ts';
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRed, withCleanProbeState } from './lib/helpers.ts';
 
 export default defineGate({
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
@@ -19,11 +19,17 @@ export default defineGate({
     description: 'Changing the shared folder prefix is detected.',
     expectedImpact: [],
     async run(repo: any) {
-      await repo.patch('chart/templates/externalsecret.yaml', {
-        find: "target: 'SHARED_$1'",
-        replace: "target: 'COLLIDE_$1'",
+      await withCleanProbeState(repo, ['chart/templates/externalsecret.yaml'], async () => {
+        await repo.patch('chart/templates/externalsecret.yaml', {
+          find: "target: '{{ upper $sharedFolder }}_$1'",
+          replace: "target: 'COLLIDE_$1'",
+        });
+        await expectRed(
+          repo,
+          'nix develop .#ci -c ./scripts/validate/helm-wrapper.sh secret',
+          'wrapper-external-secret',
+        );
       });
-      await expectRed(repo, 'nix develop .#ci -c ./scripts/validate/helm-wrapper.sh secret', 'wrapper-external-secret');
     },
   },
 });

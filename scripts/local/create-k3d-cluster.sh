@@ -6,7 +6,8 @@ registry_name="${K3D_REGISTRY_NAME:-diene-wrapper-registry}"
 registry_port="${K3D_REGISTRY_PORT:-5001}"
 http_port="${K3D_HTTP_PORT:-18080}"
 
-k3d cluster list --no-headers | awk '{print $1}' | rg -qx "${cluster_name}" && echo "✅ k3d cluster ${cluster_name} already exists" && exit 0
+clusters="$(k3d cluster list --no-headers | awk '{print $1}')"
+printf '%s\n' "${clusters}" | rg -qx "${cluster_name}" && echo "✅ k3d cluster ${cluster_name} already exists" && exit 0
 
 config="$(mktemp)"
 trap 'rm -f "${config}"' EXIT

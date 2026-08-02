@@ -46,7 +46,7 @@ tasks:
   test:
     desc: Run the Helm wrapper unit/static tier
     cmds:
-      - ./scripts/ci/helm-wrapper.sh
+      - task: test:unit
 
   test:unit:
     desc: Run schema, lint, render, policy, and contract validation

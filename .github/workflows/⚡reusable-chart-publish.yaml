@@ -21,11 +21,14 @@ jobs:
       packages: write
     steps:
       - uses: AtomiCloud/actions.setup-nix@v3
+      - id: repository
+        name: Normalize OCI repository
+        run: echo "path=${GITHUB_REPOSITORY,,}" >> "${GITHUB_OUTPUT}"
       - name: Publish chart
         env:
           OCI_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
           OCI_REGISTRY: ghcr.io
-          OCI_REPOSITORY: ${{ github.repository }}
+          OCI_REPOSITORY: ${{ steps.repository.outputs.path }}
           OCI_USERNAME: ${{ github.actor }}
           PUBLISH_DRY_RUN: 'false'
           PUBLISH_MODE: oci

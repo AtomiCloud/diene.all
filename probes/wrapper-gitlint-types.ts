@@ -1,5 +1,5 @@
 import { defineGate } from './lib/definition.ts';
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRed, withCleanProbeState } from './lib/helpers.ts';
 
 export default defineGate({
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
@@ -15,8 +15,10 @@ export default defineGate({
     description: 'A one-type vocabulary divergence is rejected.',
     expectedImpact: [],
     async run(repo: any) {
-      await repo.patch('.gitlint', { find: ',test\n', replace: '\n' });
-      await expectRed(repo, 'nix develop .#ci -c ./scripts/validate/gitlint-types.sh', 'wrapper-gitlint-types');
+      await withCleanProbeState(repo, ['.gitlint'], async () => {
+        await repo.patch('.gitlint', { find: ',test\n', replace: '\n' });
+        await expectRed(repo, 'nix develop .#ci -c ./scripts/validate/gitlint-types.sh', 'wrapper-gitlint-types');
+      });
     },
   },
 });

@@ -1,5 +1,5 @@
 import { defineGate } from './lib/definition.ts';
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRed, withCleanProbeState } from './lib/helpers.ts';
 
 export default defineGate({
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
@@ -19,15 +19,17 @@ export default defineGate({
     description: 'Changing chart metadata without regenerating docs turns the hook red.',
     expectedImpact: [],
     async run(repo: any) {
-      await repo.patch('chart/Chart.yaml', {
-        find: 'description: Minimal production-grade Helm wrapper template for AtomiCloud platform charts',
-        replace: 'description: Drifted wrapper description',
+      await withCleanProbeState(repo, ['chart/Chart.yaml', 'chart/README.md'], async () => {
+        await repo.patch('chart/Chart.yaml', {
+          find: 'description: Minimal production-grade Helm wrapper template for AtomiCloud platform charts',
+          replace: 'description: Drifted wrapper description',
+        });
+        await expectRed(
+          repo,
+          'nix develop .#ci -c pre-commit run a-wrapper-helm-docs --all-files',
+          'wrapper-hook-helm-docs',
+        );
       });
-      await expectRed(
-        repo,
-        'nix develop .#ci -c pre-commit run a-wrapper-helm-docs --all-files',
-        'wrapper-hook-helm-docs',
-      );
     },
   },
 });

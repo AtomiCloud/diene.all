@@ -192,7 +192,7 @@
 
 {{/* The primary workload must explicitly use fullnameOverride. */}}
 {{- define "diene-helm-wrapper.primaryName" -}}
-{{- $expected := include "diene-helm-wrapper.resourceName" (dict "root" . "token" "api") -}}
+{{- $expected := include "diene-helm-wrapper.resourceName" (dict "root" . "token" .Values.serviceTree.module) -}}
 {{- if ne .Values.fullnameOverride $expected -}}
 {{- fail (printf "fullnameOverride must be %q, got %q" $expected .Values.fullnameOverride) -}}
 {{- end -}}

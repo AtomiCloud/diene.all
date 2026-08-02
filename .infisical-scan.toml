@@ -1,0 +1,11 @@
+title = "Diene scanner exceptions"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Public deterministic preview lease-key fixture; never a credential"
+regexTarget = "match"
+regexes = [
+  '''p00000000000000000000000000''',
+]
