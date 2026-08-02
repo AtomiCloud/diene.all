@@ -1,14 +1,6 @@
 ---
 name: taskfile-conventions
-description: Taskfile usage and task definitions
+description: Use when working on Taskfile conventions in this repository.
 ---
 
-# Taskfile Conventions
-
-Reference: [docs/developer/standard/taskfile.md](../../../docs/developer/standard/taskfile.md)
-
-## Key Points
-
-- `pls setup` - Setup the repository
-- `pls lint` - Run pre-commit hooks
-- Taskfile.yaml uses YAML format with version '3'
+Read [the Taskfile conventions standard](../../../docs/standards/taskfile/index.md) before editing this surface.

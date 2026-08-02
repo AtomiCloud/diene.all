@@ -1,52 +1,26 @@
-### AtomiCloud
-#### source: 1dcf99b7-867e-40aa-b378-bf6d569d51ea, b304ab1c-173d-4650-a0d9-93d5d67e2d3a
-.kloop/
+.direnv/
+.pre-commit-config.yaml
+/result
+/result-*
 
-### Bun
 node_modules/
 dist/
 coverage/
 *.tsbuildinfo
 
-### IDE
-#### source: 1dcf99b7-867e-40aa-b378-bf6d569d51ea, b304ab1c-173d-4650-a0d9-93d5d67e2d3a
-*.swn
-*.swo
-*.swp
-.idea/
-.vscode/
-
-### Linux
-#### source: 1dcf99b7-867e-40aa-b378-bf6d569d51ea, b304ab1c-173d-4650-a0d9-93d5d67e2d3a
-*~
-
-### macOS
-#### source: 1dcf99b7-867e-40aa-b378-bf6d569d51ea, b304ab1c-173d-4650-a0d9-93d5d67e2d3a
-.DS_Store
-._*
-
-### Nix
-#### source: 1dcf99b7-867e-40aa-b378-bf6d569d51ea, b304ab1c-173d-4650-a0d9-93d5d67e2d3a
-.direnv/
-result
-result-*
-
-### nix-init
-#### source: cddc0866-e5ef-4c99-9d10-7fa1c608da4e
-.direnv
-.pre-commit-config.yaml
-
-### Project
-#### source: 1dcf99b7-867e-40aa-b378-bf6d569d51ea, b304ab1c-173d-4650-a0d9-93d5d67e2d3a
-.kagent/
-
-### Secrets
-#### source: 1dcf99b7-867e-40aa-b378-bf6d569d51ea, b304ab1c-173d-4650-a0d9-93d5d67e2d3a
-*.tfvars
 .env
 .env.*
-
-### Windows
-#### source: 1dcf99b7-867e-40aa-b378-bf6d569d51ea, b304ab1c-173d-4650-a0d9-93d5d67e2d3a
+!.env.example
+.kagent/
+.kloop/
+*.log
+*.swo
+*.swp
+*~
+.DS_Store
+._*
+.idea/
+.vscode/
 Thumbs.db
 desktop.ini
+infra/root_chart/uploads/

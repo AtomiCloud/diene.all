@@ -1,13 +1,10 @@
-gitlint: .gitlint
-
 conventionMarkdown:
   path: docs/developer/CommitConventions.md
   template: |
-    ---
-    id: commit-conventions
-    title: Commit Conventions
-    ---
+    # Commit conventions
+
     CONVENTION_DOCS_PLACEHOLDER
+
 keywords:
   - BREAKING CHANGE
   - BREAKING CHANGES
@@ -26,11 +23,10 @@ plugins:
     version: 6.0.3
     config:
       changelogFile: Changelog.md
-  # Stamp package.json so builds from the tag report the real version.
   - module: '@semantic-release/exec'
     version: 6.0.3
     config:
-      prepareCmd: scripts/release/bump.sh ${nextRelease.version}
+      prepareCmd: './scripts/release/bump.sh ${nextRelease.version}'
   - module: '@semantic-release/git'
     version: 10.0.1
     config:
@@ -38,129 +34,105 @@ plugins:
       assets:
         - Changelog.md
         - package.json
+        - VERSION
         - docs/developer/CommitConventions.md
   - module: '@semantic-release/github'
     version: 10.3.5
 
-# Angular Conventional Commit Example: https://github.com/angular/angular/blob/22b96b9/CONTRIBUTING.md#-commit-message-guidelines
 types:
-  - type: build
-    desc: 'Changes that affect the build system or external dependencies (example scopes: nix)'
+  - type: amend
+    desc: Small amendments and typo fixes
     scopes:
       default:
-        desc: Fixes in nix
+        desc: Amend existing work
         release: false
-  - type: config
-    desc: 'Changes to the configuration files (example scopes: nix, ci)'
+  - type: build
+    desc: Build-system changes
     scopes:
       default:
-        desc: Update configuration files
+        desc: Update build machinery
+        release: false
+  - type: chore
+    desc: Repository chores
+    scopes:
+      default:
+        desc: Perform a chore
         release: false
   - type: ci
-    desc: 'Changes to our CI configuration files and scripts (example scopes: github_workflow, github_action)'
+    desc: CI/CD changes
     scopes:
       default:
-        desc: Update CI configuration
+        desc: Update CI/CD
         release: false
-  - type: docs
-    section: 📜 Documentation 📜
-    desc: Documentation only changes
+  - type: config
+    desc: Configuration changes
     scopes:
       default:
-        desc: Update documentation such as README file
-        release: false
-  - type: feat
-    section: ✨ Features ✨
-    desc: A new feature
-    vae:
-      verb: add
-      application: <scope>, <title>
-      example: 'feat: new withdraw api for rapid'
-    scopes:
-      default:
-        desc: Release new features
-        release: minor
-      breaking:
-        desc: Release a breaking change
-        release: major
-  - type: fix
-    section: 🐛 Bug Fixes 🐛
-    desc: A bug fix
-    vae:
-      verb: fix
-      application: <title>
-      example: 'fix: deposit api for rapid'
-    scopes:
-      default:
-        desc: Generic fixes
-        release: patch
-  - type: perf
-    section: 🚀 Performance Improvement 🚀
-    desc: A code change that improves performance
-    vae:
-      verb: improve
-      application: <title>
-      example: 'perf: alpaca api callback speed increase'
-    scopes:
-      default:
-        desc: Generic improvement statement
-        release: patch
-  - type: refactor
-    desc: A code change that neither fixes a bug nor adds a feature
-    vae:
-      verb: refactor
-      application: <scope>, <title>
-      example: 'refactor: make withdrawal code more reusable'
-    scopes:
-      default:
-        desc: Refactor existing feature
-        release: minor
-  - type: style
-    desc: Changes that do not affect the meaning of the code (white-space, formatting, missing semi-colons, etc)
-    vae:
-      verb: style
-      application: <title>
-      example: 'style: add missing semi colon'
-    scopes:
-      default:
-        desc: Generic improvement statement
-        release: patch
-  - type: test
-    section: 🧪 Tests 🧪
-    desc: Adding missing tests or correcting existing tests
-    vae:
-      verb: test
-      application: <scope>, <title>
-      example: 'test: update test for deposit api'
-    scopes:
-      default:
-        desc: Made changes to test
-        release: minor
-  - type: amend
-    desc: Any amendment, uncategorized, or small mistakes (like typos)
-    scopes:
-      default:
-        desc: amendments
+        desc: Update configuration
         release: false
   - type: dep
-    desc: Dependency updates from upstream
+    desc: Dependency updates
     section: 🔼 Dependency Upstreams 🔼
     scopes:
       default:
-        desc: Dependency updates
+        desc: Update a dependency
         release: false
       patch:
-        desc: Dependency updates are patches
+        desc: Patch dependency update
         release: patch
       minor:
-        desc: Dependency updates are minor
+        desc: Minor dependency update
         release: minor
       major:
-        desc: Dependency updates are major
+        desc: Major dependency update
         release: major
-  - type: chore
-    desc: Chores like test, attempts, typos, etc
+  - type: docs
+    desc: Documentation changes
+    section: 📜 Documentation 📜
     scopes:
       default:
-        desc: Chores
+        desc: Update documentation
         release: false
+  - type: feat
+    desc: New features
+    section: ✨ Features ✨
+    scopes:
+      default:
+        desc: Add a feature
+        release: minor
+      breaking:
+        desc: Add a breaking feature
+        release: major
+  - type: fix
+    desc: Bug fixes
+    section: 🐛 Bug Fixes 🐛
+    scopes:
+      default:
+        desc: Fix a bug
+        release: patch
+  - type: perf
+    desc: Performance improvements
+    section: 🚀 Performance Improvement 🚀
+    scopes:
+      default:
+        desc: Improve performance
+        release: patch
+  - type: refactor
+    desc: Refactors
+    scopes:
+      default:
+        desc: Refactor implementation
+        release: minor
+  - type: style
+    desc: Non-functional style changes
+    scopes:
+      default:
+        desc: Update style
+        release: patch
+  - type: test
+    desc: Test changes
+    section: 🧪 Tests 🧪
+    scopes:
+      default:
+        desc: Add or correct tests
+        release: minor

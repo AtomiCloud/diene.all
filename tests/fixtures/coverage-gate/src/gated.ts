@@ -1,5 +1,4 @@
-// Stand-in for a real source file, measured by the fixture ledger only. Nothing in the application
-// imports it — its whole job is to have a function that goes uncovered when a test is skipped.
+// This fixture exposes a function that the sabotage deliberately leaves uncovered.
 
 export function alwaysMeasured(value: number): number {
   return value + 1;

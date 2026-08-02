@@ -1,4 +1,5 @@
 name: ⚡ Reusable Helm
+
 on:
   workflow_call:
     inputs:
@@ -8,32 +9,26 @@ on:
       version:
         required: false
         type: string
+        default: ''
+
 jobs:
   build:
     name: Build Helm
-    permissions:
-      contents: read
-      id-token: write
-      packages: write
     runs-on:
       - nscloud-ubuntu-22.04-amd64-4x8-with-cache
       - nscloud-cache-size-50gb
-      - nscloud-cache-tag-atomi-nix-store-cache
+      - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
     steps:
-      # Setup
       - uses: AtomiCloud/actions.setup-nix@v3
-
-      # Action
-      - name: Build and Push Helm
-        run: nix develop .#cd -c ./scripts/ci/helm.sh "${{ inputs.chart_path }}" "${{ inputs.version }}"
+      - name: Build and push Helm
         env:
-          # registry
+          CHART_PATH: ${{ inputs.chart_path }}
+          CI_HELM_PUSH: 'true'
           DOMAIN: ghcr.io
-
           DOCKER_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
           DOCKER_USER: ${{ github.actor }}
-
-          # downwards API
+          GITHUB_BRANCH: ${{ github.ref_name }}
           GITHUB_REPO_REF: ${{ github.repository }}
           GITHUB_SHA: ${{ github.sha }}
-          GITHUB_BRANCH: ${{ env.GITHUB_REF_SLUG }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: nix develop .#cd -c ./scripts/ci/helm.sh

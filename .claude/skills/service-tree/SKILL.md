@@ -1,14 +1,6 @@
 ---
 name: service-tree
-description: Service tree and platform structure
+description: Use when working on service-tree identity in this repository.
 ---
 
-# Service Tree
-
-Reference: [docs/developer/standard/service-tree.md](../../../docs/developer/standard/service-tree.md)
-
-## Key Points
-
-- Services are identified by platform and service name
-- Use `diene` and `bun-base` variables
-- Cache namespacing uses `diene-bun-base-nix-store-cache`
+Read [the service-tree identity standard](../../../docs/standards/service-tree/index.md) before editing this surface.

@@ -1,4 +1,5 @@
 version: '3'
+
 includes:
   docker: tasks/Taskfile.docker.yaml
   helm: tasks/Taskfile.helm.yaml
@@ -13,55 +14,86 @@ includes:
     vars:
       MODE: int
       CONFIG: bunfig.int.toml
+
 tasks:
   setup:
-    desc: Setup the repository
+    desc: Set up dependencies and generated workspace assets
     cmds:
       - ./scripts/local/setup.sh
       - ./scripts/local/secrets.sh
+      - ./scripts/local/skills-sync.sh
+
   clean:
     desc: Remove build, dependency, and coverage artifacts
     cmds:
-      - rm -rf dist node_modules coverage
+      - rm -rf dist coverage
+      - '[ ! -d node_modules ] || find node_modules -mindepth 1 -maxdepth 1 -exec rm -rf {} +'
+
   build:
     desc: Build the bundle to dist/
     cmds:
       - ./scripts/local/build.sh
+
+  run:
+    desc: Run the sample in development mode (args via --)
+    cmds:
+      - bun run ./src/index.ts -- {{.CLI_ARGS}}
+
+  preview:
+    desc: Run the built sample (args via --)
+    deps:
+      - build
+    cmds:
+      - bun run ./dist/index.js -- {{.CLI_ARGS}}
+
   lint:
-    desc: Lints the whole code-base
+    desc: Run all repository gates
     cmds:
       - pre-commit run --all-files
+
   deadcode:
     desc: Review dead-code findings
     cmds:
       - ./scripts/local/deadcode.sh
+
   test:
-    desc: Run all suites without coverage (unit + int)
+    desc: Run all suites without coverage
     cmds:
       - task: unit:default
       - task: int:default
+
   test:unit:
     desc: Run the unit suite without coverage
     cmds:
       - task: unit:default
+
   test:int:
     desc: Run the integration suite without coverage
     cmds:
       - task: int:default
+
   test:coverage:
-    desc: Run every coverage-capable suite with coverage (unit + int)
+    desc: Run all suites with coverage
     cmds:
       - task: unit:coverage
       - task: int:coverage
+
   test:unit:coverage:
     desc: Run the unit suite with coverage
     cmds:
       - task: unit:coverage
+
   test:int:coverage:
     desc: Run the integration suite with coverage
     cmds:
       - task: int:coverage
+
   test:watch:
-    desc: Watch the fast unit suite (aggregate watch entry point)
+    desc: Watch the fast unit suite
     cmds:
       - task: unit:watch
+
+  skills:sync:
+    desc: Synchronize installed diene package skills
+    cmds:
+      - ./scripts/local/skills-sync.sh

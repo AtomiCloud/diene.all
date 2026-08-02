@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
-rm .git/hooks/* 2>/dev/null || true
-# node_modules is a cache mountpoint: empty the stale tree, keep the mount
-[ -d node_modules ] && find node_modules -mindepth 1 -maxdepth 1 -exec rm -rf {} +
-sg release -i npm
+
+[ -z "${GITHUB_TOKEN:-}" ] && echo "❌ 'GITHUB_TOKEN' env var not set" >&2 && exit 1
+
+./scripts/ci/setup.sh
+rm -f .git/hooks/*
+releaser release -c atomi_release.yaml
+
 echo "✅ Release complete"

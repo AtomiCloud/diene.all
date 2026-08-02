@@ -14,10 +14,7 @@ export type RedisConfigResult =
   | { readonly ok: true; readonly connection: RedisConnection | undefined }
   | { readonly ok: false; readonly issues: readonly string[] };
 
-/**
- * A variable that is present but blank carries no more information than an absent one, so both
- * collapse to `undefined` before validation and let the defaults apply.
- */
+/** Treat blank environment values as unset so defaults apply consistently. */
 function blankAsUnset(value: unknown): unknown {
   return typeof value === 'string' && value.trim() === '' ? undefined : value;
 }
@@ -36,12 +33,7 @@ const redisEnvironmentSchema = z.object({
   ),
 });
 
-/**
- * Total function: invalid configuration comes back as readable issues instead of an exception, so
- * the caller decides how to report it.
- *
- * A missing host is not an error — it means "run without Redis", which is the sample's default.
- */
+/** Return invalid configuration as data; a missing host intentionally disables Redis. */
 export function parseRedisEnvironment(environment: RedisEnvironment): RedisConfigResult {
   const parsed = redisEnvironmentSchema.safeParse(environment);
 

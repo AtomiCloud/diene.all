@@ -1,39 +1,32 @@
-<!-- Badge targets point at AtomiCloud/diene.bun-base and are rewritten on template promotion. -->
+# Diene workspace baseline
 
-[![CI](https://github.com/AtomiCloud/diene.bun-base/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.bun-base/actions/workflows/ci.yaml)
-[![Coverage](https://codecov.io/gh/AtomiCloud/diene.bun-base/branch/main/graph/badge.svg)](https://codecov.io/gh/AtomiCloud/diene.bun-base)
-[![Unit Tests](https://img.shields.io/github/check-runs/AtomiCloud/diene.bun-base/main?nameFilter=Unit%20Tests%20%2F%20Unit%20Tests&label=Unit%20Tests)](https://github.com/AtomiCloud/diene.bun-base/actions/workflows/ci.yaml)
-[![Integration Tests](https://img.shields.io/github/check-runs/AtomiCloud/diene.bun-base/main?nameFilter=Integration%20Tests%20%2F%20Integration%20Tests&label=Integration%20Tests)](https://github.com/AtomiCloud/diene.bun-base/actions/workflows/ci.yaml)
-[![Commits per month](https://img.shields.io/github/commit-activity/m/AtomiCloud/diene.bun-base)](https://github.com/AtomiCloud/diene.bun-base/commits/main)
+Diene's reproducible development environment is managed by Nix. Run `direnv allow` once, then use `pls` tasks from the loaded shell.
 
-# Development Environment
+This branch is the all-features workspace baseline inherited by every downstream sample: split CI/CD, Docker, Helm, secrets, release configuration, validators, standards, and vendored agent-skill synchronization.
 
-All binaries, tools, and PATH are managed by **Nix**. Do not install tools manually or modify PATH outside of the nix configuration.
+Bun-specific commands, test tiers, coverage artifacts, and runtime behavior are
+documented in [the Bun baseline](docs/developer/bun-baseline.md). TypeScript
+guidance is linked from the relevant sections of [`CLAUDE.md`](CLAUDE.md).
 
-## Prerequisites
+## Commands
 
-1. **[Nix](https://nixos.org/download)** — package manager
-2. **[Docker](https://docs.docker.com/get-docker)** — container runtime
-3. **[direnv](https://direnv.net/docs/installation.html)** — auto-loads the nix shell on `cd`
+Run `pls --list` for every available task and its description. The task set is
+declared in [`Taskfile.yaml`](Taskfile.yaml), whose `includes:` block maps each
+namespace to a file under [`tasks/`](tasks); a task shown as `<namespace>:<task>`
+is that key in the included file. Build artifacts — Dockerfiles and Helm charts —
+live under [`infra/`](infra) and may be plural, so their tasks are keyed per
+artifact. See [the Taskfile standard](docs/standards/taskfile/index.md) for the
+conventions.
 
-## Getting Started
+## Standards
 
-```bash
-direnv allow    # first time only — loads the nix dev shell
-```
+[`CLAUDE.md`](CLAUDE.md) is the index of repository conventions: one section per
+surface, each pointing at its standard under
+[`docs/standards/`](docs/standards). Read the section for the surface you are
+changing before you change it. The index covers both the tooling surfaces of
+this baseline and the language-agnostic engineering standards it carries.
 
-Once allowed, direnv automatically loads the development environment whenever you enter the project directory.
-
-## Nix Configuration
-
-See [docs/developer/standard/nix.md](docs/developer/standard/nix.md) for the full guide on:
-
-- File structure (`flake.nix`, `nix/`, `.envrc`)
-- Adding/removing packages
-- Environment groups and shells
-- Formatters and pre-commit hooks
-- Adding registries
-
-## Bun Baseline
-
-See [docs/developer/bun-baseline.md](docs/developer/bun-baseline.md) for Bun-specific commands, test modes, coverage, and runtime notes.
+Domain-specific architecture and behavior belongs under
+[`docs/domain/`](docs/domain/README.md), not under `docs/standards/`. The
+[`docs/standards/contracts/`](docs/standards/contracts/README.md) location is
+reserved for the separately owned C0 contracts standard.

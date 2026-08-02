@@ -3,12 +3,7 @@ import { rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import should from 'should';
 
-/**
- * A coverage threshold that never fails is decoration. This drives the fixture ledger under
- * `tests/fixtures/coverage-gate/` twice — once intact, once with a test skipped — and requires the
- * *same command* to go from exit 0 to exit 1 with no test failure in between. That is the only
- * evidence that a dropped test is caught by coverage rather than waved through.
- */
+/** Drive the same fixture command green and sabotaged to prove the threshold blocks. */
 const REPOSITORY_ROOT = resolve(import.meta.dir, '../..');
 const FIXTURE_CONFIG = 'tests/fixtures/coverage-gate/bunfig.toml';
 const FIXTURE_COVERAGE_DIR = 'coverage/fixture';

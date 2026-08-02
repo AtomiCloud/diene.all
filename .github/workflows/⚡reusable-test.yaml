@@ -15,12 +15,14 @@ jobs:
     runs-on:
       - nscloud-ubuntu-22.04-amd64-4x8-with-cache
       - nscloud-cache-size-50gb
-      - nscloud-cache-tag-atomi-nix-store-cache
+      - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
     steps:
       - uses: AtomiCloud/actions.setup-nix@v3
-      - uses: AtomiCloud/actions.cache-bun@v1
+      - uses: AtomiCloud/actions.cache-bun@v2
       - name: Run ${{ inputs.mode }} tests
-        run: nix develop .#ci -c ./scripts/ci/test.sh ${{ inputs.mode }}
+        env:
+          TEST_MODE: ${{ inputs.mode }}
+        run: nix develop .#ci -c ./scripts/ci/test.sh "${TEST_MODE}"
       - name: Upload ${{ inputs.mode }} coverage artifact
         if: always()
         uses: actions/upload-artifact@v7

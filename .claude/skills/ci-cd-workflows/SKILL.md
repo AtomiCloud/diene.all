@@ -1,15 +1,6 @@
 ---
 name: ci-cd-workflows
-description: CI/CD workflow conventions and best practices
+description: Use when working on CI/CD workflows in this repository.
 ---
 
-# CI/CD Workflows
-
-Reference: [docs/developer/standard/ci-cd.md](../../../docs/developer/standard/ci-cd.md)
-
-## Key Points
-
-- CI runs pre-commit hooks on every push
-- CD triggers on version tags (v*.*.\*)
-- Release workflow triggers on CI completion on main
-- All reusable workflows use nscloud runners
+Read [the CI/CD workflows standard](../../../docs/standards/ci-cd/index.md) before editing this surface.

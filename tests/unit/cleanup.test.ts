@@ -85,4 +85,25 @@ describe('withCleanup', () => {
     await should(actual).be.rejectedWith(PRIMARY);
     should(reported).eql([SECONDARY]);
   });
+
+  it('should keep the operation error when cleanup reporting also fails', async () => {
+    // Arrange
+    const reportingError = new Error('reporting blew up');
+
+    // Act
+    const actual = withCleanup(
+      async () => {
+        throw PRIMARY;
+      },
+      async () => {
+        throw SECONDARY;
+      },
+      () => {
+        throw reportingError;
+      },
+    );
+
+    // Assert
+    await should(actual).be.rejectedWith(PRIMARY);
+  });
 });

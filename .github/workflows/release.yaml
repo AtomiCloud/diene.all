@@ -14,5 +14,9 @@ jobs:
   release:
     name: Semantic Release
     if: github.event.workflow_run.conclusion == 'success'
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
     uses: ./.github/workflows/⚡reusable-release.yaml
     secrets: inherit

@@ -2,8 +2,7 @@ import { describe, it } from 'bun:test';
 import should from 'should';
 import { alwaysMeasured, measuredOnlyWhileTheSuiteRuns } from '../src/gated';
 
-// Flipping this variable is the sabotage: the gated test stops running, its function stops being
-// covered, and the fixture's 100% threshold must turn that into a non-zero exit.
+// The sabotage skips one path so the fixture threshold must turn the run red.
 const sabotaged = process.env.COVERAGE_GATE_SABOTAGE === '1';
 const gated = sabotaged ? it.skip : it;
 

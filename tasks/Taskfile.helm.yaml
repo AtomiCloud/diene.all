@@ -1,16 +1,33 @@
 version: '3'
-vars:
-  CHART: infra/root_chart
+
+# One task set per chart under infra/. The task key is the chart directory's own
+# name, so `infra/root_chart` is `root_chart:<verb>`. A new chart gets its own
+# tasks and its own vars block; never re-point a shared chart variable.
 tasks:
-  deps:
-    desc: 'Build chart dependencies'
+  root_chart:deps:
+    desc: Build dependencies for infra/root_chart
+    vars:
+      CHART: infra/root_chart
     cmds:
-      - helm dependency build {{.CHART}}
-  template:
-    desc: 'Render the chart templates (extra args via --)'
+      - nix develop --no-write-lock-file .#default -c helm dependency build {{.CHART}}
+
+  root_chart:lint:
+    desc: Lint infra/root_chart
+    vars:
+      CHART: infra/root_chart
     cmds:
-      - helm template {{.CHART}} {{.CLI_ARGS}}
-  debug:
-    desc: 'Render the chart templates with --debug'
+      - nix develop --no-write-lock-file .#default -c helm lint {{.CHART}}
+
+  root_chart:template:
+    desc: Render infra/root_chart
+    vars:
+      CHART: infra/root_chart
     cmds:
-      - helm template {{.CHART}} --debug {{.CLI_ARGS}}
+      - nix develop --no-write-lock-file .#default -c helm template diene-workspace {{.CHART}} {{.CLI_ARGS}}
+
+  root_chart:debug:
+    desc: Render infra/root_chart with debug output
+    vars:
+      CHART: infra/root_chart
+    cmds:
+      - nix develop --no-write-lock-file .#default -c helm template diene-workspace {{.CHART}} --debug {{.CLI_ARGS}}

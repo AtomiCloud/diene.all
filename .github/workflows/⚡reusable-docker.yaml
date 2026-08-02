@@ -1,4 +1,5 @@
 name: ⚡ Reusable Docker
+
 on:
   workflow_call:
     inputs:
@@ -8,49 +9,43 @@ on:
       dockerfile:
         required: false
         type: string
-        default: 'Dockerfile'
+        default: ./infra/Dockerfile
       context:
         required: false
         type: string
-        default: '.'
+        default: .
       platform:
         required: false
         type: string
-        default: 'linux/arm64,linux/amd64'
+        default: linux/arm64,linux/amd64
       version:
         required: false
         type: string
+        default: ''
+
 jobs:
   build:
     name: Build Docker
-    permissions:
-      contents: read
-      id-token: write
-      packages: write
     runs-on:
-      - ubuntu-22.04
+      - nscloud-ubuntu-22.04-amd64-4x8-with-cache
+      - nscloud-cache-size-50gb
+      - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
     steps:
-      # Setup
+      - uses: AtomiCloud/actions.setup-nix@v3
       - uses: AtomiCloud/actions.setup-docker@v2
-
-      # Action
-      - name: Build and Push Docker
-        run: ./scripts/ci/docker.sh ${{ inputs.version }}
+      - name: Build and push Docker
         env:
-          LATEST_BRANCH: main
-
-          # registry
+          CI_DOCKER_CONTEXT: ${{ inputs.context }}
+          CI_DOCKER_IMAGE: ${{ inputs.image_name }}
+          CI_DOCKER_PLATFORM: ${{ inputs.platform }}
+          CI_DOCKER_PUSH: 'true'
+          CI_DOCKERFILE: ${{ inputs.dockerfile }}
           DOMAIN: ghcr.io
           DOCKER_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
           DOCKER_USER: ${{ github.actor }}
-
-          # downwards API
+          GITHUB_BRANCH: ${{ github.ref_name }}
           GITHUB_REPO_REF: ${{ github.repository }}
           GITHUB_SHA: ${{ github.sha }}
-          GITHUB_BRANCH: ${{ env.GITHUB_REF_SLUG }}
-
-          # build config
-          CI_DOCKER_IMAGE: ${{ inputs.image_name }}
-          CI_DOCKER_CONTEXT: ${{ inputs.context }}
-          CI_DOCKERFILE: ${{ inputs.dockerfile }}
-          CI_DOCKER_PLATFORM: ${{ inputs.platform }}
+          LATEST_BRANCH: main
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: nix develop .#cd -c ./scripts/ci/docker.sh

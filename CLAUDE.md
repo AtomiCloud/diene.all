@@ -1,96 +1,111 @@
-# Code Rules
+# Diene workspace agent guide
 
-Use these shared standards as the source of truth for AtomiCloud code:
+Use the repository's Nix shell for every command. Read [the Nix standard](docs/standards/nix/index.md) before changing the flake or `nix/` modules.
 
-- [Software Design Philosophy](docs/developer/standard/software-design-philosophy/index.md)
-- [SOLID Principles](docs/developer/standard/solid-principles/index.md)
-- [Functional Practices](docs/developer/standard/functional-practices/index.md)
-- [Domain-Driven Design](docs/developer/standard/domain-driven-design/index.md)
-- [Three-Layer Architecture](docs/developer/standard/three-layer-architecture/index.md)
-- [Stateless OOP and Dependency Injection](docs/developer/standard/stateless-oop-di/index.md)
-- [Validation](docs/developer/standard/validation/index.md)
-- [Date/Time](docs/developer/standard/datetime/index.md)
-- [Testing](docs/developer/standard/testing/index.md)
-- [Utilities](docs/developer/standard/utilities/index.md)
-- [Contributor Docs](docs/developer/standard/contributor-docs/index.md)
-- [Contributor Docs Checklist](docs/developer/standard/contributor-docs/checklist.md)
-- [Contributor Docs Classification](docs/developer/standard/contributor-docs/classification.md)
-- [Contributor Docs Frontmatter](docs/developer/standard/contributor-docs/frontmatter.md)
-- [Contributor Docs Structure](docs/developer/standard/contributor-docs/structure.md)
+Follow the linked standard before changing its surface. Never hand-edit `.claude/skills/vendor/`.
 
-Only selected language-specific standards are generated. Do not link to missing language docs.
+Domain-specific architecture and behavior belongs under [docs/domain/](docs/domain/README.md). The `docs/standards/contracts/` slot is reserved for the separately owned C0 contracts standard.
 
-- [TypeScript SOLID Principles](docs/developer/standard/solid-principles/languages/typescript.md)
-- [TypeScript Functional Practices](docs/developer/standard/functional-practices/languages/typescript.md)
-- [TypeScript Domain-Driven Design](docs/developer/standard/domain-driven-design/languages/typescript.md)
-- [TypeScript Stateless OOP and DI](docs/developer/standard/stateless-oop-di/languages/typescript.md)
-- [TypeScript Validation](docs/developer/standard/validation/languages/typescript.md)
-- [TypeScript Date/Time](docs/developer/standard/datetime/languages/typescript.md)
-- [TypeScript Testing](docs/developer/standard/testing/languages/typescript.md)
-- [TypeScript Utilities](docs/developer/standard/utilities/languages/typescript.md)
+## Bun baseline
 
-All commits must follow the conventional commits specification. Use `sg` for linting commit messages. See [docs/developer/standard/conventional-commits.md](docs/developer/standard/conventional-commits.md) for details.
+See [docs/developer/bun-baseline.md](docs/developer/bun-baseline.md) for Bun-specific commands, test tiers, coverage, and runtime behavior.
 
-# Bun Baseline
+## Authorization
 
-See [docs/developer/bun-baseline.md](docs/developer/bun-baseline.md) for Bun-specific commands, test modes, coverage, and runtime notes.
+See [docs/standards/authorization/index.md](docs/standards/authorization/index.md).
 
-# Development Environment
+## CI/CD workflows
 
-All binaries, tools, and PATH are managed by **Nix**. Do not install tools manually or modify PATH outside of the nix configuration.
+See [docs/standards/ci-cd/index.md](docs/standards/ci-cd/index.md).
 
-## Prerequisites
+## Contributor documentation
 
-1. **Nix** — package manager ([install](https://nixos.org/download))
-2. **Docker** — container runtime ([install](https://docs.docker.com/get-docker))
-3. **direnv** — auto-loads the nix shell on `cd` ([install](https://direnv.net/docs/installation.html))
+See [docs/standards/contributor-docs/index.md](docs/standards/contributor-docs/index.md).
 
-## Getting Started
+## Conventional commits
 
-```bash
-direnv allow    # first time only — loads the nix dev shell
-```
+See [docs/standards/conventional-commits/index.md](docs/standards/conventional-commits/index.md).
 
-## Nix Configuration
+## Data validation
 
-See **[docs/developer/standard/nix.md](docs/developer/standard/nix.md)** for the full guide on:
+See [docs/standards/validation/index.md](docs/standards/validation/index.md).
+For TypeScript, also read [the TypeScript validation standard](docs/standards/validation/languages/typescript.md).
 
-- File structure (`flake.nix`, `nix/`, `.envrc`)
-- Adding/removing packages
-- Environment groups and shells
-- Formatters and pre-commit hooks
-- Adding registries
+## Date and time
 
-# Docker
+See [docs/standards/datetime/index.md](docs/standards/datetime/index.md).
+For TypeScript, also read [the TypeScript date/time standard](docs/standards/datetime/languages/typescript.md).
 
-This project uses Docker for containerized builds and deployments. See [docs/developer/standard/docker.md](docs/developer/standard/docker.md) for details.
+## Docker build and publishing
 
-# Helm
+See [docs/standards/docker/index.md](docs/standards/docker/index.md).
 
-This project uses Helm for Kubernetes chart packaging and deployment. See [docs/developer/standard/helm.md](docs/developer/standard/helm.md) for details.
+## Domain-driven design
 
-# Linting
+See [docs/standards/domain-driven-design/index.md](docs/standards/domain-driven-design/index.md).
+For TypeScript, also read [the TypeScript DDD standard](docs/standards/domain-driven-design/languages/typescript.md).
 
-Pre-commit hooks enforce code quality via treefmt, shellcheck, gitlint, and infisical. See [docs/developer/standard/linting.md](docs/developer/standard/linting.md) for details.
+## Functional practices
 
-# Secret Management
+See [docs/standards/functional-practices/index.md](docs/standards/functional-practices/index.md).
+For TypeScript, also read [the TypeScript functional-practices standard](docs/standards/functional-practices/languages/typescript.md).
 
-This project uses Infisical for secret management. Use `pls setup` to authenticate
-and fetch secrets. See [docs/developer/standard/infisical.md](docs/developer/standard/infisical.md)
-for details.
+## Helm charts and publishing
 
-# Semantic Release
+See [docs/standards/helm/index.md](docs/standards/helm/index.md).
 
-This project uses semantic-release for automated versioning. Version bumps are determined by commit types. See [docs/developer/standard/semantic-release.md](docs/developer/standard/semantic-release.md) for details.
+## Infisical and secrets
 
-# Service Tree
+See [docs/standards/infisical/index.md](docs/standards/infisical/index.md).
 
-Services are identified by platform and service name. Configuration uses `diene` and `bun-base` variables. See [docs/developer/standard/service-tree.md](docs/developer/standard/service-tree.md) for details.
+## Linting and pre-commit
 
-# Shell Conventions
+See [docs/standards/linting/index.md](docs/standards/linting/index.md).
 
-All shell scripts must start with `#!/usr/bin/env bash` and `set -euo pipefail`. See [docs/developer/standard/shell-scripts.md](docs/developer/standard/shell-scripts.md) for details.
+## Nix flakes and development shells
 
-# Taskfile Conventions
+See [docs/standards/nix/index.md](docs/standards/nix/index.md).
 
-Use `pls setup` to set up the repository and `pls lint` to run pre-commit hooks. See [docs/developer/standard/taskfile.md](docs/developer/standard/taskfile.md) for details.
+## Release automation
+
+See [docs/standards/semantic-release/index.md](docs/standards/semantic-release/index.md).
+
+## Service-tree identity
+
+See [docs/standards/service-tree/index.md](docs/standards/service-tree/index.md).
+
+## Shell scripts
+
+See [docs/standards/shell-scripts/index.md](docs/standards/shell-scripts/index.md).
+
+## Software design philosophy
+
+See [docs/standards/software-design-philosophy/index.md](docs/standards/software-design-philosophy/index.md).
+
+## SOLID principles
+
+See [docs/standards/solid-principles/index.md](docs/standards/solid-principles/index.md).
+For TypeScript, also read [the TypeScript SOLID standard](docs/standards/solid-principles/languages/typescript.md).
+
+## Stateless OOP and dependency injection
+
+See [docs/standards/stateless-oop-di/index.md](docs/standards/stateless-oop-di/index.md).
+For TypeScript, also read [the TypeScript OOP/DI standard](docs/standards/stateless-oop-di/languages/typescript.md).
+
+## Taskfile conventions
+
+See [docs/standards/taskfile/index.md](docs/standards/taskfile/index.md).
+
+## Testing
+
+See [docs/standards/testing/index.md](docs/standards/testing/index.md).
+For TypeScript, also read [the TypeScript testing standard](docs/standards/testing/languages/typescript.md).
+
+## Three-layer architecture
+
+See [docs/standards/three-layer-architecture/index.md](docs/standards/three-layer-architecture/index.md).
+
+## Utility libraries
+
+See [docs/standards/utilities/index.md](docs/standards/utilities/index.md).
+For TypeScript, also read [the TypeScript utilities standard](docs/standards/utilities/languages/typescript.md).

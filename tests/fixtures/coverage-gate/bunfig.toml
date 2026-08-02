@@ -1,6 +1,4 @@
-# Fixture ledger for the coverage-gate sabotage check. It mirrors the real tiers — all-files
-# scoping, an lcov artifact, a hard threshold — over a throwaway source file, so the check can prove
-# the gate bites without ever weakening a real suite. Driven by tests/unit/coverage-gate.test.ts.
+# This isolated ledger proves the scalar coverage threshold blocks without weakening a real suite.
 [test]
 root = "tests/fixtures/coverage-gate/spec"
 coverageReporter = ["text", "lcov"]

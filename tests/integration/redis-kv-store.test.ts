@@ -118,8 +118,7 @@ describe('RedisKeyValueStore against an endpoint that is not Redis', () => {
   }, 30_000);
 
   it('should report the failure through the injected logger instead of the console', async () => {
-    // Arrange — a socket that answers with bytes RESP cannot parse. The resulting error carries no
-    // ECONNREFUSED code, so it takes the "unexpected" branch the adapter has to surface.
+    // Arrange — invalid RESP bytes exercise the non-ECONNREFUSED error branch deterministically.
     const observed = recordingLogger();
     const listener: TCPSocketListener = Bun.listen({
       hostname: '127.0.0.1',

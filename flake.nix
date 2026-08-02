@@ -7,8 +7,8 @@
 
     # registry
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
-    nixpkgs-2605.url = "github:NixOS/nixpkgs/nixos-26.05";
-    atomipkgs.url = "github:AtomiCloud/nix-registry/v2";
+    nixpkgs-2605.url = "github:NixOS/nixpkgs/4382ed2b7a6839d4280a9b386db49cbc5907414d";
+    atomipkgs.url = "github:AtomiCloud/nix-registry/v3";
   };
   outputs =
     {
@@ -38,7 +38,12 @@
       in
       with rec {
         pre-commit = import ./nix/pre-commit.nix {
-          inherit packages pre-commit-lib formatter;
+          inherit
+            packages
+            pkgs
+            pre-commit-lib
+            formatter
+            ;
         };
         formatter = import ./nix/fmt.nix {
           inherit treefmt-nix pkgs;

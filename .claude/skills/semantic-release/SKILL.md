@@ -1,14 +1,6 @@
 ---
 name: semantic-release
-description: Semantic release configuration and versioning. Use when configuring releases or understanding versioning.
+description: Use when working on release automation in this repository.
 ---
 
-# Semantic Release
-
-Reference: [docs/developer/standard/semantic-release.md](../../../docs/developer/standard/semantic-release.md)
-
-## Key Points
-
-- Automated versioning using `sg` (Semantic Generator)
-- Version bumps determined by commit types (feat, fix, etc.)
-- Configuration in `atomi_release.yaml`
+Read [the release automation standard](../../../docs/standards/semantic-release/index.md) before editing this surface.

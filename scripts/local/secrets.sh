@@ -1,14 +1,27 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-export INFISICAL_API_URL="https://secrets.atomi.cloud"
+action="${1:-}"
+api_url="${INFISICAL_API_URL:-https://secrets.atomi.cloud}"
 
-# Idempotent: only log in if we aren't already authenticated.
-if infisical user get token --silent >/dev/null 2>&1; then
-  echo "✓ Infisical already logged in"
-else
-  echo "→ Logging into Infisical..."
-  infisical login
-fi
+[ -z "${action}" ] && echo "❌ action must be 'fetch' or 'scan'" >&2 && exit 1
 
-echo "✅ Infisical secrets ready"
+case "${action}" in
+fetch)
+  [ -z "${INFISICAL_PROJECT_ID:-}" ] && echo "❌ 'INFISICAL_PROJECT_ID' env var not set" >&2 && exit 1
+  [ -z "${INFISICAL_ENVIRONMENT:-}" ] && echo "❌ 'INFISICAL_ENVIRONMENT' env var not set" >&2 && exit 1
+  if ! INFISICAL_API_URL="${api_url}" infisical user get token --silent >/dev/null 2>&1; then
+    INFISICAL_API_URL="${api_url}" infisical login
+  fi
+  INFISICAL_API_URL="${api_url}" infisical export --projectId="${INFISICAL_PROJECT_ID}" --env="${INFISICAL_ENVIRONMENT}" --format=dotenv >.env
+  ;;
+scan)
+  INFISICAL_API_URL="${api_url}" infisical scan . -v
+  ;;
+*)
+  echo "❌ unsupported secrets action '${action}'" >&2
+  exit 1
+  ;;
+esac
+
+echo "✅ Secrets ${action} complete"

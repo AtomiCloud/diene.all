@@ -1,27 +1,30 @@
 name: CD
+
 on:
   push:
     tags:
-      - v*.*.*
-      - v*.*.*
-      - v*.*.*
+      - 'v*.*.*'
+
 jobs:
-  placeholder:
-    name: Placeholder CD
-    runs-on: ubuntu-latest
-    steps:
-      - name: Placeholder Step
-        run: echo "Placeholder step ${{ github.ref_name }}"
   docker:
     name: Docker Image
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
     uses: ./.github/workflows/⚡reusable-docker.yaml
     secrets: inherit
     with:
-      image_name: diene-bun-base
+      image_name: diene-workspace
       dockerfile: ./infra/Dockerfile
       version: ${{ github.ref_name }}
+
   helm:
     name: Helm Chart
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
     uses: ./.github/workflows/⚡reusable-helm.yaml
     secrets: inherit
     with:

@@ -1,21 +1,27 @@
 version: '3'
-vars:
-  IMAGE: diene-bun-base:local
+
+# One task set per Dockerfile under infra/. The task key is the Dockerfile's own
+# name: bare `infra/Dockerfile` is `main`, `infra/<name>.Dockerfile` is
+# `<name>`. A new Dockerfile gets its own tasks and its own vars block; never
+# re-point a shared image variable.
 tasks:
-  build:
-    desc: 'Build the image locally (optional tag suffix via --, e.g. -- 1 -> :local-1)'
+  build:main:
+    desc: Build the infra/Dockerfile image locally
+    vars:
+      IMAGE: diene-workspace:local
     cmds:
-      - docker build -f infra/Dockerfile -t {{.IMAGE}}{{if .CLI_ARGS}}-{{.CLI_ARGS}}{{end}} .
-  run:
-    desc: 'Run the built image (optional tag suffix via --)'
+      - nix develop --no-write-lock-file .#default -c docker build -f infra/Dockerfile -t {{.IMAGE}}{{if .CLI_ARGS}}-{{.CLI_ARGS}}{{end}} .
+
+  run:main:
+    desc: Run the locally built infra/Dockerfile image
+    vars:
+      IMAGE: diene-workspace:local
     cmds:
-      - docker run --rm {{.IMAGE}}{{if .CLI_ARGS}}-{{.CLI_ARGS}}{{end}}
-  dev:
-    desc: 'Build then run the image (optional tag suffix via --)'
+      - nix develop --no-write-lock-file .#default -c docker run --rm {{.IMAGE}}{{if .CLI_ARGS}}-{{.CLI_ARGS}}{{end}}
+
+  clean:main:
+    desc: Remove the locally built infra/Dockerfile image
+    vars:
+      IMAGE: diene-workspace:local
     cmds:
-      - task: build
-      - task: run
-  clean:
-    desc: 'Remove the locally built image (optional tag suffix via --)'
-    cmds:
-      - docker image rm {{.IMAGE}}{{if .CLI_ARGS}}-{{.CLI_ARGS}}{{end}} || true
+      - nix develop --no-write-lock-file .#default -c docker image rm {{.IMAGE}}{{if .CLI_ARGS}}-{{.CLI_ARGS}}{{end}} || true

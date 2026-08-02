@@ -1,13 +1,4 @@
-/**
- * Run `operation`, then `cleanup`, without ever letting a cleanup failure hide a real one.
- *
- * `try { ... } finally { await cleanup(); }` looks equivalent but is not: a throwing `finally`
- * replaces the in-flight error, so a Redis disconnect that fails on the way out erases the fault
- * that actually broke the run. Here the operation's error always wins and the cleanup failure is
- * reported separately through `onCleanupFailure`.
- *
- * When the operation succeeds, a cleanup failure is the only failure there is, so it propagates.
- */
+/** Run cleanup while preserving an operation error as the authoritative failure. */
 export async function withCleanup<T>(
   operation: () => Promise<T>,
   cleanup: () => Promise<void>,
@@ -21,7 +12,11 @@ export async function withCleanup<T>(
     try {
       await cleanup();
     } catch (cleanupError) {
-      onCleanupFailure(cleanupError);
+      try {
+        onCleanupFailure(cleanupError);
+      } catch {
+        // Reporting is best-effort because it must not replace the operation error either.
+      }
     }
     throw error;
   }

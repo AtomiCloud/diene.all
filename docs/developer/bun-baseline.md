@@ -11,7 +11,8 @@ of settings (see [Template maintenance](#template-maintenance)) before formal
 CyanPrint template promotion.
 
 Only Bun-specific baseline behavior is documented here. General standards stay
-in `docs/developer/standard/`.
+in `docs/standards/`, with TypeScript guidance under each applicable
+`languages/typescript.md` path.
 
 ## Local commands
 
@@ -23,6 +24,8 @@ New Bun entries:
   per-tier coverage
 - `pls test:watch` — unit watch mode
 - `pls build`
+- `pls run -- <args>` — run `src/index.ts`
+- `pls preview -- <args>` — build and run `dist/index.js`
 - `pls deadcode`
 
 ## Test modes
@@ -46,9 +49,10 @@ pre-commit.
 
 ## Coverage gates
 
-- Unit coverage: `coverage/unit/lcov.info` — the `src/lib` domain ledger (100%
-  goal).
-- Integration coverage: `coverage/int/lcov.info` — the `src/adapters` ledger.
+- Unit coverage: `coverage/unit/lcov.info` — the `src/lib` domain ledger, gated
+  at 100%.
+- Integration coverage: `coverage/int/lcov.info` — the `src/adapters` ledger,
+  gated at 100%.
   Each bunfig scopes its ledger via `coveragePathIgnorePatterns` (bun has no
   include mode).
 - The local coverage artifact is blocking.
@@ -60,12 +64,15 @@ pre-commit.
 - Bun is the application runtime and build target.
 - `pls build` (and `scripts/ci/build.sh`) bundle `src/index.ts` to
   `dist/index.js` with `bun build --target bun`.
-- `infra/Dockerfile` is a multi-stage Bun image pinned by digest.
+- Pino emits structured logs and enriches each record with the active trace
+  context exposed by `@atomicloud/diene.otel`.
+- Redis settings are validated with Zod; blank values are treated as unset.
+- `infra/Dockerfile` is a multi-stage Bun image pinned to a Bun version.
 - The runtime stage runs as the non-root `bun` user.
-- `pls docker:build && pls docker:run` builds and runs the sample executable; it
-  prints the composed sample key by default. When `REDIS_HOST` and `REDIS_PORT`
-  are set, the executable uses the Redis adapter to persist and read back a
-  sample value.
+- `pls docker:build:main && pls docker:run:main` builds and runs the sample
+  executable; it prints the composed sample key by default. When `REDIS_HOST`
+  and `REDIS_PORT` are set, the executable uses the Redis adapter to persist and
+  read back a sample value.
 
 ## External service / compute cost
 
@@ -80,7 +87,7 @@ Keep CyanPrint-managed/shared scaffold edits additive. Settings a downstream
 template is expected to adapt:
 
 - **Package metadata** — `package.json` `name`/`description`.
-- **Coverage thresholds** — `codecov.yml` and any Bun thresholds added later.
+- **Coverage thresholds** — `bunfig.*.toml` and `codecov.yml`.
 - **Docker runtime entrypoint** — `infra/Dockerfile` `ENTRYPOINT`.
 - **Badges / template promotion** — the `AtomiCloud/diene.bun-base` paths in
   `README.md` badges are rewritten on promotion.

@@ -1,36 +1,61 @@
 name: CI
+
 on:
-  push: null
+  push:
+  pull_request:
+  workflow_dispatch:
+
 jobs:
   precommit:
     name: Pre-Commit
+    permissions:
+      contents: read
     uses: ./.github/workflows/⚡reusable-precommit.yaml
     secrets: inherit
+
   unit:
     name: Unit Tests
+    permissions:
+      contents: read
     uses: ./.github/workflows/⚡reusable-test.yaml
     secrets: inherit
     with:
       mode: unit
+
   int:
     name: Integration Tests
+    permissions:
+      contents: read
     uses: ./.github/workflows/⚡reusable-test.yaml
     secrets: inherit
     with:
       mode: int
+
   build:
     name: Build Validation
+    permissions:
+      contents: read
     uses: ./.github/workflows/⚡reusable-build.yaml
     secrets: inherit
+
   docker:
     name: Docker Image
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
     uses: ./.github/workflows/⚡reusable-docker.yaml
     secrets: inherit
     with:
-      image_name: diene-bun-base
+      image_name: diene-workspace
       dockerfile: ./infra/Dockerfile
+
   helm:
     name: Helm Chart
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
     uses: ./.github/workflows/⚡reusable-helm.yaml
     secrets: inherit
     with:
