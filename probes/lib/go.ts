@@ -21,13 +21,13 @@ async function first(repo: ProbeRepo, glob: string): Promise<string> {
   return paths[0];
 }
 
-export async function flipGoAssertion(repo: ProbeRepo): Promise<void> {
+export async function flipGoAssertion(repo: ProbeRepo): Promise<string> {
   const paths = (await repo.glob('tests/unit/**/*_test.go')).sort();
   for (const path of paths) {
     const source = await repo.read(path);
     if (source.includes('; got != ')) {
       await repo.write(path, source.replace('; got != ', '; got == '));
-      return;
+      return path;
     }
   }
   throw new Error('no structural Go assertion target found');
@@ -52,14 +52,14 @@ export async function plantWhiteBoxTest(repo: ProbeRepo): Promise<string> {
   return target;
 }
 
-export async function breakAdapter(repo: ProbeRepo): Promise<void> {
+export async function breakAdapter(repo: ProbeRepo): Promise<string> {
   const paths = (await repo.glob('adapters/**/*.go')).sort();
   for (const path of paths) {
     const source = await repo.read(path);
     const target = '.Set(ctx, key, value, 0)';
     if (source.includes(target)) {
       await repo.write(path, source.replace(target, '.Set(ctx, key+"-probe", value, 0)'));
-      return;
+      return path;
     }
   }
   throw new Error('no structural adapter method target found');
@@ -113,7 +113,7 @@ export async function plantProductionOnlySymbol(repo: ProbeRepo): Promise<string
   }
 }
 
-export async function unformatGo(repo: ProbeRepo): Promise<void> {
+export async function unformatGo(repo: ProbeRepo): Promise<string> {
   const path = await first(repo, 'lib/**/*.go');
   const source = await repo.read(path);
   const signature = source.match(/^func ([A-Z][A-Za-z0-9_]*)\(([^)]*)\)([^\n{]*) \{$/m);
@@ -122,4 +122,5 @@ export async function unformatGo(repo: ProbeRepo): Promise<void> {
   }
   const unformatted = `func ${signature[1]}( ${signature[2]} )${signature[3]}{`;
   await repo.write(path, source.replace(signature[0], unformatted));
+  return path;
 }

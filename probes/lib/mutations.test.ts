@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { ProbeExecResult, ProbeRepo } from '@cyanprint/contracts';
+import { restoreProbeState } from './helpers.ts';
 import {
   breakShellGuard,
   flipAssertion,
@@ -127,5 +128,15 @@ describe('structural probe mutators', () => {
     });
     await invalidWorkflow(wiringRepo, { mode: 'missing-script' });
     expect(await wiringRepo.read('.github/workflows/ci.yaml')).toContain('__probe_missing__.sh');
+  });
+
+  test('restores only the mutation targets', async () => {
+    const repo = new FakeRepo({});
+    await restoreProbeState(repo, ['lib/note/note.go']);
+    expect(repo.commands).toEqual([
+      `for target in 'lib/note/note.go'; do if [ -e "$target" ]; then chmod -R u+w -- "$target" || exit 1; fi; done`,
+      `git ls-files -z -- 'lib/note/note.go' | xargs -0 -r git restore --source=HEAD --staged --worktree --`,
+      `git clean -fdx -- 'lib/note/note.go'`,
+    ]);
   });
 });

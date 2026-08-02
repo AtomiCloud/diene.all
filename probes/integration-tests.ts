@@ -25,11 +25,11 @@ export default {
       // run, so every other row still meets a clean tree: no collateral.
       expectedImpact: [],
       async run(repo: any) {
-        await breakAdapter(repo);
+        const mutated = await breakAdapter(repo);
         try {
           await expectRedWithDiagnostic(repo, gate, 'integration-tests', /Load\(\) error = redis: nil/);
         } finally {
-          await restoreProbeState(repo, ['adapters']);
+          await restoreProbeState(repo, [mutated]);
         }
       },
     },

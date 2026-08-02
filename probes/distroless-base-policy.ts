@@ -21,16 +21,21 @@ export default {
       description: 'Replacing the runtime with Alpine must turn the distroless policy red.',
       kind: 'mutation',
       async run(repo: any) {
-        await repo.patch('infra/Dockerfile', {
-          find: 'FROM gcr.io/distroless/static-debian12:nonroot AS runtime',
-          replace: 'FROM alpine:3.22 AS runtime',
-        });
-        await expectRedWithDiagnostic(
-          repo,
-          'nix develop .#ci -c ./scripts/validate/go-image-policy.sh distroless',
-          'distroless-base-policy',
-          /final runtime image must use the distroless nonroot base/,
-        );
+        const original = await repo.read('infra/Dockerfile');
+        try {
+          await repo.patch('infra/Dockerfile', {
+            find: 'FROM gcr.io/distroless/static-debian12:nonroot AS runtime',
+            replace: 'FROM alpine:3.22 AS runtime',
+          });
+          await expectRedWithDiagnostic(
+            repo,
+            'nix develop .#ci -c ./scripts/validate/go-image-policy.sh distroless',
+            'distroless-base-policy',
+            /final runtime image must use the distroless nonroot base/,
+          );
+        } finally {
+          await repo.write('infra/Dockerfile', original);
+        }
       },
     },
   ],

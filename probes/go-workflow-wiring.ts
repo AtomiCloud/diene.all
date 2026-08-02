@@ -16,20 +16,39 @@ export default {
     },
     {
       name: 'mutation-go-workflow-wiring-caught',
-      description: 'A Go reusable workflow the gate cannot parse must turn it red instead of passing unread.',
+      description: 'A Go reusable workflow that calls a missing CI script must turn wiring red.',
       kind: 'mutation',
       async run(repo: any) {
         const paths = (await repo.glob('.github/workflows/⚡reusable-go-*.yaml')).sort();
         if (paths.length === 0) {
           throw new Error('no Go reusable workflow target found');
         }
-        const original = await repo.read(paths[0]);
+        let target = '';
+        let original = '';
+        let script = '';
+        for (const path of paths) {
+          const source = await repo.read(path);
+          const match = source.match(/\.\/scripts\/ci\/[A-Za-z0-9._/-]+[.]sh/)?.[0];
+          if (match) {
+            target = path;
+            original = source;
+            script = match;
+            break;
+          }
+        }
+        if (!target) {
+          throw new Error('no Go workflow script target found');
+        }
         try {
-          // An indentation tab is invalid YAML yet leaves the CI script reference greppable.
-          await repo.write(paths[0], `${original}\n\t- [unterminated\n`);
-          await expectRedWithDiagnostic(repo, gate, 'go-workflow-wiring', /could not parse Go reusable workflow/);
+          await repo.write(target, original.replace(script, './scripts/ci/probe-missing.sh'));
+          await expectRedWithDiagnostic(
+            repo,
+            gate,
+            'go-workflow-wiring',
+            /references missing script 'scripts\/ci\/probe-missing[.]sh'/,
+          );
         } finally {
-          await repo.write(paths[0], original);
+          await repo.write(target, original);
         }
       },
     },

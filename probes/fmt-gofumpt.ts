@@ -29,11 +29,11 @@ export default {
       // other row still meets a clean tree: this mutation has no collateral.
       expectedImpact: [],
       async run(repo: any) {
-        await unformatGo(repo);
+        const mutated = await unformatGo(repo);
         try {
           await expectRedWithDiagnostic(repo, gate, 'fmt-gofumpt', goFormatting);
         } finally {
-          await restoreProbeState(repo, ['lib']);
+          await restoreProbeState(repo, [mutated]);
         }
       },
     },

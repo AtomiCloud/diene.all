@@ -2,6 +2,6 @@
 set -euo pipefail
 
 ./scripts/ci/setup.sh
-pls typecheck
+./scripts/local/typecheck.sh
 
 echo "✅ CI Go typecheck passed"

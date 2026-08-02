@@ -1,4 +1,4 @@
-import { expectGreen, expectRedWithDiagnostic } from './lib/helpers.ts';
+import { expectGreen, expectRedWithDiagnostic, restoreProbeState } from './lib/helpers.ts';
 import { flipGoAssertion } from './lib/go.ts';
 
 const gate = 'nix develop .#ci -c pls test:unit';
@@ -19,11 +19,13 @@ export default {
       name: 'mutation-unit-tests-caught',
       description: 'Flipping one public-surface assertion must turn the unit tier red.',
       kind: 'mutation',
-      // The unit ledger reruns the same tier, so the flipped assertion reddens it too.
-      expectedImpact: ['unit-coverage-scope'],
       async run(repo: any) {
-        await flipGoAssertion(repo);
-        await expectRedWithDiagnostic(repo, gate, 'unit-tests', /Slug\(\) =/);
+        const mutated = await flipGoAssertion(repo);
+        try {
+          await expectRedWithDiagnostic(repo, gate, 'unit-tests', /Slug\(\) =/);
+        } finally {
+          await restoreProbeState(repo, [mutated]);
+        }
       },
     },
   ],
