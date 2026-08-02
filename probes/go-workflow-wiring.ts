@@ -24,5 +24,19 @@ export default {
         await expectRedWithDiagnostic(repo, gate, 'go-workflow-wiring', /workflow references missing script/);
       },
     },
+    {
+      name: 'mutation-go-workflow-wiring-unparseable-caught',
+      description: 'A Go reusable workflow the gate cannot parse must turn wiring red instead of passing unread.',
+      kind: 'mutation',
+      async run(repo: any) {
+        const paths = (await repo.glob('.github/workflows/⚡reusable-go-*.yaml')).sort();
+        if (paths.length === 0) {
+          throw new Error('no Go reusable workflow target found');
+        }
+        // An indentation tab is invalid YAML yet leaves the CI script reference greppable.
+        await repo.write(paths[0], `${await repo.read(paths[0])}\n\t- [unterminated\n`);
+        await expectRedWithDiagnostic(repo, gate, 'go-workflow-wiring', /could not parse reusable workflow/);
+      },
+    },
   ],
 };
