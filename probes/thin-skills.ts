@@ -46,6 +46,13 @@ export default {
           if (typeof description !== 'string' || description.trim() === '') {
             throw new Error(`skill description is missing or not a string: ${topic}`);
           }
+
+          const body = source.slice(frontmatter[0].length).trim();
+          const links = [...body.matchAll(/\[[^\]\n]+\]\(([^)\s]+)\)/g)];
+          const expectedTarget = `../../../docs/standards/${topic}/index.md`;
+          if (links.length !== 1 || links[0][1] !== expectedTarget) {
+            throw new Error(`skill standard pointer is invalid: ${topic}`);
+          }
         }
       },
     },

@@ -164,7 +164,7 @@ canonical_fact_check_docs_root() {
 # tree, and the findings tree whose canonical artifact the orchestrator just validated.
 processor_authority_snapshot() {
   local state_file=$1 assigned_path=${2:-} operation_repo_root=${3:-$REPO_ROOT} state_abs
-  local docs_root_abs
+  local docs_root_abs operation_repo_abs
   local -a paths=(
     "$operation_repo_root/.contributor-docs/task-state.json"
     "$operation_repo_root/.contributor-docs/plan-state.json"
@@ -173,12 +173,13 @@ processor_authority_snapshot() {
     "$operation_repo_root/.contributor-docs/doc-plan.gap-candidate.yaml"
   )
 
+  operation_repo_abs=$(realpath -e -- "$operation_repo_root") || return 1
   state_abs=$(realpath -m -- "$state_file")
-  if [[ $state_abs == "$operation_repo_root/.contributor-docs/write-tier-"*"/state.json" ]]; then
+  if [[ $state_abs == "$operation_repo_abs/.contributor-docs/write-tier-"*"/state.json" ]]; then
     if [[ -n $assigned_path ]]; then
       paths+=("$operation_repo_root/$assigned_path")
     fi
-  elif [[ $state_abs == "$operation_repo_root/.contributor-docs/fact-check/state.json" ]]; then
+  elif [[ $state_abs == "$operation_repo_abs/.contributor-docs/fact-check/state.json" ]]; then
     paths+=(
       "$operation_repo_root/.contributor-docs/audit-state.json"
       "$operation_repo_root/.contributor-docs/fact-check/epoch.json"
