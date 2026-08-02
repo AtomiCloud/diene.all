@@ -26,6 +26,7 @@ with packages;
   ];
 
   main = [
+    pkgs.bun
     cyanprint
     git
     go-task
