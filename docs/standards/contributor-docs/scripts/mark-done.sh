@@ -9,6 +9,8 @@ set -euo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=docs/standards/contributor-docs/scripts/init-state.sh
+# The runtime path is validated above; pre-commit may batch the source separately.
+# shellcheck disable=SC1091
 source "$SCRIPT_DIR/init-state.sh"
 
 assert_processor_membership() {
