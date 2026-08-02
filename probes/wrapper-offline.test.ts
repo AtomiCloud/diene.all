@@ -27,16 +27,11 @@ async function rejection(callback: () => Promise<unknown>): Promise<unknown> {
 }
 
 describe('isConnectivityFailure', () => {
-  test('recognises credible connectivity indicators', () => {
+  test('classifies only unambiguous local-offline evidence (resolver + no-route)', () => {
     const samples = [
       'Get "https://ghcr.io/podinfo": dial tcp: lookup ghcr.io: no such host',
       'curl: (6) Could not resolve host: ghcr.io',
       'connect: network is unreachable',
-      'dial tcp 10.0.0.1:443: connect: connection refused',
-      'read tcp: connection reset by peer',
-      'net/http: TLS handshake timeout',
-      'Get "...": read: i/o timeout',
-      'rpc error: code = DeadlineExceeded desc = context deadline exceeded',
     ];
     for (const sample of samples) {
       expect(isConnectivityFailure(sample)).toBe(true);
@@ -48,8 +43,19 @@ describe('isConnectivityFailure', () => {
     expect(isConnectivityFailure(detail)).toBe(true);
   });
 
-  test('does not hide semantic, HTTP, or local failures', () => {
+  test('keeps reachable-peer, timeout, HTTP, and local failures broken', () => {
     const samples = [
+      // reachable-peer: a host answered but the port/service was down
+      'dial tcp 10.0.0.1:443: connect: connection refused',
+      // bare `dial tcp` to a host without a resolver/no-route signal
+      'dial tcp 10.0.0.1:443: connect: connection timed out',
+      'read tcp: connection reset by peer',
+      'write tcp: connection reset',
+      // remote timeouts: indistinguishable from a live-but-slow remote
+      'net/http: TLS handshake timeout',
+      'Get "...": read: i/o timeout',
+      'rpc error: code = DeadlineExceeded desc = context deadline exceeded',
+      // HTTP status, script, and semantic failures mean the host was reached
       'unexpected status code 404',
       'Error: 401 Unauthorized',
       'chart "podinfo" not found',

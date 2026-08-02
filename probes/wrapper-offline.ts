@@ -1,23 +1,29 @@
-// Credible connectivity-failure indicators. Each is a precise substring matched
-// against the command's combined stderr+stdout (whitespace-collapsed, lowercased).
-// They come from the real network stacks these probes drive — Go's net/http and
-// crypto/tls (helm), skopeo's container-registry client, and curl-style resolvers.
-// HTTP status lines, script errors, and semantic failures deliberately do NOT
-// appear here: a 404/401 from a reached registry, "command not found", "no such
-// file or directory", or "chart ... not found" all mean the host was reached or
-// the failure was local, so the probe must stay broken rather than go inapplicable.
+// Local-offline indicators. Each is a precise substring matched against the
+// command's combined stderr+stdout (whitespace-collapsed, lowercased). They come
+// from the real network stacks these probes drive — Go's net/http and crypto/tls
+// (helm), skopeo's container-registry client, and curl-style resolvers.
+//
+// Be conservative: ONLY unambiguous LOCAL-offline evidence may classify a probe
+// inapplicable — DNS resolution failure and routing failure. Every other failure
+// must stay broken, because it implies the peer/service was reachable or the cause
+// is indistinguishable from a live-but-slow remote:
+//  - HTTP status lines, script errors, and semantic failures (404/401, "command
+//    not found", "no such file or directory", "chart ... not found") mean the host
+//    was reached or the failure was local.
+//  - Reachable-peer failures (`connection refused`, `connection reset by peer`,
+//    `connection reset`) mean a host answered but the port/service was down — the
+//    network path itself exists.
+//  - Remote timeouts (`tls handshake timeout`, `i/o timeout`, `context deadline
+//    exceeded`) are indistinguishable from a slow-but-live remote; without proof
+//    of a local-offline distinction they stay broken.
+//  - A bare `dial tcp` indicator is intentionally omitted: it prefixes both
+//    resolver failures (caught via `no such host` below) and reachable-peer
+//    connect failures, so it is too broad to trust on its own.
 const CONNECTIVITY_INDICATORS = [
   'no such host', // Go DNS resolution: `lookup <host>: no such host`
   'could not resolve host', // curl/wget resolver failure
   'network is unreachable', // routing: no route to the destination network
   'network unreachable',
-  'connection refused', // port closed / service down on a reachable host
-  'connection reset by peer', // mid-handshake or mid-stream reset
-  'connection reset',
-  'tls handshake timeout', // crypto/tls: the handshake exceeded its deadline
-  'i/o timeout', // net: a read/write deadline elapsed
-  'context deadline exceeded', // Go context: the operation's own timeout fired
-  'dial tcp', // net.Dialer: covers `dial tcp: lookup` and `dial tcp: connect:`
 ] as const;
 
 export function isConnectivityFailure(detail: string): boolean {
