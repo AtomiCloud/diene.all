@@ -2,11 +2,13 @@
 set -euo pipefail
 
 push="${CI_DOCKER_PUSH:-false}"
+output="${CI_DOCKER_OUTPUT:-}"
 version="${RELEASE_VERSION:-}"
 
 [ -z "${CI_DOCKER_CONTEXT:-}" ] && echo "❌ 'CI_DOCKER_CONTEXT' env var not set" >&2 && exit 1
 [ -z "${CI_DOCKER_IMAGE:-}" ] && echo "❌ 'CI_DOCKER_IMAGE' env var not set" >&2 && exit 1
 [ -z "${CI_DOCKERFILE:-}" ] && echo "❌ 'CI_DOCKERFILE' env var not set" >&2 && exit 1
+[ -n "${output}" ] && [ -z "${CI_DOCKER_PLATFORM:-}" ] && echo "❌ 'CI_DOCKER_PLATFORM' env var not set" >&2 && exit 1
 [ "${push}" = "true" ] && [ -z "${CI_DOCKER_PLATFORM:-}" ] && echo "❌ 'CI_DOCKER_PLATFORM' env var not set" >&2 && exit 1
 [ "${push}" = "true" ] && [ -z "${DOMAIN:-}" ] && echo "❌ 'DOMAIN' env var not set" >&2 && exit 1
 [ "${push}" = "true" ] && [ -z "${DOCKER_PASSWORD:-}" ] && echo "❌ 'DOCKER_PASSWORD' env var not set" >&2 && exit 1
@@ -28,6 +30,10 @@ if [ "${push}" = "true" ]; then
   echo "🔨 Building and pushing ${image_id}"
   # shellcheck disable=SC2086
   docker buildx build "${CI_DOCKER_CONTEXT}" -f "${CI_DOCKERFILE}" --platform="${CI_DOCKER_PLATFORM}" --push -t "${image_id}:${image_version}" -t "${image_id}:${branch}" ${latest_arg} ${semver_arg}
+elif [ -n "${output}" ]; then
+  # Same buildx multi-architecture build the push path runs, exported to a local OCI archive instead of a registry.
+  echo "🔨 Building ${CI_DOCKER_IMAGE} for ${CI_DOCKER_PLATFORM} into ${output}"
+  docker buildx build "${CI_DOCKER_CONTEXT}" -f "${CI_DOCKERFILE}" --platform="${CI_DOCKER_PLATFORM}" --output="type=oci,dest=${output}" -t "${CI_DOCKER_IMAGE}:local"
 else
   echo "🔨 Building ${CI_DOCKER_IMAGE}:local"
   docker build "${CI_DOCKER_CONTEXT}" -f "${CI_DOCKERFILE}" -t "${CI_DOCKER_IMAGE}:local"
