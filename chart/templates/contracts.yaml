@@ -1,8 +1,10 @@
 {{- include "diene-helm-wrapper.validateServiceTree" . -}}
-{{- $ordinary := include "diene-helm-wrapper.hostname" (dict "root" . "module" .Values.contracts.lpsm.module "service" .Values.contracts.lpsm.service "landscape" .Values.contracts.lpsm.landscape "zone" .Values.contracts.lpsm.ordinaryZone) -}}
-{{- $instance := include "diene-helm-wrapper.hostname" (dict "root" . "module" .Values.contracts.lpsm.module "service" .Values.contracts.lpsm.service "landscape" .Values.contracts.lpsm.landscape "instance" .Values.contracts.lpsm.instance "zone" .Values.contracts.lpsm.instanceZone) -}}
-{{- $parseHostname := default $instance .Values.contracts.lpsm.parseHostname -}}
-{{- $parsed := include "diene-helm-wrapper.parseHostname" (dict "hostname" $parseHostname "zone" .Values.contracts.lpsm.instanceZone) -}}
+{{- $lpsm := .Values.contracts.lpsm -}}
+{{- $ordinary := include "diene-helm-wrapper.hostname" (dict "root" . "module" $lpsm.module "service" $lpsm.service "landscape" $lpsm.landscape "zone" $lpsm.ordinaryZone) -}}
+{{- $instance := include "diene-helm-wrapper.hostname" (dict "root" . "module" $lpsm.module "service" $lpsm.service "landscape" $lpsm.landscape "instance" $lpsm.instance "zone" $lpsm.instanceZone) -}}
+{{- $parseHostname := default $instance $lpsm.parseHostname -}}
+{{- $parsed := include "diene-helm-wrapper.parseHostname" (dict "hostname" $parseHostname "zone" $lpsm.instanceZone) -}}
+{{- $segment := include "diene-helm-wrapper.instanceSegment" . -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -21,5 +23,14 @@ data:
   lpsm.ordinaryHostname: {{ $ordinary | quote }}
   lpsm.instanceHostname: {{ $instance | quote }}
   lpsm.parsed: {{ $parsed | quote }}
-  instance.original: {{ .Values.instance.physicalId | quote }}
-  instance.label: {{ include "diene-helm-wrapper.instanceLabel" .Values.instance.physicalId | quote }}
+  instance.original: {{ $segment | quote }}
+  instance.label: {{ $segment | quote }}
+  {{- if .Values.instance.preview.enabled }}
+  {{- /* Receipt-derived, outward-safe fields only. The full digest and leaseKey stay internal. */}}
+  preview.petname: {{ include "diene-helm-wrapper.previewPetname" . | quote }}
+  preview.schema: {{ .Values.instance.preview.receipt.schema | quote }}
+  preview.wordList: {{ .Values.instance.preview.receipt.wordList | quote }}
+  preview.forkSource: {{ .Values.instance.preview.receipt.forkSource | quote }}
+  preview.mintedAt: {{ .Values.instance.preview.receipt.mintedAt | quote }}
+  preview.hostname: {{ include "diene-helm-wrapper.previewHostname" (dict "root" . "module" $lpsm.module "service" $lpsm.service "zone" $lpsm.instanceZone) | quote }}
+  {{- end }}

@@ -19,20 +19,159 @@
 {{- end -}}
 {{- end -}}
 
-{{/* Normalize an arbitrary physical instance id into one DNS-1123 label. */}}
-{{- define "diene-helm-wrapper.instanceLabel" -}}
-{{- $original := required "physical instance id is required" . -}}
-{{- $normalized := regexReplaceAll "[^a-z0-9-]+" (lower $original) "-" -}}
-{{- $normalized = regexReplaceAll "-+" $normalized "-" | trimAll "-" -}}
-{{- if eq $normalized "" -}}
-{{- fail "physical instance id normalizes to an empty label" -}}
+{{/*
+  Preview manifest boundary (concepts/environments.md §3a).
+  The manifest reaching this chart is already fully resolved by the authorized
+  assembler: every pin is a released version, a full commit, or an operator
+  rollout. A branch pin is resolved to its commit AT MINT and the preview never
+  follows the branch afterwards, so an unresolved pin refuses here rather than
+  being resolved locally. Emits nothing; it only refuses.
+*/}}
+{{- define "diene-helm-wrapper.previewManifest" -}}
+{{- $manifest := .Values.instance | default dict | dig "preview" dict | default dict | dig "manifest" dict -}}
+{{- $version := "^v?[0-9]+\\.[0-9]+\\.[0-9]+([.+-][0-9A-Za-z.+-]*)?$" -}}
+{{- $commit := "^[0-9a-f]{40}$" -}}
+{{- if not (index $manifest "defaultChannelRef") -}}
+{{- fail "PreviewIdentityUnavailable: the resolved preview manifest carries no default-channel reference" -}}
 {{- end -}}
-{{- if le (len $normalized) 63 -}}
-{{- $normalized -}}
+{{- $pins := (index $manifest "pins") | default dict -}}
+{{- if not $pins -}}
+{{- fail "PreviewIdentityUnavailable: the resolved preview manifest pin map is empty" -}}
+{{- end -}}
+{{- range $key, $pin := $pins -}}
+{{- if not (regexMatch "^[a-z0-9]([a-z0-9-]*[a-z0-9])?\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?$" $key) -}}
+{{- fail (printf "PreviewIdentityUnavailable: pin key %q must be <platform>.<service> DNS-1123 labels with no module segment" $key) -}}
+{{- end -}}
+{{- if kindIs "map" $pin -}}
+{{- if ne (keys $pin | sortAlpha | join ",") "kind,version" -}}
+{{- fail (printf "PreviewIdentityUnavailable: operator pin %q must carry exactly kind and version, got %q" $key (keys $pin | sortAlpha | join ",")) -}}
+{{- end -}}
+{{- if ne (index $pin "kind" | toString) "operator" -}}
+{{- fail (printf "PreviewIdentityUnavailable: pin %q has kind %q; only an operator rollout uses the object form" $key (index $pin "kind")) -}}
+{{- end -}}
+{{- if not (regexMatch $version (index $pin "version" | toString)) -}}
+{{- fail (printf "PreviewIdentityUnavailable: operator pin %q version %q is not a released version" $key (index $pin "version")) -}}
+{{- end -}}
+{{- else if kindIs "string" $pin -}}
+{{- if not (or (regexMatch $commit $pin) (regexMatch $version $pin)) -}}
+{{- fail (printf "PreviewIdentityUnavailable: pin %q for %q is neither a released version nor a full commit; a branch pin must be resolved to its commit at mint" $pin $key) -}}
+{{- end -}}
 {{- else -}}
-{{- $hash := sha256sum $original | trunc 8 -}}
-{{- $prefix := trunc 54 $normalized | trimSuffix "-" -}}
-{{- printf "%s-%s" $prefix $hash -}}
+{{- fail (printf "PreviewIdentityUnavailable: pin %q must be a scalar version, a scalar commit, or an operator object" $key) -}}
+{{- end -}}
+{{- end -}}
+{{- range $key, $resolution := ((index $manifest "branchResolutions") | default dict) -}}
+{{- $branch := (index $resolution "branch") | default "" -}}
+{{- $resolved := (index $resolution "commit") | default "" -}}
+{{- if not $branch -}}
+{{- fail (printf "PreviewIdentityUnavailable: branch resolution for %q records no branch" $key) -}}
+{{- end -}}
+{{- if not (regexMatch $commit $resolved) -}}
+{{- fail (printf "PreviewIdentityUnavailable: branch %q for %q resolved to %q, not a full commit" $branch $key $resolved) -}}
+{{- end -}}
+{{- if not (hasKey $pins $key) -}}
+{{- fail (printf "PreviewIdentityUnavailable: branch resolution %q has no matching manifest pin" $key) -}}
+{{- end -}}
+{{- if ne (index $pins $key | toString) $resolved -}}
+{{- fail (printf "PreviewIdentityUnavailable: branch %q resolved to %q but the manifest pins %q; a preview never follows its branch past mint" $branch $resolved (index $pins $key)) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+  Preview identity boundary (concepts/environments.md §3a, R-P9).
+  The chart accepts ONLY the authorized assembler's typed CanonicalPreviewInstance
+  bound to its receipt. It never mints, canonicalizes, lowercases, truncates,
+  hashes, or suffixes a petname, and never emits the internal leaseKey or full
+  digest into a rendered object. Returns the recorded petname or refuses.
+*/}}
+{{- define "diene-helm-wrapper.previewPetname" -}}
+{{- $preview := .Values.instance | default dict | dig "preview" dict -}}
+{{- $canonical := (index $preview "canonical") | default dict -}}
+{{- $receipt := (index $preview "receipt") | default dict -}}
+{{- range $field := list "previewPetname" "fullLeaseDigest" "leaseKey" "schema" "wordList" "forkSource" "requester" "mintedAt" "signature" -}}
+{{- if not (index $receipt $field) -}}
+{{- fail (printf "PreviewIdentityUnavailable: the assembler receipt is missing %q" $field) -}}
+{{- end -}}
+{{- end -}}
+{{- $petname := index $receipt "previewPetname" -}}
+{{- $digest := index $receipt "fullLeaseDigest" -}}
+{{- $leaseKey := index $receipt "leaseKey" -}}
+{{- if not (regexMatch "^diene\\.preview-manifest/v[0-9]+$" (index $receipt "schema")) -}}
+{{- fail (printf "PreviewIdentityUnavailable: manifest schema %q is not a versioned diene.preview-manifest schema" (index $receipt "schema")) -}}
+{{- end -}}
+{{- if not (regexMatch "^diene\\.preview-wordlist/v[0-9]+$" (index $receipt "wordList")) -}}
+{{- fail (printf "PreviewIdentityUnavailable: petname word list %q is not a versioned diene.preview-wordlist" (index $receipt "wordList")) -}}
+{{- end -}}
+{{- if not (has (index $receipt "forkSource") (list "staging" "production")) -}}
+{{- fail (printf "PreviewIdentityUnavailable: forkSource %q is neither staging nor production" (index $receipt "forkSource")) -}}
+{{- end -}}
+{{- if not (regexMatch "^[0-9a-f]{64}$" $digest) -}}
+{{- fail (printf "PreviewIdentityUnavailable: fullLeaseDigest %q is not a 64-character lowercase hex SHA-256 digest" $digest) -}}
+{{- end -}}
+{{- if not (regexMatch "^p[0-9a-v]{26}$" $leaseKey) -}}
+{{- fail (printf "PreviewIdentityUnavailable: leaseKey %q is not the internal base32hex lease key" $leaseKey) -}}
+{{- end -}}
+{{- if not (regexMatch "^[a-z]+-[a-z]+-[a-z]+(-[0-9a-v]{3})?$" $petname) -}}
+{{- fail (printf "PreviewIdentityUnavailable: %q is not a versioned NOUN-VERB-NOUN petname" $petname) -}}
+{{- end -}}
+{{- if gt (len $petname) 63 -}}
+{{- fail (printf "PreviewIdentityUnavailable: petname %q is longer than one DNS-1123 label" $petname) -}}
+{{- end -}}
+{{- if ne ((index $canonical "previewPetname") | toString) $petname -}}
+{{- fail (printf "PreviewIdentityMismatch: canonical instance %q is not the petname %q recorded at mint" (index $canonical "previewPetname") $petname) -}}
+{{- end -}}
+{{- if ne ((index $canonical "fullLeaseDigest") | toString) $digest -}}
+{{- fail (printf "PreviewIdentityMismatch: canonical full digest %q does not equal the receipt digest %q" (index $canonical "fullLeaseDigest") $digest) -}}
+{{- end -}}
+{{- $liveDigest := ((index $receipt "collision") | default dict | dig "liveFullLeaseDigest" "" ) -}}
+{{- if $liveDigest -}}
+{{- if not (regexMatch "^[0-9a-f]{64}$" $liveDigest) -}}
+{{- fail (printf "PreviewIdentityUnavailable: recorded live-collision digest %q is not a 64-character lowercase hex SHA-256 digest" $liveDigest) -}}
+{{- end -}}
+{{- if eq $liveDigest $digest -}}
+{{- fail "PreviewIdentityMismatch: a live allocation carrying the same full digest is an idempotent join, never a petname collision" -}}
+{{- end -}}
+{{- end -}}
+{{- $parts := splitList "-" $petname -}}
+{{- $suffix := "" -}}
+{{- if eq (len $parts) 4 -}}
+{{- $suffix = index $parts 3 -}}
+{{- end -}}
+{{- if $suffix -}}
+{{- if not $liveDigest -}}
+{{- fail (printf "PreviewIdentityMismatch: petname %q carries a collision suffix with no recorded live base-petname collision" $petname) -}}
+{{- end -}}
+{{- if ne $suffix (substr 1 4 $leaseKey) -}}
+{{- fail (printf "PreviewIdentityMismatch: collision suffix %q is not the first three base32hex digest characters %q" $suffix (substr 1 4 $leaseKey)) -}}
+{{- end -}}
+{{- else if $liveDigest -}}
+{{- fail (printf "PreviewIdentityMismatch: a live base-petname collision is recorded but %q carries no collision suffix" $petname) -}}
+{{- end -}}
+{{- include "diene-helm-wrapper.previewManifest" . -}}
+{{- $petname -}}
+{{- end -}}
+
+{{/*
+  The single physical instance segment. A preview takes the receipt-bound petname
+  byte-for-byte; every other landscape supplies an already-DNS-1123 segment that
+  this chart records verbatim.
+*/}}
+{{- define "diene-helm-wrapper.instanceSegment" -}}
+{{- $instance := .Values.instance | default dict -}}
+{{- if (index $instance "preview" | default dict | dig "enabled" false) -}}
+{{- include "diene-helm-wrapper.previewPetname" . -}}
+{{- else -}}
+{{- $original := (index $instance "original") | default "" -}}
+{{- if $original -}}
+{{- if not (regexMatch "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$" $original) -}}
+{{- fail (printf "instance.original %q is not already a DNS-1123 label; this chart records a physical instance id verbatim and never normalizes it" $original) -}}
+{{- end -}}
+{{- if gt (len $original) 63 -}}
+{{- fail (printf "instance.original %q is longer than one DNS-1123 label; shorten it at the authorized minter, never here" $original) -}}
+{{- end -}}
+{{- $original -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 
@@ -78,15 +217,19 @@ app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
 
-{{/* Service-tree and reversible instance metadata annotations. */}}
+{{/*
+  Service-tree plus recorded instance metadata annotations. Original and label are
+  the same bytes: the chart records what the authorized minter assigned and derives
+  neither from the other. The internal leaseKey and full digest are never stamped.
+*/}}
 {{- define "diene-helm-wrapper.annotations" -}}
 {{- $prefix := include "diene-helm-wrapper.labelPrefix" . -}}
 {{- range $key, $value := .Values.serviceTree }}
 {{ printf "%s/%s" $prefix $key }}: {{ $value | quote }}
 {{- end }}
-{{- with .Values.instance.physicalId }}
+{{- with include "diene-helm-wrapper.instanceSegment" . }}
 {{ printf "%s/instance-original" $prefix }}: {{ . | quote }}
-{{ printf "%s/instance-label" $prefix }}: {{ include "diene-helm-wrapper.instanceLabel" . | quote }}
+{{ printf "%s/instance-label" $prefix }}: {{ . | quote }}
 {{- end }}
 {{- end -}}
 
@@ -119,6 +262,17 @@ reloader.stakater.com/auto: 'true'
 {{- else -}}
 {{- printf "%s.%s.%s.%s.%s" $module $service $platform $landscape $zone -}}
 {{- end -}}
+{{- end -}}
+
+{{/*
+  The castform preview coordinate. It reuses the ordinary instance projection with
+  two slots the caller cannot choose: the platform comes from the release namespace
+  and the landscape is the one ruled preview landscape. The instance slot is the
+  receipt-bound petname byte-for-byte; the leaseKey and digest never reach DNS.
+*/}}
+{{- define "diene-helm-wrapper.previewHostname" -}}
+{{- $root := .root -}}
+{{- include "diene-helm-wrapper.hostname" (dict "root" $root "module" .module "service" .service "landscape" "castform" "instance" (include "diene-helm-wrapper.previewPetname" $root) "zone" .zone) -}}
 {{- end -}}
 
 {{/* Parse a hostname back into the unchanged four-slot LPSM coordinate plus instance. */}}

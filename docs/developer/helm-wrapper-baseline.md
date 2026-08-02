@@ -20,10 +20,26 @@ Run `pls build`, `pls example:lapras:template`, or `pls test:unit`. `pls test:in
 - LPSM remains `{landscape, platform, service, module}`. The platform hostname slot always comes from the release namespace; a values file cannot stamp another platform.
 - Ordinary hostnames are `<module>.<service>.<namespace>.<landscape>.<zone>`.
 - Optional physical-instance hostnames are `<module>.<service>.<namespace>.<instance>.<landscape>.<zone>`. Instance is returned separately by the parser and never becomes an LPSM slot.
-- Physical ids are repository-qualified before normalization. DNS-1123 labels longer than 63 characters are shortened with a stable hash, while original and normalized values are stored together as annotations.
+- Physical instance ids arrive already minted. `instance.original` must already be one DNS-1123 label; the chart records it verbatim as both `<prefix>/instance-original` and `<prefix>/instance-label` and refuses anything it would have to lowercase, truncate, or hash. Repository qualification and any shortening happen at the authorized minter, never here.
 - Resource names use `<service>-<token>` with exactly one dash. Tokens fuse components (`main-cache` → `maincache`). Every enabled dependency receives an explicit conforming `fullnameOverride`.
 
 The helpers are generic by design. Final environment-owned instance segments, hosted profile fixtures, and exposure semantics stay outside this node until their owning work lands.
+
+### Preview identity boundary
+
+`castform` preview names are governed by R-P9 and `concepts/environments.md` §3a. The canonical byte encoding, the digest, and the authorized assembler are build deliverables owned there. This chart is only their consumer: it never mints, canonicalizes, or suffixes a petname, and it never renders the internal `leaseKey` or full digest into an object or a hostname.
+
+`instance.preview` is the whole boundary, and every field of it is verified at render time:
+
+- the typed `canonical` instance must bind byte-for-byte to the `receipt` — a differing petname or a differing `fullLeaseDigest` refuses as `PreviewIdentityMismatch`;
+- the receipt must be complete and versioned — a missing field, an unversioned `diene.preview-manifest` schema, an unversioned `diene.preview-wordlist`, a malformed digest or `leaseKey`, or a `forkSource` outside `staging | production` refuses as `PreviewIdentityUnavailable`;
+- the petname must be a single lowercase DNS-1123 label matching `<noun>-<verb>-<noun>[-<3 base32hex chars>]`;
+- the collision suffix is accepted only when the receipt records a live allocation holding the same base petname under a **different** full digest, and only when the three characters are the first three base32hex digest characters — read off the receipt's own `leaseKey`, never recomputed here. A caller-supplied suffix, a suffix with no recorded collision, a recorded collision with no suffix, and a "collision" against the same digest all refuse. Because the recorded name is the receipt's, it cannot change after mint even once the collision partner closes;
+- the resolved manifest must be resolved: pin keys are `<platform>.<service>` with no module segment, pin values are a released version, a full commit, or exactly `{kind: operator, version: <v>}`, and a recorded branch resolution must name the commit the manifest already pins. A branch pin that never resolved, a `ref`-bearing pin, and a resolution that drifted past its mint commit all refuse, so a moving branch cannot move a rendered hostname.
+
+The preview coordinate is `<module>.<service>.<namespace>.<previewPetname>.castform.<zone>`. Neither the platform slot nor the landscape slot is a values entry: platform comes from the release namespace and the landscape is the one ruled preview landscape.
+
+`probes/wrapper-lpsm-hostnames.ts` carries the vectors — the accepted derivations plus every refusal above, each asserting the reason rather than only a non-zero exit.
 
 ## Secrets and config
 
@@ -100,7 +116,8 @@ Tokenize these isolated scalars when materializing an instance:
 - OCI organization/repository path and secondary git repository URL;
 - landscape and cluster overlay filenames;
 - k3d cluster and local registry names;
-- repository-qualified physical instance id, normalized DNS label, and original-id annotation;
+- repository-qualified physical instance id, its recorded DNS label, and the original-id annotation pair;
+- preview receipt identity: assigned petname, manifest schema and word-list versions, `forkSource`, requester, and default-channel reference;
 - selected hostname zone;
 - CR API versions once their owning operators freeze them.
 

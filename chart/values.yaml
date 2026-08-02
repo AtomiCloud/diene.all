@@ -17,9 +17,60 @@ serviceTree:
   # @schema pattern:^[0-9]+$;required:true
   layer: '2'
 
-# -- Optional physical-instance metadata. The instance remains outside LPSM.
+# -- Optional physical-instance metadata. The instance remains outside LPSM and is never minted here.
 instance:
-  physicalId: example-repository:run-001
+  # @schema pattern:^[a-z0-9]([a-z0-9-]*[a-z0-9])?$;maxLength:63
+  # -- Recorded physical instance segment for every non-preview landscape. It must already be one DNS-1123 label; the chart never lowercases, truncates, or hashes it.
+  original: example-repository-run-001
+  # -- castform preview identity. The chart consumes authorized-assembler output only; it never mints, canonicalizes, or suffixes a petname.
+  preview:
+    # -- Render the receipt-bound preview coordinate. Every field below is refused unless it is internally consistent.
+    enabled: false
+    # -- The typed CanonicalPreviewInstance handed to this chart. It must bind byte-for-byte to the receipt below.
+    canonical:
+      # @schema pattern:^[a-z]+-[a-z]+-[a-z]+(-[0-9a-v]{3})?$
+      previewPetname: otter-beats-potato
+      # @schema pattern:^[0-9a-f]{64}$
+      fullLeaseDigest: 7527f8ce8af22ee78eaaeaa68d24857bf88c3c5a8a9d2fd812f607441cfbca7d
+    # -- The broker-verified assembler receipt. `fullLeaseDigest` and `leaseKey` stay internal and are never rendered into an object or a hostname.
+    receipt:
+      # @schema pattern:^[a-z]+-[a-z]+-[a-z]+(-[0-9a-v]{3})?$
+      previewPetname: otter-beats-potato
+      # @schema pattern:^[0-9a-f]{64}$
+      fullLeaseDigest: 7527f8ce8af22ee78eaaeaa68d24857bf88c3c5a8a9d2fd812f607441cfbca7d
+      # @schema pattern:^p[0-9a-v]{26}$
+      leaseKey: p00000000000000000000000000 # gitleaks:allow
+      # @schema pattern:^diene\.preview-manifest/v[0-9]+$
+      schema: diene.preview-manifest/v1
+      # @schema pattern:^diene\.preview-wordlist/v[0-9]+$
+      wordList: diene.preview-wordlist/v1
+      forkSource: staging # @schema enum:[staging, production]
+      requester: ci@example.invalid
+      mintedAt: '2026-07-30T00:00:00Z'
+      signature: ZXhhbXBsZS1lZDI1NTE5LWRldGFjaGVkLXNpZ25hdHVyZQ==
+      # -- Live base-petname collision recorded at mint. A digest here is the DIFFERENT live digest that forced the three-character suffix.
+      collision:
+        # @schema pattern:^([0-9a-f]{64})?$
+        liveFullLeaseDigest: ''
+    # -- The fully resolved manifest the receipt was minted from. Unresolved branch pins refuse; they are resolved to commits at mint.
+    manifest:
+      defaultChannelRef: stable-2026.07
+      # @schema skipProperties:true
+      # @schema additionalProperties:{"anyOf":[{"type":"string"},{"type":"object","properties":{"kind":{"type":"string"},"version":{"type":"string"}},"required":["kind","version"]}]}
+      # -- One pin per `<platform>.<service>`. Values are a released version, a full commit, or `{kind: operator, version: <v>}`.
+      pins:
+        auth.logto:
+          kind: operator
+          version: 1.8.0
+        nitroso.lithium: 1.4.2
+        nitroso.zinc: e8266aaad16351c0a8695370b6d4d79d7d744ed2
+      # @schema skipProperties:true
+      # @schema additionalProperties:{"type":"object","properties":{"branch":{"type":"string"},"commit":{"type":"string"}},"required":["branch","commit"]}
+      # -- Branch pins recorded with the commit they resolved to at mint. The commit must equal the pin, so a moving branch cannot move the rendered hostname.
+      branchResolutions:
+        nitroso.zinc:
+          branch: main
+          commit: e8266aaad16351c0a8695370b6d4d79d7d744ed2
 
 # -- Wrapper-owned sample workload.
 workload:
