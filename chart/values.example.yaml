@@ -4,3 +4,12 @@ serviceTree:
 
 primordial:
   targetLandscape: example
+
+# The upstream dependency cannot read the wrapper's service-tree helpers, so each
+# overlay contributes its own slot to the static projection the subchart stamps.
+upstream:
+  global:
+    labels:
+      atomi.cloud/landscape: example
+    annotations:
+      atomi.cloud/landscape: example

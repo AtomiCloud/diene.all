@@ -708,104 +708,258 @@
             }
         },
         "upstream": {
-            "description": "Pinned optional upstream chart. Every instantiated dependency must receive a conforming override.",
+            "description": "Pinned upstream chart, instantiated by every committed stack. Every instantiated dependency must receive a conforming override.",
             "type": "object",
+            "required": [
+                "fullnameOverride"
+            ],
             "properties": {
+                "controllers": {
+                    "description": "Exactly one controller, so the rendered Deployment keeps the unsuffixed `wrapper-upstream` name.",
+                    "type": "object",
+                    "properties": {
+                        "main": {
+                            "type": "object",
+                            "properties": {
+                                "annotations": {
+                                    "description": "Reloader opts in on the Deployment metadata, matching every wrapper-owned workload.",
+                                    "type": "object",
+                                    "properties": {
+                                        "reloader.stakater.com/auto": {
+                                            "type": "string"
+                                        }
+                                    }
+                                },
+                                "containers": {
+                                    "type": "object",
+                                    "properties": {
+                                        "main": {
+                                            "type": "object",
+                                            "properties": {
+                                                "image": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "pullPolicy": {
+                                                            "type": "string",
+                                                            "enum": [
+                                                                "Always",
+                                                                "IfNotPresent",
+                                                                "Never"
+                                                            ]
+                                                        },
+                                                        "repository": {
+                                                            "type": "string"
+                                                        },
+                                                        "tag": {
+                                                            "type": "string",
+                                                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                                                        }
+                                                    }
+                                                },
+                                                "resources": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "limits": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "cpu": {
+                                                                    "type": "string"
+                                                                },
+                                                                "memory": {
+                                                                    "type": "string"
+                                                                }
+                                                            }
+                                                        },
+                                                        "requests": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "cpu": {
+                                                                    "type": "string"
+                                                                },
+                                                                "memory": {
+                                                                    "type": "string"
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                },
+                                                "securityContext": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "allowPrivilegeEscalation": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "capabilities": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "drop": {
+                                                                    "type": "array",
+                                                                    "items": {
+                                                                        "type": "string"
+                                                                    }
+                                                                }
+                                                            }
+                                                        },
+                                                        "readOnlyRootFilesystem": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "runAsGroup": {
+                                                            "type": "integer"
+                                                        },
+                                                        "runAsNonRoot": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "runAsUser": {
+                                                            "type": "integer"
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "pod": {
+                                    "type": "object",
+                                    "properties": {
+                                        "securityContext": {
+                                            "type": "object",
+                                            "properties": {
+                                                "fsGroup": {
+                                                    "type": "integer"
+                                                },
+                                                "runAsGroup": {
+                                                    "type": "integer"
+                                                },
+                                                "runAsNonRoot": {
+                                                    "type": "boolean"
+                                                },
+                                                "runAsUser": {
+                                                    "type": "integer"
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "replicas": {
+                                    "type": "integer",
+                                    "minimum": 1
+                                },
+                                "strategy": {
+                                    "description": "The upstream workload rolls like every wrapper-owned Deployment; it is never recreated.",
+                                    "type": "string",
+                                    "enum": [
+                                        "RollingUpdate",
+                                        "Recreate"
+                                    ]
+                                },
+                                "type": {
+                                    "type": "string",
+                                    "enum": [
+                                        "deployment",
+                                        "statefulset",
+                                        "daemonset"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
                 "enabled": {
+                    "description": "Render the pinned upstream dependency. It is instantiated by every committed stack.",
                     "type": "boolean"
                 },
                 "fullnameOverride": {
+                    "description": "Explicit conforming `\u003cservice\u003e-\u003ctoken\u003e` name. Every rendered upstream object is named exactly this.",
                     "type": "string",
                     "pattern": "^[a-z0-9]+-[a-z0-9]+$"
                 },
-                "image": {
+                "global": {
+                    "description": "Chart-wide upstream settings. `global` is the only lever that reaches every rendered upstream object.",
                     "type": "object",
                     "properties": {
-                        "repository": {
-                            "type": "string"
-                        },
-                        "tag": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "podAnnotations": {
-                    "type": "object",
-                    "properties": {
-                        "reloader.stakater.com/auto": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "podSecurityContext": {
-                    "type": "object",
-                    "properties": {
-                        "runAsGroup": {
-                            "type": "integer"
-                        },
-                        "runAsNonRoot": {
-                            "type": "boolean"
-                        },
-                        "runAsUser": {
-                            "type": "integer"
-                        }
-                    }
-                },
-                "resources": {
-                    "type": "object",
-                    "properties": {
-                        "limits": {
+                        "annotations": {
+                            "description": "Default-prefix service-tree annotations stamped on every upstream object.",
                             "type": "object",
                             "properties": {
-                                "cpu": {
+                                "atomi.cloud/instance-label": {
                                     "type": "string"
                                 },
-                                "memory": {
+                                "atomi.cloud/instance-original": {
+                                    "type": "string"
+                                },
+                                "atomi.cloud/layer": {
+                                    "type": "string"
+                                },
+                                "atomi.cloud/module": {
+                                    "type": "string"
+                                },
+                                "atomi.cloud/platform": {
+                                    "type": "string"
+                                },
+                                "atomi.cloud/service": {
                                     "type": "string"
                                 }
                             }
                         },
-                        "requests": {
+                        "createDefaultServiceAccount": {
+                            "description": "No upstream-owned ServiceAccount: the dependency must not mint resource names the wrapper did not authorize.",
+                            "type": "boolean"
+                        },
+                        "labels": {
+                            "description": "Default-prefix service-tree labels stamped on every upstream object.",
                             "type": "object",
                             "properties": {
-                                "cpu": {
+                                "atomi.cloud/layer": {
                                     "type": "string"
                                 },
-                                "memory": {
+                                "atomi.cloud/module": {
+                                    "type": "string"
+                                },
+                                "atomi.cloud/platform": {
+                                    "type": "string"
+                                },
+                                "atomi.cloud/service": {
                                     "type": "string"
                                 }
                             }
                         }
                     }
                 },
-                "securityContext": {
+                "service": {
+                    "description": "Exactly one ClusterIP Service, so the rendered Service keeps the unsuffixed `wrapper-upstream` name.",
                     "type": "object",
                     "properties": {
-                        "allowPrivilegeEscalation": {
-                            "type": "boolean"
-                        },
-                        "capabilities": {
+                        "main": {
                             "type": "object",
                             "properties": {
-                                "drop": {
-                                    "type": "array",
-                                    "items": {
-                                        "type": "string"
+                                "controller": {
+                                    "type": "string"
+                                },
+                                "ports": {
+                                    "type": "object",
+                                    "properties": {
+                                        "http": {
+                                            "type": "object",
+                                            "properties": {
+                                                "enabled": {
+                                                    "type": "boolean"
+                                                },
+                                                "port": {
+                                                    "type": "integer",
+                                                    "maximum": 65535,
+                                                    "minimum": 1
+                                                }
+                                            }
+                                        }
                                     }
+                                },
+                                "type": {
+                                    "type": "string",
+                                    "enum": [
+                                        "ClusterIP"
+                                    ]
                                 }
                             }
-                        },
-                        "readOnlyRootFilesystem": {
-                            "type": "boolean"
-                        },
-                        "runAsGroup": {
-                            "type": "integer"
-                        },
-                        "runAsNonRoot": {
-                            "type": "boolean"
-                        },
-                        "runAsUser": {
-                            "type": "integer"
                         }
                     }
                 }

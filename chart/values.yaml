@@ -249,31 +249,74 @@ primordial:
     tag: 0.1.0
     pin: true
 
-# -- Pinned optional upstream chart. Every instantiated dependency must receive a conforming override.
+# -- Pinned upstream chart, instantiated by every committed stack. Every instantiated dependency must receive a conforming override.
 upstream:
-  enabled: false
-  fullnameOverride: wrapper-upstream # @schema pattern:^[a-z0-9]+-[a-z0-9]+$
-  image:
-    repository: ghcr.io/stefanprodan/podinfo
-    tag: 6.9.2
-  podAnnotations:
-    reloader.stakater.com/auto: 'true'
-  podSecurityContext:
-    runAsNonRoot: true
-    runAsUser: 10000
-    runAsGroup: 10000
-  securityContext:
-    allowPrivilegeEscalation: false
-    readOnlyRootFilesystem: true
-    runAsNonRoot: true
-    runAsUser: 10000
-    runAsGroup: 10000
-    capabilities:
-      drop: [ALL]
-  resources:
-    requests:
-      cpu: 10m
-      memory: 32Mi
-    limits:
-      cpu: 100m
-      memory: 128Mi
+  # -- Render the pinned upstream dependency. It is instantiated by every committed stack.
+  enabled: true
+  # @schema pattern:^[a-z0-9]+-[a-z0-9]+$;required:true
+  # -- Explicit conforming `<service>-<token>` name. Every rendered upstream object is named exactly this.
+  fullnameOverride: wrapper-upstream
+  # -- Chart-wide upstream settings. `global` is the only lever that reaches every rendered upstream object.
+  global:
+    # -- No upstream-owned ServiceAccount: the dependency must not mint resource names the wrapper did not authorize.
+    createDefaultServiceAccount: false
+    # -- Default-prefix service-tree labels stamped on every upstream object.
+    labels:
+      atomi.cloud/platform: sample
+      atomi.cloud/service: wrapper
+      atomi.cloud/module: upstream
+      atomi.cloud/layer: '2'
+    # -- Default-prefix service-tree annotations stamped on every upstream object.
+    annotations:
+      atomi.cloud/platform: sample
+      atomi.cloud/service: wrapper
+      atomi.cloud/module: upstream
+      atomi.cloud/layer: '2'
+      atomi.cloud/instance-original: example-repository-run-001
+      atomi.cloud/instance-label: example-repository-run-001
+  # -- Exactly one controller, so the rendered Deployment keeps the unsuffixed `wrapper-upstream` name.
+  controllers:
+    main:
+      type: deployment # @schema enum:[deployment, statefulset, daemonset]
+      # -- The upstream workload rolls like every wrapper-owned Deployment; it is never recreated.
+      strategy: RollingUpdate # @schema enum:[RollingUpdate, Recreate]
+      # -- Reloader opts in on the Deployment metadata, matching every wrapper-owned workload.
+      annotations:
+        reloader.stakater.com/auto: 'true'
+      replicas: 1 # @schema minimum:1
+      pod:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 10000
+          runAsGroup: 10000
+          fsGroup: 10000
+      containers:
+        main:
+          image:
+            repository: ghcr.io/stefanprodan/podinfo
+            tag: 6.9.2 # @schema pattern:^[A-Za-z0-9][A-Za-z0-9._-]*$
+            pullPolicy: IfNotPresent # @schema enum:[Always, IfNotPresent, Never]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10000
+            runAsGroup: 10000
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+  # -- Exactly one ClusterIP Service, so the rendered Service keeps the unsuffixed `wrapper-upstream` name.
+  service:
+    main:
+      controller: main
+      type: ClusterIP # @schema enum:[ClusterIP]
+      ports:
+        http:
+          enabled: true
+          port: 9898 # @schema minimum:1;maximum:65535

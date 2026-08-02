@@ -6,8 +6,8 @@ version: 0.1.0
 appVersion: '6.9.2'
 kubeVersion: '>=1.27.0-0'
 dependencies:
-  - name: podinfo
+  - name: app-template
     alias: upstream
-    version: 6.9.2
-    repository: oci://ghcr.io/stefanprodan/charts
+    version: 5.0.1
+    repository: oci://ghcr.io/bjw-s-labs/helm
     condition: upstream.enabled

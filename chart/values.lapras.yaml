@@ -11,3 +11,11 @@ webhookRoute:
 
 primordial:
   enabled: false
+
+# The cluster slot is contributed here, exactly as the wrapper-owned helpers do.
+upstream:
+  global:
+    labels:
+      atomi.cloud/cluster: lapras
+    annotations:
+      atomi.cloud/cluster: lapras
