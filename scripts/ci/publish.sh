@@ -25,8 +25,53 @@ manifest_version="$(yq -r '.version' chart/Chart.yaml)"
 bash ./scripts/ci/setup.sh
 bash ./scripts/local/vendor-chart-config.sh
 helm-docs --chart-search-root chart
+
+# The pinned dependency archives are vendored under `chart/charts` and tracked in
+# git. `helm dependency build` discards and re-pulls every one of them from the
+# upstream OCI registry on each run, so packaging — a dry run included — would need
+# the public network for archives this repository already carries. Verify the
+# vendored state locally instead. Chart.lock's `digest` exists to detect a lock that
+# has drifted from the manifest it was resolved from; comparing the pins themselves
+# asserts that same property without re-resolving them over the network.
+dependency_pins() {
+  yq -o=json -I=0 \
+    '[.dependencies[]? | {"name": .name, "version": .version, "repository": .repository}] | sort_by(.name, .version)' \
+    "$1"
+}
+
+manifest_pins="$(dependency_pins chart/Chart.yaml)"
+locked_pins="$(dependency_pins chart/Chart.lock)"
+if [ "${manifest_pins}" != "${locked_pins}" ]; then
+  echo "❌ chart/Chart.lock does not pin what chart/Chart.yaml declares" >&2
+  echo "   Chart.yaml: ${manifest_pins}" >&2
+  echo "   Chart.lock: ${locked_pins}" >&2
+  exit 1
+fi
+
+# Exact set equality, not mere presence: an archive the lock does not name is still
+# packaged into the released chart, so a leftover from an older pin has to be a
+# failure rather than dead weight that ships.
+expected_archives="$(yq -r '.dependencies[]? | .name + "-" + .version + ".tgz"' chart/Chart.lock | LC_ALL=C sort)"
+present_archives="$(find chart/charts -mindepth 1 -maxdepth 1 -name '*.tgz' -printf '%f\n' 2>/dev/null | LC_ALL=C sort)"
+if [ "${expected_archives}" != "${present_archives}" ]; then
+  echo "❌ chart/charts does not hold exactly the archives chart/Chart.lock pins" >&2
+  echo "   expected: ${expected_archives//$'\n'/ }" >&2
+  echo "   present: ${present_archives//$'\n'/ }" >&2
+  exit 1
+fi
+
+# A file named for the pin is not proof of the pin: read the chart metadata out of
+# each archive so a renamed or re-vendored tarball cannot pass as the locked one.
+while IFS='|' read -r dep_name dep_version; do
+  [ -z "${dep_name}" ] && continue
+  archive="chart/charts/${dep_name}-${dep_version}.tgz"
+  [ ! -s "${archive}" ] && echo "❌ vendored dependency archive '${archive}' is missing or empty" >&2 && exit 1
+  packaged="$(helm show chart "${archive}" | yq -r '.name + "-" + .version')"
+  [ "${packaged}" != "${dep_name}-${dep_version}" ] &&
+    echo "❌ '${archive}' packages ${packaged}, not the locked ${dep_name}-${dep_version}" >&2 && exit 1
+done < <(yq -r '.dependencies[]? | .name + "|" + .version' chart/Chart.lock)
+
 mkdir -p "${output_dir}"
-helm dependency build chart
 helm package chart --destination "${output_dir}" --version "${version}"
 package="${output_dir}/diene-helm-wrapper-${version}.tgz"
 [ ! -s "${package}" ] && echo "❌ chart package was not created" >&2 && exit 1

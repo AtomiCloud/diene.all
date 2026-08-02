@@ -2,6 +2,13 @@
 set -euo pipefail
 
 bash ./scripts/ci/setup.sh
+
+# The probe suite's own unit tests — the offline-classification tests and the
+# shared helper/mutator tests they inherit from `probes/lib`. They are seconds of
+# work that decide whether the probe matrix can tell a real failure from an
+# offline one, so they run before the minutes of Helm rendering below.
+bun test probes
+
 bash ./scripts/validate/helm-wrapper.sh schema
 bash ./scripts/validate/helm-wrapper.sh schema-drift
 bash ./scripts/validate/helm-wrapper.sh lint
