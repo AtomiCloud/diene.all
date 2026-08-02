@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "${repository_root}"
+export PATH="${repository_root}/node_modules/.bin:${PATH}"
+
 for binary in actionlint bash biome bun cyanprint docker git gomplate hadolint helm helm-docs infisical jq k3d knip kubeconform kubectl kyverno nix pls pre-commit rg sg shellcheck skopeo task treefmt tsc yq; do
   command -v "${binary}" >/dev/null || {
     echo "❌ binary '${binary}' is missing" >&2
