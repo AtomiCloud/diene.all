@@ -146,12 +146,22 @@
         "instance": {
             "description": "Optional physical-instance metadata. The instance remains outside LPSM and is never minted here.",
             "type": "object",
+            "required": [
+                "original",
+                "label"
+            ],
             "properties": {
-                "original": {
-                    "description": "Recorded physical instance segment for every non-preview landscape. It must already be one DNS-1123 label; the chart never lowercases, truncates, or hashes it.",
+                "label": {
+                    "description": "The authorized minter's stable DNS-1123 label for that id, at most 63 bytes. It is the hostname instance segment. The chart never derives it from `original` — it records the pair it was handed.",
                     "type": "string",
-                    "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$",
+                    "pattern": "^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)?$",
                     "maxLength": 63
+                },
+                "original": {
+                    "description": "The unchanged repository-qualified physical id, recorded verbatim. It may be far longer than one DNS label; the authorized minter owns every normalization, so the chart neither lowercases nor shortens it. Empty selects no recorded instance, and then `label` must be empty too.",
+                    "type": "string",
+                    "pattern": "^([A-Za-z0-9]([A-Za-z0-9._:/-]*[A-Za-z0-9])?)?$",
+                    "maxLength": 253
                 },
                 "preview": {
                     "description": "castform preview identity. The chart consumes authorized-assembler output only; it never mints, canonicalizes, or suffixes a petname.",

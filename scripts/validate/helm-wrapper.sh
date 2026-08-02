@@ -113,9 +113,17 @@ labels)
   base_projection='{"platform":"sample","service":"wrapper","layer":"2"}'
   example_projection='{"platform":"sample","service":"wrapper","layer":"2","landscape":"example"}'
   lapras_projection='{"platform":"sample","service":"wrapper","layer":"2","landscape":"example","cluster":"lapras"}'
-  # The recorded physical instance is read from the values file rather than pinned
-  # here, so the assertion tracks the authorized minter's value instead of a copy.
+  # The recorded physical instance pair is read from the values file rather than
+  # pinned here, so the assertion tracks the authorized minter's values instead of a
+  # copy. The two halves are DISTINCT — a repository-qualified original beside its
+  # minted DNS-1123 label — so an implementation that stamped one half into both
+  # annotations is reported instead of passing.
   instance_original="$(yq -r '.instance.original' chart/values.yaml)"
+  instance_label="$(yq -r '.instance.label' chart/values.yaml)"
+  if [ "${instance_original}" = "${instance_label}" ]; then
+    echo "❌ the committed instance pair records the same bytes twice, so the annotation assertion below could not tell the halves apart" >&2
+    exit 1
+  fi
 
   # Assert the service-tree projection per rendered object, in both the labels and
   # the annotations, under the prefix in force. The module slot is resolved per
@@ -135,7 +143,8 @@ labels)
     local description="$1" file="$2" prefix="$3" forbidden="$4" objects="$5" projection="$6"
     local offenders
     offenders="$(yq eval-all -o=json '.' "${file}" | jq -s -r \
-      --arg prefix "${prefix}" --arg forbidden "${forbidden}" --arg instance "${instance_original}" \
+      --arg prefix "${prefix}" --arg forbidden "${forbidden}" \
+      --argjson instance "$(jq -n --arg original "${instance_original}" --arg label "${instance_label}" '{"instance-original": $original, "instance-label": $label}')" \
       --argjson objects "${objects}" --argjson upstream "${upstream_objects}" --argjson projection "${projection}" '
         def slot($key): "\($prefix)/\($key)";
         map(select(.kind != null)) as $rendered
@@ -156,9 +165,9 @@ labels)
                   ( ( ($projection + {module: $module}) | to_entries[]
                       | select($labels[slot(.key)] != .value or $annotations[slot(.key)] != .value)
                       | "\($id): \(slot(.key)) label=\($labels[slot(.key)] // "absent") annotation=\($annotations[slot(.key)] // "absent") want=\(.value)" )
-                  , ( ["instance-original", "instance-label"][]
-                      | select($annotations[slot(.)] != $instance)
-                      | "\($id): \(slot(.)) annotation=\($annotations[slot(.)] // "absent") want=\($instance)" )
+                  , ( $instance | to_entries[]
+                      | select($annotations[slot(.key)] != .value)
+                      | "\($id): \(slot(.key)) annotation=\($annotations[slot(.key)] // "absent") want=\(.value)" )
                   , ( select($forbidden != "")
                       | $keys[] | select(startswith("\($forbidden)/"))
                       | "\($id): stale key \(.)" ) )
@@ -242,7 +251,43 @@ fullname)
 primordial)
   helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml --set primordial.enabled=true >"${tmp}/primordial.yaml"
   kubeconform -strict -summary -schema-location default -schema-location 'schemas/{{ .ResourceKind }}.json' "${tmp}/primordial.yaml"
-  yq eval-all -o=json '.' "${tmp}/primordial.yaml" | jq -s -e 'map(select(.kind == "PlatformDependency"))[0].spec as $spec | [$spec.database, $spec.kv, $spec.cache, $spec.store] | map(. // {}) | add | to_entries | all(.[]; (.value.engine | keys) == [.value.type])' >/dev/null
+  # Every declared dependency module names exactly one engine, keyed by its own type.
+  # `all` over an empty list is TRUE, so the assertion demanded a PlatformDependency
+  # and a non-empty flattened module map before it ever compared a key: without them
+  # a render that dropped the CR entirely, or emitted it with no modules, passed this
+  # gate while proving nothing. The two controls below are what keep that honest.
+  engines_match_declared_types() {
+    yq eval-all -o=json '.' "$1" | jq -s -e '
+      map(select(.kind == "PlatformDependency")) as $dependencies
+      | ($dependencies | length) == 1
+        and ( ( $dependencies[0].spec
+                | [.database, .kv, .cache, .store] | map(. // {}) | add | to_entries ) as $modules
+              | ($modules | length) > 0
+                and ($modules | all(.value.engine != null and ((.value.engine | keys) == [.value.type]))) )' >/dev/null
+  }
+
+  engines_match_declared_types "${tmp}/primordial.yaml" || {
+    echo "❌ a declared dependency module does not name exactly one engine keyed by its own type" >&2
+    exit 1
+  }
+
+  # Control A: the same assertion must redden on a module whose engine key no longer
+  # equals its declared type, or it is asserting nothing about the pairing.
+  helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml --set primordial.enabled=true \
+    --set-string primordial.platformDependency.modules.database.maindb.type=pgvector >"${tmp}/mismatched-engine.yaml"
+  if engines_match_declared_types "${tmp}/mismatched-engine.yaml"; then
+    echo "❌ the engine/type assertion accepted a module whose engine key is not its declared type" >&2
+    exit 1
+  fi
+
+  # Control B: and it must redden when no PlatformDependency is rendered at all,
+  # which is exactly the vacuous pass the empty-list `all` used to hand out.
+  helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml --set primordial.enabled=false >"${tmp}/no-dependency.yaml"
+  if engines_match_declared_types "${tmp}/no-dependency.yaml"; then
+    echo "❌ the engine/type assertion passed with no PlatformDependency rendered" >&2
+    exit 1
+  fi
+
   ! rg -n '(^|[[:space:]])(share|sharedVia|redirectUris|desiredVersion):' "${tmp}/primordial.yaml"
   ;;
 lpsm)
@@ -258,12 +303,19 @@ lpsm)
   parsed="$(yq -r "${contracts} | .data.\"lpsm.parsed\"" "${tmp}/lpsm.yaml")"
   original="$(yq -r "${contracts} | .data.\"instance.original\"" "${tmp}/lpsm.yaml")"
   label="$(yq -r "${contracts} | .data.\"instance.label\"" "${tmp}/lpsm.yaml")"
+  instance_hostname="$(yq -r "${contracts} | .data.\"instance.hostname\"" "${tmp}/lpsm.yaml")"
   expected_original="$(yq -r '.instance.original' chart/values.yaml)"
+  expected_label="$(yq -r '.instance.label' chart/values.yaml)"
   [ "${ordinary}" != "api.wrapper.sample.example.cluster.atomi.cloud" ] && echo "❌ ordinary LPSM hostname mismatch" >&2 && exit 1
   [ "${instance}" != "api.wrapper.sample.run001.example.local.example.invalid" ] && echo "❌ instance LPSM hostname mismatch" >&2 && exit 1
   jq -e '.landscape == "example" and .platform == "sample" and .service == "wrapper" and .module == "api" and .instance == "run001"' <<<"${parsed}" >/dev/null
-  [ "${original}" != "${expected_original}" ] && echo "❌ recorded instance original does not equal the supplied value" >&2 && exit 1
-  [ "${label}" != "${expected_original}" ] && echo "❌ recorded instance label does not equal the authorized minter value" >&2 && exit 1
+  # The committed original is repository-qualified and longer than one DNS label, so
+  # this is the round trip the old one-label input could not express: both exact
+  # values come back out, and the hostname segment is the minted label alone.
+  [ "${#expected_original}" -le 63 ] && echo "❌ the committed physical original is short enough to be its own DNS label, so the round trip proves nothing" >&2 && exit 1
+  [ "${original}" != "${expected_original}" ] && echo "❌ recorded instance original does not equal the supplied repository-qualified id" >&2 && exit 1
+  [ "${label}" != "${expected_label}" ] && echo "❌ recorded instance label does not equal the authorized minter's label" >&2 && exit 1
+  [ "${instance_hostname}" != "api.wrapper.sample.${expected_label}.example.local.example.invalid" ] && echo "❌ the instance hostname segment is not the minted label" >&2 && exit 1
 
   # Accepted coordinates outside the ENTEI dev zone. Each proves the same five-slot
   # dotted derivation and its parse round-trip in a different canonical zone, with
@@ -301,6 +353,37 @@ lpsm)
     --set-string contracts.lpsm.landscape=lapras \
     --set-string contracts.lpsm.instanceZone=admin.atomi.cloud
 
+  # One contract key of one extra render, compared exactly.
+  accepts_contract_key() {
+    local description="$1" key="$2" expected="$3"
+    shift 3
+    local got
+    helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml "$@" >"${tmp}/accepted-key.yaml"
+    got="$(yq -r "${contracts} | .data.\"${key}\"" "${tmp}/accepted-key.yaml")"
+    if [ "${got}" != "${expected}" ]; then
+      echo "❌ ${description}: expected '${expected}', got '${got}'" >&2
+      exit 1
+    fi
+  }
+
+  # The ordinary four-slot form parses back with the instance returned separately and
+  # EMPTY, so the optional projection is genuinely optional in both directions. The
+  # optional-instance parse above is the other arity of the same boundary.
+  accepts_contract_key "the ordinary four-slot parse" lpsm.parsed \
+    '{"instance":"","landscape":"example","module":"api","platform":"sample","service":"wrapper"}' \
+    --set-string contracts.lpsm.parseHostname=api.wrapper.sample.example.local.example.invalid
+
+  # A second pre-minted pair, supplied rather than committed: a genuinely long
+  # repository-qualified original and a short stable hash label. Both halves round
+  # trip byte-for-byte and the hostname carries the label, never the original.
+  long_original=github.com/AtomiCloud/diene.all/charts/helm-wrapper/pull-requests/12345/attempt-7
+  hash_label=wrapper-pr12345-7q2m9x
+  minted_pair=(--set-string "instance.original=${long_original}" --set-string "instance.label=${hash_label}")
+  accepts_contract_key "a long repository-qualified original" instance.original "${long_original}" "${minted_pair[@]}"
+  accepts_contract_key "the minted label recorded beside it" instance.label "${hash_label}" "${minted_pair[@]}"
+  accepts_contract_key "the hostname segment taken from the minted label" instance.hostname \
+    "api.wrapper.sample.${hash_label}.example.local.example.invalid" "${minted_pair[@]}"
+
   helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml \
     --set instance.preview.enabled=true --set-string "contracts.lpsm.instanceZone=${zone}" >"${tmp}/preview.yaml"
   preview_host="$(yq -r "${contracts} | .data.\"preview.hostname\"" "${tmp}/preview.yaml")"
@@ -318,7 +401,6 @@ lpsm)
   refuses "a caller-supplied collision suffix" "PreviewIdentityMismatch: collision suffix" --set instance.preview.enabled=true --set-string "instance.preview.canonical.previewPetname=${petname}-abc" --set-string "instance.preview.receipt.previewPetname=${petname}-abc" --set-string "instance.preview.receipt.collision.liveFullLeaseDigest=${other}"
   refuses "a same-digest collision" "same full digest is an idempotent join" --set instance.preview.enabled=true --set-string "instance.preview.canonical.previewPetname=${petname}-ekj" --set-string "instance.preview.receipt.previewPetname=${petname}-ekj" --set-string "instance.preview.receipt.collision.liveFullLeaseDigest=${digest}"
   refuses "an unresolved branch pin" "neither a released version nor a full commit" --set instance.preview.enabled=true --set-string 'instance.preview.manifest.pins.nitroso\.zinc=main'
-  refuses "an unnormalized physical instance id" "does not match pattern" --set-string instance.original=repository-a:pr-123
   refuses "a dash-fused Garden hostname" "must use the canonical dotted LPSM form" --set-string contracts.lpsm.parseHostname=api-wrapper-sample-run001-example.local.example.invalid
   refuses "an uppercase parser input" "must be a lowercase DNS-1123 label" --set-string contracts.lpsm.parseHostname=API.wrapper.sample.run001.example.local.example.invalid
 
@@ -394,6 +476,77 @@ lpsm)
     "at '/contracts/lpsm/ordinaryZone': 'cluster.atOmi.cloud' does not match pattern" \
     'HostnameLabelInvalid: zone label 2 of "cluster.atOmi.cloud" "atOmi" may hold only lowercase alphanumerics and internal dashes' \
     --set-string contracts.lpsm.ordinaryZone=cluster.atOmi.cloud
+
+  # The preview receipt gets the same two-boundary treatment for the same reason.
+  # Each of these four used to be asserted with an OR of a schema reason and a helper
+  # reason, so the schema alone satisfied the vector and the preview helper could have
+  # stopped refusing without anything reddening.
+  preview=(--set instance.preview.enabled=true)
+
+  refuses_at_both_boundaries "an unversioned petname word list" \
+    "at '/instance/preview/receipt/wordList': 'diene.preview-wordlist' does not match pattern" \
+    'PreviewIdentityUnavailable: petname word list "diene.preview-wordlist" is not a versioned diene.preview-wordlist' \
+    "${preview[@]}" --set-string instance.preview.receipt.wordList=diene.preview-wordlist
+
+  refuses_at_both_boundaries "a petname outside the NOUN-VERB-NOUN grammar" \
+    "at '/instance/preview/canonical/previewPetname': 'otterbeatspotato' does not match pattern" \
+    'PreviewIdentityUnavailable: "otterbeatspotato" is not a versioned NOUN-VERB-NOUN petname' \
+    "${preview[@]}" --set-string instance.preview.canonical.previewPetname=otterbeatspotato \
+    --set-string instance.preview.receipt.previewPetname=otterbeatspotato
+
+  refuses_at_both_boundaries "a collision suffix longer than three characters" \
+    "at '/instance/preview/canonical/previewPetname': '${petname}-ekj9' does not match pattern" \
+    "PreviewIdentityUnavailable: \"${petname}-ekj9\" is not a versioned NOUN-VERB-NOUN petname" \
+    "${preview[@]}" --set-string "instance.preview.canonical.previewPetname=${petname}-ekj9" \
+    --set-string "instance.preview.receipt.previewPetname=${petname}-ekj9" \
+    --set-string "instance.preview.receipt.collision.liveFullLeaseDigest=${other}"
+
+  refuses_at_both_boundaries "a fork source outside the ruled pair" \
+    "at '/instance/preview/receipt/forkSource': value must be one of 'staging', 'production'" \
+    'PreviewIdentityUnavailable: forkSource "serving" is neither staging nor production' \
+    "${preview[@]}" --set-string instance.preview.receipt.forkSource=serving
+
+  # The physical instance pair. A long or repository-qualified original is ACCEPTED
+  # above — the refusals that used to reject exactly that were false, because this
+  # chart records the minter's pair rather than re-deriving it. What is refused is a
+  # malformed half, and a half with no partner.
+  overlong_original="github.com/atomicloud/$(printf 'a%.0s' {1..232})"
+
+  refuses_at_both_boundaries "an uppercase minted instance label" \
+    "at '/instance/label': 'PR-12345' does not match pattern" \
+    'HostnameLabelInvalid: instance.label "PR-12345" must start with a lowercase alphanumeric byte' \
+    --set-string instance.label=PR-12345
+
+  refuses_at_both_boundaries "a 64-byte minted instance label" \
+    "at '/instance/label': maxLength: got 64, want 63" \
+    "HostnameLabelInvalid: instance.label \"${overlong_label}\" is 64 bytes" \
+    --set-string "instance.label=${overlong_label}"
+
+  refuses_at_both_boundaries "a whitespace-bearing physical original" \
+    "at '/instance/original': 'repository a/pr-123' does not match pattern" \
+    'InstanceOriginalInvalid: instance.original "repository a/pr-123" must start and end with an alphanumeric' \
+    --set-string 'instance.original=repository a/pr-123'
+
+  refuses_at_both_boundaries "a 254-byte physical original" \
+    "at '/instance/original': maxLength: got 254, want 253" \
+    'InstanceOriginalInvalid: instance.original is 254 bytes' \
+    --set-string "instance.original=${overlong_original}"
+
+  # Removing a half outright is caught by the generated schema's own `required` list;
+  # emptying one reaches the helper, which is the only boundary that can see one half
+  # standing without the other.
+  refuses_at_both_boundaries "an instance label removed from the pair" \
+    "at '/instance': missing property 'label'" \
+    'InstancePairIncomplete: instance.original' \
+    --set instance.label=null
+
+  refuses_at_both_boundaries "an instance original removed from the pair" \
+    "at '/instance': missing property 'original'" \
+    'InstancePairIncomplete: instance.label' \
+    --set instance.original=null
+
+  refuses "an original orphaned by an emptied label" 'InstancePairIncomplete: instance.original' --set-string instance.label=
+  refuses "a label orphaned by an emptied original" 'InstancePairIncomplete: instance.label' --set-string instance.original=
   ;;
 lb)
   helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml --set gateway.provider=digitalocean >"${tmp}/do.yaml"

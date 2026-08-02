@@ -53,6 +53,22 @@ const VALID_PARSE_INPUT = 'api.wrapper.sample.run001.example.local.example.inval
 const PINNED_PARSE = `--set-string contracts.lpsm.parseHostname=${VALID_PARSE_INPUT}`;
 const OVERLONG_LABEL = 'a'.repeat(64);
 
+// The pre-minted physical instance pair. The authorized minter owns the
+// repository qualification, the deterministic normalization, the stable hash that
+// shortens a long id into one DNS label, and the collision audit; this chart only
+// verifies boundary shape and records the pair. So the ACCEPT vectors below use an
+// original far longer than one DNS label together with a short hash label, and
+// prove BOTH exact values round-trip out of the contract while the hostname
+// segment is the label alone.
+const COMMITTED_ORIGINAL = 'github.com/AtomiCloud/diene.all/charts/helm-wrapper/pull-requests/12345';
+const COMMITTED_LABEL = 'pr-12345-9f3a1c';
+const LONG_ORIGINAL = `${COMMITTED_ORIGINAL}/attempt-7`;
+const HASH_LABEL = 'wrapper-pr12345-7q2m9x';
+const MINTED_PAIR = [`--set-string instance.original=${LONG_ORIGINAL}`, `--set-string instance.label=${HASH_LABEL}`];
+// 254 bytes, still inside the character rule, so the only thing wrong with it is
+// its length at either boundary.
+const OVERLONG_ORIGINAL = `github.com/atomicloud/${'a'.repeat(232)}`;
+
 // The forward derivation once accepted labels its own inverse parser rejects, so
 // each DNS-1123 vector is asserted at BOTH boundaries in its own right: the
 // generated values schema refuses the malformed value before a template runs,
@@ -132,6 +148,81 @@ const DNS_1123: Boundary[] = [
   },
 ];
 
+// The same two-boundary treatment for the preview receipt. Each of these four used
+// to be ONE vector whose `because` list was OR-joined, so a schema rejection stood
+// in for the helper assertion and the helper could have stopped refusing entirely
+// without a vector reddening. Split, each boundary owns exactly its own reason and
+// the helper half is proven reachable after `--skip-schema-validation`.
+const PREVIEW_RECEIPT: Boundary[] = [
+  {
+    name: 'unversioned-word-list',
+    flags: [...PREVIEW, '--set-string instance.preview.receipt.wordList=diene.preview-wordlist'],
+    schema: "at '/instance/preview/receipt/wordList': 'diene.preview-wordlist' does not match pattern",
+    helper:
+      'PreviewIdentityUnavailable: petname word list "diene.preview-wordlist" is not a versioned diene.preview-wordlist',
+  },
+  {
+    name: 'petname-outside-the-grammar',
+    flags: [
+      ...PREVIEW,
+      '--set-string instance.preview.canonical.previewPetname=otterbeatspotato',
+      '--set-string instance.preview.receipt.previewPetname=otterbeatspotato',
+    ],
+    schema: "at '/instance/preview/canonical/previewPetname': 'otterbeatspotato' does not match pattern",
+    helper: 'PreviewIdentityUnavailable: "otterbeatspotato" is not a versioned NOUN-VERB-NOUN petname',
+  },
+  {
+    name: 'suffix-longer-than-three-characters',
+    flags: [
+      ...PREVIEW,
+      `--set-string instance.preview.canonical.previewPetname=${SUFFIXED}9`,
+      `--set-string instance.preview.receipt.previewPetname=${SUFFIXED}9`,
+      `--set-string instance.preview.receipt.collision.liveFullLeaseDigest=${OTHER_DIGEST}`,
+    ],
+    schema: `at '/instance/preview/canonical/previewPetname': '${SUFFIXED}9' does not match pattern`,
+    helper: `PreviewIdentityUnavailable: "${SUFFIXED}9" is not a versioned NOUN-VERB-NOUN petname`,
+  },
+  {
+    name: 'fork-source-outside-the-ruled-pair',
+    flags: [...PREVIEW, '--set-string instance.preview.receipt.forkSource=serving'],
+    schema: "at '/instance/preview/receipt/forkSource': value must be one of 'staging', 'production'",
+    helper: 'PreviewIdentityUnavailable: forkSource "serving" is neither staging nor production',
+  },
+];
+
+// The physical instance pair. A long or repository-qualified original is now the
+// ACCEPTED case — the old vectors refusing exactly that were false, because the
+// chart's job is to RECORD the minter's pair, not to re-derive it. What is refused
+// is a malformed half and a half with no partner.
+const INSTANCE_PAIR: Boundary[] = [
+  {
+    name: 'uppercase-instance-label',
+    flags: ['--set-string instance.label=PR-12345'],
+    schema: "at '/instance/label': 'PR-12345' does not match pattern",
+    helper: 'HostnameLabelInvalid: instance.label "PR-12345" must start with a lowercase alphanumeric byte',
+  },
+  {
+    name: 'sixty-four-byte-instance-label',
+    flags: [`--set-string instance.label=${OVERLONG_LABEL}`],
+    schema: "at '/instance/label': maxLength: got 64, want 63",
+    helper: `HostnameLabelInvalid: instance.label "${OVERLONG_LABEL}" is 64 bytes`,
+  },
+  {
+    name: 'whitespace-bearing-physical-original',
+    flags: [`--set-string 'instance.original=repository a/pr-123'`],
+    schema: "at '/instance/original': 'repository a/pr-123' does not match pattern",
+    helper: 'InstanceOriginalInvalid: instance.original "repository a/pr-123" must start and end with an alphanumeric',
+  },
+  {
+    // 253 bytes is the ceiling, not 63: shortening happens at the minter, and the
+    // chart refuses only what no DNS name could ever record at all.
+    name: 'two-hundred-fifty-four-byte-physical-original',
+    flags: [`--set-string instance.original=${OVERLONG_ORIGINAL}`],
+    schema: "at '/instance/original': maxLength: got 254, want 253",
+    helper: 'InstanceOriginalInvalid: instance.original is 254 bytes',
+  },
+];
+
 // A mint that had to disambiguate: the same base petname was already held live by
 // an allocation with a DIFFERENT full digest.
 const COLLIDED = [
@@ -172,16 +263,43 @@ const ACCEPTS: Accepts[] = [
     expected: '{"instance":"run001","landscape":"example","module":"api","platform":"sample","service":"wrapper"}',
   },
   {
+    name: 'ordinary-four-slot-parse',
+    flags: ['--set-string contracts.lpsm.parseHostname=api.wrapper.sample.example.local.example.invalid'],
+    key: 'lpsm.parsed',
+    expected: '{"instance":"","landscape":"example","module":"api","platform":"sample","service":"wrapper"}',
+  },
+  {
     name: 'non-preview-original-recorded-verbatim',
     flags: [],
     key: 'instance.original',
-    expected: 'example-repository-run-001',
+    expected: COMMITTED_ORIGINAL,
   },
   {
-    name: 'non-preview-label-is-the-same-bytes',
+    name: 'non-preview-label-is-the-minted-label',
     flags: [],
     key: 'instance.label',
-    expected: 'example-repository-run-001',
+    expected: COMMITTED_LABEL,
+  },
+  // The round trip the old one-DNS-label input could not express at all: a
+  // genuinely long repository-qualified original and the minter's short hash label
+  // both come back out byte-for-byte, and the hostname carries the label alone.
+  {
+    name: 'long-repository-qualified-original-round-trips',
+    flags: MINTED_PAIR,
+    key: 'instance.original',
+    expected: LONG_ORIGINAL,
+  },
+  {
+    name: 'minted-hash-label-round-trips-beside-it',
+    flags: MINTED_PAIR,
+    key: 'instance.label',
+    expected: HASH_LABEL,
+  },
+  {
+    name: 'hostname-segment-is-the-minted-label',
+    flags: MINTED_PAIR,
+    key: 'instance.hostname',
+    expected: `api.wrapper.sample.${HASH_LABEL}.example.local.example.invalid`,
   },
   { name: 'versioned-noun-verb-noun-petname', flags: PREVIEW, key: 'preview.petname', expected: PETNAME },
   {
@@ -270,16 +388,6 @@ const REFUSES: Refuses[] = [
     because: ['is not the first three base32hex digest characters'],
   },
   {
-    name: 'suffix-longer-than-three-characters',
-    flags: [
-      ...PREVIEW,
-      `--set-string instance.preview.canonical.previewPetname=${SUFFIXED}9`,
-      `--set-string instance.preview.receipt.previewPetname=${SUFFIXED}9`,
-      `--set-string instance.preview.receipt.collision.liveFullLeaseDigest=${OTHER_DIGEST}`,
-    ],
-    because: ['is not a versioned NOUN-VERB-NOUN petname', `'${SUFFIXED}9' does not match pattern`],
-  },
-  {
     name: 'same-digest-is-not-a-collision',
     flags: [...COLLIDED, `--set-string instance.preview.receipt.collision.liveFullLeaseDigest=${DIGEST}`],
     because: ['idempotent join, never a petname collision'],
@@ -293,25 +401,6 @@ const REFUSES: Refuses[] = [
     name: 'unsigned-receipt',
     flags: [...PREVIEW, '--set-string instance.preview.receipt.signature='],
     because: ['the assembler receipt is missing'],
-  },
-  {
-    name: 'unversioned-word-list',
-    flags: [...PREVIEW, '--set-string instance.preview.receipt.wordList=diene.preview-wordlist'],
-    because: ['is not a versioned diene.preview-wordlist', "at '/instance/preview/receipt/wordList'"],
-  },
-  {
-    name: 'petname-outside-the-grammar',
-    flags: [
-      ...PREVIEW,
-      '--set-string instance.preview.canonical.previewPetname=otterbeatspotato',
-      '--set-string instance.preview.receipt.previewPetname=otterbeatspotato',
-    ],
-    because: ['is not a versioned NOUN-VERB-NOUN petname', "'otterbeatspotato' does not match pattern"],
-  },
-  {
-    name: 'fork-source-outside-the-ruled-pair',
-    flags: [...PREVIEW, '--set-string instance.preview.receipt.forkSource=serving'],
-    because: ['is neither staging nor production', "at '/instance/preview/receipt/forkSource'"],
   },
   {
     name: 'unresolved-branch-pin',
@@ -333,15 +422,38 @@ const REFUSES: Refuses[] = [
     flags: [...PREVIEW, `--set-string 'instance.preview.manifest.pins.auth\\.logto.ref=refs/heads/main'`],
     because: ['must carry exactly kind and version'],
   },
+  // The pair is recorded together or not at all. A key removed outright is caught
+  // by the generated schema's own `required` list; an emptied half reaches the
+  // helper, which is the only boundary that can see one half without the other.
   {
-    name: 'unnormalized-physical-id',
-    flags: ['--set-string instance.original=repository-a:pr-123'],
-    because: ['never normalizes it', "'repository-a:pr-123' does not match pattern"],
+    name: 'missing-instance-label-at-the-values-schema',
+    flags: ['--set instance.label=null'],
+    because: ["at '/instance': missing property 'label'"],
   },
   {
-    name: 'overlong-physical-id',
-    flags: [`--set-string instance.original=repository-${'0'.repeat(70)}1`],
-    because: ['shorten it at the authorized minter', 'maxLength: got 82, want 63'],
+    name: 'missing-instance-label-at-the-instance-helper',
+    flags: ['--set instance.label=null', SKIP_SCHEMA],
+    because: ['InstancePairIncomplete: instance.original'],
+  },
+  {
+    name: 'missing-instance-original-at-the-values-schema',
+    flags: ['--set instance.original=null'],
+    because: ["at '/instance': missing property 'original'"],
+  },
+  {
+    name: 'missing-instance-original-at-the-instance-helper',
+    flags: ['--set instance.original=null', SKIP_SCHEMA],
+    because: ['InstancePairIncomplete: instance.label'],
+  },
+  {
+    name: 'orphan-original-with-an-emptied-label',
+    flags: ['--set-string instance.label='],
+    because: ['InstancePairIncomplete: instance.original'],
+  },
+  {
+    name: 'orphan-label-with-an-emptied-original',
+    flags: ['--set-string instance.original='],
+    because: ['InstancePairIncomplete: instance.label'],
   },
   {
     name: 'dash-fused-garden-hostname',
@@ -360,14 +472,27 @@ const REFUSES: Refuses[] = [
   },
 ];
 
-// Each DNS-1123 pair becomes two vectors, never one with two alternative reasons:
-// an OR would go green the moment either boundary carried the whole refusal.
-for (const vector of DNS_1123) {
-  REFUSES.push(
-    { name: `${vector.name}-at-the-values-schema`, flags: vector.flags, because: [vector.schema] },
-    { name: `${vector.name}-at-the-hostname-helper`, flags: [...vector.flags, SKIP_SCHEMA], because: [vector.helper] },
-  );
+// Every boundary pair becomes two separately named vectors, never one with two
+// alternative reasons: an OR goes green the moment EITHER boundary carries the
+// whole refusal, so the schema alone could keep a slack helper looking asserted.
+// Each half here names exactly its own reason, and the helper half re-runs the
+// same bytes under --skip-schema-validation so it is proven reachable.
+function refusesAtBothBoundaries(vectors: Boundary[], helperName: string): void {
+  for (const vector of vectors) {
+    REFUSES.push(
+      { name: `${vector.name}-at-the-values-schema`, flags: vector.flags, because: [vector.schema] },
+      {
+        name: `${vector.name}-at-the-${helperName}`,
+        flags: [...vector.flags, SKIP_SCHEMA],
+        because: [vector.helper],
+      },
+    );
+  }
 }
+
+refusesAtBothBoundaries(DNS_1123, 'hostname-helper');
+refusesAtBothBoundaries(PREVIEW_RECEIPT, 'preview-helper');
+refusesAtBothBoundaries(INSTANCE_PAIR, 'instance-helper');
 
 // A branch that moved (or was renamed) after mint cannot move the rendered
 // hostname: nothing outward is recomputed from the manifest.
@@ -461,7 +586,7 @@ export default defineSmoke({
   baseline: {
     name: 'baseline-wrapper-lpsm-hostnames-green',
     description:
-      'Ordinary and optional-instance dotted derivation across the ENTEI dev, ABSOL localhost, and Boron/lapras canonical zones, namespace-sourced platform, separate-instance parsing, dash-fused rejection, DNS-1123 label and dotted-zone refusal proven at the values schema and again at the hostname helper, and the preview boundary that accepts only verified assembler output.',
+      'Ordinary four-slot and optional-instance dotted derivation across the ENTEI dev, ABSOL localhost, and Boron/lapras canonical zones, namespace-sourced platform, separate-instance parsing of both arities, dash-fused rejection, a long repository-qualified physical original round-tripping beside its minted DNS-1123 label with the hostname carrying the label alone, and DNS-1123 label, dotted-zone, preview-receipt, and instance-pair refusals each proven at the values schema and again, separately named, at their own helper.',
     async run(repo: any) {
       await withCleanProbeState(repo, [SCRIPT_PATH], async () => {
         await repo.write(SCRIPT_PATH, vectorScript());

@@ -189,25 +189,68 @@
 {{- end -}}
 
 {{/*
-  The single physical instance segment. A preview takes the receipt-bound petname
-  byte-for-byte; every other landscape supplies an already-DNS-1123 segment that
-  this chart records verbatim.
+  Physical instance identity boundary.
+
+  The pair arrives ALREADY MINTED. The authorized minter owns the deterministic
+  normalization, the stable hash-shortening that produces a label for an id longer
+  than one DNS label, and the collision audit across live allocations. This chart
+  owns exactly one thing: it judges the boundary shape of both halves and records
+  them, so it never lowercases, truncates, hashes, normalizes, or improvises one
+  half from the other.
+
+  `original` is the unchanged repository-qualified id and is deliberately NOT a
+  DNS label — refusing a long or repository-qualified id was the defect this
+  replaces, because a shortening the chart cannot record is a shortening nobody
+  can reverse or audit. `label` is the minter's DNS-1123 label and is the only
+  half that ever becomes a hostname segment.
+
+  The two are recorded together or not at all: an original alone would need a
+  label minted here, and a label alone would record a shortening of nothing.
+*/}}
+{{- define "diene-helm-wrapper.assertInstancePair" -}}
+{{- $instance := .Values.instance | default dict -}}
+{{- $original := (index $instance "original") | default "" | toString -}}
+{{- $label := (index $instance "label") | default "" | toString -}}
+{{- if and $original $label -}}
+{{- if gt (len $original) 253 -}}
+{{- fail (printf "InstanceOriginalInvalid: instance.original is %d bytes; a repository-qualified physical id is at most 253 bytes and this chart never shortens one" (len $original)) -}}
+{{- end -}}
+{{- if not (regexMatch "^[A-Za-z0-9]([A-Za-z0-9._:/-]*[A-Za-z0-9])?$" $original) -}}
+{{- fail (printf "InstanceOriginalInvalid: instance.original %q must start and end with an alphanumeric byte and hold only alphanumerics, dots, underscores, colons, slashes, and dashes; a physical id carries no whitespace or control bytes" $original) -}}
+{{- end -}}
+{{- include "diene-helm-wrapper.dnsLabel" (dict "slot" "instance.label" "label" $label) -}}
+{{- else if $original -}}
+{{- fail (printf "InstancePairIncomplete: instance.original %q carries no instance.label; the authorized minter assigns that label and this chart never derives one" $original) -}}
+{{- else if $label -}}
+{{- fail (printf "InstancePairIncomplete: instance.label %q carries no instance.original; a shortened label is recorded only beside the id it shortens, or the shortening is unauditable" $label) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+  The recorded original half. A preview records the receipt-bound petname for both
+  halves, because an assembler-minted petname IS its own unshortened id.
+*/}}
+{{- define "diene-helm-wrapper.instanceOriginal" -}}
+{{- $instance := .Values.instance | default dict -}}
+{{- if (index $instance "preview" | default dict | dig "enabled" false) -}}
+{{- include "diene-helm-wrapper.previewPetname" . -}}
+{{- else -}}
+{{- include "diene-helm-wrapper.assertInstancePair" . -}}
+{{- (index $instance "original") | default "" | toString -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+  The single physical instance hostname segment: the minter's DNS-1123 label, or
+  the receipt-bound petname under preview. Never the original.
 */}}
 {{- define "diene-helm-wrapper.instanceSegment" -}}
 {{- $instance := .Values.instance | default dict -}}
 {{- if (index $instance "preview" | default dict | dig "enabled" false) -}}
 {{- include "diene-helm-wrapper.previewPetname" . -}}
 {{- else -}}
-{{- $original := (index $instance "original") | default "" -}}
-{{- if $original -}}
-{{- if not (regexMatch "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$" $original) -}}
-{{- fail (printf "instance.original %q is not already a DNS-1123 label; this chart records a physical instance id verbatim and never normalizes it" $original) -}}
-{{- end -}}
-{{- if gt (len $original) 63 -}}
-{{- fail (printf "instance.original %q is longer than one DNS-1123 label; shorten it at the authorized minter, never here" $original) -}}
-{{- end -}}
-{{- $original -}}
-{{- end -}}
+{{- include "diene-helm-wrapper.assertInstancePair" . -}}
+{{- (index $instance "label") | default "" | toString -}}
 {{- end -}}
 {{- end -}}
 
@@ -255,17 +298,21 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 
 {{/*
   Service-tree plus recorded instance metadata annotations. Original and label are
-  the same bytes: the chart records what the authorized minter assigned and derives
-  neither from the other. The internal leaseKey and full digest are never stamped.
+  recorded as the DISTINCT bytes the authorized minter assigned, which is what makes
+  a hash-shortened label reversible and collision-auditable from the object itself.
+  The chart derives neither from the other, and the internal preview leaseKey and
+  full digest are never stamped. Under preview both halves are the petname.
 */}}
 {{- define "diene-helm-wrapper.annotations" -}}
 {{- $prefix := include "diene-helm-wrapper.labelPrefix" . -}}
+{{- $original := include "diene-helm-wrapper.instanceOriginal" . -}}
+{{- $label := include "diene-helm-wrapper.instanceSegment" . -}}
 {{- range $key, $value := .Values.serviceTree }}
 {{ printf "%s/%s" $prefix $key }}: {{ $value | quote }}
 {{- end }}
-{{- with include "diene-helm-wrapper.instanceSegment" . }}
-{{ printf "%s/instance-original" $prefix }}: {{ . | quote }}
-{{ printf "%s/instance-label" $prefix }}: {{ . | quote }}
+{{- if $label }}
+{{ printf "%s/instance-original" $prefix }}: {{ $original | quote }}
+{{ printf "%s/instance-label" $prefix }}: {{ $label | quote }}
 {{- end }}
 {{- end -}}
 
