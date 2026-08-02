@@ -2,7 +2,7 @@ import { expectGreen } from './lib/helpers.ts';
 import { expectRedFor } from './docs-markdownlint.ts';
 
 const gate =
-  'nix fmt --no-write-lock-file -- docs/standards .claude/skills CLAUDE.md README.md --ci --formatters prettier';
+  'nix fmt --no-write-lock-file -- docs/standards .claude/skills CLAUDE.md README.md --ci --formatters prettier --excludes ".claude/skills/vendor/**"';
 
 export default {
   contractVersion: 1,

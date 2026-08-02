@@ -9,11 +9,13 @@ let
     name = "workspace-validator-runtime";
     # atomiutils supplies bash/jq/yq plus the coreutils/find/grep/sed binaries the
     # validators call, so declaring those separately would duplicate the bundle
-    # (and collide with it in this buildEnv). git and ripgrep do not overlap it.
+    # (and collide with it in this buildEnv). git, ripgrep, and util-linux (for
+    # flock) do not overlap it.
     paths = [
       packages.atomiutils
       packages.git
       packages.ripgrep
+      pkgs.util-linux
     ];
   };
   validator =

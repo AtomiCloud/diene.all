@@ -79,17 +79,20 @@ definition for every declared feature, so a feature row without its probe file �
 reverse — would be a genuine red rather than a leftover. All three were **green** when
 removed; none was dropped to avoid a failure.
 
-One consequence worth naming: ci.yaml's name is no longer asserted directly, but
-`release-trigger` still requires `.on.workflow_run.workflows == ["CI"]`, so a rename of
-ci.yaml is still caught — one hop later, by the release trigger check rather than by a
-dedicated name check.
+One consequence worth naming: `ci.yaml`'s filename is no longer asserted. The
+`release-trigger` mode still requires `.on.workflow_run.workflows == ["CI"]`, which
+validates the workflow name referenced by the release trigger but does not bind that name
+to `.github/workflows/ci.yaml`. Renaming the file can therefore pass this check.
 
 ## Resulting hook set
 
-Twelve hooks declared, down from twenty — eleven at the pre-commit stage plus the
-commit-msg hook. `nix/pre-commit.nix` remains the authoritative statement of the set; it
-is not restated here, because it changes whenever a hook is added or removed.
-`docs/standards/linting/index.md` explains how to read it.
+The trim yielded twelve hook IDs, down from twenty — eleven at the pre-commit stage plus
+the commit-msg hook. The later shared documentation payload added `a-claude-links`,
+`a-contributor-docs-contract`, and `a-markdownlint`, so `nix/pre-commit.nix` now declares
+fifteen IDs: fourteen at the pre-commit stage plus the commit-msg hook. Those fourteen
+pre-commit IDs execute seventeen expanded checks because `a-action-pins` runs two modes
+and `a-workflows` runs three. `nix/pre-commit.nix` remains the authoritative statement of
+the set; `docs/standards/linting/index.md` explains how to read it.
 
 ## Upstream classification
 

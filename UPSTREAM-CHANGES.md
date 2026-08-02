@@ -136,7 +136,7 @@ verified result rather than an omission:**
   rows carry `"template": "diene/workspace"`, and its `atomi/nix` rows are byte-identical
   before and after (verified by comparing the filtered sets, not by reading the diff).
 
-All twelve files involved appear in the classification table above, including the eight
+All twelve files involved appear in the classification table above, including the six
 that were deleted. What was removed, and why it is authorized content removal rather than
 a silenced check, is recorded in `VALIDATOR-CHANGES.md` — the artifact the ruling named
 for it. That record is not restated here.
@@ -317,7 +317,7 @@ No removal was blocked and nothing had to be recorded in place of a removal: the
 references to the removed packages were repointed successfully in workspace-owned regions
 (`validator-runtime` and `validator` to `packages.atomiutils`; `a-helm-lint` to
 `packages.infrautils`), and `nix develop .#ci -c pre-commit run --all-files` then passed
-all 19 hooks, so no failure output needed recording.
+all 14 pre-commit hook IDs (17 expanded checks), so no failure output needed recording.
 
 ## Open items deliberately not recorded
 
