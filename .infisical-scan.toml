@@ -11,13 +11,20 @@ useDefault = true
 # the next regeneration. The deterministic public preview lease-key fixture
 # (`p00000000000000000000000000`) therefore needs a path-scoped exception here.
 #
-# Both scopes are kept on purpose: `paths` restricts the exception to the
-# generated file, and `regexes` narrows it to the literal key so the exception
-# does not blanket-suppress every finding in chart/README.md. The fixture's
-# source locations — chart/values.yaml and probes/wrapper-lpsm-hostnames.ts —
-# keep inline `# gitleaks:allow` markers instead.
+# `condition = "AND"` makes BOTH scopes mandatory: the exception fires only when
+# the finding is in `chart/README.md` AND matches the exact lease-key literal.
+# The Infisical/gitleaks default is OR, under which the `regexes` branch alone
+# would suppress this literal in ANY file — a silent blanket allow should the
+# fixture ever leak into a path that carries no inline marker. AND restores the
+# defense the two scopes are meant to provide: `paths` confines the exception to
+# the generated file and `regexes` narrows it to the one literal, so neither
+# scope can widen the exception on its own. The fixture's source locations —
+# chart/values.yaml and probes/wrapper-lpsm-hostnames.ts — keep inline
+# `# gitleaks:allow` markers instead, and a leak of the literal anywhere else is
+# reported, not swallowed.
 [allowlist]
 description = "Public deterministic preview lease-key fixture rendered by helm-docs into chart/README.md; never a credential"
+condition = "AND"
 paths = [
   '''^chart/README\.md$''',
 ]
