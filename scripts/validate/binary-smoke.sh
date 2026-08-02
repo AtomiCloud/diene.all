@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-for binary in actionlint bash cyanprint docker git gitlint gomplate hadolint helm helm-docs helm-schema infisical jq k3d kubeconform kubectl kyverno nix pls pre-commit rg sg shellcheck skopeo task treefmt yq; do
+for binary in actionlint bash bun cyanprint docker git gitlint gomplate hadolint helm helm-docs helm-schema infisical jq k3d kubeconform kubectl kyverno nix pls pre-commit rg sg shellcheck skopeo task treefmt yq; do
   command -v "${binary}" >/dev/null || {
     echo "❌ binary '${binary}' is missing" >&2
     exit 1
@@ -17,6 +17,8 @@ actionlint "${tmp}/workflow.yaml"
 
 bash --version >/dev/null
 [ "$(bash -c 'printf smoke')" != "smoke" ] && echo "❌ bash failed a real invocation" >&2 && exit 1
+
+bun --version >/dev/null
 
 mapfile -t cyanprint_versions < <(
   awk -F'"' '/^[[:space:]]*cyanprintVersion = "[^"]+";$/ { print $2 }' nix/packages.nix
