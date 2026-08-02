@@ -12,7 +12,17 @@
 #   printf '%s\n' a.mdx b.mdx | init-state.sh ...
 set -euo pipefail
 
-REPO_ROOT=$(git rev-parse --show-toplevel)
+# A missing or unreadable repository root is an authority failure, not a bare git
+# diagnostic: every path law below is expressed relative to REPO_ROOT. Sourcing
+# stays safe because the failure returns from the sourced file and only the
+# directly executed script exits.
+if ! REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || [[ -z $REPO_ROOT ]]; then
+  echo "PROCESSOR_AUTHORITY_INVALID: cannot resolve the repository root" >&2
+  if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+    exit 1
+  fi
+  return 1
+fi
 
 # One fail-fast lock serializes every contributor-doc authority mutation in this
 # worktree. The lock file is deliberately persistent: only the kernel lock on the
@@ -64,31 +74,42 @@ authority_transaction_cleanup() {
 # Hash a NUL-framed manifest that distinguishes absence, regular bytes, symlink
 # targets, directories, and other filesystem object kinds. File length frames the
 # byte payload, so arbitrary bytes (including NULs) remain unambiguous.
-authority_snapshot() {
-  {
-    local path size kind target
+authority_snapshot_manifest() {
+  local path size kind target
 
-    printf 'contributor-docs-authority-v1\0'
-    for path in "$@"; do
-      printf 'path\0%s\0' "$path"
-      if [[ -L $path ]]; then
-        target=$(readlink -- "$path")
-        printf 'symlink\0%s\0%s\0' "${#target}" "$target"
-      elif [[ -f $path ]]; then
-        size=$(stat -c '%s' -- "$path")
-        printf 'regular\0%s\0' "$size"
-        cat -- "$path"
-        printf '\0'
-      elif [[ -d $path ]]; then
-        printf 'directory\0'
-      elif [[ -e $path ]]; then
-        kind=$(stat -c '%F:%f' -- "$path")
-        printf 'other\0%s\0' "$kind"
-      else
-        printf 'absent\0'
-      fi
-    done
-  } | sha256sum | cut -d ' ' -f1
+  printf 'contributor-docs-authority-v1\0'
+  for path in "$@"; do
+    printf 'path\0%s\0' "$path"
+    if [[ -L $path ]]; then
+      target=$(readlink -- "$path") || return 1
+      printf 'symlink\0%s\0%s\0' "${#target}" "$target"
+    elif [[ -f $path ]]; then
+      size=$(stat -c '%s' -- "$path") || return 1
+      printf 'regular\0%s\0' "$size"
+      cat -- "$path" || return 1
+      printf '\0'
+    elif [[ -d $path ]]; then
+      printf 'directory\0'
+    elif [[ -e $path ]]; then
+      kind=$(stat -c '%F:%f' -- "$path") || return 1
+      printf 'other\0%s\0' "$kind"
+    else
+      printf 'absent\0'
+    fi
+  done
+}
+
+# An unreadable authority path must never hash to a digest that compares equal to
+# a healthy preimage. `pipefail` carries a manifest failure out of the pipeline so
+# a lost readlink/stat/cat becomes a named refusal instead of a silent snapshot.
+authority_snapshot() {
+  local digest
+
+  if ! digest=$(authority_snapshot_manifest "$@" | sha256sum | cut -d ' ' -f1); then
+    echo "PROCESSOR_AUTHORITY_INVALID: authority snapshot could not read an authority path" >&2
+    return 1
+  fi
+  printf '%s\n' "$digest"
 }
 
 append_tree_snapshot_paths() {
@@ -253,7 +274,12 @@ assert_processor_state_path() {
 # declared test root and reads a release token from a FIFO; it never evaluates text
 # supplied through the environment.
 authority_contract_test_barrier() {
-  local point=$1 root ready release root_abs ready_abs release_abs token
+  local point=$1 root ready release root_abs ready_abs release_abs token release_fd
+  # A release that never arrives must fail the transaction under its named
+  # refusal rather than hold the authority lock forever. The FIFO is opened
+  # read-write so the open itself cannot block, leaving `read -t` as the only
+  # bound that matters. The bound is a fixed constant, never environment text.
+  local release_timeout=120
 
   [[ ${CONTRIBUTOR_DOCS_CONTRACT_TEST:-0} == 1 ]] || return 0
   [[ ${CONTRIBUTOR_DOCS_TEST_BARRIER_POINT:-} == "$point" ]] || return 0
@@ -272,10 +298,13 @@ authority_contract_test_barrier() {
     return 1
   fi
   : >"$ready_abs"
-  IFS= read -r token <"$release_abs" || {
+  exec {release_fd}<>"$release_abs"
+  if ! IFS= read -r -t "$release_timeout" token <&"$release_fd"; then
+    exec {release_fd}>&-
     echo "PROCESSOR_AUTHORITY_INVALID: contract barrier release failed" >&2
     return 1
-  }
+  fi
+  exec {release_fd}>&-
   [[ $token == release ]] || {
     echo "PROCESSOR_AUTHORITY_INVALID: invalid contract barrier release" >&2
     return 1
@@ -386,7 +415,10 @@ def cd_record_write_authority($mode; $task; $write; $processor; $tier; $path;
     (($processor | has("recordWriteAuthorizations")) | not) or
     (($processor.recordWriteAuthorizations | type) != "object") or
     (($processor.filesToProcess | type) != "array") or
-    (($processor.recordWriteAuthorizations | keys_unsorted) != $processor.filesToProcess) or
+    (($processor.filesToProcess | length) !=
+      ($processor.filesToProcess | unique | length)) or
+    (($processor.recordWriteAuthorizations | keys) !=
+      ($processor.filesToProcess | sort)) or
     (($processor.filesToProcess | index($path)) == null) or
     $processor.authorizedPlanHash != $plan or
     (cd_authorization_shape($processor.recordWriteAuthorizations[$path]) | not) then
@@ -6315,6 +6347,107 @@ JQ
       echo '✅ Plan-authority reducer controls passed (root chain, full closure, report ledger, successor, refusals, crash adoption)'
     fi
 
+    # Queue reader controls. `next-file.sh` is the only helper an agent runs in a
+    # loop with a caller-supplied batch, so its argument law is proven here: every
+    # malformed or injected argument set refuses byte-identically, executes no
+    # injected text, and leaves the processor queue untouched.
+    CONTROL_FAILURES_BEFORE=$FAILURES
+    NEXT_FILE_SCRIPT="$CD_ROOT/scripts/next-file.sh"
+    NEXT_FILE_STATE="$CONTROL_DIR/next-file-state.json"
+    NEXT_FILE_EMPTY_STATE="$CONTROL_DIR/next-file-empty-state.json"
+    NEXT_FILE_MARKER="$CONTROL_DIR/next-file-injection.marker"
+    NEXT_FILE_USAGE='❌ Usage: next-file.sh <state-file> [--batch N]'
+    printf '%s\n' '{"pendingFiles":["docs/a.mdx","docs/b.mdx","docs/c.mdx"]}' \
+      >"$NEXT_FILE_STATE"
+    printf '%s\n' '{"pendingFiles":[]}' >"$NEXT_FILE_EMPTY_STATE"
+    NEXT_FILE_BEFORE=$(authority_snapshot "$NEXT_FILE_STATE")
+
+    if [[ $(rg -cF -- '--argjson batch "$batch"' "$NEXT_FILE_SCRIPT" || true) != 1 ]] ||
+      [[ $(rg -cF -- "'.pendingFiles[:\$batch][]'" "$NEXT_FILE_SCRIPT" || true) != 1 ]]; then
+      contract_failure 'Queue reader no longer binds its batch as typed jq JSON'
+    fi
+
+    if ! OUTPUT=$(bash "$NEXT_FILE_SCRIPT" "$NEXT_FILE_STATE" 2>&1) ||
+      [[ $OUTPUT != 'docs/a.mdx' ]]; then
+      contract_failure 'Queue reader refused or mis-sliced its default single-file batch'
+    fi
+    if ! OUTPUT=$(bash "$NEXT_FILE_SCRIPT" "$NEXT_FILE_STATE" --batch 2 2>&1) ||
+      [[ $OUTPUT != $'docs/a.mdx\ndocs/b.mdx' ]]; then
+      contract_failure 'Queue reader did not honour an explicit positive batch'
+    fi
+    if ! OUTPUT=$(bash "$NEXT_FILE_SCRIPT" "$NEXT_FILE_EMPTY_STATE" 2>&1) ||
+      [[ -n $OUTPUT ]]; then
+      contract_failure 'Queue reader did not succeed silently on an exhausted queue'
+    fi
+
+    # A batch spliced into the filter closes the slice and appends attacker jq. The
+    # pre-repair reader is reproduced here so the refusal above stays load-bearing.
+    NEXT_FILE_MUTANT="$CONTROL_DIR/next-file-interpolated.sh"
+    NEXT_FILE_INJECTION='0] + ["INJECTED"] | .[0:1'
+    cat >"$NEXT_FILE_MUTANT" <<'NEXTFILEMUTANT'
+#!/usr/bin/env bash
+set -euo pipefail
+MUTANT_STATE_FILE="$1"
+shift
+MUTANT_BATCH=1
+while [[ $# -gt 0 ]]; do
+  case "$1" in --batch)
+    MUTANT_BATCH="$2"
+    shift 2
+    ;;
+  *) shift ;; esac
+done
+jq -r ".pendingFiles[:$MUTANT_BATCH][]" "$MUTANT_STATE_FILE"
+NEXTFILEMUTANT
+    if ! OUTPUT=$(bash "$NEXT_FILE_MUTANT" "$NEXT_FILE_STATE" \
+      --batch "$NEXT_FILE_INJECTION" 2>&1) || [[ $OUTPUT != INJECTED ]]; then
+      contract_failure 'Queue reader injection fixture no longer reproduces filter interpolation'
+    fi
+
+    NEXT_FILE_SEP=$'\x1f'
+    # The injected substitutions below are literal payloads, never expansions.
+    # shellcheck disable=SC2016
+    NEXT_FILE_MALFORMED_CASES=(
+      "missing state argument"
+      "empty state argument${NEXT_FILE_SEP}"
+      "option-shaped state argument${NEXT_FILE_SEP}--batch${NEXT_FILE_SEP}2"
+      "missing --batch value${NEXT_FILE_SEP}${NEXT_FILE_STATE}${NEXT_FILE_SEP}--batch"
+      "unknown flag${NEXT_FILE_SEP}${NEXT_FILE_STATE}${NEXT_FILE_SEP}--all"
+      "stray positional${NEXT_FILE_SEP}${NEXT_FILE_STATE}${NEXT_FILE_SEP}2"
+      "zero batch${NEXT_FILE_SEP}${NEXT_FILE_STATE}${NEXT_FILE_SEP}--batch${NEXT_FILE_SEP}0"
+      "negative batch${NEXT_FILE_SEP}${NEXT_FILE_STATE}${NEXT_FILE_SEP}--batch${NEXT_FILE_SEP}-1"
+      "fractional batch${NEXT_FILE_SEP}${NEXT_FILE_STATE}${NEXT_FILE_SEP}--batch${NEXT_FILE_SEP}1.5"
+      "padded batch${NEXT_FILE_SEP}${NEXT_FILE_STATE}${NEXT_FILE_SEP}--batch${NEXT_FILE_SEP}01"
+      "non-numeric batch${NEXT_FILE_SEP}${NEXT_FILE_STATE}${NEXT_FILE_SEP}--batch${NEXT_FILE_SEP}two"
+      "empty batch${NEXT_FILE_SEP}${NEXT_FILE_STATE}${NEXT_FILE_SEP}--batch${NEXT_FILE_SEP}"
+      "jq filter injection${NEXT_FILE_SEP}${NEXT_FILE_STATE}${NEXT_FILE_SEP}--batch${NEXT_FILE_SEP}${NEXT_FILE_INJECTION}"
+      "shell substitution injection${NEXT_FILE_SEP}${NEXT_FILE_STATE}${NEXT_FILE_SEP}--batch${NEXT_FILE_SEP}"'$(touch '"${NEXT_FILE_MARKER}"')'
+      "shell separator injection${NEXT_FILE_SEP}${NEXT_FILE_STATE}${NEXT_FILE_SEP}--batch${NEXT_FILE_SEP}1; touch ${NEXT_FILE_MARKER}"
+    )
+    for NEXT_FILE_CASE in "${NEXT_FILE_MALFORMED_CASES[@]}"; do
+      IFS=$NEXT_FILE_SEP read -r -a NEXT_FILE_FIELDS <<<"$NEXT_FILE_CASE"
+      NEXT_FILE_LABEL=${NEXT_FILE_FIELDS[0]}
+      NEXT_FILE_ARGV=("${NEXT_FILE_FIELDS[@]:1}")
+      rm -f -- "$NEXT_FILE_MARKER"
+      if OUTPUT=$(bash "$NEXT_FILE_SCRIPT" \
+        ${NEXT_FILE_ARGV[@]+"${NEXT_FILE_ARGV[@]}"} 2>&1); then
+        contract_failure "Queue reader accepted a malformed argument set: ${NEXT_FILE_LABEL}"
+      elif [[ $OUTPUT != "$NEXT_FILE_USAGE" ]]; then
+        contract_failure "Queue reader refused ${NEXT_FILE_LABEL} with the wrong refusal"
+      fi
+      if [[ -e $NEXT_FILE_MARKER ]]; then
+        contract_failure "Queue reader executed injected text: ${NEXT_FILE_LABEL}"
+      fi
+    done
+    rm -f -- "$NEXT_FILE_MARKER"
+
+    if [[ $(authority_snapshot "$NEXT_FILE_STATE") != "$NEXT_FILE_BEFORE" ]]; then
+      contract_failure 'Queue reader mutated the processor queue it only reads'
+    fi
+    if [[ $FAILURES -eq $CONTROL_FAILURES_BEFORE ]]; then
+      echo '✅ Queue reader refused malformed, injected, and option-shaped arguments without mutating state'
+    fi
+
     PLAN_REFERENCE_COUNT=$(git -C "$REPO_ROOT" grep -n 'doc-plan.yaml' -- \
       docs/standards/contributor-docs/write | wc -l | tr -d ' ')
     if [[ $PLAN_REFERENCE_COUNT -ne 21 ]]; then
@@ -6417,6 +6550,11 @@ JQ
       .processedFiles == [] and .pendingFiles == $files and
       .authorizedPlanHash == $planHash and
       .recordWriteAuthorizations == $authorizations and
+      ((.filesToProcess | length) == (.filesToProcess | unique | length)) and
+      (if .recordWriteAuthorizations == null then true
+       else (.recordWriteAuthorizations | type == "object") and
+         ((.recordWriteAuthorizations | keys) == (.filesToProcess | sort))
+       end) and
       (.startTime | type == "string" and
         test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"))
     ' "$_CD_AUTHORITY_TEMP_FILE" >/dev/null; then

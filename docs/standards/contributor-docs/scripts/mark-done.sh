@@ -50,8 +50,8 @@ assert_processor_membership() {
         ($processor.filesToProcess | sort)) and
       (if $kind == "fact-check" then $processor.recordWriteAuthorizations == null
        else ($processor.recordWriteAuthorizations | type == "object") and
-         (($processor.recordWriteAuthorizations | keys_unsorted) ==
-          $processor.filesToProcess)
+         (($processor.recordWriteAuthorizations | keys) ==
+          ($processor.filesToProcess | sort))
        end)
     ' "$state_file" >/dev/null; then
     echo "PROCESSOR_AUTHORITY_INVALID: processor membership or plan authority changed" >&2
