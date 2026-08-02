@@ -17,18 +17,23 @@ export default {
     },
     {
       name: 'mutation-integration-coverage-caught',
-      description: 'An uncovered adapter function must turn the integration ledger red.',
+      description: 'An adapter source the profile never measures must turn the integration ledger red.',
       kind: 'mutation',
-      expectedImpact: ['deadcode-whole-repo', 'deadcode-production'],
       async run(repo: any) {
+        // A statement-free declaration keeps the percentage at 100 and never reaches the profile, so only a derived source set sees it.
         const planted = await plantGoFile(
           repo,
           'adapters/**/*.go',
           'probe_uncovered.go',
-          'func ProbeUncovered() int { return 1 }',
+          'type ProbeUncovered struct{}',
         );
         try {
-          await expectRedWithDiagnostic(repo, gate, 'integration-coverage-scope', /int coverage .* is below/);
+          await expectRedWithDiagnostic(
+            repo,
+            gate,
+            'integration-coverage-scope',
+            /int coverage is missing 'adapters\/.*\.go'/,
+          );
         } finally {
           await restoreProbeState(repo, [planted]);
         }

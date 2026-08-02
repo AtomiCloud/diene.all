@@ -17,18 +17,13 @@ export default {
     },
     {
       name: 'mutation-unit-coverage-caught',
-      description: 'An uncovered public lib function must turn the unit ledger red.',
+      description: 'A lib source the profile never measures must turn the unit ledger red.',
       kind: 'mutation',
-      expectedImpact: ['deadcode-whole-repo', 'deadcode-production'],
       async run(repo: any) {
-        const planted = await plantGoFile(
-          repo,
-          'lib/**/*.go',
-          'probe_uncovered.go',
-          'func ProbeUncovered() int { return 1 }',
-        );
+        // A statement-free declaration keeps the percentage at 100 and never reaches the profile, so only a derived source set sees it.
+        const planted = await plantGoFile(repo, 'lib/**/*.go', 'probe_uncovered.go', 'type ProbeUncovered struct{}');
         try {
-          await expectRedWithDiagnostic(repo, gate, 'unit-coverage-scope', /unit coverage .* is below/);
+          await expectRedWithDiagnostic(repo, gate, 'unit-coverage-scope', /unit coverage is missing 'lib\/.*\.go'/);
         } finally {
           await restoreProbeState(repo, [planted]);
         }
