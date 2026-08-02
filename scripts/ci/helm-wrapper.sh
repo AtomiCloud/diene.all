@@ -15,6 +15,7 @@ bash ./scripts/validate/helm-wrapper.sh primordial
 bash ./scripts/validate/helm-wrapper.sh lpsm
 bash ./scripts/validate/helm-wrapper.sh lb
 bash ./scripts/validate/helm-wrapper.sh task-surface
+bash ./scripts/validate/helm-wrapper.sh vap-interface
 bash ./scripts/validate/helm-wrapper.sh rendered-manifests
 bash ./scripts/validate/helm-wrapper.sh publish-git
 bash ./scripts/validate/helm-wrapper.sh publish-oci

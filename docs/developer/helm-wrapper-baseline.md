@@ -72,7 +72,9 @@ The Deployment always uses `RollingUpdate`; the hook never recreates it.
 2. kubeconform validates Kubernetes objects plus the checked-in local CR schemas.
 3. Kyverno CLI evaluates definition-only native ValidatingAdmissionPolicy fixtures against the resources named by those policies' `resourceRules`. kubeconform still validates the complete render; the narrow Kyverno input avoids its offline GVR lookup failure on unrelated custom resources.
 
-The local VAP profile covers explicit non-latest tags, requests/limits, non-root baseline-plus security, and the NodePort prohibition. The wrapper proves the wiring with one `:latest` fault; the future policy chart owns per-rule negative fixtures.
+The checked-in definition set is an exact, object-only extraction from the measured `charts/vap-policies` artifact at commit `6a57a34064c76b7424f5f2466417d01233b82514`. That artifact is **not ratchet-accepted** at this build: `policies/vap-interface.json` records the source files and every extracted definition hash so later acceptance can compare exact bytes without turning the measurement into authority. No bindings or per-rule fixtures are borrowed.
+
+The six offline definitions cover explicit non-latest tags, NodePort, privilege escalation, non-root execution, requests/limits, and restricted volume types. This wrapper owns only the generic render → kubeconform → policy-engine interface and one `:latest` wiring sabotage. The downstream `charts/vap-policies` node owns policy materialization, bindings, and per-rule negative fixtures; its graph edge follows this wrapper, so the snapshot is not a dependency claim.
 
 ## Primordial helpers
 

@@ -63,20 +63,49 @@ primordial)
   ! rg -n '(^|[[:space:]])(share|sharedVia|redirectUris|desiredVersion):' "${tmp}/primordial.yaml"
   ;;
 lpsm)
+  digest=7527f8ce8af22ee78eaaeaa68d24857bf88c3c5a8a9d2fd812f607441cfbca7d
+  other=8cd31a396907eae9357fd730e605e0a8e8f6fb82dddcfc57819f44c00c9f1531
+  petname=otter-beats-potato
+  zone=kube.entei.dev.atomi.cloud
+  contracts='select(.kind == "ConfigMap" and .metadata.name == "wrapper-contracts")'
+
   helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml >"${tmp}/lpsm.yaml"
-  ordinary="$(yq -r 'select(.kind == "ConfigMap" and .metadata.name == "wrapper-contracts") | .data."lpsm.ordinaryHostname"' "${tmp}/lpsm.yaml")"
-  instance="$(yq -r 'select(.kind == "ConfigMap" and .metadata.name == "wrapper-contracts") | .data."lpsm.instanceHostname"' "${tmp}/lpsm.yaml")"
-  parsed="$(yq -r 'select(.kind == "ConfigMap" and .metadata.name == "wrapper-contracts") | .data."lpsm.parsed"' "${tmp}/lpsm.yaml")"
+  ordinary="$(yq -r "${contracts} | .data.\"lpsm.ordinaryHostname\"" "${tmp}/lpsm.yaml")"
+  instance="$(yq -r "${contracts} | .data.\"lpsm.instanceHostname\"" "${tmp}/lpsm.yaml")"
+  parsed="$(yq -r "${contracts} | .data.\"lpsm.parsed\"" "${tmp}/lpsm.yaml")"
+  original="$(yq -r "${contracts} | .data.\"instance.original\"" "${tmp}/lpsm.yaml")"
+  label="$(yq -r "${contracts} | .data.\"instance.label\"" "${tmp}/lpsm.yaml")"
   [ "${ordinary}" != "api.wrapper.sample.example.cluster.atomi.cloud" ] && echo "❌ ordinary LPSM hostname mismatch" >&2 && exit 1
   [ "${instance}" != "api.wrapper.sample.run001.example.local.example.invalid" ] && echo "❌ instance LPSM hostname mismatch" >&2 && exit 1
   jq -e '.landscape == "example" and .platform == "sample" and .service == "wrapper" and .module == "api" and .instance == "run001"' <<<"${parsed}" >/dev/null
-  label_a="$(helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml --set-string instance.physicalId=repository-a:pr-123 | yq -r 'select(.kind == "ConfigMap" and .metadata.name == "wrapper-contracts") | .data."instance.label"')"
-  label_b="$(helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml --set-string instance.physicalId=repository-b:pr-123 | yq -r 'select(.kind == "ConfigMap" and .metadata.name == "wrapper-contracts") | .data."instance.label"')"
-  [ "${label_a}" = "${label_b}" ] && echo "❌ repository-qualified instance labels collided" >&2 && exit 1
-  long_id="$(printf 'repository-%080d' 1)"
-  long_label="$(helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml --set-string instance.physicalId="${long_id}" | yq -r 'select(.kind == "ConfigMap" and .metadata.name == "wrapper-contracts") | .data."instance.label"')"
-  [ "${#long_label}" -gt 63 ] && echo "❌ normalized instance label exceeds DNS-1123 length" >&2 && exit 1
-  helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml --set-string contracts.lpsm.parseHostname=api-wrapper-sample-run001-example.local.example.invalid >/dev/null 2>&1 && echo "❌ dash-fused hostname was accepted" >&2 && exit 1
+  [ "${original}" != "${label}" ] && echo "❌ recorded instance original and label are not the same bytes" >&2 && exit 1
+
+  helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml \
+    --set instance.preview.enabled=true --set-string "contracts.lpsm.instanceZone=${zone}" >"${tmp}/preview.yaml"
+  preview_host="$(yq -r "${contracts} | .data.\"preview.hostname\"" "${tmp}/preview.yaml")"
+  [ "${preview_host}" != "api.wrapper.sample.${petname}.castform.${zone}" ] && echo "❌ preview coordinate mismatch" >&2 && exit 1
+
+  helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml \
+    --set instance.preview.enabled=true --set-string "contracts.lpsm.instanceZone=${zone}" \
+    --set-string "instance.preview.canonical.previewPetname=${petname}-ekj" \
+    --set-string "instance.preview.receipt.previewPetname=${petname}-ekj" \
+    --set-string "instance.preview.receipt.collision.liveFullLeaseDigest=${other}" >"${tmp}/collision.yaml"
+  collision_host="$(yq -r "${contracts} | .data.\"preview.hostname\"" "${tmp}/collision.yaml")"
+  [ "${collision_host}" != "api.wrapper.sample.${petname}-ekj.castform.${zone}" ] && echo "❌ live-collision petname mismatch" >&2 && exit 1
+
+  refuses() {
+    label="$1"
+    shift
+    helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml "$@" >/dev/null 2>&1 &&
+      echo "❌ ${label} was accepted" >&2 && exit 1
+    return 0
+  }
+  refuses "an unverified canonical digest" --set instance.preview.enabled=true --set-string "instance.preview.canonical.fullLeaseDigest=${other}"
+  refuses "a caller-supplied collision suffix" --set instance.preview.enabled=true --set-string "instance.preview.canonical.previewPetname=${petname}-abc" --set-string "instance.preview.receipt.previewPetname=${petname}-abc" --set-string "instance.preview.receipt.collision.liveFullLeaseDigest=${other}"
+  refuses "a same-digest collision" --set instance.preview.enabled=true --set-string "instance.preview.canonical.previewPetname=${petname}-ekj" --set-string "instance.preview.receipt.previewPetname=${petname}-ekj" --set-string "instance.preview.receipt.collision.liveFullLeaseDigest=${digest}"
+  refuses "an unresolved branch pin" --set instance.preview.enabled=true --set-string 'instance.preview.manifest.pins.nitroso\.zinc=main'
+  refuses "an unnormalized physical instance id" --set-string instance.original=repository-a:pr-123
+  refuses "a dash-fused Garden hostname" --set-string contracts.lpsm.parseHostname=api-wrapper-sample-run001-example.local.example.invalid
   ;;
 lb)
   helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml --set gateway.provider=digitalocean >"${tmp}/do.yaml"
@@ -93,11 +122,18 @@ task-surface)
   task --list-all | rg -q 'example:lapras:install'
   task --list-all | rg -q 'example:lapras:remove'
   ;;
+vap-interface)
+  bash ./scripts/validate/vap-interface.sh
+  ;;
 rendered-manifests)
+  vap_definitions="${VAP_DEFINITIONS:-policies/vap}"
+  if [ "${vap_definitions}" = "policies/vap" ]; then
+    bash ./scripts/validate/vap-interface.sh >/dev/null
+  fi
   helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml >"${tmp}/rendered.yaml"
   kubeconform -strict -summary -schema-location default -schema-location 'schemas/{{ .ResourceKind }}.json' "${tmp}/rendered.yaml"
   yq eval-all 'select(.kind == "Deployment" or .kind == "StatefulSet" or .kind == "DaemonSet" or .kind == "Job" or .kind == "Service")' "${tmp}/rendered.yaml" >"${tmp}/vap-resources.yaml"
-  kyverno apply policies/vap --resource "${tmp}/vap-resources.yaml" --detailed-results --remove-color
+  kyverno apply "${vap_definitions}" --resource "${tmp}/vap-resources.yaml" --detailed-results --remove-color
   ;;
 publish-git)
   PUBLISH_MODE=git PUBLISH_DRY_RUN=true RELEASE_VERSION=v0.1.0 PUBLISH_OUTPUT_DIR="${tmp}/git" bash ./scripts/ci/publish.sh >/dev/null
@@ -117,7 +153,8 @@ presence)
   test -s .claude/skills/helm-wrapper/SKILL.md
   test -s chart/templates/webhook-route.yaml
   test -s chart/templates/contracts.yaml
-  test -s policies/vap/workload-baseline.yaml
+  test -s policies/vap-interface.json
+  test -s policies/vap/vanadium-disallowlatest.yaml
   test -s probes/features.json
   ;;
 gateway-webhook-presence)

@@ -123,11 +123,144 @@
             }
         },
         "instance": {
-            "description": "Optional physical-instance metadata. The instance remains outside LPSM.",
+            "description": "Optional physical-instance metadata. The instance remains outside LPSM and is never minted here.",
             "type": "object",
             "properties": {
-                "physicalId": {
-                    "type": "string"
+                "original": {
+                    "description": "Recorded physical instance segment for every non-preview landscape. It must already be one DNS-1123 label; the chart never lowercases, truncates, or hashes it.",
+                    "type": "string",
+                    "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$",
+                    "maxLength": 63
+                },
+                "preview": {
+                    "description": "castform preview identity. The chart consumes authorized-assembler output only; it never mints, canonicalizes, or suffixes a petname.",
+                    "type": "object",
+                    "properties": {
+                        "canonical": {
+                            "description": "The typed CanonicalPreviewInstance handed to this chart. It must bind byte-for-byte to the receipt below.",
+                            "type": "object",
+                            "properties": {
+                                "fullLeaseDigest": {
+                                    "type": "string",
+                                    "pattern": "^[0-9a-f]{64}$"
+                                },
+                                "previewPetname": {
+                                    "type": "string",
+                                    "pattern": "^[a-z]+-[a-z]+-[a-z]+(-[0-9a-v]{3})?$"
+                                }
+                            }
+                        },
+                        "enabled": {
+                            "description": "Render the receipt-bound preview coordinate. Every field below is refused unless it is internally consistent.",
+                            "type": "boolean"
+                        },
+                        "manifest": {
+                            "description": "The fully resolved manifest the receipt was minted from. Unresolved branch pins refuse; they are resolved to commits at mint.",
+                            "type": "object",
+                            "properties": {
+                                "branchResolutions": {
+                                    "description": "Branch pins recorded with the commit they resolved to at mint. The commit must equal the pin, so a moving branch cannot move the rendered hostname.",
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "object",
+                                        "required": [
+                                            "branch",
+                                            "commit"
+                                        ],
+                                        "properties": {
+                                            "branch": {
+                                                "type": "string"
+                                            },
+                                            "commit": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                },
+                                "defaultChannelRef": {
+                                    "type": "string"
+                                },
+                                "pins": {
+                                    "description": "One pin per `\u003cplatform\u003e.\u003cservice\u003e`. Values are a released version, a full commit, or `{kind: operator, version: \u003cv\u003e}`.",
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "anyOf": [
+                                            {
+                                                "type": "string"
+                                            },
+                                            {
+                                                "type": "object",
+                                                "required": [
+                                                    "kind",
+                                                    "version"
+                                                ],
+                                                "properties": {
+                                                    "kind": {
+                                                        "type": "string"
+                                                    },
+                                                    "version": {
+                                                        "type": "string"
+                                                    }
+                                                }
+                                            }
+                                        ]
+                                    }
+                                }
+                            }
+                        },
+                        "receipt": {
+                            "description": "The broker-verified assembler receipt. `fullLeaseDigest` and `leaseKey` stay internal and are never rendered into an object or a hostname.",
+                            "type": "object",
+                            "properties": {
+                                "collision": {
+                                    "description": "Live base-petname collision recorded at mint. A digest here is the DIFFERENT live digest that forced the three-character suffix.",
+                                    "type": "object",
+                                    "properties": {
+                                        "liveFullLeaseDigest": {
+                                            "type": "string",
+                                            "pattern": "^([0-9a-f]{64})?$"
+                                        }
+                                    }
+                                },
+                                "forkSource": {
+                                    "type": "string",
+                                    "enum": [
+                                        "staging",
+                                        "production"
+                                    ]
+                                },
+                                "fullLeaseDigest": {
+                                    "type": "string",
+                                    "pattern": "^[0-9a-f]{64}$"
+                                },
+                                "leaseKey": {
+                                    "type": "string",
+                                    "pattern": "^p[0-9a-v]{26}$"
+                                },
+                                "mintedAt": {
+                                    "type": "string"
+                                },
+                                "previewPetname": {
+                                    "type": "string",
+                                    "pattern": "^[a-z]+-[a-z]+-[a-z]+(-[0-9a-v]{3})?$"
+                                },
+                                "requester": {
+                                    "type": "string"
+                                },
+                                "schema": {
+                                    "type": "string",
+                                    "pattern": "^diene\\.preview-manifest/v[0-9]+$"
+                                },
+                                "signature": {
+                                    "type": "string"
+                                },
+                                "wordList": {
+                                    "type": "string",
+                                    "pattern": "^diene\\.preview-wordlist/v[0-9]+$"
+                                }
+                            }
+                        }
+                    }
                 }
             }
         },

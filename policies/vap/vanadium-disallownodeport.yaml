@@ -1,0 +1,37 @@
+# Source: vanadium/templates/policies.yaml
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: vanadium-disallownodeport
+  labels:
+    helm.sh/chart: vanadium-0.1.0
+    app.kubernetes.io/name: vanadium
+    app.kubernetes.io/instance: vanadium
+    atomi.cloud/cluster: "lapras"
+    atomi.cloud/landscape: "example"
+    atomi.cloud/layer: "0"
+    atomi.cloud/module: "admission"
+    atomi.cloud/platform: "fleet"
+    atomi.cloud/service: "vanadium"
+    app.kubernetes.io/version: "1.30.0"
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    atomi.cloud/cluster: "lapras"
+    atomi.cloud/landscape: "example"
+    atomi.cloud/layer: "0"
+    atomi.cloud/module: "admission"
+    atomi.cloud/platform: "fleet"
+    atomi.cloud/service: "vanadium"
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ['']
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [services]
+  validations:
+    - expression: |-
+
+        !has(object.spec.type) || object.spec.type != 'NodePort'
+      message: NodePort services are forbidden; use ClusterIP or LoadBalancer.

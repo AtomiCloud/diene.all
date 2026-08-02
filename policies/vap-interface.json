@@ -1,0 +1,41 @@
+{
+  "schema": "helm-wrapper.vap-interface.v1",
+  "ownerNode": "charts/vap-policies",
+  "sourceElement": "vanadium",
+  "sourceRef": "refs/remotes/authoritative/charts/vanadium",
+  "sourceArtifactCommit": "6a57a34064c76b7424f5f2466417d01233b82514",
+  "ratchetAcceptanceAtBuild": "unaccepted",
+  "extraction": {
+    "contract": "render the chart, retain ValidatingAdmissionPolicy objects, drop bindings, split by metadata.name",
+    "helpersSha256": "601b2c7bfc78c73e879e55b82a433e38b721482158a9d5680742d337a9d49467",
+    "rendererSha256": "7ffab66ab343ce8030d416a009cae6224c618665d27aabf4b94e88af359b0e77",
+    "harnessSha256": "79b8474eafb30014c1dab6b1d3fa903da6e9e741605da2697fbe91b5f06c8792"
+  },
+  "scope": "definitions-only snapshot for the generic rendered-manifest stage; per-rule proof remains exclusively owned by charts/vap-policies",
+  "definitions": [
+    {
+      "path": "policies/vap/vanadium-disallowlatest.yaml",
+      "sha256": "4b71729e243b5d9b76bea459e0d3d63608ad02d44195405de67d650660ee3ac4"
+    },
+    {
+      "path": "policies/vap/vanadium-disallownodeport.yaml",
+      "sha256": "3efba51c47ad9cd2d5153b09368589326c8c86c7d920b9d9556843278dae3d8f"
+    },
+    {
+      "path": "policies/vap/vanadium-disallowprivescalation.yaml",
+      "sha256": "398bb5f7b9881786437da4b6297be7b544d223ddecc29aa0e2ae438ffa216ddd"
+    },
+    {
+      "path": "policies/vap/vanadium-requirenonroot.yaml",
+      "sha256": "531a6c97b0868c59cea214b805f61f0132524f86f5d9a0a1e2dedb4272d7ca45"
+    },
+    {
+      "path": "policies/vap/vanadium-requireresources.yaml",
+      "sha256": "9f1d83984bfaac029a4c2968b7d9724492e658745731ae7fd516028566cb6133"
+    },
+    {
+      "path": "policies/vap/vanadium-restrictvolumetypes.yaml",
+      "sha256": "059e806238a539c5bd8c96ff0f0630308635808956d3e0fe47f0baac622d07b0"
+    }
+  ]
+}

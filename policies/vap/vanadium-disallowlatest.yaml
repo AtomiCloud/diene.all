@@ -1,0 +1,43 @@
+---
+# Source: vanadium/templates/policies.yaml
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: vanadium-disallowlatest
+  labels:
+    helm.sh/chart: vanadium-0.1.0
+    app.kubernetes.io/name: vanadium
+    app.kubernetes.io/instance: vanadium
+    atomi.cloud/cluster: "lapras"
+    atomi.cloud/landscape: "example"
+    atomi.cloud/layer: "0"
+    atomi.cloud/module: "admission"
+    atomi.cloud/platform: "fleet"
+    atomi.cloud/service: "vanadium"
+    app.kubernetes.io/version: "1.30.0"
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    atomi.cloud/cluster: "lapras"
+    atomi.cloud/landscape: "example"
+    atomi.cloud/layer: "0"
+    atomi.cloud/module: "admission"
+    atomi.cloud/platform: "fleet"
+    atomi.cloud/service: "vanadium"
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [apps, batch]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [deployments, statefulsets, daemonsets, jobs]
+  validations:
+    - expression: |-
+
+        object.spec.template.spec.containers.all(c,
+          (c.image.matches('^(.*/)?[^/@:]+:[^/@:]+$') ||
+           c.image.matches('^.+@[^/@:]+:[A-Fa-f0-9]+$')) && !c.image.endsWith(':latest')) &&
+        (!has(object.spec.template.spec.initContainers) || object.spec.template.spec.initContainers.all(c,
+          (c.image.matches('^(.*/)?[^/@:]+:[^/@:]+$') ||
+           c.image.matches('^.+@[^/@:]+:[A-Fa-f0-9]+$')) && !c.image.endsWith(':latest')))
+      message: Workload images must use an explicit non-latest tag.

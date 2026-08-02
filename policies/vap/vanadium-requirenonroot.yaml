@@ -1,0 +1,42 @@
+# Source: vanadium/templates/policies.yaml
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: vanadium-requirenonroot
+  labels:
+    helm.sh/chart: vanadium-0.1.0
+    app.kubernetes.io/name: vanadium
+    app.kubernetes.io/instance: vanadium
+    atomi.cloud/cluster: "lapras"
+    atomi.cloud/landscape: "example"
+    atomi.cloud/layer: "0"
+    atomi.cloud/module: "admission"
+    atomi.cloud/platform: "fleet"
+    atomi.cloud/service: "vanadium"
+    app.kubernetes.io/version: "1.30.0"
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    atomi.cloud/cluster: "lapras"
+    atomi.cloud/landscape: "example"
+    atomi.cloud/layer: "0"
+    atomi.cloud/module: "admission"
+    atomi.cloud/platform: "fleet"
+    atomi.cloud/service: "vanadium"
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [apps, batch]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [deployments, statefulsets, daemonsets, jobs]
+  validations:
+    - expression: |-
+
+        has(object.spec.template.spec.securityContext) &&
+        object.spec.template.spec.securityContext.runAsNonRoot == true &&
+        object.spec.template.spec.containers.all(c,
+          has(c.securityContext) && c.securityContext.runAsNonRoot == true) &&
+        (!has(object.spec.template.spec.initContainers) || object.spec.template.spec.initContainers.all(c,
+          has(c.securityContext) && c.securityContext.runAsNonRoot == true))
+      message: Workloads must run non-root at the pod and container level.
