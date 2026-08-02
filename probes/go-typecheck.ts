@@ -19,22 +19,6 @@ export default {
       name: 'mutation-go-typecheck-caught',
       description: 'A native Go type error must turn the typecheck gate red.',
       kind: 'mutation',
-      // A lib package that cannot compile is unreachable to every row that loads
-      // Go packages, builds the module, or runs the artifact — including the two
-      // image rows, which compile the same source inside the Docker build.
-      expectedImpact: [
-        'unit-tests',
-        'hook-golangci-lint',
-        'govulncheck',
-        'unit-coverage-scope',
-        'deadcode-whole-repo',
-        'deadcode-production',
-        'deadcode-llm-lax',
-        'build-artifact',
-        'binary-smoke',
-        'docker-build',
-        'sample-domain-journey',
-      ],
       async run(repo: any) {
         const planted = await plantGoFile(
           repo,

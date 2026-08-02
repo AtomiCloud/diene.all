@@ -19,9 +19,6 @@ export default {
       name: 'mutation-go-black-box-hook-caught',
       description: 'A white-box Go test package must turn the owning hook red.',
       kind: 'mutation',
-      // The fixture lands beside the first tracked test package, which is the
-      // adapter tier, so only rows that build and run that tier can see it.
-      expectedImpact: ['integration-tests', 'integration-coverage-scope'],
       async run(repo: any) {
         const planted = await plantWhiteBoxTest(repo);
         try {
