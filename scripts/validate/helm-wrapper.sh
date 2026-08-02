@@ -139,7 +139,7 @@ task-surface)
   task --list-all | rg -q 'example:lapras:template'
   task --list-all | rg -q 'example:lapras:install'
   task --list-all | rg -q 'example:lapras:remove'
-  task example:lapras:template >/dev/null
+  task example:lapras:template | rg -q '^kind: Deployment$'
   task example:lapras:debug >/dev/null
   ;;
 vap-interface)
