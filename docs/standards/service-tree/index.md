@@ -114,17 +114,20 @@ labels:
 
 ### Nix Store Cache
 
-Nix jobs use a single shared store cache — **not** per-service — to save cache space:
-
-```yaml
-nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
-```
+Nix jobs use a single shared store cache — **not** per-service — so the cache tag is
+deliberately not namespaced by platform or service. The tags in use are declared on the
+`runs-on:` lines of the reusable workflows in
+[`.github/workflows/`](../../../.github/workflows): read a cached job's runner list to
+see the tag it carries and how the OS and architecture appear in it. Never introduce a
+per-platform or per-service tag.
 
 ### Platform / Service usage
 
 The platform and service identify the service in the LPSM tree and appear in published
-artifact names, e.g. the Docker image name `test-platform-test-service`. They are **not**
-passed as reusable-workflow inputs (the shared cache makes that unnecessary).
+artifact names. They are **not** passed as reusable-workflow inputs (the shared cache
+makes that unnecessary); the published artifact names this repository uses are the
+`with:` inputs on the Docker and Helm caller jobs in `.github/workflows/ci.yaml` and
+`.github/workflows/cd.yaml`.
 
 ## Trigger Words
 
@@ -146,4 +149,4 @@ When you see these terms, the service-tree convention applies:
 | **Platform**  | Functional group theme                                |
 | **Service**   | Element theme (periodic table)                        |
 | **Module**    | Free-form                                             |
-| **Cache key** | `nscloud-cache-tag-atomi-nix-store-cache-{os}-{arch}` |
+| **Cache key** | Shared, not per-service; shape owned by the validator |

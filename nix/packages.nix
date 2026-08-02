@@ -45,8 +45,6 @@ let
     meta.mainProgram = "cyanprint";
   };
   all = rec {
-    # ### go-base
-    # #### source: go-base
     go-base = (
       with pkgs-2605;
       {
@@ -70,8 +68,6 @@ let
       }
     );
 
-    # ### nix-root
-    # #### source: main
     atomipkgs = (
       with atomi;
       {
@@ -85,34 +81,25 @@ let
       }
     );
 
-    # ### workspace
-    # #### source: workspace
     nix-2605 = (
       with pkgs-2605;
       {
         inherit
           actionlint
-          bash
-          docker-client
           git
           go-task
           infisical
-          jq
           kubeconform
-          kubernetes-helm
           kyverno
           pre-commit
           ripgrep
           shellcheck
           skopeo
           treefmt
-          yq-go
           ;
       }
     );
 
-    # ### nix-unstable
-    # #### source: main
     nix-unstable = (
       with pkgs-unstable;
       {

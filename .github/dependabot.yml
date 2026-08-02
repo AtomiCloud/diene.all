@@ -1,5 +1,3 @@
-# ### workspace-dependabot
-# #### source: workspace
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -15,8 +13,6 @@ updates:
     schedule:
       interval: daily
 
-  # ### go-base-dependabot
-  # #### source: go-base
   - package-ecosystem: gomod
     directory: /
     schedule:

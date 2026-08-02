@@ -1,27 +1,30 @@
 # Docker
 
-Docker conventions for containerized builds and deployments. Images are built from
-`infra/Dockerfile`.
+Docker conventions for containerized builds and deployments. Dockerfiles live under
+`infra/`, and there may be several — each one is its own image with its own build
+task and its own caller job.
 
 ## Local development
 
-Local work uses Taskfile one-liners (these never call the CI scripts):
-
-| Command            | What it does                                     |
-| ------------------ | ------------------------------------------------ |
-| `pls docker:build` | Build the image locally as `diene-go-base:local` |
-| `pls docker:run`   | Run the built image                              |
-| `pls docker:clean` | Remove the local image                           |
+Local work uses Taskfile one-liners (these never call the CI scripts). The
+authoritative list is `tasks/Taskfile.docker.yaml`: it holds one `build:`, `run:`,
+and `clean:` task per Dockerfile, keyed by the Dockerfile's own name — bare
+`infra/Dockerfile` is `main`, `infra/<name>.Dockerfile` is `<name>`. Read the task
+`desc` to see which Dockerfile a task builds, or run `pls --list`.
 
 Pass an optional tag **suffix** after `--`; it is appended to the `:local` tag:
 
 ```bash
-pls docker:build            # -> diene-go-base:local
-pls docker:build -- 1       # -> diene-go-base:local-1
-pls docker:build -- hello   # -> diene-go-base:local-hello
+pls docker:build:main            # -> diene-go-base:local
+pls docker:build:main -- 1       # -> diene-go-base:local-1
+pls docker:build:main -- hello   # -> diene-go-base:local-hello
 ```
 
 `run` and `clean` take the same suffix so they act on the image you built.
+
+Adding a Dockerfile means adding its own task set under its own key. Never
+generalize the existing tasks into one `build` that switches on a shared image
+variable.
 
 ## CI/CD release structure
 
@@ -31,13 +34,14 @@ Publishing is driven by the `⚡reusable-docker.yaml` reusable workflow, called 
 1. The reusable workflow sets up the builder with `AtomiCloud/actions.setup-docker` — a
    Namespace (nscloud) backed buildx builder with managed layer caching, so you do **not**
    manage the cache yourself.
-2. It runs `./scripts/ci/docker.sh [version]`:
-   - **CI** (no version) → pushes `<sha6>-<branch>`, `<branch>`, and `latest` (on the default
-     branch).
-   - **CD** (version = the git tag) → also pushes the semver tag. The buildx cache is warm, so
-     this is effectively a re-tag rather than a rebuild.
-3. Images are pushed to `${DOMAIN}/${GITHUB_REPO_REF}/<image_name>` (defaults to
-   `ghcr.io/<owner>/<repo>/<image_name>`).
+2. It runs [`./scripts/ci/docker.sh`](../../../scripts/ci/docker.sh), which reads its build
+   and publish settings from the environment the reusable workflow sets. That script owns the
+   tag set and the destination: read its `image_id` assignment for where images land, and the
+   `-t` arguments on its `buildx build` line for which tags a commit build versus a release
+   tag pushes.
+
+   A release build is effectively a re-tag rather than a rebuild, because the buildx cache is
+   already warm from the commit build.
 
 ### Adding more images
 
@@ -55,16 +59,16 @@ jobs:
       version: ${{ github.ref_name }} # cd.yaml only
 ```
 
-### Configuration (`⚡reusable-docker.yaml` inputs)
+### Configuration
 
-| Input        | Required | Default                   | Purpose                    |
-| ------------ | -------- | ------------------------- | -------------------------- |
-| `image_name` | yes      | —                         | image repository name      |
-| `dockerfile` | no       | `Dockerfile`              | path to the Dockerfile     |
-| `context`    | no       | `.`                       | build context              |
-| `platform`   | no       | `linux/arm64,linux/amd64` | target platforms           |
-| `version`    | no       | —                         | release semver (set on CD) |
+The reusable workflow's inputs are declared in its own `on.workflow_call.inputs`
+block in [`.github/workflows/⚡reusable-docker.yaml`](../../../.github/workflows/⚡reusable-docker.yaml).
+Read that block for the current set: each entry names the input, whether it is
+`required`, and its `default`. Anything without a default and marked
+`required: true` must be supplied by every caller job.
 
 ## Linting
 
-There is no Dockerfile lint step.
+Dockerfile linting is not registered as a repository gate. The hooks that do run
+are declared in `nix/pre-commit.nix` — see
+[the linting standard](../linting/index.md) for how to read them.

@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ### workspace
-# #### source: workspace
 for binary in actionlint bash cyanprint deadcode docker git go gofumpt golangci-lint gomplate gotestsum govulncheck hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pls pre-commit rg sg shellcheck skopeo staticcheck task treefmt yq; do
   command -v "${binary}" >/dev/null || {
     echo "❌ binary '${binary}' is missing" >&2
@@ -35,8 +33,6 @@ docker info --format '{{.ServerVersion}}' >/dev/null
 git --version >/dev/null
 git rev-parse --is-inside-work-tree >/dev/null
 
-# ### go-base
-# #### source: go-base
 go version >/dev/null
 go list ./... >/dev/null
 
@@ -135,6 +131,4 @@ else
   echo "⏭️ releaser binary awaits the C2 step-2p tools/releaser publish"
 fi
 
-# ### workspace-complete
-# #### source: workspace
 echo "✅ Binary smoke passed"

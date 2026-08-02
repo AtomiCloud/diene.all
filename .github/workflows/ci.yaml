@@ -1,5 +1,3 @@
-# ### workspace-ci
-# #### source: workspace
 name: CI
 
 on:
@@ -15,8 +13,6 @@ jobs:
     uses: ./.github/workflows/⚡reusable-precommit.yaml
     secrets: inherit
 
-  # ### go-base-ci
-  # #### source: go-base
   unit:
     name: Unit Tests
     permissions:

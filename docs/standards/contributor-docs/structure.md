@@ -46,13 +46,15 @@ docs/contributor/
 
 ### Top-Level Files
 
-| File                            | Role                                                                                      |
-| ------------------------------- | ----------------------------------------------------------------------------------------- |
-| `00-overview.mdx`               | Entry point. Project summary, tech stack, links to all modules. The LLM reads this first. |
-| `01-architecture/index.mdx`     | High-level architecture: system diagram, component relationships, deployment topology.    |
-| `01-architecture/adr-NNN-*.mdx` | Individual Architecture Decision Records. Numbered sequentially, dated.                   |
-| `02-modules.mdx`                | Module map: lists all modules, their purpose, boundaries, and inter-module dependencies.  |
-| `03-development/`               | Developer onboarding: folder structure, available commands, development workflow.         |
+| File                                  | Plan type                    | Role                                                                                      |
+| ------------------------------------- | ---------------------------- | ----------------------------------------------------------------------------------------- |
+| `00-overview.mdx`                     | `top-level-overview`         | Entry point. Project summary, tech stack, links to all modules. The LLM reads this first. |
+| `01-architecture/index.mdx`           | `top-level-architecture`     | High-level architecture: system diagram, component relationships, deployment topology.    |
+| `01-architecture/adr-NNN-*.mdx`       | `adr`                        | Individual Architecture Decision Records. Numbered sequentially, dated.                   |
+| `02-modules.mdx`                      | `top-level-modules`          | Module map: names, boundaries, purpose, and inter-module dependencies.                    |
+| `03-development/index.mdx`            | `top-level-development`      | Developer onboarding and development-workflow overview.                                   |
+| `03-development/folder-structure.mdx` | `top-level-folder-structure` | Repository layout, ownership boundaries, and placement guidance.                          |
+| `03-development/commands.mdx`         | `top-level-commands`         | Repository-owned setup, build, test, and maintenance commands.                            |
 
 ### Per-Module Files
 

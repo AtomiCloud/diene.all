@@ -1,5 +1,3 @@
-# ### go-base-dockerfile
-# #### source: go-base
 FROM golang:1.26.5-alpine AS build
 WORKDIR /app
 COPY go.mod go.sum ./

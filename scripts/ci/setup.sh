@@ -1,14 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ### workspace-setup
-# #### source: workspace
+# The declared NuGet packages are restored BEFORE skills are synchronized.
+# skills-sync vendors from ${HOME}/.nuget/packages, so on a runner whose shared
+# cache holds only SOME of the declared skill-bearing packages it publishes a
+# PARTIAL vendor tree — and the freshness gate then fails three steps later on a
+# diff that says nothing about the cause. Restoring first makes the vendor tree a
+# function of the declared dependency set instead of ambient cache state.
+if compgen -G '*.slnx' >/dev/null; then
+  echo "🔧 Restoring declared packages before vendoring their skills..."
+  dotnet restore >/dev/null
+fi
+
+# Same ordering rule for Go: skills-sync resolves diene skill modules out of the
+# Go module cache and refuses to publish a partial vendor tree, so the declared
+# modules are downloaded before it runs rather than after.
+if [ -f go.mod ]; then
+  echo "🔧 Downloading declared Go modules before vendoring their skills..."
+  go mod download
+fi
+
 ./scripts/local/skills-sync.sh
 
-# ### go-base
-# #### source: go-base
-go mod download
-
-# ### workspace-setup-complete
-# #### source: workspace
 echo "✅ Repository setup complete"
