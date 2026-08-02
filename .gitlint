@@ -1,4 +1,5 @@
 [general]
+contrib = CT1
 ignore = B6
 
 [contrib-title-conventional-commits]
