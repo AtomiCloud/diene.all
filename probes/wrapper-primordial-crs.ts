@@ -96,7 +96,7 @@ refuse serving.cluster "a multi-segment landscape was accepted as an issuer segm
 documents "$work/serving.yaml" Problem |
   jq -e 'length == 1 and (.[0].spec.module == "api")' >/dev/null ||
   fail "Problem.spec.module is not the service-tree module"
-helm template helm-wrapper chart --namespace sample --values chart/values.example.yaml --set primordial.enabled=true --set serviceTree.module=worker >"$work/module.yaml"
+helm template helm-wrapper chart --namespace sample --values chart/values.example.yaml --set primordial.enabled=true --set serviceTree.module=worker --set fullnameOverride=wrapper-worker >"$work/module.yaml"
 documents "$work/module.yaml" Problem |
   jq -e '.[0].spec.module == "worker"' >/dev/null ||
   fail "Problem.spec.module does not follow the service-tree module"
