@@ -179,14 +179,25 @@ if [ -f go.mod ]; then
     exit 1
   fi
 
-  if jq_match 'any(.Require[]?; .Path | test("(^|/)diene[._-]"))' "${go_manifest}"; then
-    go_declared=true
-  fi
-
   # A matching main-module name is not a dependency obligation. The repository
   # may contribute its own skills when present, but having none is a legitimate
   # empty result; only external Require entries must resolve to vendored skills.
   #
+  # Every matching Require path is recorded individually rather than collapsed
+  # into a single "the Go ecosystem declared something" flag: one requirement
+  # that stages skills must not answer for a sibling that never resolved, or two
+  # direct requirements where only one appears in `go list -m all` would publish
+  # a tree missing half the skills that were required.
+  go_required="${resolver_dir}/go-required.txt"
+  if ! jq -r '.Require[]?.Path | select(test("(^|/)diene[._-]"))' "${go_manifest}" |
+    LC_ALL=C sort -u >"${go_required}"; then
+    echo "❌ Failed to parse the Go module manifest with jq" >&2
+    exit 1
+  fi
+  if [ -s "${go_required}" ]; then
+    go_declared=true
+  fi
+
   # `go list -m all` walks the WHOLE module graph, so a matching module can appear
   # there transitively without the root go.mod requiring it. Membership in the root
   # Require list is therefore recorded per module: only a directly required module
@@ -210,15 +221,40 @@ if [ -f go.mod ]; then
     exit 1
   fi
 
+  go_satisfied="${resolver_dir}/go-satisfied.txt"
+  : >"${go_satisfied}"
   while IFS=$'\t' read -r module module_dir directly_required; do
     [ -n "${module_dir}" ] || continue
     package="$(basename "${module}")"
     if stage_skills "${module_dir}" "${package}"; then
       if [ "${directly_required}" = true ]; then
-        go_staged=true
+        printf '%s\n' "${module}" >>"${go_satisfied}"
       fi
     fi
   done <"${go_entries}"
+  LC_ALL=C sort -u -o "${go_satisfied}" "${go_satisfied}"
+
+  # The ecosystem resolved only when EVERY direct requirement staged skills of
+  # its own; requiring a non-empty satisfied set keeps "declared" and "staged"
+  # answering the same question, so a manifest with no matching Require entries
+  # never reports a vacuous success.
+  go_unresolved="${resolver_dir}/go-unresolved.txt"
+  LC_ALL=C comm -23 "${go_required}" "${go_satisfied}" >"${go_unresolved}"
+  if [ -s "${go_satisfied}" ] && [ ! -s "${go_unresolved}" ]; then
+    go_staged=true
+  fi
+
+  # A PARTIALLY resolved graph is a hard stop, not a cold checkout: skills did
+  # stage, so the module cache is warm and the tree would silently omit the rest.
+  # The per-ecosystem guard below only distinguishes "nothing resolved", so it
+  # would either preserve the committed tree or refuse without naming the
+  # modules at fault.
+  if [ -s "${go_satisfied}" ] && [ -s "${go_unresolved}" ]; then
+    echo "❌ Directly required diene modules produced no vendored skills, so the vendored tree would be partial:" >&2
+    sed 's/^/   - /' "${go_unresolved}" >&2
+    echo "   Run 'go mod download' before synchronizing skills." >&2
+    exit 1
+  fi
 fi
 
 # A matching package name is not a dependency obligation. Parse the dependency

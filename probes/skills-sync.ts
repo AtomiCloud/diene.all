@@ -96,6 +96,31 @@ const transitiveGoShim = [
   '',
 ].join('\n');
 
+// The root go.mod directly requires two matching modules. Only one of them is
+// reachable in the module graph, so a resolver that answers for the ecosystem as
+// a whole reads the module that DID resolve as proof that both did, and publishes
+// a tree missing the skills of the module that never appeared.
+const resolvedGoModule = 'github.com/AtomiCloud/diene.resolved';
+const unresolvedGoModule = 'github.com/AtomiCloud/diene.unresolved';
+const partialGoModFixture = `module example.com/app\n\ngo 1.22\n\nrequire (\n\t${resolvedGoModule} v0.1.0\n\t${unresolvedGoModule} v0.1.0\n)\n`;
+const partialGoShim = [
+  '#!/usr/bin/env bash',
+  'case "$*" in',
+  '  "mod edit -json")',
+  `    printf '{"Module":{"Path":"example.com/app"},"Go":"1.22","Require":[{"Path":"${resolvedGoModule}","Version":"v0.1.0"},{"Path":"${unresolvedGoModule}","Version":"v0.1.0"}]}\\n'`,
+  '    ;;',
+  '  "list -m -json all")',
+  '    printf \'{"Path":"example.com/app","Main":true,"Dir":"%s"}\\n\' "$PWD"',
+  `    printf '{"Path":"${resolvedGoModule}","Version":"v0.1.0","Dir":"%s/go-fixture"}\\n' "$PWD"`,
+  '    ;;',
+  '  *)',
+  '    echo "unexpected fake-go invocation: $*" >&2',
+  '    exit 97',
+  '    ;;',
+  'esac',
+  '',
+].join('\n');
+
 const declaringPubspec = [
   'name: skills_sync_fixture',
   'environment:',
@@ -275,10 +300,11 @@ export default {
       async run(repo: any) {
         await withCleanProbeState(repo, probeCleanTargets, async () => {
           await removeCommittedVendor(repo);
+          const declarationSite = '  if [ -s "${go_required}" ]; then\n    go_declared=true\n  fi\n';
           await repo.patch('scripts/local/skills-sync.sh', {
-            find: '  go_declares_external=false\n',
+            find: declarationSite,
             replace:
-              '  go_declares_external=false\n' +
+              declarationSite +
               '  if jq_match \'(.Module.Path // "") | test("(^|/)diene[._-]")\' "${go_manifest}"; then\n' +
               '    go_declared=true\n' +
               '  fi\n',
@@ -349,6 +375,37 @@ export default {
           const output = `${result.stdout}\n${result.stderr}`;
           if (!output.includes('Declared diene packages produced no vendored skills: go')) {
             throw new Error(`skills-sync failed for the wrong reason after the transitive-mask fixture:\n${output}`);
+          }
+        });
+      },
+    },
+    {
+      name: 'mutation-skills-sync-go-partial-direct-caught',
+      description:
+        'A focused sabotage must turn the skills-sync mechanism red: a direct root go.mod requirement that never resolved must be named, even when a sibling direct requirement staged skills of its own.',
+      kind: 'mutation',
+      expectedImpact: [],
+      async run(repo: any) {
+        await withCleanProbeState(repo, probeCleanTargets, async () => {
+          await repo.write('go.mod', partialGoModFixture);
+          await repo.write('go-shim/go', partialGoShim);
+          await repo.write('go-fixture/skills/example/SKILL.md', 'resolved Go skill\n');
+          const result = await repo.exec(
+            `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ./scripts/local/skills-sync.sh'`,
+            { timeoutMs: 240000 },
+          );
+          if (result.exitCode === 0) {
+            throw new Error('skills-sync stayed green while one direct diene requirement never resolved');
+          }
+          const output = `${result.stdout}\n${result.stderr}`;
+          if (!output.includes('Directly required diene modules produced no vendored skills')) {
+            throw new Error(`skills-sync failed for the wrong reason after the partial-resolution fixture:\n${output}`);
+          }
+          if (!output.includes(unresolvedGoModule)) {
+            throw new Error(`skills-sync did not name the unresolved direct requirement:\n${output}`);
+          }
+          if (output.includes(`- ${resolvedGoModule}`)) {
+            throw new Error(`skills-sync blamed the direct requirement that did resolve:\n${output}`);
           }
         });
       },
