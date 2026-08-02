@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import type { RedisConnection } from '../adapters/kv-store';
 
 const DEFAULT_REDIS_PORT = 6379;
 const MIN_PORT = 1;
@@ -8,6 +7,12 @@ const MAX_PORT = 65535;
 /** The slice of the process environment this module reads. */
 export interface RedisEnvironment {
   readonly [name: string]: string | undefined;
+}
+
+/** Where a Redis instance lives; owned by the domain, not by any adapter. */
+export interface RedisConnection {
+  readonly host: string;
+  readonly port: number;
 }
 
 export type RedisConfigResult =

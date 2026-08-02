@@ -24,10 +24,9 @@ tasks:
       - ./scripts/local/skills-sync.sh
 
   clean:
-    desc: Remove build, dependency, and coverage artifacts
+    desc: Remove generated build and coverage artifacts
     cmds:
       - rm -rf dist coverage
-      - '[ ! -d node_modules ] || find node_modules -mindepth 1 -maxdepth 1 -exec rm -rf {} +'
 
   build:
     desc: Build the bundle to dist/
