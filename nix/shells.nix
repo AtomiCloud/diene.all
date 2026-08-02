@@ -6,8 +6,9 @@
 }:
 with env;
 {
+  # infralint ships helm-docs, which scripts/ci/publish.sh regenerates chart/README.md with.
   cd = pkgs.mkShell {
-    buildInputs = main ++ system;
+    buildInputs = main ++ system ++ [ packages.infralint ];
     inherit shellHook;
   };
 

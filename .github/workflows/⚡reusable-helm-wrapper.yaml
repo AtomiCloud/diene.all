@@ -26,11 +26,11 @@ jobs:
     steps:
       - uses: AtomiCloud/actions.setup-nix@v3
       - name: Run full probe matrix
-        run: nix develop .#ci -c cyanprint probe . --probes ./probes --features probes/features.json --parallel 1 --timeout 1800 --report cyanprint-wrapper.json
+        run: nix develop .#ci -c cyanprint probe . --probes ./probes --features probes/features.json --parallel 1 --timeout 1800 --report probe-report.json
       - name: Upload probe report
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: cyanprint-wrapper
-          path: cyanprint-wrapper.json
+          path: probe-report.json
           if-no-files-found: error
