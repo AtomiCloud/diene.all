@@ -1,6 +1,7 @@
 import { Redis } from 'ioredis';
 import type { ILogger } from '../lib/logger';
-import type { IKeyValueStore, RedisConnection } from './kv-store';
+import type { RedisConnection } from '../lib/redis-config';
+import type { IKeyValueStore } from './kv-store';
 
 /** ioredis reconnects on its own after a refused connection, so that code is routine churn. */
 const ROUTINE_CONNECTION_ERROR_CODE = 'ECONNREFUSED';

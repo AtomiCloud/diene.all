@@ -1,9 +1,9 @@
 // ─── DOMAIN WIRING · the illustrative sample (delete through END to replace the sample) ──────────
-import type { IKeyValueStore, RedisConnection } from './adapters/kv-store';
+import type { IKeyValueStore } from './adapters/kv-store';
 import { RedisKeyValueStore } from './adapters/redis-kv-store';
 import { withCleanup } from './lib/cleanup';
 import { createLogger, type ILogger } from './lib/logger';
-import { parseRedisEnvironment } from './lib/redis-config';
+import { parseRedisEnvironment, type RedisConnection } from './lib/redis-config';
 import { namespacedKey } from './lib/slug';
 
 export function buildSampleKey(namespace: string, key: string): string {
