@@ -5,17 +5,31 @@
   "properties": {
     "apiVersion": { "type": "string" },
     "kind": { "const": "LogtoApp" },
-    "metadata": { "type": "object", "required": ["name"] },
+    "metadata": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "annotations": {
+          "type": "object",
+          "patternProperties": {
+            "/identity-endpoint$": {
+              "type": "string",
+              "pattern": "^api\\.lithium\\.aldehyde\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?\\.cluster\\.atomi\\.cloud$"
+            }
+          }
+        }
+      }
+    },
     "spec": {
       "type": "object",
       "required": ["identityRef", "paths", "extraRedirectUris", "resourceRefs"],
       "properties": {
         "identityRef": {
           "type": "object",
-          "required": ["platform", "vlandscape"],
+          "required": ["platform", "landscape"],
           "properties": {
-            "platform": { "type": "string" },
-            "vlandscape": { "type": "string" }
+            "platform": { "type": "string", "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$" },
+            "landscape": { "type": "string", "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$" }
           },
           "additionalProperties": false
         },

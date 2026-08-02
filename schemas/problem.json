@@ -8,10 +8,11 @@
     "metadata": { "type": "object", "required": ["name"] },
     "spec": {
       "type": "object",
-      "required": ["platform", "service", "landscape", "version", "problems"],
+      "required": ["platform", "service", "module", "landscape", "version", "problems"],
       "properties": {
         "platform": { "type": "string" },
         "service": { "type": "string" },
+        "module": { "type": "string", "pattern": "^[a-z0-9]+$" },
         "landscape": { "type": "string" },
         "version": { "type": "string" },
         "problems": {

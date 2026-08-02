@@ -1,3 +1,34 @@
+{{/*
+Resolve the concrete landscape that selects a Logto issuer. Identity resolution is a
+ruled exception to the generic LPSM helpers, so the segment is checked here rather than
+taken from a free value: it must be exactly one concrete landscape label, and neither a
+virtual landscape nor the consumer platform may ever occupy it.
+*/}}
+{{- define "diene-helm-wrapper.identityLandscape" -}}
+{{- $landscape := required "primordial.targetLandscape is required" .Values.primordial.targetLandscape | lower -}}
+{{- $vlandscape := default "" .Values.primordial.vlandscape | lower -}}
+{{- $platform := .Release.Namespace | lower -}}
+{{- if not (regexMatch "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$" $landscape) -}}
+{{- fail (printf "identity landscape %q must be exactly one concrete landscape label" $landscape) -}}
+{{- end -}}
+{{- if eq $landscape $vlandscape -}}
+{{- fail (printf "virtual landscape %q never selects a Logto issuer" $landscape) -}}
+{{- end -}}
+{{- if eq $landscape $platform -}}
+{{- fail (printf "consumer platform %q never selects a Logto issuer" $landscape) -}}
+{{- end -}}
+{{- $landscape -}}
+{{- end -}}
+
+{{/*
+The sole fleet identity endpoint. Module, service, and platform segments are fixed to
+aldehyde's lithium api; only the concrete landscape varies, so a consumer platform can
+never reach this form.
+*/}}
+{{- define "diene-helm-wrapper.logtoIdentityEndpoint" -}}
+{{- printf "api.lithium.aldehyde.%s.cluster.atomi.cloud" (include "diene-helm-wrapper.identityLandscape" .) -}}
+{{- end -}}
+
 {{- if .Values.primordial.enabled -}}
 {{- include "diene-helm-wrapper.validateServiceTree" . -}}
 apiVersion: {{ .Values.primordial.apiVersions.fleet }}
@@ -39,15 +70,16 @@ spec:
 apiVersion: {{ .Values.primordial.apiVersions.identity }}
 kind: LogtoApp
 metadata:
-  name: {{ include "diene-helm-wrapper.resourceName" (dict "root" . "token" "identity") }}
+  name: {{ include "diene-helm-wrapper.resourceName" (dict "root" . "token" (printf "identity-%s" (include "diene-helm-wrapper.identityLandscape" .))) }}
   labels:
     {{- include "diene-helm-wrapper.labels" . | nindent 4 }}
   annotations:
+    {{ printf "%s/identity-endpoint" (include "diene-helm-wrapper.labelPrefix" .) }}: {{ include "diene-helm-wrapper.logtoIdentityEndpoint" . | quote }}
     {{- include "diene-helm-wrapper.annotations" . | nindent 4 }}
 spec:
   identityRef:
     platform: {{ .Release.Namespace }}
-    vlandscape: {{ .Values.primordial.vlandscape }}
+    landscape: {{ include "diene-helm-wrapper.identityLandscape" . }}
   paths:
     {{- toYaml .Values.primordial.logtoApp.paths | nindent 4 }}
   extraRedirectUris:
@@ -68,6 +100,7 @@ metadata:
 spec:
   platform: {{ .Release.Namespace }}
   service: {{ .Values.serviceTree.service }}
+  module: {{ .Values.serviceTree.module }}
   landscape: {{ .Values.primordial.targetLandscape }}
   version: {{ .Values.primordial.problem.version | quote }}
   problems:
