@@ -32,6 +32,10 @@ export default {
       name: 'mutation-golangci-hook-caught',
       description: 'A native ineffassign violation must turn the owning hook red.',
       kind: 'mutation',
+      // The fixture is an exported, unreachable lib symbol with a dead store, so it
+      // reddens the unit ledger (an unmeasured lib source), both strict deadcode
+      // passes, and the binary smoke, which runs golangci-lint and staticcheck itself.
+      expectedImpact: ['unit-coverage-scope', 'deadcode-whole-repo', 'deadcode-production', 'binary-smoke'],
       async run(repo: any) {
         const planted = await plantGoFile(repo, goSources, fixture, ineffectualAssignment);
         try {

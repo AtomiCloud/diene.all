@@ -19,6 +19,15 @@ export default {
       name: 'mutation-treefmt-gofumpt-hook-caught',
       description: 'An unformatted Go declaration must turn the generated treefmt hook red.',
       kind: 'mutation',
+      // The same violation reaches the direct treefmt entrypoint, and the hook
+      // fails as one unit, so every inherited member row reddens with it.
+      expectedImpact: [
+        'fmt-gofumpt',
+        'precommit-treefmt-actionlint',
+        'precommit-treefmt-nixfmt',
+        'precommit-treefmt-prettier',
+        'precommit-treefmt-shfmt',
+      ],
       async run(repo: any) {
         await unformatGo(repo);
         await expectRedWithDiagnostic(

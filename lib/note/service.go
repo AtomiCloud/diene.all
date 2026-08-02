@@ -1,5 +1,6 @@
 package note
 
+// DOMAIN WIRING: replaceable Note sample service over the KV port.
 import "context"
 
 type Store interface {
@@ -26,3 +27,5 @@ func (service Service) Load(ctx context.Context, slug string) (Note, error) {
 	}
 	return Note{Slug: slug, Body: body}, nil
 }
+
+// END DOMAIN WIRING

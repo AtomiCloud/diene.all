@@ -13,8 +13,9 @@ tasks:
   setup:
     desc: Set up generated workspace assets
     cmds:
-      - ./scripts/local/skills-sync.sh
+      # Populate the module cache first so skills-sync cannot vendor from a partial tree.
       - go mod download
+      - ./scripts/local/skills-sync.sh
 
   lint:
     desc: Run all repository gates

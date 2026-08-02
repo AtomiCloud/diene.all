@@ -19,6 +19,10 @@ export default {
       name: 'mutation-integration-tests-caught',
       description: 'Breaking an adapter write must turn the integration tier red.',
       kind: 'mutation',
+      // The broken write survives the gate, so every row that reads a value back
+      // through the same adapter sees it: the integration ledger reruns this tier,
+      // and the sample journey round-trips the compiled artifact against Redis.
+      expectedImpact: ['integration-coverage-scope', 'sample-domain-journey'],
       async run(repo: any) {
         await breakAdapter(repo);
         await expectRedWithDiagnostic(repo, gate, 'integration-tests', /Load\(\) = .* want/);

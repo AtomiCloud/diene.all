@@ -25,8 +25,8 @@ exclusion.
 - `tests/sit/` exercises compiled artifacts from a client's perspective.
 
 The Note/Redis code is a replaceable sample fenced by `DOMAIN WIRING` and
-`END DOMAIN WIRING` comments in `lib/note/note.go`, `adapters/kv/redis.go`, and
-`cmd/go-base/main.go`, with matching boundaries in
+`END DOMAIN WIRING` comments in `lib/note/note.go`, `lib/note/service.go`,
+`adapters/kv/redis.go`, and `cmd/go-base/main.go`, with matching boundaries in
 `tests/unit/note/note_test.go`, `tests/int/kv/redis_test.go`, and
 `tests/sit/cli/cli_test.go`. Downstream templates may replace only the bytes
 inside those fences while retaining the same gates and tier boundaries.
