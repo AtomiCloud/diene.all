@@ -1,8 +1,10 @@
+import { BUN_PROBE_SANDBOX, BUN_PROBE_SETUP } from './lib/bun.ts';
 import { expectGreen } from './lib/helpers.ts';
 
 export default {
   contractVersion: 1,
-  sandbox: { snapshot: 'git', preserve: ['.direnv'] },
+  sandbox: BUN_PROBE_SANDBOX,
+  setup: BUN_PROBE_SETUP,
   probes: [
     {
       name: 'baseline-binary-smoke-green',
