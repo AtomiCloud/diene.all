@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { ProbeExecResult } from '@cyanprint/contracts';
-import { expectGreenOrOffline, isConnectivityFailure, isProbeInapplicable, probeInapplicable } from './helpers.ts';
+import { expectGreenOrOffline, isConnectivityFailure, isProbeInapplicable, probeInapplicable } from './wrapper-offline.ts';
 
 const INAPPLICABLE = 'cyanprintProbeInapplicable';
 

@@ -1,5 +1,5 @@
 import { defineSmoke } from './lib/definition.ts';
-import { expectGreenOrOffline } from './lib/helpers.ts';
+import { expectGreenOrOffline } from './wrapper-offline.ts';
 
 export default defineSmoke({
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
