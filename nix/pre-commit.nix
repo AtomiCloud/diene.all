@@ -14,6 +14,11 @@ let
     paths = [
       packages.atomiutils
       packages.git
+      packages.gitlint
+      packages.helm-schema
+      packages.kubeconform
+      packages.kubernetes-helm
+      packages.kyverno
       packages.ripgrep
       pkgs.util-linux
     ];
@@ -45,6 +50,7 @@ pre-commit-lib.run {
         "^Changelog\\.md$"
         "^docs/developer/CommitConventions\\.md$"
         "^infra/root_chart/"
+        "^chart/"
       ];
     };
 
@@ -192,6 +198,25 @@ pre-commit-lib.run {
         "scripts/validate/workflows.sh release-concurrency"
       ];
       files = "^\\.github/workflows/.*\\.ya?ml$";
+      pass_filenames = false;
+      language = "system";
+    };
+    # ### helm-wrapper-hooks
+    # #### source: helm-wrapper
+    a-wrapper-helm-docs = {
+      enable = true;
+      name = "Helm wrapper docs";
+      entry = "${packages.infralint}/bin/helm-docs --chart-search-root chart";
+      files = "^chart/.*";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-wrapper-helm-lint = {
+      enable = true;
+      name = "Helm wrapper lint";
+      entry = validator "scripts/validate/helm-wrapper.sh lint";
+      files = "^(chart/.*|config/.*|scripts/(local|validate)/.*)$";
       pass_filenames = false;
       language = "system";
     };

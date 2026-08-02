@@ -1,0 +1,25 @@
+{{- include "diene-helm-wrapper.validateServiceTree" . -}}
+{{- $ordinary := include "diene-helm-wrapper.hostname" (dict "root" . "module" .Values.contracts.lpsm.module "service" .Values.contracts.lpsm.service "landscape" .Values.contracts.lpsm.landscape "zone" .Values.contracts.lpsm.ordinaryZone) -}}
+{{- $instance := include "diene-helm-wrapper.hostname" (dict "root" . "module" .Values.contracts.lpsm.module "service" .Values.contracts.lpsm.service "landscape" .Values.contracts.lpsm.landscape "instance" .Values.contracts.lpsm.instance "zone" .Values.contracts.lpsm.instanceZone) -}}
+{{- $parseHostname := default $instance .Values.contracts.lpsm.parseHostname -}}
+{{- $parsed := include "diene-helm-wrapper.parseHostname" (dict "hostname" $parseHostname "zone" .Values.contracts.lpsm.instanceZone) -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "diene-helm-wrapper.resourceName" (dict "root" . "token" "contracts") }}
+  labels:
+    {{- include "diene-helm-wrapper.labels" . | nindent 4 }}
+  annotations:
+    {{- include "diene-helm-wrapper.annotations" . | nindent 4 }}
+data:
+  health.path: {{ .Values.contracts.health.path | quote }}
+  health.expectedStatus: {{ .Values.contracts.health.expectedStatus | quote }}
+  webhook.path: {{ printf "%s/%s" (trimSuffix "/" .Values.contracts.webhook.pathPrefix) .Values.contracts.webhook.provider | quote }}
+  webhook.owned: '200'
+  webhook.wrongLandscape: '421'
+  webhook.retryable: 'other 4xx/5xx'
+  lpsm.ordinaryHostname: {{ $ordinary | quote }}
+  lpsm.instanceHostname: {{ $instance | quote }}
+  lpsm.parsed: {{ $parsed | quote }}
+  instance.original: {{ .Values.instance.physicalId | quote }}
+  instance.label: {{ include "diene-helm-wrapper.instanceLabel" .Values.instance.physicalId | quote }}

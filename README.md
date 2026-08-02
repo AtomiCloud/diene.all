@@ -26,3 +26,13 @@ Domain-specific architecture and behavior belongs under
 [`docs/domain/`](docs/domain/README.md), not under `docs/standards/`. The
 [`docs/standards/contracts/`](docs/standards/contracts/README.md) location is
 reserved for the separately owned C0 contracts standard.
+
+## Helm wrapper sample
+
+This branch adds the production-grade wrapper chart, stacked values, generated schema, rendered-manifest validation, k3d proof, and dual publish modes.
+
+- `pls build` — vendor external config and build pinned chart dependencies.
+- `pls test:unit` — run schema, lint, render, contracts, VAP, and publish dry-runs.
+- `pls test:int` — install on ephemeral k3d and round-trip the chart through a local OCI registry.
+- `pls example:lapras:template` — render the independent landscape + cluster stack.
+- [Helm wrapper baseline](docs/developer/helm-wrapper-baseline.md)

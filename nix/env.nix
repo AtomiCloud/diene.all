@@ -3,7 +3,9 @@ with packages;
 {
   dev = [
     git
+    gitlint
     go-task
+    helm-schema
     infisical
     pls
     sg
@@ -12,6 +14,8 @@ with packages;
 
   lint = [
     actionlint
+    gitlint
+    helm-schema
     infralint
     kubeconform
     kyverno
