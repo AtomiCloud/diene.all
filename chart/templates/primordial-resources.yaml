@@ -31,7 +31,7 @@ never reach this form.
 
 {{- if .Values.primordial.enabled -}}
 {{- include "diene-helm-wrapper.validateServiceTree" . -}}
-{{- $dependencyModules := .Values.primordial.platformDependency.modules -}}
+{{- $dependencyModules := .Values.primordial.platformDependency.modules | default dict -}}
 {{- $dependencyGroups := list "database" "kv" "cache" "store" -}}
 {{- range $group, $_ := $dependencyModules -}}
 {{- if not (has $group $dependencyGroups) -}}

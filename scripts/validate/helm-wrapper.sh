@@ -11,6 +11,24 @@ trap 'rm -rf "${tmp}"' EXIT
 
 bash ./scripts/local/vendor-chart-config.sh >/dev/null
 
+# Assert that rendering the example values with the extra arguments fails, and fails for
+# the intended reason: a refusal that reports some other diagnostic is a false pass.
+refuses() {
+  local refusal_label="$1"
+  local reason="$2"
+  local output
+  shift 2
+  if output="$(helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml "$@" 2>&1)"; then
+    echo "❌ ${refusal_label} was accepted" >&2
+    exit 1
+  fi
+  if ! grep -qF "${reason}" <<<"${output}"; then
+    echo "❌ ${refusal_label} was refused for the wrong reason; expected '${reason}'" >&2
+    printf '%s\n' "${output}" >&2
+    exit 1
+  fi
+}
+
 case "${mode}" in
 schema)
   helm lint --strict chart --namespace "${namespace}" >/dev/null
@@ -50,8 +68,8 @@ reloader)
 secret)
   helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml --set secret.enabled=true >"${tmp}/secret.yaml"
   yq eval-all -o=json '.' "${tmp}/secret.yaml" | jq -s -e 'map(select(.kind == "ExternalSecret"))[0] as $secret | $secret.metadata.name == "wrapper-secrets" and $secret.spec.target.name == "wrapper" and ($secret.spec.data == null) and $secret.spec.dataFrom[0].rewrite[0].regexp.target == "SHARED_$1" and $secret.spec.dataFrom[1].rewrite[0].regexp.target == "WRAPPER_$1"' >/dev/null
-  helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml --set secret.enabled=true --set-string secret.sharedFolder=/wrapper >/dev/null 2>&1 && echo "❌ colliding secret folder prefixes were accepted" >&2 && exit 1
-  helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml --set secret.enabled=true --set-string secret.serviceFolder=/billing >/dev/null 2>&1 && echo "❌ a service folder that diverges from the service name was accepted" >&2 && exit 1
+  refuses "a colliding secret folder prefix" "collide on prefix" --set secret.enabled=true --set-string secret.sharedFolder=/wrapper
+  refuses "a service folder that diverges from the service name" "must end in the service name" --set secret.enabled=true --set-string secret.serviceFolder=/billing
   ;;
 fullname)
   helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml >"${tmp}/names.yaml"
@@ -59,7 +77,7 @@ fullname)
   yq -e '.upstream.fullnameOverride | test("^[a-z0-9]+-[a-z0-9]+$")' chart/values.yaml >/dev/null
   helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml --set serviceTree.module=maincache --set fullnameOverride=wrapper-maincache >"${tmp}/maincache.yaml"
   yq eval-all -o=json '.' "${tmp}/maincache.yaml" | jq -s -e 'map(select(.kind == "Deployment")) | length == 1 and .[0].metadata.name == "wrapper-maincache" and .[0].metadata.labels["atomi.cloud/module"] == "maincache"' >/dev/null
-  helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml --set serviceTree.module=maincache >/dev/null 2>&1 && echo "❌ a module/fullname mismatch was accepted" >&2 && exit 1
+  refuses "a module/fullname mismatch" 'fullnameOverride must be "wrapper-maincache"' --set serviceTree.module=maincache
   ;;
 primordial)
   helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml --set primordial.enabled=true >"${tmp}/primordial.yaml"
@@ -100,21 +118,6 @@ lpsm)
   collision_host="$(yq -r "${contracts} | .data.\"preview.hostname\"" "${tmp}/collision.yaml")"
   [ "${collision_host}" != "api.wrapper.sample.${petname}-ekj.castform.${zone}" ] && echo "❌ live-collision petname mismatch" >&2 && exit 1
 
-  refuses() {
-    local refusal_label="$1"
-    local reason="$2"
-    local output
-    shift 2
-    if output="$(helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml "$@" 2>&1)"; then
-      echo "❌ ${refusal_label} was accepted" >&2
-      exit 1
-    fi
-    if ! grep -qF "${reason}" <<<"${output}"; then
-      echo "❌ ${refusal_label} was refused for the wrong reason; expected '${reason}'" >&2
-      printf '%s\n' "${output}" >&2
-      exit 1
-    fi
-  }
   refuses "an unverified canonical digest" "PreviewIdentityMismatch: canonical full digest" --set instance.preview.enabled=true --set-string "instance.preview.canonical.fullLeaseDigest=${other}"
   refuses "a caller-supplied collision suffix" "PreviewIdentityMismatch: collision suffix" --set instance.preview.enabled=true --set-string "instance.preview.canonical.previewPetname=${petname}-abc" --set-string "instance.preview.receipt.previewPetname=${petname}-abc" --set-string "instance.preview.receipt.collision.liveFullLeaseDigest=${other}"
   refuses "a same-digest collision" "same full digest is an idempotent join" --set instance.preview.enabled=true --set-string "instance.preview.canonical.previewPetname=${petname}-ekj" --set-string "instance.preview.receipt.previewPetname=${petname}-ekj" --set-string "instance.preview.receipt.collision.liveFullLeaseDigest=${digest}"
