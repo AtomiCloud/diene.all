@@ -39,20 +39,37 @@ export function isConnectivityFailure(detail: string): boolean {
   return CONNECTIVITY_INDICATORS.some(indicator => haystack.includes(indicator));
 }
 
-// Build the CyanPrint "inapplicable" signal: an ordinary Error carrying a
-// non-enumerable `cyanprintProbeInapplicable = true` property. Non-enumerable so
-// it never leaks into serialized logs or `Error.prototype.toString`, while the
-// probe runner reads it by property access and treats the probe as inapplicable
-// (offline) rather than broken.
-export function inapplicableError(message: string): Error {
-  const error = new Error(message);
-  Object.defineProperty(error, 'cyanprintProbeInapplicable', {
-    value: true,
-    enumerable: false,
-    configurable: true,
-    writable: true,
-  });
+// The CyanPrint "inapplicable" signal, kept as a faithful local copy of the
+// engine contract at @cyanprint/contracts (probe.ts: `probeInapplicable` /
+// `isProbeInapplicable`). An ordinary Error carries a non-enumerable
+// `cyanprintProbeInapplicable = true` property; non-enumerable so it never leaks
+// into serialized logs or `Error.prototype.toString`, while the probe runner
+// reads it by property access and records the probe `invalid` (inapplicable /
+// offline) rather than `broken`.
+//
+// This is local rather than `import { probeInapplicable } from
+// '@cyanprint/contracts'` because a consuming probe cannot resolve that package
+// at runtime: cyanprint loads a locally-authored probe by direct dynamic
+// `import()` (engine `load-probe.ts`), and both cyanprint 4.9.0 and plain `bun`
+// fail with `Cannot find module '@cyanprint/contracts'` for a local probe that
+// value-imports it (verified). The whole consuming codebase imports only types
+// from `@cyanprint/contracts`, and the engine detects the marker across module
+// realms by property name (never `instanceof`), so this construction is read
+// exactly like the official one. Keep it byte-for-byte in sync with the contract.
+const PROBE_INAPPLICABLE_MARKER = 'cyanprintProbeInapplicable';
+
+export function probeInapplicable(reason: string): Error {
+  const error = new Error(reason);
+  Object.defineProperty(error, PROBE_INAPPLICABLE_MARKER, { value: true, enumerable: false });
   return error;
+}
+
+export function isProbeInapplicable(value: unknown): boolean {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as Record<string, unknown>)[PROBE_INAPPLICABLE_MARKER] === true
+  );
 }
 
 // Run a live-network command and expect it green. On a non-zero exit, if the
@@ -67,7 +84,7 @@ export async function expectGreenOrOffline(repo: any, command: string, label: st
   }
   const detail = `${result.stderr || ''}\n${result.stdout || ''}`;
   if (isConnectivityFailure(detail)) {
-    throw inapplicableError(
+    throw probeInapplicable(
       `${label} is inapplicable: verified offline (connectivity failure) for: ${command}\n${detail.trim()}`,
     );
   }

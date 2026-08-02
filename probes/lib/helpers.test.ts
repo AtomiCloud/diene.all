@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { ProbeExecResult } from '@cyanprint/contracts';
-import { expectGreenOrOffline, inapplicableError, isConnectivityFailure } from './helpers.ts';
+import { expectGreenOrOffline, isConnectivityFailure, isProbeInapplicable, probeInapplicable } from './helpers.ts';
 
 const INAPPLICABLE = 'cyanprintProbeInapplicable';
 
@@ -59,12 +59,29 @@ describe('isConnectivityFailure', () => {
   });
 });
 
-describe('inapplicableError', () => {
-  test('stamps the non-enumerable CyanPrint marker', () => {
-    const error = inapplicableError('offline');
-    expect((error as unknown as Record<string, unknown>)[INAPPLICABLE]).toBe(true);
+describe('probeInapplicable', () => {
+  test('stamps the marker exactly like the engine contract (non-enumerable, read by name)', () => {
+    const error = probeInapplicable('offline');
+    // Detected across module realms by property name, never instanceof:
+    expect(isProbeInapplicable(error)).toBe(true);
+    // The official contract descriptor: value true, the rest default (false).
+    const desc = Object.getOwnPropertyDescriptor(error, INAPPLICABLE);
+    expect(desc?.value).toBe(true);
+    expect(desc?.enumerable).toBe(false);
+    expect(desc?.configurable).toBe(false);
+    expect(desc?.writable).toBe(false);
+    // Non-enumerable, so it never leaks into keys or serialized logs:
     expect(Object.keys(error)).not.toContain(INAPPLICABLE);
-    expect(Object.getOwnPropertyDescriptor(error, INAPPLICABLE)?.enumerable).toBe(false);
+  });
+});
+
+describe('isProbeInapplicable', () => {
+  test('rejects ordinary errors and non-marked values', () => {
+    expect(isProbeInapplicable(new Error('ordinary'))).toBe(false);
+    expect(isProbeInapplicable({})).toBe(false);
+    expect(isProbeInapplicable({ cyanprintProbeInapplicable: 'true' })).toBe(false);
+    expect(isProbeInapplicable(null)).toBe(false);
+    expect(isProbeInapplicable(undefined)).toBe(false);
   });
 });
 
