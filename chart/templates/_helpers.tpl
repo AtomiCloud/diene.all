@@ -277,8 +277,13 @@ reloader.stakater.com/auto: 'true'
 
 {{/* Parse a hostname back into the unchanged four-slot LPSM coordinate plus instance. */}}
 {{- define "diene-helm-wrapper.parseHostname" -}}
-{{- $hostname := required "hostname is required" .hostname | lower -}}
-{{- $zone := required "zone is required" .zone | lower | trimPrefix "." -}}
+{{- $hostname := required "hostname is required" .hostname -}}
+{{- $zone := required "zone is required" .zone | trimPrefix "." -}}
+{{- range $label := splitList "." (printf "%s.%s" $hostname $zone) -}}
+{{- if or (gt (len $label) 63) (not (regexMatch "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$" $label)) -}}
+{{- fail (printf "hostname label %q must be a lowercase DNS-1123 label" $label) -}}
+{{- end -}}
+{{- end -}}
 {{- $suffix := printf ".%s" $zone -}}
 {{- if not (hasSuffix $suffix $hostname) -}}
 {{- fail (printf "hostname %q does not end with configured zone %q" $hostname $zone) -}}

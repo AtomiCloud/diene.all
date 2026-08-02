@@ -206,6 +206,11 @@ const REFUSES: Refuses[] = [
     because: ['must use the canonical dotted LPSM form'],
   },
   {
+    name: 'uppercase-parser-input',
+    flags: ['--set-string contracts.lpsm.parseHostname=API.wrapper.sample.run001.example.local.example.invalid'],
+    because: ['must be a lowercase DNS-1123 label'],
+  },
+  {
     name: 'platform-slot-from-a-values-file',
     flags: ['--set-string serviceTree.platform=other'],
     because: ['must equal release namespace'],

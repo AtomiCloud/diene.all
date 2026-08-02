@@ -124,6 +124,7 @@ lpsm)
   refuses "an unresolved branch pin" "neither a released version nor a full commit" --set instance.preview.enabled=true --set-string 'instance.preview.manifest.pins.nitroso\.zinc=main'
   refuses "an unnormalized physical instance id" "does not match pattern" --set-string instance.original=repository-a:pr-123
   refuses "a dash-fused Garden hostname" "must use the canonical dotted LPSM form" --set-string contracts.lpsm.parseHostname=api-wrapper-sample-run001-example.local.example.invalid
+  refuses "an uppercase parser input" "must be a lowercase DNS-1123 label" --set-string contracts.lpsm.parseHostname=API.wrapper.sample.run001.example.local.example.invalid
   ;;
 lb)
   helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml --set gateway.provider=digitalocean >"${tmp}/do.yaml"
@@ -150,10 +151,19 @@ rendered-manifests)
   if [ "$(realpath -m "${vap_definitions}")" = "$(realpath -m policies/vap)" ]; then
     bash ./scripts/validate/vap-interface.sh >/dev/null
   fi
+  if [ -f "${vap_definitions}" ]; then
+    vap_definition_files=("${vap_definitions}")
+  elif [ -d "${vap_definitions}" ]; then
+    mapfile -t vap_definition_files < <(find "${vap_definitions}" -maxdepth 1 -type f -name '*.yaml' -print | sort)
+  else
+    echo "❌ VAP_DEFINITIONS is neither a file nor a directory: ${vap_definitions}" >&2
+    exit 1
+  fi
+  [ "${#vap_definition_files[@]}" -eq 0 ] && echo "❌ VAP_DEFINITIONS contains no policy definitions: ${vap_definitions}" >&2 && exit 1
   # Filter by the API groups the pinned resourceRules name, never by kind: a group-level
   # filter keeps whatever kinds those rules grow into, while still excluding the custom
   # resources whose GVRs kyverno cannot resolve offline.
-  policy_groups="$(find "${vap_definitions}" -maxdepth 1 -type f -name '*.yaml' -exec yq -r '.spec.matchConstraints.resourceRules[].apiGroups[]' {} \; | sort -u | jq -Rsc 'split("\n") | .[0:-1] | unique')"
+  policy_groups="$(for policy in "${vap_definition_files[@]}"; do yq -r '.spec.matchConstraints.resourceRules[].apiGroups[]' "${policy}"; done | sort -u | jq -Rsc 'split("\n") | .[0:-1] | unique')"
   # The landscape and cluster overlays disable objects the base stack renders, so every
   # stack is rendered, schema-checked, and policy-checked in its own right.
   for stack in base example example+lapras; do
@@ -167,10 +177,10 @@ rendered-manifests)
     kubeconform -strict -summary -schema-location default -schema-location 'schemas/{{ .ResourceKind }}.json' "${tmp}/${stack}.yaml"
     yq eval-all -o=json '.' "${tmp}/${stack}.yaml" | jq -s --argjson groups "${policy_groups}" 'map(select(.kind != null) | select((.apiVersion | split("/") | if length == 1 then "" else .[0] end) as $group | $groups | index($group)))' | yq -P '.[] | split_doc' >"${tmp}/vap-${stack}.yaml"
     yq eval-all -o=json '.' "${tmp}/vap-${stack}.yaml" | jq -s -e 'length > 0' >/dev/null
-    kyverno apply "${vap_definitions}" --resource "${tmp}/vap-${stack}.yaml" --detailed-results --remove-color
+    kyverno apply "${vap_definition_files[@]}" --resource "${tmp}/vap-${stack}.yaml" --detailed-results --remove-color
     # Re-run one definition at a time: the aggregate summary stays green when a single
     # definition silently stops matching anything, so each one must report its own pass.
-    for policy in "${vap_definitions}"/*.yaml; do
+    for policy in "${vap_definition_files[@]}"; do
       if ! kyverno apply "${policy}" --resource "${tmp}/vap-${stack}.yaml" --detailed-results --remove-color --warn-no-pass --warn-exit-code 1; then
         echo "❌ '${policy}' rejected or matched no ${stack} stack resource" >&2
         exit 1
