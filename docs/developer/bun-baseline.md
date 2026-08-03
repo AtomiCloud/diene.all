@@ -82,7 +82,6 @@ Read the TypeScript variants alongside their shared standards:
 - Integration tests and Docker image builds require a Docker runtime.
 - Unit, integration, build, Docker, and Helm are separate CI jobs.
 
-
 ## Template maintenance boundary
 
 Downstream templates may adapt package identity, coverage thresholds, the
