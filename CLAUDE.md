@@ -1,14 +1,8 @@
 # Diene workspace agent guide
 
-<!-- ### nix-root -->
-<!-- #### source: main -->
-
 Use the repository's Nix shell for every command. Read [the Nix standard](docs/standards/nix/index.md) before changing the flake or `nix/` modules.
 
-<!-- ### workspace -->
-<!-- #### source: workspace -->
-
-Follow the linked standard before changing its surface. Keep many-owner files in keyed, source-attributed blocks and never hand-edit `.claude/skills/vendor/`.
+Follow the linked standard before changing its surface. Never hand-edit `.claude/skills/vendor/`.
 
 ## CI/CD workflows
 

@@ -31,9 +31,8 @@ releaser conventions
 releaser release -c atomi_release.yaml
 ```
 
-`releaser conventions` maintains
-`docs/developer/CommitConventions.md`. The generated file must not be edited by
-hand.
+`releaser conventions` maintains the file named by `conventionMarkdown.path` in
+`atomi_release.yaml`. That generated file must not be edited by hand.
 
 ## Configuration
 
@@ -52,6 +51,18 @@ The unified D3 commit-type vocabulary is:
 amend, build, chore, ci, config, dep, docs, feat, fix, perf, refactor, style, test
 ```
 
+The plugin chain is declared in the `plugins:` list of `atomi_release.yaml`. Each
+entry names its `module:`, its pinned `version:`, and a `config:` block holding
+that plugin's own settings — which files it writes, which it commits, and what
+commands it runs. Read the list in order; the order is itself part of the
+contract.
+
+Two things about that file are fixed policy rather than free configuration: the
+base plugin chain and the unified D3 commit-type vocabulary. Both are enforced by
+`scripts/validate/release-config.sh`, which holds the exact expected values —
+read it to see what the `a-release-config` gate will accept. Changing either
+means changing the validator and the configuration together, deliberately.
+
 Both commit validation and release calculation consume this same configuration,
 so the vocabularies cannot drift independently.
 
@@ -64,3 +75,7 @@ so the vocabularies cannot drift independently.
 4. `releaser release -c atomi_release.yaml` calculates the version, updates the
    changelog and generated files, creates the tag, and publishes the GitHub
    release.
+
+Its trigger, branch restriction, and concurrency group are declared in
+[`.github/workflows/release.yaml`](../../../.github/workflows/release.yaml) and pinned by the
+`a-workflows` gate; `scripts/validate/workflows.sh` holds the exact expected values.
