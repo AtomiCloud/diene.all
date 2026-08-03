@@ -9,11 +9,13 @@ let
     name = "workspace-validator-runtime";
     # atomiutils supplies bash/jq/yq plus the coreutils/find/grep/sed binaries the
     # validators call, so declaring those separately would duplicate the bundle
-    # (and collide with it in this buildEnv). git and ripgrep do not overlap it.
+    # (and collide with it in this buildEnv). git, ripgrep, and util-linux (for
+    # flock) do not overlap it.
     paths = [
       packages.atomiutils
       packages.git
       packages.ripgrep
+      pkgs.util-linux
     ];
   };
   validator =
@@ -58,6 +60,35 @@ pre-commit-lib.run {
       language = "system";
     };
 
+    # always_run, not a files pattern: the check reads CLAUDE.md but fails on the
+    # state of its *targets*, and a deleted or renamed target need not touch any
+    # path a pattern could name. Selecting on content would make deletion coverage
+    # depend on the deleter also editing a watched file. The check is offline and
+    # costs milliseconds, so running it every time is cheaper than the gap.
+    # SSL_CERT_FILE is bound explicitly because the pure flake derivation has no
+    # ambient certificate file, and lychee refuses to start without one even under
+    # --offline.
+    a-claude-links = {
+      enable = true;
+      name = "CLAUDE link integrity";
+      entry = "${pkgs.coreutils}/bin/env SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt ${pkgs.lychee}/bin/lychee --offline --no-progress CLAUDE.md";
+      always_run = true;
+      pass_filenames = false;
+      language = "system";
+    };
+
+    # The contributor-doc workflow is an executable state contract, not prose-only
+    # guidance. This assert-the-asserter checks its mirrored schemas and step sets,
+    # then drives healthy and destructive transition fixtures on every commit.
+    a-contributor-docs-contract = {
+      enable = true;
+      name = "Contributor-doc state contract";
+      entry = validator "docs/standards/contributor-docs/scripts/init-state.sh --check-write-contract";
+      always_run = true;
+      pass_filenames = false;
+      language = "system";
+    };
+
     a-enforce-exec = {
       enable = true;
       name = "Executable shell scripts";
@@ -89,6 +120,19 @@ pre-commit-lib.run {
       name = "Staged secrets scan";
       entry = "${packages.infisical}/bin/infisical scan git-changes --staged -v";
       pass_filenames = false;
+      language = "system";
+    };
+
+    # The selector is directory-shaped on purpose: every standard under
+    # docs/standards/ and every first-level skill trigger is linted, so adding a
+    # topic needs no edit here. Vendored skills sit deeper than one level and are
+    # ignored again by .markdownlint-cli2.jsonc.
+    a-markdownlint = {
+      enable = true;
+      name = "Markdown lint";
+      entry = "${pkgs.markdownlint-cli2}/bin/markdownlint-cli2";
+      files = "^(CLAUDE\\.md|README\\.md|docs/standards/.*\\.md|\\.claude/skills/[^/]+/SKILL\\.md)$";
+      pass_filenames = true;
       language = "system";
     };
 
@@ -138,39 +182,17 @@ pre-commit-lib.run {
 
     # The wiring mode keeps both of its halves — every referenced scripts/ci entry
     # point exists and is executable, and every orchestrator job resolves to a
-    # repository-local reusable workflow that calls one — unchanged. The S31 mode
-    # shares this workflow hook without increasing the committer-facing hook count.
+    # repository-local reusable workflow that calls one — unchanged.
     a-workflows = {
       enable = true;
-      name = "Workflow wiring, release policy and runner cache shape";
+      name = "Workflow wiring, release trigger and concurrency";
       entry = validators [
         "scripts/validate/workflows.sh wiring"
         "scripts/validate/workflows.sh release-trigger"
         "scripts/validate/workflows.sh release-concurrency"
-        "scripts/validate/workflows.sh cache-tag-shape"
       ];
       files = "^\\.github/workflows/.*\\.ya?ml$";
       pass_filenames = false;
-      language = "system";
-    };
-
-    # ### shared-hooks
-    # #### source: shared
-    a-claude-links = {
-      enable = true;
-      name = "CLAUDE link integrity";
-      entry = "${pkgs.coreutils}/bin/env SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt ${pkgs.lychee}/bin/lychee --offline --no-progress CLAUDE.md";
-      files = "^(CLAUDE\\.md|docs/standards/.*\\.md)$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-markdownlint = {
-      enable = true;
-      name = "Markdown lint";
-      entry = "${pkgs.markdownlint-cli2}/bin/markdownlint-cli2";
-      files = "^(CLAUDE\\.md|README\\.md|docs/standards/(authorization|contracts|contributor-docs|datetime|domain-driven-design|functional-practices|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/.*\\.md|\\.claude/skills/(authorization|contributor-docs|datetime|domain-driven-design|functional-practices|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/SKILL\\.md)$";
-      pass_filenames = true;
       language = "system";
     };
   };
