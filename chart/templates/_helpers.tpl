@@ -285,10 +285,16 @@
 {{- $expected -}}
 {{- end -}}
 
-{{/* Common selector labels. */}}
+{{/*
+  Common selector labels. `component: primary` is a fixed workload discriminator,
+  never a value derived from serviceTree.module. A supported module can share a
+  hook token (for example migration) and therefore its resource name, but it
+  cannot reproduce this selector identity on the hook pod.
+*/}}
 {{- define "diene-helm-wrapper.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "diene-helm-wrapper.primaryName" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: primary
 {{- end -}}
 
 {{/* Service-tree labels; every key uses labelPrefix. */}}
@@ -308,20 +314,19 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
   must never be born wearing the primary workload's selector identity.
 
   Every primary Service selector and the Deployment's own `matchLabels` are
-  exactly `selectorLabels`, so a hook pod stamped with the full
-  `diene-helm-wrapper.labels` set carries a strict SUPERSET of all of them and is
-  eligible for their EndpointSlices the whole time the hook runs. Nothing routed
-  to it only because both Services name `targetPort: http` and the migration
-  container declares no port — an accident of this sample, not a property of the
-  shape every `charts/*` node inherits. The first hook container that declares an
-  `http` port, or the first Service that switches to a numeric target, would put a
-  migration pod behind the gateway LoadBalancer.
+  exactly `selectorLabels`, including the fixed `component: primary` discriminator.
+  A hook keeps its hook token as `app.kubernetes.io/component`, so the migration
+  pod remains `component: migration`. That distinction survives the valid
+  `serviceTree.module=migration` / `fullnameOverride=wrapper-migration` shape,
+  where the primary workload and migration hook intentionally share a resource
+  name.
 
   So a hook keeps everything that makes it a service-tree object — the full
-  projection under the prefix in force, chart, version, managed-by — and swaps
-  exactly the workload identity: `app.kubernetes.io/name` becomes the hook's own
-  `<service>-<token>` resource name and `app.kubernetes.io/component` records
-  which hook it is. `instance` stays the release, as it is on every object.
+  projection under the prefix in force, chart, version, managed-by — and keeps a
+  hook-specific workload identity: `app.kubernetes.io/name` becomes the hook's
+  own `<service>-<token>` resource name and `app.kubernetes.io/component` records
+  which hook it is instead of the primary discriminator. `instance` stays the
+  release, as it is on every object.
 */}}
 {{- define "diene-helm-wrapper.hookLabels" -}}
 {{- $root := .root -}}

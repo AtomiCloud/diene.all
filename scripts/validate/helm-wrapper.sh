@@ -111,6 +111,11 @@ labels)
   # all five, so a stack that stopped rendering one is reported rather than
   # narrowing the hook-isolation comparison to whatever survived.
   selector_objects='["Service/wrapper-api","Service/wrapper-gateway","Service/wrapper-upstream","Deployment/wrapper-api","Deployment/wrapper-upstream"]'
+  # This schema-valid configuration renames the primary Service and Deployment to
+  # the migration hook's resource name. Keep its selector-bearing objects named
+  # separately: the ordinary list above would otherwise report old names missing
+  # instead of proving that every selector still excludes the hook pod.
+  collision_selector_objects='["Service/wrapper-migration","Service/wrapper-gateway","Service/wrapper-upstream","Deployment/wrapper-migration","Deployment/wrapper-upstream"]'
   hook_job=wrapper-migration
   hook_pod_name=wrapper-migration
   hook_component=migration
@@ -152,21 +157,23 @@ labels)
   absent_instance='{"instance-original": null, "instance-label": null}'
 
   # `present` demands the recorded pair, byte-exact; `absent` demands neither key
-  # exist at all. Naming the mode explicitly keeps the two from being confused: the
-  # present-pair assertions below are never weakened into "empty is fine", and an
-  # absence assertion handed real bytes is refused instead of silently comparing.
+  # exist at all. Both modes first require the exact sorted key set, then apply
+  # their separate value rule: non-empty strings for present and nulls for absent.
+  # Naming the mode explicitly keeps the two from being confused: the present-pair
+  # assertions below are never weakened into "empty is fine", and an absence
+  # assertion handed real bytes is refused instead of silently comparing.
   assert_instance_mode() {
     local mode="$1" instance="$2"
     case "${mode}" in
     present)
-      jq -e 'to_entries | length > 0 and all(.[]; .value | type == "string" and length > 0)' <<<"${instance}" >/dev/null || {
-        echo "❌ a present-pair instance assertion was handed no recorded bytes, so it could pass against an emitted empty annotation" >&2
+      jq -e 'type == "object" and (keys == ["instance-label", "instance-original"]) and all(.[]; type == "string" and length > 0)' <<<"${instance}" >/dev/null || {
+        echo "❌ a present-pair instance assertion was not handed exactly the non-empty instance-original/instance-label byte pair, so it could pass against an emitted empty annotation" >&2
         exit 1
       }
       ;;
     absent)
-      jq -e 'to_entries | length > 0 and all(.[]; .value == null)' <<<"${instance}" >/dev/null || {
-        echo "❌ an absent-pair instance assertion was handed expected values, so it would compare bytes instead of demanding the key be gone" >&2
+      jq -e 'type == "object" and (keys == ["instance-label", "instance-original"]) and all(.[]; . == null)' <<<"${instance}" >/dev/null || {
+        echo "❌ an absent-pair instance assertion was not handed exactly the two named nulls, so it would compare bytes instead of demanding the key be gone" >&2
         exit 1
       }
       ;;
@@ -176,6 +183,22 @@ labels)
       ;;
     esac
   }
+
+  # These are destroying-path controls, not reviewer-only sabotage: each removes
+  # exactly one half of the expected pair and must make this labels mode fail. The
+  # shared guard is called by both projection and hook assertions, so accepting any
+  # one-key map would weaken both surfaces at once.
+  rejects_instance_mode() {
+    local description="$1" mode="$2" instance="$3"
+    if (assert_instance_mode "${mode}" "${instance}") >/dev/null 2>&1; then
+      echo "❌ ${description}: the labels gate accepted a one-key instance map, so it no longer proves the pair arity" >&2
+      exit 1
+    fi
+  }
+  rejects_instance_mode "a present-pair assertion without instance-original" present '{"instance-label":"destroying-path-label"}'
+  rejects_instance_mode "a present-pair assertion without instance-label" present '{"instance-original":"destroying-path-original"}'
+  rejects_instance_mode "an absent-pair assertion without instance-original" absent '{"instance-label":null}'
+  rejects_instance_mode "an absent-pair assertion without instance-label" absent '{"instance-original":null}'
 
   # Assert the service-tree projection per rendered object, in both the labels and
   # the annotations, under the prefix in force. The module slot is resolved per
@@ -262,11 +285,9 @@ labels)
 
   # A lifecycle hook pod must not be born wearing the primary workload's selector
   # identity. Both primary Service selectors and the Deployment's own matchLabels
-  # are exactly the wrapper's selectorLabels, so a hook pod stamped with the full
-  # label set is a strict SUPERSET of every one of them and is eligible for their
-  # EndpointSlices while the hook runs; nothing routes today only because the
-  # Services name `targetPort: http` and the migration container declares no port,
-  # which is an accident of this sample rather than a property of the shape.
+  # are exactly the wrapper's selectorLabels, including its fixed primary component.
+  # A hook keeps its hook-specific component, so even a valid module/fullname pair
+  # that gives it the primary workload's name cannot put it in an EndpointSlice.
   #
   # The check is deliberately object-and-name-exact rather than a scan of whatever
   # happened to render: every named selector-bearing object must be present, must
@@ -274,11 +295,11 @@ labels)
   # object, an emptied selector, or a hook pod with no labels at all is an offender,
   # so this cannot pass by matching nothing.
   hook_offenders() {
-    local file="$1" prefix="$2" projection="$3" instance="$4" mode="${5:-present}"
+    local file="$1" prefix="$2" projection="$3" instance="$4" mode="${5:-present}" selectors="${6:-${selector_objects}}" hook_module="${7:-api}"
     assert_instance_mode "${mode}" "${instance}"
     yq eval-all -o=json '.' "${file}" | jq -s -r \
-      --arg prefix "${prefix}" --arg job "${hook_job}" --arg name "${hook_pod_name}" --arg component "${hook_component}" --arg mode "${mode}" \
-      --argjson selectors "${selector_objects}" --argjson projection "${projection}" --argjson instance "${instance}" '
+      --arg prefix "${prefix}" --arg job "${hook_job}" --arg name "${hook_pod_name}" --arg component "${hook_component}" --arg module "${hook_module}" --arg mode "${mode}" \
+      --argjson selectors "${selectors}" --argjson projection "${projection}" --argjson instance "${instance}" '
         def slot($key): "\($prefix)/\($key)";
         def selects($pod; $selector): ($selector | length) > 0
           and ([$selector | to_entries[] | select($pod[.key] == .value)] | length) == ($selector | length);
@@ -293,7 +314,7 @@ labels)
               then "Job/\($job) pod app.kubernetes.io/name=\($pod["app.kubernetes.io/name"] // "absent") want=\($name)" else empty end)
           , (if $pod["app.kubernetes.io/component"] != $component
               then "Job/\($job) pod app.kubernetes.io/component=\($pod["app.kubernetes.io/component"] // "absent") want=\($component)" else empty end)
-          , ( ($projection + {module: "api"}) | to_entries[]
+          , ( ($projection + {module: $module}) | to_entries[]
               | select($pod[slot(.key)] != .value or $podAnnotations[slot(.key)] != .value)
               | "Job/\($job) pod \(slot(.key)) label=\($pod[slot(.key)] // "absent") annotation=\($podAnnotations[slot(.key)] // "absent") want=\(.value)" )
           , ( $instance | to_entries[]
@@ -367,6 +388,11 @@ labels)
   # objects wore both keys with empty values while the other thirteen wore neither —
   # one release, two answers to "does this object belong to a physical instance".
   helm template "${release}" chart --namespace "${namespace}" --set-string global.instance.original= --set-string global.instance.label= >"${tmp}/no-instance.yaml"
+  # `migration` is a schema-valid primary module. Together with its required
+  # fullnameOverride it intentionally gives the primary workload the migration
+  # hook's name, so this stack proves the fixed primary component keeps every
+  # selector-bearing object isolated from that hook.
+  helm template "${release}" chart --namespace "${namespace}" --set-string serviceTree.module=migration --set-string fullnameOverride=wrapper-migration >"${tmp}/collision.yaml"
 
   carries_projection "the base stack projection" "${tmp}/base.yaml" atomi.cloud '' "${base_objects}" "${base_projection}" "${physical_instance}"
   carries_projection "the example stack projection" "${tmp}/example.yaml" atomi.cloud '' "${example_objects}" "${example_projection}" "${physical_instance}"
@@ -385,8 +411,8 @@ labels)
   carries_projection "the example+lapras stack prefix override" "${tmp}/lapras-override.yaml" example.dev atomi.cloud "${lapras_objects}" "${lapras_projection}" "${physical_instance}"
 
   # The hook pod keeps the whole service-tree projection and the recorded instance
-  # pair, and still selects out of every primary Service and workload selector, in
-  # every stack and under the prefix override.
+  # pair, and remains outside every primary Service and workload selector in every
+  # stack and under the prefix override.
   hook_is_isolated "the base stack hook pod identity" "${tmp}/base.yaml" atomi.cloud "${base_projection}" "${physical_instance}"
   hook_is_isolated "the example stack hook pod identity" "${tmp}/example.yaml" atomi.cloud "${example_projection}" "${physical_instance}"
   hook_is_isolated "the example+lapras stack hook pod identity" "${tmp}/lapras.yaml" atomi.cloud "${lapras_projection}" "${physical_instance}"
@@ -394,6 +420,8 @@ labels)
   hook_is_isolated "the empty-pair stack hook pod identity" "${tmp}/no-instance.yaml" atomi.cloud "${base_projection}" "${absent_instance}" absent
   hook_is_isolated "the base stack hook pod identity under a prefix override" "${tmp}/base-override.yaml" example.dev "${base_projection}" "${physical_instance}"
   hook_is_isolated "the example+lapras stack hook pod identity under a prefix override" "${tmp}/lapras-override.yaml" example.dev "${lapras_projection}" "${physical_instance}"
+  hook_is_isolated "the valid migration-name collision stack hook pod identity" \
+    "${tmp}/collision.yaml" atomi.cloud "${base_projection}" "${physical_instance}" present "${collision_selector_objects}" migration
 
   # Three sabotage controls, each run against a throwaway copy of the chart so the
   # working tree is never mutated. Each restores exactly the defect the assertion
@@ -407,12 +435,12 @@ labels)
   }
 
   # Control A: give the hook pod the primary workload's selector identity back.
-  # Restoring `diene-helm-wrapper.labels` also drops the hook's component and resets
-  # its workload name, so three offender families fire at once — which is precisely
-  # why the required reason is the SELECTOR one. The selector comparison is the
-  # assertion the whole hook-isolation gate exists for, and demanding its exact
-  # sentence is what makes a `selects` hardwired to false fail here instead of
-  # sailing through on the name and component offenders.
+  # Restoring `diene-helm-wrapper.labels` restores the primary component as well as
+  # resetting the hook's workload name, so three offender families fire at once —
+  # which is precisely why the required reason is the SELECTOR one. The selector
+  # comparison is the assertion the whole hook-isolation gate exists for, and
+  # demanding its exact sentence is what makes a `selects` hardwired to false fail
+  # here instead of sailing through on the name and component offenders.
   sabotage_chart
   sed -i 's#include "diene-helm-wrapper.hookLabels" (dict "root" . "token" "migration") | nindent 8#include "diene-helm-wrapper.labels" . | nindent 8#' "${tmp}/sabotage/chart/templates/migration-job.yaml"
   grep -qF 'diene-helm-wrapper.labels" . | nindent 8' "${tmp}/sabotage/chart/templates/migration-job.yaml" || {
