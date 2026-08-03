@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedBecause } from './lib/helpers.ts';
 
 const vendorDir = '.claude/skills/vendor';
 const freshnessCommand = 'nix develop .#ci -c ./scripts/validate/skills-freshness.sh';
@@ -73,7 +73,10 @@ export default {
           if (staged.exitCode !== 0) {
             throw new Error(`could not stage the stale vendored-skill fixture: ${staged.stderr || staged.stdout}`);
           }
-          await expectRed(repo, freshnessCommand, 'skills-freshness');
+          await expectRedBecause(repo, freshnessCommand, 'skills-freshness', [
+            'Vendored skills are stale',
+            '.claude/skills/vendor/stale/SKILL.md',
+          ]);
         });
       },
     },

@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedBecause } from './lib/helpers.ts';
 
 const gate = 'nix develop --no-write-lock-file .#ci -c pre-commit run a-claude-links --all-files';
 
@@ -27,7 +27,10 @@ export default {
             find: 'docs/standards/authorization/index.md',
             replace: 'docs/standards/authorization/missing.md',
           });
-          await expectRed(repo, gate, 'claude-link-integrity');
+          await expectRedBecause(repo, gate, 'claude-link-integrity', [
+            'docs/standards/authorization/missing.md',
+            'File not found',
+          ]);
         } finally {
           await repo.write(path, original);
         }

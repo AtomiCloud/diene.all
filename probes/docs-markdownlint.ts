@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedBecause } from './lib/helpers.ts';
 
 const gate = 'nix develop --no-write-lock-file .#ci -c pre-commit run a-markdownlint --all-files';
 
@@ -24,7 +24,7 @@ export default {
         const original = await repo.read(path);
         try {
           await repo.write(path, `${original}\n# Duplicate authorization title\n`);
-          await expectRed(repo, gate, 'docs-markdownlint');
+          await expectRedBecause(repo, gate, 'docs-markdownlint', ['docs/standards/authorization/index.md', 'MD025']);
         } finally {
           await repo.write(path, original);
         }

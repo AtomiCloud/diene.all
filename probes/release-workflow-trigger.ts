@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedBecause } from './lib/helpers.ts';
 
 export default {
   contractVersion: 1,
@@ -26,10 +26,11 @@ export default {
           find: "workflows: ['CI']",
           replace: "workflows: ['Broken']",
         });
-        await expectRed(
+        await expectRedBecause(
           repo,
           'nix develop .#ci -c ./scripts/validate/workflows.sh release-trigger',
           'release-workflow-trigger',
+          ['release must trigger from CI'],
         );
       },
     },

@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedBecause } from './lib/helpers.ts';
 
 export default {
   contractVersion: 1,
@@ -23,10 +23,11 @@ export default {
       expectedImpact: [],
       async run(repo: any) {
         await repo.patch('atomi_release.yaml', { find: '  - type: chore', replace: '  - type: chores' });
-        await expectRed(
+        await expectRedBecause(
           repo,
           'nix develop .#ci -c ./scripts/validate/release-config.sh types',
           'release-type-vocabulary',
+          ['release types do not match the D3 vocabulary'],
         );
       },
     },

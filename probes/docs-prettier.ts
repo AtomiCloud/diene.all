@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedBecause } from './lib/helpers.ts';
 
 const gate =
   'nix fmt --no-write-lock-file -- docs/standards .claude/skills CLAUDE.md README.md --ci --formatters prettier';
@@ -25,7 +25,10 @@ export default {
         const original = await repo.read(path);
         try {
           await repo.patch(path, { find: 'name: authorization', replace: 'name:    authorization' });
-          await expectRed(repo, gate, 'docs-prettier');
+          await expectRedBecause(repo, gate, 'docs-prettier', [
+            '.claude/skills/authorization/SKILL.md',
+            'unexpected changes detected',
+          ]);
         } finally {
           await repo.write(path, original);
         }

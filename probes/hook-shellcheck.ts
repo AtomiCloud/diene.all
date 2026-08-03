@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedBecause } from './lib/helpers.ts';
 
 // A script and the script it sources routinely land in different pre-commit batches,
 // so the gate is only honest if it follows declared sources. The fixture below is
@@ -81,7 +81,10 @@ export default {
       async run(repo: any) {
         const source = await repo.read('scripts/release/bump.sh');
         await repo.write('scripts/release/bump.sh', `${source}\necho $UNQUOTED\n`);
-        await expectRed(repo, 'nix develop .#ci -c pre-commit run a-shellcheck --all-files', 'hook-shellcheck');
+        await expectRedBecause(repo, 'nix develop .#ci -c pre-commit run a-shellcheck --all-files', 'hook-shellcheck', [
+          'scripts/release/bump.sh',
+          'SC2086',
+        ]);
       },
     },
   ],

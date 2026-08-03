@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedBecause } from './lib/helpers.ts';
 
 export default {
   contractVersion: 1,
@@ -22,7 +22,12 @@ export default {
           find: 'AtomiCloud/actions.setup-nix@v3',
           replace: 'AtomiCloud/actions.setup-nix@f366a9f3997acdf7f335445809fd85e3a157147f',
         });
-        await expectRed(repo, 'nix develop .#ci -c ./scripts/validate/action-pins.sh trusted', 'trusted-action-pins');
+        await expectRedBecause(
+          repo,
+          'nix develop .#ci -c ./scripts/validate/action-pins.sh trusted',
+          'trusted-action-pins',
+          ["trusted action 'AtomiCloud/actions.setup-nix' must use a major pin"],
+        );
       },
     },
   ],

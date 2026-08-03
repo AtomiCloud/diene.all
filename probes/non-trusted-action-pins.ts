@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedBecause } from './lib/helpers.ts';
 
 export default {
   contractVersion: 1,
@@ -26,10 +26,11 @@ export default {
           find: 'upsidr/merge-gatekeeper@09af7a82c1666d0e64d2bd8c01797a0bcfd3bb5d # v1.2.1',
           replace: 'upsidr/merge-gatekeeper@v1.2.1',
         });
-        await expectRed(
+        await expectRedBecause(
           repo,
           'nix develop .#ci -c ./scripts/validate/action-pins.sh non-trusted',
           'non-trusted-action-pins',
+          ["non-trusted action 'upsidr/merge-gatekeeper' must use an exact SHA"],
         );
       },
     },
