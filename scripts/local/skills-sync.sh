@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ### workspace
-# #### source: workspace
 vendor_dir=".claude/skills/vendor"
 staging="$(mktemp -d .claude/skills/.vendor.XXXXXX)"
 resolver_dir="$(mktemp -d)"
@@ -108,8 +106,6 @@ if [ -f Directory.Packages.props ]; then
   fi
   sed -E 's/PackageVersion Include="([^"]+)" Version="([^"]+)"/\1\t\2/' "${nuget_matches}" >"${nuget_packages}"
 
-  # ### dotnet-server-engine-nuget-partial
-  # #### source: lib/dotnet/server-engine
   # A declared package that is NOT installed is recorded, not skipped. The
   # cold-checkout guard below is per-ECOSYSTEM, so a cache holding only SOME of the
   # declared packages leaves nuget_staged true and publishes a PARTIAL vendor tree —
@@ -264,8 +260,6 @@ if [ "${pub_declared}" = true ] && [ "${pub_staged}" = false ]; then
   unresolved_ecosystems+=("pub")
 fi
 
-# ### workspace-vendor-swap
-# #### source: workspace
 # A declaration that yields no skill content is a cold checkout, not a request
 # to replace committed skills with an empty staging tree. Preserving is only
 # legitimate when nothing at all resolved and there are real committed skills to

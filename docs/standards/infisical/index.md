@@ -19,4 +19,15 @@ current shell environment.
 
 ## Setup
 
-Run `pls setup` or [`scripts/local/secrets.sh`](../../../scripts/local/secrets.sh) to authenticate and fetch secrets.
+[`scripts/local/secrets.sh`](../../../scripts/local/secrets.sh) owns the secret
+actions. It takes the action as its first argument, and the `case` block near the
+top of the script is the authoritative list of the actions it accepts; each branch
+also declares, as `[ -z "${VAR:-}" ] && … && exit 1` guards, the environment
+variables that action requires.
+
+The task wrappers are in [`tasks/Taskfile.secret.yaml`](../../../tasks/Taskfile.secret.yaml),
+included under the `secret` namespace, so each task there is `pls secret:<task>`.
+Read the file, or run `pls --list`, to see which ones exist.
+
+Authentication is not a separate step: the fetch path logs you in when no valid
+token is present.

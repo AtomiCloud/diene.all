@@ -1,6 +1,4 @@
 {
-  # ### workspace-flake
-  # #### source: workspace
   inputs = {
     # util
     flake-utils.url = "github:numtide/flake-utils";

@@ -19,33 +19,40 @@ nix develop .#ci -c ./scripts/ci/pre-commit.sh
 The first two commands are the local entry points. CI uses the third so the same
 hooks and pinned tools run locally and remotely.
 
-## Hook inventory
+## Reading the hook set
 
-The workspace owns these mechanisms:
+The authoritative hook set is the `hooks` attribute set in
+[`nix/pre-commit.nix`](../../../nix/pre-commit.nix). It is not restated here,
+because it changes whenever a hook is added or removed. Read it like this:
 
-- treefmt: actionlint, nixfmt, prettier, and shfmt;
-- trusted-major and non-trusted-SHA GitHub Action pins;
-- shared nscloud cache-tag shape;
-- executable shell-script permissions;
-- Helm docs and chart linting;
-- Infisical full-tree and staged-diff scans;
-- many-owner keyed-block structure;
-- nixpkgs snapshot, lock, registry, and channel consistency;
-- release schema, D3 type vocabulary, workflow trigger, concurrency, and names;
-- shellcheck;
-- vendored-skill freshness; and
-- workflow job-to-script wiring.
+- each attribute name is the hook id you pass to `pre-commit run <hook-id>`;
+- `name` is the label the run prints;
+- `entry` is what actually executes — either a Nix store path
+  (`${packages.<tool>}/bin/<tool> …`, so the pinned tool runs) or a call to the
+  `validator` wrapper, which runs one script under `scripts/validate/` with a
+  fixed PATH, or to the `validators` wrapper, which runs several such invocations
+  under that same PATH and stops at the first failure;
+- `files` is the regex selecting which paths trigger the hook; a hook with no
+  `files` runs on every commit;
+- `stages` narrows a hook to a non-default stage; a hook without it runs at the
+  default pre-commit stage.
 
-The commit-msg stage also registers
-`releaser lint-commit -c atomi_release.yaml`. Its binary becomes available when
-`tools/releaser` folds in at C2 step 2p; no `.gitlint` hook or file exists.
+The formatters treefmt drives are the `programs` attribute set in
+[`nix/fmt.nix`](../../../nix/fmt.nix); each entry enables one formatter and may
+carry its own `excludes`.
+
+The commit-msg hook's binary is published by `tools/releaser` at C2 step 2p and is
+not available before that fold. There is no `.gitlint` hook or file.
 
 ## Configuration rules
 
 - Add custom hooks in `nix/pre-commit.nix` with an `a-` prefix.
 - Use Nix-provided tool paths or the repository validator wrapper; hooks must not
   depend on host-installed binaries.
-- Give each independent enforcement mechanism its own hook and probe mutation.
+- Group one validator script's modes into a single hook rather than one hook per
+  mode; hooks are the unit a committer waits on, not the unit of enforcement.
+- Give each independent enforcement mechanism its own probe mutation, including
+  the mechanisms that share a hook.
 - Run a single hook with
   `pre-commit run <hook-id> --all-files` when diagnosing a failure.
 
