@@ -143,6 +143,39 @@ labels)
     exit 1
   fi
   preview_instance="$(jq -n --arg petname "${preview_petname}" '{"instance-original": $petname, "instance-label": $petname}')"
+  # Both halves empty is a schema-valid configuration meaning no minted physical
+  # instance — the ordinary shape for any `charts/*` node that has none — and it is
+  # asserted as its own arity rather than as a pair of empty expected values. A `""`
+  # expectation would be satisfied by an object that emits the key with an empty
+  # value, which is exactly the divergence the empty-pair stack exists to catch, so
+  # the keys are named here with a null value that only the `absent` mode accepts.
+  absent_instance='{"instance-original": null, "instance-label": null}'
+
+  # `present` demands the recorded pair, byte-exact; `absent` demands neither key
+  # exist at all. Naming the mode explicitly keeps the two from being confused: the
+  # present-pair assertions below are never weakened into "empty is fine", and an
+  # absence assertion handed real bytes is refused instead of silently comparing.
+  assert_instance_mode() {
+    local mode="$1" instance="$2"
+    case "${mode}" in
+    present)
+      jq -e 'to_entries | length > 0 and all(.[]; .value | type == "string" and length > 0)' <<<"${instance}" >/dev/null || {
+        echo "❌ a present-pair instance assertion was handed no recorded bytes, so it could pass against an emitted empty annotation" >&2
+        exit 1
+      }
+      ;;
+    absent)
+      jq -e 'to_entries | length > 0 and all(.[]; .value == null)' <<<"${instance}" >/dev/null || {
+        echo "❌ an absent-pair instance assertion was handed expected values, so it would compare bytes instead of demanding the key be gone" >&2
+        exit 1
+      }
+      ;;
+    *)
+      echo "❌ unknown instance assertion mode '${mode}'" >&2
+      exit 1
+      ;;
+    esac
+  }
 
   # Assert the service-tree projection per rendered object, in both the labels and
   # the annotations, under the prefix in force. The module slot is resolved per
@@ -159,9 +192,10 @@ labels)
   # either named list is reported and a new wrapper resource cannot slip out of
   # coverage by simply not being on the list.
   projection_offenders() {
-    local file="$1" prefix="$2" forbidden="$3" objects="$4" projection="$5" instance="$6"
+    local file="$1" prefix="$2" forbidden="$3" objects="$4" projection="$5" instance="$6" mode="${7:-present}"
+    assert_instance_mode "${mode}" "${instance}"
     yq eval-all -o=json '.' "${file}" | jq -s -r \
-      --arg prefix "${prefix}" --arg forbidden "${forbidden}" \
+      --arg prefix "${prefix}" --arg forbidden "${forbidden}" --arg mode "${mode}" \
       --argjson instance "${instance}" \
       --argjson objects "${objects}" --argjson upstream "${upstream_objects}" --argjson projection "${projection}" '
         def slot($key): "\($prefix)/\($key)";
@@ -184,8 +218,13 @@ labels)
                       | select($labels[slot(.key)] != .value or $annotations[slot(.key)] != .value)
                       | "\($id): \(slot(.key)) label=\($labels[slot(.key)] // "absent") annotation=\($annotations[slot(.key)] // "absent") want=\(.value)" )
                   , ( $instance | to_entries[]
-                      | select($annotations[slot(.key)] != .value)
-                      | "\($id): \(slot(.key)) annotation=\($annotations[slot(.key)] // "absent") want=\(.value)" )
+                      | . as $want | slot(.key) as $at
+                      | if $mode == "absent"
+                        then select($annotations | has($at))
+                          | "\($id): \($at) annotation=\($annotations[$at] | tojson) want=absent"
+                        else select($annotations[$at] != $want.value)
+                          | "\($id): \($at) annotation=\($annotations[$at] // "absent") want=\($want.value)"
+                        end )
                   , ( select($forbidden != "")
                       | $keys[] | select(startswith("\($forbidden)/"))
                       | "\($id): stale key \(.)" ) )
@@ -204,14 +243,19 @@ labels)
     fi
   }
 
-  # The control half of the same assertion: a sabotaged render must produce at least
-  # one offender. Without it a projection check that silently stopped selecting
-  # anything would keep reporting a clean pass over nothing.
+  # The control half of the same assertion: a sabotaged render must produce the
+  # NAMED offender, not merely some offender. `projection_offenders` emits several
+  # independent assertion families — missing object, projection slot, recorded
+  # instance, stale prefixed key — so a control that accepted any of them would stay
+  # green while the one family it exists to prove was hardwired to never fire.
   rejects_projection() {
-    local description="$1"
-    shift
-    if [ -z "$(projection_offenders "$@")" ]; then
-      echo "❌ ${description}: the projection assertion accepted the sabotage" >&2
+    local description="$1" reason="$2"
+    shift 2
+    local offenders
+    offenders="$(projection_offenders "$@")"
+    if ! grep -qF "${reason}" <<<"${offenders}"; then
+      echo "❌ ${description}: the projection assertion did not report '${reason}'" >&2
+      printf '%s\n' "${offenders}" >&2
       exit 1
     fi
   }
@@ -230,9 +274,10 @@ labels)
   # object, an emptied selector, or a hook pod with no labels at all is an offender,
   # so this cannot pass by matching nothing.
   hook_offenders() {
-    local file="$1" prefix="$2" projection="$3" instance="$4"
+    local file="$1" prefix="$2" projection="$3" instance="$4" mode="${5:-present}"
+    assert_instance_mode "${mode}" "${instance}"
     yq eval-all -o=json '.' "${file}" | jq -s -r \
-      --arg prefix "${prefix}" --arg job "${hook_job}" --arg name "${hook_pod_name}" --arg component "${hook_component}" \
+      --arg prefix "${prefix}" --arg job "${hook_job}" --arg name "${hook_pod_name}" --arg component "${hook_component}" --arg mode "${mode}" \
       --argjson selectors "${selector_objects}" --argjson projection "${projection}" --argjson instance "${instance}" '
         def slot($key): "\($prefix)/\($key)";
         def selects($pod; $selector): ($selector | length) > 0
@@ -252,8 +297,13 @@ labels)
               | select($pod[slot(.key)] != .value or $podAnnotations[slot(.key)] != .value)
               | "Job/\($job) pod \(slot(.key)) label=\($pod[slot(.key)] // "absent") annotation=\($podAnnotations[slot(.key)] // "absent") want=\(.value)" )
           , ( $instance | to_entries[]
-              | select($podAnnotations[slot(.key)] != .value)
-              | "Job/\($job) pod \(slot(.key)) annotation=\($podAnnotations[slot(.key)] // "absent") want=\(.value)" )
+              | . as $want | slot(.key) as $at
+              | if $mode == "absent"
+                then select($podAnnotations | has($at))
+                  | "Job/\($job) pod \($at) annotation=\($podAnnotations[$at] | tojson) want=absent"
+                else select($podAnnotations[$at] != $want.value)
+                  | "Job/\($job) pod \($at) annotation=\($podAnnotations[$at] // "absent") want=\($want.value)"
+                end )
           , (($selectors - $ids)[] | "missing selector-bearing object \(.)")
           , ( $rendered[]
               | "\(.kind)/\(.metadata.name)" as $id
@@ -276,11 +326,21 @@ labels)
     fi
   }
 
+  # Same rule for the hook control, and here it is load-bearing. `hook_offenders`
+  # emits four independent families — workload name, component, projection, and the
+  # selector comparison — and the sabotage below trips three of them at once. A
+  # control that accepted any offender therefore never required the selector
+  # comparison to fire, so hardwiring `selects` to false left every isolation call
+  # passing vacuously AND this control still green. The named reason is what makes a
+  # neutered `selects` fail here.
   rejects_hook() {
-    local description="$1"
-    shift
-    if [ -z "$(hook_offenders "$@")" ]; then
-      echo "❌ ${description}: the hook-isolation assertion accepted the sabotage" >&2
+    local description="$1" reason="$2"
+    shift 2
+    local offenders
+    offenders="$(hook_offenders "$@")"
+    if ! grep -qF "${reason}" <<<"${offenders}"; then
+      echo "❌ ${description}: the hook-isolation assertion did not report '${reason}'" >&2
+      printf '%s\n' "${offenders}" >&2
       exit 1
     fi
   }
@@ -298,11 +358,23 @@ labels)
   # gate previously rendered six stacks, none of them preview, which is how a
   # dependency that hard-coded the physical pair went unreported.
   helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml --set global.instance.preview.enabled=true >"${tmp}/preview.yaml"
+  # An eighth stack with the instance pair emptied. Both halves empty is schema-valid
+  # and means no minted physical instance, which is the ordinary shape for a
+  # `charts/*` node that has none. It is asserted because the two object families
+  # record identity through different machinery: the wrapper's own annotations helper
+  # can omit a key, while `upstream.global.annotations` is a values MAP, whose keys a
+  # values file cannot make conditional. Without this stack the dependency's two
+  # objects wore both keys with empty values while the other thirteen wore neither —
+  # one release, two answers to "does this object belong to a physical instance".
+  helm template "${release}" chart --namespace "${namespace}" --set-string global.instance.original= --set-string global.instance.label= >"${tmp}/no-instance.yaml"
 
   carries_projection "the base stack projection" "${tmp}/base.yaml" atomi.cloud '' "${base_objects}" "${base_projection}" "${physical_instance}"
   carries_projection "the example stack projection" "${tmp}/example.yaml" atomi.cloud '' "${example_objects}" "${example_projection}" "${physical_instance}"
   carries_projection "the example+lapras stack projection" "${tmp}/lapras.yaml" atomi.cloud '' "${lapras_objects}" "${lapras_projection}" "${physical_instance}"
   carries_projection "the preview stack projection and recorded preview identity" "${tmp}/preview.yaml" atomi.cloud '' "${example_objects}" "${example_projection}" "${preview_instance}"
+  # Same object list, same exact projection, same missing-object coverage — only the
+  # instance arity changes, so this cannot pass by asserting less.
+  carries_projection "the empty-pair stack projection and absent recorded instance" "${tmp}/no-instance.yaml" atomi.cloud '' "${base_objects}" "${base_projection}" "${absent_instance}" absent
   # The override runs re-assert the same per-object truth under the new prefix and
   # additionally require that no key under the default prefix survives, so an
   # override that merely adds keys cannot pass. `example.dev` is a different number
@@ -319,22 +391,28 @@ labels)
   hook_is_isolated "the example stack hook pod identity" "${tmp}/example.yaml" atomi.cloud "${example_projection}" "${physical_instance}"
   hook_is_isolated "the example+lapras stack hook pod identity" "${tmp}/lapras.yaml" atomi.cloud "${lapras_projection}" "${physical_instance}"
   hook_is_isolated "the preview stack hook pod identity" "${tmp}/preview.yaml" atomi.cloud "${example_projection}" "${preview_instance}"
+  hook_is_isolated "the empty-pair stack hook pod identity" "${tmp}/no-instance.yaml" atomi.cloud "${base_projection}" "${absent_instance}" absent
   hook_is_isolated "the base stack hook pod identity under a prefix override" "${tmp}/base-override.yaml" example.dev "${base_projection}" "${physical_instance}"
   hook_is_isolated "the example+lapras stack hook pod identity under a prefix override" "${tmp}/lapras-override.yaml" example.dev "${lapras_projection}" "${physical_instance}"
 
-  # Two sabotage controls, each run against a throwaway copy of the chart so the
+  # Three sabotage controls, each run against a throwaway copy of the chart so the
   # working tree is never mutated. Each restores exactly the defect the assertion
-  # above exists to catch; if the render still reads as clean, the assertion is
-  # asserting nothing and this mode fails here rather than downstream.
+  # above exists to catch, and each demands the NAMED offender rather than any
+  # offender, so a control cannot stay green off a neighbouring assertion family
+  # while the one it exists to prove is hardwired to never fire.
   sabotage_chart() {
     rm -rf "${tmp}/sabotage"
     mkdir -p "${tmp}/sabotage"
     cp -R chart "${tmp}/sabotage/chart"
   }
 
-  # Control A: give the hook pod the primary workload's selector identity back. The
-  # rest of the projection is untouched, so only the selector comparison can catch
-  # it — and it must.
+  # Control A: give the hook pod the primary workload's selector identity back.
+  # Restoring `diene-helm-wrapper.labels` also drops the hook's component and resets
+  # its workload name, so three offender families fire at once — which is precisely
+  # why the required reason is the SELECTOR one. The selector comparison is the
+  # assertion the whole hook-isolation gate exists for, and demanding its exact
+  # sentence is what makes a `selects` hardwired to false fail here instead of
+  # sailing through on the name and component offenders.
   sabotage_chart
   sed -i 's#include "diene-helm-wrapper.hookLabels" (dict "root" . "token" "migration") | nindent 8#include "diene-helm-wrapper.labels" . | nindent 8#' "${tmp}/sabotage/chart/templates/migration-job.yaml"
   grep -qF 'diene-helm-wrapper.labels" . | nindent 8' "${tmp}/sabotage/chart/templates/migration-job.yaml" || {
@@ -343,6 +421,7 @@ labels)
   }
   helm template "${release}" "${tmp}/sabotage/chart" --namespace "${namespace}" >"${tmp}/sabotaged-hook.yaml"
   rejects_hook "restoring the primary selector identity on the migration pod" \
+    "selects the Job/${hook_job} pod" \
     "${tmp}/sabotaged-hook.yaml" atomi.cloud "${base_projection}" "${physical_instance}"
 
   # Control B: hard-code the pinned dependency's instance annotations back to the
@@ -363,7 +442,34 @@ labels)
     "${tmp}/sabotaged-physical.yaml" atomi.cloud '' "${example_objects}" "${example_projection}" "${physical_instance}"
   helm template "${release}" "${tmp}/sabotage/chart" --namespace "${namespace}" --values chart/values.example.yaml --set global.instance.preview.enabled=true >"${tmp}/sabotaged-preview.yaml"
   rejects_projection "hard-coded physical instance annotations on the pinned dependency under preview" \
+    "Deployment/wrapper-upstream: atomi.cloud/instance-original annotation=${instance_original} want=${preview_petname}" \
     "${tmp}/sabotaged-preview.yaml" atomi.cloud '' "${example_objects}" "${example_projection}" "${preview_instance}"
+
+  # Control C: stop omitting an empty-valued upstream global metadata entry, which is
+  # the pre-fix emission — a values map always carries its keys, so the dependency's
+  # two objects wore `<prefix>/instance-original` and `-label` with empty values while
+  # every wrapper-owned object omitted both. Every non-empty entry is unaffected, so
+  # this is invisible in each of the seven stacks above, exactly as the defect was;
+  # only the empty-pair stack can catch it, and it must — by name, on the dependency's
+  # object, so a projection or missing-object offender cannot stand in for it.
+  sabotage_chart
+  # Go template text, not a shell expansion: the single quotes are what keep
+  # `$renderedValue` the template variable this replaces.
+  # shellcheck disable=SC2016
+  sed -i 's#{{- if $renderedValue }}#{{- if true }}#' "${tmp}/sabotage/chart/templates/_helpers.tpl"
+  # shellcheck disable=SC2016
+  if grep -qF '{{- if $renderedValue }}' "${tmp}/sabotage/chart/templates/_helpers.tpl" ||
+    ! grep -qF '{{- if true }}' "${tmp}/sabotage/chart/templates/_helpers.tpl"; then
+    echo "❌ the empty-valued upstream metadata sabotage did not apply; its control proves nothing" >&2
+    exit 1
+  fi
+  helm template "${release}" "${tmp}/sabotage/chart" --namespace "${namespace}" >"${tmp}/sabotaged-present.yaml"
+  carries_projection "the empty-valued upstream metadata sabotage must stay invisible with a recorded pair, or the empty-pair control below proves nothing else" \
+    "${tmp}/sabotaged-present.yaml" atomi.cloud '' "${base_objects}" "${base_projection}" "${physical_instance}"
+  helm template "${release}" "${tmp}/sabotage/chart" --namespace "${namespace}" --set-string global.instance.original= --set-string global.instance.label= >"${tmp}/sabotaged-no-instance.yaml"
+  rejects_projection "empty-valued instance annotations on the pinned dependency when no instance is recorded" \
+    'Deployment/wrapper-upstream: atomi.cloud/instance-original annotation="" want=absent' \
+    "${tmp}/sabotaged-no-instance.yaml" atomi.cloud '' "${base_objects}" "${base_projection}" "${absent_instance}" absent
 
   # A prefix that cannot be a Kubernetes label-key prefix is refused at BOTH
   # boundaries independently — once by the generated values schema before a

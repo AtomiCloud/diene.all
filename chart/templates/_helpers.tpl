@@ -401,7 +401,22 @@ app.kubernetes.io/managed-by: {{ $root.Release.Service }}
   render, including when the wrapper is rendered from a packaged archive. These
   two definitions reproduce the upstream emission byte-for-byte — one leading
   newline per entry, the value `tpl`-rendered against the dependency context, no
-  trailing newline — and add exactly one thing: the key is `tpl`-rendered too.
+  trailing newline — and deviate in exactly TWO deliberate ways:
+
+  1. The key is `tpl`-rendered too, so `global.labelPrefix` reaches an upstream
+     key exactly as it reaches a wrapper-owned one.
+  2. An entry whose rendered value is EMPTY is omitted rather than emitted with
+     an empty value. A values map always carries its keys, so upstream's
+     emission cannot express "this object records nothing"; the wrapper's own
+     `annotations` helper can, and does, for the recorded instance pair. Both
+     halves empty is a schema-valid configuration meaning no minted physical
+     instance, so without this the same release would record two different
+     things: thirteen wrapper-owned objects with neither instance key and the
+     dependency's two wearing both keys with empty values — false-positiving
+     anything that reads presence of `<prefix>/instance-label` as "this object
+     belongs to a physical instance". Metadata-key validation still runs on
+     every key that IS emitted; only the empty-valued entry is skipped, and no
+     projection slot or reloader annotation is ever empty, so none is dropped.
 
   `scripts/validate/helm-wrapper.sh labels` re-checks that pinned interface
   against the vendored archive before it asserts a projection, so a dependency
@@ -421,8 +436,11 @@ app.kubernetes.io/managed-by: {{ $root.Release.Service }}
 {{- $slot := .slot -}}
 {{- range $key, $value := .entries }}
 {{- $renderedKey := tpl $key $root }}
+{{- $renderedValue := tpl $value $root }}
+{{- if $renderedValue }}
 {{- include "diene-helm-wrapper.assertMetadataKey" (dict "slot" $slot "key" $renderedKey) }}
-{{ $renderedKey }}: {{ tpl $value $root | quote }}
+{{ $renderedKey }}: {{ $renderedValue | quote }}
+{{- end }}
 {{- end }}
 {{- end -}}
 
