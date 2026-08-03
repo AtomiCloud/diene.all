@@ -119,10 +119,18 @@ pre-commit-lib.run {
       language = "system";
     };
 
+    # Source following belongs to the gate itself, not to an ambient SHELLCHECK_OPTS:
+    # pre-commit partitions the staged files, so a script and the script it sources
+    # routinely land in different batches, and bare ShellCheck then raises SC1091 on
+    # healthy sources. `-x` follows a declared `source=`, and `--source-path=SCRIPTDIR`
+    # adds the checked script's own directory so script-relative directives resolve
+    # too, on top of the repository-root-relative ones the working directory already
+    # covers. Findings from the sourced file stay out of the report (that would need
+    # `-a`), so the gate gains resolution without gaining noise.
     a-shellcheck = {
       enable = true;
       name = "Shellcheck";
-      entry = "${packages.shellcheck}/bin/shellcheck";
+      entry = "${packages.shellcheck}/bin/shellcheck -x --source-path=SCRIPTDIR";
       files = ".*\\.sh$";
       pass_filenames = true;
       language = "system";
