@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedBecause } from './lib/helpers.ts';
 
 export default {
   contractVersion: 1,
@@ -19,7 +19,12 @@ export default {
       expectedImpact: [],
       async run(repo: any) {
         await repo.exec('chmod -x scripts/release/bump.sh');
-        await expectRed(repo, 'nix develop .#ci -c pre-commit run a-enforce-exec --all-files', 'hook-enforce-exec');
+        await expectRedBecause(
+          repo,
+          'nix develop .#ci -c pre-commit run a-enforce-exec --all-files',
+          'hook-enforce-exec',
+          ["'scripts/release/bump.sh' is tracked but not executable"],
+        );
       },
     },
   ],

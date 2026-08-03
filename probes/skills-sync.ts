@@ -25,7 +25,7 @@
 // this node.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedBecause } from './lib/helpers.ts';
 
 const externalGoModule = 'github.com/AtomiCloud/diene.go-fixture';
 const goModFixture = `module example.com/app\n\ngo 1.22\n\nrequire ${externalGoModule} v0.1.0\n`;
@@ -409,10 +409,11 @@ export default {
           replace:
             'mkdir -p "${staging}/diene.injected"; : >"${staging}/diene.injected/SKILL.md"\nrm -rf "${vendor_dir}"\n',
         });
-        await expectRed(
+        await expectRedBecause(
           repo,
-          `nix develop .#ci -c bash -c 'set -euo pipefail; ${isolateRealNodePackages}; ./scripts/local/skills-sync.sh; test -z "$(find ${vendorDir} -mindepth 1 -maxdepth 1 -name "diene.*" -print -quit)"'`,
+          `nix develop .#ci -c bash -c 'set -euo pipefail; ${isolateRealNodePackages}; ./scripts/local/skills-sync.sh; unexpected="$(find ${vendorDir} -mindepth 1 -maxdepth 1 -name "diene.*" -print -quit)"; if [ -n "$unexpected" ]; then printf "unexpected undeclared diene package in vendor tree: %s\\n" "$unexpected" >&2; exit 1; fi'`,
           'skills-sync',
+          ['unexpected undeclared diene package in vendor tree', 'diene.injected'],
         );
       },
     },

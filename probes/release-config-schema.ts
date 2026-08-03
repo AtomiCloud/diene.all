@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedBecause } from './lib/helpers.ts';
 
 export default {
   contractVersion: 1,
@@ -46,10 +46,11 @@ export default {
         );
         await repo.write(path, mutated);
 
-        await expectRed(
+        await expectRedBecause(
           repo,
           'nix develop .#ci -c ./scripts/validate/release-config.sh schema',
           'release-config-schema',
+          ['canonical releaser configuration is invalid'],
         );
       },
     },

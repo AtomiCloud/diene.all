@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedBecause } from './lib/helpers.ts';
 
 const GATE = 'nix develop .#ci -c ./scripts/validate/workflows.sh cache-tag-shape';
 const PRECOMMIT = '.github/workflows/⚡reusable-precommit.yaml';
@@ -28,22 +28,7 @@ async function rewrite(repo: any, path: string, edits: Edit[]): Promise<void> {
   await repo.write(path, source);
 }
 
-// An arm may name the refusal it expects. A mutation that turns the gate red for
-// some other reason — broken YAML, a label the mutation did not mean to touch —
-// would assert nothing about the mechanism the arm exists to protect, and the two
-// classifier arms below are exactly where that confusion is easy to miss.
-async function expectRedBecause(repo: any, reason: string): Promise<void> {
-  const result = await repo.exec(GATE, { timeoutMs: 240000 });
-  if (result.exitCode === 0) {
-    throw new Error('cache-tag-shape stayed green after sabotage');
-  }
-  const output = `${result.stderr}\n${result.stdout}`;
-  if (!output.includes(reason)) {
-    throw new Error(`cache-tag-shape turned red for the wrong reason (expected '${reason}'): ${output.trim()}`);
-  }
-}
-
-function caught(name: string, description: string, path: string, edits: Edit[], reason?: string) {
+function caught(name: string, description: string, path: string, edits: Edit[], reason: string) {
   return {
     name,
     description,
@@ -51,11 +36,7 @@ function caught(name: string, description: string, path: string, edits: Edit[], 
     expectedImpact: [],
     async run(repo: any) {
       await rewrite(repo, path, edits);
-      if (reason === undefined) {
-        await expectRed(repo, GATE, 'cache-tag-shape');
-      } else {
-        await expectRedBecause(repo, reason);
-      }
+      await expectRedBecause(repo, GATE, 'cache-tag-shape', [reason]);
     },
   };
 }
@@ -74,7 +55,7 @@ function caughtSequence(name: string, description: string, path: string, stages:
     async run(repo: any) {
       for (const stage of stages) {
         await rewrite(repo, path, stage.edits);
-        await expectRedBecause(repo, stage.reason);
+        await expectRedBecause(repo, GATE, 'cache-tag-shape', [stage.reason]);
       }
     },
   };
@@ -127,6 +108,7 @@ export default {
       'A Nix-store job that drops the -with-cache venue together with both cache metadata labels — the shape that made live run 30670113046 fail — must turn the S31 gate red instead of passing as a deliberate isolation lane.',
       PRECOMMIT,
       [{ find: CACHED_VENUE, replace: '      - nscloud-ubuntu-26.04-amd64-16x32' }],
+      'uses the Nix store on a bare venue that cannot attach a cache volume',
     ),
     caught(
       'mutation-cache-tag-shape-caught',
@@ -138,6 +120,7 @@ export default {
           replace: 'nscloud-cache-tag-atomi-nix-store-cache-ubuntu-24.04-amd64',
         },
       ],
+      "cache tag must be 'nscloud-cache-tag-atomi-nix-store-cache-ubuntu-26.04-amd64'",
     ),
     caught(
       'mutation-cache-tag-on-bare-venue-caught',
@@ -149,6 +132,7 @@ export default {
           replace: 'nscloud-ubuntu-26.04-amd64-16x32',
         },
       ],
+      'must not attach Namespace cache metadata to a bare venue',
     ),
     caught(
       'mutation-non-nix-cache-claim-caught',
@@ -189,6 +173,7 @@ export default {
           replace: '    env:\n      S31_CACHE_EXEMPT_REASON: probe-only stale exemption\n    steps:',
         },
       ],
+      'records env.S31_CACHE_EXEMPT_REASON while selecting a cache-capable -with-cache venue',
     ),
     caught(
       'mutation-nix-on-hosted-runner-caught',
@@ -204,18 +189,21 @@ export default {
           ].join('\n'),
         },
       ],
+      'uses the Nix store on a GitHub-hosted runner',
     ),
     caught(
       'mutation-default-runner-label-caught',
       'A default runner label in place of the exact S31 GitHub-hosted primary must turn the S31 gate red.',
       GATEKEEPER,
       [{ find: 'runs-on: ubuntu-26.04', replace: 'runs-on: ubuntu-latest' }],
+      "has unsupported runner labels 'ubuntu-latest'",
     ),
     caught(
       'mutation-unrecorded-fallback-caught',
       'Selecting the 24.04 fallback without env.S31_RUNNER_FALLBACK_REASON must turn the S31 gate red.',
       GATEKEEPER,
       [{ find: 'runs-on: ubuntu-26.04', replace: 'runs-on: ubuntu-24.04' }],
+      'selects an S31 fallback without env.S31_RUNNER_FALLBACK_REASON',
     ),
     caught(
       'mutation-combined-namespace-labels-caught',
@@ -228,6 +216,7 @@ export default {
             '      - nscloud-ubuntu-26.04-amd64-16x32-with-cache\n      - nscloud-ubuntu-24.04-amd64-16x32-with-cache',
         },
       ],
+      'must select exactly one S31 primary or fallback venue label',
     ),
   ],
 };
