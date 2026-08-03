@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-root_dir="$(git rev-parse --show-toplevel)"
-cd "${root_dir}"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "${ROOT_DIR}"
 
 echo "📦 Installing dependencies..."
 bun install --frozen-lockfile
 
-echo "📝 Repository dead-code review"
+echo "📝 Repo dead-code review"
 ./node_modules/.bin/knip --config knip.llm.json --no-exit-code
 
 echo "📝 Production dead-code review"

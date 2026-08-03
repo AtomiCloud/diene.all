@@ -1,7 +1,4 @@
-# ### bun-base-reusable-test
-# #### source: bun-base
 name: ⚡ Reusable Tests
-
 on:
   workflow_call:
     inputs:
@@ -12,7 +9,6 @@ on:
     secrets:
       CODECOV_TOKEN:
         required: false
-
 jobs:
   test:
     name: ${{ inputs.mode == 'int' && 'Integration Tests' || 'Unit Tests' }}
@@ -26,7 +22,7 @@ jobs:
       - name: Run ${{ inputs.mode }} tests
         env:
           TEST_MODE: ${{ inputs.mode }}
-        run: nix develop .#ci -c ./scripts/ci/test.sh "$TEST_MODE"
+        run: nix develop .#ci -c ./scripts/ci/test.sh "${TEST_MODE}"
       - name: Upload ${{ inputs.mode }} coverage artifact
         if: always()
         uses: actions/upload-artifact@v7

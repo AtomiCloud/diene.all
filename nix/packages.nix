@@ -3,7 +3,6 @@
   pkgs,
   pkgs-2605,
   pkgs-unstable,
-  releaser-pkg,
 }:
 let
   cyanprintVersion = "4.9.0";
@@ -46,8 +45,6 @@ let
     meta.mainProgram = "cyanprint";
   };
   all = rec {
-    # ### nix-root
-    # #### source: main
     atomipkgs = (
       with atomi;
       {
@@ -56,52 +53,37 @@ let
           infralint
           infrautils
           pls
+          sg
           ;
       }
     );
 
-    # ### workspace
-    # #### source: workspace
     nix-2605 = (
       with pkgs-2605;
       {
         inherit
           actionlint
-          bash
-          # ### bun-base-packages
-          # #### source: bun-base
           bun
-          docker-client
           git
           go-task
           infisical
-          jq
           kubeconform
-          kubernetes-helm
           kyverno
+          nodejs
           pre-commit
           ripgrep
           shellcheck
           skopeo
           treefmt
-          yq-go
           ;
       }
     );
 
-    # ### nix-unstable
-    # #### source: main
     nix-unstable = (
       with pkgs-unstable;
       {
       }
     );
-
-    # ### bun-base-releaser
-    # #### source: bun-base
-    releaser-pkgs = {
-      releaser = releaser-pkg;
-    };
 
     root = {
       inherit cyanprint;
@@ -109,4 +91,4 @@ let
   };
 in
 with all;
-atomipkgs // nix-2605 // nix-unstable // releaser-pkgs // root
+atomipkgs // nix-2605 // nix-unstable // root

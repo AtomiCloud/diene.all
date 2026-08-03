@@ -2,27 +2,41 @@
 
 ## Agent Context
 
-- Working directory: repo root
+The orchestrator provides every run-bound value. Do not read state files to
+discover them.
+
+- Working directory: repository root
 - Doc plan: `.contributor-docs/doc-plan.yaml`
-- Docs root: from `task-state.json` `docsRoot` field
+- Docs root: the `task-state.json.docsRoot` value supplied by the orchestrator
+- Authorized plan SHA-256: `{PLAN_SHA256}`, the exact
+  `write-state.json.authorizedPlanHash` supplied after audit-state assessment
+- Audit epoch: `{auditEpoch}`, a positive integer supplied by the orchestrator
+- Docs digest: `{docsDigest}`, the current epoch's 64-character lowercase digest
 - Docs references:
   - `docs/standards/contributor-docs/structure.md` — expected folder structure
   - `docs/standards/contributor-docs/checklist.md` — formatting rules
 
 ## Agent Report Format
 
-```
+```text
 RESULT: <success|error>
-ISSUES_FOUND: <count>
+AUDIT_EPOCH: <positive integer>
+DOCS_DIGEST: <64 lowercase hex>
+PLAN_SHA256: <64 lowercase hex>
+ERRORS_FOUND: <count>
+WARNINGS_FOUND: <count>
 REPORT_FILE: .contributor-docs/big-picture-report.md
 ERROR: <error message if any>
 ```
 
-**Do NOT update state files.** Report back to orchestrator only.
+**Do not update state files.** Report back to the orchestrator only.
 
 ## Task
 
-Perform a holistic audit of the generated documentation. Read all doc files at a high level (frontmatter + H2 headings + first paragraph per section). Check structural coherence, coverage, cross-references, and terminology. Write a report.
+Perform a holistic audit of the generated documentation. Read all document files
+at a high level (frontmatter, H2 headings, and the first paragraph per section).
+Check structural coherence, coverage, cross-references, and terminology. Write a
+stamped report for the supplied epoch, docs digest, and authorized plan identity.
 
 ## What to Check
 
@@ -34,14 +48,17 @@ Perform a holistic audit of the generated documentation. Read all doc files at a
 
 ### 2. Coverage
 
-- Does every capability identified in `.contributor-docs/diff-summary.md` have corresponding documentation?
-- Are there obvious gaps (e.g., a feature with no concept explaining its "why")?
-- Do features that have complex logic have corresponding algorithm docs?
+- Does every capability identified in `.contributor-docs/diff-summary.md` have
+  corresponding documentation?
+- Are there obvious gaps, such as a feature with no concept explaining its
+  "why"?
+- Do features with complex logic have corresponding algorithm docs?
 
 ### 3. Cross-Reference Integrity
 
-- Do all `related`, `concepts`, `algorithms`, `surfaces` paths in frontmatter resolve to real files?
-- Do all inline `[text](path)` links resolve to real files?
+- Do all `related`, `concepts`, `algorithms`, and `surfaces` paths in
+  frontmatter resolve to real files?
+- Do all inline links resolve to real files?
 - Are there orphan files not linked from any index or other file?
 - Are cross-links bidirectional where appropriate?
 
@@ -63,38 +80,92 @@ Perform a holistic audit of the generated documentation. Read all doc files at a
 
 ## Steps
 
-### 1. Read All Files (High Level)
+### 0. Bind the Authorized Plan
 
-For each doc file under the docs root:
+Before inspecting a reusable report, reading documentation, or consuming any plan
+metadata, hash the exact, complete bytes of `.contributor-docs/doc-plan.yaml` and
+require equality with the supplied 64-character lowercase `{PLAN_SHA256}`. A missing
+plan or mismatch is
+`PLAN_DRIFT_BLOCKED: expected={PLAN_SHA256} actual=<hash-or-absent>`: do not reuse,
+replace, or create the report and do not continue the audit.
 
-1. Read the full frontmatter
-2. Read the H2 headings
-3. Read the first paragraph after each H2
+The orchestrator obtained this value from a full audit-state assessment of the
+immutable approved-plan and discovered-gap authority chain. This agent verifies that
+identity but never authorizes a different live plan.
 
-Do NOT read full file content. Focus on structure and metadata.
+### 1. Check for a Current Report
 
-### 2. Read the Plan
+If `.contributor-docs/big-picture-report.md` exists, read only enough to inspect
+its machine-readable header and summary:
 
-Read `.contributor-docs/doc-plan.yaml` and `.contributor-docs/diff-summary.md` for what was planned vs what was built.
+- Reuse it only when `audit-epoch`, `docs-digest`, and `plan-sha256` exactly match the
+  supplied values and its summary is complete.
+- A report with no stamp, a malformed stamp, or any mismatch is stale.
+  Overwrite it by regenerating from step 2; never return its counts.
 
-### 3. Run Each Check
+Immediately before returning a reusable report, freshly hash the exact live plan and
+require equality with `{PLAN_SHA256}`. A mismatch is `PLAN_DRIFT_BLOCKED`, not a stale
+report to count or overwrite.
 
-Evaluate each of the 6 check categories above. For each issue found, record:
+A repair reset always increments the epoch, so a prior repair's report cannot
+pass this check. Same-epoch reuse exists only for crash recovery.
 
-- **Category**: which check (structural, coverage, cross-ref, terminology, navigation, index)
-- **Severity**: error (must fix) or warning (should fix)
-- **File(s)**: affected file path(s)
-- **Description**: what the issue is and how to fix it
+### 2. Read All Files at a High Level
 
-### 4. Write Report
+For each document file under the docs root:
 
-Write `.contributor-docs/big-picture-report.md`:
+1. Read the full frontmatter.
+2. Read the H2 headings.
+3. Read the first paragraph after each H2.
+
+Do not read full file content. Focus on structure and metadata.
+
+### 3. Read the Plan
+
+Freshly hash `.contributor-docs/doc-plan.yaml` and require equality with
+`{PLAN_SHA256}` immediately before parsing it. Then read that exact plan and
+`.contributor-docs/diff-summary.md` for what was planned versus built.
+
+### 4. Run Each Check
+
+Evaluate each of the six check categories above. For every finding, record:
+
+- **Category**: structural, coverage, cross-reference, terminology, navigation,
+  or index
+- **Severity**: error (must fix) or warning (non-blocking)
+- **File(s)**: affected file paths
+- **Description**: what is wrong and how to fix it
+
+### 5. Write the Report
+
+Write `.contributor-docs/big-picture-report.md` with the three comments immediately
+after the title. Substitute the exact supplied values; do not copy the example values
+literally. Render the complete report to a staged temp file in `.contributor-docs/`
+before changing the canonical path, and hold no lock while rendering.
+
+The install is one authority transaction from
+[workflow.md](../workflow.md#authority-transaction): acquire the canonical lock,
+freshly hash the exact live plan and require equality with `{PLAN_SHA256}`, recheck the
+epoch and docs digest supplied to this run against freshly read `audit-state.json`, and
+then freshly recheck those preimages and the prior report's exact bytes or proven
+absence while holding the lock before an ordinary atomic rename over the report. On a
+mismatch observed by that final check, remove the temp file, leave the prior report
+byte-identical, and return `PLAN_DRIFT_BLOCKED`; on contention return `AUTHORITY_BUSY`
+and install nothing. The compliant-writer scope of the final check is defined by
+[Authority Transaction](../workflow.md#authority-transaction).
 
 ```markdown
 # Big Picture Audit Report
 
+<!-- audit-epoch: {auditEpoch} -->
+<!-- docs-digest: {docsDigest} -->
+<!-- plan-sha256: {PLAN_SHA256} -->
+
 ## Summary
 
+- Audit epoch: {auditEpoch}
+- Docs digest: {docsDigest}
+- Plan SHA-256: {PLAN_SHA256}
 - Errors: <count>
 - Warnings: <count>
 - Files audited: <count>
@@ -119,21 +190,42 @@ Write `.contributor-docs/big-picture-report.md`:
 
 ## Pass
 
-- <list of checks that passed cleanly>
+- <checks that passed cleanly>
 ```
 
-### 5. Report
+When a severity has no findings, state `None.` under that heading. Write the
+whole report for this invocation; do not merge current results into an older
+report.
 
-Report the result with issue count and report file path.
+Every warning is one contiguous item beginning with a level-four heading in the
+exact form `#### N. <description>`. Its byte range ends immediately before the next
+level-four item, the next level-three section, or end of file. Do not put two warnings
+under one item heading. This boundary lets the state-agent derive an exact
+`findingHash` and description for warning acceptance without trusting a caller summary.
 
-## Resumability
+### 6. Report
 
-- If `.contributor-docs/big-picture-report.md` already exists: report success with existing issue count
-- If not: start from Step 1
+Freshly hash the exact live plan immediately before returning. Return the exact epoch,
+digest, `PLAN_SHA256`, separate error and warning counts, and the canonical report
+path only when it still matches. The orchestrator verifies all three on-disk comments
+before it updates state. At acceptance the audit state-agent rehashes the live plan
+and requires the report value, `authorizedPlanHash`, and fresh hash to be equal;
+otherwise it returns `PLAN_DRIFT_BLOCKED` without changing state or artifacts.
+
+## Artifact Binding
+
+The report is evidence only for the exact `auditEpoch`, `docsDigest`, and
+`PLAN_SHA256` stamped inside it. A missing or mismatched comment makes it stale
+regardless of its counts, modification time, or filename. Stale reports are
+regenerated and never accepted as a completed audit arm. Evidence from an
+unauthorized plan cannot advance the audit.
 
 ## Important
 
-- Do NOT update state files
-- Do NOT fix any issues — only report them
-- Do NOT read full file content — stick to frontmatter + H2 headings + first paragraphs
-- Do NOT read source code — that's the fact-checker's job
+- Do not update or read state files.
+- Do not consume plan metadata or write/reuse a report unless the exact live plan
+  hashes to `PLAN_SHA256`.
+- Do not fix findings; only report them.
+- Do not read full document content; use frontmatter, H2 headings, and first
+  paragraphs.
+- Do not read source code; that is the fact-checker's task.

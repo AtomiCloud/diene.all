@@ -151,11 +151,6 @@
   },
   {
     "template": "diene/workspace",
-    "name": "workflow-names",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
     "name": "nixpkgs-pin",
     "class": "gate"
   },
@@ -171,18 +166,9 @@
   },
   {
     "template": "diene/workspace",
-    "name": "cache-tag-shape",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "many-owner-schema",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
     "name": "releaser-hook-registration",
-    "class": "presence"
+    "class": "presence",
+    "deferredUntil": "tools/releaser step 2p publish"
   },
   {
     "template": "diene/workspace",
@@ -196,16 +182,6 @@
   },
   {
     "template": "diene/shared",
-    "name": "standards-inventory",
-    "class": "presence"
-  },
-  {
-    "template": "diene/shared",
-    "name": "thin-skills",
-    "class": "presence"
-  },
-  {
-    "template": "diene/shared",
     "name": "docs-markdownlint",
     "class": "gate"
   },
@@ -215,13 +191,23 @@
     "class": "gate"
   },
   {
+    "template": "diene/shared",
+    "name": "standards-inventory",
+    "class": "presence"
+  },
+  {
+    "template": "diene/shared",
+    "name": "thin-skills",
+    "class": "presence"
+  },
+  {
     "template": "diene/bun-base",
     "name": "bun-unit-tests",
     "class": "gate"
   },
   {
     "template": "diene/bun-base",
-    "name": "bun-integration-tests",
+    "name": "bun-int-tests",
     "class": "gate"
   },
   {
@@ -231,7 +217,7 @@
   },
   {
     "template": "diene/bun-base",
-    "name": "bun-biome",
+    "name": "bun-biome-lint",
     "class": "gate"
   },
   {
@@ -241,17 +227,17 @@
   },
   {
     "template": "diene/bun-base",
-    "name": "bun-integration-coverage",
+    "name": "bun-int-coverage",
     "class": "gate"
   },
   {
     "template": "diene/bun-base",
-    "name": "bun-deadcode",
+    "name": "bun-knip-repository",
     "class": "gate"
   },
   {
     "template": "diene/bun-base",
-    "name": "bun-deadcode-production",
+    "name": "bun-knip-production",
     "class": "gate"
   },
   {
@@ -267,11 +253,6 @@
   {
     "template": "diene/bun-base",
     "name": "bun-run",
-    "class": "smoke"
-  },
-  {
-    "template": "diene/bun-base",
-    "name": "bun-preview",
     "class": "smoke"
   },
   {

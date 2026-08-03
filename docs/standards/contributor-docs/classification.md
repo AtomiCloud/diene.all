@@ -6,30 +6,46 @@ When analyzing a codebase to generate contributor docs, every change needs to be
 
 ## Decision Flowchart
 
+Classification is **not** a single path to one answer. One capability routinely
+produces several documents. Run every question below against the change and collect
+each "yes" — they are independent, not alternatives.
+
 ```mermaid
 flowchart TD
-    A[Code change] --> B{Is it an external interface?}
-    B -->|Yes| S[Surface]
-    B -->|No| C{Is it a noteworthy capability?}
-    C -->|Yes| F[Feature]
-    C -->|No| D{Is the logic non-trivially complex?}
-    D -->|Yes| AL[Algorithm]
-    D -->|No| E{Does it require background explanation?}
-    E -->|Yes| CO[Concept]
-    E -->|No| N[Not documented separately]
+    A[Code change] --> Q1{Is it a noteworthy capability?}
+    A --> Q2{Does it expose an external interface?}
+    A --> Q3{Is the logic non-trivially complex?}
+    A --> Q4{Does it need >5 lines of background or 'why'?}
+    A --> Q5{Was a reasonable alternative rejected?}
 
-    F --> F2{Does explaining it require >5 lines of 'why'?}
-    F2 -->|Yes| CO2[Also create a Concept]
-    F2 -->|No| F3[Feature only]
+    Q1 -->|Yes| F[Feature file]
+    Q2 -->|Yes| S[Surface file per endpoint/command]
+    Q3 -->|Yes| AL[Algorithm file]
+    Q4 -->|Yes| CO[Concept file]
+    Q5 -->|Yes| ADR[ADR]
 
-    F --> F4{Does it have non-obvious implementation?}
-    F4 -->|Yes| AL2[Also create an Algorithm]
-    F4 -->|No| F5[Feature only]
+    Q1 -->|No| N1[no Feature]
+    Q2 -->|No| N2[no Surface]
+    Q3 -->|No| N3[no Algorithm]
+    Q4 -->|No| N4[no Concept]
+    Q5 -->|No| N5[no ADR]
 
-    F --> F6{Does it expose an external interface?}
-    F6 -->|Yes| S2[Also create Surface files]
-    F6 -->|No| F7[Feature only]
+    F -.links to.-> S
+    F -.links to.-> AL
+    F -.links to.-> CO
 ```
+
+If every answer is "no", the change is not documented separately.
+
+**Why independent questions.** An HTTP endpoint that also has interesting mechanics
+is both a Feature and a Surface: the Feature explains what the capability does and
+why, the Surface documents the wire contract. A single-path chart that routes every
+external interface straight to Surface can never produce that pair, and makes the
+"also create a Surface" branch unreachable from Feature. Being externally exposed and
+being worth a Feature write-up are simply different properties.
+
+**The Feature is the hub.** When a change yields several documents, the Feature file
+links out to the Surface, Algorithm and Concept files rather than repeating them.
 
 ---
 
@@ -127,6 +143,11 @@ This is contributor documentation, not user documentation. Features don't need t
 | CLI          | Command (e.g., `cache clear`)             |
 | SDK          | Public method or function                 |
 | Event        | Event type (e.g., `user.created`)         |
+
+**A Surface does not replace a Feature.** Ask both questions. A webhook retry endpoint
+with backoff produces a Surface (the wire contract) _and_ a Feature (how retry and
+backoff actually behave) _and_ likely an Algorithm (the backoff schedule and why that
+one). Documenting only the Surface loses everything a contributor needs.
 
 ---
 

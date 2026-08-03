@@ -1,29 +1,40 @@
-import { expectBunGreen, expectBunRed } from './lib/bun-command.ts';
+import { BUN_PROBE_SANDBOX, BUN_PROBE_SETUP } from './lib/bun.ts';
+import { expectGreen, expectRedBecause } from './lib/helpers.ts';
 
-const command = "nix develop .#ci -c bash -lc './scripts/local/setup.sh && pre-commit run typecheck --all-files'";
+const gate = 'nix develop --no-write-lock-file .#ci -c pre-commit run a-typecheck --all-files';
 
 export default {
   contractVersion: 1,
-  sandbox: { snapshot: 'git', preserve: ['.direnv'] },
+  sandbox: BUN_PROBE_SANDBOX,
+  setup: BUN_PROBE_SETUP,
   probes: [
     {
       name: 'baseline-bun-typecheck-green',
-      description: 'The generated typecheck hook accepts the strict TypeScript source.',
+      description: 'The strict TypeScript typecheck hook accepts the sample source and tests.',
       kind: 'baseline',
       async run(repo: any) {
-        await expectBunGreen(repo, command, 'bun-typecheck');
+        await expectGreen(repo, gate, 'bun-typecheck');
       },
     },
     {
       name: 'mutation-bun-typecheck-caught',
-      description: 'A TypeScript assignment error turns the typecheck hook red.',
+      description: 'A wrong return type must be refused as TS2322, not merely fail.',
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        const path = (await repo.glob('src/lib/**/*.ts')).sort()[0];
-        if (!path) throw new Error('no TypeScript library source found');
-        await repo.write(path, `${await repo.read(path)}\nconst probeTypeError: string = 1;\nvoid probeTypeError;\n`);
-        await expectBunRed(repo, command, 'bun-typecheck');
+        const paths = (await repo.glob('src/lib/**/*.ts')).sort();
+        if (paths.length === 0) {
+          throw new Error('no domain source file found to break the type of');
+        }
+        const path = paths[0];
+        const source = await repo.read(path);
+        // A top-level local, not an exported function: it runs on import so coverage stays whole,
+        // and it exports nothing so Knip stays quiet. `void` keeps Biome's noUnusedVariables happy.
+        await repo.write(
+          path,
+          `${source.trimEnd()}\n\n// Probe sabotage: a local type mismatch TypeScript must refuse.\nconst probeTypeError: number = 'not a number';\nvoid probeTypeError;\n`,
+        );
+        await expectRedBecause(repo, gate, 'bun-typecheck', ['error TS2322', path]);
       },
     },
   ],

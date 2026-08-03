@@ -1,4 +1,7 @@
-const topics = [
+// The twelve language-agnostic topics this node owns. Parent-owned tooling
+// standards are deliberately absent: their skill names do not track their
+// directory names, and asserting them here would be a topology check.
+export const topics = [
   'authorization',
   'contributor-docs',
   'datetime',

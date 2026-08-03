@@ -1,71 +1,31 @@
 # Diene workspace baseline
 
-<!-- ### nix-root -->
-<!-- #### source: main -->
-
 Diene's reproducible development environment is managed by Nix. Run `direnv allow` once, then use `pls` tasks from the loaded shell.
-
-<!-- ### workspace -->
-<!-- #### source: workspace -->
 
 This branch is the all-features workspace baseline inherited by every downstream sample: split CI/CD, Docker, secrets, release configuration, validators, standards, and vendored agent-skill synchronization.
 
+Bun-specific commands, test tiers, coverage artifacts, and runtime behavior are
+documented in [the Bun baseline](docs/developer/bun-baseline.md). TypeScript
+guidance is linked from the relevant sections of [`CLAUDE.md`](CLAUDE.md).
+
 ## Commands
 
-- `pls setup` — synchronize installed diene package skills.
-- `pls lint` — run every pre-commit gate.
-- `pls docker:build` — build the local stub image.
-- `pls secret:scan` — scan tracked content for secrets.
-- `pls skills:sync` — rebuild `.claude/skills/vendor/` from installed packages.
+Run `pls --list` for every available task and its description. The task set is
+declared in [`Taskfile.yaml`](Taskfile.yaml), whose `includes:` block maps each
+namespace to a file under [`tasks/`](tasks); a task shown as `<namespace>:<task>`
+is that key in the included file. Build artifacts — Dockerfiles — live under
+[`infra/`](infra) and may be plural, so their tasks are keyed per artifact. See
+[the Taskfile standard](docs/standards/taskfile/index.md) for the conventions.
 
 ## Standards
 
-- [CI/CD workflows](docs/standards/ci-cd/index.md)
-- [conventional commits](docs/standards/conventional-commits/index.md)
-- [Docker build and publishing](docs/standards/docker/index.md)
-- [Infisical and secrets](docs/standards/infisical/index.md)
-- [linting and pre-commit](docs/standards/linting/index.md)
-- [Nix flakes and development shells](docs/standards/nix/index.md)
-- [release automation](docs/standards/semantic-release/index.md)
-- [service-tree identity](docs/standards/service-tree/index.md)
-- [shell scripts](docs/standards/shell-scripts/index.md)
-- [Taskfile conventions](docs/standards/taskfile/index.md)
+[`CLAUDE.md`](CLAUDE.md) is the index of repository conventions: one section per
+surface, each pointing at its standard under
+[`docs/standards/`](docs/standards). Read the section for the surface you are
+changing before you change it. The index covers both the tooling surfaces of
+this baseline and the language-agnostic engineering standards it carries.
 
-<!-- ### shared -->
-<!-- #### source: shared -->
-
-## Shared standards
-
-- [Authorization](docs/standards/authorization/index.md)
-- [Contributor documentation](docs/standards/contributor-docs/index.md)
-- [Date and time](docs/standards/datetime/index.md)
-- [Domain-driven design](docs/standards/domain-driven-design/index.md)
-- [Functional practices](docs/standards/functional-practices/index.md)
-- [Software design philosophy](docs/standards/software-design-philosophy/index.md)
-- [SOLID principles](docs/standards/solid-principles/index.md)
-- [Stateless OOP and dependency injection](docs/standards/stateless-oop-di/index.md)
-- [Testing](docs/standards/testing/index.md)
-- [Three-layer architecture](docs/standards/three-layer-architecture/index.md)
-- [Utility libraries](docs/standards/utilities/index.md)
-- [Data validation](docs/standards/validation/index.md)
-
-Domain-specific documentation belongs under [docs/domain/](docs/domain/README.md).
-The `docs/standards/contracts/` location is reserved for the separately owned C0
-contracts standard.
-
-<!-- ### bun-base -->
-<!-- #### source: bun-base -->
-
-## Bun foundation
-
-See the [Bun baseline](docs/developer/bun-baseline.md) for the language-specific
-toolchain, task surface, test tiers, coverage ledgers, build, and maintenance
-boundary. TypeScript variants accompany the shared standards for
-[date/time](docs/standards/datetime/languages/typescript.md),
-[domain-driven design](docs/standards/domain-driven-design/languages/typescript.md),
-[functional practices](docs/standards/functional-practices/languages/typescript.md),
-[SOLID](docs/standards/solid-principles/languages/typescript.md),
-[stateless OOP/DI](docs/standards/stateless-oop-di/languages/typescript.md),
-[testing](docs/standards/testing/languages/typescript.md),
-[utilities](docs/standards/utilities/languages/typescript.md), and
-[validation](docs/standards/validation/languages/typescript.md).
+Domain-specific architecture and behavior belongs under
+[`docs/domain/`](docs/domain/README.md), not under `docs/standards/`. The
+[`docs/standards/contracts/`](docs/standards/contracts/README.md) location is
+reserved for the separately owned C0 contracts standard.

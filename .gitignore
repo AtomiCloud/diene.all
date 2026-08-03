@@ -1,12 +1,13 @@
-### nix-root
-#### source: main
 .direnv/
 .pre-commit-config.yaml
-result
-result-*
+/result
+/result-*
 
-### workspace
-#### source: workspace
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
 .env
 .env.*
 !.env.example
@@ -22,10 +23,3 @@ result-*
 .vscode/
 Thumbs.db
 desktop.ini
-
-### bun-base
-#### source: bun-base
-node_modules/
-dist/
-coverage/
-*.tsbuildinfo

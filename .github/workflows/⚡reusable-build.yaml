@@ -1,10 +1,6 @@
-# ### bun-base-reusable-build
-# #### source: bun-base
 name: ⚡ Reusable Build
-
 on:
   workflow_call:
-
 jobs:
   build:
     name: Build Validation

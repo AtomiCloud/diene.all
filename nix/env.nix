@@ -1,63 +1,46 @@
 { pkgs, packages }:
 with packages;
 {
-  # ### workspace-dev
-  # #### source: workspace
   dev = [
     git
     go-task
     infisical
-    jq
     pls
+    sg
     skopeo
   ];
 
-  # ### workspace-lint
-  # #### source: workspace
   lint = [
     actionlint
     infralint
     kubeconform
-    kubernetes-helm
     kyverno
+    nodejs
     pre-commit
     ripgrep
     shellcheck
     treefmt
-    yq-go
   ];
 
-  # ### workspace-main
-  # #### source: workspace
   main = [
-    # ### bun-base-main
-    # #### source: bun-base
     bun
     cyanprint
-    docker-client
     git
     go-task
     infisical
-    jq
     kubeconform
-    kubernetes-helm
     kyverno
     pls
-    releaser
     ripgrep
     shellcheck
     skopeo
-    yq-go
   ];
 
-  # ### workspace-releaser-bootstrap
-  # #### source: bun-base
+  # C2: sg is retained only until tools/releaser is published at step 2p.
   releaser = [
-    releaser
+    sg
   ];
 
-  # ### nix-root-system
-  # #### source: main
   system = [
     atomiutils
     infrautils

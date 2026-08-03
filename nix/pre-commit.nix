@@ -5,78 +5,37 @@
   pre-commit-lib,
 }:
 let
-  bun-tooling = pkgs.stdenvNoCC.mkDerivation {
-    pname = "bun-base-pre-commit-tooling";
-    version = "1";
-    src = builtins.path {
-      path = ../.;
-      name = "bun-base-pre-commit-tooling-source";
-      filter =
-        path: type:
-        type == "directory"
-        || builtins.elem (baseNameOf path) [
-          "bun.lock"
-          "package.json"
-        ];
-    };
-    nativeBuildInputs = [
-      packages.bun
-      pkgs.cacert
-    ];
-    dontConfigure = true;
-    buildPhase = ''
-      runHook preBuild
-      export HOME="$TMPDIR"
-      export SSL_CERT_FILE="${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
-      bun install --frozen-lockfile --no-progress --backend=copyfile --cpu='*' --os='*'
-      runHook postBuild
-    '';
-    installPhase = ''
-      runHook preInstall
-      mkdir -p "$out"
-      cp -R node_modules "$out/node_modules"
-      runHook postInstall
-    '';
-    dontFixup = true;
-    outputHashMode = "recursive";
-    outputHashAlgo = "sha256";
-    outputHash = "sha256-dEFLB1Li7H8L6ppoLSQCGA5a63t0fFVeELAdWvRUuRE=";
-  };
-  bun-tool = name: "${packages.bun}/bin/bun ${bun-tooling}/node_modules/.bin/${name}";
-  biome-platform =
-    if pkgs.stdenv.hostPlatform.isLinux then
-      "linux-${if pkgs.stdenv.hostPlatform.isAarch64 then "arm64" else "x64"}-musl"
-    else
-      "darwin-${if pkgs.stdenv.hostPlatform.isAarch64 then "arm64" else "x64"}";
-  biome-tool = "${bun-tooling}/node_modules/@biomejs/cli-${biome-platform}/biome";
-  pre-commit-source = pkgs.runCommand "bun-base-pre-commit-source" { } ''
-    mkdir -p "$out"
-    cp -R ${../.}/. "$out/"
-    ln -s ${bun-tooling}/node_modules "$out/node_modules"
-  '';
   validator-runtime = pkgs.buildEnv {
     name = "workspace-validator-runtime";
+    # atomiutils supplies bash/jq/yq plus the coreutils/find/grep/sed binaries the
+    # validators call, so declaring those separately would duplicate the bundle
+    # (and collide with it in this buildEnv). git, ripgrep, and util-linux (for
+    # flock) do not overlap it.
     paths = [
-      packages.bash
+      packages.atomiutils
       packages.git
-      packages.jq
       packages.ripgrep
-      packages.yq-go
-      pkgs.coreutils
-      pkgs.findutils
-      pkgs.gnugrep
-      pkgs.gnused
+      pkgs.util-linux
     ];
   };
   validator =
     command:
-    "${packages.bash}/bin/bash -c 'export PATH=${validator-runtime}/bin; exec ${packages.bash}/bin/bash ${command}'";
+    "${packages.atomiutils}/bin/bash -c 'export PATH=${validator-runtime}/bin; exec ${packages.atomiutils}/bin/bash ${command}'";
+  # One hook, several invocations of the same validator: identical runtime PATH,
+  # stopping at the first non-zero exit so the reported failure is the gate that
+  # actually failed. Used where one validator script owns several modes and the
+  # modes do not warrant separate hooks.
+  validators =
+    commands:
+    "${packages.atomiutils}/bin/bash -c 'export PATH=${validator-runtime}/bin; ${
+      builtins.concatStringsSep " && " (
+        map (command: "${packages.atomiutils}/bin/bash ${command}") commands
+      )
+    }'";
 in
 pre-commit-lib.run {
-  src = pre-commit-source;
+  src = ../.;
 
-  # ### nix-root-format
-  # #### source: main
   hooks = {
     treefmt = {
       enable = true;
@@ -89,31 +48,79 @@ pre-commit-lib.run {
       ];
     };
 
-    # ### workspace-hooks
-    # #### source: workspace
-    a-action-pins-non-trusted = {
+    a-biome = {
       enable = true;
-      name = "Non-trusted action SHA pins";
-      entry = validator "scripts/validate/action-pins.sh non-trusted";
+      name = "Biome lint";
+      entry = "./node_modules/.bin/biome lint --no-errors-on-unmatched";
+      files = "\\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$";
+      pass_filenames = true;
+      language = "system";
+    };
+
+    a-deadcode = {
+      enable = true;
+      name = "Knip repository deadcode";
+      entry = "./node_modules/.bin/knip --config knip.json";
+      files = "(^package\\.json$|^tsconfig\\.json$|^knip\\.json$|\\.(ts|tsx)$)";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-deadcode-production = {
+      enable = true;
+      name = "Knip production deadcode";
+      entry = "./node_modules/.bin/knip --config knip.production.json";
+      files = "(^package\\.json$|^tsconfig\\.json$|^knip\\.production\\.json$|\\.(ts|tsx)$)";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-typecheck = {
+      enable = true;
+      name = "TypeScript typecheck";
+      entry = "./node_modules/.bin/tsc --noEmit";
+      files = "(^package\\.json$|^tsconfig\\.json$|\\.(ts|tsx)$)";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-action-pins = {
+      enable = true;
+      name = "Action pins";
+      entry = validators [
+        "scripts/validate/action-pins.sh trusted"
+        "scripts/validate/action-pins.sh non-trusted"
+      ];
       files = "^\\.github/workflows/.*\\.ya?ml$";
       pass_filenames = false;
       language = "system";
     };
 
-    a-action-pins-trusted = {
+    # always_run, not a files pattern: the check reads CLAUDE.md but fails on the
+    # state of its *targets*, and a deleted or renamed target need not touch any
+    # path a pattern could name. Selecting on content would make deletion coverage
+    # depend on the deleter also editing a watched file. The check is offline and
+    # costs milliseconds, so running it every time is cheaper than the gap.
+    # SSL_CERT_FILE is bound explicitly because the pure flake derivation has no
+    # ambient certificate file, and lychee refuses to start without one even under
+    # --offline.
+    a-claude-links = {
       enable = true;
-      name = "Trusted action major pins";
-      entry = validator "scripts/validate/action-pins.sh trusted";
-      files = "^\\.github/workflows/.*\\.ya?ml$";
+      name = "CLAUDE link integrity";
+      entry = "${pkgs.coreutils}/bin/env SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt ${pkgs.lychee}/bin/lychee --offline --no-progress CLAUDE.md";
+      always_run = true;
       pass_filenames = false;
       language = "system";
     };
 
-    a-cache-tags = {
+    # The contributor-doc workflow is an executable state contract, not prose-only
+    # guidance. This assert-the-asserter checks its mirrored schemas and step sets,
+    # then drives healthy and destructive transition fixtures on every commit.
+    a-contributor-docs-contract = {
       enable = true;
-      name = "nscloud cache-tag shape";
-      entry = validator "scripts/validate/cache-tags.sh";
-      files = "^\\.github/workflows/.*\\.ya?ml$";
+      name = "Contributor-doc state contract";
+      entry = validator "docs/standards/contributor-docs/scripts/init-state.sh --check-write-contract";
+      always_run = true;
       pass_filenames = false;
       language = "system";
     };
@@ -143,11 +150,16 @@ pre-commit-lib.run {
       language = "system";
     };
 
-    a-many-owner = {
+    # The selector is directory-shaped on purpose: every standard under
+    # docs/standards/ and every first-level skill trigger is linted, so adding a
+    # topic needs no edit here. Vendored skills sit deeper than one level and are
+    # ignored again by .markdownlint-cli2.jsonc.
+    a-markdownlint = {
       enable = true;
-      name = "Many-owner keyed blocks";
-      entry = validator "scripts/validate/many-owner.sh";
-      pass_filenames = false;
+      name = "Markdown lint";
+      entry = "${pkgs.markdownlint-cli2}/bin/markdownlint-cli2";
+      files = "^(CLAUDE\\.md|README\\.md|docs/standards/.*\\.md|\\.claude/skills/[^/]+/SKILL\\.md)$";
+      pass_filenames = true;
       language = "system";
     };
 
@@ -162,45 +174,9 @@ pre-commit-lib.run {
 
     a-release-config = {
       enable = true;
-      name = "Release config schema";
-      entry = validator "scripts/validate/release-config.sh schema";
+      name = "Release config schema and types";
+      entry = validator "scripts/validate/release-config.sh all";
       files = "^atomi_release\\.yaml$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-release-types = {
-      enable = true;
-      name = "Release type vocabulary";
-      entry = validator "scripts/validate/release-config.sh types";
-      files = "^atomi_release\\.yaml$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-release-trigger = {
-      enable = true;
-      name = "Release workflow trigger";
-      entry = validator "scripts/validate/workflows.sh release-trigger";
-      files = "^\\.github/workflows/.*\\.ya?ml$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-release-concurrency = {
-      enable = true;
-      name = "Release workflow concurrency";
-      entry = validator "scripts/validate/workflows.sh release-concurrency";
-      files = "^\\.github/workflows/.*\\.ya?ml$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-workflow-names = {
-      enable = true;
-      name = "CI/CD workflow names";
-      entry = validator "scripts/validate/workflows.sh workflow-names";
-      files = "^\\.github/workflows/.*\\.ya?ml$";
       pass_filenames = false;
       language = "system";
     };
@@ -208,7 +184,7 @@ pre-commit-lib.run {
     a-releaser-commit = {
       enable = true;
       name = "Conventional commit";
-      entry = "${packages.releaser}/bin/releaser lint-commit -c atomi_release.yaml";
+      entry = "releaser lint-commit -c atomi_release.yaml";
       stages = [ "commit-msg" ];
       pass_filenames = true;
       language = "system";
@@ -231,70 +207,19 @@ pre-commit-lib.run {
       language = "system";
     };
 
-    a-workflow-wiring = {
+    # The wiring mode keeps both of its halves — every referenced scripts/ci entry
+    # point exists and is executable, and every orchestrator job resolves to a
+    # repository-local reusable workflow that calls one — unchanged.
+    a-workflows = {
       enable = true;
-      name = "Workflow job-to-script wiring";
-      entry = validator "scripts/validate/workflows.sh wiring";
+      name = "Workflow wiring, release trigger and concurrency";
+      entry = validators [
+        "scripts/validate/workflows.sh wiring"
+        "scripts/validate/workflows.sh release-trigger"
+        "scripts/validate/workflows.sh release-concurrency"
+      ];
       files = "^\\.github/workflows/.*\\.ya?ml$";
       pass_filenames = false;
-      language = "system";
-    };
-
-    # ### bun-base-hooks
-    # #### source: bun-base
-    a-biome = {
-      enable = true;
-      name = "Biome lint";
-      entry = "${biome-tool} lint --no-errors-on-unmatched";
-      files = "(^biome\\.json$|\\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$)";
-      pass_filenames = true;
-      language = "system";
-    };
-
-    a-deadcode = {
-      enable = true;
-      name = "Knip repository dead code";
-      entry = "${bun-tool "knip"} --config knip.json";
-      files = "(^package\\.json$|^tsconfig\\.json$|^knip\\.json$|\\.(ts|tsx)$)";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-deadcode-production = {
-      enable = true;
-      name = "Knip production dead code";
-      entry = "${bun-tool "knip"} --config knip.production.json";
-      files = "(^package\\.json$|^tsconfig\\.json$|^knip\\.production\\.json$|\\.(ts|tsx)$)";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    typecheck = {
-      enable = true;
-      name = "TypeScript typecheck";
-      entry = "${bun-tool "tsc"} --noEmit";
-      files = "(^package\\.json$|^tsconfig\\.json$|\\.(ts|tsx|mts|cts)$)";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    # ### shared-hooks
-    # #### source: shared
-    a-claude-links = {
-      enable = true;
-      name = "CLAUDE link integrity";
-      entry = "${pkgs.coreutils}/bin/env SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt ${pkgs.lychee}/bin/lychee --offline --no-progress CLAUDE.md";
-      files = "^(CLAUDE\\.md|docs/standards/.*\\.md)$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-markdownlint = {
-      enable = true;
-      name = "Markdown lint";
-      entry = "${pkgs.markdownlint-cli2}/bin/markdownlint-cli2";
-      files = "^(CLAUDE\\.md|README\\.md|docs/standards/(authorization|contracts|contributor-docs|datetime|domain-driven-design|functional-practices|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/.*\\.md|\\.claude/skills/(authorization|contributor-docs|datetime|domain-driven-design|functional-practices|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/SKILL\\.md)$";
-      pass_filenames = true;
       language = "system";
     };
   };

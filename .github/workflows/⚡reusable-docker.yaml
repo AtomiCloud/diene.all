@@ -1,5 +1,3 @@
-# ### workspace-reusable-docker
-# #### source: workspace
 name: ⚡ Reusable Docker
 
 on:
