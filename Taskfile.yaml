@@ -1,5 +1,3 @@
-# ### workspace-root
-# #### source: workspace
 version: '3'
 
 includes:

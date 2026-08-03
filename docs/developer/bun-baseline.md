@@ -75,6 +75,13 @@ Read the TypeScript variants alongside their shared standards:
 - [utilities](../standards/utilities/languages/typescript.md)
 - [validation](../standards/validation/languages/typescript.md)
 
+## External service / compute cost
+
+- Codecov upload runs only in CI and is best-effort.
+- Integration tests and Docker image builds require a Docker runtime.
+- Unit, integration, build, and Docker are separate CI jobs.
+
+
 ## Template maintenance boundary
 
 Downstream templates may adapt package identity, coverage thresholds, the
