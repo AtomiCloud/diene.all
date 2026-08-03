@@ -114,11 +114,15 @@ labels:
 
 ### Nix Store Cache
 
-Nix jobs use a single shared store cache — **not** per-service — to save cache space:
-
-```yaml
-nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
-```
+Cache-eligible Nix jobs use a single shared store cache — **not** per-service — so the
+cache tag is deliberately not namespaced by platform or service. They declare a
+`-with-cache` Namespace venue, `nscloud-cache-size-50gb`, and the matching tag on their
+`runs-on:` lines in [`.github/workflows/`](../../../.github/workflows). The tag family
+is `nscloud-cache-tag-atomi-nix-store-cache-{os}-{arch}`; selecting another OS rotates
+the tag and starts cold rather than aliasing another OS's cache. Must-not-share-cache
+lanes instead use the corresponding bare Namespace venue with no cache metadata, and a
+Nix-using lane states that intent in a non-empty job-level `env.S31_CACHE_EXEMPT_REASON`;
+that absence preserves their isolation. Never introduce a per-platform or per-service tag.
 
 ### Platform / Service usage
 

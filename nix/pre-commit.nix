@@ -7,6 +7,10 @@
 let
   validator-runtime = pkgs.buildEnv {
     name = "workspace-validator-runtime";
+    # GNU coreutils, findutils, grep and sed are declared directly here rather than
+    # arriving inside an atomiutils bundle, so this runtime needs no coreutils-first
+    # PATH prepend to shadow a uutils implementation: the buildEnv already resolves
+    # cp, find, grep and sed to their GNU builds.
     paths = [
       packages.bash
       packages.git
@@ -19,9 +23,12 @@ let
       pkgs.gnused
     ];
   };
+  # Validators are non-interactive. Pure Nix checks intentionally carry no pager, so
+  # force git output through cat instead of inheriting `less`.
+  validatorEnv = "export PATH=${validator-runtime}/bin; export GIT_PAGER=cat PAGER=cat";
   validator =
     command:
-    "${packages.bash}/bin/bash -c 'export PATH=${validator-runtime}/bin; exec ${packages.bash}/bin/bash ${command}'";
+    "${packages.bash}/bin/bash -c '${validatorEnv}; exec ${packages.bash}/bin/bash ${command}'";
 in
 pre-commit-lib.run {
   src = ../.;
@@ -60,10 +67,15 @@ pre-commit-lib.run {
       language = "system";
     };
 
+    # The S31 mode of workflows.sh, not the retired standalone cache-tags.sh. Cache
+    # eligibility is decided from what a job's steps do, never from the labels under
+    # test, and the cache tag rotates with the selected runner OS — the shape the old
+    # script cannot express. Repointing this hook rather than adding one keeps the
+    # committer-facing hook count unchanged.
     a-cache-tags = {
       enable = true;
       name = "nscloud cache-tag shape";
-      entry = validator "scripts/validate/cache-tags.sh";
+      entry = validator "scripts/validate/workflows.sh cache-tag-shape";
       files = "^\\.github/workflows/.*\\.ya?ml$";
       pass_filenames = false;
       language = "system";
