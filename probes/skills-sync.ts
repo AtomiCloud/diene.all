@@ -92,7 +92,37 @@ const probeCleanTargets = [
   'go-shim',
 ].join(' ');
 
+// Real installed `@atomicloud/diene.*` packages set `node_staged` for the WHOLE
+// node ecosystem, so any fixture that means "nothing resolved" has to relocate
+// them. Without that, the fixture asserts an environment assumption — that this
+// node happens to have no real diene dependencies — instead of the property it
+// names, and it silently stops asserting anything on every node that does.
+//
+// The relocation runs inside the same shell as the synchronizer so nothing can
+// reinstall between the two; it uses a fixed holding path on the same filesystem
+// so the move is a rename rather than a cross-device copy of a possibly
+// read-only tree; and every exit path puts the real packages back.
+// `restoreProbeState` repairs a holding directory left behind by a shell that
+// was killed before its trap could run, so a lost trap costs one probe rather
+// than the node's installed packages.
+const realNodePackages = 'node_modules/@atomicloud';
+const nodeIsolationDir = 'node_modules/.diene-probe-isolation';
+const isolatedNodePackages = `${nodeIsolationDir}/@atomicloud`;
+const isolateRealNodePackages = [
+  `mkdir -p ${nodeIsolationDir}`,
+  `trap "if [ -d \\"${isolatedNodePackages}\\" ]; then rm -rf \\"${realNodePackages}\\"; mkdir -p node_modules; mv \\"${isolatedNodePackages}\\" \\"${realNodePackages}\\"; fi; rmdir \\"${nodeIsolationDir}\\" 2>/dev/null || true" EXIT`,
+  `if [ -d ${realNodePackages} ]; then mv ${realNodePackages} ${isolatedNodePackages}; fi`,
+].join('; ');
+
 async function restoreProbeState(repo: any): Promise<void> {
+  const reunited = await repo.exec(
+    `if [ -d ${isolatedNodePackages} ]; then chmod -R u+w -- ${realNodePackages} 2>/dev/null || true; rm -rf ${realNodePackages} || exit 1; mkdir -p node_modules || exit 1; mv ${isolatedNodePackages} ${realNodePackages} || exit 1; fi; if [ -d ${nodeIsolationDir} ]; then rmdir ${nodeIsolationDir} || exit 1; fi`,
+  );
+  if (reunited.exitCode !== 0) {
+    throw new Error(
+      `could not restore the real installed node packages a fixture isolated: ${reunited.stderr || reunited.stdout}`,
+    );
+  }
   const madeWritable = await repo.exec(
     `for target in ${probeCleanTargets}; do if [ -e "$target" ]; then chmod -R u+w -- "$target" || exit 1; fi; done`,
   );
@@ -171,7 +201,7 @@ export default {
           await stageKeptSkill(repo);
           await expectGreen(
             repo,
-            `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; iso="$(mktemp -d)"; trap "if [ -d \\"$iso/@atomicloud\\" ]; then rm -rf node_modules/@atomicloud; mkdir -p node_modules; mv \\"$iso/@atomicloud\\" node_modules/; fi; rm -rf \\"$iso\\"" EXIT; if [ -d node_modules/@atomicloud ]; then mv node_modules/@atomicloud "$iso/"; fi; mkdir -p node_modules; ./scripts/local/skills-sync.sh; test "$(cat ${keptSkill})" = "committed skill"'`,
+            `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ${isolateRealNodePackages}; ./scripts/local/skills-sync.sh; test "$(cat ${keptSkill})" = "committed skill"'`,
             'skills-sync',
           );
         });
@@ -298,7 +328,7 @@ export default {
           await repo.write('go-shim/go', neutralGoShim);
           await repo.write(`${keptSkill}.untracked`, 'untracked content is not a committed fallback\n');
           const result = await repo.exec(
-            `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ./scripts/local/skills-sync.sh'`,
+            `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ${isolateRealNodePackages}; ./scripts/local/skills-sync.sh'`,
             { timeoutMs: 240000 },
           );
           if (result.exitCode === 0) {

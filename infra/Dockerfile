@@ -1,5 +1,3 @@
-# ### workspace-dockerfile
-# #### source: workspace
 FROM alpine:3.21 AS build
 WORKDIR /app
 COPY . .

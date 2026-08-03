@@ -3,8 +3,6 @@ let
   fmt = {
     projectRootFile = "flake.nix";
 
-    # ### workspace-formatters
-    # #### source: workspace
     programs = {
       actionlint.enable = true;
       nixfmt.enable = true;

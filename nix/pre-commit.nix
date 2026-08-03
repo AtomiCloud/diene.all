@@ -7,27 +7,33 @@
 let
   validator-runtime = pkgs.buildEnv {
     name = "workspace-validator-runtime";
+    # atomiutils supplies bash/jq/yq plus the coreutils/find/grep/sed binaries the
+    # validators call, so declaring those separately would duplicate the bundle
+    # (and collide with it in this buildEnv). git and ripgrep do not overlap it.
     paths = [
-      packages.bash
+      packages.atomiutils
       packages.git
-      packages.jq
       packages.ripgrep
-      packages.yq-go
-      pkgs.coreutils
-      pkgs.findutils
-      pkgs.gnugrep
-      pkgs.gnused
     ];
   };
   validator =
     command:
-    "${packages.bash}/bin/bash -c 'export PATH=${validator-runtime}/bin; exec ${packages.bash}/bin/bash ${command}'";
+    "${packages.atomiutils}/bin/bash -c 'export PATH=${validator-runtime}/bin; exec ${packages.atomiutils}/bin/bash ${command}'";
+  # One hook, several invocations of the same validator: identical runtime PATH,
+  # stopping at the first non-zero exit so the reported failure is the gate that
+  # actually failed. Used where one validator script owns several modes and the
+  # modes do not warrant separate hooks.
+  validators =
+    commands:
+    "${packages.atomiutils}/bin/bash -c 'export PATH=${validator-runtime}/bin; ${
+      builtins.concatStringsSep " && " (
+        map (command: "${packages.atomiutils}/bin/bash ${command}") commands
+      )
+    }'";
 in
 pre-commit-lib.run {
   src = ../.;
 
-  # ### nix-root-format
-  # #### source: main
   hooks = {
     treefmt = {
       enable = true;
@@ -40,30 +46,13 @@ pre-commit-lib.run {
       ];
     };
 
-    # ### workspace-hooks
-    # #### source: workspace
-    a-action-pins-non-trusted = {
+    a-action-pins = {
       enable = true;
-      name = "Non-trusted action SHA pins";
-      entry = validator "scripts/validate/action-pins.sh non-trusted";
-      files = "^\\.github/workflows/.*\\.ya?ml$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-action-pins-trusted = {
-      enable = true;
-      name = "Trusted action major pins";
-      entry = validator "scripts/validate/action-pins.sh trusted";
-      files = "^\\.github/workflows/.*\\.ya?ml$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-cache-tags = {
-      enable = true;
-      name = "nscloud cache-tag shape";
-      entry = validator "scripts/validate/cache-tags.sh";
+      name = "Action pins";
+      entry = validators [
+        "scripts/validate/action-pins.sh trusted"
+        "scripts/validate/action-pins.sh non-trusted"
+      ];
       files = "^\\.github/workflows/.*\\.ya?ml$";
       pass_filenames = false;
       language = "system";
@@ -78,19 +67,10 @@ pre-commit-lib.run {
       language = "system";
     };
 
-    a-helm-docs = {
-      enable = true;
-      name = "Helm docs";
-      entry = "${packages.infralint}/bin/helm-docs --chart-search-root infra/root_chart";
-      files = "^infra/root_chart/.*";
-      pass_filenames = false;
-      language = "system";
-    };
-
     a-helm-lint = {
       enable = true;
       name = "Helm lint";
-      entry = "${packages.kubernetes-helm}/bin/helm lint infra/root_chart";
+      entry = "${packages.infrautils}/bin/helm lint infra/root_chart";
       files = "^infra/root_chart/.*";
       pass_filenames = false;
       language = "system";
@@ -112,14 +92,6 @@ pre-commit-lib.run {
       language = "system";
     };
 
-    a-many-owner = {
-      enable = true;
-      name = "Many-owner keyed blocks";
-      entry = validator "scripts/validate/many-owner.sh";
-      pass_filenames = false;
-      language = "system";
-    };
-
     a-nixpkgs-pin = {
       enable = true;
       name = "Shared nixpkgs pin";
@@ -131,45 +103,9 @@ pre-commit-lib.run {
 
     a-release-config = {
       enable = true;
-      name = "Release config schema";
-      entry = validator "scripts/validate/release-config.sh schema";
+      name = "Release config schema and types";
+      entry = validator "scripts/validate/release-config.sh all";
       files = "^atomi_release\\.yaml$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-release-types = {
-      enable = true;
-      name = "Release type vocabulary";
-      entry = validator "scripts/validate/release-config.sh types";
-      files = "^atomi_release\\.yaml$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-release-trigger = {
-      enable = true;
-      name = "Release workflow trigger";
-      entry = validator "scripts/validate/workflows.sh release-trigger";
-      files = "^\\.github/workflows/.*\\.ya?ml$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-release-concurrency = {
-      enable = true;
-      name = "Release workflow concurrency";
-      entry = validator "scripts/validate/workflows.sh release-concurrency";
-      files = "^\\.github/workflows/.*\\.ya?ml$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-workflow-names = {
-      enable = true;
-      name = "CI/CD workflow names";
-      entry = validator "scripts/validate/workflows.sh workflow-names";
-      files = "^\\.github/workflows/.*\\.ya?ml$";
       pass_filenames = false;
       language = "system";
     };
@@ -183,10 +119,18 @@ pre-commit-lib.run {
       language = "system";
     };
 
+    # Source following belongs to the gate itself, not to an ambient SHELLCHECK_OPTS:
+    # pre-commit partitions the staged files, so a script and the script it sources
+    # routinely land in different batches, and bare ShellCheck then raises SC1091 on
+    # healthy sources. `-x` follows a declared `source=`, and `--source-path=SCRIPTDIR`
+    # adds the checked script's own directory so script-relative directives resolve
+    # too, on top of the repository-root-relative ones the working directory already
+    # covers. Findings from the sourced file stay out of the report (that would need
+    # `-a`), so the gate gains resolution without gaining noise.
     a-shellcheck = {
       enable = true;
       name = "Shellcheck";
-      entry = "${packages.shellcheck}/bin/shellcheck";
+      entry = "${packages.shellcheck}/bin/shellcheck -x --source-path=SCRIPTDIR";
       files = ".*\\.sh$";
       pass_filenames = true;
       language = "system";
@@ -200,10 +144,19 @@ pre-commit-lib.run {
       language = "system";
     };
 
-    a-workflow-wiring = {
+    # The wiring mode keeps both of its halves — every referenced scripts/ci entry
+    # point exists and is executable, and every orchestrator job resolves to a
+    # repository-local reusable workflow that calls one — unchanged. The S31 mode
+    # shares this workflow hook without increasing the committer-facing hook count.
+    a-workflows = {
       enable = true;
-      name = "Workflow job-to-script wiring";
-      entry = validator "scripts/validate/workflows.sh wiring";
+      name = "Workflow wiring, release policy and runner cache shape";
+      entry = validators [
+        "scripts/validate/workflows.sh wiring"
+        "scripts/validate/workflows.sh release-trigger"
+        "scripts/validate/workflows.sh release-concurrency"
+        "scripts/validate/workflows.sh cache-tag-shape"
+      ];
       files = "^\\.github/workflows/.*\\.ya?ml$";
       pass_filenames = false;
       language = "system";

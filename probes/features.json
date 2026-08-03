@@ -76,11 +76,6 @@
   },
   {
     "template": "diene/workspace",
-    "name": "hook-helm-docs",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
     "name": "hook-helm-lint",
     "class": "gate"
   },
@@ -142,7 +137,7 @@
   {
     "template": "diene/workspace",
     "name": "skills-sync",
-    "class": "smoke"
+    "class": "gate"
   },
   {
     "template": "diene/workspace",
@@ -171,11 +166,6 @@
   },
   {
     "template": "diene/workspace",
-    "name": "workflow-names",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
     "name": "nixpkgs-pin",
     "class": "gate"
   },
@@ -192,11 +182,6 @@
   {
     "template": "diene/workspace",
     "name": "cache-tag-shape",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "many-owner-schema",
     "class": "gate"
   },
   {
