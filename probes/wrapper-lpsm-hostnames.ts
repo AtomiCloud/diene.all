@@ -18,7 +18,10 @@ const PETNAME = 'otter-beats-potato';
 const SUFFIXED = `${PETNAME}-${SUFFIX}`;
 const PREVIEW_ZONE = 'kube.entei.dev.atomi.cloud';
 
-const PREVIEW = ['--set instance.preview.enabled=true', `--set-string contracts.lpsm.instanceZone=${PREVIEW_ZONE}`];
+const PREVIEW = [
+  '--set global.instance.preview.enabled=true',
+  `--set-string contracts.lpsm.instanceZone=${PREVIEW_ZONE}`,
+];
 
 // The same five-slot dotted coordinate in the other two canonical zones: the ABSOL
 // localhost zone a developer resolves locally, and the Boron/lapras canonical
@@ -64,7 +67,10 @@ const COMMITTED_ORIGINAL = 'github.com/AtomiCloud/diene.all/charts/helm-wrapper/
 const COMMITTED_LABEL = 'pr-12345-9f3a1c';
 const LONG_ORIGINAL = `${COMMITTED_ORIGINAL}/attempt-7`;
 const HASH_LABEL = 'wrapper-pr12345-7q2m9x';
-const MINTED_PAIR = [`--set-string instance.original=${LONG_ORIGINAL}`, `--set-string instance.label=${HASH_LABEL}`];
+const MINTED_PAIR = [
+  `--set-string global.instance.original=${LONG_ORIGINAL}`,
+  `--set-string global.instance.label=${HASH_LABEL}`,
+];
 // 254 bytes, still inside the character rule, so the only thing wrong with it is
 // its length at either boundary.
 const OVERLONG_ORIGINAL = `github.com/atomicloud/${'a'.repeat(232)}`;
@@ -156,8 +162,8 @@ const DNS_1123: Boundary[] = [
 const PREVIEW_RECEIPT: Boundary[] = [
   {
     name: 'unversioned-word-list',
-    flags: [...PREVIEW, '--set-string instance.preview.receipt.wordList=diene.preview-wordlist'],
-    schema: "at '/instance/preview/receipt/wordList': 'diene.preview-wordlist' does not match pattern",
+    flags: [...PREVIEW, '--set-string global.instance.preview.receipt.wordList=diene.preview-wordlist'],
+    schema: "at '/global/instance/preview/receipt/wordList': 'diene.preview-wordlist' does not match pattern",
     helper:
       'PreviewIdentityUnavailable: petname word list "diene.preview-wordlist" is not a versioned diene.preview-wordlist',
   },
@@ -165,27 +171,27 @@ const PREVIEW_RECEIPT: Boundary[] = [
     name: 'petname-outside-the-grammar',
     flags: [
       ...PREVIEW,
-      '--set-string instance.preview.canonical.previewPetname=otterbeatspotato',
-      '--set-string instance.preview.receipt.previewPetname=otterbeatspotato',
+      '--set-string global.instance.preview.canonical.previewPetname=otterbeatspotato',
+      '--set-string global.instance.preview.receipt.previewPetname=otterbeatspotato',
     ],
-    schema: "at '/instance/preview/canonical/previewPetname': 'otterbeatspotato' does not match pattern",
+    schema: "at '/global/instance/preview/canonical/previewPetname': 'otterbeatspotato' does not match pattern",
     helper: 'PreviewIdentityUnavailable: "otterbeatspotato" is not a versioned NOUN-VERB-NOUN petname',
   },
   {
     name: 'suffix-longer-than-three-characters',
     flags: [
       ...PREVIEW,
-      `--set-string instance.preview.canonical.previewPetname=${SUFFIXED}9`,
-      `--set-string instance.preview.receipt.previewPetname=${SUFFIXED}9`,
-      `--set-string instance.preview.receipt.collision.liveFullLeaseDigest=${OTHER_DIGEST}`,
+      `--set-string global.instance.preview.canonical.previewPetname=${SUFFIXED}9`,
+      `--set-string global.instance.preview.receipt.previewPetname=${SUFFIXED}9`,
+      `--set-string global.instance.preview.receipt.collision.liveFullLeaseDigest=${OTHER_DIGEST}`,
     ],
-    schema: `at '/instance/preview/canonical/previewPetname': '${SUFFIXED}9' does not match pattern`,
+    schema: `at '/global/instance/preview/canonical/previewPetname': '${SUFFIXED}9' does not match pattern`,
     helper: `PreviewIdentityUnavailable: "${SUFFIXED}9" is not a versioned NOUN-VERB-NOUN petname`,
   },
   {
     name: 'fork-source-outside-the-ruled-pair',
-    flags: [...PREVIEW, '--set-string instance.preview.receipt.forkSource=serving'],
-    schema: "at '/instance/preview/receipt/forkSource': value must be one of 'staging', 'production'",
+    flags: [...PREVIEW, '--set-string global.instance.preview.receipt.forkSource=serving'],
+    schema: "at '/global/instance/preview/receipt/forkSource': value must be one of 'staging', 'production'",
     helper: 'PreviewIdentityUnavailable: forkSource "serving" is neither staging nor production',
   },
 ];
@@ -197,29 +203,30 @@ const PREVIEW_RECEIPT: Boundary[] = [
 const INSTANCE_PAIR: Boundary[] = [
   {
     name: 'uppercase-instance-label',
-    flags: ['--set-string instance.label=PR-12345'],
-    schema: "at '/instance/label': 'PR-12345' does not match pattern",
-    helper: 'HostnameLabelInvalid: instance.label "PR-12345" must start with a lowercase alphanumeric byte',
+    flags: ['--set-string global.instance.label=PR-12345'],
+    schema: "at '/global/instance/label': 'PR-12345' does not match pattern",
+    helper: 'HostnameLabelInvalid: global.instance.label "PR-12345" must start with a lowercase alphanumeric byte',
   },
   {
     name: 'sixty-four-byte-instance-label',
-    flags: [`--set-string instance.label=${OVERLONG_LABEL}`],
-    schema: "at '/instance/label': maxLength: got 64, want 63",
-    helper: `HostnameLabelInvalid: instance.label "${OVERLONG_LABEL}" is 64 bytes`,
+    flags: [`--set-string global.instance.label=${OVERLONG_LABEL}`],
+    schema: "at '/global/instance/label': maxLength: got 64, want 63",
+    helper: `HostnameLabelInvalid: global.instance.label "${OVERLONG_LABEL}" is 64 bytes`,
   },
   {
     name: 'whitespace-bearing-physical-original',
-    flags: [`--set-string 'instance.original=repository a/pr-123'`],
-    schema: "at '/instance/original': 'repository a/pr-123' does not match pattern",
-    helper: 'InstanceOriginalInvalid: instance.original "repository a/pr-123" must start and end with an alphanumeric',
+    flags: [`--set-string 'global.instance.original=repository a/pr-123'`],
+    schema: "at '/global/instance/original': 'repository a/pr-123' does not match pattern",
+    helper:
+      'InstanceOriginalInvalid: global.instance.original "repository a/pr-123" must start and end with an alphanumeric',
   },
   {
     // 253 bytes is the ceiling, not 63: shortening happens at the minter, and the
     // chart refuses only what no DNS name could ever record at all.
     name: 'two-hundred-fifty-four-byte-physical-original',
-    flags: [`--set-string instance.original=${OVERLONG_ORIGINAL}`],
-    schema: "at '/instance/original': maxLength: got 254, want 253",
-    helper: 'InstanceOriginalInvalid: instance.original is 254 bytes',
+    flags: [`--set-string global.instance.original=${OVERLONG_ORIGINAL}`],
+    schema: "at '/global/instance/original': maxLength: got 254, want 253",
+    helper: 'InstanceOriginalInvalid: global.instance.original is 254 bytes',
   },
 ];
 
@@ -227,14 +234,14 @@ const INSTANCE_PAIR: Boundary[] = [
 // an allocation with a DIFFERENT full digest.
 const COLLIDED = [
   ...PREVIEW,
-  `--set-string instance.preview.canonical.previewPetname=${SUFFIXED}`,
-  `--set-string instance.preview.receipt.previewPetname=${SUFFIXED}`,
-  `--set-string instance.preview.receipt.collision.liveFullLeaseDigest=${OTHER_DIGEST}`,
+  `--set-string global.instance.preview.canonical.previewPetname=${SUFFIXED}`,
+  `--set-string global.instance.preview.receipt.previewPetname=${SUFFIXED}`,
+  `--set-string global.instance.preview.receipt.collision.liveFullLeaseDigest=${OTHER_DIGEST}`,
 ];
 
-const pin = (key: string, value: string) => `--set-string 'instance.preview.manifest.pins.${key}=${value}'`;
+const pin = (key: string, value: string) => `--set-string 'global.instance.preview.manifest.pins.${key}=${value}'`;
 const resolution = (key: string, field: string, value: string) =>
-  `--set-string 'instance.preview.manifest.branchResolutions.${key}.${field}=${value}'`;
+  `--set-string 'global.instance.preview.manifest.branchResolutions.${key}.${field}=${value}'`;
 
 type Accepts = { name: string; flags: string[]; key: string; expected: string; namespace?: string };
 type Refuses = { name: string; flags: string[]; because: string[] };
@@ -360,20 +367,20 @@ const ACCEPTS: Accepts[] = [
 const REFUSES: Refuses[] = [
   {
     name: 'mint-time-name-is-immutable',
-    flags: [...COLLIDED, `--set-string instance.preview.canonical.previewPetname=${PETNAME}`],
+    flags: [...COLLIDED, `--set-string global.instance.preview.canonical.previewPetname=${PETNAME}`],
     because: ['recorded at mint'],
   },
   {
     name: 'full-digest-mismatch',
-    flags: [...PREVIEW, `--set-string instance.preview.canonical.fullLeaseDigest=${OTHER_DIGEST}`],
+    flags: [...PREVIEW, `--set-string global.instance.preview.canonical.fullLeaseDigest=${OTHER_DIGEST}`],
     because: ['does not equal the receipt digest'],
   },
   {
     name: 'suffix-without-a-recorded-collision',
     flags: [
       ...PREVIEW,
-      `--set-string instance.preview.canonical.previewPetname=${SUFFIXED}`,
-      `--set-string instance.preview.receipt.previewPetname=${SUFFIXED}`,
+      `--set-string global.instance.preview.canonical.previewPetname=${SUFFIXED}`,
+      `--set-string global.instance.preview.receipt.previewPetname=${SUFFIXED}`,
     ],
     because: ['carries a collision suffix with no recorded live base-petname collision'],
   },
@@ -381,25 +388,25 @@ const REFUSES: Refuses[] = [
     name: 'caller-supplied-suffix',
     flags: [
       ...PREVIEW,
-      `--set-string instance.preview.canonical.previewPetname=${PETNAME}-abc`,
-      `--set-string instance.preview.receipt.previewPetname=${PETNAME}-abc`,
-      `--set-string instance.preview.receipt.collision.liveFullLeaseDigest=${OTHER_DIGEST}`,
+      `--set-string global.instance.preview.canonical.previewPetname=${PETNAME}-abc`,
+      `--set-string global.instance.preview.receipt.previewPetname=${PETNAME}-abc`,
+      `--set-string global.instance.preview.receipt.collision.liveFullLeaseDigest=${OTHER_DIGEST}`,
     ],
     because: ['is not the first three base32hex digest characters'],
   },
   {
     name: 'same-digest-is-not-a-collision',
-    flags: [...COLLIDED, `--set-string instance.preview.receipt.collision.liveFullLeaseDigest=${DIGEST}`],
+    flags: [...COLLIDED, `--set-string global.instance.preview.receipt.collision.liveFullLeaseDigest=${DIGEST}`],
     because: ['idempotent join, never a petname collision'],
   },
   {
     name: 'recorded-collision-must-show-in-the-name',
-    flags: [...PREVIEW, `--set-string instance.preview.receipt.collision.liveFullLeaseDigest=${OTHER_DIGEST}`],
+    flags: [...PREVIEW, `--set-string global.instance.preview.receipt.collision.liveFullLeaseDigest=${OTHER_DIGEST}`],
     because: ['carries no collision suffix'],
   },
   {
     name: 'unsigned-receipt',
-    flags: [...PREVIEW, '--set-string instance.preview.receipt.signature='],
+    flags: [...PREVIEW, '--set-string global.instance.preview.receipt.signature='],
     because: ['the assembler receipt is missing'],
   },
   {
@@ -419,7 +426,7 @@ const REFUSES: Refuses[] = [
   },
   {
     name: 'ref-bearing-pin',
-    flags: [...PREVIEW, `--set-string 'instance.preview.manifest.pins.auth\\.logto.ref=refs/heads/main'`],
+    flags: [...PREVIEW, `--set-string 'global.instance.preview.manifest.pins.auth\\.logto.ref=refs/heads/main'`],
     because: ['must carry exactly kind and version'],
   },
   // The pair is recorded together or not at all. A key removed outright is caught
@@ -427,33 +434,33 @@ const REFUSES: Refuses[] = [
   // helper, which is the only boundary that can see one half without the other.
   {
     name: 'missing-instance-label-at-the-values-schema',
-    flags: ['--set instance.label=null'],
-    because: ["at '/instance': missing property 'label'"],
+    flags: ['--set global.instance.label=null'],
+    because: ["at '/global/instance': missing property 'label'"],
   },
   {
     name: 'missing-instance-label-at-the-instance-helper',
-    flags: ['--set instance.label=null', SKIP_SCHEMA],
-    because: ['InstancePairIncomplete: instance.original'],
+    flags: ['--set global.instance.label=null', SKIP_SCHEMA],
+    because: ['InstancePairIncomplete: global.instance.original'],
   },
   {
     name: 'missing-instance-original-at-the-values-schema',
-    flags: ['--set instance.original=null'],
-    because: ["at '/instance': missing property 'original'"],
+    flags: ['--set global.instance.original=null'],
+    because: ["at '/global/instance': missing property 'original'"],
   },
   {
     name: 'missing-instance-original-at-the-instance-helper',
-    flags: ['--set instance.original=null', SKIP_SCHEMA],
-    because: ['InstancePairIncomplete: instance.label'],
+    flags: ['--set global.instance.original=null', SKIP_SCHEMA],
+    because: ['InstancePairIncomplete: global.instance.label'],
   },
   {
     name: 'orphan-original-with-an-emptied-label',
-    flags: ['--set-string instance.label='],
-    because: ['InstancePairIncomplete: instance.original'],
+    flags: ['--set-string global.instance.label='],
+    because: ['InstancePairIncomplete: global.instance.original'],
   },
   {
     name: 'orphan-label-with-an-emptied-original',
-    flags: ['--set-string instance.original='],
-    because: ['InstancePairIncomplete: instance.label'],
+    flags: ['--set-string global.instance.original='],
+    because: ['InstancePairIncomplete: global.instance.label'],
   },
   {
     name: 'dash-fused-garden-hostname',

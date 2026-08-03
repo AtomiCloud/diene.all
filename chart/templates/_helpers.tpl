@@ -64,7 +64,7 @@
   being resolved locally. Emits nothing; it only refuses.
 */}}
 {{- define "diene-helm-wrapper.previewManifest" -}}
-{{- $manifest := .Values.instance | default dict | dig "preview" dict | default dict | dig "manifest" dict -}}
+{{- $manifest := (.Values.global | default dict).instance | default dict | dig "preview" dict | default dict | dig "manifest" dict -}}
 {{- $version := "^v?[0-9]+\\.[0-9]+\\.[0-9]+([.+-][0-9A-Za-z.+-]*)?$" -}}
 {{- $commit := "^[0-9a-f]{40}$" -}}
 {{- if not (index $manifest "defaultChannelRef") -}}
@@ -122,7 +122,7 @@
   digest into a rendered object. Returns the recorded petname or refuses.
 */}}
 {{- define "diene-helm-wrapper.previewPetname" -}}
-{{- $preview := .Values.instance | default dict | dig "preview" dict -}}
+{{- $preview := (.Values.global | default dict).instance | default dict | dig "preview" dict -}}
 {{- $canonical := (index $preview "canonical") | default dict -}}
 {{- $receipt := (index $preview "receipt") | default dict -}}
 {{- range $field := list "previewPetname" "fullLeaseDigest" "leaseKey" "schema" "wordList" "forkSource" "requester" "mintedAt" "signature" -}}
@@ -206,23 +206,30 @@
 
   The two are recorded together or not at all: an original alone would need a
   label minted here, and a label alone would record a shortening of nothing.
+
+  The pair is read from `global.instance` rather than a chart-local table for the
+  same reason `global.labelPrefix` lives there: Helm copies `global` verbatim into
+  every pinned dependency, so ONE resolved identity is reachable from an upstream
+  template context. A chart-local table stopped at the wrapper's own objects and
+  forced the dependency's annotations to hard-code a second pair, which is how one
+  release came to record two different physical instances under preview.
 */}}
 {{- define "diene-helm-wrapper.assertInstancePair" -}}
-{{- $instance := .Values.instance | default dict -}}
+{{- $instance := (.Values.global | default dict).instance | default dict -}}
 {{- $original := (index $instance "original") | default "" | toString -}}
 {{- $label := (index $instance "label") | default "" | toString -}}
 {{- if and $original $label -}}
 {{- if gt (len $original) 253 -}}
-{{- fail (printf "InstanceOriginalInvalid: instance.original is %d bytes; a repository-qualified physical id is at most 253 bytes and this chart never shortens one" (len $original)) -}}
+{{- fail (printf "InstanceOriginalInvalid: global.instance.original is %d bytes; a repository-qualified physical id is at most 253 bytes and this chart never shortens one" (len $original)) -}}
 {{- end -}}
 {{- if not (regexMatch "^[A-Za-z0-9]([A-Za-z0-9._:/-]*[A-Za-z0-9])?$" $original) -}}
-{{- fail (printf "InstanceOriginalInvalid: instance.original %q must start and end with an alphanumeric byte and hold only alphanumerics, dots, underscores, colons, slashes, and dashes; a physical id carries no whitespace or control bytes" $original) -}}
+{{- fail (printf "InstanceOriginalInvalid: global.instance.original %q must start and end with an alphanumeric byte and hold only alphanumerics, dots, underscores, colons, slashes, and dashes; a physical id carries no whitespace or control bytes" $original) -}}
 {{- end -}}
-{{- include "diene-helm-wrapper.dnsLabel" (dict "slot" "instance.label" "label" $label) -}}
+{{- include "diene-helm-wrapper.dnsLabel" (dict "slot" "global.instance.label" "label" $label) -}}
 {{- else if $original -}}
-{{- fail (printf "InstancePairIncomplete: instance.original %q carries no instance.label; the authorized minter assigns that label and this chart never derives one" $original) -}}
+{{- fail (printf "InstancePairIncomplete: global.instance.original %q carries no global.instance.label; the authorized minter assigns that label and this chart never derives one" $original) -}}
 {{- else if $label -}}
-{{- fail (printf "InstancePairIncomplete: instance.label %q carries no instance.original; a shortened label is recorded only beside the id it shortens, or the shortening is unauditable" $label) -}}
+{{- fail (printf "InstancePairIncomplete: global.instance.label %q carries no global.instance.original; a shortened label is recorded only beside the id it shortens, or the shortening is unauditable" $label) -}}
 {{- end -}}
 {{- end -}}
 
@@ -231,7 +238,7 @@
   halves, because an assembler-minted petname IS its own unshortened id.
 */}}
 {{- define "diene-helm-wrapper.instanceOriginal" -}}
-{{- $instance := .Values.instance | default dict -}}
+{{- $instance := (.Values.global | default dict).instance | default dict -}}
 {{- if (index $instance "preview" | default dict | dig "enabled" false) -}}
 {{- include "diene-helm-wrapper.previewPetname" . -}}
 {{- else -}}
@@ -245,7 +252,7 @@
   the receipt-bound petname under preview. Never the original.
 */}}
 {{- define "diene-helm-wrapper.instanceSegment" -}}
-{{- $instance := .Values.instance | default dict -}}
+{{- $instance := (.Values.global | default dict).instance | default dict -}}
 {{- if (index $instance "preview" | default dict | dig "enabled" false) -}}
 {{- include "diene-helm-wrapper.previewPetname" . -}}
 {{- else -}}
@@ -294,6 +301,42 @@ helm.sh/chart: {{ include "diene-helm-wrapper.chart" . }}
 {{- end }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end -}}
+
+{{/*
+  A hook object's own labels. A lifecycle hook is NOT the primary workload, so it
+  must never be born wearing the primary workload's selector identity.
+
+  Every primary Service selector and the Deployment's own `matchLabels` are
+  exactly `selectorLabels`, so a hook pod stamped with the full
+  `diene-helm-wrapper.labels` set carries a strict SUPERSET of all of them and is
+  eligible for their EndpointSlices the whole time the hook runs. Nothing routed
+  to it only because both Services name `targetPort: http` and the migration
+  container declares no port — an accident of this sample, not a property of the
+  shape every `charts/*` node inherits. The first hook container that declares an
+  `http` port, or the first Service that switches to a numeric target, would put a
+  migration pod behind the gateway LoadBalancer.
+
+  So a hook keeps everything that makes it a service-tree object — the full
+  projection under the prefix in force, chart, version, managed-by — and swaps
+  exactly the workload identity: `app.kubernetes.io/name` becomes the hook's own
+  `<service>-<token>` resource name and `app.kubernetes.io/component` records
+  which hook it is. `instance` stays the release, as it is on every object.
+*/}}
+{{- define "diene-helm-wrapper.hookLabels" -}}
+{{- $root := .root -}}
+{{- $token := required "hook token is required" .token -}}
+{{- $prefix := include "diene-helm-wrapper.labelPrefix" $root -}}
+{{- include "diene-helm-wrapper.dnsLabel" (dict "slot" (printf "hook component for token %q" $token) "label" $token) -}}
+helm.sh/chart: {{ include "diene-helm-wrapper.chart" $root }}
+app.kubernetes.io/name: {{ include "diene-helm-wrapper.resourceName" (dict "root" $root "token" $token) }}
+app.kubernetes.io/instance: {{ $root.Release.Name }}
+app.kubernetes.io/component: {{ $token }}
+{{- range $key, $value := $root.Values.serviceTree }}
+{{ printf "%s/%s" $prefix $key }}: {{ $value | quote }}
+{{- end }}
+app.kubernetes.io/version: {{ $root.Chart.AppVersion | quote }}
+app.kubernetes.io/managed-by: {{ $root.Release.Service }}
 {{- end -}}
 
 {{/*

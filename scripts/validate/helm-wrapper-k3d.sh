@@ -19,7 +19,14 @@ bash ./scripts/local/vendor-chart-config.sh
 helm dependency build chart
 helm upgrade --install helm-wrapper chart --namespace sample --create-namespace --values chart/values.example.yaml --values chart/values.lapras.yaml --wait --timeout 5m
 kubectl --context "k3d-${cluster_name}" --namespace sample wait --for=condition=Available deployment/wrapper-api --timeout=3m
-kubectl --context "k3d-${cluster_name}" --namespace sample get pods -l app.kubernetes.io/name=wrapper-api -o json | jq -e '[.items[] | select(.metadata.labels["batch.kubernetes.io/job-name"] == null)] | length > 0 and all(.[]; .status.phase == "Running")' >/dev/null
+# The Deployment's own selector, verbatim, so pod health is asserted over exactly
+# the pods that Service selects. The pre-sync hook pod no longer carries the
+# primary workload identity — it is born `app.kubernetes.io/name=wrapper-migration`
+# with `component=migration` — so the `batch.kubernetes.io/job-name` filter this
+# line used to need is obsolete: a migration pod cannot enter this selection at
+# all, and `scripts/validate/helm-wrapper.sh labels` proves that with a sabotage
+# control rather than leaving it to a downstream workaround.
+kubectl --context "k3d-${cluster_name}" --namespace sample get pods -l app.kubernetes.io/name=wrapper-api,app.kubernetes.io/instance=helm-wrapper -o json | jq -e '.items | length > 0 and all(.[]; .status.phase == "Running")' >/dev/null
 
 PUBLISH_MODE=oci PUBLISH_DRY_RUN=false RELEASE_VERSION=v0.1.0 PUBLISH_OUTPUT_DIR="${tmp}/oci" OCI_REGISTRY="localhost:${registry_port}" OCI_REPOSITORY=charts OCI_PLAIN_HTTP=true bash ./scripts/ci/publish.sh
 helm pull "oci://localhost:${registry_port}/charts/diene-helm-wrapper" --version 0.1.0 --plain-http --destination "${tmp}"

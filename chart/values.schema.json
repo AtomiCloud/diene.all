@@ -134,164 +134,164 @@
             "description": "Chart-wide values. Helm propagates this table verbatim into every pinned dependency, so it is the only lever a wrapper decision has over an upstream object.",
             "type": "object",
             "properties": {
+                "instance": {
+                    "description": "Optional physical-instance metadata. The instance remains outside LPSM and is never minted here. It lives under `global` for the same reason `labelPrefix` does: Helm copies this table verbatim into every pinned dependency, so ONE recorded identity is readable from an upstream template context too. A chart-local copy would stop at the wrapper's own objects and force the dependency's annotations to hard-code a second pair that drifts the moment preview is enabled.",
+                    "type": "object",
+                    "required": [
+                        "original",
+                        "label"
+                    ],
+                    "properties": {
+                        "label": {
+                            "description": "The authorized minter's stable DNS-1123 label for that id, at most 63 bytes. It is the hostname instance segment. The chart never derives it from `original` — it records the pair it was handed.",
+                            "type": "string",
+                            "pattern": "^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)?$",
+                            "maxLength": 63
+                        },
+                        "original": {
+                            "description": "The unchanged repository-qualified physical id, recorded verbatim. It may be far longer than one DNS label; the authorized minter owns every normalization, so the chart neither lowercases nor shortens it. Empty selects no recorded instance, and then `label` must be empty too.",
+                            "type": "string",
+                            "pattern": "^([A-Za-z0-9]([A-Za-z0-9._:/-]*[A-Za-z0-9])?)?$",
+                            "maxLength": 253
+                        },
+                        "preview": {
+                            "description": "castform preview identity. The chart consumes authorized-assembler output only; it never mints, canonicalizes, or suffixes a petname.",
+                            "type": "object",
+                            "properties": {
+                                "canonical": {
+                                    "description": "The typed CanonicalPreviewInstance handed to this chart. It must bind byte-for-byte to the receipt below.",
+                                    "type": "object",
+                                    "properties": {
+                                        "fullLeaseDigest": {
+                                            "type": "string",
+                                            "pattern": "^[0-9a-f]{64}$"
+                                        },
+                                        "previewPetname": {
+                                            "type": "string",
+                                            "pattern": "^[a-z]+-[a-z]+-[a-z]+(-[0-9a-v]{3})?$"
+                                        }
+                                    }
+                                },
+                                "enabled": {
+                                    "description": "Render the receipt-bound preview coordinate. Every field below is refused unless it is internally consistent.",
+                                    "type": "boolean"
+                                },
+                                "manifest": {
+                                    "description": "The fully resolved manifest the receipt was minted from. Unresolved branch pins refuse; they are resolved to commits at mint.",
+                                    "type": "object",
+                                    "properties": {
+                                        "branchResolutions": {
+                                            "description": "Branch pins recorded with the commit they resolved to at mint. The commit must equal the pin, so a moving branch cannot move the rendered hostname.",
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "object",
+                                                "required": [
+                                                    "branch",
+                                                    "commit"
+                                                ],
+                                                "properties": {
+                                                    "branch": {
+                                                        "type": "string"
+                                                    },
+                                                    "commit": {
+                                                        "type": "string"
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        "defaultChannelRef": {
+                                            "type": "string"
+                                        },
+                                        "pins": {
+                                            "description": "One pin per `\u003cplatform\u003e.\u003cservice\u003e`. Values are a released version, a full commit, or `{kind: operator, version: \u003cv\u003e}`.",
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "anyOf": [
+                                                    {
+                                                        "type": "string"
+                                                    },
+                                                    {
+                                                        "type": "object",
+                                                        "required": [
+                                                            "kind",
+                                                            "version"
+                                                        ],
+                                                        "properties": {
+                                                            "kind": {
+                                                                "type": "string"
+                                                            },
+                                                            "version": {
+                                                                "type": "string"
+                                                            }
+                                                        }
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    }
+                                },
+                                "receipt": {
+                                    "description": "The broker-verified assembler receipt. `fullLeaseDigest` and `leaseKey` stay internal and are never rendered into an object or a hostname.",
+                                    "type": "object",
+                                    "properties": {
+                                        "collision": {
+                                            "description": "Live base-petname collision recorded at mint. A digest here is the DIFFERENT live digest that forced the three-character suffix.",
+                                            "type": "object",
+                                            "properties": {
+                                                "liveFullLeaseDigest": {
+                                                    "type": "string",
+                                                    "pattern": "^([0-9a-f]{64})?$"
+                                                }
+                                            }
+                                        },
+                                        "forkSource": {
+                                            "type": "string",
+                                            "enum": [
+                                                "staging",
+                                                "production"
+                                            ]
+                                        },
+                                        "fullLeaseDigest": {
+                                            "type": "string",
+                                            "pattern": "^[0-9a-f]{64}$"
+                                        },
+                                        "leaseKey": {
+                                            "type": "string",
+                                            "pattern": "^p[0-9a-v]{26}$"
+                                        },
+                                        "mintedAt": {
+                                            "type": "string"
+                                        },
+                                        "previewPetname": {
+                                            "type": "string",
+                                            "pattern": "^[a-z]+-[a-z]+-[a-z]+(-[0-9a-v]{3})?$"
+                                        },
+                                        "requester": {
+                                            "type": "string"
+                                        },
+                                        "schema": {
+                                            "type": "string",
+                                            "pattern": "^diene\\.preview-manifest/v[0-9]+$"
+                                        },
+                                        "signature": {
+                                            "type": "string"
+                                        },
+                                        "wordList": {
+                                            "type": "string",
+                                            "pattern": "^diene\\.preview-wordlist/v[0-9]+$"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
                 "labelPrefix": {
                     "description": "Prefix used by every service-tree label and annotation key, wrapper-owned and upstream alike. It must be one DNS-1123 subdomain.",
                     "type": "string",
                     "pattern": "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$",
                     "maxLength": 253,
                     "minLength": 1
-                }
-            }
-        },
-        "instance": {
-            "description": "Optional physical-instance metadata. The instance remains outside LPSM and is never minted here.",
-            "type": "object",
-            "required": [
-                "original",
-                "label"
-            ],
-            "properties": {
-                "label": {
-                    "description": "The authorized minter's stable DNS-1123 label for that id, at most 63 bytes. It is the hostname instance segment. The chart never derives it from `original` — it records the pair it was handed.",
-                    "type": "string",
-                    "pattern": "^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)?$",
-                    "maxLength": 63
-                },
-                "original": {
-                    "description": "The unchanged repository-qualified physical id, recorded verbatim. It may be far longer than one DNS label; the authorized minter owns every normalization, so the chart neither lowercases nor shortens it. Empty selects no recorded instance, and then `label` must be empty too.",
-                    "type": "string",
-                    "pattern": "^([A-Za-z0-9]([A-Za-z0-9._:/-]*[A-Za-z0-9])?)?$",
-                    "maxLength": 253
-                },
-                "preview": {
-                    "description": "castform preview identity. The chart consumes authorized-assembler output only; it never mints, canonicalizes, or suffixes a petname.",
-                    "type": "object",
-                    "properties": {
-                        "canonical": {
-                            "description": "The typed CanonicalPreviewInstance handed to this chart. It must bind byte-for-byte to the receipt below.",
-                            "type": "object",
-                            "properties": {
-                                "fullLeaseDigest": {
-                                    "type": "string",
-                                    "pattern": "^[0-9a-f]{64}$"
-                                },
-                                "previewPetname": {
-                                    "type": "string",
-                                    "pattern": "^[a-z]+-[a-z]+-[a-z]+(-[0-9a-v]{3})?$"
-                                }
-                            }
-                        },
-                        "enabled": {
-                            "description": "Render the receipt-bound preview coordinate. Every field below is refused unless it is internally consistent.",
-                            "type": "boolean"
-                        },
-                        "manifest": {
-                            "description": "The fully resolved manifest the receipt was minted from. Unresolved branch pins refuse; they are resolved to commits at mint.",
-                            "type": "object",
-                            "properties": {
-                                "branchResolutions": {
-                                    "description": "Branch pins recorded with the commit they resolved to at mint. The commit must equal the pin, so a moving branch cannot move the rendered hostname.",
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "type": "object",
-                                        "required": [
-                                            "branch",
-                                            "commit"
-                                        ],
-                                        "properties": {
-                                            "branch": {
-                                                "type": "string"
-                                            },
-                                            "commit": {
-                                                "type": "string"
-                                            }
-                                        }
-                                    }
-                                },
-                                "defaultChannelRef": {
-                                    "type": "string"
-                                },
-                                "pins": {
-                                    "description": "One pin per `\u003cplatform\u003e.\u003cservice\u003e`. Values are a released version, a full commit, or `{kind: operator, version: \u003cv\u003e}`.",
-                                    "type": "object",
-                                    "additionalProperties": {
-                                        "anyOf": [
-                                            {
-                                                "type": "string"
-                                            },
-                                            {
-                                                "type": "object",
-                                                "required": [
-                                                    "kind",
-                                                    "version"
-                                                ],
-                                                "properties": {
-                                                    "kind": {
-                                                        "type": "string"
-                                                    },
-                                                    "version": {
-                                                        "type": "string"
-                                                    }
-                                                }
-                                            }
-                                        ]
-                                    }
-                                }
-                            }
-                        },
-                        "receipt": {
-                            "description": "The broker-verified assembler receipt. `fullLeaseDigest` and `leaseKey` stay internal and are never rendered into an object or a hostname.",
-                            "type": "object",
-                            "properties": {
-                                "collision": {
-                                    "description": "Live base-petname collision recorded at mint. A digest here is the DIFFERENT live digest that forced the three-character suffix.",
-                                    "type": "object",
-                                    "properties": {
-                                        "liveFullLeaseDigest": {
-                                            "type": "string",
-                                            "pattern": "^([0-9a-f]{64})?$"
-                                        }
-                                    }
-                                },
-                                "forkSource": {
-                                    "type": "string",
-                                    "enum": [
-                                        "staging",
-                                        "production"
-                                    ]
-                                },
-                                "fullLeaseDigest": {
-                                    "type": "string",
-                                    "pattern": "^[0-9a-f]{64}$"
-                                },
-                                "leaseKey": {
-                                    "type": "string",
-                                    "pattern": "^p[0-9a-v]{26}$"
-                                },
-                                "mintedAt": {
-                                    "type": "string"
-                                },
-                                "previewPetname": {
-                                    "type": "string",
-                                    "pattern": "^[a-z]+-[a-z]+-[a-z]+(-[0-9a-v]{3})?$"
-                                },
-                                "requester": {
-                                    "type": "string"
-                                },
-                                "schema": {
-                                    "type": "string",
-                                    "pattern": "^diene\\.preview-manifest/v[0-9]+$"
-                                },
-                                "signature": {
-                                    "type": "string"
-                                },
-                                "wordList": {
-                                    "type": "string",
-                                    "pattern": "^diene\\.preview-wordlist/v[0-9]+$"
-                                }
-                            }
-                        }
-                    }
                 }
             }
         },
@@ -903,7 +903,7 @@
                     "type": "object",
                     "properties": {
                         "annotations": {
-                            "description": "Service-tree annotations stamped on every upstream object. Keys are templated on the same `global.labelPrefix` as the labels above.",
+                            "description": "Service-tree annotations stamped on every upstream object. Keys are templated on the same `global.labelPrefix` as the labels above, and the recorded instance pair is templated through the SAME helpers the wrapper's own objects use, so one release can never record two different physical instances. Literals here would be a second copy that silently diverges the moment `global.instance.preview.enabled` is true.",
                             "type": "object",
                             "additionalProperties": {
                                 "type": "string"

@@ -27,16 +27,16 @@ data:
   {{- /* The pre-minted pair, recorded as the distinct bytes it arrived as, so a hash-shortened label stays reversible to its repository-qualified id. */}}
   instance.original: {{ $original | quote }}
   instance.label: {{ $segment | quote }}
-  {{- if and $segment (not .Values.instance.preview.enabled) }}
+  {{- if and $segment (not .Values.global.instance.preview.enabled) }}
   {{- /* The hostname instance segment is the minter's LABEL, never the original. Preview publishes its own coordinate below. */}}
   instance.hostname: {{ include "diene-helm-wrapper.hostname" (dict "root" . "module" $lpsm.module "service" $lpsm.service "landscape" $lpsm.landscape "instance" $segment "zone" $lpsm.instanceZone) | quote }}
   {{- end }}
-  {{- if .Values.instance.preview.enabled }}
+  {{- if .Values.global.instance.preview.enabled }}
   {{- /* Receipt-derived, outward-safe fields only. The full digest and leaseKey stay internal. */}}
   preview.petname: {{ include "diene-helm-wrapper.previewPetname" . | quote }}
-  preview.schema: {{ .Values.instance.preview.receipt.schema | quote }}
-  preview.wordList: {{ .Values.instance.preview.receipt.wordList | quote }}
-  preview.forkSource: {{ .Values.instance.preview.receipt.forkSource | quote }}
-  preview.mintedAt: {{ .Values.instance.preview.receipt.mintedAt | quote }}
+  preview.schema: {{ .Values.global.instance.preview.receipt.schema | quote }}
+  preview.wordList: {{ .Values.global.instance.preview.receipt.wordList | quote }}
+  preview.forkSource: {{ .Values.global.instance.preview.receipt.forkSource | quote }}
+  preview.mintedAt: {{ .Values.global.instance.preview.receipt.mintedAt | quote }}
   preview.hostname: {{ include "diene-helm-wrapper.previewHostname" (dict "root" . "module" $lpsm.module "service" $lpsm.service "zone" $lpsm.instanceZone) | quote }}
   {{- end }}

@@ -3,6 +3,63 @@ global:
   # @schema pattern:^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$;minLength:1;maxLength:253
   # -- Prefix used by every service-tree label and annotation key, wrapper-owned and upstream alike. It must be one DNS-1123 subdomain.
   labelPrefix: atomi.cloud
+  # -- Optional physical-instance metadata. The instance remains outside LPSM and is never minted here. It lives under `global` for the same reason `labelPrefix` does: Helm copies this table verbatim into every pinned dependency, so ONE recorded identity is readable from an upstream template context too. A chart-local copy would stop at the wrapper's own objects and force the dependency's annotations to hard-code a second pair that drifts the moment preview is enabled.
+  instance:
+    # @schema pattern:^([A-Za-z0-9]([A-Za-z0-9._:/-]*[A-Za-z0-9])?)?$;maxLength:253;required:true
+    # -- The unchanged repository-qualified physical id, recorded verbatim. It may be far longer than one DNS label; the authorized minter owns every normalization, so the chart neither lowercases nor shortens it. Empty selects no recorded instance, and then `label` must be empty too.
+    original: github.com/AtomiCloud/diene.all/charts/helm-wrapper/pull-requests/12345
+    # @schema pattern:^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)?$;maxLength:63;required:true
+    # -- The authorized minter's stable DNS-1123 label for that id, at most 63 bytes. It is the hostname instance segment. The chart never derives it from `original` — it records the pair it was handed.
+    label: pr-12345-9f3a1c
+    # -- castform preview identity. The chart consumes authorized-assembler output only; it never mints, canonicalizes, or suffixes a petname.
+    preview:
+      # -- Render the receipt-bound preview coordinate. Every field below is refused unless it is internally consistent.
+      enabled: false
+      # -- The typed CanonicalPreviewInstance handed to this chart. It must bind byte-for-byte to the receipt below.
+      canonical:
+        # @schema pattern:^[a-z]+-[a-z]+-[a-z]+(-[0-9a-v]{3})?$
+        previewPetname: otter-beats-potato
+        # @schema pattern:^[0-9a-f]{64}$
+        fullLeaseDigest: 7527f8ce8af22ee78eaaeaa68d24857bf88c3c5a8a9d2fd812f607441cfbca7d
+      # -- The broker-verified assembler receipt. `fullLeaseDigest` and `leaseKey` stay internal and are never rendered into an object or a hostname.
+      receipt:
+        # @schema pattern:^[a-z]+-[a-z]+-[a-z]+(-[0-9a-v]{3})?$
+        previewPetname: otter-beats-potato
+        # @schema pattern:^[0-9a-f]{64}$
+        fullLeaseDigest: 7527f8ce8af22ee78eaaeaa68d24857bf88c3c5a8a9d2fd812f607441cfbca7d
+        # @schema pattern:^p[0-9a-v]{26}$
+        leaseKey: p00000000000000000000000000 # gitleaks:allow
+        # @schema pattern:^diene\.preview-manifest/v[0-9]+$
+        schema: diene.preview-manifest/v1
+        # @schema pattern:^diene\.preview-wordlist/v[0-9]+$
+        wordList: diene.preview-wordlist/v1
+        forkSource: staging # @schema enum:[staging, production]
+        requester: ci@example.invalid
+        mintedAt: '2026-07-30T00:00:00Z'
+        signature: ZXhhbXBsZS1lZDI1NTE5LWRldGFjaGVkLXNpZ25hdHVyZQ==
+        # -- Live base-petname collision recorded at mint. A digest here is the DIFFERENT live digest that forced the three-character suffix.
+        collision:
+          # @schema pattern:^([0-9a-f]{64})?$
+          liveFullLeaseDigest: ''
+      # -- The fully resolved manifest the receipt was minted from. Unresolved branch pins refuse; they are resolved to commits at mint.
+      manifest:
+        defaultChannelRef: stable-2026.07
+        # @schema skipProperties:true
+        # @schema additionalProperties:{"anyOf":[{"type":"string"},{"type":"object","properties":{"kind":{"type":"string"},"version":{"type":"string"}},"required":["kind","version"]}]}
+        # -- One pin per `<platform>.<service>`. Values are a released version, a full commit, or `{kind: operator, version: <v>}`.
+        pins:
+          auth.logto:
+            kind: operator
+            version: 1.8.0
+          nitroso.lithium: 1.4.2
+          nitroso.zinc: e8266aaad16351c0a8695370b6d4d79d7d744ed2
+        # @schema skipProperties:true
+        # @schema additionalProperties:{"type":"object","properties":{"branch":{"type":"string"},"commit":{"type":"string"}},"required":["branch","commit"]}
+        # -- Branch pins recorded with the commit they resolved to at mint. The commit must equal the pin, so a moving branch cannot move the rendered hostname.
+        branchResolutions:
+          nitroso.zinc:
+            branch: main
+            commit: e8266aaad16351c0a8695370b6d4d79d7d744ed2
 
 # @schema pattern:^[a-z0-9]+-[a-z0-9]+$;required:true
 # -- Primary workload fullname. It must be `<service>-<dashless-token>`.
@@ -18,64 +75,6 @@ serviceTree:
   module: api
   # @schema pattern:^[0-9]+$;required:true
   layer: '2'
-
-# -- Optional physical-instance metadata. The instance remains outside LPSM and is never minted here.
-instance:
-  # @schema pattern:^([A-Za-z0-9]([A-Za-z0-9._:/-]*[A-Za-z0-9])?)?$;maxLength:253;required:true
-  # -- The unchanged repository-qualified physical id, recorded verbatim. It may be far longer than one DNS label; the authorized minter owns every normalization, so the chart neither lowercases nor shortens it. Empty selects no recorded instance, and then `label` must be empty too.
-  original: github.com/AtomiCloud/diene.all/charts/helm-wrapper/pull-requests/12345
-  # @schema pattern:^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)?$;maxLength:63;required:true
-  # -- The authorized minter's stable DNS-1123 label for that id, at most 63 bytes. It is the hostname instance segment. The chart never derives it from `original` — it records the pair it was handed.
-  label: pr-12345-9f3a1c
-  # -- castform preview identity. The chart consumes authorized-assembler output only; it never mints, canonicalizes, or suffixes a petname.
-  preview:
-    # -- Render the receipt-bound preview coordinate. Every field below is refused unless it is internally consistent.
-    enabled: false
-    # -- The typed CanonicalPreviewInstance handed to this chart. It must bind byte-for-byte to the receipt below.
-    canonical:
-      # @schema pattern:^[a-z]+-[a-z]+-[a-z]+(-[0-9a-v]{3})?$
-      previewPetname: otter-beats-potato
-      # @schema pattern:^[0-9a-f]{64}$
-      fullLeaseDigest: 7527f8ce8af22ee78eaaeaa68d24857bf88c3c5a8a9d2fd812f607441cfbca7d
-    # -- The broker-verified assembler receipt. `fullLeaseDigest` and `leaseKey` stay internal and are never rendered into an object or a hostname.
-    receipt:
-      # @schema pattern:^[a-z]+-[a-z]+-[a-z]+(-[0-9a-v]{3})?$
-      previewPetname: otter-beats-potato
-      # @schema pattern:^[0-9a-f]{64}$
-      fullLeaseDigest: 7527f8ce8af22ee78eaaeaa68d24857bf88c3c5a8a9d2fd812f607441cfbca7d
-      # @schema pattern:^p[0-9a-v]{26}$
-      leaseKey: p00000000000000000000000000 # gitleaks:allow
-      # @schema pattern:^diene\.preview-manifest/v[0-9]+$
-      schema: diene.preview-manifest/v1
-      # @schema pattern:^diene\.preview-wordlist/v[0-9]+$
-      wordList: diene.preview-wordlist/v1
-      forkSource: staging # @schema enum:[staging, production]
-      requester: ci@example.invalid
-      mintedAt: '2026-07-30T00:00:00Z'
-      signature: ZXhhbXBsZS1lZDI1NTE5LWRldGFjaGVkLXNpZ25hdHVyZQ==
-      # -- Live base-petname collision recorded at mint. A digest here is the DIFFERENT live digest that forced the three-character suffix.
-      collision:
-        # @schema pattern:^([0-9a-f]{64})?$
-        liveFullLeaseDigest: ''
-    # -- The fully resolved manifest the receipt was minted from. Unresolved branch pins refuse; they are resolved to commits at mint.
-    manifest:
-      defaultChannelRef: stable-2026.07
-      # @schema skipProperties:true
-      # @schema additionalProperties:{"anyOf":[{"type":"string"},{"type":"object","properties":{"kind":{"type":"string"},"version":{"type":"string"}},"required":["kind","version"]}]}
-      # -- One pin per `<platform>.<service>`. Values are a released version, a full commit, or `{kind: operator, version: <v>}`.
-      pins:
-        auth.logto:
-          kind: operator
-          version: 1.8.0
-        nitroso.lithium: 1.4.2
-        nitroso.zinc: e8266aaad16351c0a8695370b6d4d79d7d744ed2
-      # @schema skipProperties:true
-      # @schema additionalProperties:{"type":"object","properties":{"branch":{"type":"string"},"commit":{"type":"string"}},"required":["branch","commit"]}
-      # -- Branch pins recorded with the commit they resolved to at mint. The commit must equal the pin, so a moving branch cannot move the rendered hostname.
-      branchResolutions:
-        nitroso.zinc:
-          branch: main
-          commit: e8266aaad16351c0a8695370b6d4d79d7d744ed2
 
 # -- Wrapper-owned sample workload.
 workload:
@@ -295,14 +294,14 @@ upstream:
       '{{ .Values.global.labelPrefix }}/layer': '2'
     # @schema skipProperties:true
     # @schema additionalProperties:{"type":"string"}
-    # -- Service-tree annotations stamped on every upstream object. Keys are templated on the same `global.labelPrefix` as the labels above.
+    # -- Service-tree annotations stamped on every upstream object. Keys are templated on the same `global.labelPrefix` as the labels above, and the recorded instance pair is templated through the SAME helpers the wrapper's own objects use, so one release can never record two different physical instances. Literals here would be a second copy that silently diverges the moment `global.instance.preview.enabled` is true.
     annotations:
       '{{ .Values.global.labelPrefix }}/platform': sample
       '{{ .Values.global.labelPrefix }}/service': wrapper
       '{{ .Values.global.labelPrefix }}/module': upstream
       '{{ .Values.global.labelPrefix }}/layer': '2'
-      '{{ .Values.global.labelPrefix }}/instance-original': github.com/AtomiCloud/diene.all/charts/helm-wrapper/pull-requests/12345
-      '{{ .Values.global.labelPrefix }}/instance-label': pr-12345-9f3a1c
+      '{{ .Values.global.labelPrefix }}/instance-original': '{{ include "diene-helm-wrapper.instanceOriginal" . }}'
+      '{{ .Values.global.labelPrefix }}/instance-label': '{{ include "diene-helm-wrapper.instanceSegment" . }}'
   # -- Exactly one controller, so the rendered Deployment keeps the unsuffixed `wrapper-upstream` name.
   controllers:
     main:

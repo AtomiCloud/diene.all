@@ -107,6 +107,13 @@ labels)
   example_objects="${base_objects}"
   lapras_objects='["ConfigMap/wrapper-config","ConfigMap/wrapper-contracts","Service/wrapper-gateway","Service/wrapper-api","Deployment/wrapper-api","Job/wrapper-migration"]'
   upstream_objects='["Deployment/wrapper-upstream","Service/wrapper-upstream"]'
+  # Every object that owns a pod selector, named exactly. All three stacks render
+  # all five, so a stack that stopped rendering one is reported rather than
+  # narrowing the hook-isolation comparison to whatever survived.
+  selector_objects='["Service/wrapper-api","Service/wrapper-gateway","Service/wrapper-upstream","Deployment/wrapper-api","Deployment/wrapper-upstream"]'
+  hook_job=wrapper-migration
+  hook_pod_name=wrapper-migration
+  hook_component=migration
   # The landscape slot is contributed by the landscape overlay and the cluster slot
   # by the cluster overlay, so the base stack must be asked for neither, the
   # landscape stack for the first only, and the stacked one for both.
@@ -118,12 +125,24 @@ labels)
   # copy. The two halves are DISTINCT — a repository-qualified original beside its
   # minted DNS-1123 label — so an implementation that stamped one half into both
   # annotations is reported instead of passing.
-  instance_original="$(yq -r '.instance.original' chart/values.yaml)"
-  instance_label="$(yq -r '.instance.label' chart/values.yaml)"
+  instance_original="$(yq -r '.global.instance.original' chart/values.yaml)"
+  instance_label="$(yq -r '.global.instance.label' chart/values.yaml)"
   if [ "${instance_original}" = "${instance_label}" ]; then
     echo "❌ the committed instance pair records the same bytes twice, so the annotation assertion below could not tell the halves apart" >&2
     exit 1
   fi
+  physical_instance="$(jq -n --arg original "${instance_original}" --arg label "${instance_label}" '{"instance-original": $original, "instance-label": $label}')"
+  # Under preview BOTH halves are the receipt-bound petname, because an
+  # assembler-minted petname is already its own unshortened id. It is read from the
+  # same values file for the same reason, and it must differ from both physical
+  # halves or the preview stack below could not tell a stale physical annotation
+  # apart from a correctly resolved preview one.
+  preview_petname="$(yq -r '.global.instance.preview.receipt.previewPetname' chart/values.yaml)"
+  if [ "${preview_petname}" = "${instance_original}" ] || [ "${preview_petname}" = "${instance_label}" ]; then
+    echo "❌ the committed preview petname equals a physical half, so the preview stack could not detect a hard-coded physical identity" >&2
+    exit 1
+  fi
+  preview_instance="$(jq -n --arg petname "${preview_petname}" '{"instance-original": $petname, "instance-label": $petname}')"
 
   # Assert the service-tree projection per rendered object, in both the labels and
   # the annotations, under the prefix in force. The module slot is resolved per
@@ -139,12 +158,11 @@ labels)
   # key still under the old prefix. Nothing is excused now, so an object outside
   # either named list is reported and a new wrapper resource cannot slip out of
   # coverage by simply not being on the list.
-  carries_projection() {
-    local description="$1" file="$2" prefix="$3" forbidden="$4" objects="$5" projection="$6"
-    local offenders
-    offenders="$(yq eval-all -o=json '.' "${file}" | jq -s -r \
+  projection_offenders() {
+    local file="$1" prefix="$2" forbidden="$3" objects="$4" projection="$5" instance="$6"
+    yq eval-all -o=json '.' "${file}" | jq -s -r \
       --arg prefix "${prefix}" --arg forbidden "${forbidden}" \
-      --argjson instance "$(jq -n --arg original "${instance_original}" --arg label "${instance_label}" '{"instance-original": $original, "instance-label": $label}')" \
+      --argjson instance "${instance}" \
       --argjson objects "${objects}" --argjson upstream "${upstream_objects}" --argjson projection "${projection}" '
         def slot($key): "\($prefix)/\($key)";
         map(select(.kind != null)) as $rendered
@@ -171,10 +189,98 @@ labels)
                   , ( select($forbidden != "")
                       | $keys[] | select(startswith("\($forbidden)/"))
                       | "\($id): stale key \(.)" ) )
-                end ) ] | .[]')"
+                end ) ] | .[]'
+  }
+
+  carries_projection() {
+    local description="$1"
+    shift
+    local offenders
+    offenders="$(projection_offenders "$@")"
     if [ -n "${offenders}" ]; then
       echo "❌ ${description}" >&2
       printf '%s\n' "${offenders}" >&2
+      exit 1
+    fi
+  }
+
+  # The control half of the same assertion: a sabotaged render must produce at least
+  # one offender. Without it a projection check that silently stopped selecting
+  # anything would keep reporting a clean pass over nothing.
+  rejects_projection() {
+    local description="$1"
+    shift
+    if [ -z "$(projection_offenders "$@")" ]; then
+      echo "❌ ${description}: the projection assertion accepted the sabotage" >&2
+      exit 1
+    fi
+  }
+
+  # A lifecycle hook pod must not be born wearing the primary workload's selector
+  # identity. Both primary Service selectors and the Deployment's own matchLabels
+  # are exactly the wrapper's selectorLabels, so a hook pod stamped with the full
+  # label set is a strict SUPERSET of every one of them and is eligible for their
+  # EndpointSlices while the hook runs; nothing routes today only because the
+  # Services name `targetPort: http` and the migration container declares no port,
+  # which is an accident of this sample rather than a property of the shape.
+  #
+  # The check is deliberately object-and-name-exact rather than a scan of whatever
+  # happened to render: every named selector-bearing object must be present, must
+  # carry a NON-EMPTY selector, and must fail to select the hook pod. A missing
+  # object, an emptied selector, or a hook pod with no labels at all is an offender,
+  # so this cannot pass by matching nothing.
+  hook_offenders() {
+    local file="$1" prefix="$2" projection="$3" instance="$4"
+    yq eval-all -o=json '.' "${file}" | jq -s -r \
+      --arg prefix "${prefix}" --arg job "${hook_job}" --arg name "${hook_pod_name}" --arg component "${hook_component}" \
+      --argjson selectors "${selector_objects}" --argjson projection "${projection}" --argjson instance "${instance}" '
+        def slot($key): "\($prefix)/\($key)";
+        def selects($pod; $selector): ($selector | length) > 0
+          and ([$selector | to_entries[] | select($pod[.key] == .value)] | length) == ($selector | length);
+        map(select(.kind != null)) as $rendered
+        | ($rendered | map("\(.kind)/\(.metadata.name)")) as $ids
+        | ($rendered | map(select(.kind == "Job" and .metadata.name == $job))) as $jobs
+        | ($jobs[0].spec.template.metadata.labels // {}) as $pod
+        | ($jobs[0].spec.template.metadata.annotations // {}) as $podAnnotations
+        | [ (if ($jobs | length) != 1 then "expected exactly one Job/\($job), found \($jobs | length)" else empty end)
+          , (if ($pod | length) == 0 then "Job/\($job) renders a pod template with no labels at all" else empty end)
+          , (if $pod["app.kubernetes.io/name"] != $name
+              then "Job/\($job) pod app.kubernetes.io/name=\($pod["app.kubernetes.io/name"] // "absent") want=\($name)" else empty end)
+          , (if $pod["app.kubernetes.io/component"] != $component
+              then "Job/\($job) pod app.kubernetes.io/component=\($pod["app.kubernetes.io/component"] // "absent") want=\($component)" else empty end)
+          , ( ($projection + {module: "api"}) | to_entries[]
+              | select($pod[slot(.key)] != .value or $podAnnotations[slot(.key)] != .value)
+              | "Job/\($job) pod \(slot(.key)) label=\($pod[slot(.key)] // "absent") annotation=\($podAnnotations[slot(.key)] // "absent") want=\(.value)" )
+          , ( $instance | to_entries[]
+              | select($podAnnotations[slot(.key)] != .value)
+              | "Job/\($job) pod \(slot(.key)) annotation=\($podAnnotations[slot(.key)] // "absent") want=\(.value)" )
+          , (($selectors - $ids)[] | "missing selector-bearing object \(.)")
+          , ( $rendered[]
+              | "\(.kind)/\(.metadata.name)" as $id
+              | select($selectors | index($id))
+              | ((.spec.selector.matchLabels // .spec.selector) // {}) as $selector
+              | if ($selector | length) == 0 then "\($id) carries no selector, so it proves nothing about hook isolation"
+                elif selects($pod; $selector) then "\($id) selector \($selector | tojson) selects the Job/\($job) pod"
+                else empty end ) ] | .[]'
+  }
+
+  hook_is_isolated() {
+    local description="$1"
+    shift
+    local offenders
+    offenders="$(hook_offenders "$@")"
+    if [ -n "${offenders}" ]; then
+      echo "❌ ${description}" >&2
+      printf '%s\n' "${offenders}" >&2
+      exit 1
+    fi
+  }
+
+  rejects_hook() {
+    local description="$1"
+    shift
+    if [ -z "$(hook_offenders "$@")" ]; then
+      echo "❌ ${description}: the hook-isolation assertion accepted the sabotage" >&2
       exit 1
     fi
   }
@@ -185,18 +291,79 @@ labels)
   helm template "${release}" chart --namespace "${namespace}" --set global.labelPrefix=example.dev >"${tmp}/base-override.yaml"
   helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml --set global.labelPrefix=example.dev >"${tmp}/example-override.yaml"
   helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml --values chart/values.lapras.yaml --set global.labelPrefix=example.dev >"${tmp}/lapras-override.yaml"
+  # A preview-enabled stack. Under preview both recorded halves are the
+  # receipt-bound petname, and `global.instance` is the SINGLE value surface both
+  # the wrapper's helpers and the pinned dependency's annotation templates resolve
+  # through — so this render is what proves one release records one identity. The
+  # gate previously rendered six stacks, none of them preview, which is how a
+  # dependency that hard-coded the physical pair went unreported.
+  helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml --set global.instance.preview.enabled=true >"${tmp}/preview.yaml"
 
-  carries_projection "the base stack projection" "${tmp}/base.yaml" atomi.cloud '' "${base_objects}" "${base_projection}"
-  carries_projection "the example stack projection" "${tmp}/example.yaml" atomi.cloud '' "${example_objects}" "${example_projection}"
-  carries_projection "the example+lapras stack projection" "${tmp}/lapras.yaml" atomi.cloud '' "${lapras_objects}" "${lapras_projection}"
+  carries_projection "the base stack projection" "${tmp}/base.yaml" atomi.cloud '' "${base_objects}" "${base_projection}" "${physical_instance}"
+  carries_projection "the example stack projection" "${tmp}/example.yaml" atomi.cloud '' "${example_objects}" "${example_projection}" "${physical_instance}"
+  carries_projection "the example+lapras stack projection" "${tmp}/lapras.yaml" atomi.cloud '' "${lapras_objects}" "${lapras_projection}" "${physical_instance}"
+  carries_projection "the preview stack projection and recorded preview identity" "${tmp}/preview.yaml" atomi.cloud '' "${example_objects}" "${example_projection}" "${preview_instance}"
   # The override runs re-assert the same per-object truth under the new prefix and
   # additionally require that no key under the default prefix survives, so an
   # override that merely adds keys cannot pass. `example.dev` is a different number
   # of dot-separated segments from `atomi.cloud`, so a prefix that was fused into a
   # rendered key by string surgery rather than carried whole is caught here too.
-  carries_projection "the base stack prefix override" "${tmp}/base-override.yaml" example.dev atomi.cloud "${base_objects}" "${base_projection}"
-  carries_projection "the example stack prefix override" "${tmp}/example-override.yaml" example.dev atomi.cloud "${example_objects}" "${example_projection}"
-  carries_projection "the example+lapras stack prefix override" "${tmp}/lapras-override.yaml" example.dev atomi.cloud "${lapras_objects}" "${lapras_projection}"
+  carries_projection "the base stack prefix override" "${tmp}/base-override.yaml" example.dev atomi.cloud "${base_objects}" "${base_projection}" "${physical_instance}"
+  carries_projection "the example stack prefix override" "${tmp}/example-override.yaml" example.dev atomi.cloud "${example_objects}" "${example_projection}" "${physical_instance}"
+  carries_projection "the example+lapras stack prefix override" "${tmp}/lapras-override.yaml" example.dev atomi.cloud "${lapras_objects}" "${lapras_projection}" "${physical_instance}"
+
+  # The hook pod keeps the whole service-tree projection and the recorded instance
+  # pair, and still selects out of every primary Service and workload selector, in
+  # every stack and under the prefix override.
+  hook_is_isolated "the base stack hook pod identity" "${tmp}/base.yaml" atomi.cloud "${base_projection}" "${physical_instance}"
+  hook_is_isolated "the example stack hook pod identity" "${tmp}/example.yaml" atomi.cloud "${example_projection}" "${physical_instance}"
+  hook_is_isolated "the example+lapras stack hook pod identity" "${tmp}/lapras.yaml" atomi.cloud "${lapras_projection}" "${physical_instance}"
+  hook_is_isolated "the preview stack hook pod identity" "${tmp}/preview.yaml" atomi.cloud "${example_projection}" "${preview_instance}"
+  hook_is_isolated "the base stack hook pod identity under a prefix override" "${tmp}/base-override.yaml" example.dev "${base_projection}" "${physical_instance}"
+  hook_is_isolated "the example+lapras stack hook pod identity under a prefix override" "${tmp}/lapras-override.yaml" example.dev "${lapras_projection}" "${physical_instance}"
+
+  # Two sabotage controls, each run against a throwaway copy of the chart so the
+  # working tree is never mutated. Each restores exactly the defect the assertion
+  # above exists to catch; if the render still reads as clean, the assertion is
+  # asserting nothing and this mode fails here rather than downstream.
+  sabotage_chart() {
+    rm -rf "${tmp}/sabotage"
+    mkdir -p "${tmp}/sabotage"
+    cp -R chart "${tmp}/sabotage/chart"
+  }
+
+  # Control A: give the hook pod the primary workload's selector identity back. The
+  # rest of the projection is untouched, so only the selector comparison can catch
+  # it — and it must.
+  sabotage_chart
+  sed -i 's#include "diene-helm-wrapper.hookLabels" (dict "root" . "token" "migration") | nindent 8#include "diene-helm-wrapper.labels" . | nindent 8#' "${tmp}/sabotage/chart/templates/migration-job.yaml"
+  grep -qF 'diene-helm-wrapper.labels" . | nindent 8' "${tmp}/sabotage/chart/templates/migration-job.yaml" || {
+    echo "❌ the hook-isolation sabotage did not apply; its control proves nothing" >&2
+    exit 1
+  }
+  helm template "${release}" "${tmp}/sabotage/chart" --namespace "${namespace}" >"${tmp}/sabotaged-hook.yaml"
+  rejects_hook "restoring the primary selector identity on the migration pod" \
+    "${tmp}/sabotaged-hook.yaml" atomi.cloud "${base_projection}" "${physical_instance}"
+
+  # Control B: hard-code the pinned dependency's instance annotations back to the
+  # physical pair. Every physical-mode render stays byte-identical, exactly as the
+  # defect did, so only the preview stack can catch it — and it must.
+  sabotage_chart
+  sed -i \
+    -e "s#'{{ include \"diene-helm-wrapper.instanceOriginal\" . }}'#'${instance_original}'#" \
+    -e "s#'{{ include \"diene-helm-wrapper.instanceSegment\" . }}'#'${instance_label}'#" \
+    "${tmp}/sabotage/chart/values.yaml"
+  if grep -qF 'diene-helm-wrapper.instanceOriginal' "${tmp}/sabotage/chart/values.yaml" ||
+    ! grep -qF "/instance-original': '${instance_original}'" "${tmp}/sabotage/chart/values.yaml"; then
+    echo "❌ the hard-coded upstream instance sabotage did not apply; its control proves nothing" >&2
+    exit 1
+  fi
+  helm template "${release}" "${tmp}/sabotage/chart" --namespace "${namespace}" --values chart/values.example.yaml >"${tmp}/sabotaged-physical.yaml"
+  carries_projection "the hard-coded upstream instance sabotage must stay invisible in physical mode, or the preview control below proves nothing else" \
+    "${tmp}/sabotaged-physical.yaml" atomi.cloud '' "${example_objects}" "${example_projection}" "${physical_instance}"
+  helm template "${release}" "${tmp}/sabotage/chart" --namespace "${namespace}" --values chart/values.example.yaml --set global.instance.preview.enabled=true >"${tmp}/sabotaged-preview.yaml"
+  rejects_projection "hard-coded physical instance annotations on the pinned dependency under preview" \
+    "${tmp}/sabotaged-preview.yaml" atomi.cloud '' "${example_objects}" "${example_projection}" "${preview_instance}"
 
   # A prefix that cannot be a Kubernetes label-key prefix is refused at BOTH
   # boundaries independently — once by the generated values schema before a
@@ -304,8 +471,8 @@ lpsm)
   original="$(yq -r "${contracts} | .data.\"instance.original\"" "${tmp}/lpsm.yaml")"
   label="$(yq -r "${contracts} | .data.\"instance.label\"" "${tmp}/lpsm.yaml")"
   instance_hostname="$(yq -r "${contracts} | .data.\"instance.hostname\"" "${tmp}/lpsm.yaml")"
-  expected_original="$(yq -r '.instance.original' chart/values.yaml)"
-  expected_label="$(yq -r '.instance.label' chart/values.yaml)"
+  expected_original="$(yq -r '.global.instance.original' chart/values.yaml)"
+  expected_label="$(yq -r '.global.instance.label' chart/values.yaml)"
   [ "${ordinary}" != "api.wrapper.sample.example.cluster.atomi.cloud" ] && echo "❌ ordinary LPSM hostname mismatch" >&2 && exit 1
   [ "${instance}" != "api.wrapper.sample.run001.example.local.example.invalid" ] && echo "❌ instance LPSM hostname mismatch" >&2 && exit 1
   jq -e '.landscape == "example" and .platform == "sample" and .service == "wrapper" and .module == "api" and .instance == "run001"' <<<"${parsed}" >/dev/null
@@ -378,29 +545,29 @@ lpsm)
   # trip byte-for-byte and the hostname carries the label, never the original.
   long_original=github.com/AtomiCloud/diene.all/charts/helm-wrapper/pull-requests/12345/attempt-7
   hash_label=wrapper-pr12345-7q2m9x
-  minted_pair=(--set-string "instance.original=${long_original}" --set-string "instance.label=${hash_label}")
+  minted_pair=(--set-string "global.instance.original=${long_original}" --set-string "global.instance.label=${hash_label}")
   accepts_contract_key "a long repository-qualified original" instance.original "${long_original}" "${minted_pair[@]}"
   accepts_contract_key "the minted label recorded beside it" instance.label "${hash_label}" "${minted_pair[@]}"
   accepts_contract_key "the hostname segment taken from the minted label" instance.hostname \
     "api.wrapper.sample.${hash_label}.example.local.example.invalid" "${minted_pair[@]}"
 
   helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml \
-    --set instance.preview.enabled=true --set-string "contracts.lpsm.instanceZone=${zone}" >"${tmp}/preview.yaml"
+    --set global.instance.preview.enabled=true --set-string "contracts.lpsm.instanceZone=${zone}" >"${tmp}/preview.yaml"
   preview_host="$(yq -r "${contracts} | .data.\"preview.hostname\"" "${tmp}/preview.yaml")"
   [ "${preview_host}" != "api.wrapper.sample.${petname}.castform.${zone}" ] && echo "❌ preview coordinate mismatch" >&2 && exit 1
 
   helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml \
-    --set instance.preview.enabled=true --set-string "contracts.lpsm.instanceZone=${zone}" \
-    --set-string "instance.preview.canonical.previewPetname=${petname}-ekj" \
-    --set-string "instance.preview.receipt.previewPetname=${petname}-ekj" \
-    --set-string "instance.preview.receipt.collision.liveFullLeaseDigest=${other}" >"${tmp}/collision.yaml"
+    --set global.instance.preview.enabled=true --set-string "contracts.lpsm.instanceZone=${zone}" \
+    --set-string "global.instance.preview.canonical.previewPetname=${petname}-ekj" \
+    --set-string "global.instance.preview.receipt.previewPetname=${petname}-ekj" \
+    --set-string "global.instance.preview.receipt.collision.liveFullLeaseDigest=${other}" >"${tmp}/collision.yaml"
   collision_host="$(yq -r "${contracts} | .data.\"preview.hostname\"" "${tmp}/collision.yaml")"
   [ "${collision_host}" != "api.wrapper.sample.${petname}-ekj.castform.${zone}" ] && echo "❌ live-collision petname mismatch" >&2 && exit 1
 
-  refuses "an unverified canonical digest" "PreviewIdentityMismatch: canonical full digest" --set instance.preview.enabled=true --set-string "instance.preview.canonical.fullLeaseDigest=${other}"
-  refuses "a caller-supplied collision suffix" "PreviewIdentityMismatch: collision suffix" --set instance.preview.enabled=true --set-string "instance.preview.canonical.previewPetname=${petname}-abc" --set-string "instance.preview.receipt.previewPetname=${petname}-abc" --set-string "instance.preview.receipt.collision.liveFullLeaseDigest=${other}"
-  refuses "a same-digest collision" "same full digest is an idempotent join" --set instance.preview.enabled=true --set-string "instance.preview.canonical.previewPetname=${petname}-ekj" --set-string "instance.preview.receipt.previewPetname=${petname}-ekj" --set-string "instance.preview.receipt.collision.liveFullLeaseDigest=${digest}"
-  refuses "an unresolved branch pin" "neither a released version nor a full commit" --set instance.preview.enabled=true --set-string 'instance.preview.manifest.pins.nitroso\.zinc=main'
+  refuses "an unverified canonical digest" "PreviewIdentityMismatch: canonical full digest" --set global.instance.preview.enabled=true --set-string "global.instance.preview.canonical.fullLeaseDigest=${other}"
+  refuses "a caller-supplied collision suffix" "PreviewIdentityMismatch: collision suffix" --set global.instance.preview.enabled=true --set-string "global.instance.preview.canonical.previewPetname=${petname}-abc" --set-string "global.instance.preview.receipt.previewPetname=${petname}-abc" --set-string "global.instance.preview.receipt.collision.liveFullLeaseDigest=${other}"
+  refuses "a same-digest collision" "same full digest is an idempotent join" --set global.instance.preview.enabled=true --set-string "global.instance.preview.canonical.previewPetname=${petname}-ekj" --set-string "global.instance.preview.receipt.previewPetname=${petname}-ekj" --set-string "global.instance.preview.receipt.collision.liveFullLeaseDigest=${digest}"
+  refuses "an unresolved branch pin" "neither a released version nor a full commit" --set global.instance.preview.enabled=true --set-string 'global.instance.preview.manifest.pins.nitroso\.zinc=main'
   refuses "a dash-fused Garden hostname" "must use the canonical dotted LPSM form" --set-string contracts.lpsm.parseHostname=api-wrapper-sample-run001-example.local.example.invalid
   refuses "an uppercase parser input" "must be a lowercase DNS-1123 label" --set-string contracts.lpsm.parseHostname=API.wrapper.sample.run001.example.local.example.invalid
 
@@ -481,30 +648,30 @@ lpsm)
   # Each of these four used to be asserted with an OR of a schema reason and a helper
   # reason, so the schema alone satisfied the vector and the preview helper could have
   # stopped refusing without anything reddening.
-  preview=(--set instance.preview.enabled=true)
+  preview=(--set global.instance.preview.enabled=true)
 
   refuses_at_both_boundaries "an unversioned petname word list" \
-    "at '/instance/preview/receipt/wordList': 'diene.preview-wordlist' does not match pattern" \
+    "at '/global/instance/preview/receipt/wordList': 'diene.preview-wordlist' does not match pattern" \
     'PreviewIdentityUnavailable: petname word list "diene.preview-wordlist" is not a versioned diene.preview-wordlist' \
-    "${preview[@]}" --set-string instance.preview.receipt.wordList=diene.preview-wordlist
+    "${preview[@]}" --set-string global.instance.preview.receipt.wordList=diene.preview-wordlist
 
   refuses_at_both_boundaries "a petname outside the NOUN-VERB-NOUN grammar" \
-    "at '/instance/preview/canonical/previewPetname': 'otterbeatspotato' does not match pattern" \
+    "at '/global/instance/preview/canonical/previewPetname': 'otterbeatspotato' does not match pattern" \
     'PreviewIdentityUnavailable: "otterbeatspotato" is not a versioned NOUN-VERB-NOUN petname' \
-    "${preview[@]}" --set-string instance.preview.canonical.previewPetname=otterbeatspotato \
-    --set-string instance.preview.receipt.previewPetname=otterbeatspotato
+    "${preview[@]}" --set-string global.instance.preview.canonical.previewPetname=otterbeatspotato \
+    --set-string global.instance.preview.receipt.previewPetname=otterbeatspotato
 
   refuses_at_both_boundaries "a collision suffix longer than three characters" \
-    "at '/instance/preview/canonical/previewPetname': '${petname}-ekj9' does not match pattern" \
+    "at '/global/instance/preview/canonical/previewPetname': '${petname}-ekj9' does not match pattern" \
     "PreviewIdentityUnavailable: \"${petname}-ekj9\" is not a versioned NOUN-VERB-NOUN petname" \
-    "${preview[@]}" --set-string "instance.preview.canonical.previewPetname=${petname}-ekj9" \
-    --set-string "instance.preview.receipt.previewPetname=${petname}-ekj9" \
-    --set-string "instance.preview.receipt.collision.liveFullLeaseDigest=${other}"
+    "${preview[@]}" --set-string "global.instance.preview.canonical.previewPetname=${petname}-ekj9" \
+    --set-string "global.instance.preview.receipt.previewPetname=${petname}-ekj9" \
+    --set-string "global.instance.preview.receipt.collision.liveFullLeaseDigest=${other}"
 
   refuses_at_both_boundaries "a fork source outside the ruled pair" \
-    "at '/instance/preview/receipt/forkSource': value must be one of 'staging', 'production'" \
+    "at '/global/instance/preview/receipt/forkSource': value must be one of 'staging', 'production'" \
     'PreviewIdentityUnavailable: forkSource "serving" is neither staging nor production' \
-    "${preview[@]}" --set-string instance.preview.receipt.forkSource=serving
+    "${preview[@]}" --set-string global.instance.preview.receipt.forkSource=serving
 
   # The physical instance pair. A long or repository-qualified original is ACCEPTED
   # above — the refusals that used to reject exactly that were false, because this
@@ -513,40 +680,40 @@ lpsm)
   overlong_original="github.com/atomicloud/$(printf 'a%.0s' {1..232})"
 
   refuses_at_both_boundaries "an uppercase minted instance label" \
-    "at '/instance/label': 'PR-12345' does not match pattern" \
-    'HostnameLabelInvalid: instance.label "PR-12345" must start with a lowercase alphanumeric byte' \
-    --set-string instance.label=PR-12345
+    "at '/global/instance/label': 'PR-12345' does not match pattern" \
+    'HostnameLabelInvalid: global.instance.label "PR-12345" must start with a lowercase alphanumeric byte' \
+    --set-string global.instance.label=PR-12345
 
   refuses_at_both_boundaries "a 64-byte minted instance label" \
-    "at '/instance/label': maxLength: got 64, want 63" \
-    "HostnameLabelInvalid: instance.label \"${overlong_label}\" is 64 bytes" \
-    --set-string "instance.label=${overlong_label}"
+    "at '/global/instance/label': maxLength: got 64, want 63" \
+    "HostnameLabelInvalid: global.instance.label \"${overlong_label}\" is 64 bytes" \
+    --set-string "global.instance.label=${overlong_label}"
 
   refuses_at_both_boundaries "a whitespace-bearing physical original" \
-    "at '/instance/original': 'repository a/pr-123' does not match pattern" \
-    'InstanceOriginalInvalid: instance.original "repository a/pr-123" must start and end with an alphanumeric' \
-    --set-string 'instance.original=repository a/pr-123'
+    "at '/global/instance/original': 'repository a/pr-123' does not match pattern" \
+    'InstanceOriginalInvalid: global.instance.original "repository a/pr-123" must start and end with an alphanumeric' \
+    --set-string 'global.instance.original=repository a/pr-123'
 
   refuses_at_both_boundaries "a 254-byte physical original" \
-    "at '/instance/original': maxLength: got 254, want 253" \
-    'InstanceOriginalInvalid: instance.original is 254 bytes' \
-    --set-string "instance.original=${overlong_original}"
+    "at '/global/instance/original': maxLength: got 254, want 253" \
+    'InstanceOriginalInvalid: global.instance.original is 254 bytes' \
+    --set-string "global.instance.original=${overlong_original}"
 
   # Removing a half outright is caught by the generated schema's own `required` list;
   # emptying one reaches the helper, which is the only boundary that can see one half
   # standing without the other.
   refuses_at_both_boundaries "an instance label removed from the pair" \
-    "at '/instance': missing property 'label'" \
-    'InstancePairIncomplete: instance.original' \
-    --set instance.label=null
+    "at '/global/instance': missing property 'label'" \
+    'InstancePairIncomplete: global.instance.original' \
+    --set global.instance.label=null
 
   refuses_at_both_boundaries "an instance original removed from the pair" \
-    "at '/instance': missing property 'original'" \
-    'InstancePairIncomplete: instance.label' \
-    --set instance.original=null
+    "at '/global/instance': missing property 'original'" \
+    'InstancePairIncomplete: global.instance.label' \
+    --set global.instance.original=null
 
-  refuses "an original orphaned by an emptied label" 'InstancePairIncomplete: instance.original' --set-string instance.label=
-  refuses "a label orphaned by an emptied original" 'InstancePairIncomplete: instance.label' --set-string instance.original=
+  refuses "an original orphaned by an emptied label" 'InstancePairIncomplete: global.instance.original' --set-string global.instance.label=
+  refuses "a label orphaned by an emptied original" 'InstancePairIncomplete: global.instance.label' --set-string global.instance.original=
   ;;
 lb)
   helm template "${release}" chart --namespace "${namespace}" --values chart/values.example.yaml --set gateway.provider=digitalocean >"${tmp}/do.yaml"
