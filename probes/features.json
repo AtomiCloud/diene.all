@@ -146,11 +146,6 @@
   },
   {
     "template": "diene/workspace",
-    "name": "workflow-names",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
     "name": "nixpkgs-pin",
     "class": "gate"
   },
@@ -162,16 +157,6 @@
   {
     "template": "diene/workspace",
     "name": "non-trusted-action-pins",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "cache-tag-shape",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "many-owner-schema",
     "class": "gate"
   },
   {
@@ -192,16 +177,6 @@
   },
   {
     "template": "diene/shared",
-    "name": "standards-inventory",
-    "class": "presence"
-  },
-  {
-    "template": "diene/shared",
-    "name": "thin-skills",
-    "class": "presence"
-  },
-  {
-    "template": "diene/shared",
     "name": "docs-markdownlint",
     "class": "gate"
   },
@@ -209,6 +184,16 @@
     "template": "diene/shared",
     "name": "docs-prettier",
     "class": "gate"
+  },
+  {
+    "template": "diene/shared",
+    "name": "standards-inventory",
+    "class": "presence"
+  },
+  {
+    "template": "diene/shared",
+    "name": "thin-skills",
+    "class": "presence"
   },
   {
     "template": "diene/dart-lib",

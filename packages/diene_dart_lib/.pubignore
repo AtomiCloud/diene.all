@@ -10,9 +10,10 @@
 # leaving both published archives structurally unusable.
 #
 # The same hazard applies to every root-only directory below. Anchoring makes the
-# exclusions mean what they were written to mean. The companion assertion in
-# scripts/validate/publish-archive.sh is the durable control: it proves every
-# tracked must-ship path survives .pubignore and every barrel reference resolves.
+# exclusions mean what they were written to mean. The publish archive itself is
+# the truth: probes/publish-archive-contents.ts runs a real dry-run and sabotages
+# this file to prove the shipped usage skill stays included, while
+# scripts/validate/dart-package.sh asserts the required source artifacts exist.
 /.claude/
 /.dart_tool/
 /.direnv/

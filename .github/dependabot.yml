@@ -1,13 +1,9 @@
-# ### workspace-dependabot
-# #### source: workspace
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: daily
-  # ### dart-lib-dependabot
-  # #### source: dart-lib
   - package-ecosystem: pub
     directory: /packages/diene_dart_lib
     schedule:

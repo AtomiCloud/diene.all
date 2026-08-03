@@ -1,11 +1,7 @@
-# ### workspace-root
-# #### source: workspace
 version: '3'
 
 includes:
   secret: tasks/Taskfile.secret.yaml
-  # ### dart-lib-test-includes
-  # #### source: dart-lib
   unit:
     taskfile: tasks/Taskfile.test.yaml
     vars:
@@ -31,8 +27,6 @@ tasks:
     cmds:
       - ./scripts/local/skills-sync.sh
 
-  # ### dart-lib-tasks
-  # #### source: dart-lib
   clean:
     desc: Remove Dart dependency, build, coverage, and generated-doc artifacts
     cmds:

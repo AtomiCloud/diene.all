@@ -5,8 +5,6 @@ vendor_dir=".claude/skills/vendor"
 work_dir="$(mktemp -d)"
 trap 'rm -rf "${work_dir}"' EXIT
 
-# ### dart-lib-pub-skills-oracle
-# #### source: dart-lib
 # This oracle deliberately does not consume skills-sync's staging manifest. It
 # derives external Dart obligations from tracked pubspecs and expected vendored
 # packages from package_config.json, so a broken generator cannot agree with its
