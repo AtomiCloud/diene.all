@@ -323,6 +323,7 @@ one mechanism could hide behind the others. Stages 1–3 assert the definite non
 because the `unreadable` refusal opens with the same clause and a looser match would let
 "cannot be read" stand in for "definitely not Nix"; stage 4 asserts that `unreadable`
 clause instead.
+
 ### Dotnet-base Helm-docs reintroduction
 
 The historical workspace trim above remains accurate for the shared parent. The
