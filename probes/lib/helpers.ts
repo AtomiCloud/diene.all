@@ -46,7 +46,7 @@ export async function restoreProbeState(repo: any, cleanTargets: readonly string
     throw new Error(`could not make probe fixtures writable: ${madeWritable.stderr || madeWritable.stdout}`);
   }
   const restored = await repo.exec(
-    `git ls-files -z -- ${targets} | xargs -0 -r git restore --source=HEAD --staged --worktree --`,
+    `git ls-tree -r --name-only -z HEAD -- ${targets} | xargs -0 -r git restore --source=HEAD --staged --worktree --`,
   );
   if (restored.exitCode !== 0) {
     throw new Error(`could not restore tracked probe state: ${restored.stderr || restored.stdout}`);

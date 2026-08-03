@@ -130,12 +130,12 @@ describe('structural probe mutators', () => {
     expect(await wiringRepo.read('.github/workflows/ci.yaml')).toContain('__probe_missing__.sh');
   });
 
-  test('restores only the mutation targets', async () => {
+  test('restores only mutation targets, including paths deleted from the index', async () => {
     const repo = new FakeRepo({});
     await restoreProbeState(repo, ['lib/note/note.go']);
     expect(repo.commands).toEqual([
       `for target in 'lib/note/note.go'; do if [ -e "$target" ]; then chmod -R u+w -- "$target" || exit 1; fi; done`,
-      `git ls-files -z -- 'lib/note/note.go' | xargs -0 -r git restore --source=HEAD --staged --worktree --`,
+      `git ls-tree -r --name-only -z HEAD -- 'lib/note/note.go' | xargs -0 -r git restore --source=HEAD --staged --worktree --`,
       `git clean -fdx -- 'lib/note/note.go'`,
     ]);
   });
