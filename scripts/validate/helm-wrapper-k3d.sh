@@ -19,9 +19,10 @@ bash ./scripts/local/vendor-chart-config.sh
 helm dependency build chart
 helm upgrade --install helm-wrapper chart --namespace sample --create-namespace --values chart/values.example.yaml --values chart/values.lapras.yaml --wait --timeout 5m
 kubectl --context "k3d-${cluster_name}" --namespace sample wait --for=condition=Available deployment/wrapper-api --timeout=3m
-# The Deployment's own selector, verbatim, so pod health is asserted over exactly
-# the pods that Service selects. The pre-sync hook pod no longer carries the
-# primary workload identity — it is born `app.kubernetes.io/name=wrapper-migration`
+# The Deployment selector's name/instance subset, so pod health is asserted over
+# the same primary pods that Service selects. The pre-sync hook pod no longer
+# carries the primary workload identity — it is born
+# `app.kubernetes.io/name=wrapper-migration`
 # with `component=migration` — so the `batch.kubernetes.io/job-name` filter this
 # line used to need is obsolete: a migration pod cannot enter this selection at
 # all, and `scripts/validate/helm-wrapper.sh labels` proves that with a sabotage
