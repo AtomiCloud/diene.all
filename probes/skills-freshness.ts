@@ -25,6 +25,15 @@ async function trackedSubjects(repo: any): Promise<string[]> {
     .filter((line: string) => line.length > 0 && line !== `${vendorDir}/.gitkeep`);
 }
 
+async function withResolvedFreshnessState(repo: any, body: () => Promise<void>): Promise<void> {
+  await withCleanProbeState(repo, probeCleanTargets, async () => {
+    // The leading clean deliberately removes .dart_tool, so rebuild the
+    // resolver inventory inside each arm from the already-warm shared cache.
+    await expectGreen(repo, offlinePubGetCommand, 'skills-freshness-resolver-setup');
+    await body();
+  });
+}
+
 export default {
   contractVersion: 1,
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
@@ -38,7 +47,7 @@ export default {
         'The vendored-skill freshness gate has a tracked subject beyond .gitkeep and is green on synchronized output.',
       kind: 'baseline',
       async run(repo: any) {
-        await withCleanProbeState(repo, probeCleanTargets, async () => {
+        await withResolvedFreshnessState(repo, async () => {
           const subjects = await trackedSubjects(repo);
           if (subjects.length === 0) {
             throw new Error(`the freshness gate has no tracked subject under ${vendorDir} beyond .gitkeep`);
@@ -53,7 +62,7 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        await withCleanProbeState(repo, probeCleanTargets, async () => {
+        await withResolvedFreshnessState(repo, async () => {
           await repo.write(`${vendorDir}/stale/SKILL.md`, 'stale\n');
           const staged = await repo.exec(`git add ${vendorDir}/stale/SKILL.md`);
           if (staged.exitCode !== 0) {
@@ -70,7 +79,7 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        await withCleanProbeState(repo, probeCleanTargets, async () => {
+        await withResolvedFreshnessState(repo, async () => {
           await repo.write('node_modules/@atomicloud/diene.untracked/skills/example/SKILL.md', 'untracked skill\n');
           const result = await repo.exec(freshnessCommand, { timeoutMs: 240000 });
           if (result.exitCode === 0) {
@@ -90,11 +99,7 @@ export default {
       kind: 'mutation',
       expectedImpact: ['skills-sync'],
       async run(repo: any) {
-        await withCleanProbeState(repo, probeCleanTargets, async () => {
-          // withCleanProbeState removes resolver artifacts before the body;
-          // rebuild package_config here rather than smuggling it through the
-          // sandbox snapshot.
-          await expectGreen(repo, offlinePubGetCommand, 'skills-freshness-oracle-setup');
+        await withResolvedFreshnessState(repo, async () => {
           const cwd = await repo.exec('pwd');
           if (cwd.exitCode !== 0) {
             throw new Error(`skills-freshness-oracle: failed to resolve sandbox root: ${cwd.stderr || cwd.stdout}`);
