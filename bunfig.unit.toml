@@ -1,7 +1,11 @@
 [test]
 root = "tests/unit"
+# Preload makes untested src/lib modules appear as 0% instead of disappearing from the ledger.
+preload = ["./tests/support/unit-ledger.ts"]
 coverageReporter = ["text", "lcov"]
 coverageDir = "coverage/unit"
 coverageSkipTestFiles = true
 # Unit ledger = the domain tier only (src/lib, 100% goal); adapters/glue belong to other tiers, tests/** never counts.
 coveragePathIgnorePatterns = ["src/adapters/**", "src/index.ts", "tests/**"]
+# Bun 1.3.13 only enforces the scalar threshold form.
+coverageThreshold = 1.0

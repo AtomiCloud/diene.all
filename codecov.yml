@@ -1,5 +1,4 @@
-# Coverage statuses are informational (non-blocking): they annotate PRs but never
-# fail CI. Thresholds are stated explicitly so the allowed drop is unambiguous.
+# Coverage annotations are informational; explicit thresholds document allowed drops without blocking CI.
 coverage:
   status:
     project:
@@ -13,14 +12,15 @@ coverage:
         threshold: 1% # tolerate up to a 1% patch coverage drop
         informational: true
 
+# Keep each uploaded flag scoped to the source measured by its blocking local ledger.
 flags:
   unit:
     paths:
-      - src/
+      - src/lib/
     carryforward: true
   int:
     paths:
-      - src/
+      - src/adapters/
     carryforward: true
 
 comment:

@@ -1,0 +1,8 @@
+# This isolated ledger proves the scalar coverage threshold blocks without weakening a real suite.
+[test]
+root = "tests/fixtures/coverage-gate/spec"
+coverageReporter = ["text", "lcov"]
+coverageDir = "coverage/fixture"
+coverageSkipTestFiles = true
+coveragePathIgnorePatterns = ["src/**", "tests/support/**", "tests/unit/**", "tests/integration/**"]
+coverageThreshold = 1.0

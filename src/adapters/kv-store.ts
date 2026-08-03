@@ -3,8 +3,3 @@ export interface IKeyValueStore {
   get(key: string): Promise<string | null>;
   close(): Promise<void>;
 }
-
-export interface RedisConnection {
-  readonly host: string;
-  readonly port: number;
-}

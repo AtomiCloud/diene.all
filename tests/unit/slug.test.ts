@@ -12,8 +12,6 @@ describe('slugify', () => {
     { input: 'mañana', expected: 'manana' },
     { input: 'résumé café', expected: 'resume-cafe' },
   ])('should slugify "$input" to "$expected"', ({ input, expected }) => {
-    // Arrange
-
     // Act
     const actual = slugify(input);
 
