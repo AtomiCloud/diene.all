@@ -33,6 +33,7 @@ with packages;
     # ### bun-base-main
     # #### source: bun-base
     bun
+    nodejs
     cyanprint
     docker-client
     git

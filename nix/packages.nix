@@ -71,6 +71,7 @@ let
           # ### bun-base-packages
           # #### source: bun-base
           bun
+          nodejs
           docker-client
           git
           go-task
