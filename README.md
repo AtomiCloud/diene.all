@@ -18,7 +18,7 @@ Once allowed, direnv automatically loads the development environment whenever yo
 
 ## Nix Configuration
 
-See [docs/developer/standard/nix.md](docs/developer/standard/nix.md) for the full guide on:
+See [docs/standards/nix/index.md](docs/standards/nix/index.md) for the full guide on:
 
 - File structure (`flake.nix`, `nix/`, `.envrc`)
 - Adding/removing packages

@@ -16,7 +16,7 @@ direnv allow    # first time only — loads the nix dev shell
 
 ## Nix Configuration
 
-See **[docs/developer/standard/nix.md](docs/developer/standard/nix.md)** for the full guide on:
+See **[docs/standards/nix/index.md](docs/standards/nix/index.md)** for the full guide on:
 
 - File structure (`flake.nix`, `nix/`, `.envrc`)
 - Adding/removing packages
