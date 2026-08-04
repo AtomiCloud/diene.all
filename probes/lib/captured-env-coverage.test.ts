@@ -68,15 +68,22 @@ describe('captured-env coverage of direct repo.exec shell entries', () => {
     ]);
   });
 
-  // The exemption lives on the label, so it only holds while these two keep reaching the
-  // helpers that pass one. Converting either to a bare capturedEnvCommand call would
-  // silently delete the very check they exist to perform.
-  test('dev-shell and direnv still enter their shells through a labelled helper', () => {
-    for (const file of ['dev-shell.ts', 'direnv.ts']) {
-      const source = readFileSync(join(probesDir, file), 'utf8');
-      expect(source).toContain("from './lib/helpers.ts'");
-      expect(source).not.toContain('capturedEnvCommand');
-      expect(source).toContain(`'${file.replace('.ts', '')}',`);
-    }
+  // The exemption lives on the label, so it only holds while both features keep reaching
+  // helpers that pass one. dev-shell now uses the shared once-per-phase helper, while
+  // direnv retains its own labelled expectGreen call.
+  test('dev-shell and direnv still enter their shells through labelled helpers', () => {
+    const devShell = readFileSync(join(probesDir, 'dev-shell.ts'), 'utf8');
+    expect(devShell).toContain("import { expectDevShellsOnce } from './lib/helpers.ts'");
+    expect(devShell).not.toContain('capturedEnvCommand');
+    expect(devShell).toContain('await expectDevShellsOnce(repo);');
+
+    const direnv = readFileSync(join(probesDir, 'direnv.ts'), 'utf8');
+    expect(direnv).toContain("from './lib/helpers.ts'");
+    expect(direnv).not.toContain('capturedEnvCommand');
+    expect(direnv).toContain("'direnv',");
+
+    const helpers = readFileSync(join(probesDir, 'lib/helpers.ts'), 'utf8');
+    expect(helpers).toContain("new Set(['dev-shell', 'direnv'])");
+    expect(helpers).toContain("await expectGreen(repo, DEV_SHELL_CHAIN, 'dev-shell');");
   });
 });

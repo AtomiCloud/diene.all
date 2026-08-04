@@ -26,6 +26,8 @@ if [ "${#cyanprint_versions[@]}" -ne 1 ]; then
   exit 1
 fi
 cyanprint --version | grep -Fqx "cyanprint ${cyanprint_versions[0]}"
+cyanprint cache inspect --cache-dir "${tmp}/cyanprint-cache" --json |
+  jq -e '.status == "done" and .action == "inspect"' >/dev/null
 
 docker --version >/dev/null
 docker info --format '{{.ServerVersion}}' >/dev/null
