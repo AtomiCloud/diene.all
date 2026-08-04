@@ -45,6 +45,33 @@ This is the canonical audit-state schema. It has exactly 11 top-level fields.
 reset increments it. `docsDigest` is never null: it is the lowercase SHA-256
 digest of the complete regular-file set under `docsRoot` when the epoch opens.
 
+Each `acceptedWarnings` element has this exact ten-field shape:
+
+<!-- canonical-block: accepted-warning-record -->
+
+```json
+{
+  "artifactPath": ".contributor-docs/fact-check/findings/docs__guide.md",
+  "artifactHash": "39e77a6619ba41e414906e08eb0f1d62d3069469c2b7cd5f702058869f256fb9",
+  "auditEpoch": 1,
+  "docsDigest": "39e77a6619ba41e414906e08eb0f1d62d3069469c2b7cd5f702058869f256fb9",
+  "documentPath": "docs/contributor/guide.mdx",
+  "documentHash": "39e77a6619ba41e414906e08eb0f1d62d3069469c2b7cd5f702058869f256fb9",
+  "findingOrdinal": 1,
+  "findingHash": "39e77a6619ba41e414906e08eb0f1d62d3069469c2b7cd5f702058869f256fb9",
+  "severity": "warning",
+  "description": "Clarify the retry example"
+}
+```
+
+For a big-picture warning, `artifactPath` is the canonical big-picture report and
+both document fields are null. For a fact-check warning, they name the assigned
+document and its freshly verified hash. `findingOrdinal` is one-based within the
+artifact's warning sequence. `findingHash` is SHA-256 of the exact UTF-8 bytes from
+that warning's item heading through the byte before the next item heading, enclosing
+section heading, or end of file. `description` is the exact heading text with its
+ordinal prefix removed. Unknown fields are refused.
+
 ### Canonical Docs Digest
 
 The digest hashes each document's path relative to `docsRoot`, a NUL byte, the
@@ -120,17 +147,17 @@ test "$untracked_changed" != "$baseline"
 All state writes go through the audit state-agent. The state-agent validates the
 complete object and refuses unknown fields before each write.
 
-| From                          | To            | Trigger                                                                                     | Required effects                                                                                                                                                               |
-| ----------------------------- | ------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| no audit state                | `big_picture` | First audit entry                                                                           | Set epoch 1, compute `docsDigest`, and initialize every flag, counter, and warning collection                                                                                  |
-| `big_picture`                 | `fact_check`  | A current-stamp big-picture report                                                          | Set the big-picture flag and counters; carry its error count into `totalErrors`                                                                                                |
-| `fact_check`                  | `completed`   | Both arms are current, every file hash matches, digest is unchanged, and `totalErrors == 0` | Set the fact-check flag and counters and record accepted warnings                                                                                                              |
-| `fact_check`                  | `failed`      | A complete current audit has `totalErrors > 0`                                              | Set the fact-check flag and counters, preserve measured results, and set `step: "failed"`                                                                                      |
-| `big_picture` or `fact_check` | `failed`      | An audit agent has a hard error or evidence becomes stale                                   | Preserve every result measured so far and set only `step: "failed"`; record the reason in the orchestrator's audit run report and the transition log, not in a new state field |
-| `failed`                      | `big_picture` | No current stamped content error, or an exact current `auditRepair: completed` marker       | Atomically install the next epoch's fully reset state, then idempotently remove prior-epoch artifacts                                                                          |
+| From                          | To            | Operation            | Trigger                                                                                          | Required effects                                                                                                                                                               |
+| ----------------------------- | ------------- | -------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| no audit state                | `big_picture` | `create`             | First audit entry                                                                                | Set epoch 1, compute `docsDigest`, and initialize every flag, counter, and warning collection                                                                                  |
+| `big_picture`                 | `fact_check`  | `record-big-picture` | A current-stamp big-picture report                                                               | Derive and set the big-picture flag and counters; carry its error count into `totalErrors`                                                                                     |
+| `fact_check`                  | `completed`   | `complete-audit`     | Both arms are current, every file hash matches, digest is unchanged, and derived errors are zero | Derive the fact-check flag/counters and the complete sorted accepted-warning record set from current artifacts                                                                 |
+| `fact_check`                  | `failed`      | `fail-audit`         | A complete current audit has a derived nonzero error sum                                         | Derive the fact-check flag and counters, preserve measured results, and set `step: "failed"`                                                                                   |
+| `big_picture` or `fact_check` | `failed`      | `fail-audit`         | An audit agent has a hard error or evidence becomes stale                                        | Preserve every result measured so far and set only `step: "failed"`; record the reason in the orchestrator's audit run report and the transition log, not in a new state field |
+| `failed`                      | `big_picture` | `reset`              | No current stamped content error, or an exact current `auditRepair: completed` marker            | Atomically install the next epoch's fully reset state, then idempotently remove prior-epoch artifacts                                                                          |
 
-The `failed` to `big_picture` edge is available only through the reset mode.
-Ordinary update mode cannot change `auditEpoch` or `docsDigest`.
+The `failed` to `big_picture` edge is available only through the named reset mode.
+No update operation can change `auditEpoch` or `docsDigest`.
 Every transition to `audit-state.step: "failed"` is paired, through the same
 state-agent, with `task-state.currentPhase: "failed"`. The hard-error reason
 still remains outside the audit-state schema.
@@ -144,20 +171,22 @@ On entry, spawn the audit state-agent to assess. **NEVER read step files
 directly** — spawn a teammate and tell it which step file to read. The
 file-processor loop for fact-check is managed by the orchestrator using scripts.
 
-| Condition                                        | Action                                                                                                                                     |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `resetResumeRequired: true`                      | Resume reset-owned stale-artifact cleanup without incrementing `auditEpoch`; finish task phase when still `failed`                         |
-| `failurePairingResumeRequired: true`             | Invoke `resume-failed-task-phase`; do not interpret task phase `audit` as completed repair                                                 |
-| `step: "failed"` and `repairOutOfScope != none`  | Report `REPAIR_OUT_OF_SCOPE` with the exact current errors and mutate nothing                                                              |
-| `step: "failed"` and `writeDriftBlocked != none` | Report `WRITE_DRIFT_BLOCKED` with the exact drifted queued paths and mutate nothing                                                        |
-| No `audit-state.json`                            | Create via state-agent, then spawn the big-picture auditor                                                                                 |
-| `step: "big_picture"`                            | Spawn big-picture auditor — tell it to read `docs/standards/contributor-docs/audit/big-picture.md`                                         |
-| `step: "fact_check"`                             | Run the fact-check file-processor loop below                                                                                               |
-| `step: "completed"`                              | Advance `task-state.currentPhase` to `"completed"` via state-agent                                                                         |
-| `step: "failed"`                                 | Run the repair loop; never advance directly to `"completed"`                                                                               |
-| Hard error in an active agent                    | Via state-agent, make the legal transition from the active step and `task-state.currentPhase` to `failed`, then record the external reason |
+| Condition                                        | Action                                                                                                                                  |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `sourceSnapshotCurrent: false`                   | Report `SOURCE_DRIFT_BLOCKED` with exact drift evidence and mutate nothing                                                              |
+| `resetResumeRequired: true`                      | Resume reset-owned stale-artifact cleanup without incrementing `auditEpoch`; finish task phase when still `failed`                      |
+| `failurePairingResumeRequired: true`             | Invoke `resume-failed-task-phase`; do not interpret task phase `audit` as completed repair                                              |
+| `step: "failed"` and `repairOutOfScope != none`  | Report `REPAIR_OUT_OF_SCOPE` with the exact current errors and mutate nothing                                                           |
+| `step: "failed"` and `writeDriftBlocked != none` | Report `WRITE_DRIFT_BLOCKED` with the exact drifted queued paths and mutate nothing                                                     |
+| No `audit-state.json`                            | Invoke state-agent `create`, then spawn the big-picture auditor                                                                         |
+| `step: "big_picture"`                            | Spawn the big-picture auditor, then invoke `record-big-picture` on its current stamped report                                           |
+| `step: "fact_check"`                             | Run the fact-check file-processor loop; invoke `complete-audit` for zero derived errors or `fail-audit` for a nonzero derived error sum |
+| `step: "completed"`                              | Invoke `advance-task-phase-to-completed`; do not issue a generic task-state update                                                      |
+| `step: "failed"`                                 | Run the repair loop; never advance directly to `"completed"`                                                                            |
+| Hard error in an active agent                    | Invoke `fail-audit` with the external reason; it pairs the audit-state and task-phase failure writes                                    |
 
-Evaluate the reset-resume row first, then the separated failure-pairing row. They are
+Evaluate source drift before all audit and recovery work, then the reset-resume row
+and the separated failure-pairing row. They are
 the only safe actions while a committed new epoch still has old artifacts, or while an
 audit failure rename has landed without its paired task-phase rename. The two named
 authority outcomes are evaluated only at `step: "failed"`, before the generic failed
@@ -172,10 +201,10 @@ After it reports:
 1. Verify that the report carries both exact values.
 2. Treat a missing or mismatched stamp as stale and regenerate the report; never
    count it.
-3. Via state-agent, set `bigPictureComplete: true`,
-   `bigPictureErrors: <error count>`,
-   `bigPictureWarnings: <warning count>`,
-   `totalErrors: <big-picture error count>`, and `step: "fact_check"`.
+3. Invoke state-agent `record-big-picture`. It independently derives the report's
+   error and warning counts, requires its summary counters to match, then sets
+   `bigPictureComplete: true`, those counters, `totalErrors` to the derived error
+   count, and `step: "fact_check"`.
 
 Errors found here do **not** short-circuit the phase. Fact-check still runs so
 the repair loop sees the whole picture at once.
@@ -264,12 +293,16 @@ When all files are processed:
    epoch, digest, and exact per-file hash.
 2. Aggregate only those current findings and split their severities into errors
    and warnings.
-3. Via state-agent, set `factCheckComplete: true`, the fact-check counters,
-   and `totalErrors: <big-picture errors + fact-check errors>`.
+3. Invoke state-agent `complete-audit` when the independently derived combined error
+   sum is zero, or `fail-audit` when it is nonzero. Both operations derive
+   `factCheckComplete`, the fact-check counters, and `totalErrors` from the current
+   artifacts. `complete-audit` also independently derives `acceptedWarnings` rather
+   than trusting a caller collection.
 4. Recompute the canonical docs digest from the live tree.
-5. Set `step: "completed"` only when both arms are current, the recomputed
-   digest equals the epoch's `docsDigest`, and `totalErrors == 0`. Otherwise
-   set `step: "failed"`.
+5. `complete-audit` sets `step: "completed"` only when both arms are current, the
+   recomputed digest equals the epoch's `docsDigest`, and the derived error sum is
+   zero. A nonzero current sum selects `fail-audit`; stale evidence is regenerated or
+   becomes a reason-bearing `fail-audit`, never a caller-selected target step.
 
 ## Phase Completion
 
@@ -281,6 +314,7 @@ Completion requires all of the following at the same validation point:
   and digest;
 - every finding's file hash equals a fresh hash of the assigned document;
 - a fresh whole-tree digest equals `audit-state.json.docsDigest`;
+- the canonical source snapshot remains current;
 - both arms were generated in this epoch; same-epoch crash recovery may reuse
   only that already-current evidence;
 - `totalErrors` equals the sum of the two error counters and is zero.
@@ -295,19 +329,31 @@ missing) or a **warning** (style, coverage suggestions, non-blocking nits).
 Branch on the error count. **A nonzero error count may never reach
 `completed`:**
 
-| Result                     | `task-state.json` transition                                |
-| -------------------------- | ----------------------------------------------------------- |
-| 0 errors, 0 warnings       | `currentPhase: "completed"`                                 |
-| 0 errors, warnings present | `currentPhase: "completed"` — see the acceptance rule below |
-| 1 or more errors           | `currentPhase: "failed"` — never `completed`                |
+| Result                     | Audit operation  | Task-phase operation                                                                |
+| -------------------------- | ---------------- | ----------------------------------------------------------------------------------- |
+| 0 errors, 0 warnings       | `complete-audit` | `advance-task-phase-to-completed`                                                   |
+| 0 errors, warnings present | `complete-audit` | `advance-task-phase-to-completed` after the exact warning acceptance rule below     |
+| 1 or more errors           | `fail-audit`     | The same operation pairs task phase `audit → failed`; never enter audit `completed` |
 
 Report final error and warning counts separately.
 
 ### Warning Acceptance
 
-Warnings do not block completion, but they are not silently discarded. Record
-them in `acceptedWarnings` with the audit artifact they came from so completed
-state explicitly identifies what was accepted. Reset clears the collection.
+Warnings do not block completion, but they are not silently discarded. At the
+`fact_check → completed` edge, the state-agent enumerates every warning block from the
+current stamped big-picture report and every required current fact-check finding. It
+freshly hashes each whole artifact, verifies the current epoch/digest and document hash
+where applicable, derives the ten-field record above, and sorts the complete set by
+`artifactPath` under the C locale and then by `findingOrdinal`.
+
+The derived record count must equal `bigPictureWarnings + factCheckWarnings`; duplicate
+artifact/ordinal pairs, malformed warning blocks, missing warnings, or a counter
+mismatch refuse completion. If the caller supplies `acceptedWarnings`, it must be
+exactly equal to the independently derived sorted array. An omission, fabricated
+entry, stale stamp, artifact-hash mismatch, document-hash mismatch, or finding-hash
+mismatch reports `WARNING_ACCEPTANCE_MISMATCH` and leaves state byte-identical. When
+the caller omits the field, the state-agent installs the derived array itself. Before
+completion the collection remains empty. Reset clears it.
 
 ### Repair Loop (`failed`)
 

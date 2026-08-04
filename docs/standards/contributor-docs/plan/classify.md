@@ -74,7 +74,9 @@ Group files per [writing-order.md](../common/writing-order.md):
 
 ### 6. Write Plan File
 
-Write `.contributor-docs/doc-plan.yaml`:
+Write `.contributor-docs/doc-plan.yaml`. Its `docsRoot` must exactly equal
+`.contributor-docs/task-state.json.docsRoot`; task state is the authority, and the
+plan may not select a second output root. Every `path` below is relative to that root.
 
 ```yaml
 docsRoot: docs/contributor
@@ -117,26 +119,33 @@ shared:
 
 topLevel:
   - path: 00-overview.mdx
+    type: top-level-overview
     tier: 1
     description: 'Project overview'
   - path: 01-architecture/index.mdx
+    type: top-level-architecture
     tier: 1
     description: 'Architecture overview'
   - path: 02-modules.mdx
+    type: top-level-modules
     tier: 1
     description: 'Module map'
   - path: 03-development/index.mdx
+    type: top-level-development
     tier: 1
     description: 'Development setup'
   - path: 03-development/folder-structure.mdx
+    type: top-level-folder-structure
     tier: 1
     description: 'Repository folder structure'
   - path: 03-development/commands.mdx
+    type: top-level-commands
     tier: 1
     description: 'Available commands'
 
 adrs:
   - path: 01-architecture/adr-001-use-jwt.mdx
+    type: adr
     tier: 1
     description: 'Decision to use JWT for authentication'
     sources: [src/user/auth.ts]
@@ -144,10 +153,18 @@ adrs:
 
 indexes:
   - path: user-management/features/index.mdx
+    type: index
     tier: 6
   - path: user-management/concepts/index.mdx
+    type: index
     tier: 6
 ```
+
+The six `top-level-*` values above are exhaustive and always tier 1. `adr` is tier 1,
+`module-overview` is tier 1, and `index` is tier 6. The state-agent refuses a missing
+type, a type outside the owning collection, a type/tier mismatch, a root-relative
+path that already repeats the `docsRoot` prefix, or a plan `docsRoot` that differs
+from task state.
 
 ### 7. Report
 

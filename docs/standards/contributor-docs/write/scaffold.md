@@ -5,6 +5,7 @@
 - Working directory: repo root
 - Operation: `{prepare|create}` (provided by orchestrator)
 - Doc plan: `.contributor-docs/doc-plan.yaml`
+- Docs root: `{docsRoot}` from `.contributor-docs/task-state.json`
 - Docs references:
   - `docs/standards/contributor-docs/frontmatter.md` — frontmatter schemas
   - `docs/standards/contributor-docs/structure.md` — folder structure
@@ -42,6 +43,9 @@ Files outside that set are never classified or touched. See
 `docs/standards/contributor-docs/write/PHASE.md` for each dispatch.
 
 Read `.contributor-docs/doc-plan.yaml` for the metadata of the paths in your input set.
+Require its `docsRoot` to equal the orchestrator-supplied task-state value before
+rendering anything. Plan paths are relative to that value; returned manifest paths
+are normalized repository-root-relative joins of `{docsRoot}` and the plan path.
 Read the frontmatter schemas doc for correct frontmatter per section type.
 Read the structure doc for folder layout conventions.
 
@@ -51,7 +55,8 @@ without exactly one persisted expected hash.
 
 ### 2. Plan Directory Structure
 
-Resolve all necessary directories under the `docsRoot` specified in the plan. In
+Resolve all necessary directories under the authoritative `{docsRoot}` from task
+state. The matching plan value is a validation copy, not a second authority. In
 `prepare`, only compute them. In `create`, make only the parents of handed paths:
 
 ```
@@ -130,7 +135,8 @@ hash and line count. Never turn a create-time mismatch into an approval yourself
 
 For each authorized create:
 
-1. Build frontmatter from the plan entry + frontmatter schema for its type
+1. Build frontmatter from the plan entry + the exact frontmatter schema selected by
+   its required `type`; an absent or unknown type is a manifest error
 2. Write the file with frontmatter + one-line summary (the `description` from the plan)
 3. Do NOT write any body content beyond the one-line summary
 4. Re-hash the installed bytes and require the persisted expected hash
@@ -205,9 +211,17 @@ If any collision is non-empty:
    not a summary.
 3. Ask for explicit per-path approval. Approval is per path; a blanket "yes"
    must be given by the user, never inferred.
-4. Bind each approval to the freshly measured `observedHash`. An initial collision
-   may instead be skipped; a discovered gap is required and remains blocked until
-   approved.
+4. Route the exact state change through its named state-agent operation:
+   - initial prepare records collisions through `prepare-scaffold`, and each decision
+     is applied through `resolve-scaffold`;
+   - initial create-time drift is recorded through `block-scaffold`, then resolved
+     through `resolve-scaffold`;
+   - gap prepare/create records its collision in the current gap edge, and an explicit
+     decision is applied only through gap `approve-collision`.
+     Every approval is bound to the freshly measured `observedHash`. An initial collision
+     may instead be skipped; a discovered gap is required and remains blocked until
+     approved. Initial create success is committed only by `finalize-scaffold`; gap
+     create success is committed only by the gap `scaffold` edge.
 
 This is the confirmation required by [workflow.md](../workflow.md) rule 3
 ("Never overwrite existing documentation files without user confirmation"). The

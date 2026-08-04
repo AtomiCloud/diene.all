@@ -142,6 +142,34 @@ Index files also use minimal frontmatter.
 
 ---
 
+## Top-Level Files
+
+All six top-level plan types use the same minimal frontmatter shape. Their distinct
+types select different body templates; the type is plan metadata and is not duplicated
+into frontmatter.
+
+```yaml
+---
+title: 'Project Documentation'
+description: 'One-line summary of this top-level document'
+---
+```
+
+| Plan type                    | Required path shape                   | Body template               |
+| ---------------------------- | ------------------------------------- | --------------------------- |
+| `top-level-overview`         | `00-overview.mdx`                     | Project overview            |
+| `top-level-architecture`     | `01-architecture/index.mdx`           | Architecture overview       |
+| `top-level-modules`          | `02-modules.mdx`                      | Module map                  |
+| `top-level-development`      | `03-development/index.mdx`            | Development guide index     |
+| `top-level-folder-structure` | `03-development/folder-structure.mdx` | Repository folder structure |
+| `top-level-commands`         | `03-development/commands.mdx`         | Command reference           |
+
+The plan state-agent validates this type/path pairing before the scaffolder sees an
+entry. Top-level files omit lifecycle status, tags, and relationship fields because
+their role and position are fixed by the documentation structure.
+
+---
+
 ## Design Principles
 
 1. **Features are the hub.** They use dedicated `concepts`, `algorithms`, `surfaces` fields. Everything else uses generic `related`.
@@ -151,6 +179,6 @@ Index files also use minimal frontmatter.
 5. **`status` is type-specific.** Features, concepts, algorithms, and surfaces use
    `draft | stable | deprecated`. ADRs use the decision lifecycle
    `proposed | accepted | superseded | deprecated`, with `superseded_by` required only
-   for `superseded`. Module overviews and index files use their minimal schemas and
-   omit status. Scaffolders and writers must select the vocabulary from the file's
-   schema, never apply one universal list.
+   for `superseded`. Module overviews, index files, and top-level files use their
+   minimal schemas and omit status. Scaffolders and writers must select the vocabulary
+   from the file's schema, never apply one universal list.

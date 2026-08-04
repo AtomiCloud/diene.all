@@ -103,13 +103,17 @@ Both must produce no output.
 .contributor-docs/
 ├── task-state.json          # Overall: which phase, base branch, docs root
 ├── plan-state.json          # Plan phase steps
+├── diff-summary.md          # Source-snapshot-bound analysis used by planning
+├── doc-plan.yaml            # Approved documentation plan
 ├── write-state.json         # Write phase steps + tier tracking
 ├── audit-state.json         # Audit phase steps
+├── big-picture-report.md    # Epoch/digest-stamped holistic audit artifact
 ├── write-tier-N/            # File-processor state per tier (created during write)
 │   ├── state.json
 │   └── findings/
 ├── fact-check/              # File-processor state for audit (created during audit)
 │   ├── state.json
+│   ├── epoch.json           # Required audit epoch + docs digest sidecar
 │   └── findings/
 └── transitions.log          # Append-only step transition log
 ```
@@ -120,8 +124,63 @@ Both must produce no output.
 | -------------- | ------ | ------------------------------------------------------------- |
 | `currentPhase` | string | Active phase: `plan`, `write`, `audit`, `completed`, `failed` |
 | `baseBranch`   | string | Base branch to diff against (default: `main`)                 |
-| `docsRoot`     | string | Output directory (default: `docs/contributor`)                |
+| `docsRoot`     | string | Authoritative output directory (default: `docs/contributor`)  |
 | `planFile`     | string | Path to doc plan YAML (`.contributor-docs/doc-plan.yaml`)     |
+
+`docsRoot` is a normalized repository-root-relative directory other than `.`. It
+must neither equal nor contain `.contributor-docs`, and `.contributor-docs` must not
+contain it. These disjoint roots are the only dirty-worktree exceptions in the source
+snapshot check below.
+
+## Source Snapshot Invariant
+
+`.contributor-docs/diff-summary.md` starts with the exact marked five-field record in
+`docs/standards/contributor-docs/plan/diff-analysis.md#4-write-summary`. That artifact
+binds planning to source, not merely to a prose summary of source.
+
+The canonical capture and validation procedure is:
+
+1. Read `baseBranch` and `docsRoot` from `task-state.json`; completely validate both.
+2. Resolve `baseBranch^{commit}` and `HEAD^{commit}` once. Record them as `baseCommit`
+   and `headCommit`. Run `git merge-base --all` on those two object IDs and require
+   exactly one result, recorded as `mergeBaseCommit`.
+3. Compute `diffDigest` as SHA-256 of the exact NUL-framed raw tree delta emitted by:
+
+   ```bash
+   LC_ALL=C git diff-tree --no-commit-id -r --raw -z --no-renames \
+     --abbrev=64 "$merge_base_commit" "$head_commit" | sha256sum | cut -d ' ' -f1
+   ```
+
+   The raw record binds modes, complete blob object IDs, and paths without invoking a
+   user-configured text diff driver.
+
+4. Read `git status --porcelain=v1 -z --untracked-files=all`. Parse NUL records,
+   including both paths of every rename or copy. Every reported path must equal or be
+   below `.contributor-docs/` or the normalized `docsRoot`; otherwise the source is
+   dirty and the check fails with the complete sorted outside-path set. A line-based
+   parser or a parser that checks only one side of a rename is invalid.
+5. `record-diff-analysis` validates that unbound candidate record, freshly hashes the
+   complete diff-summary bytes, and records that hash in `plan-state.json`. Every later
+   validation first requires a completely valid plan state with
+   `diffSummaryReady: true`, a non-null `diffSummaryHash`, and a fresh SHA-256 of the
+   complete diff summary equal to that recorded hash. Only then parse the marked record
+   and require exactly its five fields; require `baseRef == task-state.baseBranch`,
+   freshly resolve the base and HEAD to the recorded commits, recompute the unique merge
+   base and raw-tree digest, and repeat the dirty-path check. Missing input is
+   CANNOT-LOOK, never a match. `invalidate-diff-summary` is the sole operation allowed
+   to consume a proven missing or mismatched binding.
+
+Every plan, write, and audit state-agent runs the bound check before it reports a later
+dispatch or mutates post-analysis state. The plan agent's `record-diff-analysis`
+operation is the one unbound capture-to-binding edge. During later plan steps, any
+mismatch selects only
+`invalidate-diff-summary`, which returns to `diff_analysis` and clears downstream
+identity and approval. Once task phase has reached `write`, `audit`, `failed`, or
+`completed`, no safe rollback is defined: the state-agent reports
+`SOURCE_DRIFT_BLOCKED` with the mismatched identities or outside dirty paths and leaves
+all state and artifacts byte-identical. Cleaning a transient outside path permits a
+retry only when every recorded source identity still matches; a committed source
+change requires an explicit whole-run restart rather than an invented replan edge.
 
 ### Clean Start (the first transition)
 
@@ -220,14 +279,19 @@ Dispatch: `docs/standards/contributor-docs/audit/PHASE.md`
 
 **On invocation, spawn a state-agent to assess `task-state.json`, then dispatch:**
 
-| `currentPhase` | Action                                                                                                                                                 |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| No state file  | Parse arguments (base branch), spawn the **plan** state-agent in `create` mode (see [Clean Start](#clean-start-the-first-transition)), then start Plan |
-| `plan`         | Spawn plan state-agent to assess, dispatch per `docs/standards/contributor-docs/plan/PHASE.md`                                                         |
-| `write`        | Spawn write state-agent to assess, dispatch per `docs/standards/contributor-docs/write/PHASE.md`                                                       |
-| `audit`        | Spawn audit state-agent to assess, dispatch per `docs/standards/contributor-docs/audit/PHASE.md`                                                       |
-| `completed`    | Report completion, list generated files                                                                                                                |
-| `failed`       | Spawn audit and write state-agents to assess and dispatch the fenced audit repair/reset flow below; never stop at a generic retry message              |
+| `currentPhase` | Action                                                                                                                                                                 |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No state file  | Parse arguments (base branch), spawn the **plan** state-agent in `create` mode (see [Clean Start](#clean-start-the-first-transition)), then start Plan                 |
+| `plan`         | Spawn plan state-agent to assess, dispatch per `docs/standards/contributor-docs/plan/PHASE.md`                                                                         |
+| `write`        | Spawn write state-agent to assess, dispatch per `docs/standards/contributor-docs/write/PHASE.md`                                                                       |
+| `audit`        | Spawn audit state-agent to assess, dispatch per `docs/standards/contributor-docs/audit/PHASE.md`                                                                       |
+| `completed`    | Spawn the audit state-agent to reassess the source snapshot and completed evidence; report completion and list generated files only while both remain current          |
+| `failed`       | Spawn audit and write state-agents to reassess source and recovery evidence; source drift preempts every repair/reset action, otherwise dispatch the fenced flow below |
+
+Every non-bootstrap row above begins with the named phase state-agent's `assess` mode.
+For task phase `completed`, `SOURCE_DRIFT_BLOCKED` or invalidated accepted-warning
+evidence suppresses the completion report. For task phase `failed`, the same source
+outcome suppresses every row in Failed-Phase Dispatch.
 
 **Transition logging:** When advancing phases, the state-agent appends:
 

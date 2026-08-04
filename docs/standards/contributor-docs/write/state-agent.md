@@ -8,7 +8,8 @@ Manages state transitions for the Write phase. The orchestrator NEVER reads/writ
 
 - Working directory: repo root
 - State files: `.contributor-docs/write-state.json`, `.contributor-docs/task-state.json`;
-  read-only repair evidence from `.contributor-docs/audit-state.json`
+  read-only source binding from `.contributor-docs/plan-state.json` and repair evidence
+  from `.contributor-docs/audit-state.json`
 - Mode: {create|assess|update|gap}
 
 The canonical schema is `docs/standards/contributor-docs/write/PHASE.md`. Every field
@@ -25,8 +26,11 @@ This agent creates **only** `write-state.json`. It never creates `task-state.jso
 
 1. `mkdir -p .contributor-docs`
 2. Refuse if `.contributor-docs/task-state.json` is absent: report `NOT_INITIALIZED`. This phase cannot bootstrap the task.
-3. Refuse if `.contributor-docs/write-state.json` already exists: report `ALREADY_INITIALIZED` and switch to Mode 1.
-4. Write `.contributor-docs/write-state.json` with the initial phase schema — all
+3. Apply the canonical source-snapshot validation in
+   `docs/standards/contributor-docs/workflow.md`. On any mismatch report
+   `SOURCE_DRIFT_BLOCKED` with the exact evidence and create nothing.
+4. Refuse if `.contributor-docs/write-state.json` already exists: report `ALREADY_INITIALIZED` and switch to Mode 1.
+5. Write `.contributor-docs/write-state.json` with the initial phase schema — all
    thirteen canonical fields, mirroring
    `docs/standards/contributor-docs/write/PHASE.md`:
 
@@ -50,7 +54,7 @@ This agent creates **only** `write-state.json`. It never creates `task-state.jso
    }
    ```
 
-5. Validate every field before reporting success, not just parseability:
+6. Validate every field before reporting success, not just parseability:
    - the file parses as JSON;
    - `step` ∈ `scaffold|scaffold_blocked|scaffold_prepared|write_tier_1|write_tier_2|write_tier_3|write_tier_4|write_tier_5|write_tier_6|completed`;
    - `scaffoldComplete` is a boolean;
@@ -88,11 +92,15 @@ When prompted: "Assess write phase state"
 
 ### Procedure
 
-1. Read `.contributor-docs/write-state.json` (if exists)
-2. Read `.contributor-docs/task-state.json` for shared context
-3. Check which `.contributor-docs/write-tier-N/state.json` files exist
-4. For existing tier states, check `pendingFiles` count
-5. Report current state
+1. Read `.contributor-docs/write-state.json` (if exists).
+2. Read `.contributor-docs/task-state.json` for shared context.
+3. Validate the diff summary's source snapshot with the canonical workflow procedure,
+   including its fresh equality to `plan-state.json.diffSummaryHash`. Derive
+   `sourceSnapshotCurrent` and exact binding/drift evidence. A false result blocks
+   every dispatch, including recovery, without changing state.
+4. Check which `.contributor-docs/write-tier-N/state.json` files exist.
+5. For existing tier states, check `pendingFiles` count.
+6. Report current state.
 
 **Counts come from `writeQueue` and `provenance`, never from `doc-plan.yaml`.** The
 plan lists what was wanted; the queue records what was approved. Re-deriving per-tier
@@ -106,6 +114,8 @@ does not read the plan at all.
 CURRENT_STEP: <step from write-state.json>
 CONTEXT:
 - scaffoldComplete: <true|false>
+- sourceSnapshotCurrent: <true|false>
+- sourceSnapshotMismatch: <none | summary binding, identity/digest mismatch, or sorted outside dirty paths>
 - currentTier: <number>
 - tiersCompleted: <list>
 - filesWritten: <count of provenance entries with writeStatus == "written">
@@ -139,12 +149,14 @@ or counter by supplying its desired value.
 
 1. Read and completely validate write and task state. For either audit-repair
    operation, also validate audit state and every cited current artifact.
-2. Refuse Mode 2 while `gapTransition != null`; Mode 3 exclusively owns that graph.
-3. Validate every path as normalized, root-relative, and contained by `docsRoot`.
-4. Build the operation's complete candidate object, derive both counters, and enforce
+2. Validate the canonical source snapshot. On any mismatch report
+   `SOURCE_DRIFT_BLOCKED` and leave state and processor artifacts byte-identical.
+3. Refuse Mode 2 while `gapTransition != null`; Mode 3 exclusively owns that graph.
+4. Validate every path as normalized, root-relative, and contained by `docsRoot`.
+5. Build the operation's complete candidate object, derive both counters, and enforce
    the source step, target step, and target invariants below.
-5. Validate before writing, then use a temp file plus atomic rename.
-6. When the step changes, append the transition only after the rename.
+6. Validate before writing, then use a temp file plus atomic rename.
+7. When the step changes, append the transition only after the rename.
 
 ### Legal Operations
 
@@ -307,6 +319,8 @@ This mode exclusively enforces the complete graph:
 There is no arbitrary status update. Each edge is a named operation, and the agent
 verifies the edge's durable filesystem or plan effect before atomically recording its
 target. A skipped, reversed, or fabricated edge is `GAP_TRANSITION_INVALID`.
+Before any edge or collision decision, validate the canonical source snapshot. A
+mismatch is `SOURCE_DRIFT_BLOCKED` and leaves the entire transition byte-identical.
 
 ### The transition record
 
@@ -409,7 +423,7 @@ derive both counters, clear resolved collisions, and set `status: "scaffolded"`.
 ### Sub-operation `apply`
 
 One atomic write, legal only when `status == "scaffolded"`; otherwise report
-`GAP_NOT_SCAFFOLDED`. It performs, together:
+`GAP_TRANSITION_INVALID`. It performs, together:
 
 1. `tiersCompleted` truncated to the tiers strictly less than `replayTier`
 2. `currentTier: replayTier` and `step: "write_tier_<replayTier>"`

@@ -162,6 +162,12 @@ When a severity has no findings, state `None.` under that heading. Write the
 whole report for this invocation; do not merge current results into an older
 report.
 
+Every warning is one contiguous item beginning with a level-four heading in the
+exact form `#### N. <description>`. Its byte range ends immediately before the next
+level-four item, the next level-three section, or end of file. Do not put two warnings
+under one item heading. This boundary lets the state-agent derive an exact
+`findingHash` and description for warning acceptance without trusting a caller summary.
+
 ### 6. Report
 
 Return the exact epoch and digest, separate error and warning counts, and the

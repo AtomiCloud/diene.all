@@ -120,7 +120,14 @@ Follow the body template for the section type. Replace the one-line summary with
 - **ADR**: List at least two options considered. Capture both positive and negative consequences.
 - **Module overview**: Define the bounded context. Link to key features and concepts.
 - **Index**: List every file in the directory with one-line descriptions. Group logically.
-- **Top-level**: Follow the specific template (overview, architecture, modules, development).
+- **Top-level**: Select the exact template named by the plan type:
+  [`top-level-overview`](../common/templates.md#project-overview-top-level-overview),
+  [`top-level-architecture`](../common/templates.md#architecture-overview-top-level-architecture),
+  [`top-level-modules`](../common/templates.md#module-map-top-level-modules),
+  [`top-level-development`](../common/templates.md#development-guide-top-level-development),
+  [`top-level-folder-structure`](../common/templates.md#folder-structure-top-level-folder-structure),
+  or [`top-level-commands`](../common/templates.md#command-reference-top-level-commands).
+  A generic top-level fallback is not valid.
 
 ### 5. Validate
 

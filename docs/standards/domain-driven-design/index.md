@@ -152,14 +152,18 @@ This separation enables:
 
 **Multi-record service pattern:**
 
-> **Note:** Result type library to be determined. The signatures below use `Result<T>` as placeholder syntax.
+These signatures use the language-agnostic `Result<T, E>` contract from
+[Functional Practices](../functional-practices/index.md#the-result-type): every
+expected failure is an `Err(E)`, and callers compose or handle both rails explicitly.
+The concrete Result library or native type is selected by the applicable language
+standard, not by this agnostic document.
 
 ```text
 // Each record type has its own update method
 interface IUserService {
-  getProfile(id: uuid): Result<UserPrincipal>          // placeholder — Result type TBD
-  updateProfile(id: uuid, record: UserRecord): Result<UserPrincipal>
-  updateSync(id: uuid, record: UserSyncRecord): Result<UserPrincipal>
+  getProfile(id: uuid): Result<UserPrincipal, UserError>
+  updateProfile(id: uuid, record: UserRecord): Result<UserPrincipal, UserError>
+  updateSync(id: uuid, record: UserSyncRecord): Result<UserPrincipal, UserError>
   // UserImmutableRecord never updated — set only at creation
 }
 ```
@@ -226,22 +230,22 @@ With three structure types defined, we can map the five standard CRUD operations
 
 ```text
 interface PostService:
-  search(params: PostSearch): Result<PostPrincipal[]>
-  get(id: uuid): Result<Post?>
-  create(record: PostRecord): Result<Post>
-  update(id: uuid, record: PostRecord): Result<Post?>
-  delete(id: uuid): Result<void?>
+  search(params: PostSearch): Result<PostPrincipal[], PostError>
+  get(id: uuid): Result<Post?, PostError>
+  create(record: PostRecord): Result<Post, PostError>
+  update(id: uuid, record: PostRecord): Result<Post?, PostError>
+  delete(id: uuid): Result<void?, PostError>
 ```
 
 And the corresponding repository interface follows the same shape:
 
 ```text
 interface PostRepository:
-  search(params: PostSearch): Result<PostPrincipal[]>
-  get(id: uuid): Result<Post?>
-  create(record: PostRecord): Result<Post>
-  update(id: uuid, record: PostRecord): Result<Post?>
-  delete(id: uuid): Result<void?>
+  search(params: PostSearch): Result<PostPrincipal[], PostError>
+  get(id: uuid): Result<Post?, PostError>
+  create(record: PostRecord): Result<Post, PostError>
+  update(id: uuid, record: PostRecord): Result<Post?, PostError>
+  delete(id: uuid): Result<void?, PostError>
 ```
 
 The service orchestrates business rules; the repository handles persistence. Both speak the same language of Records, Principals, and Models. See [Three-Layer Architecture](../three-layer-architecture/index.md) for how these layers connect.
