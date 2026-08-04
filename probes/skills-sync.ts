@@ -1,4 +1,4 @@
-import { expectGreen } from './lib/helpers.ts';
+import { capturedEnvCommand, expectGreen } from './lib/helpers.ts';
 
 const externalGoModule = 'github.com/AtomiCloud/diene.go-fixture';
 const goModFixture = `module example.com/app\n\ngo 1.22\n\nrequire ${externalGoModule} v0.1.0\n`;
@@ -219,7 +219,9 @@ export default {
           // valid after the parent probe cascades into Go-enabled nodes, even if
           // an ambient PATH directory happens to contain Go beside other tools.
           const result = await repo.exec(
-            `nix develop .#ci -c bash -c 'set -euo pipefail; fixture_bin="$(mktemp -d)"; trap "rm -rf \\"$fixture_bin\\"" EXIT; for command_name in bash env jq rg sed mktemp touch mkdir cp chmod rm mv find tr basename realpath git dirname sort wc head grep cat cut awk; do command_path="$(command -v "$command_name")" || exit 112; ln -s "$command_path" "$fixture_bin/$command_name"; done; export PATH="$fixture_bin"; if command -v go >/dev/null 2>&1; then exit 111; fi; ./scripts/local/skills-sync.sh'`,
+            capturedEnvCommand(
+              `nix develop .#ci -c bash -c 'set -euo pipefail; fixture_bin="$(mktemp -d)"; trap "rm -rf \\"$fixture_bin\\"" EXIT; for command_name in bash env jq rg sed mktemp touch mkdir cp chmod rm mv find tr basename realpath git dirname sort wc head grep cat cut awk; do command_path="$(command -v "$command_name")" || exit 112; ln -s "$command_path" "$fixture_bin/$command_name"; done; export PATH="$fixture_bin"; if command -v go >/dev/null 2>&1; then exit 111; fi; ./scripts/local/skills-sync.sh'`,
+            ),
             { timeoutMs: 240000 },
           );
           if (result.exitCode === 111) {
@@ -268,7 +270,9 @@ export default {
           await repo.write('go-shim/go', brokenGoShim);
           await stageKeptSkill(repo);
           const result = await repo.exec(
-            `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ./scripts/local/skills-sync.sh'`,
+            capturedEnvCommand(
+              `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ./scripts/local/skills-sync.sh'`,
+            ),
             { timeoutMs: 240000 },
           );
           if (result.exitCode === 0) {
@@ -301,7 +305,9 @@ export default {
           await repo.write('go.mod', goSelfModuleFixture);
           await repo.write('go-shim/go', selfModuleGoShim);
           const result = await repo.exec(
-            `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ./scripts/local/skills-sync.sh'`,
+            capturedEnvCommand(
+              `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ./scripts/local/skills-sync.sh'`,
+            ),
             { timeoutMs: 240000 },
           );
           if (result.exitCode === 0) {
@@ -328,7 +334,9 @@ export default {
           await repo.write('go-shim/go', neutralGoShim);
           await repo.write(`${keptSkill}.untracked`, 'untracked content is not a committed fallback\n');
           const result = await repo.exec(
-            `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ${isolateRealNodePackages}; ./scripts/local/skills-sync.sh'`,
+            capturedEnvCommand(
+              `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ${isolateRealNodePackages}; ./scripts/local/skills-sync.sh'`,
+            ),
             { timeoutMs: 240000 },
           );
           if (result.exitCode === 0) {

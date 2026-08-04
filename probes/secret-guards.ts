@@ -1,4 +1,4 @@
-import { expectGreen } from './lib/helpers.ts';
+import { capturedEnvCommand, expectGreen } from './lib/helpers.ts';
 
 export default {
   contractVersion: 1,
@@ -19,7 +19,9 @@ export default {
       expectedImpact: [],
       async run(repo: any) {
         const result = await repo.exec(
-          'env -u INFISICAL_PROJECT_ID -u INFISICAL_ENVIRONMENT nix develop .#ci -c ./scripts/local/secrets.sh fetch',
+          capturedEnvCommand(
+            'env -u INFISICAL_PROJECT_ID -u INFISICAL_ENVIRONMENT nix develop .#ci -c ./scripts/local/secrets.sh fetch',
+          ),
         );
         if (result.exitCode === 0 || !result.stderr.includes('❌')) {
           throw new Error('the required-environment guard did not fail clearly');

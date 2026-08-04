@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { capturedEnvCommand, expectGreen, expectRed } from './lib/helpers.ts';
 
 const GATE = 'nix develop .#ci -c ./scripts/validate/workflows.sh cache-tag-shape';
 const PRECOMMIT = '.github/workflows/⚡reusable-precommit.yaml';
@@ -33,7 +33,7 @@ async function rewrite(repo: any, path: string, edits: Edit[]): Promise<void> {
 // would assert nothing about the mechanism the arm exists to protect, and the two
 // classifier arms below are exactly where that confusion is easy to miss.
 async function expectRedBecause(repo: any, reason: string): Promise<void> {
-  const result = await repo.exec(GATE, { timeoutMs: 240000 });
+  const result = await repo.exec(capturedEnvCommand(GATE), { timeoutMs: 240000 });
   if (result.exitCode === 0) {
     throw new Error('cache-tag-shape stayed green after sabotage');
   }
