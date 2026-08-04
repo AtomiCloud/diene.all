@@ -1,4 +1,4 @@
-import { expectGreen, expectRed, formatterCommand } from './lib/helpers.ts';
+import { expectGreen, expectRed } from './lib/helpers.ts';
 
 export default {
   contractVersion: 1,
@@ -9,7 +9,7 @@ export default {
       description: 'The treefmt nixfmt member passes on the untouched Nix modules.',
       kind: 'baseline',
       async run(repo: any) {
-        await expectGreen(repo, formatterCommand('nixfmt'), 'fmt-nixfmt');
+        await expectGreen(repo, 'nix fmt --no-write-lock-file -- --ci --formatters nixfmt', 'fmt-nixfmt');
       },
     },
     {
@@ -19,7 +19,7 @@ export default {
       expectedImpact: [],
       async run(repo: any) {
         await repo.patch('nix/env.nix', { find: '  dev = [', replace: '  dev=[' });
-        await expectRed(repo, formatterCommand('nixfmt'), 'fmt-nixfmt');
+        await expectRed(repo, 'nix fmt --no-write-lock-file -- --ci --formatters nixfmt', 'fmt-nixfmt');
       },
     },
   ],
