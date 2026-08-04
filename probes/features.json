@@ -181,11 +181,6 @@
   },
   {
     "template": "diene/workspace",
-    "name": "cache-tag-shape",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
     "name": "releaser-hook-registration",
     "class": "presence",
     "deferredUntil": "tools/releaser step 2p publish"
@@ -202,16 +197,6 @@
   },
   {
     "template": "diene/shared",
-    "name": "standards-inventory",
-    "class": "presence"
-  },
-  {
-    "template": "diene/shared",
-    "name": "thin-skills",
-    "class": "presence"
-  },
-  {
-    "template": "diene/shared",
     "name": "docs-markdownlint",
     "class": "gate"
   },
@@ -219,5 +204,15 @@
     "template": "diene/shared",
     "name": "docs-prettier",
     "class": "gate"
+  },
+  {
+    "template": "diene/shared",
+    "name": "standards-inventory",
+    "class": "presence"
+  },
+  {
+    "template": "diene/shared",
+    "name": "thin-skills",
+    "class": "presence"
   }
 ]

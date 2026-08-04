@@ -14,7 +14,7 @@ Every piece of code falls into one of two categories. Mixing them is the root of
 
 Structures represent facts, state, and values. They carry no behavior. They are immutable, serializable, and inspectable.
 
-```typescript
+```text
 // Structure -- just data, no behavior
 structure UserRecord:
   username: String
@@ -42,7 +42,7 @@ Structures are the things that flow through your system. They cross network boun
 
 Objects are services. They contain behavior but own no mutable state. Their only members are **readonly configuration** and **injected dependencies** -- both set once at construction time and never changed.
 
-```typescript
+```text
 // Object -- behavior with injected dependencies, no mutable state
 class UserService:
   private readonly repo: IUserRepository    // injected dependency
@@ -80,7 +80,7 @@ This separation is the foundation that makes [SOLID principles](../solid-princip
 
 A stateless service is one where **every piece of information flows through method parameters and return values**. The instance itself holds no mutable state -- its members are frozen at construction time.
 
-```typescript
+```text
 // Stateless -- all state flows through parameters
 class OrderService:
   private readonly repo: IOrderRepository
@@ -98,7 +98,7 @@ class OrderService:
 
 Compare this with a stateful service:
 
-```typescript
+```text
 // WRONG -- stateful service
 class OrderService:
   private items: Item[] = []          // mutable state!
@@ -134,7 +134,7 @@ All dependencies are passed at construction time. This is the only mechanism for
 
 ### What Constructor Injection Looks Like
 
-```typescript
+```text
 // Dependencies are explicit, visible, and injectable
 class NotificationService:
   private readonly email: IEmailSender
@@ -161,7 +161,7 @@ Static methods and global state cut through the dependency tree. They bypass inj
 - **Not swappable.** Production, testing, and development all get the same implementation.
 - **Not decoratable.** You cannot wrap a static call with tracing, caching, or retry logic.
 
-```typescript
+```text
 // WRONG -- static method hides the dependency
 class UserService:
   static getUser(id: String) -> User:
@@ -185,7 +185,7 @@ The injectable version can be tested with a mock database, decorated with tracin
 
 All services are created at the application entry point -- the "big bang" of the dependency graph. This is the only place where constructors are called for services and adapters.
 
-```typescript
+```text
 // main -- the composition root
 function main():
   // 1. Create adapters (impure IO boundaries)

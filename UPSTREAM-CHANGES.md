@@ -136,10 +136,42 @@ verified result rather than an omission:**
   rows carry `"template": "diene/workspace"`, and its `atomi/nix` rows are byte-identical
   before and after (verified by comparing the filtered sets, not by reading the diff).
 
-All twelve files involved appear in the classification table above, including the eight
+All twelve files involved appear in the classification table above, including the six
 that were deleted. What was removed, and why it is authorized content removal rather than
 a silenced check, is recorded in `VALIDATOR-CHANGES.md` — the artifact the ruling named
 for it. That record is not restated here.
+
+### Files changed by the shared payload
+
+The agnostic standards payload lands on top of the fold above. Fifty-five of its sixty
+paths are new files born on this line, so the birth trace makes them owned-here and they
+owe nothing upstream: the twelve thin skill triggers under `.claude/skills/`,
+`.markdownlint-cli2.jsonc` and `.markdownlint.json`, thirty-six documents under
+`docs/standards/` (the twelve standard indexes, the contributor-docs reference set, and
+the reserved C0 slot at `docs/standards/contracts/README.md`, which carries no C0
+contract content), and five probe definitions under `probes/`. The five paths that
+already existed are classified individually:
+
+| File                   | Classification                                                                                                                                                                                             |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CLAUDE.md`            | upstream file; the shared index sections and the placement sentence are new content — no pre-existing region was rewritten                                                                                 |
+| `README.md`            | upstream file, addition confined to the workspace-born Standards section                                                                                                                                   |
+| `nix/pre-commit.nix`   | upstream file; the two new hooks are shared-born entries in the hooks set, and the `treefmt` hook — the one `source: main` region in that file — was not touched                                           |
+| `probes/features.json` | upstream file; the five appended rows all carry `"template": "diene/shared"`, and the `atomi/nix` and `diene/workspace` rows are byte-identical before and after (verified by comparing the filtered sets) |
+| `UPSTREAM-CHANGES.md`  | owned-here (this audit artifact, updated by the payload)                                                                                                                                                   |
+
+**Nothing is owed upstream for this payload, and the absence of records below is a
+verified result rather than an omission:**
+
+- the new `a-markdownlint` hook selects by directory shape rather than by topic name, so
+  it also lints the eleven parent-owned standards under `docs/standards/` and the eleven
+  parent-owned skill triggers. They pass unchanged; no parent document was edited to make
+  the gate green.
+- the one collision found was mechanical rather than editorial. Markdownlint counts a YAML
+  frontmatter `title:` as a top-level heading, so every parent standard carrying
+  frontmatter plus an `#` heading tripped MD025. It is resolved in the shared-owned
+  `.markdownlint.json` with `"MD025": { "front_matter_title": "" }`, which leaves the rule
+  enforcing one `#` heading per document. No upstream file changed, so no record is owed.
 
 ### Documentation files audited but not changed
 
@@ -285,12 +317,15 @@ No removal was blocked and nothing had to be recorded in place of a removal: the
 references to the removed packages were repointed successfully in workspace-owned regions
 (`validator-runtime` and `validator` to `packages.atomiutils`; `a-helm-lint` to
 `packages.infrautils`), and `nix develop .#ci -c pre-commit run --all-files` then passed
-all 19 hooks, so no failure output needed recording.
+all 14 pre-commit hook IDs (17 expanded checks), so no failure output needed recording.
 
 ## Open items deliberately not recorded
 
 - The point-at-truth rule's documentation home is **pending the user's ruling**. The rule
   was applied to this node's content; no home was invented for its text, here or
   anywhere else.
-- The Shared deletions (contributor docs, lychee) are pending user confirmation and are
-  out of scope for this node.
+- ~~The Shared deletions (contributor docs, lychee) are pending user confirmation and are
+  out of scope for this node.~~ **Resolved.** Both landed on this node with the shared
+  payload: the contributor-docs standard is at `docs/standards/contributor-docs/`, and
+  lychee backs the `a-claude-links` hook in `nix/pre-commit.nix`. Neither is pending and
+  neither is out of scope any more, so this is no longer an open item.

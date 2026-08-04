@@ -4,17 +4,43 @@ Use the repository's Nix shell for every command. Read [the Nix standard](docs/s
 
 Follow the linked standard before changing its surface. Never hand-edit `.claude/skills/vendor/`.
 
+Domain-specific architecture and behavior belongs under [docs/domain/](docs/domain/README.md). The `docs/standards/contracts/` slot is reserved for the separately owned C0 contracts standard.
+
+## Authorization
+
+See [docs/standards/authorization/index.md](docs/standards/authorization/index.md).
+
 ## CI/CD workflows
 
 See [docs/standards/ci-cd/index.md](docs/standards/ci-cd/index.md).
+
+## Contributor documentation
+
+See [docs/standards/contributor-docs/index.md](docs/standards/contributor-docs/index.md).
 
 ## Conventional commits
 
 See [docs/standards/conventional-commits/index.md](docs/standards/conventional-commits/index.md).
 
+## Data validation
+
+See [docs/standards/validation/index.md](docs/standards/validation/index.md).
+
+## Date and time
+
+See [docs/standards/datetime/index.md](docs/standards/datetime/index.md).
+
 ## Docker build and publishing
 
 See [docs/standards/docker/index.md](docs/standards/docker/index.md).
+
+## Domain-driven design
+
+See [docs/standards/domain-driven-design/index.md](docs/standards/domain-driven-design/index.md).
+
+## Functional practices
+
+See [docs/standards/functional-practices/index.md](docs/standards/functional-practices/index.md).
 
 ## Helm charts and publishing
 
@@ -44,32 +70,30 @@ See [docs/standards/service-tree/index.md](docs/standards/service-tree/index.md)
 
 See [docs/standards/shell-scripts/index.md](docs/standards/shell-scripts/index.md).
 
+## Software design philosophy
+
+See [docs/standards/software-design-philosophy/index.md](docs/standards/software-design-philosophy/index.md).
+
+## SOLID principles
+
+See [docs/standards/solid-principles/index.md](docs/standards/solid-principles/index.md).
+
+## Stateless OOP and dependency injection
+
+See [docs/standards/stateless-oop-di/index.md](docs/standards/stateless-oop-di/index.md).
+
 ## Taskfile conventions
 
 See [docs/standards/taskfile/index.md](docs/standards/taskfile/index.md).
 
-<!-- ### shared -->
-<!-- #### source: shared -->
+## Testing
 
-## Shared engineering standards
+See [docs/standards/testing/index.md](docs/standards/testing/index.md).
 
-- [Authorization](docs/standards/authorization/index.md)
-- [Contributor documentation](docs/standards/contributor-docs/index.md)
-  ([checklist](docs/standards/contributor-docs/checklist.md),
-  [classification](docs/standards/contributor-docs/classification.md),
-  [frontmatter](docs/standards/contributor-docs/frontmatter.md), and
-  [structure](docs/standards/contributor-docs/structure.md))
-- [Date and time](docs/standards/datetime/index.md)
-- [Domain-driven design](docs/standards/domain-driven-design/index.md)
-- [Functional practices](docs/standards/functional-practices/index.md)
-- [Software design philosophy](docs/standards/software-design-philosophy/index.md)
-- [SOLID principles](docs/standards/solid-principles/index.md)
-- [Stateless OOP and dependency injection](docs/standards/stateless-oop-di/index.md)
-- [Testing](docs/standards/testing/index.md)
-- [Three-layer architecture](docs/standards/three-layer-architecture/index.md)
-- [Utility libraries](docs/standards/utilities/index.md)
-- [Data validation](docs/standards/validation/index.md)
+## Three-layer architecture
 
-Domain-specific architecture and behavior belongs under
-[docs/domain/](docs/domain/README.md). The `docs/standards/contracts/` slot is
-reserved for the separately owned C0 contracts standard.
+See [docs/standards/three-layer-architecture/index.md](docs/standards/three-layer-architecture/index.md).
+
+## Utility libraries
+
+See [docs/standards/utilities/index.md](docs/standards/utilities/index.md).
