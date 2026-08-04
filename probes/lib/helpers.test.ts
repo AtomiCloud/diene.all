@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { devShellCommand } from './exec';
-import { capturedEnvCommand } from './helpers';
+import { capturedEnvCommand, DEV_SHELL_CHAIN, expectDevShellsOnce } from './helpers';
 
 const ENV_DIR = '/captures';
 
@@ -92,6 +92,31 @@ describe('captured-env rewrite — flag on', () => {
       if (previous === undefined) delete process.env.PROBE_CAPTURED_ENV;
       else process.env.PROBE_CAPTURED_ENV = previous;
     }
+  });
+});
+
+describe('duplicate dev-shell proof', () => {
+  test('one real shell chain proves both duplicate feature arms in one sandbox phase', async () => {
+    const commands: string[] = [];
+    const outcomes = [{ exitCode: 1 }, { exitCode: 0 }, { exitCode: 0 }, { exitCode: 0 }];
+    const repo = {
+      exec: async (command: string) => {
+        commands.push(command);
+        return outcomes.shift() ?? { exitCode: 1 };
+      },
+    };
+
+    await expectDevShellsOnce(repo);
+    await expectDevShellsOnce(repo);
+
+    expect(DEV_SHELL_CHAIN).toBe(CHAINED);
+    expect(commands.filter(command => command === DEV_SHELL_CHAIN)).toHaveLength(1);
+    expect(commands).toEqual([
+      '[ -f .git/cyanprint-probe-dev-shell-checked ]',
+      DEV_SHELL_CHAIN,
+      ': > .git/cyanprint-probe-dev-shell-checked',
+      '[ -f .git/cyanprint-probe-dev-shell-checked ]',
+    ]);
   });
 });
 

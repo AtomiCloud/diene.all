@@ -8,6 +8,11 @@
 // `dev-shell` and `direnv` are exempt because entering the shell is the mechanism those
 // two arms exist to prove; sourcing a capture would leave them asserting nothing.
 const CAPTURED_ENV_EXEMPT_LABELS = new Set(['dev-shell', 'direnv']);
+const DEV_SHELL_ONCE_MARKER = '.git/cyanprint-probe-dev-shell-checked';
+
+export const DEV_SHELL_CHAIN =
+  'nix develop --no-write-lock-file .#default -c true && nix develop --no-write-lock-file .#ci -c true && ' +
+  'nix develop --no-write-lock-file .#cd -c true && nix develop --no-write-lock-file .#releaser -c true';
 
 // The only shape the corpus uses, with and without --no-write-lock-file. Everything
 // after `-c ` is the command word list and is carried through untouched, which is what
@@ -45,6 +50,26 @@ export async function expectGreen(repo: any, command: string, label: string): Pr
   const result = await repo.exec(capturedEnvCommand(command, label), { timeoutMs: 240000 });
   if (result.exitCode !== 0) {
     throw new Error(`${label} failed on the healthy repo: ${result.stderr || result.stdout}`);
+  }
+}
+
+/**
+ * The atomi/nix and diene/workspace features make the identical promise about
+ * this same flake. Probe processes are isolated, but their baseline (and sweep)
+ * probes share a sandbox, so keep an engine-private marker in its .git metadata:
+ * the first duplicate performs the four REAL shell entries, the second observes
+ * that proof. A new sandbox has a fresh .git directory, therefore each phase
+ * still evaluates and starts every shell once.
+ */
+export async function expectDevShellsOnce(repo: any): Promise<void> {
+  const seen = await repo.exec(`[ -f ${DEV_SHELL_ONCE_MARKER} ]`);
+  if (seen.exitCode === 0) {
+    return;
+  }
+  await expectGreen(repo, DEV_SHELL_CHAIN, 'dev-shell');
+  const marked = await repo.exec(`: > ${DEV_SHELL_ONCE_MARKER}`);
+  if (marked.exitCode !== 0) {
+    throw new Error(`could not persist dev-shell proof: ${marked.stderr || marked.stdout}`);
   }
 }
 
