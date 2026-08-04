@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRed, preserveMutationBeforeRestore } from './lib/helpers.ts';
 
 export default {
   contractVersion: 1,
@@ -16,11 +16,16 @@ export default {
       name: 'mutation-hook-shellcheck-caught',
       description: 'A focused sabotage must turn the hook-shellcheck mechanism red.',
       kind: 'mutation',
-      expectedImpact: [],
+      expectedImpact: ['release-policy-values'],
       async run(repo: any) {
-        const source = await repo.read('scripts/release/bump.sh');
-        await repo.write('scripts/release/bump.sh', `${source}\necho $UNQUOTED\n`);
-        await expectRed(repo, 'nix develop .#ci -c pre-commit run a-shellcheck --all-files', 'hook-shellcheck');
+        const path = 'scripts/release/bump.sh';
+        const source = await repo.read(path);
+        try {
+          await repo.write(path, `${source}\necho $UNQUOTED\n`);
+          await expectRed(repo, 'nix develop .#ci -c pre-commit run a-shellcheck --all-files', 'hook-shellcheck');
+        } finally {
+          await preserveMutationBeforeRestore(repo, 'hook-shellcheck', path, source);
+        }
       },
     },
   ],

@@ -16,12 +16,14 @@ export default {
       name: 'mutation-hook-infisical-full-caught',
       description: 'A focused sabotage must turn the hook-infisical-full mechanism red.',
       kind: 'mutation',
-      expectedImpact: ['secret-guards', 'secret-scan-command'],
+      expectedImpact: ['secret-guards', 'secret-scan-command', 'hook-infisical-staged'],
       async run(repo: any) {
         const secret = ['AKIA', 'ABCDEFGHIJKLMNOP'].join('');
         await repo.write('probe-secret.txt', `aws_access_key_id=${secret}\n`);
+        // Seed the history fixture without letting the hook under test abort
+        // its own setup; the explicit full scan below is the mechanism under test.
         await repo.exec(
-          'git add probe-secret.txt && git -c user.name=Probe -c user.email=probe@example.invalid commit -qm probe-secret',
+          'git add probe-secret.txt && SKIP=a-infisical,a-infisical-staged git -c user.name=Probe -c user.email=probe@example.invalid commit -qm probe-secret',
         );
         await expectRed(repo, 'nix develop .#ci -c pre-commit run a-infisical --all-files', 'hook-infisical-full');
       },

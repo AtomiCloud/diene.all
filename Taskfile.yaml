@@ -1,9 +1,15 @@
-# ### workspace-root
-# #### source: workspace
 version: '3'
 
 includes:
   secret: tasks/Taskfile.secret.yaml
+  unit:
+    taskfile: tasks/Taskfile.test.yaml
+    vars:
+      MODE: unit
+  meta:
+    taskfile: tasks/Taskfile.test.yaml
+    vars:
+      MODE: meta
 
 tasks:
   setup:
@@ -20,3 +26,66 @@ tasks:
     desc: Synchronize installed diene package skills
     cmds:
       - ./scripts/local/skills-sync.sh
+
+  clean:
+    desc: Remove Dart dependency, build, coverage, and generated-doc artifacts
+    cmds:
+      - rm -rf .dart_tool packages/diene_dart_lib/.dart_tool packages/diene_dart_lib/coverage packages/diene_dart_lib/doc/api
+
+  build:
+    desc: Validate the publishable Dart library and example
+    cmds:
+      - dart pub get >/dev/null
+      - dart analyze --fatal-infos packages/diene_dart_lib/lib packages/diene_dart_lib/example
+
+  analyze:
+    desc: Analyze the whole workspace, tests, and tooling
+    cmds:
+      - ./scripts/ci/analyze.sh
+
+  deadcode:
+    desc: Run repository and production-only dead-code passes
+    cmds:
+      - ./scripts/local/deadcode.sh
+
+  package:validate:
+    desc: Validate package metadata, pana score, and pub.dev dry-run contents
+    cmds:
+      - ./scripts/ci/package-validate.sh
+
+  test:
+    desc: Run unit/C0 and TestHelper meta suites without coverage
+    cmds:
+      - task: unit:default
+      - task: meta:default
+
+  test:unit:
+    desc: Run unit and C0 conformance suites without coverage
+    cmds:
+      - task: unit:default
+
+  test:meta:
+    desc: Run assert-the-asserter tests for TestHelper
+    cmds:
+      - task: meta:default
+
+  test:coverage:
+    desc: Run every coverage-capable tier with its isolated ledger
+    cmds:
+      - task: unit:coverage
+      - task: meta:coverage
+
+  test:unit:coverage:
+    desc: Run unit and C0 tests with the unit-only coverage ledger
+    cmds:
+      - task: unit:coverage
+
+  test:meta:coverage:
+    desc: Run TestHelper meta tests with the helper-only coverage ledger
+    cmds:
+      - task: meta:coverage
+
+  test:watch:
+    desc: Re-run the fast unit and C0 suites when Dart files change
+    cmds:
+      - ./scripts/local/watch-tests.sh

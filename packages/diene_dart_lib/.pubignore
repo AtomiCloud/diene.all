@@ -1,0 +1,42 @@
+# Published archive keeps only lib/, example/, doc/, skills/, README.md,
+# CHANGELOG.md, LICENSE, and pubspec.yaml. Everything below is dev/CI/test
+# tooling that must not ship to pub.dev.
+#
+# EVERY DIRECTORY PATTERN IS ROOT-ANCHORED WITH A LEADING SLASH, deliberately.
+# .pubignore uses gitignore semantics, where a bare `config/` matches a directory
+# named `config` at ANY DEPTH -- including `lib/src/config/`. That is not a
+# hypothetical: diene_auth_engine 1.0.0 and 1.0.1 both omitted
+# `lib/src/config/auth_engine_config.dart` while their public barrel exported it,
+# leaving both published archives structurally unusable.
+#
+# The same hazard applies to every root-only directory below. Anchoring makes the
+# exclusions mean what they were written to mean. The publish archive itself is
+# the truth: probes/publish-archive-contents.ts runs a real dry-run and sabotages
+# this file to prove the shipped usage skill stays included, while
+# scripts/validate/dart-package.sh asserts the required source artifacts exist.
+/.claude/
+/.dart_tool/
+/.direnv/
+/.github/
+/.kagent/
+/.kloop/
+/config/
+/coverage/
+/docs/
+/nix/
+/scripts/
+/tasks/
+/test/
+/tool/
+.coderabbit.yaml
+.envrc
+.markdownlint-cli2.jsonc
+.markdownlint.json
+.prettierrc.yaml
+atomi_release.yaml
+codecov.yml
+flake.lock
+flake.nix
+Taskfile.yaml
+CLAUDE.md
+VERSION

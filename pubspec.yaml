@@ -1,0 +1,8 @@
+name: diene_dart_lib_workspace
+publish_to: none
+
+environment:
+  sdk: '>=3.6.0 <4.0.0'
+
+workspace:
+  - packages/diene_dart_lib

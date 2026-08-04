@@ -45,8 +45,6 @@ let
     meta.mainProgram = "cyanprint";
   };
   all = rec {
-    # ### nix-root
-    # #### source: main
     atomipkgs = (
       with atomi;
       {
@@ -60,37 +58,42 @@ let
       }
     );
 
-    # ### workspace
-    # #### source: workspace
     nix-2605 = (
       with pkgs-2605;
       {
         inherit
           actionlint
-          bash
-          docker-client
           git
           go-task
           infisical
-          jq
           kubeconform
-          kubernetes-helm
           kyverno
           pre-commit
           ripgrep
           shellcheck
           skopeo
           treefmt
-          yq-go
           ;
       }
     );
 
-    # ### nix-unstable
-    # #### source: main
     nix-unstable = (
       with pkgs-unstable;
       {
+      }
+    );
+
+    dart-lib-packages = (
+      with pkgs-unstable;
+      {
+        dart = flutter.dart;
+      }
+    );
+
+    dart-lib-tools = (
+      with pkgs-2605;
+      {
+        inherit gitlint;
       }
     );
 
@@ -100,4 +103,4 @@ let
   };
 in
 with all;
-atomipkgs // nix-2605 // nix-unstable // root
+atomipkgs // nix-2605 // nix-unstable // dart-lib-packages // dart-lib-tools // root
