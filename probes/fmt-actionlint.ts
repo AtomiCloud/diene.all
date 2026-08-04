@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRed, formatterCommand } from './lib/helpers.ts';
 
 export default {
   contractVersion: 1,
@@ -9,7 +9,7 @@ export default {
       description: 'The treefmt actionlint member passes on the untouched workflows.',
       kind: 'baseline',
       async run(repo: any) {
-        await expectGreen(repo, 'nix fmt --no-write-lock-file -- --ci --formatters actionlint', 'fmt-actionlint');
+        await expectGreen(repo, formatterCommand('actionlint'), 'fmt-actionlint');
       },
     },
     {
@@ -25,7 +25,7 @@ export default {
             find: '        run: nix develop .#ci -c ./scripts/ci/pre-commit.sh',
             replace: '        runs: nix develop .#ci -c ./scripts/ci/pre-commit.sh',
           });
-          await expectRed(repo, 'nix fmt --no-write-lock-file -- --ci --formatters actionlint', 'fmt-actionlint');
+          await expectRed(repo, formatterCommand('actionlint'), 'fmt-actionlint');
         } finally {
           await repo.write(path, original);
         }

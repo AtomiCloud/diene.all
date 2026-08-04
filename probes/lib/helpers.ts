@@ -79,3 +79,9 @@ export async function expectRed(repo: any, command: string, label: string): Prom
     throw new Error(`${label} stayed green after sabotage`);
   }
 }
+
+/** Use the already-resolved flake formatter when E2 sets it; otherwise retain the shipped command exactly. */
+export function formatterCommand(formatter: string): string {
+  const resolved = process.env.PROBE_FORMATTER;
+  return resolved ? `${quoteForShell(resolved)} --ci --formatters ${formatter}` : `nix fmt --no-write-lock-file -- --ci --formatters ${formatter}`;
+}

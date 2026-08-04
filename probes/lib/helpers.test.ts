@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { devShellCommand } from './exec';
-import { capturedEnvCommand, DEV_SHELL_CHAIN, expectDevShellsOnce } from './helpers';
+import { capturedEnvCommand, DEV_SHELL_CHAIN, expectDevShellsOnce, formatterCommand } from './helpers';
 
 const ENV_DIR = '/captures';
 
@@ -118,6 +118,16 @@ describe('duplicate dev-shell proof', () => {
       '[ -f .git/cyanprint-probe-dev-shell-checked ]',
     ]);
   });
+});
+
+test('formatter command is byte-identical unless E2 resolved it', () => {
+  const previous = process.env.PROBE_FORMATTER;
+  delete process.env.PROBE_FORMATTER;
+  expect(formatterCommand('shfmt')).toBe('nix fmt --no-write-lock-file -- --ci --formatters shfmt');
+  process.env.PROBE_FORMATTER = '/nix/store/formatter/bin/treefmt';
+  expect(formatterCommand('shfmt')).toBe("'/nix/store/formatter/bin/treefmt' --ci --formatters shfmt");
+  if (previous === undefined) delete process.env.PROBE_FORMATTER;
+  else process.env.PROBE_FORMATTER = previous;
 });
 
 // The byte assertions above cannot show that the rewritten string still *runs* the same

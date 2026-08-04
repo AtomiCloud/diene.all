@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRed, formatterCommand } from './lib/helpers.ts';
 
 export default {
   contractVersion: 1,
@@ -9,7 +9,7 @@ export default {
       description: 'The treefmt Prettier member passes on Markdown and YAML.',
       kind: 'baseline',
       async run(repo: any) {
-        await expectGreen(repo, 'nix fmt --no-write-lock-file -- --ci --formatters prettier', 'fmt-prettier');
+        await expectGreen(repo, formatterCommand('prettier'), 'fmt-prettier');
       },
     },
     {
@@ -19,7 +19,7 @@ export default {
       expectedImpact: [],
       async run(repo: any) {
         await repo.patch('.prettierrc.yaml', { find: 'arrowParens: avoid', replace: 'arrowParens:    avoid' });
-        await expectRed(repo, 'nix fmt --no-write-lock-file -- --ci --formatters prettier', 'fmt-prettier');
+        await expectRed(repo, formatterCommand('prettier'), 'fmt-prettier');
       },
     },
   ],

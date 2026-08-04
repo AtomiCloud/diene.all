@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRed, formatterCommand } from './lib/helpers.ts';
 
 export default {
   contractVersion: 1,
@@ -9,7 +9,7 @@ export default {
       description: 'The treefmt shfmt member passes on tracked shell scripts.',
       kind: 'baseline',
       async run(repo: any) {
-        await expectGreen(repo, 'nix fmt --no-write-lock-file -- --ci --formatters shfmt', 'fmt-shfmt');
+        await expectGreen(repo, formatterCommand('shfmt'), 'fmt-shfmt');
       },
     },
     {
@@ -22,7 +22,7 @@ export default {
           find: 'case "${action}" in',
           replace: 'case "${action}"    in',
         });
-        await expectRed(repo, 'nix fmt --no-write-lock-file -- --ci --formatters shfmt', 'fmt-shfmt');
+        await expectRed(repo, formatterCommand('shfmt'), 'fmt-shfmt');
       },
     },
   ],
