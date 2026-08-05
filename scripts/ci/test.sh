@@ -20,7 +20,10 @@ rm -rf "coverage/${mode}"
 bun test --config="${config}" --coverage
 
 # rg exits 2 on a missing file, so absence needs its own refusal.
-[[ -f ${coverage_file} ]] || { echo "❌ no coverage artifact at ${coverage_file}" >&2; exit 1; }
+[[ -f ${coverage_file} ]] || {
+  echo "❌ no coverage artifact at ${coverage_file}" >&2
+  exit 1
+}
 sources="$(rg -N --replace '' '^SF:' "${coverage_file}" || true)"
 [[ -z ${sources} ]] && echo "❌ coverage ledger at ${coverage_file} names no source file" >&2 && exit 1
 outside="$(printf '%s\n' "${sources}" | rg -v "(^|/)${scope}" || true)"
