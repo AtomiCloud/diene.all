@@ -5,13 +5,13 @@
 [![Integration coverage](https://codecov.io/gh/AtomiCloud/diene.go-base/branch/main/graph/badge.svg?flag=int)](https://codecov.io/gh/AtomiCloud/diene.go-base)
 [![Commit activity](https://img.shields.io/github/commit-activity/m/AtomiCloud/diene.go-base)](https://github.com/AtomiCloud/diene.go-base/commits/main)
 
-Diene's reproducible development environment is managed by Nix. Run `direnv allow` once, then use `pls` tasks from the loaded shell.
+Diene's reproducible development environment is managed by Nix. Run `direnv allow` once, then use `task` tasks from the loaded shell.
 
 This repository inherits the all-features workspace baseline: split CI/CD, Docker, Helm, secrets, release configuration, validators, standards, and vendored agent-skill synchronization.
 
 ## Commands
 
-Run `pls --list` for every available task and its description. The task set is
+Run `task --list` for every available task and its description. The task set is
 declared in [`Taskfile.yaml`](Taskfile.yaml), whose `includes:` block maps each
 namespace to a file under [`tasks/`](tasks); a task shown as `<namespace>:<task>`
 is that key in the included file. Build artifacts — Dockerfiles and Helm charts —
@@ -35,16 +35,14 @@ template-maintenance boundary.
 
 ## Standards
 
-[`CLAUDE.md`](CLAUDE.md) is the index of repository conventions: one section per
-surface, each pointing at its standard under
-[`docs/standards/`](docs/standards). Read the section for the surface you are
-changing before you change it. The index covers both the tooling surfaces of
-this baseline and the language-agnostic engineering standards it carries.
+The conventions this repository follows live under
+[`docs/standards/`](docs/standards). Read the standard for the surface you are
+changing before you change it. [`CLAUDE.md`](CLAUDE.md) links the ones an agent
+reaches for most often; it is a convenience, not a required index, and nothing
+checks that it names every surface.
 
 Domain-specific architecture and behavior belongs under
-[`docs/domain/`](docs/domain/README.md), not under `docs/standards/`. The
-[`docs/standards/contracts/`](docs/standards/contracts/README.md) location is
-reserved for the separately owned C0 contracts standard.
+[`docs/domain/`](docs/domain/README.md), not under `docs/standards/`.
 
 ## Go language variants
 

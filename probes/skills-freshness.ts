@@ -1,7 +1,7 @@
-import { expectGreen, expectRed, withCleanProbeState } from './lib/helpers.ts';
+import { capturedEnvCommand, expectGreen, expectRedBecause, withCleanProbeState } from './lib/helpers.ts';
 
 const vendorDir = '.claude/skills/vendor';
-const freshnessCommand = 'nix develop .#ci -c ./scripts/validate/skills-freshness.sh';
+const freshnessCommand = 'nix develop .#ci -c dlint skills-fresh';
 const probeCleanTargets = [
   vendorDir,
   'node_modules/@atomicloud/diene.readonly',
@@ -53,7 +53,10 @@ export default {
           if (staged.exitCode !== 0) {
             throw new Error(`could not stage the stale vendored-skill fixture: ${staged.stderr || staged.stdout}`);
           }
-          await expectRed(repo, freshnessCommand, 'skills-freshness');
+          await expectRedBecause(repo, freshnessCommand, 'skills-freshness', [
+            'vendored tree is stale',
+            `${vendorDir}/stale/SKILL.md`,
+          ]);
         });
       },
     },
@@ -66,7 +69,7 @@ export default {
       async run(repo: any) {
         await withCleanProbeState(repo, probeCleanTargets, async () => {
           await repo.write('node_modules/@atomicloud/diene.untracked/skills/example/SKILL.md', 'untracked skill\n');
-          const result = await repo.exec(freshnessCommand, { timeoutMs: 240000 });
+          const result = await repo.exec(capturedEnvCommand(freshnessCommand), { timeoutMs: 240000 });
           if (result.exitCode === 0) {
             throw new Error('skills-freshness stayed green after an untracked vendored-skill regeneration');
           }

@@ -3,6 +3,7 @@
   pkgs,
   pkgs-2605,
   pkgs-unstable,
+  releaser-pkg,
 }:
 let
   cyanprintVersion = "4.9.0";
@@ -74,11 +75,10 @@ let
       {
         inherit
           atomiutils
+          dlint
           go-validator
           infralint
           infrautils
-          pls
-          sg
           ;
       }
     );
@@ -91,12 +91,8 @@ let
           git
           go-task
           infisical
-          kubeconform
-          kyverno
           pre-commit
-          ripgrep
           shellcheck
-          skopeo
           treefmt
           ;
       }
@@ -108,10 +104,14 @@ let
       }
     );
 
+    releaser-pkgs = {
+      releaser = releaser-pkg;
+    };
+
     root = {
       inherit cyanprint;
     };
   };
 in
 with all;
-atomipkgs // nix-2605 // nix-unstable // root // go-base
+atomipkgs // nix-2605 // nix-unstable // releaser-pkgs // root // go-base

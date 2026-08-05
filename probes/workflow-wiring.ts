@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedBecause } from './lib/helpers.ts';
 
 export default {
   contractVersion: 1,
@@ -9,7 +9,7 @@ export default {
       description: 'Every orchestrator job resolves through a reusable workflow to an existing CI script.',
       kind: 'baseline',
       async run(repo: any) {
-        await expectGreen(repo, 'nix develop .#ci -c ./scripts/validate/workflows.sh wiring', 'workflow-wiring');
+        await expectGreen(repo, 'nix develop .#ci -c dlint ci-wiring', 'workflow-wiring');
       },
     },
     {
@@ -22,7 +22,9 @@ export default {
           find: './scripts/ci/pre-commit.sh',
           replace: './scripts/ci/missing.sh',
         });
-        await expectRed(repo, 'nix develop .#ci -c ./scripts/validate/workflows.sh wiring', 'workflow-wiring');
+        await expectRedBecause(repo, 'nix develop .#ci -c dlint ci-wiring', 'workflow-wiring', [
+          "workflow references missing script 'scripts/ci/missing.sh'",
+        ]);
       },
     },
   ],

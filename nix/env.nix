@@ -5,18 +5,14 @@ with packages;
     git
     go-task
     infisical
-    pls
-    sg
-    skopeo
+    releaser
   ];
 
   lint = [
     actionlint
+    dlint
     infralint
-    kubeconform
-    kyverno
     pre-commit
-    ripgrep
     shellcheck
     treefmt
 
@@ -31,21 +27,15 @@ with packages;
     git
     go-task
     infisical
-    kubeconform
-    kyverno
-    pls
-    ripgrep
     shellcheck
-    skopeo
 
     go
     gotestsum
     govulncheck
   ];
 
-  # C2: sg is retained only until tools/releaser is published at step 2p.
   releaser = [
-    sg
+    releaser
   ];
 
   system = [

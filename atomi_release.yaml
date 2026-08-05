@@ -1,59 +1,4 @@
-conventionMarkdown:
-  path: docs/developer/CommitConventions.md
-  template: |
-    # Commit conventions
-
-    This repository follows [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
-
-    - `atomi_release.yaml` is the machine-readable source of truth: it owns the
-      commit types, the scopes valid for each one, and the version bump each scope
-      causes.
-    - [The conventional-commits standard](../standards/conventional-commits/index.md)
-      explains how to read that vocabulary and how to mark a breaking change.
-
-    ## Status of this file
-
-    This file is generated. `atomi_release.yaml` names this path in its
-    `conventionMarkdown.path` value, `releaser conventions` writes it, and a release
-    run rewrites it as well. Change `atomi_release.yaml` and regenerate rather than
-    editing this file: everything up to here comes from that file's
-    `conventionMarkdown.template`, and everything from the `type(scope)` line below
-    is generated from the commit vocabulary.
-
-    CONVENTION_DOCS_PLACEHOLDER
-
-keywords:
-  - BREAKING CHANGE
-  - BREAKING CHANGES
-  - BREAKING
-
-branches:
-  - main
-
-specialScopes:
-  no-release:
-    desc: Prevent release from happening
-    release: false
-
-plugins:
-  - module: '@semantic-release/changelog'
-    version: 6.0.3
-    config:
-      changelogFile: Changelog.md
-  - module: '@semantic-release/exec'
-    version: 6.0.3
-    config:
-      prepareCmd: './scripts/release/bump.sh ${nextRelease.version}'
-  - module: '@semantic-release/git'
-    version: 10.0.1
-    config:
-      message: "release: ${nextRelease.version}\n\n${nextRelease.notes}"
-      assets:
-        - Changelog.md
-        - VERSION
-        - docs/developer/CommitConventions.md
-  - module: '@semantic-release/github'
-    version: 10.3.5
+schemaVersion: 2
 
 types:
   - type: amend
@@ -73,6 +18,15 @@ types:
     scopes:
       default:
         desc: Perform a chore
+        release: false
+      many-owner:
+        desc: Surfaces with several owners
+        release: false
+      nix:
+        desc: Nix flake and modules
+        release: false
+      workspace:
+        desc: Workspace tree itself
         release: false
   - type: ci
     desc: CI/CD changes
@@ -109,6 +63,9 @@ types:
       default:
         desc: Update documentation
         release: false
+      nix:
+        desc: Nix flake and modules
+        release: false
   - type: feat
     desc: New features
     section: ✨ Features ✨
@@ -119,6 +76,12 @@ types:
       breaking:
         desc: Add a breaking feature
         release: major
+      nix:
+        desc: Nix flake and modules
+        release: minor
+      probes:
+        desc: Verification corpus
+        release: minor
   - type: fix
     desc: Bug fixes
     section: 🐛 Bug Fixes 🐛
@@ -126,6 +89,30 @@ types:
       default:
         desc: Fix a bug
         release: patch
+      nix:
+        desc: Nix flake and modules
+        release: patch
+      probes:
+        desc: Verification corpus
+        release: patch
+      skills:
+        desc: Vendored agent skills
+        release: patch
+      workspace:
+        desc: Workspace tree itself
+        release: patch
+  - type: merge
+    desc: Branch merges
+    scopes:
+      default:
+        desc: Merge a branch
+        release: false
+      main:
+        desc: Root branch layer
+        release: false
+      workspace:
+        desc: Workspace tree itself
+        release: false
   - type: perf
     desc: Performance improvements
     section: 🚀 Performance Improvement 🚀
@@ -133,17 +120,26 @@ types:
       default:
         desc: Improve performance
         release: patch
+      probes:
+        desc: Verification corpus
+        release: patch
   - type: refactor
     desc: Refactors
     scopes:
       default:
         desc: Refactor implementation
         release: minor
+      ci:
+        desc: CI/CD wiring
+        release: minor
   - type: style
     desc: Non-functional style changes
     scopes:
       default:
         desc: Update style
+        release: patch
+      probes:
+        desc: Verification corpus
         release: patch
   - type: test
     desc: Test changes
@@ -152,3 +148,84 @@ types:
       default:
         desc: Add or correct tests
         release: minor
+      probes:
+        desc: Verification corpus
+        release: minor
+
+specialScopes:
+  no-release:
+    desc: Prevent release from happening
+    release: false
+
+keywords:
+  - BREAKING CHANGE
+  - BREAKING CHANGES
+  - BREAKING
+
+lint:
+  header:
+    maxLength: 72
+    minLength: 5
+    forbiddenWords:
+      - WIP
+    forbidTrailingPunctuation: true
+  body:
+    maxLineLength: 80
+    minLengthWhenPresent: 20
+    requireBlankSecondLine: true
+  ignore:
+    - merge
+    - revert
+    - fixup
+    - fixup-amend
+    - squash
+
+conventions:
+  path: docs/developer/CommitConventions.md
+  template: |-
+    # Commit conventions
+
+    This repository follows [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
+
+    - `atomi_release.yaml` is the machine-readable source of truth: it owns the
+      commit types, the scopes valid for each one, and the version bump each scope
+      causes.
+    - [The conventional-commits standard](../standards/conventional-commits/index.md)
+      explains how to read that vocabulary and how to mark a breaking change.
+
+    ## Status of this file
+
+    This file is generated. `atomi_release.yaml` names this path in its
+    `conventions.path` value, `releaser conventions` writes it, and a release run
+    rewrites it as well. Change `atomi_release.yaml` and regenerate rather than
+    editing this file: everything up to here comes from that file's
+    `conventions.template`, and everything from the `type(scope)` line below is
+    generated from the commit vocabulary.
+
+    CONVENTION_DOCS_PLACEHOLDER
+
+release:
+  branches:
+    - main
+  tagFormat: 'v${version}'
+  changelog:
+    path: Changelog.md
+    title: '# Changelog'
+  commit:
+    message: |-
+      release: ${version}
+
+      ${notes}
+    assets:
+      - Changelog.md
+      - docs/developer/CommitConventions.md
+  github:
+    enabled: true
+    successComment: 'Released in ${version}.'
+    releasedLabels:
+      - released
+  hooks:
+    # Deliberately empty: the hook point a downstream node fills. A version file
+    # enters commit.assets in the SAME edit as the command that writes it.
+    prepare: []
+    success: []

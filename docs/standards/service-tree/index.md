@@ -5,11 +5,12 @@ title: Service Tree (LPSM)
 
 # Service Tree (LPSM)
 
-This document describes the Service Tree (LPSM) naming conventions used across AtomiCloud.
+This document describes the Service Tree (LPSM) naming conventions this organization uses
+across its products.
 
 ## Overview
 
-All products and applications' resources in AtomiCloud are confined within the **Service Tree**. This allows easy querying, classification, and data retrieval about resources of a specific product.
+Every product and application resource is confined within the **Service Tree**. This allows easy querying, classification, and data retrieval about resources of a specific product.
 
 ## Format
 
@@ -114,12 +115,15 @@ labels:
 
 ### Nix Store Cache
 
-Nix jobs use a single shared store cache — **not** per-service — so the cache tag is
-deliberately not namespaced by platform or service. The tags in use are declared on the
-`runs-on:` lines of the reusable workflows in
-[`.github/workflows/`](../../../.github/workflows): read a cached job's runner list to
-see the tag it carries and how the OS and architecture appear in it. Never introduce a
-per-platform or per-service tag.
+The service tree does **not** reach the Nix store cache, and that is the point of
+mentioning it here. Jobs that run a script share ONE store cache, so its tag is
+namespaced by neither organization, platform nor service — only by OS and
+architecture: `nscloud-cache-tag-nix-store-cache-{os}-{arch}`. Selecting another OS
+rotates the tag and starts cold rather than aliasing another OS's cache.
+
+Never introduce a per-organization, per-platform or per-service cache tag. See
+[the CI/CD workflows standard](../ci-cd/index.md) for the labels themselves and for
+the isolation lanes that carry no cache at all.
 
 ### Platform / Service usage
 
@@ -136,7 +140,7 @@ When you see these terms, the service-tree convention applies:
 - LPSM, LCPSM, Service Tree
 - Landscape, Platform, Service, Module
 - Resource naming, labeling, tagging
-- `atomi_platform`, `atomi_service` variables
+- Platform and service label variables
 - Cache namespacing
 
 ## Summary

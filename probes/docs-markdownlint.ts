@@ -1,21 +1,6 @@
-import { expectGreen } from './lib/helpers.ts';
+import { expectGreen, expectRedBecause } from './lib/helpers.ts';
 
 const gate = 'nix develop --no-write-lock-file .#ci -c pre-commit run a-markdownlint --all-files';
-
-// A non-zero exit only proves the gate ran badly; it does not prove it refused
-// the planted fault. Each mutation therefore names the diagnostic it expects.
-// Move this shared assertion to probes/lib/helpers.ts at the next unfenced generation.
-export async function expectRedFor(repo: any, command: string, label: string, ...reasons: string[]): Promise<void> {
-  const result = await repo.exec(command, { timeoutMs: 240000 });
-  if (result.exitCode === 0) {
-    throw new Error(`${label} stayed green after sabotage`);
-  }
-  const output = `${result.stdout}\n${result.stderr}`;
-  const missing = reasons.filter(reason => !output.includes(reason));
-  if (missing.length > 0) {
-    throw new Error(`${label} went red for the wrong reason (missing: ${missing.join(', ')})\n${output}`);
-  }
-}
 
 export default {
   contractVersion: 1,
@@ -35,11 +20,15 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        const path = 'docs/standards/authorization/index.md';
+        // The fixture is any standard index this node still ships; the subject is
+        // the gate, not the topic. It moved off `authorization` when that segment
+        // left for the .NET layer — a mutation arm whose target no longer exists
+        // lands in `broken` on the venue, and `broken` voids the whole run.
+        const path = 'docs/standards/datetime/index.md';
         const original = await repo.read(path);
         try {
-          await repo.write(path, `${original}\n# Duplicate authorization title\n`);
-          await expectRedFor(repo, gate, 'docs-markdownlint', path, 'MD025/single-title/single-h1');
+          await repo.write(path, `${original}\n# Duplicate datetime title\n`);
+          await expectRedBecause(repo, gate, 'docs-markdownlint', [path, 'MD025/single-title/single-h1']);
         } finally {
           await repo.write(path, original);
         }

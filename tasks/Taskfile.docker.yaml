@@ -10,18 +10,18 @@ tasks:
     vars:
       IMAGE: diene-go-base:local
     cmds:
-      - nix develop --no-write-lock-file .#default -c docker build -f infra/Dockerfile -t {{.IMAGE}}{{if .CLI_ARGS}}-{{.CLI_ARGS}}{{end}} .
+      - docker build -f infra/Dockerfile -t {{.IMAGE}}{{if .CLI_ARGS}}-{{.CLI_ARGS}}{{end}} .
 
   run:main:
     desc: Run the locally built infra/Dockerfile image
     vars:
       IMAGE: diene-go-base:local
     cmds:
-      - nix develop --no-write-lock-file .#default -c docker run --rm {{.IMAGE}}{{if .CLI_ARGS}}-{{.CLI_ARGS}}{{end}}
+      - docker run --rm {{.IMAGE}}{{if .CLI_ARGS}}-{{.CLI_ARGS}}{{end}}
 
   clean:main:
     desc: Remove the locally built infra/Dockerfile image
     vars:
       IMAGE: diene-go-base:local
     cmds:
-      - nix develop --no-write-lock-file .#default -c docker image rm {{.IMAGE}}{{if .CLI_ARGS}}-{{.CLI_ARGS}}{{end}} || true
+      - docker image rm {{.IMAGE}}{{if .CLI_ARGS}}-{{.CLI_ARGS}}{{end}} || true

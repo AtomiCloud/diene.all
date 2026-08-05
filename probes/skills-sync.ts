@@ -1,4 +1,4 @@
-import { expectGreen, withCleanProbeState } from './lib/helpers.ts';
+import { capturedEnvCommand, expectGreen, restoreProbeState as restoreTrackedProbeState } from './lib/helpers.ts';
 
 const externalGoModule = 'github.com/AtomiCloud/diene.go-fixture';
 const goModFixture = `module example.com/app\n\ngo 1.22\n\nrequire ${externalGoModule} v0.1.0\n`;
@@ -158,6 +158,69 @@ const probeCleanTargets = [
   '.dart_tool',
 ];
 
+// Real installed `@atomicloud/diene.*` packages set `node_staged` for the WHOLE
+// Node.js ecosystem, so any fixture that means "nothing resolved" has to relocate
+// them. Without that, the fixture asserts an environment assumption — that this
+// repository happens to have no real diene dependencies — instead of the property
+// it names, and it silently stops asserting anything on every repository that does.
+//
+// The relocation runs inside the same shell as the synchronizer so nothing can
+// reinstall between the two; it uses a fixed holding path on the same filesystem
+// so the move is a rename rather than a cross-device copy of a possibly
+// read-only tree; and every exit path puts the real packages back.
+// `restoreProbeState` repairs a holding directory left behind by a shell that
+// was killed before its trap could run, so a lost trap costs one probe rather
+// than the repository's installed packages.
+const realNodePackages = 'node_modules/@atomicloud';
+const nodeIsolationDir = 'node_modules/.diene-probe-isolation';
+const isolatedNodePackages = `${nodeIsolationDir}/@atomicloud`;
+const isolateRealNodePackages = [
+  `mkdir -p ${nodeIsolationDir}`,
+  `trap "if [ -d \\"${isolatedNodePackages}\\" ]; then rm -rf \\"${realNodePackages}\\"; mkdir -p node_modules; mv \\"${isolatedNodePackages}\\" \\"${realNodePackages}\\"; fi; rmdir \\"${nodeIsolationDir}\\" 2>/dev/null || true" EXIT`,
+  `if [ -d ${realNodePackages} ]; then mv ${realNodePackages} ${isolatedNodePackages}; fi`,
+].join('; ');
+
+// MERGE RESOLUTION (shared ∪ 260ddcf, 2026-08-04): the two lines diverged on the
+// SHAPE of this helper, not on its behaviour. `260ddcf` extracted the three
+// standard steps (chmod → `git restore` → scoped `git clean`) into
+// `probes/lib/helpers.ts` as `restoreProbeState(repo, cleanTargets)` and made
+// `probeCleanTargets` an array passed per call site. `shared` kept them local and
+// added the node-package isolation repair below. Taking either side alone loses
+// something real: dropping 260ddcf's shape breaks 11 three-argument call sites and
+// the shared helper other probes now import; dropping shared's repair silently
+// leaves a fixture's relocated `@atomicloud` packages relocated whenever a shell
+// dies before its trap runs. So the reunite step is kept and composed ON TOP of
+// the extracted helper — it runs before every restore, exactly as it did on
+// `shared`, and the call-site signature is 260ddcf's.
+async function reuniteRealNodePackages(repo: any): Promise<void> {
+  const reunited = await repo.exec(
+    `if [ -d ${isolatedNodePackages} ]; then chmod -R u+w -- ${realNodePackages} 2>/dev/null || true; rm -rf ${realNodePackages} || exit 1; mkdir -p node_modules || exit 1; mv ${isolatedNodePackages} ${realNodePackages} || exit 1; fi; if [ -d ${nodeIsolationDir} ]; then rmdir ${nodeIsolationDir} || exit 1; fi`,
+  );
+  if (reunited.exitCode !== 0) {
+    throw new Error(
+      `could not restore the real installed node packages a fixture isolated: ${reunited.stderr || reunited.stdout}`,
+    );
+  }
+}
+
+async function restoreProbeState(repo: any, cleanTargets: readonly string[]): Promise<void> {
+  await reuniteRealNodePackages(repo);
+  await restoreTrackedProbeState(repo, cleanTargets);
+}
+
+async function withCleanProbeState(
+  repo: any,
+  cleanTargets: readonly string[],
+  body: () => Promise<void>,
+): Promise<void> {
+  await restoreProbeState(repo, cleanTargets);
+  try {
+    await body();
+  } finally {
+    await restoreProbeState(repo, cleanTargets);
+  }
+}
+
 async function stageKeptSkill(repo: any): Promise<void> {
   await repo.write(keptSkill, 'committed skill\n');
   const staged = await repo.exec(`git add ${keptSkill}`);
@@ -211,7 +274,7 @@ export default {
           await stageKeptSkill(repo);
           await expectGreen(
             repo,
-            `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; iso="$(mktemp -d)"; trap "if [ -d \\"$iso/@atomicloud\\" ]; then rm -rf node_modules/@atomicloud; mkdir -p node_modules; mv \\"$iso/@atomicloud\\" node_modules/; fi; rm -rf \\"$iso\\"" EXIT; if [ -d node_modules/@atomicloud ]; then mv node_modules/@atomicloud "$iso/"; fi; mkdir -p node_modules; ./scripts/local/skills-sync.sh; test "$(cat ${keptSkill})" = "committed skill"'`,
+            `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ${isolateRealNodePackages}; ./scripts/local/skills-sync.sh; test "$(cat ${keptSkill})" = "committed skill"'`,
             'skills-sync',
           );
         });
@@ -226,10 +289,12 @@ export default {
         await withCleanProbeState(repo, probeCleanTargets, async () => {
           await repo.write('go.mod', goModFixture);
           // Build an explicit utility PATH without Go. This keeps the fixture
-          // valid after the parent probe cascades into Go-enabled nodes, even if
+          // valid after the parent probe cascades into Go-enabled repositories, even if
           // an ambient PATH directory happens to contain Go beside other tools.
           const result = await repo.exec(
-            `nix develop .#ci -c bash -c 'set -euo pipefail; fixture_bin="$(mktemp -d)"; trap "rm -rf \\"$fixture_bin\\"" EXIT; for command_name in bash env jq rg sed mktemp touch mkdir cp chmod rm mv find tr basename realpath git dirname sort wc head grep cat cut awk; do command_path="$(command -v "$command_name")" || exit 112; ln -s "$command_path" "$fixture_bin/$command_name"; done; export PATH="$fixture_bin"; if command -v go >/dev/null 2>&1; then exit 111; fi; ./scripts/local/skills-sync.sh'`,
+            capturedEnvCommand(
+              `nix develop .#ci -c bash -c 'set -euo pipefail; fixture_bin="$(mktemp -d)"; trap "rm -rf \\"$fixture_bin\\"" EXIT; for command_name in bash env jq rg sed mktemp touch mkdir cp chmod rm mv find tr basename realpath git dirname sort wc head grep cat cut awk; do command_path="$(command -v "$command_name")" || exit 112; ln -s "$command_path" "$fixture_bin/$command_name"; done; export PATH="$fixture_bin"; if command -v go >/dev/null 2>&1; then exit 111; fi; ./scripts/local/skills-sync.sh'`,
+            ),
             { timeoutMs: 240000 },
           );
           if (result.exitCode === 111) {
@@ -278,7 +343,9 @@ export default {
           await repo.write('go-shim/go', brokenGoShim);
           await stageKeptSkill(repo);
           const result = await repo.exec(
-            `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ./scripts/local/skills-sync.sh'`,
+            capturedEnvCommand(
+              `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ./scripts/local/skills-sync.sh'`,
+            ),
             { timeoutMs: 240000 },
           );
           if (result.exitCode === 0) {
@@ -312,7 +379,9 @@ export default {
           await repo.write('go.mod', goSelfModuleFixture);
           await repo.write('go-shim/go', selfModuleGoShim);
           const result = await repo.exec(
-            `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ./scripts/local/skills-sync.sh'`,
+            capturedEnvCommand(
+              `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ./scripts/local/skills-sync.sh'`,
+            ),
             { timeoutMs: 240000 },
           );
           if (result.exitCode === 0) {
@@ -339,7 +408,9 @@ export default {
           await repo.write('go-shim/go', neutralGoShim);
           await repo.write(`${keptSkill}.untracked`, 'untracked content is not a committed fallback\n');
           const result = await repo.exec(
-            `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ./scripts/local/skills-sync.sh'`,
+            capturedEnvCommand(
+              `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ${isolateRealNodePackages}; ./scripts/local/skills-sync.sh'`,
+            ),
             { timeoutMs: 240000 },
           );
           if (result.exitCode === 0) {
@@ -364,7 +435,9 @@ export default {
           await repo.write('go-shim/go', transitiveGoShim);
           await repo.write('go-fixture/skills/example/SKILL.md', 'transitive Go skill\n');
           const result = await repo.exec(
-            `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ./scripts/local/skills-sync.sh'`,
+            capturedEnvCommand(
+              `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ./scripts/local/skills-sync.sh'`,
+            ),
             { timeoutMs: 240000 },
           );
           if (result.exitCode === 0) {
@@ -391,7 +464,9 @@ export default {
           await repo.write('go-shim/go', partialGoShim);
           await repo.write('go-fixture/skills/example/SKILL.md', 'resolved Go skill\n');
           const result = await repo.exec(
-            `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ./scripts/local/skills-sync.sh'`,
+            capturedEnvCommand(
+              `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ./scripts/local/skills-sync.sh'`,
+            ),
             { timeoutMs: 240000 },
           );
           if (result.exitCode === 0) {
@@ -421,7 +496,7 @@ export default {
           await removeCommittedVendor(repo);
           await repo.write('pubspec.yaml', declaringPubspec);
           const result = await repo.exec(
-            `nix develop .#ci -c bash -c 'set -euo pipefail; ./scripts/local/skills-sync.sh'`,
+            capturedEnvCommand(`nix develop .#ci -c bash -c 'set -euo pipefail; ./scripts/local/skills-sync.sh'`),
             { timeoutMs: 240000 },
           );
           if (result.exitCode === 0) {
