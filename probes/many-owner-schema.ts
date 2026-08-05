@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedBecause } from './lib/helpers.ts';
 
 export default {
   contractVersion: 1,
@@ -20,7 +20,9 @@ export default {
       async run(repo: any) {
         const source = await repo.read('.gitignore');
         await repo.write('.gitignore', `${source}\n### workspace\n#### source: workspace\n`);
-        await expectRed(repo, 'nix develop .#ci -c ./scripts/validate/many-owner.sh', 'many-owner-schema');
+        await expectRedBecause(repo, 'nix develop .#ci -c ./scripts/validate/many-owner.sh', 'many-owner-schema', [
+          "many-owner target '.gitignore' repeats owner key 'workspace'",
+        ]);
       },
     },
   ],

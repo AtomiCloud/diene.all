@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedBecause } from './lib/helpers.ts';
 
 const gate = 'nix develop --no-write-lock-file .#ci -c pre-commit run a-claude-links --all-files';
 
@@ -27,7 +27,14 @@ export default {
             find: 'docs/standards/authorization/index.md',
             replace: 'docs/standards/authorization/missing.md',
           });
-          await expectRed(repo, gate, 'claude-link-integrity');
+          // Both strings measured from this arm's own refusal. The second one matters:
+          // a sabotage that lands on the link TEXT instead of the link TARGET leaves the
+          // gate green, and only the "File not found" line proves lychee was handed a
+          // broken target rather than a renamed label.
+          await expectRedBecause(repo, gate, 'claude-link-integrity', [
+            '- hook id: a-claude-links',
+            'File not found. Check if file exists and path is correct',
+          ]);
         } finally {
           await repo.write(path, original);
         }
