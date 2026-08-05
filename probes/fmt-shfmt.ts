@@ -18,13 +18,15 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        // The subject was `scripts/local/secrets.sh` until that script was reduced to an
-        // ensure-login helper with no `case` block. The sabotage is character-identical -
-        // padding before a `case` keyword's `in`, which shfmt normalizes - and now lands in
-        // a script the workspace cannot lose.
-        await repo.patch('scripts/local/skills-sync.sh', {
-          find: 'case "${status}" in',
-          replace: 'case "${status}"    in',
+        // The sabotage is semantically identical shell - padding before a compound
+        // command's terminating `;`, which shfmt removes under the treefmt member's
+        // `-i 2 -s`. It lands in the surviving validator, which the workspace cannot lose
+        // because each of its two release-policy modes has its own probe. Two earlier
+        // subjects were chosen for a `case` block and then lost it, so this arm depends on
+        // punctuation every non-trivial shell script has rather than on one keyword.
+        await repo.patch('scripts/validate/workflows.sh', {
+          find: 'if [ "${mode}" = "release-trigger" ]; then',
+          replace: 'if [ "${mode}" = "release-trigger" ]  ; then',
         });
         await expectRed(repo, 'nix fmt --no-write-lock-file -- --ci --formatters shfmt', 'fmt-shfmt');
       },

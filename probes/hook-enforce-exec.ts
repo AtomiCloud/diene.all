@@ -18,11 +18,10 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        // The subject was `scripts/release/bump.sh`, then the freshness validator, and
-        // both were deleted - the second by the move to `dlint skills-fresh`. The
-        // mechanism is unchanged throughout: a tracked *.sh loses its executable bit.
-        // So this points at the surviving validator, which the workspace cannot lose
-        // because each of its two release-policy modes has its own probe.
+        // The mechanism is that a tracked *.sh loses its executable bit, so any tracked
+        // shell script proves it. This points at the surviving validator, which the
+        // workspace cannot lose because each of its two release-policy modes has its own
+        // probe; two earlier subjects were deleted out from under this arm.
         const target = 'scripts/validate/workflows.sh';
         // Unstaged on purpose, and measured rather than assumed: an `--all-files` run reads
         // the worktree, so a bare `chmod` reaches the gate. Staging the mode change as well

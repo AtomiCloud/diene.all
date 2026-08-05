@@ -75,42 +75,15 @@ is shared per OS and architecture, carries no organization, platform or service
 name, and changing the OS rotates the tag and costs one cold build before warm
 reuse resumes.
 
-## The pre-vendor hook
+## Dependency materialisation
 
-Every lane starts at `scripts/ci/setup.sh`, which vendors each dependency's skills
-before anything else runs. `scripts/local/skills-sync.sh` reads them out of the
-package manager's own on-disk cache, so it can only see packages that have already
-been materialised there.
+Each lane's `run:` line enters a Nix shell, and the shell is the whole of that
+lane's dependency contract: there is no separate setup entry point to call first.
 
-> **Before skills are vendored, each ecosystem gets one chance to materialise its
-> declared packages.** An ecosystem that takes it makes the vendor tree a function
-> of the declared dependency set. An ecosystem that does not may vendor a partial
-> tree, and the `a-skills-freshness` gate then fails several steps later on a diff
-> that does not name this as the cause.
-
-The hook is an optional executable at `scripts/ci/pre-vendor.sh`. `setup.sh` runs
-it, if it is there, immediately before `skills-sync.sh`. There is nothing to
-configure and no workflow to edit: a lane that already calls `setup.sh` picks the
-hook up by the file existing.
-
-This template declares no packages of its own, so it ships no hook and every lane
-here runs the absent case. A node built from it supplies one — a .NET node runs
-`dotnet restore`, a Node node its install — and writes the command in that file
-rather than in this document, which is why the command is not listed here.
-
-Three states, three outcomes, and the middle one is the reason the hook is not
-just `[ -x … ] && …`:
-
-| `scripts/ci/pre-vendor.sh` | `setup.sh`                                    |
-| -------------------------- | --------------------------------------------- |
-| absent                     | proceeds — this is a normal, successful setup |
-| present, not executable    | refuses, naming the file and the `chmod`      |
-| present, exits non-zero    | refuses with the hook's own exit status       |
-
-A hook that cannot run is a misconfiguration, not an absent hook, so it gets its
-own refusal. Folding it into the absent case would turn a broken restore into a
-silent skip — and a silently skipped restore is the failure the hook exists to
-prevent, arriving later wearing the freshness gate's face.
+A language template built from this one materialises its own ecosystem's packages
+— a .NET node its `dotnet restore`, a Node node its install — in its own
+configuration, not through an extension point here. A new language therefore
+changes one place.
 
 ## Local reproduction
 

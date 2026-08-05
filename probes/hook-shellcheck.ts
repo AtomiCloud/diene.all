@@ -79,12 +79,11 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        // The subject was `scripts/release/bump.sh`, then the freshness validator, and
-        // both were deleted - the second by the move to `dlint skills-fresh`. Any tracked
-        // shell script proves the same thing, that the hook reads real repository shell
-        // and refuses incorrect shell, so this points at the surviving validator, which
-        // the workspace cannot lose because each of its two release-policy modes has its
-        // own probe.
+        // Any tracked shell script proves the same thing, that the hook reads real
+        // repository shell and refuses incorrect shell, so this points at the surviving
+        // validator, which the workspace cannot lose because each of its two
+        // release-policy modes has its own probe; two earlier subjects were deleted out
+        // from under this arm.
         const target = 'scripts/validate/workflows.sh';
         const source = await repo.read(target);
         await repo.write(target, `${source}\necho $UNQUOTED\n`);

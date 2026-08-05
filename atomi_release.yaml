@@ -96,7 +96,7 @@ types:
         desc: Verification corpus
         release: patch
       skills:
-        desc: Vendored agent skills
+        desc: Agent skills
         release: patch
       workspace:
         desc: Workspace tree itself
