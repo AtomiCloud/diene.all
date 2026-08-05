@@ -31,6 +31,6 @@
         "directRev": "1f01958ffb5b3545c96d9ef2f4e24c5e5e1eb846"
       }
     ],
-    "s2": "The atomipkgs/nix-registry v3 nested nixpkgs pin remains registry-owned and deferred under S2; direct diene inputs use this file's revision now."
+    "registryPin": "The atomipkgs/nix-registry nested nixpkgs pin stays registry-owned and is deferred; direct diene inputs use this file's revision now."
   }
 }
