@@ -95,6 +95,25 @@ pre-commit-lib.run {
       language = "system";
     };
 
+    # The releaser validates the message against `atomi_release.yaml`, so the commit
+    # vocabulary has exactly one authority and there is no second gitlint file.
+    #
+    # This hook was deleted in the previous round for a narrow reason worth keeping
+    # in view: no shell here provided the binary, and because entering a dev shell
+    # reinstalls hooks into the SHARED bare repository, a commit-msg hook whose
+    # binary was missing broke plain `git commit` in every worktree of this
+    # repository at once. The entry below is an absolute store path, not a PATH
+    # lookup, so it resolves from any worktree and any shell - and it is proved by
+    # real `git commit` runs in both directions, not by invoking the binary by hand.
+    a-releaser-commit = {
+      enable = true;
+      name = "Conventional commit";
+      entry = "${packages.releaser}/bin/releaser lint-commit -c atomi_release.yaml";
+      stages = [ "commit-msg" ];
+      pass_filenames = true;
+      language = "system";
+    };
+
     # Source following belongs to the gate itself, not to an ambient SHELLCHECK_OPTS:
     # pre-commit partitions the staged files, so a script and the script it sources
     # routinely land in different batches, and bare ShellCheck then raises SC1091 on

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-for binary in actionlint bash cyanprint docker git gomplate hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pre-commit rg sg shellcheck skopeo task treefmt yq; do
+for binary in actionlint bash cyanprint docker git gomplate hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pre-commit releaser rg shellcheck skopeo task treefmt yq; do
   command -v "${binary}" >/dev/null || {
     echo "❌ binary '${binary}' is missing" >&2
     exit 1
@@ -76,9 +76,28 @@ nix flake metadata --no-write-lock-file --json . | jq -e '.url | type == "string
 pre-commit --version >/dev/null
 pre-commit validate-config .pre-commit-config.yaml
 
+releaser --version >/dev/null
+# Exercised against the REAL `atomi_release.yaml`, because loading that file is what
+# the binary does before it can lint anything: a `lint-commit` run that reaches a
+# verdict has also parsed and schema-validated the release configuration, which is
+# the only validation this repository has now that the standalone config validator
+# is deleted.
+printf '%s\n' 'chore: smoke the releaser commit linter' >"${tmp}/releaser-msg-ok.txt"
+releaser lint-commit "${tmp}/releaser-msg-ok.txt" -c atomi_release.yaml >/dev/null
+# The negative direction, so a linter that accepted everything would not pass as a
+# working one. `nope` is not a configured type. `if !` rather than `cmd && { … }`:
+# the correct outcome here is a non-zero exit, which under errexit would kill the
+# script if it were the status of a list.
+printf '%s\n' 'nope: this commit type is not configured' >"${tmp}/releaser-msg-bad.txt"
+if releaser lint-commit "${tmp}/releaser-msg-bad.txt" -c atomi_release.yaml >/dev/null 2>&1; then
+  echo "❌ releaser lint-commit accepted a commit type that is not in atomi_release.yaml" >&2
+  exit 1
+fi
+
 rg --version >/dev/null
 # Smoke-tested against a fixture this script writes, like every other binary here —
-# actionlint gets its own workflow, git its own repo, jq `-en`, sg its own .gitlint.
+# actionlint gets its own workflow, git its own repo, jq `-en`, releaser its own
+# commit-message file.
 # This line used to read `rg -q 'Diene workspace baseline' README.md`, which was the
 # ONLY assertion against a tracked PROSE file anywhere in scripts/ or probes/, and
 # the string existed nowhere else in the tree — so it was never a content contract,
@@ -96,12 +115,6 @@ else
   echo "❌ rg reported a match for a pattern that is not in the fixture" >&2
   exit 1
 fi
-
-sg --version >/dev/null
-printf '%s\n' '[general]' 'contrib=CT1' 'ignore=B6' '' '[contrib-title-conventional-commits]' 'types = amend' >"${tmp}/.gitlint"
-yq '.gitlint = ".gitlint"' atomi_release.yaml >"${tmp}/sg-config.yaml"
-(cd "${tmp}" && sg gitlint -c sg-config.yaml >/dev/null 2>&1 || true)
-rg -q 'chore' "${tmp}/.gitlint"
 
 shellcheck --version >/dev/null
 shellcheck scripts/validate/binary-smoke.sh
@@ -125,20 +138,22 @@ if rg -q '\bpls\b' nix/packages.nix nix/env.nix; then
   exit 1
 fi
 
+# Same shape, same reason, different binary: `sg` was the temporary gitlint
+# bootstrap this toolchain carried only while the releaser was unavailable HERE.
+# The releaser is now declared and smoke-tested above, so `sg` has no remaining
+# job, and its DECLARATION is what must not come back - a developer with their own
+# `sg` on PATH is not a fault of this repository, so this is a text assertion and
+# not `command -v sg`.
+if rg -q '\bsg\b' nix/packages.nix nix/env.nix; then
+  echo "❌ sg is back in the nix inventory - the releaser replaced it, there is no gitlint bootstrap" >&2
+  exit 1
+fi
+
 treefmt --version >/dev/null
 treefmt --completion bash >"${tmp}/treefmt-completion.bash"
 [ ! -s "${tmp}/treefmt-completion.bash" ] && echo "❌ treefmt completion generation failed" >&2 && exit 1
 
 yq --version >/dev/null
 yq -en '.ok = true | .ok == true' >/dev/null
-
-if command -v releaser >/dev/null; then
-  releaser --help >/dev/null
-else
-  # The skip is still correct — no diene shell provides the binary — but the REASON
-  # is not "unpublished": AtomiCloud/releaser v1.0.0 exists and bun-base already
-  # consumes it. State the narrow, true claim.
-  echo "⏭️ releaser binary is not on PATH: no diene dev shell provides it yet (the tool itself is published)"
-fi
 
 echo "✅ Binary smoke passed"

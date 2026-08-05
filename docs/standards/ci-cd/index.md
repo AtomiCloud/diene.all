@@ -130,5 +130,9 @@ Docker and Helm callers pass per-repository image or chart values through workfl
 the version. Add another image or chart as another caller job rather than putting
 repository-specific branching into the reusable workflow.
 
-Release execution is wired but not runnable yet: the `releaser` binary is not
-published, so nothing here claims a working `releaser`.
+Release execution runs the real tool: `⚡reusable-release.yaml` enters the
+`releaser` shell and calls `scripts/ci/release.sh`, which invokes
+`releaser release -c atomi_release.yaml`. That script clears `.git/hooks` first,
+which is not incidental — the release commit's own message uses a `release:` prefix
+that is not a configured commit type, so the commit-msg hook would refuse the
+release the tool is in the middle of making.

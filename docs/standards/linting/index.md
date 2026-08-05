@@ -41,14 +41,20 @@ The formatters treefmt drives are the `programs` attribute set in
 [`nix/fmt.nix`](../../../nix/fmt.nix); each entry enables one formatter and may
 carry its own `excludes`.
 
-**No hook checks commit messages.** There is no `.gitlint` hook or file, and the
-commit-msg hook that used to be registered here was removed: no development shell in
-this repository provides the `releaser` binary, so it was a registration with nothing
-to run here. (The tool itself is published — it is simply not wired in yet.) The commit
-types themselves are still defined in `atomi_release.yaml` — see
-[the conventional-commits standard](../conventional-commits/index.md) — but writing
-a commit that respects them is a convention now, not something this repository
-enforces.
+**Commit messages are checked.** The `a-releaser-commit` hook runs at the
+`commit-msg` stage and calls `releaser lint-commit -c atomi_release.yaml`, so the
+message is measured against the same file that defines the commit types and the
+release levels — see
+[the conventional-commits standard](../conventional-commits/index.md). There is
+still no `.gitlint` hook or file and one must not be added; the vocabulary has one
+authority.
+
+This hook was absent for one round, and the reason is worth knowing before you
+touch it: no development shell provided the `releaser` binary then, and because
+entering a Nix shell reinstalls hooks into the repository's shared git directory,
+a commit-msg hook whose binary was missing broke plain `git commit` for every
+worktree at once. Its `entry` is an absolute Nix store path rather than a bare
+command name, which is what makes it resolve from any worktree and any shell.
 
 ## Configuration rules
 

@@ -30,6 +30,26 @@
     # is retargeted at each v3.x release - so it is the same floating-ref fault
     # the rule above forbids, just spelled as a tag instead of a branch.
     atomipkgs.url = "github:AtomiCloud/nix-registry/v3.12.0";
+    # releaser v1.0.0 = 3200bdd95a0fdd8f43f9905faa8c85afe4595d1f
+    #
+    # Pinned to the tag's COMMIT, with the tag recorded above it, which is the
+    # same treatment `atomipkgs` gets two lines up rather than the bare-tag form
+    # `bun-base` uses. A release tag is immutable by convention, not by
+    # construction: it can be retargeted, and nothing in this repository would
+    # notice now that the pin gate is deleted. Pinning the commit makes the
+    # identity immutable by construction and keeps every input in this block one
+    # kind of thing - an exact commit - so the rule above has no exceptions to
+    # remember. Move the pin by resolving the next tag to its commit and
+    # rewriting both lines together.
+    releaser = {
+      url = "github:AtomiCloud/releaser/3200bdd95a0fdd8f43f9905faa8c85afe4595d1f";
+      inputs.atomipkgs.follows = "atomipkgs";
+      inputs.flake-utils.follows = "flake-utils";
+      inputs.nixpkgs-2605.follows = "nixpkgs-2605";
+      inputs.nixpkgs-unstable.follows = "nixpkgs-unstable";
+      inputs.pre-commit-hooks.follows = "pre-commit-hooks";
+      inputs.treefmt-nix.follows = "treefmt-nix";
+    };
   };
   outputs =
     {
@@ -44,6 +64,7 @@
       atomipkgs,
       nixpkgs-2605,
       nixpkgs-unstable,
+      releaser,
 
     }@inputs:
     (flake-utils.lib.eachDefaultSystem (
@@ -52,6 +73,7 @@
         pkgs-2605 = nixpkgs-2605.legacyPackages.${system};
         pkgs-unstable = nixpkgs-unstable.legacyPackages.${system};
         atomi = atomipkgs.packages.${system};
+        releaser-pkg = releaser.packages.${system}.releaser;
         pre-commit-lib = pre-commit-hooks.lib.${system};
       in
       let
@@ -75,6 +97,7 @@
             pkgs-2605
             pkgs-unstable
             atomi
+            releaser-pkg
             ;
         };
         env = import ./nix/env.nix {

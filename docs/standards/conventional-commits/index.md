@@ -42,20 +42,21 @@ cannot drift independently.
 ## Finding your generated conventions
 
 Each project generates a commit-conventions document from `atomi_release.yaml`
-using the `releaser` tool. Its output path is the `conventionMarkdown.path` value
-in `atomi_release.yaml`:
+using the `releaser` tool. Its output path is the `conventions.path` value in
+`atomi_release.yaml`:
 
 ```bash
 # View the generated file
-cat "$(yq -r '.conventionMarkdown.path' atomi_release.yaml)"
+cat "$(yq -r '.conventions.path' atomi_release.yaml)"
 
-# Regenerate (once the releaser tool is available)
+# Regenerate
 releaser conventions
 ```
 
-Until the `releaser` tool ships, `atomi_release.yaml` itself is authoritative. The
-checked-in document is maintained by hand and carries a notice saying so, and the
-repository does not claim that the `releaser` command is available.
+That document is generated output: edit `atomi_release.yaml` and regenerate rather
+than editing it. Anything a reader should find there that is not a type or scope
+table belongs in the `conventions.template` value, because the generator writes the
+whole file from that template and a release run writes it again.
 
 ## Breaking Changes
 
@@ -81,6 +82,6 @@ The footer keywords that count as breaking are the `keywords:` list in
 | ----------------- | ----------------------------------------------------- |
 | **Format**        | `type(scope): description`                            |
 | **Configuration** | `atomi_release.yaml`                                  |
-| **Reference**     | the file named by its `conventionMarkdown.path`       |
+| **Reference**     | the file named by its `conventions.path`              |
 | **Release**       | each scope's `release:` value in `atomi_release.yaml` |
 | **Breaking**      | Add `!` or a footer keyword from `keywords:`          |
