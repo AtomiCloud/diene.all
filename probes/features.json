@@ -192,11 +192,6 @@
   },
   {
     "template": "diene/shared",
-    "name": "claude-link-integrity",
-    "class": "gate"
-  },
-  {
-    "template": "diene/shared",
     "name": "docs-markdownlint",
     "class": "gate"
   },

@@ -4,19 +4,11 @@ Use the repository's Nix shell for every command. Read [the Nix standard](docs/s
 
 Follow the linked standard before changing its surface. Never hand-edit `.claude/skills/vendor/`.
 
-Domain-specific architecture and behavior belongs under [docs/domain/](docs/domain/README.md). The `docs/standards/contracts/` slot is reserved for the separately owned C0 contracts standard.
-
-## Authorization
-
-See [docs/standards/authorization/index.md](docs/standards/authorization/index.md).
+Domain-specific architecture and behavior belongs under [docs/domain/](docs/domain/README.md).
 
 ## CI/CD workflows
 
 See [docs/standards/ci-cd/index.md](docs/standards/ci-cd/index.md).
-
-## Contributor documentation
-
-See [docs/standards/contributor-docs/index.md](docs/standards/contributor-docs/index.md).
 
 ## Conventional commits
 
