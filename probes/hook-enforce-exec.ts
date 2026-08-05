@@ -23,10 +23,10 @@ export default {
         // so this points at a script the workspace cannot lose: the freshness validator
         // the skills gate calls.
         const target = 'scripts/validate/skills-freshness.sh';
-        // The mode change is staged as well as applied: pre-commit sets unstaged changes
-        // aside before it runs a hook, and a bare `chmod` is exactly such a change, so an
-        // unstaged sabotage can be filed away before the gate ever sees it.
-        const sabotaged = await repo.exec(`chmod -x ${target} && git update-index --chmod=-x ${target}`);
+        // Unstaged on purpose, and measured rather than assumed: an `--all-files` run reads
+        // the worktree, so a bare `chmod` reaches the gate. Staging the mode change as well
+        // was tried and is redundant.
+        const sabotaged = await repo.exec(`chmod -x ${target}`);
         if (sabotaged.exitCode !== 0) {
           throw new Error(`could not clear the executable bit: ${sabotaged.stderr || sabotaged.stdout}`);
         }

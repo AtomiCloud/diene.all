@@ -86,10 +86,6 @@ export default {
         const target = 'scripts/validate/skills-freshness.sh';
         const source = await repo.read(target);
         await repo.write(target, `${source}\necho $UNQUOTED\n`);
-        const staged = await repo.exec(`git add ${target}`);
-        if (staged.exitCode !== 0) {
-          throw new Error(`could not stage the shellcheck sabotage: ${staged.stderr || staged.stdout}`);
-        }
         const result = await repo.exec(
           capturedEnvCommand('nix develop .#ci -c pre-commit run a-shellcheck --all-files', 'hook-shellcheck'),
           { timeoutMs: 240000 },
