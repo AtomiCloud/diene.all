@@ -5,12 +5,12 @@ with packages;
     git
     go-task
     infisical
-    pls
     releaser
   ];
 
   lint = [
     actionlint
+    dlint
     infralint
     pre-commit
     shellcheck
@@ -22,7 +22,6 @@ with packages;
     git
     go-task
     infisical
-    pls
     shellcheck
   ];
 

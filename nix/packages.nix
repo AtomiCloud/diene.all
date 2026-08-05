@@ -51,9 +51,9 @@ let
       {
         inherit
           atomiutils
+          dlint
           infralint
           infrautils
-          pls
           ;
       }
     );

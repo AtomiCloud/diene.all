@@ -33,6 +33,12 @@ let
         map (command: "${packages.atomiutils}/bin/bash ${command}") commands
       )
     }'";
+  dlint = check: "${packages.dlint}/bin/dlint ${check}";
+  dlints =
+    checks:
+    "${packages.atomiutils}/bin/bash -c '${
+      builtins.concatStringsSep " && " (map (check: "${packages.dlint}/bin/dlint ${check}") checks)
+    }'";
 in
 pre-commit-lib.run {
   src = ../.;
@@ -52,11 +58,11 @@ pre-commit-lib.run {
     a-action-pins = {
       enable = true;
       name = "Action pins";
-      entry = validators [
-        "scripts/validate/action-pins.sh trusted"
-        "scripts/validate/action-pins.sh non-trusted"
+      entry = dlints [
+        "action-pins trusted"
+        "action-pins non-trusted"
       ];
-      files = "^\\.github/workflows/.*\\.ya?ml$";
+      files = "^(\\.github/workflows/.*\\.ya?ml|config/action-trust\\.json)$";
       pass_filenames = false;
       language = "system";
     };
@@ -64,7 +70,7 @@ pre-commit-lib.run {
     a-enforce-exec = {
       enable = true;
       name = "Executable shell scripts";
-      entry = validator "scripts/validate/executable-shells.sh";
+      entry = dlint "exec-bits";
       files = ".*\\.sh$";
       pass_filenames = false;
       language = "system";
@@ -82,7 +88,7 @@ pre-commit-lib.run {
     a-infisical = {
       enable = true;
       name = "Secrets scan";
-      entry = "${packages.infisical}/bin/infisical scan . -v";
+      entry = "${packages.infisical}/bin/infisical scan . -v --redact";
       pass_filenames = false;
       language = "system";
     };
@@ -90,7 +96,7 @@ pre-commit-lib.run {
     a-infisical-staged = {
       enable = true;
       name = "Staged secrets scan";
-      entry = "${packages.infisical}/bin/infisical scan git-changes --staged -v";
+      entry = "${packages.infisical}/bin/infisical scan git-changes --staged -v --redact";
       pass_filenames = false;
       language = "system";
     };
@@ -105,15 +111,6 @@ pre-commit-lib.run {
       entry = "${pkgs.markdownlint-cli2}/bin/markdownlint-cli2";
       files = "^(CLAUDE\\.md|README\\.md|docs/standards/.*\\.md|\\.claude/skills/[^/]+/SKILL\\.md)$";
       pass_filenames = true;
-      language = "system";
-    };
-
-    a-nixpkgs-pin = {
-      enable = true;
-      name = "Shared nixpkgs pin";
-      entry = validator "scripts/validate/nixpkgs-pin.sh";
-      files = "^(flake\\.nix|flake\\.lock|nix/.*|nix/snapshots/nixpkgs\\.json)$";
-      pass_filenames = false;
       language = "system";
     };
 
@@ -146,22 +143,15 @@ pre-commit-lib.run {
     a-skills-freshness = {
       enable = true;
       name = "Vendored skills freshness";
-      entry = validator "scripts/validate/skills-freshness.sh";
+      entry = dlint "skills-fresh";
       pass_filenames = false;
       language = "system";
     };
 
-    # The wiring mode keeps both of its halves — every referenced scripts/ci entry
-    # point exists and is executable, and every orchestrator job resolves to a
-    # repository-local reusable workflow that calls one — unchanged.
     a-workflows = {
       enable = true;
-      name = "Workflow wiring, release trigger and concurrency";
-      entry = validators [
-        "scripts/validate/workflows.sh wiring"
-        "scripts/validate/workflows.sh release-trigger"
-        "scripts/validate/workflows.sh release-concurrency"
-      ];
+      name = "Workflow wiring and release policy";
+      entry = "${packages.atomiutils}/bin/bash -c '${packages.dlint}/bin/dlint ci-wiring && ( export PATH=${validator-runtime}/bin; ${packages.atomiutils}/bin/bash scripts/validate/workflows.sh release-trigger && ${packages.atomiutils}/bin/bash scripts/validate/workflows.sh release-concurrency )'";
       files = "^\\.github/workflows/.*\\.ya?ml$";
       pass_filenames = false;
       language = "system";
