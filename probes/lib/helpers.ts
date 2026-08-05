@@ -46,12 +46,7 @@ export function capturedEnvCommand(
   );
 }
 
-export async function expectGreen(
-  repo: any,
-  command: string,
-  label: string,
-  timeoutMs = 240000,
-): Promise<void> {
+export async function expectGreen(repo: any, command: string, label: string, timeoutMs = 240000): Promise<void> {
   const result = await repo.exec(capturedEnvCommand(command, label), { timeoutMs });
   if (result.exitCode !== 0) {
     throw new Error(`${label} failed on the healthy repo: ${result.stderr || result.stdout}`);
