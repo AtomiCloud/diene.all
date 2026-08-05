@@ -50,10 +50,6 @@ let
       {
         inherit
           atomiutils
-          infralint
-          infrautils
-          pls
-          sg
           ;
       }
     );
@@ -62,16 +58,7 @@ let
       with pkgs-2605;
       {
         inherit
-          actionlint
           git
-          go-task
-          infisical
-          kubeconform
-          kyverno
-          pre-commit
-          ripgrep
-          shellcheck
-          skopeo
           treefmt
           ;
       }
