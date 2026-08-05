@@ -110,6 +110,24 @@ cache split cannot make the check silently inspect zero jobs.
 
 ## Cache eligibility is decided from behavior, not from labels
 
+> **Superseded — read this first.** The three sections that follow describe a shell
+> reader that decided, from the text of each `run:` script, whether it "definitely
+> runs Nix", "definitely does not", or "cannot be read". That reader is **gone**.
+> It only ever existed because a job was allowed to run a script _outside_ a dev
+> shell, which left the gate guessing whether the script touched the store. The
+> rule now is simply that **every `run:` step enters a Nix shell that declares its
+> dependencies**, so there is nothing left to guess: a bare command is refused
+> outright, whichever command it is.
+>
+> The sections below are kept because the failure modes they name are real and a
+> future reader should not have to rediscover them — but do not implement any of
+> it. [The CI/CD workflows standard](docs/standards/ci-cd/index.md) states the
+> current rule, and `scripts/validate/workflows.sh cache-tag-shape` enforces it.
+> The two marker names were also renamed in that change:
+> `S31_CACHE_EXEMPT_REASON` → `NIX_CACHE_EXEMPT_REASON` and
+> `S31_RUNNER_FALLBACK_REASON` → `NIX_RUNNER_FALLBACK_REASON`; the text below uses
+> the current names throughout.
+
 Review found that the mode above still inferred cache eligibility from the labels it was
 validating. "I carry no cache tag" was therefore read as "I am a deliberate
 must-not-share-cache lane", so a Nix job that dropped `-with-cache` **together with** its
@@ -129,7 +147,7 @@ The classification never reads `runs-on:`. From it:
   its OS-matched cache tag, exactly as before.
 - A Nix-store user on the **bare** Namespace venue is legal only as a declared
   must-not-share-cache lane: it records a non-empty job-level
-  `env.S31_CACHE_EXEMPT_REASON` and carries no cache-size or cache-tag label. Without
+  `env.NIX_CACHE_EXEMPT_REASON` and carries no cache-size or cache-tag label. Without
   that record the gate is red, which is the cache-loss recurrence closed.
 - The exemption is **venue-scoped by ruling**: must-not-share-cache lanes are bare
   Namespace lanes, so a Nix-store user on a GitHub-hosted runner is rejected with or
@@ -143,7 +161,7 @@ The classification never reads `runs-on:`. From it:
   job-level `env` is misplaced. A whitespace-only marker is not a record.
 
 The 26.04 primary / 24.04 fallback labels, the cache-tag rotation, the
-`S31_RUNNER_FALLBACK_REASON` rules and the corrected `-with-cache` / bare split are
+`NIX_RUNNER_FALLBACK_REASON` rules and the corrected `-with-cache` / bare split are
 unchanged; nothing above relaxes them.
 
 Two mechanical notes worth recording, because both are silent-failure shapes:
@@ -222,7 +240,7 @@ it is the opposite of safe: a real Nix job the reader could not make out —
 `'nix' develop`, `sudo -u root nix develop`, `sh -c 'nix develop'`, or an invocation
 after text that merely looked like a heredoc opener — was recorded as an ordinary
 non-Nix lane and passed green with no cache labels **and** no
-`env.S31_CACHE_EXEMPT_REASON`. That is exactly the cache-loss hole the exemption marker
+`env.NIX_CACHE_EXEMPT_REASON`. That is exactly the cache-loss hole the exemption marker
 exists to close, re-opened through the classifier instead of through the labels.
 
 Second, "counts as a command" was too eager in the other direction. A `(` was treated as
