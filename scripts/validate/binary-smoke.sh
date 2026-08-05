@@ -77,7 +77,25 @@ pre-commit --version >/dev/null
 pre-commit validate-config .pre-commit-config.yaml
 
 rg --version >/dev/null
-rg -q 'Diene workspace baseline' README.md
+# Smoke-tested against a fixture this script writes, like every other binary here —
+# actionlint gets its own workflow, git its own repo, jq `-en`, sg its own .gitlint.
+# This line used to read `rg -q 'Diene workspace baseline' README.md`, which was the
+# ONLY assertion against a tracked PROSE file anywhere in scripts/ or probes/, and
+# the string existed nowhere else in the tree — so it was never a content contract,
+# just a convenient needle. Composing README.md dropped the string, every baseline
+# arm went `broken`, and a whole venue matrix was voided by a smoke test that was
+# never about the README. A tool check must not depend on documentation wording.
+printf '%s\n' 'alpha' 'ripgrep smoke needle' 'omega' >"${tmp}/rg-fixture.txt"
+rg -q 'ripgrep smoke needle' "${tmp}/rg-fixture.txt"
+# `cmd && { …; exit 1; }` would be wrong here: when rg correctly finds nothing it
+# exits 1, that becomes the list's status, and `set -e` kills the script on the
+# CORRECT outcome. `if !` is the form that survives errexit.
+if ! rg -q 'no-such-needle-should-ever-match' "${tmp}/rg-fixture.txt"; then
+  : # expected: rg found nothing, which is the point of the negative arm
+else
+  echo "❌ rg reported a match for a pattern that is not in the fixture" >&2
+  exit 1
+fi
 
 sg --version >/dev/null
 printf '%s\n' '[general]' 'contrib=CT1' 'ignore=B6' '' '[contrib-title-conventional-commits]' 'types = amend' >"${tmp}/.gitlint"
@@ -117,7 +135,10 @@ yq -en '.ok = true | .ok == true' >/dev/null
 if command -v releaser >/dev/null; then
   releaser --help >/dev/null
 else
-  echo "⏭️ releaser binary is not present: the tools/releaser publish has not happened yet"
+  # The skip is still correct — no diene shell provides the binary — but the REASON
+  # is not "unpublished": AtomiCloud/releaser v1.0.0 exists and bun-base already
+  # consumes it. State the narrow, true claim.
+  echo "⏭️ releaser binary is not on PATH: no diene dev shell provides it yet (the tool itself is published)"
 fi
 
 echo "✅ Binary smoke passed"

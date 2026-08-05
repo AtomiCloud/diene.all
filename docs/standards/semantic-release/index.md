@@ -21,12 +21,13 @@ they enforced a policy no released tool consumes yet. The file itself is therefo
 the only authority — if you break its shape, you find out when a release runs, not
 when you commit.
 
-Running a release does not work yet either, because the `releaser` binary that would
-execute one is not published. Concretely:
+Running a release does not work here yet either — not because the `releaser` binary is
+missing in the world, but because no development shell in this repository provides it.
+Concretely:
 
 - release execution is fully wired — the workflow, the release Nix shell, and
-  `scripts/ci/release.sh` all exist — but the command at the end of that chain has
-  no binary behind it, so it cannot run;
+  `scripts/ci/release.sh` all exist — but the command at the end of that chain
+  resolves to nothing on this repository's `PATH`, so it cannot run here;
 - no hook checks commit messages against the types below; see
   [the linting standard](../linting/index.md);
 - `sg` sits in the release shell as a temporary bootstrap dependency, and leaves

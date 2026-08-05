@@ -42,8 +42,9 @@ The formatters treefmt drives are the `programs` attribute set in
 carry its own `excludes`.
 
 **No hook checks commit messages.** There is no `.gitlint` hook or file, and the
-commit-msg hook that used to be registered here was removed: the `releaser` binary
-behind it is not published, so it was a registration with nothing to run. The commit
+commit-msg hook that used to be registered here was removed: no development shell in
+this repository provides the `releaser` binary, so it was a registration with nothing
+to run here. (The tool itself is published — it is simply not wired in yet.) The commit
 types themselves are still defined in `atomi_release.yaml` — see
 [the conventional-commits standard](../conventional-commits/index.md) — but writing
 a commit that respects them is a convention now, not something this repository
