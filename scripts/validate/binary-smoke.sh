@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-for binary in actionlint bash cyanprint docker git gomplate hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pls pre-commit rg sg shellcheck skopeo task treefmt yq; do
+for binary in actionlint bash cyanprint docker git gomplate hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pls pre-commit releaser rg shellcheck skopeo task treefmt yq; do
   command -v "${binary}" >/dev/null || {
     echo "❌ binary '${binary}' is missing" >&2
     exit 1
@@ -77,14 +77,17 @@ pls --list >/dev/null
 pre-commit --version >/dev/null
 pre-commit validate-config .pre-commit-config.yaml
 
+releaser --version >/dev/null
+printf '%s\n' 'chore: smoke the releaser commit linter' >"${tmp}/releaser-msg-ok.txt"
+releaser lint-commit "${tmp}/releaser-msg-ok.txt" -c atomi_release.yaml >/dev/null
+printf '%s\n' 'nope: this commit type is not configured' >"${tmp}/releaser-msg-bad.txt"
+if releaser lint-commit "${tmp}/releaser-msg-bad.txt" -c atomi_release.yaml >/dev/null 2>&1; then
+  echo "❌ releaser lint-commit accepted a commit type that is not in atomi_release.yaml" >&2
+  exit 1
+fi
+
 rg --version >/dev/null
 rg -q 'Diene workspace baseline' README.md
-
-sg --version >/dev/null
-printf '%s\n' '[general]' 'contrib=CT1' 'ignore=B6' '' '[contrib-title-conventional-commits]' 'types = amend' >"${tmp}/.gitlint"
-yq '.gitlint = ".gitlint"' atomi_release.yaml >"${tmp}/sg-config.yaml"
-(cd "${tmp}" && sg gitlint -c sg-config.yaml >/dev/null 2>&1 || true)
-rg -q 'chore' "${tmp}/.gitlint"
 
 shellcheck --version >/dev/null
 shellcheck scripts/validate/binary-smoke.sh
@@ -96,17 +99,16 @@ skopeo manifest-digest "${tmp}/manifest.json" | rg -q '^sha256:[0-9a-f]{64}$'
 task --version >/dev/null
 task --list >/dev/null
 
+if rg -q '\bsg\b' nix/packages.nix nix/env.nix; then
+  echo "❌ sg is back in the nix inventory - the releaser replaced it, there is no gitlint bootstrap" >&2
+  exit 1
+fi
+
 treefmt --version >/dev/null
 treefmt --completion bash >"${tmp}/treefmt-completion.bash"
 [ ! -s "${tmp}/treefmt-completion.bash" ] && echo "❌ treefmt completion generation failed" >&2 && exit 1
 
 yq --version >/dev/null
 yq -en '.ok = true | .ok == true' >/dev/null
-
-if command -v releaser >/dev/null; then
-  releaser --help >/dev/null
-else
-  echo "⏭️ releaser binary awaits the C2 step-2p tools/releaser publish"
-fi
 
 echo "✅ Binary smoke passed"
