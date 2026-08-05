@@ -11,7 +11,7 @@ export default {
       async run(repo: any) {
         await expectBunGreen(
           repo,
-          "nix develop .#ci -c bash -lc './scripts/local/setup.sh && pls run -- smoke'",
+          "nix develop .#ci -c bash -lc './scripts/local/setup.sh && task run -- smoke'",
           'bun-run',
         );
       },

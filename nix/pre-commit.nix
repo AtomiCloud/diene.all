@@ -57,12 +57,15 @@ let
   validator-runtime = pkgs.buildEnv {
     name = "workspace-validator-runtime";
     # atomiutils supplies bash/jq/yq plus the coreutils/find/grep/sed binaries the
-    # validators call, so declaring those separately would duplicate the bundle
-    # (and collide with it in this buildEnv). git and ripgrep do not overlap it.
+    # validators call - and, since registry v3.12.0, rg as well - so declaring any
+    # of those separately would duplicate the bundle and collide with it in this
+    # buildEnv. That is not a prediction: while v3.12.0 was landing, a standalone
+    # nixpkgs ripgrep alongside the bundle failed this very buildEnv with
+    # "conflicting subpath ... /bin/rg". git is the only entry left that the
+    # bundle does not already carry.
     paths = [
       packages.atomiutils
       packages.git
-      packages.ripgrep
     ];
   };
   validator =
@@ -78,6 +81,12 @@ let
       builtins.concatStringsSep " && " (
         map (command: "${packages.atomiutils}/bin/bash ${command}") commands
       )
+    }'";
+  dlint = check: "${packages.dlint}/bin/dlint ${check}";
+  dlints =
+    checks:
+    "${packages.atomiutils}/bin/bash -c '${
+      builtins.concatStringsSep " && " (map (check: "${packages.dlint}/bin/dlint ${check}") checks)
     }'";
 in
 pre-commit-lib.run {
@@ -98,11 +107,11 @@ pre-commit-lib.run {
     a-action-pins = {
       enable = true;
       name = "Action pins";
-      entry = validators [
-        "scripts/validate/action-pins.sh trusted"
-        "scripts/validate/action-pins.sh non-trusted"
+      entry = dlints [
+        "action-pins trusted"
+        "action-pins non-trusted"
       ];
-      files = "^\\.github/workflows/.*\\.ya?ml$";
+      files = "^(\\.github/workflows/.*\\.ya?ml|config/action-trust\\.json)$";
       pass_filenames = false;
       language = "system";
     };
@@ -110,7 +119,7 @@ pre-commit-lib.run {
     a-enforce-exec = {
       enable = true;
       name = "Executable shell scripts";
-      entry = validator "scripts/validate/executable-shells.sh";
+      entry = dlint "exec-bits";
       files = ".*\\.sh$";
       pass_filenames = false;
       language = "system";
@@ -128,7 +137,7 @@ pre-commit-lib.run {
     a-infisical = {
       enable = true;
       name = "Secrets scan";
-      entry = "${packages.infisical}/bin/infisical scan . -v";
+      entry = "${packages.infisical}/bin/infisical scan . -v --redact";
       pass_filenames = false;
       language = "system";
     };
@@ -136,26 +145,21 @@ pre-commit-lib.run {
     a-infisical-staged = {
       enable = true;
       name = "Staged secrets scan";
-      entry = "${packages.infisical}/bin/infisical scan git-changes --staged -v";
+      entry = "${packages.infisical}/bin/infisical scan git-changes --staged -v --redact";
       pass_filenames = false;
       language = "system";
     };
 
-    a-nixpkgs-pin = {
+    # The selector is directory-shaped on purpose: every standard under
+    # docs/standards/ and every first-level skill trigger is linted, so adding a
+    # topic needs no edit here. Vendored skills sit deeper than one level and are
+    # ignored again by .markdownlint-cli2.jsonc.
+    a-markdownlint = {
       enable = true;
-      name = "Shared nixpkgs pin";
-      entry = validator "scripts/validate/nixpkgs-pin.sh";
-      files = "^(flake\\.nix|flake\\.lock|nix/.*|nix/snapshots/nixpkgs\\.json)$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-release-config = {
-      enable = true;
-      name = "Release config schema and types";
-      entry = validator "scripts/validate/release-config.sh all";
-      files = "^atomi_release\\.yaml$";
-      pass_filenames = false;
+      name = "Markdown lint";
+      entry = "${pkgs.markdownlint-cli2}/bin/markdownlint-cli2";
+      files = "^(CLAUDE\\.md|README\\.md|docs/standards/.*\\.md|\\.claude/skills/[^/]+/SKILL\\.md)$";
+      pass_filenames = true;
       language = "system";
     };
 
@@ -188,24 +192,15 @@ pre-commit-lib.run {
     a-skills-freshness = {
       enable = true;
       name = "Vendored skills freshness";
-      entry = validator "scripts/validate/skills-freshness.sh";
+      entry = dlint "skills-fresh";
       pass_filenames = false;
       language = "system";
     };
 
-    # The wiring mode keeps both of its halves — every referenced scripts/ci entry
-    # point exists and is executable, and every orchestrator job resolves to a
-    # repository-local reusable workflow that calls one — unchanged. The S31 mode
-    # shares this workflow hook without increasing the committer-facing hook count.
     a-workflows = {
       enable = true;
-      name = "Workflow wiring, release policy and runner cache shape";
-      entry = validators [
-        "scripts/validate/workflows.sh wiring"
-        "scripts/validate/workflows.sh release-trigger"
-        "scripts/validate/workflows.sh release-concurrency"
-        "scripts/validate/workflows.sh cache-tag-shape"
-      ];
+      name = "Workflow wiring and release policy";
+      entry = "${packages.atomiutils}/bin/bash -c '${packages.dlint}/bin/dlint ci-wiring && ( export PATH=${validator-runtime}/bin; ${packages.atomiutils}/bin/bash scripts/validate/workflows.sh release-trigger && ${packages.atomiutils}/bin/bash scripts/validate/workflows.sh release-concurrency )'";
       files = "^\\.github/workflows/.*\\.ya?ml$";
       pass_filenames = false;
       language = "system";
@@ -246,26 +241,6 @@ pre-commit-lib.run {
       entry = "${bun-tool "tsc"} --noEmit";
       files = "(^package\\.json$|^tsconfig\\.json$|\\.(ts|tsx|mts|cts)$)";
       pass_filenames = false;
-      language = "system";
-    };
-
-    # ### shared-hooks
-    # #### source: shared
-    a-claude-links = {
-      enable = true;
-      name = "CLAUDE link integrity";
-      entry = "${pkgs.coreutils}/bin/env SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt ${pkgs.lychee}/bin/lychee --offline --no-progress CLAUDE.md";
-      files = "^(CLAUDE\\.md|docs/standards/.*\\.md)$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-markdownlint = {
-      enable = true;
-      name = "Markdown lint";
-      entry = "${pkgs.markdownlint-cli2}/bin/markdownlint-cli2";
-      files = "^(CLAUDE\\.md|README\\.md|docs/standards/(authorization|contracts|contributor-docs|datetime|domain-driven-design|functional-practices|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/.*\\.md|\\.claude/skills/(authorization|contributor-docs|datetime|domain-driven-design|functional-practices|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/SKILL\\.md)$";
-      pass_filenames = true;
       language = "system";
     };
   };

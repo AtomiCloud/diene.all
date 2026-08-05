@@ -1,6 +1,7 @@
 # ### workspace-release
 # #### source: workspace
 schemaVersion: 2
+
 types:
   - type: amend
     desc: Small amendments and typo fixes
@@ -19,6 +20,15 @@ types:
     scopes:
       default:
         desc: Perform a chore
+        release: false
+      many-owner:
+        desc: Surfaces with several owners
+        release: false
+      nix:
+        desc: Nix flake and modules
+        release: false
+      workspace:
+        desc: Workspace tree itself
         release: false
   - type: ci
     desc: CI/CD changes
@@ -55,6 +65,9 @@ types:
       default:
         desc: Update documentation
         release: false
+      nix:
+        desc: Nix flake and modules
+        release: false
   - type: feat
     desc: New features
     section: ✨ Features ✨
@@ -65,6 +78,12 @@ types:
       breaking:
         desc: Add a breaking feature
         release: major
+      nix:
+        desc: Nix flake and modules
+        release: minor
+      probes:
+        desc: Verification corpus
+        release: minor
   - type: fix
     desc: Bug fixes
     section: 🐛 Bug Fixes 🐛
@@ -72,6 +91,30 @@ types:
       default:
         desc: Fix a bug
         release: patch
+      nix:
+        desc: Nix flake and modules
+        release: patch
+      probes:
+        desc: Verification corpus
+        release: patch
+      skills:
+        desc: Vendored agent skills
+        release: patch
+      workspace:
+        desc: Workspace tree itself
+        release: patch
+  - type: merge
+    desc: Branch merges
+    scopes:
+      default:
+        desc: Merge a branch
+        release: false
+      main:
+        desc: Root branch layer
+        release: false
+      workspace:
+        desc: Workspace tree itself
+        release: false
   - type: perf
     desc: Performance improvements
     section: 🚀 Performance Improvement 🚀
@@ -79,17 +122,26 @@ types:
       default:
         desc: Improve performance
         release: patch
+      probes:
+        desc: Verification corpus
+        release: patch
   - type: refactor
     desc: Refactors
     scopes:
       default:
         desc: Refactor implementation
         release: minor
+      ci:
+        desc: CI/CD wiring
+        release: minor
   - type: style
     desc: Non-functional style changes
     scopes:
       default:
         desc: Update style
+        release: patch
+      probes:
+        desc: Verification corpus
         release: patch
   - type: test
     desc: Test changes
@@ -98,14 +150,20 @@ types:
       default:
         desc: Add or correct tests
         release: minor
+      probes:
+        desc: Verification corpus
+        release: minor
+
 specialScopes:
   no-release:
     desc: Prevent release from happening
     release: false
+
 keywords:
   - BREAKING CHANGE
   - BREAKING CHANGES
   - BREAKING
+
 lint:
   header:
     maxLength: 72
@@ -123,9 +181,31 @@ lint:
     - fixup
     - fixup-amend
     - squash
+
 conventions:
   path: docs/developer/CommitConventions.md
-  template: "# Commit conventions\n\nCONVENTION_DOCS_PLACEHOLDER\n"
+  template: |-
+    # Commit conventions
+
+    This repository follows [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
+
+    - `atomi_release.yaml` is the machine-readable source of truth: it owns the
+      commit types, the scopes valid for each one, and the version bump each scope
+      causes.
+    - [The conventional-commits standard](../standards/conventional-commits/index.md)
+      explains how to read that vocabulary and how to mark a breaking change.
+
+    ## Status of this file
+
+    This file is generated. `atomi_release.yaml` names this path in its
+    `conventions.path` value, `releaser conventions` writes it, and a release run
+    rewrites it as well. Change `atomi_release.yaml` and regenerate rather than
+    editing this file: everything up to here comes from that file's
+    `conventions.template`, and everything from the `type(scope)` line below is
+    generated from the commit vocabulary.
+
+    CONVENTION_DOCS_PLACEHOLDER
+
 release:
   branches:
     - main
@@ -134,7 +214,10 @@ release:
     path: Changelog.md
     title: '# Changelog'
   commit:
-    message: "release: ${version}\n\n${notes}"
+    message: |-
+      release: ${version}
+
+      ${notes}
     assets:
       - Changelog.md
       - package.json
@@ -145,6 +228,11 @@ release:
     releasedLabels:
       - released
   hooks:
+    # The hook point the parent leaves empty, filled here. This node's version
+    # lives in `package.json` rather than in a `VERSION` file, so the manifest
+    # the command below stamps is the same file listed in `commit.assets` above -
+    # written and committed by the same edit, which is what stops a version
+    # record going stale in silence.
     prepare:
       - phase: afterWrite
         command: './scripts/release/bump.sh ${version}'

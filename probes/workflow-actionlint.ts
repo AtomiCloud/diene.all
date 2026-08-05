@@ -26,8 +26,8 @@ export default {
             replace: '        runs: nix develop .#ci -c ./scripts/ci/pre-commit.sh',
           });
           await expectRedBecause(repo, 'nix develop .#ci -c actionlint', 'workflow-actionlint', [
-            '.github/workflows/⚡reusable-precommit.yaml',
-            'step must run script with "run" section or run action with "uses" section',
+            path,
+            'step must run script with "run" section or run action with "uses" section [syntax-check]',
           ]);
         } finally {
           await repo.write(path, original);

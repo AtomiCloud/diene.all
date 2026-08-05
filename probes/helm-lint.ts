@@ -20,7 +20,8 @@ export default {
       async run(repo: any) {
         await repo.patch('infra/root_chart/Chart.yaml', { find: 'apiVersion: v2', replace: 'apiVersion: invalid' });
         await expectRedBecause(repo, 'nix develop .#ci -c helm lint infra/root_chart', 'helm-lint', [
-          "apiVersion 'invalid' is not valid",
+          "Chart.yaml: apiVersion 'invalid' is not valid",
+          '1 chart(s) failed',
         ]);
       },
     },

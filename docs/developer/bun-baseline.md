@@ -11,22 +11,22 @@ rules remain in `docs/standards/`.
 
 ## Local commands
 
-- `pls setup` installs the locked Bun dependencies after synchronizing vendored
+- `task setup` installs the locked Bun dependencies after synchronizing vendored
   package skills.
-- `pls lint` runs every generated pre-commit hook.
-- `pls test`, `pls test:unit`, and `pls test:int` run the test tiers without
+- `task lint` runs every generated pre-commit hook.
+- `task test`, `task test:unit`, and `task test:int` run the test tiers without
   coverage.
-- `pls test:coverage`, `pls test:unit:coverage`, and
-  `pls test:int:coverage` write scoped LCOV artifacts.
-- `pls test:watch` watches the unit tier.
-- `pls build` bundles `src/index.ts` to `dist/index.js`.
-- `pls deadcode` runs the two non-blocking LLM-review Knip configurations.
-- `pls run -- <args>` executes the source entry point.
-- `pls preview -- <args>` rebuilds and executes the bundled artifact.
-- `pls docker:build` and `pls docker:run` build and run the Bun image.
-- `pls helm:lint` and `pls helm:template` retain the inherited Helm axis.
+- `task test:coverage`, `task test:unit:coverage`, and
+  `task test:int:coverage` write scoped LCOV artifacts.
+- `task test:watch` watches the unit tier.
+- `task build` bundles `src/index.ts` to `dist/index.js`.
+- `task deadcode` runs the two non-blocking LLM-review Knip configurations.
+- `task run -- <args>` executes the source entry point.
+- `task preview -- <args>` rebuilds and executes the bundled artifact.
+- `task docker:build` and `task docker:run` build and run the Bun image.
+- `task helm:lint` and `task helm:template` retain the inherited Helm axis.
 
-There is no `pls dev`, `pls up`, or `pls down` surface in this base. Hot reload
+There is no `task dev`, `task up`, or `task down` surface in this base. Hot reload
 belongs to runnable descendants, and the integration tier owns its Redis
 dependency through Testcontainers.
 

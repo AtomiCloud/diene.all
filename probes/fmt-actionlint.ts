@@ -29,10 +29,7 @@ export default {
             repo,
             'nix fmt --no-write-lock-file -- --ci --formatters actionlint',
             'fmt-actionlint',
-            [
-              '.github/workflows/⚡reusable-precommit.yaml',
-              'step must run script with "run" section or run action with "uses" section',
-            ],
+            [path, 'step must run script with "run" section or run action with "uses" section [syntax-check]'],
           );
         } finally {
           await repo.write(path, original);

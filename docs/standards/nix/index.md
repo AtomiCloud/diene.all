@@ -334,9 +334,9 @@ minimal = group-a;  # No group-b
 
 ## For Implementation Help
 
-When you need help implementing Nix changes, use the **nix skill** which provides step-by-step instructions and examples.
+When you need help implementing Nix changes, read the actual `nix/` modules and
+`flake.nix` alongside the operations above.
 
 See also:
 
-- **Skill**: `.claude/skills/nix/SKILL.md` - Quick reference and critical rules
-- **Reference**: `.claude/skills/nix/reference.md` - File patterns and examples
+- **Skill**: `.claude/skills/nix/SKILL.md` - the agent entry point that routes back to this standard

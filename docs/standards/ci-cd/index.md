@@ -26,99 +26,91 @@ their trigger block:
   authoritative statement of which script the lane runs and in which shell.
 
 Callers grant permissions, pass only repository-specific values, and use
-`secrets: inherit`. The `a-workflows` gate enforces that every orchestrator
-job resolves to a repository-local reusable workflow, that each reusable
-workflow calls an existing, executable `scripts/ci` entry point, and that the
-selected runner and Namespace cache tag satisfy the S31 shape below.
+`secrets: inherit`. The `a-workflows` gate enforces that every orchestrator job
+resolves to a repository-local reusable workflow, that each reusable workflow
+calls an existing, executable `scripts/ci` entry point, and that the release
+workflow keeps its trigger and concurrency group.
 
 `AtomiCloud/actions.setup-nix` checks out the repository, so do not add an
 adjacent `actions/checkout`.
 
-## Pins and runners
+## Action pins
 
 Trusted actions use major pins; every other action uses an exact 40-character SHA
 plus its tag in a trailing comment. Which actions are trusted is recorded in
 `config/action-trust.json`: each key is an action reference and its value is
-`trusted` or `non-trusted`. `scripts/validate/action-pins.sh` reads that file and
-fails any action used in a workflow that has no classification, so adding an
-action means adding its entry there.
+`trusted` or `non-trusted`. `dlint action-pins` reads that file and refuses any
+action used in a workflow that has no classification, so adding an action means
+adding its entry there. Which path it reads is `.dlint.json`'s
+`checks["action-pins"].trustMap`.
 
-Runner selection is 26.04-first. GitHub-hosted jobs select `ubuntu-26.04`.
-Namespace jobs use one of two deliberate venues: cache-eligible Nix-store users
-select `nscloud-ubuntu-26.04-amd64-16x32-with-cache`; lanes that must not share
-cache state select the bare `nscloud-ubuntu-26.04-amd64-16x32`. The only
-permitted fallbacks are the corresponding `ubuntu-24.04` and Namespace 24.04
-labels. A job that selects a fallback records a non-empty reason in job-level
-`env.S31_RUNNER_FALLBACK_REASON`; primary jobs do not carry that fallback
-record. Primary and fallback Namespace venue labels are never combined.
+## Every job declares its dependencies
 
-Cache-eligible Namespace Nix jobs carry exactly one shared OS-sensitive tag and
-the `nscloud-cache-size-50gb` label. The two valid cached label/tag pairs are:
+> **Every `run:` step enters a Nix shell that declares what it needs.**
+
+In practice a `run:` step is exactly one line:
 
 ```text
-nscloud-ubuntu-26.04-amd64-16x32-with-cache
-nscloud-cache-tag-atomi-nix-store-cache-ubuntu-26.04-amd64
-
-nscloud-ubuntu-24.04-amd64-16x32-with-cache
-nscloud-cache-tag-atomi-nix-store-cache-ubuntu-24.04-amd64
+nix develop .#<shell> -c <command>
 ```
 
-The organization stays constant; only runner OS and architecture vary. An OS
-change rotates the tag and starts with one cold build before warm reuse. Never
-alias or carry a 24.04 cache into 26.04, and never introduce per-platform or
-per-service cache tags. Must-not-share-cache Namespace lanes use the matching
-bare venue label with no cache-size or cache-tag label; cache absence is part of
-their isolation contract.
+`<shell>` is one of the shells declared in
+[`nix/shells.nix`](../../../nix/shells.nix) — today `default`, `ci`, `cd` and
+`releaser`. Three things follow: a job's dependencies are visible without reading
+the job, CI and your laptop run the same tools, and every job can reuse the shared
+Nix store cache.
 
-Which jobs are cache-eligible is read from what a job does, not from the labels
-it carries. A step's `uses:` is matched as text, so a Nix setup action always
-makes a job a Nix-store user. A step's `run:` is a shell script, and the gate
-reads it with a small shell lexer that gives one of **three** answers:
+## Runners and cache labels
 
-- **Nix** — a supported Nix command definitely runs. The command word is
-  `nix` **followed immediately by** `develop`, `build`, `shell`, `run`, `flake`,
-  `profile` or `store`, or it is legacy `nix-build`, `nix-shell` or `nix-store`.
-  Assignments, redirections, keywords, plain wrappers (`sudo nix build`),
-  subshells, process substitution and `sh -c '…'` (including combined flags such
-  as `bash -lc '…'`) are all read through.
-- **Not Nix** — the script definitely runs no Nix command. A mention is not an
-  invocation: `echo nix develop`, a comment, quoted text, heredoc content, an
-  array literal `args=(nix develop)`, an arithmetic expression, and a `case`
-  branch pattern — `nix-build)` with or without its opening parenthesis — are all
-  data.
-- **Cannot be read** — the script uses syntax the gate will not guess at:
-  - an expanded command name (`$CMD develop`), backticks, `eval`, an unterminated
-    quote or heredoc;
-  - a wrapper with options (`sudo -u root nix develop`), where which word is the
-    command depends on what the option consumes;
-  - **any first argument to `nix` other than a supported subcommand** — a version
-    flag before `develop` still only prints a version, and `nix eval` is real
-    store use, so an option and an unrecognised subcommand are both refused;
-  - a **function or alias definition** that could carry the invocation:
-    `helper() { nix develop; }` may never be called, and
-    `alias helper='nix develop'` renames it, so neither is proof either way;
-    an ordinary assignment is different: its literal value is data, so
-    `FOO=nix nix develop` is read through and invokes Nix;
-  - a Nix command name handed to a command that is not on the small inert list —
-    `timeout 10m nix build`, `git nix develop`, `bun run nix`,
-    `awk 'BEGIN { system("nix develop") }'`, `./runner.sh 'nix develop'`. Only
-    commands that demonstrably do not execute their arguments (`echo`, `printf`,
-    `grep`, `test`, `case`, `cat`, …) treat such a name as text; anything that can
-    delegate execution does not.
+These are plain workflow configuration. Nothing validates them, so read the
+existing `runs-on:` blocks and copy the shape.
 
-The third answer is **refused on every venue** — cached, bare and GitHub-hosted —
-and is the point of having three answers rather than two. Calling an unreadable
-script "not Nix" would be safe on a cache-capable venue and unsafe on the bare
-one, where it would silently excuse a real Nix job from both the cache labels and
-the exemption marker below. The gate declines to guess instead. Only a Nix setup
-action resolves it; the alternative is to write the command so it can be read.
+Selection is 26.04-first: GitHub-hosted jobs take `ubuntu-26.04`, Namespace jobs
+take `nscloud-ubuntu-26.04-amd64-16x32-with-cache` plus `nscloud-cache-size-50gb`
+and the shared store-cache tag `nscloud-cache-tag-nix-store-cache-ubuntu-26.04-amd64`.
+The 24.04 equivalents are the fallbacks. A lane that must **not** share the store
+uses the bare `nscloud-ubuntu-26.04-amd64-16x32` with no cache labels at all — a
+bare label cannot attach a cache volume, which is the point of using it. The cache
+is shared per OS and architecture, carries no organization, platform or service
+name, and changing the OS rotates the tag and costs one cold build before warm
+reuse resumes.
 
-A Nix-store user on the bare venue also records a non-empty job-level
-`env.S31_CACHE_EXEMPT_REASON`, so a deliberate isolation lane is distinguishable
-from a lane that lost its cache by accident. That exemption is only meaningful on
-the bare Namespace venue: a Nix-store user on a GitHub-hosted runner is rejected
-whether or not it records one, and a job that uses no Nix store may neither claim
-the shared cache nor record an exemption from it.
+## The pre-vendor hook
+
+Every lane starts at `scripts/ci/setup.sh`, which vendors each dependency's skills
+before anything else runs. `scripts/local/skills-sync.sh` reads them out of the
+package manager's own on-disk cache, so it can only see packages that have already
+been materialised there.
+
+> **Before skills are vendored, each ecosystem gets one chance to materialise its
+> declared packages.** An ecosystem that takes it makes the vendor tree a function
+> of the declared dependency set. An ecosystem that does not may vendor a partial
+> tree, and the `a-skills-freshness` gate then fails several steps later on a diff
+> that does not name this as the cause.
+
+The hook is an optional executable at `scripts/ci/pre-vendor.sh`. `setup.sh` runs
+it, if it is there, immediately before `skills-sync.sh`. There is nothing to
+configure and no workflow to edit: a lane that already calls `setup.sh` picks the
+hook up by the file existing.
+
+This template declares no packages of its own, so it ships no hook and every lane
+here runs the absent case. A node built from it supplies one — a .NET node runs
+`dotnet restore`, a Node node its install — and writes the command in that file
+rather than in this document, which is why the command is not listed here.
+
+Three states, three outcomes, and the middle one is the reason the hook is not
+just `[ -x … ] && …`:
+
+| `scripts/ci/pre-vendor.sh` | `setup.sh`                                    |
+| -------------------------- | --------------------------------------------- |
+| absent                     | proceeds — this is a normal, successful setup |
+| present, not executable    | refuses, naming the file and the `chmod`      |
+| present, exits non-zero    | refuses with the hook's own exit status       |
+
+A hook that cannot run is a misconfiguration, not an absent hook, so it gets its
+own refusal. Folding it into the absent case would turn a broken restore into a
+silent skip — and a silently skipped restore is the failure the hook exists to
+prevent, arriving later wearing the freshness gate's face.
 
 ## Local reproduction
 
@@ -129,15 +121,19 @@ workflow you want to reproduce and run it verbatim, for example:
 nix develop .#ci -c ./scripts/ci/pre-commit.sh
 ```
 
-The Docker and Helm scripts build locally by default. Their reusable workflows
-set the documented environment contract to enable publishing.
+The Docker and Helm scripts build locally by default. Their reusable workflows set
+the documented environment contract to enable publishing.
 
 ## Artifact publishing
 
-Docker and Helm callers pass per-repository image or chart values through
-workflow `with:` inputs. Empty release versions produce commit builds; CD passes
-the tag as the version. Add another image or chart as another caller job rather
-than putting repository-specific branching into the reusable workflow.
+Docker and Helm callers pass per-repository image or chart values through workflow
+`with:` inputs. Empty release versions produce commit builds; CD passes the tag as
+the version. Add another image or chart as another caller job rather than putting
+repository-specific branching into the reusable workflow.
 
-Release execution runs on `main` through the published `releaser` binary,
-provisioned from the pinned `AtomiCloud/releaser` `v1.0.0` Nix package.
+Release execution runs the real tool: `⚡reusable-release.yaml` enters the
+`releaser` shell and calls `scripts/ci/release.sh`, which invokes
+`releaser release -c atomi_release.yaml`. That script clears `.git/hooks` first,
+which is not incidental — the release commit's own message uses a `release:` prefix
+that is not a configured commit type, so the commit-msg hook would refuse the
+release the tool is in the middle of making.

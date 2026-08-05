@@ -121,12 +121,7 @@
   },
   {
     "template": "diene/workspace",
-    "name": "secret-guards",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "secret-scan-command",
+    "name": "secret-login-guard",
     "class": "smoke"
   },
   {
@@ -146,27 +141,12 @@
   },
   {
     "template": "diene/workspace",
-    "name": "release-config-schema",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "release-type-vocabulary",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
     "name": "release-workflow-trigger",
     "class": "gate"
   },
   {
     "template": "diene/workspace",
     "name": "release-workflow-concurrency",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "nixpkgs-pin",
     "class": "gate"
   },
   {
@@ -181,8 +161,8 @@
   },
   {
     "template": "diene/workspace",
-    "name": "cache-tag-shape",
-    "class": "gate"
+    "name": "probe-artifacts",
+    "class": "presence"
   },
   {
     "template": "diene/workspace",
@@ -191,12 +171,17 @@
   },
   {
     "template": "diene/workspace",
-    "name": "probe-artifacts",
-    "class": "presence"
+    "name": "hook-releaser-commit",
+    "class": "gate"
   },
   {
     "template": "diene/shared",
-    "name": "claude-link-integrity",
+    "name": "docs-markdownlint",
+    "class": "gate"
+  },
+  {
+    "template": "diene/shared",
+    "name": "docs-prettier",
     "class": "gate"
   },
   {
@@ -208,16 +193,6 @@
     "template": "diene/shared",
     "name": "thin-skills",
     "class": "presence"
-  },
-  {
-    "template": "diene/shared",
-    "name": "docs-markdownlint",
-    "class": "gate"
-  },
-  {
-    "template": "diene/shared",
-    "name": "docs-prettier",
-    "class": "gate"
   },
   {
     "template": "diene/bun-base",
