@@ -8,25 +8,15 @@ version="${RELEASE_VERSION:-}"
 [ -z "${CI_DOCKER_IMAGE:-}" ] && echo "❌ 'CI_DOCKER_IMAGE' env var not set" >&2 && exit 1
 [ -z "${CI_DOCKERFILE:-}" ] && echo "❌ 'CI_DOCKERFILE' env var not set" >&2 && exit 1
 
-# Pushing needs a registry, a credential and the ref metadata that names the tags.
-# The local build needs none of it, so the condition is stated once here rather than
-# repeated as a prefix on every guard. The names are a list because that is what they
-# are; `${!var}` reads each one by name and `:-` keeps `set -u` out of it.
 if [ "${push}" = "true" ]; then
-  for var in \
-    CI_DOCKER_PLATFORM \
-    DOMAIN \
-    DOCKER_PASSWORD \
-    DOCKER_USER \
-    GITHUB_BRANCH \
-    GITHUB_REPO_REF \
-    GITHUB_SHA \
-    LATEST_BRANCH; do
-    [ -n "${!var:-}" ] || {
-      echo "❌ '${var}' env var not set" >&2
-      exit 1
-    }
-  done
+  [ -z "${CI_DOCKER_PLATFORM:-}" ] && echo "❌ 'CI_DOCKER_PLATFORM' env var not set" >&2 && exit 1
+  [ -z "${DOMAIN:-}" ] && echo "❌ 'DOMAIN' env var not set" >&2 && exit 1
+  [ -z "${DOCKER_PASSWORD:-}" ] && echo "❌ 'DOCKER_PASSWORD' env var not set" >&2 && exit 1
+  [ -z "${DOCKER_USER:-}" ] && echo "❌ 'DOCKER_USER' env var not set" >&2 && exit 1
+  [ -z "${GITHUB_BRANCH:-}" ] && echo "❌ 'GITHUB_BRANCH' env var not set" >&2 && exit 1
+  [ -z "${GITHUB_REPO_REF:-}" ] && echo "❌ 'GITHUB_REPO_REF' env var not set" >&2 && exit 1
+  [ -z "${GITHUB_SHA:-}" ] && echo "❌ 'GITHUB_SHA' env var not set" >&2 && exit 1
+  [ -z "${LATEST_BRANCH:-}" ] && echo "❌ 'LATEST_BRANCH' env var not set" >&2 && exit 1
 fi
 
 if [ "${push}" = "true" ]; then
