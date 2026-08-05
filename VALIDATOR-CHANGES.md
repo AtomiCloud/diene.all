@@ -99,6 +99,4 @@ the set; `docs/standards/linting/index.md` explains how to read it.
 Every region touched by this record's work is `workspace`-owned: the trimmed hooks sit
 in the workspace block of `nix/pre-commit.nix`, all four removed feature rows carry
 `"template": "diene/workspace"`, and every removed script and probe was born on this
-branch. No part of it lands in a chain-root-owned region, so it owes no
-`UPSTREAM-CHANGES.md` entry. The touched files still appear in that audit's
-classification table as changed files.
+branch. No part of it lands in a chain-root-owned region.
