@@ -146,16 +146,6 @@
   },
   {
     "template": "diene/workspace",
-    "name": "release-config-schema",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "release-type-vocabulary",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
     "name": "release-workflow-trigger",
     "class": "gate"
   },

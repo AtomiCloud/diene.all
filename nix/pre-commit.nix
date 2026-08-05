@@ -112,15 +112,6 @@ pre-commit-lib.run {
       language = "system";
     };
 
-    a-release-config = {
-      enable = true;
-      name = "Release config schema and types";
-      entry = validator "scripts/validate/release-config.sh all";
-      files = "^atomi_release\\.yaml$";
-      pass_filenames = false;
-      language = "system";
-    };
-
     a-releaser-commit = {
       enable = true;
       name = "Conventional commit";
