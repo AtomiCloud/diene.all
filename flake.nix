@@ -8,9 +8,7 @@
     # registry
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     nixpkgs-2605.url = "github:NixOS/nixpkgs/4382ed2b7a6839d4280a9b386db49cbc5907414d";
-    # This is a revision because the registry release containing dlint and the
-    # shared Go validator has not been tagged yet. Move to that tag when it ships.
-    atomipkgs.url = "github:AtomiCloud/nix-registry/df887f719f64e4b53aa7171779b2f0178ac6f667";
+    atomipkgs.url = "github:AtomiCloud/nix-registry/9c1da4d77d2744d95028d56ce4adb9fbd1d4f714";
   };
   outputs =
     {
