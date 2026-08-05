@@ -28,10 +28,11 @@ because it changes whenever a hook is added or removed. Read it like this:
 - each attribute name is the hook id you pass to `pre-commit run <hook-id>`;
 - `name` is the label the run prints;
 - `entry` is what actually executes — either a Nix store path
-  (`${packages.<tool>}/bin/<tool> …`, so the pinned tool runs) or a call to the
-  `validator` wrapper, which runs one script under `scripts/validate/` with a
-  fixed PATH, or to the `validators` wrapper, which runs several such invocations
-  under that same PATH and stops at the first failure;
+  (`${packages.<tool>}/bin/<tool> …`, so the pinned tool runs) or a call to one of
+  the four helpers in that file: `validator` and `validators` run one or several
+  scripts under `scripts/validate/` with a fixed PATH, and `dlint` and `dlints`
+  run one or several `dlint` checks. `dlint` is never routed through the
+  `validator` PATH, and the file says why;
 - `files` is the regex selecting which paths trigger the hook; a hook with no
   `files` runs on every commit;
 - `stages` narrows a hook to a non-default stage; a hook without it runs at the
@@ -55,6 +56,40 @@ entering a Nix shell reinstalls hooks into the repository's shared git directory
 a commit-msg hook whose binary was missing broke plain `git commit` for every
 worktree at once. Its `entry` is an absolute Nix store path rather than a bare
 command name, which is what makes it resolve from any worktree and any shell.
+
+## The repo-agnostic checks: `dlint`
+
+This repository takes four checks from `dlint`, a tool from the Nix registry,
+instead of keeping its own copy of each: `action-pins`, `exec-bits`, `ci-wiring`
+and `skills-fresh`. They replaced three whole validator scripts and one mode of a
+fourth. `scripts/validate/` still holds
+the checks that are about **this** repository rather than about repositories in
+general: the release trigger and concurrency assertions, and the toolchain smoke.
+
+All four read one file, `.dlint.json`, resolved from the repository root. Three
+things about that file are decisions rather than transcription, and none of them
+can be written down inside it, because it is strict JSON with no comments:
+
+- **`ci-wiring.orchestrators` lists `ci.yaml`, `cd.yaml` and `release.yaml`, and
+  deliberately not `🛡️merge-gatekeeper.yml`.** The `⚡`-prefixed workflows are the
+  reusable workflows being called, so they are not orchestrators either. The
+  gatekeeper is neither: it has no `run:` step, it is the only GitHub-hosted job in
+  the tree, and its job calls a third-party action rather than a repository-local
+  reusable workflow. `ci-wiring` refuses an orchestrator whose job does not call
+  one, so listing it would make the check red for a repository that is correct.
+- **No check is disabled and `requireSubjects` is left at its default.** Turning a
+  check off is a declaration `dlint` supports — `"exec-bits": false` — and it is
+  the honest way to say a check does not apply. It is not a way to make a failing
+  check pass, and all four apply here.
+- **An absent section is an error, not a pass.** `dlint` exits `3` when its
+  configuration, or a section it needs, or a subject it was told to expect, is
+  missing — and `1` only when the repository actually breaks a rule. Any wiring that
+  treats `3` as success defeats the tool's whole design, so a hook or CI step must
+  pass the exit code through rather than swallow it.
+
+`scripts/validate/binary-smoke.sh` runs `dlint exec-bits` as part of the toolchain
+smoke, which is also how the presence and loadability of `.dlint.json` is asserted:
+an absent config or an absent section turns that red at `3`.
 
 ## Configuration rules
 

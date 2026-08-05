@@ -1,7 +1,7 @@
 import { capturedEnvCommand, expectGreen, expectRed } from './lib/helpers.ts';
 
 const vendorDir = '.claude/skills/vendor';
-const freshnessCommand = 'nix develop .#ci -c ./scripts/validate/skills-freshness.sh';
+const freshnessCommand = 'nix develop .#ci -c dlint skills-fresh';
 const probeCleanTargets = [
   vendorDir,
   'node_modules/@atomicloud/diene.readonly',
