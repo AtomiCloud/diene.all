@@ -1,7 +1,8 @@
 # Shared probe authoring helpers
 
-These files are chain-side only and are inherited from the workspace branch. Probe
-definitions import them with relative paths; generated repositories never receive them.
+This is the shared probe helper library, inherited from the workspace baseline. Probe
+definitions import these files with relative paths; generated repositories never receive
+them.
 
 The builders are exported from [`definition.ts`](definition.ts), re-exported through
 [`index.ts`](index.ts). Read `definition.ts` to see which builders exist and what each
@@ -12,7 +13,7 @@ be shown failing.
 
 Two things are policy rather than code detail:
 
-- There is deliberately no `proven-once` builder: Q-G18 proofs never ship as probe rows.
+- There is deliberately no `proven-once` builder: one-off proofs never ship as probe rows.
 - Structural mutators select replaceable targets by glob and pattern rather than by
   sample filename.
 

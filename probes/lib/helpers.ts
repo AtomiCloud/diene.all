@@ -1,4 +1,4 @@
-// Captured-env pilot (E4). Every probe command that needs a development shell pays a
+// Captured-env pilot. Every probe command that needs a development shell pays a
 // fresh `nix develop` evaluation — measured at 2-16 s — on each of the ~1,300 executions
 // a green workspace ledger performs. When PROBE_CAPTURED_ENV names a directory holding
 // `nix print-dev-env` captures (one `<shell>.sh` per shell), shell entry is replaced by

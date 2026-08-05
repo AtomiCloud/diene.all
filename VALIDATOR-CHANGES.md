@@ -86,7 +86,7 @@ dedicated name check.
 
 ## Cache-tag coverage restored as a mode
 
-The later S31 runner/cache ruling introduced a new OS-sensitive contract after the hook
+The later runner/cache ruling introduced a new OS-sensitive contract after the hook
 trim above: runner selection is 26.04-first with exact 24.04 fallbacks, and a
 cache-eligible Namespace job must use a `-with-cache` venue, one size label, and a
 cache tag that rotates with the selected OS. Must-not-share-cache lanes use the matching
@@ -105,7 +105,7 @@ mode adds no hook: the resulting set remains twelve. The old standalone
 needs its own baseline and destructive arms. One mutation pairs the selected 26.04
 cache-capable runner with the 24.04 cache tag; another changes that runner to the bare
 venue while retaining its cache tag. Both require the mode to fail. The mode identifies
-jobs from their exact S31 runner/cache labels, not a retired substring, so the corrected
+jobs from their exact runner and cache labels, not a retired substring, so the corrected
 cache split cannot make the check silently inspect zero jobs.
 
 ## Cache eligibility is decided from behavior, not from labels
@@ -118,7 +118,7 @@ live run `30670113046` fail with `nscloud-cache-action requires a cache volume t
 configured`. A gate that accepts the failure it exists to prevent is not enforcement, so
 the determination is now positive and independent of the labels under test.
 
-A job is an S31 **Nix-store user** because of what its steps do: it uses a Nix setup
+A job is a **Nix-store user** because of what its steps do: it uses a Nix setup
 action (`AtomiCloud/actions.setup-nix`, `cachix/install-nix-action`,
 `DeterminateSystems/nix-installer-action`), invokes `namespacelabs/nscloud-cache-action`,
 or runs a `nix develop` / `nix build` / `nix shell` / `nix run` / `nix flake` /
@@ -130,7 +130,7 @@ The classification never reads `runs-on:`. From it:
 - A Nix-store user on the **bare** Namespace venue is legal only as a declared
   must-not-share-cache lane: it records a non-empty job-level
   `env.S31_CACHE_EXEMPT_REASON` and carries no cache-size or cache-tag label. Without
-  that record the gate is red, which is the F2 recurrence closed.
+  that record the gate is red, which is the cache-loss recurrence closed.
 - The exemption is **venue-scoped by ruling**: must-not-share-cache lanes are bare
   Namespace lanes, so a Nix-store user on a GitHub-hosted runner is rejected with or
   without a reason. GitHub-hosted lanes never attach a Namespace cache, so an exemption
@@ -139,7 +139,7 @@ The classification never reads `runs-on:`. From it:
   has no exemption to record, because there is no shared store for it to be excluded
   from.
 - Stale and misplaced markers are rejected: an exemption beside a `-with-cache` venue is
-  stale, and either S31 marker declared at step level or workflow level instead of
+  stale, and either marker declared at step level or workflow level instead of
   job-level `env` is misplaced. A whitespace-only marker is not a record.
 
 The 26.04 primary / 24.04 fallback labels, the cache-tag rotation, the
@@ -165,8 +165,8 @@ Two mechanical notes worth recording, because both are silent-failure shapes:
   instead, and all four counts are printed on success so a vacuous branch is visible.
 
 `probes/cache-tag-shape.ts` grows from three arms to ten, one per independent assertion,
-following the release-workflow precedent. The new arms are: the F2 recurrence (bare venue
-with both cache metadata labels deleted), a non-Nix job claiming the shared cache, a
+following the release-workflow precedent. The new arms are: the cache-loss recurrence
+(bare venue with both cache metadata labels deleted), a non-Nix job claiming the shared cache, a
 stale exemption beside a cache-capable venue, a Nix job moved to a GitHub-hosted runner
 even with an exemption, a default `ubuntu-latest` label, an unrecorded 24.04 fallback,
 and combined primary/fallback Namespace labels — the last three being the goal's
@@ -186,7 +186,7 @@ unparsed `run:` string. Review reproduced the bypass that follows: delete the Ni
 action from the Docker reusable, change its command to `echo nix develop`, leave the
 `-with-cache` venue and both cache labels untouched, and the gate returned exit 0. The
 job installs nothing and invokes nothing, so it is precisely the non-Nix lane that must
-not claim the shared store — the F1 failure mode reachable through a slightly different
+not claim the shared store — that failure mode, reachable through a slightly different
 edit.
 
 The two step fields are now read for what they are:
@@ -222,8 +222,8 @@ it is the opposite of safe: a real Nix job the reader could not make out —
 `'nix' develop`, `sudo -u root nix develop`, `sh -c 'nix develop'`, or an invocation
 after text that merely looked like a heredoc opener — was recorded as an ordinary
 non-Nix lane and passed green with no cache labels **and** no
-`env.S31_CACHE_EXEMPT_REASON`. That is exactly the F2 hole the exemption marker exists
-to close, re-opened through the classifier instead of through the labels.
+`env.S31_CACHE_EXEMPT_REASON`. That is exactly the cache-loss hole the exemption marker
+exists to close, re-opened through the classifier instead of through the labels.
 
 Second, "counts as a command" was too eager in the other direction. A `(` was treated as
 a command separator wherever it appeared, so `args=(nix develop)`, `((nix-build))`,
@@ -341,6 +341,6 @@ is not restated here, because it changes whenever a hook is added or removed.
 Every region touched by this record's work is `workspace`-owned: the trimmed hooks sit
 in the workspace block of `nix/pre-commit.nix`, all four removed feature rows carry
 `"template": "diene/workspace"`, and every removed script and probe was born on this
-branch. No part of it lands in a chain-root-owned region, so it owes no
+branch. No part of it lands in a region owned by the root template, so it owes no
 `UPSTREAM-CHANGES.md` entry. The touched files still appear in that audit's
 classification table as changed files.
