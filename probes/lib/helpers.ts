@@ -113,8 +113,26 @@ export async function restoreProbeState(repo: any, cleanTargets: readonly string
   if (madeWritable.exitCode !== 0) {
     throw new Error(`could not make probe fixtures writable: ${madeWritable.stderr || madeWritable.stdout}`);
   }
+  // The worklist comes from HEAD, never from the index. `git ls-files` reads the index, so a
+  // STAGED DELETION removes the path from its output, `xargs -0 -r` then runs nothing, and the
+  // restore reports success with the deletion still staged — a silent failure. `git ls-tree`
+  // reads HEAD, where the path is still present, so a staged deletion is still in the worklist.
+  //
+  // Each target is classified and handled on its own so no list is re-quoted:
+  //  - HEAD knows it  -> restore it from HEAD, scoped to that target. Scoped, not `-- .`: a
+  //                      whole-tree restore also reverts uncommitted work the probe does not own,
+  //                      which is unsafe the moment anything shares the worktree.
+  //  - HEAD does not  -> it can only be a staged addition or untracked fixture, so drop it from
+  //                      the index and let the scoped `git clean` below remove it. Restoring it
+  //                      from HEAD is impossible and asking git to try is a hard pathspec error.
+  //
+  // `git ls-tree` exits 0 with empty output for a pathspec HEAD does not match, so classification
+  // needs no error suppression: nothing here hides a diagnostic it then draws a conclusion from.
   const restored = await repo.exec(
-    `git ls-files -z -- ${targets} | xargs -0 -r git restore --source=HEAD --staged --worktree --`,
+    `for target in ${targets}; do ` +
+      `if [ -n "$(git ls-tree -r --name-only HEAD -- "$target")" ]; then ` +
+      `git restore --source=HEAD --staged --worktree -- "$target" || exit 1; ` +
+      `else git rm -r --cached -q --ignore-unmatch -- "$target" || exit 1; fi; done`,
   );
   if (restored.exitCode !== 0) {
     throw new Error(`could not restore tracked probe state: ${restored.stderr || restored.stdout}`);
