@@ -94,12 +94,10 @@ fi
 rg --version >/dev/null
 printf '%s\n' 'alpha' 'ripgrep smoke needle' 'omega' >"$tmp/rg-fixture.txt"
 rg -q 'ripgrep smoke needle' "$tmp/rg-fixture.txt"
-if ! rg -q 'no-such-needle-should-ever-match' "$tmp/rg-fixture.txt"; then
-  :
-else
-  echo "rg reported a match for a pattern that is not in the fixture" >&2
-  exit 1
-fi
+# rg exits 1 for no-match and 2 for error, so only the exact code proves the fixture was read.
+rc=0
+rg -q 'no-such-needle-should-ever-match' "$tmp/rg-fixture.txt" || rc=$?
+[ "$rc" = "1" ] || { echo "rg: expected exit 1 (no match), got $rc" >&2; exit 1; }
 
 shellcheck --version >/dev/null
 shellcheck scripts/validate/workflows.sh
