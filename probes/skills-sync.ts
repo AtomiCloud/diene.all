@@ -93,10 +93,10 @@ const probeCleanTargets = [
 ].join(' ');
 
 // Real installed `@atomicloud/diene.*` packages set `node_staged` for the WHOLE
-// node ecosystem, so any fixture that means "nothing resolved" has to relocate
+// Node.js ecosystem, so any fixture that means "nothing resolved" has to relocate
 // them. Without that, the fixture asserts an environment assumption — that this
-// node happens to have no real diene dependencies — instead of the property it
-// names, and it silently stops asserting anything on every node that does.
+// repository happens to have no real diene dependencies — instead of the property
+// it names, and it silently stops asserting anything on every repository that does.
 //
 // The relocation runs inside the same shell as the synchronizer so nothing can
 // reinstall between the two; it uses a fixed holding path on the same filesystem
@@ -104,7 +104,7 @@ const probeCleanTargets = [
 // read-only tree; and every exit path puts the real packages back.
 // `restoreProbeState` repairs a holding directory left behind by a shell that
 // was killed before its trap could run, so a lost trap costs one probe rather
-// than the node's installed packages.
+// than the repository's installed packages.
 const realNodePackages = 'node_modules/@atomicloud';
 const nodeIsolationDir = 'node_modules/.diene-probe-isolation';
 const isolatedNodePackages = `${nodeIsolationDir}/@atomicloud`;
@@ -216,7 +216,7 @@ export default {
         await withCleanProbeState(repo, async () => {
           await repo.write('go.mod', goModFixture);
           // Build an explicit utility PATH without Go. This keeps the fixture
-          // valid after the parent probe cascades into Go-enabled nodes, even if
+          // valid after the parent probe cascades into Go-enabled repositories, even if
           // an ambient PATH directory happens to contain Go beside other tools.
           const result = await repo.exec(
             capturedEnvCommand(

@@ -1,7 +1,7 @@
 # Upstream change records
 
 Produced by the upstream adoption test: ownership decides where a fix lands.
-`source: main` blocks and chain-root-born files are upstream — the needed change is
+`source: main` blocks and files born in the root template are upstream — the needed change is
 recorded here rather than forked locally. `source: workspace` content is fixed in place
 and is deliberately **not** recorded here.
 
@@ -51,7 +51,7 @@ owned here.
 | `docs/standards/semantic-release/index.md`     | owned-here                                                                                                                |
 | `docs/standards/service-tree/index.md`         | owned-here                                                                                                                |
 | `docs/standards/shell-scripts/index.md`        | owned-here                                                                                                                |
-| `docs/standards/taskfile/index.md`             | owned-here; one superseded keyed-block sentence reworded in the fold                                                      |
+| `docs/standards/taskfile/index.md`             | owned-here; one superseded keyed-block sentence reworded in the merge                                                     |
 | `flake.nix`                                    | upstream file, change confined to its `workspace` block                                                                   |
 | `infra/Dockerfile`                             | owned-here                                                                                                                |
 | `infra/root_chart/Chart.yaml`                  | owned-here                                                                                                                |
@@ -79,7 +79,7 @@ owned here.
 | `tasks/Taskfile.docker.yaml`                   | owned-here                                                                                                                |
 | `tasks/Taskfile.helm.yaml`                     | owned-here                                                                                                                |
 | `tasks/Taskfile.secret.yaml`                   | owned-here                                                                                                                |
-| `UPSTREAM-CHANGES.md`                          | owned-here (this audit artifact, updated by the fold)                                                                     |
+| `UPSTREAM-CHANGES.md`                          | owned-here (this audit artifact, updated by the merge)                                                                    |
 | `VALIDATOR-CHANGES.md`                         | owned-here (new in this patch)                                                                                            |
 
 Region notes for the mixed files:
@@ -96,12 +96,12 @@ Region notes for the mixed files:
   `git log -S validator-runtime -- nix/pre-commit.nix` gives `f74cf31`, the workspace
   spine baseline, so it is owned here and was repointed in place. The `a-helm-lint` hook
   sits inside the `workspace-hooks` block.
-- `flake.nix` and `nix/fmt.nix` — chain-root-born files whose only marked block was
+- `flake.nix` and `nix/fmt.nix` — files born in the root template whose only marked block was
   `source: workspace`; stripping that marker is a workspace-owned change.
 
 ### Ownership-tag removal (Rule 1 × Rule 5, ratified 2026-07-29)
 
-The fold on top of this patch deleted every remaining hand-written ownership tag — the
+The merge on top of this patch deleted every remaining hand-written ownership tag — the
 `### <key>` line and its source-marker partner, deleted as adjacent pairs — across the
 workspace, single-owner and multi-owner alike, under the user's 2026-07-29 ruling that
 supersedes the multi-owner exception. Ownership lives in cyanprint's runtime metadata;
@@ -115,7 +115,7 @@ records appear in this file — deliberately.** The touched files still appear i
 classification table above (they must: bytes changed), each carrying the standard note
 that the only change in any main-owned region was tag removal under this wave ruling.
 
-Files touched by the tag-removal fold: `.gitignore`, `CLAUDE.md`, `README.md`,
+Files touched by the tag-removal merge: `.gitignore`, `CLAUDE.md`, `README.md`,
 `nix/env.nix`, `nix/packages.nix`, `nix/pre-commit.nix`, `nix/shells.nix`,
 `scripts/ci/setup.sh`, `scripts/local/skills-sync.sh` (tag pairs), plus
 `docs/standards/taskfile/index.md` and `CLAUDE.md` (one superseded keyed-block doctrine
@@ -123,7 +123,7 @@ sentence each) and this audit artifact itself.
 
 ### Enforcement removal and hook trim (same wave ruling)
 
-The same fold removed the ownership-block enforcement outright and applied the user-final
+The same merge removed the ownership-block enforcement outright and applied the user-final
 hook trim. **Nothing is owed upstream for either, and the absence of records here is a
 verified result rather than an omission:**
 
@@ -132,7 +132,7 @@ verified result rather than an omission:**
 - the trimmed and merged hooks all sit in the `workspace-hooks` region of
   `nix/pre-commit.nix`; the `treefmt` hook, the one `source: main` region in that file,
   was not touched;
-- `probes/features.json` is chain-root-born and therefore upstream, but all four removed
+- `probes/features.json` was born in the root template and is therefore upstream, but all four removed
   rows carry `"template": "diene/workspace"`, and its `atomi/nix` rows are byte-identical
   before and after (verified by comparing the filtered sets, not by reading the diff).
 
@@ -148,10 +148,10 @@ Every document in the repository was swept, not only the ones changed:
 | File                                   | Classification | Finding                                                                                                                                                                                                                                                                           |
 | -------------------------------------- | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `docs/standards/nix/index.md`          | **upstream**   | **NOT compliant — three upstream-owned defects recorded below (records 2, 3 and 4):** a dangling pointer, a module/topology inventory, and two tool-output tables. Its process guidance and its deferral to `flake.nix` for registries and wiring are compliant; the rest is not. |
-| `CLAUDE.md`                            | mixed          | Compliant — an index of resolvable pointers, one per surface. Later changed by the tag-removal fold (see the classification table above).                                                                                                                                         |
+| `CLAUDE.md`                            | mixed          | Compliant — an index of resolvable pointers, one per surface. Later changed by the tag-removal merge (see the classification table above).                                                                                                                                        |
 | `Changelog.md`                         | owned-here     | Compliant — states the release pipeline generates it; no restated content.                                                                                                                                                                                                        |
 | `docs/developer/CommitConventions.md`  | owned-here     | Compliant — points at `releaser conventions` and `atomi_release.yaml` as the machine-readable truth.                                                                                                                                                                              |
-| `.claude/skills/nix/SKILL.md`          | **upstream**   | Compliant — a single resolvable pointer to its standard. Chain-root-born at `24105ef`, unlike the other ten skill files; classified separately because a grouped row would make this audit false.                                                                                 |
+| `.claude/skills/nix/SKILL.md`          | **upstream**   | Compliant — a single resolvable pointer to its standard. Born in the root template at `24105ef`, unlike the other ten skill files; classified separately because a grouped row would make this audit false.                                                                       |
 | `.claude/skills/*/SKILL.md` (other 10) | owned-here     | Compliant — each is a single resolvable pointer to its standard, with no duplicated content. All ten trace to `f74cf31`.                                                                                                                                                          |
 | `probes/lib/README.md`                 | owned-here     | Changed (see above).                                                                                                                                                                                                                                                              |
 
@@ -162,7 +162,8 @@ repository must never hand-edit.
 
 ### 1. Rule-text placement for the bundle-check rule belongs in the upstream nix standard
 
-- **File:** `docs/standards/nix/index.md` (chain-root-born at `24105ef`, upstream-owned).
+- **File:** `docs/standards/nix/index.md` (born in the root template at `24105ef`,
+  upstream-owned).
 - **What:** the bundle-check rule ("never declare a binary an imported bundle already
   ships; verification is build-only via
   `ls "$(nix build --no-link --print-out-paths .#<bundle>)/bin"`; cannot build → remove
@@ -172,16 +173,17 @@ repository must never hand-edit.
 - **Why:** the rule's own placement ruling puts it in the nix standard at the meta layer.
   This repository's copy of that standard is upstream-owned, and there is no
   template-specific reason the upstream source would refuse the guidance — it applies to
-  every project built from this chain root, not just to the workspace. Adding the text to
-  the local copy would fork upstream content, so it is recorded here instead.
-- **Not blocking:** the rule was still _applied_ to this node's content in this patch —
+  every project built from this root template, not just to the workspace. Adding the text
+  to the local copy would fork upstream content, so it is recorded here instead.
+- **Not blocking:** the rule was still _applied_ to this repository's content in this patch —
   see the removals recorded under the bundle check below. Only the documentation of the
   rule is owed upstream.
 
 ### 2. Dangling pointer to a file that does not exist
 
-- **File/region:** `docs/standards/nix/index.md:342` (chain-root-born at `24105ef`,
-  upstream-owned; the bullet carries no marker, so ownership follows the file's birth).
+- **File/region:** `docs/standards/nix/index.md:342` (born in the root template at
+  `24105ef`, upstream-owned; the bullet carries no marker, so ownership follows the
+  file's birth).
 - **What:** the "Reference" bullet names `.claude/skills/nix/reference.md`:
 
   ```
@@ -224,7 +226,8 @@ repository must never hand-edit.
 - **Why:** the operative Rule 2 test is whether the content must change when a config file
   changes. Adding, removing or renaming a file under `nix/`, or rewiring which module
   consumes which, falsifies all four sections at once — so they are an INVENTORY, not
-  process. Chain-root-born, so Rule 5 requires recording rather than editing in place.
+  process. Born in the root template, so Rule 5 requires recording rather than editing in
+  place.
 - **Note:** the sections that already say "Read `flake.nix` to see the exact inputs and
   wiring" and "To find what registries and variable names are available: Read `flake.nix`"
   are the correct pattern and should be kept; this record is about the surrounding
@@ -244,8 +247,8 @@ repository must never hand-edit.
   repository does not necessarily configure and duplicates what the `hooks` attribute set
   in `nix/pre-commit.nix` already shows; it should point there instead.
 - **Why:** Rule 2's test again — both change when tool output or configuration changes,
-  neither changes only when the team changes how it works. Chain-root-born, so recorded
-  rather than fixed locally.
+  neither changes only when the team changes how it works. Born in the root template, so
+  recorded rather than fixed locally.
 - **Completeness note:** recorded here deliberately. The user's own backtest verdict on
   this rule — external review-session evidence, not a file in this repository — observes
   that of the four passing models, none recorded
@@ -281,8 +284,8 @@ resolve these tools.
 Kept, because no imported bundle ships them: `actionlint`, `git`, `go-task`, `infisical`,
 `kubeconform`, `kyverno`, `pre-commit`, `ripgrep`, `shellcheck`, `skopeo`, `treefmt`.
 
-`pls` came in from the atomi bundle and has since been **removed** by owner ruling (review
-round 1, item A3): it was a second NAME for `go-task`, not a second program. Both reported
+`pls` came in from the atomi bundle and has since been **removed** by owner ruling: it was
+a second NAME for `go-task`, not a second program. Both reported
 version `3.48.0`, both read the same `Taskfile.yaml` / `tasks/Taskfile.*.yaml` set, and both
 produced identical output and exit codes on the same task. `go-task` is the surviving runner
 and every caller now invokes `task`. The Taskfiles themselves are unchanged — they were never
@@ -297,7 +300,7 @@ all 19 hooks, so no failure output needed recording.
 ## Open items deliberately not recorded
 
 - The point-at-truth rule's documentation home is **pending the user's ruling**. The rule
-  was applied to this node's content; no home was invented for its text, here or
+  was applied to this repository's content; no home was invented for its text, here or
   anywhere else.
 - The Shared deletions (contributor docs, lychee) are pending user confirmation and are
-  out of scope for this node.
+  out of scope for this repository.

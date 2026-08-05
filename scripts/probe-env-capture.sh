@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Captured-env pilot (E4). Captures each development shell once with
+# Captured-env pilot. Captures each development shell once with
 # `nix print-dev-env` so probe commands can source the capture instead of paying a
 # fresh `nix develop` evaluation per execution. Consumed by probes/lib/helpers.ts
 # through PROBE_CAPTURED_ENV; with that variable unset nothing here is used.
