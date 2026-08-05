@@ -20,7 +20,9 @@ export default {
       name: 'mutation-hook-infisical-staged-caught',
       description: 'A focused sabotage must turn the hook-infisical-staged mechanism red.',
       kind: 'mutation',
-      expectedImpact: ['hook-infisical-full', 'secret-scan-command'],
+      // `secret-scan-command` was deleted with the `task secret:scan` wrapper it ran, so
+      // the full-tree scan is the only other mechanism this staged secret reaches.
+      expectedImpact: ['hook-infisical-full'],
       async run(repo: any) {
         const secret = ['AKIA', 'QRSTUVWXYZABCDEF'].join('');
         await repo.write('probe-secret.txt', `aws_access_key_id=${secret}\n`);

@@ -95,24 +95,6 @@ pre-commit-lib.run {
       language = "system";
     };
 
-    a-release-config = {
-      enable = true;
-      name = "Release config schema and types";
-      entry = validator "scripts/validate/release-config.sh all";
-      files = "^atomi_release\\.yaml$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-releaser-commit = {
-      enable = true;
-      name = "Conventional commit";
-      entry = "releaser lint-commit -c atomi_release.yaml";
-      stages = [ "commit-msg" ];
-      pass_filenames = true;
-      language = "system";
-    };
-
     # Source following belongs to the gate itself, not to an ambient SHELLCHECK_OPTS:
     # pre-commit partitions the staged files, so a script and the script it sources
     # routinely land in different batches, and bare ShellCheck then raises SC1091 on

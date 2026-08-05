@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { capturedEnvCommand, expectGreen } from './lib/helpers.ts';
 
 // A script and the script it sources routinely land in different pre-commit batches,
 // so the gate is only honest if it follows declared sources. The fixture below is
@@ -79,9 +79,28 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        const source = await repo.read('scripts/release/bump.sh');
-        await repo.write('scripts/release/bump.sh', `${source}\necho $UNQUOTED\n`);
-        await expectRed(repo, 'nix develop .#ci -c pre-commit run a-shellcheck --all-files', 'hook-shellcheck');
+        // The subject was `scripts/release/bump.sh` until the release bump machinery was
+        // deleted. Any tracked shell script proves the same thing - that the hook reads
+        // real repository shell and refuses incorrect shell - so this points at a script
+        // the workspace cannot lose: the freshness validator the skills gate calls.
+        const target = 'scripts/validate/skills-freshness.sh';
+        const source = await repo.read(target);
+        await repo.write(target, `${source}\necho $UNQUOTED\n`);
+        const result = await repo.exec(
+          capturedEnvCommand('nix develop .#ci -c pre-commit run a-shellcheck --all-files', 'hook-shellcheck'),
+          { timeoutMs: 240000 },
+        );
+        if (result.exitCode === 0) {
+          throw new Error('hook-shellcheck stayed green after sabotage');
+        }
+        // The exit code alone would also be satisfied by a hook that died for an
+        // unrelated reason, so the finding itself has to appear: SC2086 is ShellCheck's
+        // code for the unquoted expansion this arm plants.
+        if (!`${result.stdout}${result.stderr}`.includes('SC2086')) {
+          throw new Error(
+            `hook-shellcheck refused without reporting the unquoted expansion: ${result.stdout}${result.stderr}`,
+          );
+        }
       },
     },
   ],
