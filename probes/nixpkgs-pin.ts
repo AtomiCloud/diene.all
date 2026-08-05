@@ -64,5 +64,81 @@ export default {
         await expectRed(repo, PIN, 'nixpkgs-pin');
       },
     },
+    // The registry arms below cover the fault this repository actually shipped:
+    // flake.nix floated on `nix-registry/v3` while flake.lock sat at v3.7.0, and
+    // the moving tag had advanced to v3.12.0 underneath it without anything going
+    // red. The old check string-matched the alias, so it could not have caught it.
+    //
+    // Each arm rewrites the atomipkgs pin to one specific unacceptable form. They
+    // are separate probes rather than one loop because a single arm that fails
+    // tells you WHICH form slipped through.
+    ...(
+      [
+        {
+          name: 'mutation-registry-moving-major-alias-caught',
+          description: 'The moving `v3` major alias must turn the nixpkgs-pin mechanism red.',
+          replacement: 'v3',
+          why: 'the alias the repository actually floated on',
+        },
+        {
+          name: 'mutation-registry-moving-minor-alias-caught',
+          description: 'The moving `v3.12` minor alias must turn the nixpkgs-pin mechanism red.',
+          replacement: 'v3.12',
+          why: 'two-part tags move too - the registry retargets them at each patch',
+        },
+        {
+          name: 'mutation-registry-unadopted-major-caught',
+          description: 'A v4 series registry pin must turn the nixpkgs-pin mechanism red.',
+          replacement: 'v4.0.0',
+          why: 'exact, but a major this tree has not adopted',
+        },
+      ] as const
+    ).map(arm => ({
+      name: arm.name,
+      description: arm.description,
+      kind: 'mutation' as const,
+      expectedImpact: [],
+      async run(repo: any) {
+        const flake = await repo.read('flake.nix');
+        const mutated = flake.replace(
+          /atomipkgs\.url = "github:AtomiCloud\/nix-registry\/v[0-9][^"]*";/,
+          `atomipkgs.url = "github:AtomiCloud/nix-registry/${arm.replacement}";`,
+        );
+        if (mutated === flake) {
+          throw new Error(
+            `${arm.name} did not apply: no atomipkgs registry pin was found to rewrite to ` +
+              `'${arm.replacement}' (${arm.why}). A mutation that changes nothing proves nothing, ` +
+              'so this is a failure, not a skip.',
+          );
+        }
+        await repo.write('flake.nix', mutated);
+        await expectRed(repo, PIN, 'nixpkgs-pin');
+      },
+    })),
+    {
+      // The registry's own absence arm, and the one most worth having. A gate
+      // built as `grep <good form> || fail` goes red on a deleted line for the
+      // right reason, but a gate built as `if <line present> then check it` would
+      // go VACUOUSLY GREEN here while asserting nothing at all. This arm is what
+      // separates the two, so it must never be dropped as redundant.
+      name: 'mutation-registry-pin-absence-caught',
+      description: 'A flake with no atomipkgs input at all must go red, not vacuously green.',
+      kind: 'mutation',
+      expectedImpact: [],
+      async run(repo: any) {
+        const flake = await repo.read('flake.nix');
+        const stripped = flake
+          .split('\n')
+          .filter((line: string) => !/^\s*atomipkgs\.url\s*=/.test(line))
+          .join('\n');
+        if (stripped === flake) {
+          throw new Error(
+            'mutation-registry-pin-absence-caught did not apply: no atomipkgs input line was found to strip.',
+          );
+        }
+        await repo.write('flake.nix', stripped);
+        await expectRed(repo, PIN, 'nixpkgs-pin');
+      },
+    },
   ],
 };

@@ -108,8 +108,22 @@ fi
 
 # Kept from the previous gate: these are separate facts about the registry and
 # the package set, not restatements of the pin.
-rg -q 'atomipkgs.url = "github:AtomiCloud/nix-registry/v3";' flake.nix ||
-  fail "atomipkgs must use registry v3"
+#
+# The registry is held to the SAME rule as nixpkgs above, for the same reason.
+# `v3` and `v3.12` are MOVING tags - the registry retargets them at every v3.x
+# release - so pinning to either reproduces the exact fault this gate exists to
+# stop, merely spelled as a tag instead of a branch.
+#
+# That is measured, not hypothetical. This repository shipped
+# `nix-registry/v3` in flake.nix while flake.lock sat at v3.7.0, and the moving
+# tag had advanced five minor versions to v3.12.0 underneath it. Nothing went
+# red, because the previous form of this check string-matched the alias `v3`
+# and never looked at which version it resolved to.
+#
+# Only a three-part v3.<minor>.<patch> is accepted: `v3` and `v3.12` are refused
+# as moving, and a v4 series is refused as a major this tree has not adopted.
+rg -q 'atomipkgs\.url = "github:AtomiCloud/nix-registry/v3\.[0-9]+\.[0-9]+";' flake.nix ||
+  fail "atomipkgs must be pinned to an exact v3 series version (v3.<minor>.<patch>), not the moving 'v3' or 'v3.<minor>' alias"
 rg -q 'nix-2605' nix/packages.nix ||
   fail "nix/packages.nix is missing nix-2605"
 rg -q 'pkgs-2605' flake.nix ||
