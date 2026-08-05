@@ -21,7 +21,7 @@
       },
       "original": {
         "owner": "AtomiCloud",
-        "ref": "v3.14.0",
+        "ref": "v3",
         "repo": "nix-registry",
         "type": "github"
       }
