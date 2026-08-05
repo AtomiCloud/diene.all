@@ -126,21 +126,6 @@
   },
   {
     "template": "diene/workspace",
-    "name": "skills-vendor-directory",
-    "class": "presence"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "skills-sync",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "skills-freshness",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
     "name": "release-workflow-trigger",
     "class": "gate"
   },

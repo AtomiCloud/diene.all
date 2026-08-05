@@ -140,14 +140,6 @@ pre-commit-lib.run {
       language = "system";
     };
 
-    a-skills-freshness = {
-      enable = true;
-      name = "Vendored skills freshness";
-      entry = dlint "skills-fresh";
-      pass_filenames = false;
-      language = "system";
-    };
-
     a-workflows = {
       enable = true;
       name = "Workflow wiring and release policy";

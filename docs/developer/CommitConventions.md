@@ -109,7 +109,7 @@ Use `type(scope)!: subject`. Omit `(scope)` only when the type's `default` scope
 | `default` | Fix a bug | patch |
 | `nix` | Nix flake and modules | patch |
 | `probes` | Verification corpus | patch |
-| `skills` | Vendored agent skills | patch |
+| `skills` | Agent skills | patch |
 | `workspace` | Workspace tree itself | patch |
 
 ### `merge` scopes

@@ -7,15 +7,12 @@ includes:
 tasks:
   setup:
     desc: Set up generated workspace assets
+    # `releaser conventions` takes no config path and reads `atomi_release.yaml`
+    # from the working directory.
     cmds:
-      - ./scripts/local/skills-sync.sh
+      - releaser conventions
 
   lint:
     desc: Run all repository gates
     cmds:
       - pre-commit run --all-files
-
-  skills:sync:
-    desc: Synchronize installed diene package skills
-    cmds:
-      - ./scripts/local/skills-sync.sh
