@@ -14,10 +14,11 @@ Diene's reproducible development environment is managed by Nix. Run `direnv allo
 
 # Standards
 
-[`CLAUDE.md`](CLAUDE.md) is the index of repository conventions: one section per
-surface, each pointing at its standard under
-[`docs/standards/`](docs/standards). Read the section for the surface you are
-changing before you change it.
+The conventions this repository follows live under
+[`docs/standards/`](docs/standards). Read the standard for the surface you are
+changing before you change it. [`CLAUDE.md`](CLAUDE.md) links the ones an agent
+reaches for most often; it is a convenience, not a required index, and nothing
+checks that it names every surface.
 
 # Workspace baseline
 

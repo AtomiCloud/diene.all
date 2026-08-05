@@ -40,9 +40,7 @@ See [docs/standards/semantic-release/index.md](docs/standards/semantic-release/i
 
 # Repository standards
 
-Every other section names one repository surface and links its standard. Read the
-section for the surface you are about to change, and follow the standard it links,
-before you change it.
+Follow the linked standard before changing its surface.
 
 # Service-tree identity
 
