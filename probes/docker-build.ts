@@ -1,4 +1,4 @@
-import { expectGreen } from './lib/helpers.ts';
+import { capturedEnvCommand, expectGreen } from './lib/helpers.ts';
 
 // Export under the git-ignored and docker-ignored reports tree so the archive never enters the build context.
 const artifacts = 'reports/docker-oci';
@@ -25,9 +25,10 @@ export default {
         try {
           await expectGreen(repo, build, 'docker-build', 1800000);
           // An exit code only proves buildx ran; the index has to name both architectures CI publishes.
-          const inspected = await repo.exec(`nix develop .#cd -c skopeo inspect --raw oci-archive:${archive}`, {
-            timeoutMs: 240000,
-          });
+          const inspected = await repo.exec(
+            capturedEnvCommand(`nix develop .#cd -c skopeo inspect --raw oci-archive:${archive}`, 'docker-build'),
+            { timeoutMs: 240000 },
+          );
           if (inspected.exitCode !== 0) {
             throw new Error(`docker-build left no readable OCI index: ${inspected.stderr || inspected.stdout}`);
           }
