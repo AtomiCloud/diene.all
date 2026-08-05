@@ -4,11 +4,12 @@ const GATE = 'nix develop .#ci -c ./scripts/validate/workflows.sh cache-tag-shap
 const PRECOMMIT = '.github/workflows/⚡reusable-precommit.yaml';
 const DOCKER = '.github/workflows/⚡reusable-docker.yaml';
 const GATEKEEPER = '.github/workflows/🛡️merge-gatekeeper.yml';
+const SHELLS = 'nix/shells.nix';
 
 const CACHED_VENUE = [
   '      - nscloud-ubuntu-26.04-amd64-16x32-with-cache',
   '      - nscloud-cache-size-50gb',
-  '      - nscloud-cache-tag-atomi-nix-store-cache-ubuntu-26.04-amd64',
+  '      - nscloud-cache-tag-nix-store-cache-ubuntu-26.04-amd64',
 ].join('\n');
 
 type Edit = { find: string; replace: string };
@@ -30,8 +31,7 @@ async function rewrite(repo: any, path: string, edits: Edit[]): Promise<void> {
 
 // An arm may name the refusal it expects. A mutation that turns the gate red for
 // some other reason — broken YAML, a label the mutation did not mean to touch —
-// would assert nothing about the mechanism the arm exists to protect, and the two
-// classifier arms below are exactly where that confusion is easy to miss.
+// would assert nothing about the mechanism the arm exists to protect.
 async function expectRedBecause(repo: any, reason: string): Promise<void> {
   const result = await repo.exec(capturedEnvCommand(GATE), { timeoutMs: 240000 });
   if (result.exitCode === 0) {
@@ -40,6 +40,20 @@ async function expectRedBecause(repo: any, reason: string): Promise<void> {
   const output = `${result.stderr}\n${result.stdout}`;
   if (!output.includes(reason)) {
     throw new Error(`cache-tag-shape turned red for the wrong reason (expected '${reason}'): ${output.trim()}`);
+  }
+}
+
+// A green whose SUMMARY LINE is also asserted. A gate that quietly stopped reading
+// some of the jobs would still exit 0, so the counts are part of the assertion:
+// they are the only evidence in the output that the classification ran at all.
+async function expectGreenReporting(repo: any, reason: string): Promise<void> {
+  const result = await repo.exec(capturedEnvCommand(GATE), { timeoutMs: 240000 });
+  if (result.exitCode !== 0) {
+    throw new Error(`cache-tag-shape failed on the healthy repo: ${result.stderr || result.stdout}`);
+  }
+  const output = `${result.stderr}\n${result.stdout}`;
+  if (!output.includes(reason)) {
+    throw new Error(`cache-tag-shape went green with the wrong tally (expected '${reason}'): ${output.trim()}`);
   }
 }
 
@@ -80,26 +94,22 @@ function caughtSequence(name: string, description: string, path: string, stages:
   };
 }
 
-// The refusal the classifier arms must provoke. It carries the parenthetical of
-// the DEFINITE non-Nix message on purpose: the gate's third answer — "cannot be
-// read" — opens with the same clause, and a reason that matched both would let an
-// unreadable-syntax refusal stand in for the definite one these arms are proving.
-const NOT_A_NIX_STORE_USER =
-  'claims the shared S31 Nix-store cache but is not a Nix-store user (no Nix setup action and no nix command in its steps)';
-
-// The gate's third answer: the script uses syntax the reader will not guess at,
-// so the cache claim is refused without asserting that no Nix runs.
-const NOT_CONFIRMABLE = 'is not a Nix-store user that this gate can confirm';
+// The refusal every declared-shell arm must provoke. The rule it protects replaced
+// this gate's former shell lexer: rather than deciding, from the text of a script,
+// whether it uses the Nix store, the gate requires every run: step to ENTER a shell
+// that declares its dependencies. There is then nothing left to infer — which is
+// why "cannot be read" is no longer one of the answers.
+const NOT_IN_A_DECLARED_SHELL = 'does not enter a declared Nix shell';
 
 // A `run:` block scalar at the Docker step's indentation.
 const runBlock = (...lines: string[]) => ['run: |', ...lines.map(line => `          ${line}`)].join('\n');
 
-// The run: texts the mention sequence walks through, each replacing the last.
 const RUN_REAL = 'run: nix develop .#cd -c ./scripts/ci/docker.sh';
-const RUN_ECHO = 'run: echo nix develop; ./scripts/ci/docker.sh';
-const RUN_ARRAY = runBlock('args=(nix develop)', `printf '%s\\n' "\${args[*]}"`, './scripts/ci/docker.sh');
-const RUN_CASE_PATTERN = runBlock('case "$1" in', '  nix-build)', '    ./scripts/ci/docker.sh', '    ;;', 'esac');
-const RUN_NIX_VERSION = 'run: nix --version develop; ./scripts/ci/docker.sh';
+const RUN_BARE = 'run: ./scripts/ci/docker.sh';
+const RUN_UNDECLARED_SHELL = 'run: nix develop .#typo -c ./scripts/ci/docker.sh';
+// Enters the shell on the first line, then leaves it on the second. The gate
+// anchors its matcher on the whole script rather than on a line, precisely for this.
+const RUN_ESCAPES = runBlock('nix develop .#cd -c ./scripts/ci/docker.sh', './scripts/ci/docker.sh');
 
 export default {
   contractVersion: 1,
@@ -108,118 +118,154 @@ export default {
     {
       name: 'baseline-cache-tag-shape-green',
       description:
-        'Every workflow selects one exact S31 venue label; jobs that use the Nix store select a cache-capable Namespace venue and rotate their cache tag with the OS.',
+        'Every job either runs its work in a dev shell that declares its dependencies and carries the shared Nix-store cache labels, or is a declared isolation lane, or runs no repository script at all.',
       kind: 'baseline',
       async run(repo: any) {
         await expectGreen(repo, GATE, 'cache-tag-shape');
-        await rewrite(repo, DOCKER, [
-          { find: '      - uses: AtomiCloud/actions.setup-nix@v3\n', replace: '' },
+        // The tally is asserted, not just the exit code: 4 run: steps, 4 cached jobs
+        // and 1 script-free GitHub-hosted job is the whole workflow set, so a gate
+        // that stopped reading part of it cannot pass this arm.
+        await expectGreenReporting(
+          repo,
+          '5 jobs, 4 run: steps in declared shells (4 cached, 0 isolation lanes, 0 bare Namespace, 1 GitHub-hosted script-free)',
+        );
+      },
+    },
+    caughtSequence(
+      'mutation-run-step-outside-declared-shell-caught',
+      'Every run: step must enter a dev shell that declares its dependencies. Three independent escapes, each proved on its own: running the script bare; entering a shell this repository does not declare; and entering the shell on the first line of a multi-line script, then running a second command outside it.',
+      DOCKER,
+      [
+        { edits: [{ find: RUN_REAL, replace: RUN_BARE }], reason: NOT_IN_A_DECLARED_SHELL },
+        { edits: [{ find: RUN_BARE, replace: RUN_UNDECLARED_SHELL }], reason: NOT_IN_A_DECLARED_SHELL },
+        { edits: [{ find: RUN_UNDECLARED_SHELL, replace: RUN_ESCAPES }], reason: NOT_IN_A_DECLARED_SHELL },
+      ],
+    ),
+    caught(
+      'mutation-local-composite-action-caught',
+      'A repository-local composite action can carry run: steps of its own that this gate never reads, so it is a route around the declared-shell rule rather than a use of it, and must turn the gate red.',
+      PRECOMMIT,
+      [
+        {
+          find: '      - uses: AtomiCloud/actions.setup-nix@v3',
+          replace: '      - uses: ./.github/actions/setup\n      - uses: AtomiCloud/actions.setup-nix@v3',
+        },
+      ],
+      'repository-local composite action',
+    ),
+    caught(
+      'mutation-nix-cache-loss-caught',
+      'A job that runs its work in a Nix shell but drops the -with-cache venue together with both cache metadata labels — the shape that made live run 30670113046 fail — must turn the gate red instead of passing as a deliberate isolation lane.',
+      PRECOMMIT,
+      [{ find: CACHED_VENUE, replace: '      - nscloud-ubuntu-26.04-amd64-16x32' }],
+      'bare venue that cannot attach a cache volume',
+    ),
+    {
+      // A positive arm, and the reason the rule is two-sided rather than a blanket
+      // ban: the threat model's must-not-share-cache lane has to stay expressible.
+      // Without this, a gate that simply refused every bare venue would still pass
+      // every other arm in this file.
+      name: 'mutation-declared-isolation-lane-stays-legal',
+      description:
+        'A Nix-store job on the bare Namespace venue that records a non-empty job-level env.NIX_CACHE_EXEMPT_REASON is a deliberate isolation lane and must stay GREEN, so the cache rule refuses accidents without making the isolation lane unexpressible.',
+      kind: 'mutation' as const,
+      expectedImpact: [],
+      async run(repo: any) {
+        await rewrite(repo, PRECOMMIT, [
           {
-            find: RUN_REAL,
-            replace: 'run: FOO=nix nix develop .#cd -c ./scripts/ci/docker.sh',
+            find: `    runs-on:\n${CACHED_VENUE}`,
+            replace: [
+              '    env:',
+              '      NIX_CACHE_EXEMPT_REASON: probe-only isolation lane',
+              '    runs-on:',
+              '      - nscloud-ubuntu-26.04-amd64-16x32',
+            ].join('\n'),
           },
         ]);
-        await expectGreen(repo, GATE, 'cache-tag-shape assignment-prefixed nix invocation');
+        await expectGreenReporting(
+          repo,
+          '5 jobs, 4 run: steps in declared shells (3 cached, 1 isolation lanes, 1 bare Namespace, 1 GitHub-hosted script-free)',
+        );
       },
     },
     caught(
-      'mutation-nix-cache-loss-caught',
-      'A Nix-store job that drops the -with-cache venue together with both cache metadata labels — the shape that made live run 30670113046 fail — must turn the S31 gate red instead of passing as a deliberate isolation lane.',
-      PRECOMMIT,
-      [{ find: CACHED_VENUE, replace: '      - nscloud-ubuntu-26.04-amd64-16x32' }],
-    ),
-    caught(
-      'mutation-cache-tag-shape-caught',
-      'A 24.04 cache tag paired with the selected 26.04 cache-capable Namespace runner must turn the S31 gate red.',
-      PRECOMMIT,
-      [
-        {
-          find: 'nscloud-cache-tag-atomi-nix-store-cache-ubuntu-26.04-amd64',
-          replace: 'nscloud-cache-tag-atomi-nix-store-cache-ubuntu-24.04-amd64',
-        },
-      ],
-    ),
-    caught(
-      'mutation-cache-tag-on-bare-venue-caught',
-      'Changing a cache-eligible job to the bare venue while retaining its cache tag must turn the S31 gate red.',
-      PRECOMMIT,
-      [
-        {
-          find: 'nscloud-ubuntu-26.04-amd64-16x32-with-cache',
-          replace: 'nscloud-ubuntu-26.04-amd64-16x32',
-        },
-      ],
-    ),
-    caught(
-      'mutation-non-nix-cache-claim-caught',
-      'A job that uses no Nix store must not claim the shared Nix-store cache: stripping the Nix setup action and the nix develop wrapper while keeping the cache labels must turn the S31 gate red.',
-      DOCKER,
-      [
-        { find: '      - uses: AtomiCloud/actions.setup-nix@v3\n', replace: '' },
-        { find: 'run: nix develop .#cd -c ./scripts/ci/docker.sh', replace: 'run: ./scripts/ci/docker.sh' },
-      ],
-      NOT_A_NIX_STORE_USER,
-    ),
-    caughtSequence(
-      'mutation-textual-nix-mention-cache-claim-caught',
-      'A job whose run: script does not demonstrably invoke Nix must not claim the shared Nix-store cache. Four independent shapes, each proved on its own: a harmless `echo nix develop`; a Bash array literal `args=(nix develop)`, whose parenthesis is not a subshell; a `case` branch pattern named `nix-build`, which is matched rather than run; and `nix --version develop`, where the first argument decides what nix does and a supported word later in the tail proves nothing.',
-      DOCKER,
-      [
-        {
-          edits: [
-            { find: '      - uses: AtomiCloud/actions.setup-nix@v3\n', replace: '' },
-            { find: RUN_REAL, replace: RUN_ECHO },
-          ],
-          reason: NOT_A_NIX_STORE_USER,
-        },
-        { edits: [{ find: RUN_ECHO, replace: RUN_ARRAY }], reason: NOT_A_NIX_STORE_USER },
-        { edits: [{ find: RUN_ARRAY, replace: RUN_CASE_PATTERN }], reason: NOT_A_NIX_STORE_USER },
-        // The last stage is refused for the OTHER reason: the gate does not claim
-        // that no Nix runs here, only that it cannot confirm that any does.
-        { edits: [{ find: RUN_CASE_PATTERN, replace: RUN_NIX_VERSION }], reason: NOT_CONFIRMABLE },
-      ],
-    ),
-    caught(
       'mutation-stale-cache-exemption-caught',
-      'A must-not-share-cache exemption recorded while the job still selects a cache-capable venue is stale and must turn the S31 gate red.',
+      'An isolation-lane exemption recorded while the job still selects a cache-capable venue is stale and must turn the gate red.',
       PRECOMMIT,
       [
         {
           find: '    steps:',
-          replace: '    env:\n      S31_CACHE_EXEMPT_REASON: probe-only stale exemption\n    steps:',
+          replace: '    env:\n      NIX_CACHE_EXEMPT_REASON: probe-only stale exemption\n    steps:',
         },
       ],
+      'while selecting a cache-capable',
     ),
     caught(
-      'mutation-nix-on-hosted-runner-caught',
-      'A must-not-share-cache lane is a bare Namespace venue by ruling, so moving a Nix-store job to a GitHub-hosted runner must turn the S31 gate red even when it records an exemption reason.',
+      'mutation-exemption-on-hosted-runner-caught',
+      'A GitHub-hosted runner never attaches a Namespace cache, so an exemption recorded there is a record of nothing and must turn the gate red.',
+      GATEKEEPER,
+      [
+        {
+          find: '    runs-on: ubuntu-26.04',
+          replace: '    env:\n      NIX_CACHE_EXEMPT_REASON: probe-only bogus exemption\n    runs-on: ubuntu-26.04',
+        },
+      ],
+      'never attaches a Namespace cache',
+    ),
+    caught(
+      'mutation-script-free-job-claims-cache-caught',
+      'A job with no run: step and no Nix setup action runs no repository script, so it has no Nix store to share and must not claim the shared cache. This is the third job class, and it is what keeps an action-only GitHub-hosted job legal without letting it take a cache volume.',
+      GATEKEEPER,
+      [
+        {
+          find: '    runs-on: ubuntu-26.04',
+          replace: `    runs-on:\n${CACHED_VENUE}`,
+        },
+      ],
+      'runs no repository script',
+    ),
+    caught(
+      'mutation-script-job-on-hosted-runner-caught',
+      'Every job that runs a repository script runs it in a declared Nix shell and therefore uses the Nix store, so a GitHub-hosted runner is never a legal home for one and must turn the gate red.',
+      PRECOMMIT,
+      [{ find: `    runs-on:\n${CACHED_VENUE}`, replace: '    runs-on: ubuntu-26.04' }],
+      'on a GitHub-hosted runner',
+    ),
+    caughtSequence(
+      'mutation-cache-tag-shape-caught',
+      'The shared cache tag is exact and OS-sensitive. Two independent drifts, each proved on its own: reintroducing the organization component the tag deliberately no longer carries, and pairing a 24.04 tag with the selected 26.04 venue instead of rotating it.',
       PRECOMMIT,
       [
         {
-          find: `    runs-on:\n${CACHED_VENUE}`,
-          replace: [
-            '    env:',
-            '      S31_CACHE_EXEMPT_REASON: probe-only exemption on a hosted runner',
-            '    runs-on: ubuntu-26.04',
-          ].join('\n'),
+          edits: [
+            {
+              find: 'nscloud-cache-tag-nix-store-cache-ubuntu-26.04-amd64',
+              replace: 'nscloud-cache-tag-atomi-nix-store-cache-ubuntu-26.04-amd64',
+            },
+          ],
+          reason: 'cache tag must be',
+        },
+        {
+          edits: [
+            {
+              find: 'nscloud-cache-tag-atomi-nix-store-cache-ubuntu-26.04-amd64',
+              replace: 'nscloud-cache-tag-nix-store-cache-ubuntu-24.04-amd64',
+            },
+          ],
+          reason: 'cache tag must be',
         },
       ],
     ),
     caught(
-      'mutation-default-runner-label-caught',
-      'A default runner label in place of the exact S31 GitHub-hosted primary must turn the S31 gate red.',
-      GATEKEEPER,
-      [{ find: 'runs-on: ubuntu-26.04', replace: 'runs-on: ubuntu-latest' }],
-    ),
-    caught(
-      'mutation-unrecorded-fallback-caught',
-      'Selecting the 24.04 fallback without env.S31_RUNNER_FALLBACK_REASON must turn the S31 gate red.',
-      GATEKEEPER,
-      [{ find: 'runs-on: ubuntu-26.04', replace: 'runs-on: ubuntu-24.04' }],
+      'mutation-missing-cache-size-label-caught',
+      'A cache-eligible job carries exactly one Namespace cache-size label; dropping it must turn the gate red.',
+      PRECOMMIT,
+      [{ find: '      - nscloud-cache-size-50gb\n', replace: '' }],
+      'exactly one Namespace cache-size label',
     ),
     caught(
       'mutation-combined-namespace-labels-caught',
-      'Combining the 26.04 primary and the 24.04 fallback Namespace venue labels on one job must turn the S31 gate red.',
+      'Combining the 26.04 primary and the 24.04 fallback Namespace venue labels on one job must turn the gate red.',
       PRECOMMIT,
       [
         {
@@ -228,6 +274,46 @@ export default {
             '      - nscloud-ubuntu-26.04-amd64-16x32-with-cache\n      - nscloud-ubuntu-24.04-amd64-16x32-with-cache',
         },
       ],
+      'exactly one primary or fallback venue label',
+    ),
+    caught(
+      'mutation-default-runner-label-caught',
+      'A default runner label in place of the exact GitHub-hosted primary must turn the gate red.',
+      GATEKEEPER,
+      [{ find: 'runs-on: ubuntu-26.04', replace: 'runs-on: ubuntu-latest' }],
+      'unsupported runner labels',
+    ),
+    caught(
+      'mutation-unrecorded-fallback-caught',
+      'Selecting the 24.04 fallback without env.NIX_RUNNER_FALLBACK_REASON must turn the gate red.',
+      GATEKEEPER,
+      [{ find: 'runs-on: ubuntu-26.04', replace: 'runs-on: ubuntu-24.04' }],
+      'without env.NIX_RUNNER_FALLBACK_REASON',
+    ),
+    caught(
+      'mutation-misplaced-cache-marker-caught',
+      'A cache marker parked on a step cannot state which lane it excuses, so it must be rejected as misplaced rather than read as an exemption.',
+      PRECOMMIT,
+      [
+        {
+          find: '      - name: Run pre-commit\n        run:',
+          replace:
+            '      - name: Run pre-commit\n        env:\n          NIX_CACHE_EXEMPT_REASON: probe-only misplaced marker\n        run:',
+        },
+      ],
+      'job-level env',
+    ),
+    caught(
+      'mutation-unreadable-shell-set-caught',
+      "The set of shells a job may enter is read from nix/shells.nix rather than hardcoded in the gate, so the gate must refuse when it cannot read that set — otherwise its run: matcher would silently accept nothing, or everything. The mutation only DEDENTS the declarations: nix ignores the indentation, so the built shells stay byte-identical and this arm tests the gate's parser rather than the flake. The gate may anchor on that indentation precisely because `nix fmt` is itself a gate on this file.",
+      SHELLS,
+      [
+        { find: '  cd = pkgs.mkShell {', replace: 'cd = pkgs.mkShell {' },
+        { find: '  ci = pkgs.mkShell {', replace: 'ci = pkgs.mkShell {' },
+        { find: '  default = pkgs.mkShell {', replace: 'default = pkgs.mkShell {' },
+        { find: '  releaser = pkgs.mkShell {', replace: 'releaser = pkgs.mkShell {' },
+      ],
+      "either the shell set moved or this gate's parser is broken",
     ),
   ],
 };
