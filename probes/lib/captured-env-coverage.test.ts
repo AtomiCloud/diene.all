@@ -62,9 +62,16 @@ describe('captured-env coverage of direct repo.exec shell entries', () => {
   // hook-shellcheck.ts each took a direct site so their mutation arms can assert the
   // gate's refusal TEXT and not merely its exit code (+2). Move it only together with
   // the sites that justify it.
-  test('the wrapped set is the 15 known shell-entering call sites, across 8 files', () => {
+  //
+  // 15 -> 18 in the wave-5 cascade, and no call site was added: three of
+  // skills-sync.ts's own shell entries were entering the shell unwrapped while three
+  // siblings in the same file were wrapped. This test arrived from the parent, where
+  // skills-sync.ts has no such sites, so the merge is what first asserted the rule
+  // here — the sites predate it. Wrapping them is the fix the rule asks for; the count
+  // follows the sites, which is the direction this tripwire is meant to move in.
+  test('the wrapped set is the 18 known shell-entering call sites, across 8 files', () => {
     const wrapped = allSites.filter(site => site.wrapped);
-    expect(wrapped).toHaveLength(15);
+    expect(wrapped).toHaveLength(18);
     expect([...new Set(wrapped.map(site => site.file))].sort()).toEqual([
       'hook-enforce-exec.ts',
       'hook-shellcheck.ts',

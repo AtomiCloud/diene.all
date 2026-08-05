@@ -435,7 +435,9 @@ export default {
           await repo.write('go-shim/go', transitiveGoShim);
           await repo.write('go-fixture/skills/example/SKILL.md', 'transitive Go skill\n');
           const result = await repo.exec(
-            `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ./scripts/local/skills-sync.sh'`,
+            capturedEnvCommand(
+              `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ./scripts/local/skills-sync.sh'`,
+            ),
             { timeoutMs: 240000 },
           );
           if (result.exitCode === 0) {
@@ -462,7 +464,9 @@ export default {
           await repo.write('go-shim/go', partialGoShim);
           await repo.write('go-fixture/skills/example/SKILL.md', 'resolved Go skill\n');
           const result = await repo.exec(
-            `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ./scripts/local/skills-sync.sh'`,
+            capturedEnvCommand(
+              `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ./scripts/local/skills-sync.sh'`,
+            ),
             { timeoutMs: 240000 },
           );
           if (result.exitCode === 0) {
@@ -492,7 +496,7 @@ export default {
           await removeCommittedVendor(repo);
           await repo.write('pubspec.yaml', declaringPubspec);
           const result = await repo.exec(
-            `nix develop .#ci -c bash -c 'set -euo pipefail; ./scripts/local/skills-sync.sh'`,
+            capturedEnvCommand(`nix develop .#ci -c bash -c 'set -euo pipefail; ./scripts/local/skills-sync.sh'`),
             { timeoutMs: 240000 },
           );
           if (result.exitCode === 0) {
