@@ -29,7 +29,7 @@ export default {
           replace: 'if [ "${mode}" = "release-trigger" ]  ; then',
         });
         await expectRedBecause(repo, 'nix fmt --no-write-lock-file -- --ci --formatters shfmt', 'fmt-shfmt', [
-          'scripts/local/skills-sync.sh',
+          'scripts/validate/workflows.sh',
           'unexpected changes detected',
         ]);
       },
