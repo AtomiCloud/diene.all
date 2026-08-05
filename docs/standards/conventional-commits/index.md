@@ -43,20 +43,19 @@ cannot drift independently.
 
 Each project generates a commit-conventions document from `atomi_release.yaml`
 using the `releaser` tool. Its output path is the `conventionMarkdown.path` value
-in `atomi_release.yaml`. To view or regenerate it after `tools/releaser` lands at
-C2 step 2p:
+in `atomi_release.yaml`:
 
 ```bash
 # View the generated file
 cat "$(yq -r '.conventionMarkdown.path' atomi_release.yaml)"
 
-# Regenerate (if needed)
+# Regenerate (once the releaser tool is available)
 releaser conventions
 ```
 
-Before step 2p, treat `atomi_release.yaml` as authoritative. The checked-in
-generated document carries an explicit bootstrap notice, and the repository does
-not claim that the `releaser` command is available yet.
+Until the `releaser` tool ships, `atomi_release.yaml` itself is authoritative. The
+checked-in document is maintained by hand and carries a notice saying so, and the
+repository does not claim that the `releaser` command is available.
 
 ## Breaking Changes
 

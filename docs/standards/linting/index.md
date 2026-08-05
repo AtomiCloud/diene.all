@@ -41,8 +41,9 @@ The formatters treefmt drives are the `programs` attribute set in
 [`nix/fmt.nix`](../../../nix/fmt.nix); each entry enables one formatter and may
 carry its own `excludes`.
 
-The commit-msg hook's binary is published by `tools/releaser` at C2 step 2p and is
-not available before that fold. There is no `.gitlint` hook or file.
+The `a-releaser-commit` commit-msg hook is registered, but its binary — the
+`releaser` tool — is not published yet, so the hook cannot run. There is no
+`.gitlint` hook or file.
 
 ## Configuration rules
 

@@ -6,7 +6,7 @@ export default {
   probes: [
     {
       name: 'baseline-release-type-vocabulary-green',
-      description: 'The release type list equals the unified D3 vocabulary.',
+      description: 'The release type list matches the shared release-type vocabulary the validator pins.',
       kind: 'baseline',
       async run(repo: any) {
         await expectGreen(
