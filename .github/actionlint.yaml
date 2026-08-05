@@ -1,5 +1,3 @@
-# ### workspace-actionlint
-# #### source: workspace
 self-hosted-runner:
   labels:
     - '*'

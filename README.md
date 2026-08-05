@@ -1,37 +1,29 @@
 # Diene .NET base template
 
-<!-- ### nix-root -->
-<!-- #### source: main -->
-
-Diene's reproducible development environment is managed by Nix. Run `direnv allow` once, then use `pls` tasks from the loaded shell.
-
-<!-- ### workspace -->
-<!-- #### source: workspace -->
+Diene's reproducible development environment is managed by Nix. Run `direnv allow` once, then use `task` tasks from the loaded shell.
 
 This branch is the all-features workspace baseline inherited by every downstream sample: split CI/CD, Docker, Helm, secrets, release configuration, validators, standards, and vendored agent-skill synchronization.
 
 ## Commands
 
-- `pls setup` — synchronize installed diene package skills.
-- `pls lint` — run every pre-commit gate.
-- `pls docker:build` — build the local stub image.
-- `pls helm:lint` / `pls helm:template` — validate or render the root chart.
-- `pls secret:scan` — scan tracked content for secrets.
-- `pls skills:sync` — rebuild `.claude/skills/vendor/` from installed packages.
+Run `task --list` for every available task and its description. The task set is
+declared in [`Taskfile.yaml`](Taskfile.yaml), whose `includes:` block maps each
+namespace to a file under [`tasks/`](tasks); a task shown as `<namespace>:<task>`
+is that key in the included file. Build artifacts — Dockerfiles and Helm charts —
+live under [`infra/`](infra) and may be plural, so their tasks are keyed per
+artifact. See [the Taskfile standard](docs/standards/taskfile/index.md) for the
+conventions.
 
 ## Standards
 
-- [CI/CD workflows](docs/standards/ci-cd/index.md)
-- [conventional commits](docs/standards/conventional-commits/index.md)
-- [Docker build and publishing](docs/standards/docker/index.md)
-- [Helm charts and publishing](docs/standards/helm/index.md)
-- [Infisical and secrets](docs/standards/infisical/index.md)
-- [linting and pre-commit](docs/standards/linting/index.md)
-- [Nix flakes and development shells](docs/standards/nix/index.md)
-- [release automation](docs/standards/semantic-release/index.md)
-- [service-tree identity](docs/standards/service-tree/index.md)
-- [shell scripts](docs/standards/shell-scripts/index.md)
-- [Taskfile conventions](docs/standards/taskfile/index.md)
+The conventions this repository follows live under
+[`docs/standards/`](docs/standards). Read the standard for the surface you are
+changing before you change it. [`CLAUDE.md`](CLAUDE.md) links the ones an agent
+reaches for most often; it is a convenience, not a required index, and nothing
+checks that it names every surface.
+
+Domain-specific architecture and behavior belongs under
+[`docs/domain/`](docs/domain/README.md), not under `docs/standards/`.
 
 <!-- ### shared -->
 <!-- #### source: shared -->
@@ -39,7 +31,6 @@ This branch is the all-features workspace baseline inherited by every downstream
 ## Shared standards
 
 - [Authorization](docs/standards/authorization/index.md)
-- [Contributor documentation](docs/standards/contributor-docs/index.md)
 - [Date and time](docs/standards/datetime/index.md)
 - [Domain-driven design](docs/standards/domain-driven-design/index.md)
 - [Functional practices](docs/standards/functional-practices/index.md)
@@ -50,10 +41,6 @@ This branch is the all-features workspace baseline inherited by every downstream
 - [Three-layer architecture](docs/standards/three-layer-architecture/index.md)
 - [Utility libraries](docs/standards/utilities/index.md)
 - [Data validation](docs/standards/validation/index.md)
-
-Domain-specific documentation belongs under [docs/domain/](docs/domain/README.md).
-The `docs/standards/contracts/` location is reserved for the separately owned C0
-contracts standard.
 
 <!-- ### dotnet-base -->
 <!-- #### source: dotnet-base -->
@@ -71,10 +58,10 @@ complete Docker and Helm axes. See [the .NET baseline](docs/developer/dotnet-bas
 
 Common commands:
 
-- `pls build`, `pls dev`, `pls run`, and `pls preview`
-- `pls test`, `pls test:unit`, `pls test:int`, and the coverage variants
-- `pls deadcode` for the non-blocking review; CI owns strict dn-inspect
-- `pls docker:build` and `pls helm:lint` / `pls helm:template`
+- `task build`, `task dev`, `task run`, and `task preview`
+- `task test`, `task test:unit`, `task test:int`, and the coverage variants
+- `task deadcode` for the non-blocking review; CI owns strict dn-inspect
+- `task docker:build:main` and `task helm:root_chart:lint` / `task helm:root_chart:template`
 
 The illustrative Note domain is documented in [docs/domain/note.md](docs/domain/note.md).
 Production observability is intentionally absent until the observability add-back.

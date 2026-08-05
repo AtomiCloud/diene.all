@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { capturedEnvCommand, expectGreen, expectRedBecause, withCleanProbeState } from './lib/helpers.ts';
 
 const vendorDir = '.claude/skills/vendor';
 const freshnessCommand = 'nix develop .#ci -c ./scripts/validate/skills-freshness.sh';
@@ -9,27 +9,7 @@ const probeCleanTargets = [
   'package.json',
   'go.mod',
   'go-shim',
-].join(' ');
-
-async function restoreProbeState(repo: any): Promise<void> {
-  const restored = await repo.exec('git restore --source=HEAD --staged --worktree -- .');
-  if (restored.exitCode !== 0) {
-    throw new Error(`could not restore tracked probe state: ${restored.stderr || restored.stdout}`);
-  }
-  const cleaned = await repo.exec(`git clean -fdx -- ${probeCleanTargets}`);
-  if (cleaned.exitCode !== 0) {
-    throw new Error(`could not remove untracked probe fixtures: ${cleaned.stderr || cleaned.stdout}`);
-  }
-}
-
-async function withCleanProbeState(repo: any, body: () => Promise<void>): Promise<void> {
-  await restoreProbeState(repo);
-  try {
-    await body();
-  } finally {
-    await restoreProbeState(repo);
-  }
-}
+];
 
 async function trackedSubjects(repo: any): Promise<string[]> {
   const listed = await repo.exec(`git ls-files -- ${vendorDir}`);
@@ -52,7 +32,7 @@ export default {
         'The vendored-skill freshness gate has a tracked subject beyond .gitkeep and is green on synchronized output.',
       kind: 'baseline',
       async run(repo: any) {
-        await withCleanProbeState(repo, async () => {
+        await withCleanProbeState(repo, probeCleanTargets, async () => {
           const subjects = await trackedSubjects(repo);
           if (subjects.length === 0) {
             throw new Error(`the freshness gate has no tracked subject under ${vendorDir} beyond .gitkeep`);
@@ -67,13 +47,16 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        await withCleanProbeState(repo, async () => {
+        await withCleanProbeState(repo, probeCleanTargets, async () => {
           await repo.write(`${vendorDir}/stale/SKILL.md`, 'stale\n');
           const staged = await repo.exec(`git add ${vendorDir}/stale/SKILL.md`);
           if (staged.exitCode !== 0) {
             throw new Error(`could not stage the stale vendored-skill fixture: ${staged.stderr || staged.stdout}`);
           }
-          await expectRed(repo, freshnessCommand, 'skills-freshness');
+          await expectRedBecause(repo, freshnessCommand, 'skills-freshness', [
+            'vendored tree is stale',
+            `${vendorDir}/stale/SKILL.md`,
+          ]);
         });
       },
     },
@@ -84,9 +67,9 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        await withCleanProbeState(repo, async () => {
+        await withCleanProbeState(repo, probeCleanTargets, async () => {
           await repo.write('node_modules/@atomicloud/diene.untracked/skills/example/SKILL.md', 'untracked skill\n');
-          const result = await repo.exec(freshnessCommand, { timeoutMs: 240000 });
+          const result = await repo.exec(capturedEnvCommand(freshnessCommand), { timeoutMs: 240000 });
           if (result.exitCode === 0) {
             throw new Error('skills-freshness stayed green after an untracked vendored-skill regeneration');
           }

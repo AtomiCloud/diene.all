@@ -9,7 +9,7 @@ export default {
       description: 'The merged integration ledger contains only App* sources at or above 80%.',
       kind: 'baseline',
       async run(repo: any) {
-        await expectGreen(repo, 'nix develop .#ci -c pls test:int:coverage', 'dotnet-integration-coverage', 600000);
+        await expectGreen(repo, 'nix develop .#ci -c task test:int:coverage', 'dotnet-integration-coverage', 600000);
       },
     },
     {
@@ -23,7 +23,7 @@ export default {
           'App/CoverageGap.cs',
           `namespace AtomiCloud.DotnetBase.App;\n\npublic class CoverageGap\n{\n    public int Uncovered()\n    {\n        var total = 0;\n${lines}\n        return total;\n    }\n}\n`,
         );
-        await expectRed(repo, 'nix develop .#ci -c pls test:int:coverage', 'dotnet-integration-coverage', 600000);
+        await expectRed(repo, 'nix develop .#ci -c task test:int:coverage', 'dotnet-integration-coverage', 600000);
       },
     },
   ],

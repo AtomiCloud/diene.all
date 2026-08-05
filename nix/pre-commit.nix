@@ -7,26 +7,29 @@
 let
   validator-runtime = pkgs.buildEnv {
     name = "workspace-validator-runtime";
+    # atomiutils supplies bash/jq/yq plus the coreutils/find/grep/sed binaries the
+    # validators call - and, since registry v3.12.0, rg as well - so declaring any
+    # of those separately would duplicate the bundle and collide with it in this
+    # buildEnv. That is not a prediction: while v3.12.0 was landing, a standalone
+    # nixpkgs ripgrep alongside the bundle failed this very buildEnv with
+    # "conflicting subpath ... /bin/rg". git is the only entry left that the
+    # bundle does not already carry.
     paths = [
-      packages.bash
+      packages.atomiutils
       packages.git
-      packages.jq
-      packages.ripgrep
-      packages.yq-go
-      pkgs.coreutils
-      pkgs.findutils
-      pkgs.gnugrep
-      pkgs.gnused
     ];
   };
   validator =
     command:
-    "${packages.bash}/bin/bash -c 'export PATH=${validator-runtime}/bin; exec ${packages.bash}/bin/bash ${command}'";
+    "${packages.atomiutils}/bin/bash -c 'export PATH=${validator-runtime}/bin; exec ${packages.atomiutils}/bin/bash ${command}'";
   dotnetlint-project = pkgs.buildDotnetModule {
     pname = "dotnet-base-dependencies";
     version = "0";
     src = ../.;
     projectFile = "dotnet-base.slnx";
+    # Generated, never hand-authored: `nix build .#pre-commit.fetch-deps` (exposed at
+    # the bottom of this file) rewrites nix/dotnet-deps.json. It is a pinned NuGet
+    # closure and it stays while nix builds dotnet - see docs/standards/nix/index.md.
     nugetDeps = ./dotnet-deps.json;
     dotnet-sdk = packages.dotnet-sdk_10;
   };
@@ -90,7 +93,7 @@ in
       enable = true;
       name = "Non-trusted action SHA pins";
       entry = validator "scripts/validate/action-pins.sh non-trusted";
-      files = "^\\.github/workflows/.*\\.ya?ml$";
+      files = "^(\\.github/workflows/.*\\.ya?ml|config/action-trust\\.json)$";
       pass_filenames = false;
       language = "system";
     };
@@ -99,16 +102,7 @@ in
       enable = true;
       name = "Trusted action major pins";
       entry = validator "scripts/validate/action-pins.sh trusted";
-      files = "^\\.github/workflows/.*\\.ya?ml$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-cache-tags = {
-      enable = true;
-      name = "nscloud cache-tag shape";
-      entry = validator "scripts/validate/cache-tags.sh";
-      files = "^\\.github/workflows/.*\\.ya?ml$";
+      files = "^(\\.github/workflows/.*\\.ya?ml|config/action-trust\\.json)$";
       pass_filenames = false;
       language = "system";
     };
@@ -134,7 +128,7 @@ in
     a-infisical = {
       enable = true;
       name = "Secrets scan";
-      entry = "${packages.infisical}/bin/infisical scan . -v";
+      entry = "${packages.infisical}/bin/infisical scan . -v --redact";
       pass_filenames = false;
       language = "system";
     };
@@ -142,7 +136,7 @@ in
     a-infisical-staged = {
       enable = true;
       name = "Staged secrets scan";
-      entry = "${packages.infisical}/bin/infisical scan git-changes --staged -v";
+      entry = "${packages.infisical}/bin/infisical scan git-changes --staged -v --redact";
       pass_filenames = false;
       language = "system";
     };
@@ -152,6 +146,19 @@ in
       name = "Many-owner keyed blocks";
       entry = validator "scripts/validate/many-owner.sh";
       pass_filenames = false;
+      language = "system";
+    };
+
+    # The selector is directory-shaped on purpose: every standard under
+    # docs/standards/ and every first-level skill trigger is linted, so adding a
+    # topic needs no edit here. Vendored skills sit deeper than one level and are
+    # ignored again by .markdownlint-cli2.jsonc.
+    a-markdownlint = {
+      enable = true;
+      name = "Markdown lint";
+      entry = "${pkgs.markdownlint-cli2}/bin/markdownlint-cli2";
+      files = "^(CLAUDE\\.md|README\\.md|docs/standards/.*\\.md|\\.claude/skills/[^/]+/SKILL\\.md)$";
+      pass_filenames = true;
       language = "system";
     };
 
@@ -182,33 +189,6 @@ in
       language = "system";
     };
 
-    a-release-trigger = {
-      enable = true;
-      name = "Release workflow trigger";
-      entry = validator "scripts/validate/workflows.sh release-trigger";
-      files = "^\\.github/workflows/.*\\.ya?ml$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-release-concurrency = {
-      enable = true;
-      name = "Release workflow concurrency";
-      entry = validator "scripts/validate/workflows.sh release-concurrency";
-      files = "^\\.github/workflows/.*\\.ya?ml$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-workflow-names = {
-      enable = true;
-      name = "CI/CD workflow names";
-      entry = validator "scripts/validate/workflows.sh workflow-names";
-      files = "^\\.github/workflows/.*\\.ya?ml$";
-      pass_filenames = false;
-      language = "system";
-    };
-
     a-releaser-commit = {
       enable = true;
       name = "Conventional commit";
@@ -218,10 +198,18 @@ in
       language = "system";
     };
 
+    # Source following belongs to the gate itself, not to an ambient SHELLCHECK_OPTS:
+    # pre-commit partitions the staged files, so a script and the script it sources
+    # routinely land in different batches, and bare ShellCheck then raises SC1091 on
+    # healthy sources. `-x` follows a declared `source=`, and `--source-path=SCRIPTDIR`
+    # adds the checked script's own directory so script-relative directives resolve
+    # too, on top of the repository-root-relative ones the working directory already
+    # covers. Findings from the sourced file stay out of the report (that would need
+    # `-a`), so the gate gains resolution without gaining noise.
     a-shellcheck = {
       enable = true;
       name = "Shellcheck";
-      entry = "${packages.shellcheck}/bin/shellcheck";
+      entry = "${packages.shellcheck}/bin/shellcheck -x --source-path=SCRIPTDIR";
       files = ".*\\.sh$";
       pass_filenames = true;
       language = "system";
@@ -235,10 +223,30 @@ in
       language = "system";
     };
 
-    a-workflow-wiring = {
+    # `dlint ci-wiring` is the successor to the deleted `workflows.sh wiring` mode.
+    # The absolute store path is a safety property, not a style preference: a missing
+    # package fails here at nix evaluation, loudly, and the shell will not build. A
+    # bare `dlint` name would instead fail at runtime with exit 127 - the code
+    # expectRedBecause reports as "could not prove sabotage" - so the mutation arm
+    # would refuse for the wrong reason while the baseline arm merely failed.
+    a-workflows = {
       enable = true;
-      name = "Workflow job-to-script wiring";
-      entry = validator "scripts/validate/workflows.sh wiring";
+      name = "Workflow wiring and release policy";
+      entry = "${packages.atomiutils}/bin/bash -c '${packages.dlint}/bin/dlint ci-wiring && ( export PATH=${validator-runtime}/bin; ${packages.atomiutils}/bin/bash scripts/validate/workflows.sh release-trigger && ${packages.atomiutils}/bin/bash scripts/validate/workflows.sh release-concurrency )'";
+      files = "^\\.github/workflows/.*\\.ya?ml$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    # Kept on this node under B4's child-ahead clause, and nominated for hoist to the
+    # parent. `.dlint.json` configures no workflow-naming check, so this mode has no
+    # successor to move to; deleting it alongside `wiring` would have dropped the
+    # check in silence, because a battery that no longer runs a check cannot report
+    # that the check is gone.
+    a-workflow-names = {
+      enable = true;
+      name = "CI/CD workflow names";
+      entry = validator "scripts/validate/workflows.sh workflow-names";
       files = "^\\.github/workflows/.*\\.ya?ml$";
       pass_filenames = false;
       language = "system";
@@ -290,15 +298,6 @@ in
       entry = "${pkgs.coreutils}/bin/env SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt ${pkgs.lychee}/bin/lychee --offline --no-progress CLAUDE.md";
       files = "^(CLAUDE\\.md|docs/standards/.*\\.md)$";
       pass_filenames = false;
-      language = "system";
-    };
-
-    a-markdownlint = {
-      enable = true;
-      name = "Markdown lint";
-      entry = "${pkgs.markdownlint-cli2}/bin/markdownlint-cli2";
-      files = "^(CLAUDE\\.md|README\\.md|docs/standards/(authorization|contracts|contributor-docs|datetime|domain-driven-design|functional-practices|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/.*\\.md|\\.claude/skills/(authorization|contributor-docs|datetime|domain-driven-design|functional-practices|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/SKILL\\.md)$";
-      pass_filenames = true;
       language = "system";
     };
   };

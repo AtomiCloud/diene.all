@@ -5,11 +5,12 @@ title: Service Tree (LPSM)
 
 # Service Tree (LPSM)
 
-This document describes the Service Tree (LPSM) naming conventions used across AtomiCloud.
+This document describes the Service Tree (LPSM) naming conventions this organization uses
+across its products.
 
 ## Overview
 
-All products and applications' resources in AtomiCloud are confined within the **Service Tree**. This allows easy querying, classification, and data retrieval about resources of a specific product.
+Every product and application resource is confined within the **Service Tree**. This allows easy querying, classification, and data retrieval about resources of a specific product.
 
 ## Format
 
@@ -114,17 +115,23 @@ labels:
 
 ### Nix Store Cache
 
-Nix jobs use a single shared store cache — **not** per-service — to save cache space:
+The service tree does **not** reach the Nix store cache, and that is the point of
+mentioning it here. Jobs that run a script share ONE store cache, so its tag is
+namespaced by neither organization, platform nor service — only by OS and
+architecture: `nscloud-cache-tag-nix-store-cache-{os}-{arch}`. Selecting another OS
+rotates the tag and starts cold rather than aliasing another OS's cache.
 
-```yaml
-nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
-```
+Never introduce a per-organization, per-platform or per-service cache tag. See
+[the CI/CD workflows standard](../ci-cd/index.md) for the labels themselves and for
+the isolation lanes that carry no cache at all.
 
 ### Platform / Service usage
 
 The platform and service identify the service in the LPSM tree and appear in published
-artifact names, e.g. the Docker image name `test-platform-test-service`. They are **not**
-passed as reusable-workflow inputs (the shared cache makes that unnecessary).
+artifact names. They are **not** passed as reusable-workflow inputs (the shared cache
+makes that unnecessary); the published artifact names this repository uses are the
+`with:` inputs on the Docker and Helm caller jobs in `.github/workflows/ci.yaml` and
+`.github/workflows/cd.yaml`.
 
 ## Trigger Words
 
@@ -133,7 +140,7 @@ When you see these terms, the service-tree convention applies:
 - LPSM, LCPSM, Service Tree
 - Landscape, Platform, Service, Module
 - Resource naming, labeling, tagging
-- `atomi_platform`, `atomi_service` variables
+- Platform and service label variables
 - Cache namespacing
 
 ## Summary
@@ -146,4 +153,4 @@ When you see these terms, the service-tree convention applies:
 | **Platform**  | Functional group theme                                |
 | **Service**   | Element theme (periodic table)                        |
 | **Module**    | Free-form                                             |
-| **Cache key** | `nscloud-cache-tag-atomi-nix-store-cache-{os}-{arch}` |
+| **Cache key** | Shared, not per-service; shape owned by the validator |

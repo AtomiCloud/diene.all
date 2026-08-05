@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedBecause } from './lib/helpers.ts';
 
 export default {
   contractVersion: 1,
@@ -18,11 +18,18 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        await repo.patch('scripts/local/secrets.sh', {
-          find: 'case "${action}" in',
-          replace: 'case "${action}"    in',
+        // The subject was `scripts/local/secrets.sh` until that script was reduced to an
+        // ensure-login helper with no `case` block. The sabotage is character-identical -
+        // padding before a `case` keyword's `in`, which shfmt normalizes - and now lands in
+        // a script the workspace cannot lose.
+        await repo.patch('scripts/local/skills-sync.sh', {
+          find: 'case "${status}" in',
+          replace: 'case "${status}"    in',
         });
-        await expectRed(repo, 'nix fmt --no-write-lock-file -- --ci --formatters shfmt', 'fmt-shfmt');
+        await expectRedBecause(repo, 'nix fmt --no-write-lock-file -- --ci --formatters shfmt', 'fmt-shfmt', [
+          'scripts/local/skills-sync.sh',
+          'unexpected changes detected',
+        ]);
       },
     },
   ],

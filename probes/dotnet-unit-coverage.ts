@@ -9,7 +9,7 @@ export default {
       description: 'The merged unit ledger contains only Lib* sources at 100%.',
       kind: 'baseline',
       async run(repo: any) {
-        await expectGreen(repo, 'nix develop .#ci -c pls test:unit:coverage', 'dotnet-unit-coverage', 600000);
+        await expectGreen(repo, 'nix develop .#ci -c task test:unit:coverage', 'dotnet-unit-coverage', 600000);
       },
     },
     {
@@ -27,7 +27,7 @@ export default {
           'Lib/CoverageGap.cs',
           'namespace AtomiCloud.DotnetBase.Lib;\n\npublic class CoverageGap\n{\n    public int Uncovered() => 42;\n}\n',
         );
-        await expectRed(repo, 'nix develop .#ci -c pls test:unit:coverage', 'dotnet-unit-coverage', 600000);
+        await expectRed(repo, 'nix develop .#ci -c task test:unit:coverage', 'dotnet-unit-coverage', 600000);
       },
     },
   ],

@@ -8,7 +8,6 @@ with packages;
     go-task
     infisical
     jq
-    pls
     skopeo
   ];
 
@@ -16,6 +15,7 @@ with packages;
   # #### source: workspace
   lint = [
     actionlint
+    dlint
     infralint
     kubeconform
     kubernetes-helm
@@ -44,7 +44,6 @@ with packages;
     kubeconform
     kubernetes-helm
     kyverno
-    pls
     ripgrep
     shellcheck
     skopeo

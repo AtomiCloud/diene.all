@@ -13,20 +13,20 @@ shared workspace, standards, Docker, Helm, secret, and release surfaces.
 
 | Command                          | Purpose                                                        |
 | -------------------------------- | -------------------------------------------------------------- |
-| `pls setup`                      | Synchronize vendored skills and restore repo-local .NET tools. |
-| `pls clean`                      | Remove build and test artifacts.                               |
-| `pls build`                      | Build every project in Release.                                |
-| `pls dev`                        | Run the App through `dotnet watch`.                            |
-| `pls run -- <args>`              | Run the App in development mode.                               |
-| `pls preview -- <args>`          | Build and run the compiled Release artifact.                   |
-| `pls up` / `pls down`            | Start or stop the local Redis dependency.                      |
-| `pls test`                       | Run unit and integration tiers.                                |
-| `pls test:unit` / `pls test:int` | Run one tier.                                                  |
-| `pls test:unit:coverage`         | Enforce the merged unit coverage ledger.                       |
-| `pls test:int:coverage`          | Enforce the merged integration coverage ledger.                |
-| `pls test:unit:watch`            | Watch the fast unit tier.                                      |
-| `pls deadcode`                   | Emit the broad, non-blocking LLM review.                       |
-| `pls lint`                       | Run every generated pre-commit hook.                           |
+| `task setup`                      | Synchronize vendored skills and restore repo-local .NET tools. |
+| `task clean`                      | Remove build and test artifacts.                               |
+| `task build`                      | Build every project in Release.                                |
+| `task dev`                        | Run the App through `dotnet watch`.                            |
+| `task run -- <args>`              | Run the App in development mode.                               |
+| `task preview -- <args>`          | Build and run the compiled Release artifact.                   |
+| `task up` / `task down`            | Start or stop the local Redis dependency.                      |
+| `task test`                       | Run unit and integration tiers.                                |
+| `task test:unit` / `task test:int` | Run one tier.                                                  |
+| `task test:unit:coverage`         | Enforce the merged unit coverage ledger.                       |
+| `task test:int:coverage`          | Enforce the merged integration coverage ledger.                |
+| `task test:unit:watch`            | Watch the fast unit tier.                                      |
+| `task deadcode`                   | Emit the broad, non-blocking LLM review.                       |
+| `task lint`                       | Run every generated pre-commit hook.                           |
 
 ## Projects and coverage
 
@@ -52,7 +52,7 @@ automatically. Codecov remains informational.
 
 CI runs two strict dn-inspect mechanisms: all projects, then production-only
 `App*`/`Lib*` projects so exports reachable only from tests still fail. Local
-`pls deadcode` uses a deliberately broad filter and never blocks. Exclusion lists
+`task deadcode` uses a deliberately broad filter and never blocks. Exclusion lists
 are forbidden.
 
 The SDK is pinned by `global.json`; packages use Central Package Management.

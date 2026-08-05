@@ -1,11 +1,8 @@
-# ### workspace-root
-# #### source: workspace
 version: '3'
 
 includes:
   docker: tasks/Taskfile.docker.yaml
   helm: tasks/Taskfile.helm.yaml
-  secret: tasks/Taskfile.secret.yaml
 
   # ### dotnet-base-test-includes
   # #### source: dotnet-base

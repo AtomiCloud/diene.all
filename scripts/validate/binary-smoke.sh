@@ -3,7 +3,7 @@ set -euo pipefail
 
 # ### workspace
 # #### source: workspace
-for binary in actionlint bash cyanprint dn-inspect docker dotnet dotnetlint git gomplate hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pls pre-commit releaser rg shellcheck skopeo task treefmt yq; do
+for binary in actionlint bash cyanprint dlint dn-inspect docker dotnet dotnetlint git gomplate hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pre-commit releaser rg shellcheck skopeo task treefmt yq; do
   command -v "${binary}" >/dev/null || {
     echo "❌ binary '${binary}' is missing" >&2
     exit 1
@@ -31,6 +31,11 @@ cyanprint --version | grep -Fqx "cyanprint ${cyanprint_versions[0]}"
 
 docker --version >/dev/null
 docker info --format '{{.ServerVersion}}' >/dev/null
+
+# The only dlint check this node wires is ci-wiring, so that is the real invocation:
+# a bare --version would prove the binary resolves without proving it can read
+# .dlint.json, and dlint exits 3 on a missing config or section rather than 0.
+dlint ci-wiring >/dev/null
 
 dn-inspect --version >/dev/null
 dotnet tool restore >/dev/null
@@ -86,9 +91,6 @@ printf '%s\n' '{"probe":{"ok":true}}' | kyverno jp query 'probe.ok' 2>/dev/null 
 
 nix --version >/dev/null
 nix flake metadata --no-write-lock-file --json . | jq -e '.url | type == "string"' >/dev/null
-
-pls --help >/dev/null 2>&1
-pls --list >/dev/null
 
 pre-commit --version >/dev/null
 pre-commit validate-config .pre-commit-config.yaml

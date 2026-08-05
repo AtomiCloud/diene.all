@@ -12,7 +12,7 @@ export default {
         await expectGreen(
           repo,
           `nix develop .#ci -c sh -ec '
-            output="$(pls deadcode)"
+            output="$(task deadcode)"
             printf "%s\\n" "$output"
             [ "$(printf "%s\\n" "$output" | rg -c "^📊 Total: [0-9]+ issue\\(s\\)$")" -eq 2 ]
           '`,

@@ -121,12 +121,7 @@
   },
   {
     "template": "diene/workspace",
-    "name": "secret-guards",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "secret-scan-command",
+    "name": "secret-login-guard",
     "class": "smoke"
   },
   {
@@ -182,11 +177,6 @@
   {
     "template": "diene/workspace",
     "name": "non-trusted-action-pins",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "cache-tag-shape",
     "class": "gate"
   },
   {

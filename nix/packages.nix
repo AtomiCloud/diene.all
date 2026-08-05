@@ -3,7 +3,7 @@
   pkgs,
   pkgs-2605,
   pkgs-unstable,
-  releaser-src,
+  releaser-pkg,
 }:
 let
   cyanprintVersion = "4.9.0";
@@ -61,9 +61,9 @@ let
       {
         inherit
           atomiutils
+          dlint
           infralint
           infrautils
-          pls
           ;
       }
     );
@@ -102,14 +102,16 @@ let
       }
     );
 
+    # ### dotnet-base-releaser
+    # #### source: dotnet-base
+    releaser-pkgs = {
+      releaser = releaser-pkg;
+    };
+
     root = {
       inherit cyanprint;
-
-      # ### dotnet-base-releaser
-      # #### source: dotnet-base
-      releaser = releaser-src.packages.${pkgs.stdenv.hostPlatform.system}.releaser;
     };
   };
 in
 with all;
-atomipkgs // nix-2605 // nix-unstable // root // dotnet-base
+atomipkgs // nix-2605 // nix-unstable // releaser-pkgs // root // dotnet-base

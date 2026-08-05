@@ -9,7 +9,7 @@ export default {
       description: 'The public build task produces the Release App artifact.',
       kind: 'baseline',
       async run(repo: any) {
-        await expectGreen(repo, 'nix develop .#ci -c pls build', 'dotnet-build', 600000);
+        await expectGreen(repo, 'nix develop .#ci -c task build', 'dotnet-build', 600000);
         if ((await repo.glob('App/bin/Release/net10.0/App.dll')).length !== 1) {
           throw new Error('Release App.dll was not produced');
         }

@@ -1,4 +1,4 @@
-import { expectGreen } from './lib/helpers.ts';
+import { capturedEnvCommand, expectGreen, restoreProbeState as restoreTrackedProbeState } from './lib/helpers.ts';
 
 const externalGoModule = 'github.com/AtomiCloud/diene.go-fixture';
 const goModFixture = `module example.com/app\n\ngo 1.22\n\nrequire ${externalGoModule} v0.1.0\n`;
@@ -70,6 +70,70 @@ const brokenGoShim = [
   '',
 ].join('\n');
 
+// The root go.mod requires one matching module that never resolves, while the
+// module graph carries an unrelated matching module transitively. Only the
+// listed transitive module ships skills, so a resolver that reads any matching
+// module in the graph as "the declaration resolved" publishes a tree missing the
+// module that was actually required.
+const directGoModule = 'github.com/AtomiCloud/diene.direct';
+const transitiveGoModule = 'github.com/vendor/diene.transitive';
+const transitiveGoModFixture = `module example.com/app\n\ngo 1.22\n\nrequire ${directGoModule} v0.1.0\n`;
+const transitiveGoShim = [
+  '#!/usr/bin/env bash',
+  'case "$*" in',
+  '  "mod edit -json")',
+  `    printf '{"Module":{"Path":"example.com/app"},"Go":"1.22","Require":[{"Path":"${directGoModule}","Version":"v0.1.0"}]}\\n'`,
+  '    ;;',
+  '  "list -m -json all")',
+  '    printf \'{"Path":"example.com/app","Main":true,"Dir":"%s"}\\n\' "$PWD"',
+  `    printf '{"Path":"${transitiveGoModule}","Version":"v0.2.0","Dir":"%s/go-fixture"}\\n' "$PWD"`,
+  '    ;;',
+  '  *)',
+  '    echo "unexpected fake-go invocation: $*" >&2',
+  '    exit 97',
+  '    ;;',
+  'esac',
+  '',
+].join('\n');
+
+// The root go.mod directly requires two matching modules. Only one of them is
+// reachable in the module graph, so a resolver that answers for the ecosystem as
+// a whole reads the module that DID resolve as proof that both did, and publishes
+// a tree missing the skills of the module that never appeared.
+const resolvedGoModule = 'github.com/AtomiCloud/diene.resolved';
+const unresolvedGoModule = 'github.com/AtomiCloud/diene.unresolved';
+const partialGoModFixture = `module example.com/app\n\ngo 1.22\n\nrequire (\n\t${resolvedGoModule} v0.1.0\n\t${unresolvedGoModule} v0.1.0\n)\n`;
+const partialGoShim = [
+  '#!/usr/bin/env bash',
+  'case "$*" in',
+  '  "mod edit -json")',
+  `    printf '{"Module":{"Path":"example.com/app"},"Go":"1.22","Require":[{"Path":"${resolvedGoModule}","Version":"v0.1.0"},{"Path":"${unresolvedGoModule}","Version":"v0.1.0"}]}\\n'`,
+  '    ;;',
+  '  "list -m -json all")',
+  '    printf \'{"Path":"example.com/app","Main":true,"Dir":"%s"}\\n\' "$PWD"',
+  `    printf '{"Path":"${resolvedGoModule}","Version":"v0.1.0","Dir":"%s/go-fixture"}\\n' "$PWD"`,
+  '    ;;',
+  '  *)',
+  '    echo "unexpected fake-go invocation: $*" >&2',
+  '    exit 97',
+  '    ;;',
+  'esac',
+  '',
+].join('\n');
+
+const declaringPubspec = [
+  'name: skills_sync_fixture',
+  'environment:',
+  "  sdk: '>=3.0.0 <4.0.0'",
+  'dependencies:',
+  '  diene_absent: ^1.0.0',
+  '  http: ^1.0.0',
+  '',
+].join('\n');
+
+const malformedPackageJson = '{ "dependencies": {\n';
+const malformedPackageConfig = '{ "configVersion": 2, "packages": [\n';
+
 const declaringPackageJson = `${JSON.stringify(
   {
     name: 'skills-sync-fixture',
@@ -90,31 +154,70 @@ const probeCleanTargets = [
   'go.mod',
   'go-fixture',
   'go-shim',
-].join(' ');
+  'pubspec.yaml',
+  '.dart_tool',
+];
 
-async function restoreProbeState(repo: any): Promise<void> {
-  const madeWritable = await repo.exec(
-    `for target in ${probeCleanTargets}; do if [ -e "$target" ]; then chmod -R u+w -- "$target" || exit 1; fi; done`,
+// Real installed `@atomicloud/diene.*` packages set `node_staged` for the WHOLE
+// Node.js ecosystem, so any fixture that means "nothing resolved" has to relocate
+// them. Without that, the fixture asserts an environment assumption — that this
+// repository happens to have no real diene dependencies — instead of the property
+// it names, and it silently stops asserting anything on every repository that does.
+//
+// The relocation runs inside the same shell as the synchronizer so nothing can
+// reinstall between the two; it uses a fixed holding path on the same filesystem
+// so the move is a rename rather than a cross-device copy of a possibly
+// read-only tree; and every exit path puts the real packages back.
+// `restoreProbeState` repairs a holding directory left behind by a shell that
+// was killed before its trap could run, so a lost trap costs one probe rather
+// than the repository's installed packages.
+const realNodePackages = 'node_modules/@atomicloud';
+const nodeIsolationDir = 'node_modules/.diene-probe-isolation';
+const isolatedNodePackages = `${nodeIsolationDir}/@atomicloud`;
+const isolateRealNodePackages = [
+  `mkdir -p ${nodeIsolationDir}`,
+  `trap "if [ -d \\"${isolatedNodePackages}\\" ]; then rm -rf \\"${realNodePackages}\\"; mkdir -p node_modules; mv \\"${isolatedNodePackages}\\" \\"${realNodePackages}\\"; fi; rmdir \\"${nodeIsolationDir}\\" 2>/dev/null || true" EXIT`,
+  `if [ -d ${realNodePackages} ]; then mv ${realNodePackages} ${isolatedNodePackages}; fi`,
+].join('; ');
+
+// MERGE RESOLUTION (shared ∪ 260ddcf, 2026-08-04): the two lines diverged on the
+// SHAPE of this helper, not on its behaviour. `260ddcf` extracted the three
+// standard steps (chmod → `git restore` → scoped `git clean`) into
+// `probes/lib/helpers.ts` as `restoreProbeState(repo, cleanTargets)` and made
+// `probeCleanTargets` an array passed per call site. `shared` kept them local and
+// added the node-package isolation repair below. Taking either side alone loses
+// something real: dropping 260ddcf's shape breaks 11 three-argument call sites and
+// the shared helper other probes now import; dropping shared's repair silently
+// leaves a fixture's relocated `@atomicloud` packages relocated whenever a shell
+// dies before its trap runs. So the reunite step is kept and composed ON TOP of
+// the extracted helper — it runs before every restore, exactly as it did on
+// `shared`, and the call-site signature is 260ddcf's.
+async function reuniteRealNodePackages(repo: any): Promise<void> {
+  const reunited = await repo.exec(
+    `if [ -d ${isolatedNodePackages} ]; then chmod -R u+w -- ${realNodePackages} 2>/dev/null || true; rm -rf ${realNodePackages} || exit 1; mkdir -p node_modules || exit 1; mv ${isolatedNodePackages} ${realNodePackages} || exit 1; fi; if [ -d ${nodeIsolationDir} ]; then rmdir ${nodeIsolationDir} || exit 1; fi`,
   );
-  if (madeWritable.exitCode !== 0) {
-    throw new Error(`could not make probe fixtures writable: ${madeWritable.stderr || madeWritable.stdout}`);
-  }
-  const restored = await repo.exec('git restore --source=HEAD --staged --worktree -- .');
-  if (restored.exitCode !== 0) {
-    throw new Error(`could not restore tracked probe state: ${restored.stderr || restored.stdout}`);
-  }
-  const cleaned = await repo.exec(`git clean -fdx -- ${probeCleanTargets}`);
-  if (cleaned.exitCode !== 0) {
-    throw new Error(`could not remove untracked probe fixtures: ${cleaned.stderr || cleaned.stdout}`);
+  if (reunited.exitCode !== 0) {
+    throw new Error(
+      `could not restore the real installed node packages a fixture isolated: ${reunited.stderr || reunited.stdout}`,
+    );
   }
 }
 
-async function withCleanProbeState(repo: any, body: () => Promise<void>): Promise<void> {
-  await restoreProbeState(repo);
+async function restoreProbeState(repo: any, cleanTargets: readonly string[]): Promise<void> {
+  await reuniteRealNodePackages(repo);
+  await restoreTrackedProbeState(repo, cleanTargets);
+}
+
+async function withCleanProbeState(
+  repo: any,
+  cleanTargets: readonly string[],
+  body: () => Promise<void>,
+): Promise<void> {
+  await restoreProbeState(repo, cleanTargets);
   try {
     await body();
   } finally {
-    await restoreProbeState(repo);
+    await restoreProbeState(repo, cleanTargets);
   }
 }
 
@@ -145,7 +248,7 @@ export default {
         'The universal skills synchronizer vendors read-only package content, self-cleans, records a deterministic manifest, and is idempotent on its second run.',
       kind: 'baseline',
       async run(repo: any) {
-        await withCleanProbeState(repo, async () => {
+        await withCleanProbeState(repo, probeCleanTargets, async () => {
           await repo.write('go.mod', goModFixture);
           await repo.write('go-shim/go', externalGoShim);
           await repo.write('go-fixture/skills/example/SKILL.md', 'external Go skill\n');
@@ -164,14 +267,14 @@ export default {
         'A declared but unresolved cold checkout keeps the committed vendored skills byte-for-byte instead of emptying them.',
       kind: 'baseline',
       async run(repo: any) {
-        await withCleanProbeState(repo, async () => {
+        await withCleanProbeState(repo, probeCleanTargets, async () => {
           await repo.write('package.json', declaringPackageJson);
           await repo.write('go.mod', neutralGoModFixture);
           await repo.write('go-shim/go', neutralGoShim);
           await stageKeptSkill(repo);
           await expectGreen(
             repo,
-            `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; iso="$(mktemp -d)"; trap "if [ -d \\"$iso/@atomicloud\\" ]; then rm -rf node_modules/@atomicloud; mkdir -p node_modules; mv \\"$iso/@atomicloud\\" node_modules/; fi; rm -rf \\"$iso\\"" EXIT; if [ -d node_modules/@atomicloud ]; then mv node_modules/@atomicloud "$iso/"; fi; mkdir -p node_modules; ./scripts/local/skills-sync.sh; test "$(cat ${keptSkill})" = "committed skill"'`,
+            `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ${isolateRealNodePackages}; ./scripts/local/skills-sync.sh; test "$(cat ${keptSkill})" = "committed skill"'`,
             'skills-sync',
           );
         });
@@ -183,13 +286,15 @@ export default {
         'A diene-requiring go.mod without a go toolchain refuses with an actionable diagnostic instead of a bare command-not-found.',
       kind: 'baseline',
       async run(repo: any) {
-        await withCleanProbeState(repo, async () => {
+        await withCleanProbeState(repo, probeCleanTargets, async () => {
           await repo.write('go.mod', goModFixture);
           // Build an explicit utility PATH without Go. This keeps the fixture
-          // valid after the parent probe cascades into Go-enabled nodes, even if
+          // valid after the parent probe cascades into Go-enabled repositories, even if
           // an ambient PATH directory happens to contain Go beside other tools.
           const result = await repo.exec(
-            `nix develop .#ci -c bash -c 'set -euo pipefail; fixture_bin="$(mktemp -d)"; trap "rm -rf \\"$fixture_bin\\"" EXIT; for command_name in bash env jq rg sed mktemp touch mkdir cp chmod rm mv find tr basename realpath git dirname sort wc head grep cat cut awk; do command_path="$(command -v "$command_name")" || exit 112; ln -s "$command_path" "$fixture_bin/$command_name"; done; export PATH="$fixture_bin"; if command -v go >/dev/null 2>&1; then exit 111; fi; ./scripts/local/skills-sync.sh'`,
+            capturedEnvCommand(
+              `nix develop .#ci -c bash -c 'set -euo pipefail; fixture_bin="$(mktemp -d)"; trap "rm -rf \\"$fixture_bin\\"" EXIT; for command_name in bash env jq rg sed mktemp touch mkdir cp chmod rm mv find tr basename realpath git dirname sort wc head grep cat cut awk; do command_path="$(command -v "$command_name")" || exit 112; ln -s "$command_path" "$fixture_bin/$command_name"; done; export PATH="$fixture_bin"; if command -v go >/dev/null 2>&1; then exit 111; fi; ./scripts/local/skills-sync.sh'`,
+            ),
             { timeoutMs: 240000 },
           );
           if (result.exitCode === 111) {
@@ -214,7 +319,7 @@ export default {
         'A Diene-named Go main module with no external Diene requirements and no local skills is legitimately empty.',
       kind: 'baseline',
       async run(repo: any) {
-        await withCleanProbeState(repo, async () => {
+        await withCleanProbeState(repo, probeCleanTargets, async () => {
           await removeCommittedVendor(repo);
           await repo.write('go.mod', goSelfModuleFixture);
           await repo.write('go-shim/go', selfModuleGoShim);
@@ -233,12 +338,14 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        await withCleanProbeState(repo, async () => {
+        await withCleanProbeState(repo, probeCleanTargets, async () => {
           await repo.write('go.mod', goModFixture);
           await repo.write('go-shim/go', brokenGoShim);
           await stageKeptSkill(repo);
           const result = await repo.exec(
-            `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ./scripts/local/skills-sync.sh'`,
+            capturedEnvCommand(
+              `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ./scripts/local/skills-sync.sh'`,
+            ),
             { timeoutMs: 240000 },
           );
           if (result.exitCode === 0) {
@@ -258,12 +365,13 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        await withCleanProbeState(repo, async () => {
+        await withCleanProbeState(repo, probeCleanTargets, async () => {
           await removeCommittedVendor(repo);
+          const declarationSite = '  if [ -s "${go_required}" ]; then\n    go_declared=true\n  fi\n';
           await repo.patch('scripts/local/skills-sync.sh', {
-            find: '  go_declares_external=false\n',
+            find: declarationSite,
             replace:
-              '  go_declares_external=false\n' +
+              declarationSite +
               '  if jq_match \'(.Module.Path // "") | test("(^|/)diene[._-]")\' "${go_manifest}"; then\n' +
               '    go_declared=true\n' +
               '  fi\n',
@@ -271,7 +379,9 @@ export default {
           await repo.write('go.mod', goSelfModuleFixture);
           await repo.write('go-shim/go', selfModuleGoShim);
           const result = await repo.exec(
-            `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ./scripts/local/skills-sync.sh'`,
+            capturedEnvCommand(
+              `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ./scripts/local/skills-sync.sh'`,
+            ),
             { timeoutMs: 240000 },
           );
           if (result.exitCode === 0) {
@@ -291,14 +401,16 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        await withCleanProbeState(repo, async () => {
+        await withCleanProbeState(repo, probeCleanTargets, async () => {
           await removeCommittedVendor(repo);
           await repo.write('package.json', declaringPackageJson);
           await repo.write('go.mod', neutralGoModFixture);
           await repo.write('go-shim/go', neutralGoShim);
           await repo.write(`${keptSkill}.untracked`, 'untracked content is not a committed fallback\n');
           const result = await repo.exec(
-            `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ./scripts/local/skills-sync.sh'`,
+            capturedEnvCommand(
+              `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ${isolateRealNodePackages}; ./scripts/local/skills-sync.sh'`,
+            ),
             { timeoutMs: 240000 },
           );
           if (result.exitCode === 0) {
@@ -307,6 +419,125 @@ export default {
           const output = `${result.stdout}\n${result.stderr}`;
           if (!output.includes('Declared diene packages produced no vendored skills: node')) {
             throw new Error(`skills-sync failed for the wrong reason after zero-skill resolution:\n${output}`);
+          }
+        });
+      },
+    },
+    {
+      name: 'mutation-skills-sync-go-transitive-mask-caught',
+      description:
+        'A focused sabotage must turn the skills-sync mechanism red: a matching module reached only transitively must not answer a direct root go.mod requirement that never resolved.',
+      kind: 'mutation',
+      expectedImpact: [],
+      async run(repo: any) {
+        await withCleanProbeState(repo, probeCleanTargets, async () => {
+          await repo.write('go.mod', transitiveGoModFixture);
+          await repo.write('go-shim/go', transitiveGoShim);
+          await repo.write('go-fixture/skills/example/SKILL.md', 'transitive Go skill\n');
+          const result = await repo.exec(
+            capturedEnvCommand(
+              `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ./scripts/local/skills-sync.sh'`,
+            ),
+            { timeoutMs: 240000 },
+          );
+          if (result.exitCode === 0) {
+            throw new Error(
+              'skills-sync stayed green while a transitive module masked an unresolved direct requirement',
+            );
+          }
+          const output = `${result.stdout}\n${result.stderr}`;
+          if (!output.includes('Declared diene packages produced no vendored skills: go')) {
+            throw new Error(`skills-sync failed for the wrong reason after the transitive-mask fixture:\n${output}`);
+          }
+        });
+      },
+    },
+    {
+      name: 'mutation-skills-sync-go-partial-direct-caught',
+      description:
+        'A focused sabotage must turn the skills-sync mechanism red: a direct root go.mod requirement that never resolved must be named, even when a sibling direct requirement staged skills of its own.',
+      kind: 'mutation',
+      expectedImpact: [],
+      async run(repo: any) {
+        await withCleanProbeState(repo, probeCleanTargets, async () => {
+          await repo.write('go.mod', partialGoModFixture);
+          await repo.write('go-shim/go', partialGoShim);
+          await repo.write('go-fixture/skills/example/SKILL.md', 'resolved Go skill\n');
+          const result = await repo.exec(
+            capturedEnvCommand(
+              `nix develop .#ci -c bash -c 'set -euo pipefail; chmod +x go-shim/go; export PATH="$PWD/go-shim:$PATH"; ./scripts/local/skills-sync.sh'`,
+            ),
+            { timeoutMs: 240000 },
+          );
+          if (result.exitCode === 0) {
+            throw new Error('skills-sync stayed green while one direct diene requirement never resolved');
+          }
+          const output = `${result.stdout}\n${result.stderr}`;
+          if (!output.includes('Directly required diene modules produced no vendored skills')) {
+            throw new Error(`skills-sync failed for the wrong reason after the partial-resolution fixture:\n${output}`);
+          }
+          if (!output.includes(unresolvedGoModule)) {
+            throw new Error(`skills-sync did not name the unresolved direct requirement:\n${output}`);
+          }
+          if (output.includes(`- ${resolvedGoModule}`)) {
+            throw new Error(`skills-sync blamed the direct requirement that did resolve:\n${output}`);
+          }
+        });
+      },
+    },
+    {
+      name: 'mutation-skills-sync-pub-unresolved-caught',
+      description:
+        'A focused sabotage must turn the skills-sync mechanism red: a declared diene_ Pub dependency with no resolved package configuration must refuse instead of publishing a tree that silently omits it.',
+      kind: 'mutation',
+      expectedImpact: [],
+      async run(repo: any) {
+        await withCleanProbeState(repo, probeCleanTargets, async () => {
+          await removeCommittedVendor(repo);
+          await repo.write('pubspec.yaml', declaringPubspec);
+          const result = await repo.exec(
+            capturedEnvCommand(`nix develop .#ci -c bash -c 'set -euo pipefail; ./scripts/local/skills-sync.sh'`),
+            { timeoutMs: 240000 },
+          );
+          if (result.exitCode === 0) {
+            throw new Error('skills-sync stayed green after a declared Pub diene package produced no skills');
+          }
+          const output = `${result.stdout}\n${result.stderr}`;
+          if (!output.includes('Declared diene packages produced no vendored skills: pub')) {
+            throw new Error(`skills-sync failed for the wrong reason after an unresolved Pub declaration:\n${output}`);
+          }
+        });
+      },
+    },
+    {
+      name: 'mutation-skills-sync-malformed-json-caught',
+      description:
+        'A focused sabotage must turn the skills-sync mechanism red: each JSON manifest it validates must refuse by name, so a syntax error is not reported as an unexplained jq crash.',
+      kind: 'mutation',
+      expectedImpact: [],
+      async run(repo: any) {
+        await withCleanProbeState(repo, probeCleanTargets, async () => {
+          const syncCommand = `nix develop .#ci -c bash -c 'set -euo pipefail; ./scripts/local/skills-sync.sh'`;
+          const sites = [
+            { path: 'package.json', content: malformedPackageJson },
+            { path: '.dart_tool/package_config.json', content: malformedPackageConfig },
+          ];
+          for (const site of sites) {
+            await repo.write(site.path, site.content);
+            const result = await repo.exec(syncCommand, { timeoutMs: 240000 });
+            if (result.exitCode === 0) {
+              throw new Error(`skills-sync stayed green with a malformed ${site.path}`);
+            }
+            const output = `${result.stdout}\n${result.stderr}`;
+            if (!output.includes(`${site.path} is not valid JSON`)) {
+              throw new Error(`skills-sync did not name ${site.path} as the malformed manifest:\n${output}`);
+            }
+            const removed = await repo.exec(`rm -rf -- ${site.path}`);
+            if (removed.exitCode !== 0) {
+              throw new Error(
+                `could not remove the malformed ${site.path} fixture: ${removed.stderr || removed.stdout}`,
+              );
+            }
           }
         });
       },

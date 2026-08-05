@@ -1,27 +1,33 @@
-# ### workspace-helm
-# #### source: workspace
 version: '3'
 
-vars:
-  CHART: infra/root_chart
-
+# One task set per chart under infra/. The task key is the chart directory's own
+# name, so `infra/root_chart` is `root_chart:<verb>`. A new chart gets its own
+# tasks and its own vars block; never re-point a shared chart variable.
 tasks:
-  deps:
-    desc: Build chart dependencies
+  root_chart:deps:
+    desc: Build dependencies for infra/root_chart
+    vars:
+      CHART: infra/root_chart
     cmds:
       - helm dependency build {{.CHART}}
 
-  lint:
-    desc: Lint the root chart
+  root_chart:lint:
+    desc: Lint infra/root_chart
+    vars:
+      CHART: infra/root_chart
     cmds:
       - helm lint {{.CHART}}
 
-  template:
-    desc: Render the root chart
+  root_chart:template:
+    desc: Render infra/root_chart
+    vars:
+      CHART: infra/root_chart
     cmds:
       - helm template dotnet-base {{.CHART}} {{.CLI_ARGS}}
 
-  debug:
-    desc: Render the root chart with debug output
+  root_chart:debug:
+    desc: Render infra/root_chart with debug output
+    vars:
+      CHART: infra/root_chart
     cmds:
       - helm template dotnet-base {{.CHART}} --debug {{.CLI_ARGS}}

@@ -18,8 +18,11 @@ rg -q "nixpkgs-2605.url = \"github:NixOS/nixpkgs/${rev}\";" flake.nix || {
   echo "❌ flake.nix does not use the authoritative nixpkgs SHA" >&2
   exit 1
 }
-rg -q 'atomipkgs.url = "github:AtomiCloud/nix-registry/v3";' flake.nix || {
-  echo "❌ atomipkgs must use registry v3" >&2
+# A three-part tag, not the floating `v3` or `v3.14`: those two are retargeted at
+# every registry release, so pinning to either makes the same tree resolve to a
+# different registry on two days. Only the patch-level tag stays put.
+rg -q 'atomipkgs.url = "github:AtomiCloud/nix-registry/v3\.[0-9]+\.[0-9]+";' flake.nix || {
+  echo "❌ atomipkgs must pin an exact registry tag of the form v3.MINOR.PATCH" >&2
   exit 1
 }
 rg -q 'nix-2605' nix/packages.nix || {

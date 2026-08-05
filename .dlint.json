@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "checks": {
+    "ci-wiring": {
+      "workflowsDir": ".github/workflows",
+      "entrypointPattern": "scripts/ci/[A-Za-z0-9._-]+[.]sh",
+      "orchestrators": [".github/workflows/ci.yaml", ".github/workflows/cd.yaml", ".github/workflows/release.yaml"]
+    }
+  }
+}
