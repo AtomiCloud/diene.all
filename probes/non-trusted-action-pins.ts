@@ -9,7 +9,11 @@ export default {
       description: 'Every authored non-trusted action uses an exact SHA plus tag comment.',
       kind: 'baseline',
       async run(repo: any) {
-        await expectGreen(repo, 'nix develop .#ci -c ./scripts/validate/action-pins.sh non-trusted', 'non-trusted-action-pins');
+        await expectGreen(
+          repo,
+          'nix develop .#ci -c ./scripts/validate/action-pins.sh non-trusted',
+          'non-trusted-action-pins',
+        );
       },
     },
     {
@@ -22,10 +26,15 @@ export default {
           find: 'upsidr/merge-gatekeeper@09af7a82c1666d0e64d2bd8c01797a0bcfd3bb5d # v1.2.1',
           replace: 'upsidr/merge-gatekeeper@v1.2.1',
         });
-        await expectRedBecause(repo, 'nix develop .#ci -c ./scripts/validate/action-pins.sh non-trusted', 'non-trusted-action-pins', [
-          '.github/workflows/🛡️merge-gatekeeper.yml',
-          "non-trusted action 'upsidr/merge-gatekeeper' must use an exact SHA",
-        ]);
+        await expectRedBecause(
+          repo,
+          'nix develop .#ci -c ./scripts/validate/action-pins.sh non-trusted',
+          'non-trusted-action-pins',
+          [
+            '.github/workflows/🛡️merge-gatekeeper.yml',
+            "non-trusted action 'upsidr/merge-gatekeeper' must use an exact SHA",
+          ],
+        );
       },
     },
   ],

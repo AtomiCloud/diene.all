@@ -4,7 +4,10 @@ set -euo pipefail
 kind="${1:-}"
 mode="${2:-normal}"
 
-[ "${kind}" != "unit" ] && [ "${kind}" != "int" ] && echo "❌ Usage: dotnet-test.sh <unit|int> [--watch|--coverage]" >&2 && exit 1
+# This is the ONE place the tier list lives. scripts/ci/test.sh used to keep a
+# second copy; it passes the mode straight through now, so the refusal has to name
+# the value it rejected or a caller two scripts up cannot tell what it sent.
+[ "${kind}" != "unit" ] && [ "${kind}" != "int" ] && echo "❌ test tier '${kind}' is not one of unit|int (usage: dotnet-test.sh <unit|int> [--watch|--coverage])" >&2 && exit 1
 [ "${mode}" != "normal" ] && [ "${mode}" != "--watch" ] && [ "${mode}" != "--coverage" ] && echo "❌ Unknown mode '${mode}'" >&2 && exit 1
 
 root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"

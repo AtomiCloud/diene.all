@@ -11,22 +11,22 @@ shared workspace, standards, Docker, Helm, secret, and release surfaces.
 
 ## Local commands
 
-| Command                          | Purpose                                                        |
-| -------------------------------- | -------------------------------------------------------------- |
-| `task setup`                      | Synchronize vendored skills and restore repo-local .NET tools. |
-| `task clean`                      | Remove build and test artifacts.                               |
-| `task build`                      | Build every project in Release.                                |
-| `task dev`                        | Run the App through `dotnet watch`.                            |
-| `task run -- <args>`              | Run the App in development mode.                               |
-| `task preview -- <args>`          | Build and run the compiled Release artifact.                   |
+| Command                            | Purpose                                                        |
+| ---------------------------------- | -------------------------------------------------------------- |
+| `task setup`                       | Synchronize vendored skills and restore repo-local .NET tools. |
+| `task clean`                       | Remove build and test artifacts.                               |
+| `task build`                       | Build every project in Release.                                |
+| `task dev`                         | Run the App through `dotnet watch`.                            |
+| `task run -- <args>`               | Run the App in development mode.                               |
+| `task preview -- <args>`           | Build and run the compiled Release artifact.                   |
 | `task up` / `task down`            | Start or stop the local Redis dependency.                      |
-| `task test`                       | Run unit and integration tiers.                                |
+| `task test`                        | Run unit and integration tiers.                                |
 | `task test:unit` / `task test:int` | Run one tier.                                                  |
-| `task test:unit:coverage`         | Enforce the merged unit coverage ledger.                       |
-| `task test:int:coverage`          | Enforce the merged integration coverage ledger.                |
-| `task test:unit:watch`            | Watch the fast unit tier.                                      |
-| `task deadcode`                   | Emit the broad, non-blocking LLM review.                       |
-| `task lint`                       | Run every generated pre-commit hook.                           |
+| `task test:unit:coverage`          | Enforce the merged unit coverage ledger.                       |
+| `task test:int:coverage`           | Enforce the merged integration coverage ledger.                |
+| `task test:unit:watch`             | Watch the fast unit tier.                                      |
+| `task deadcode`                    | Emit the broad, non-blocking LLM review.                       |
+| `task lint`                        | Run every generated pre-commit hook.                           |
 
 ## Projects and coverage
 
