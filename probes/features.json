@@ -121,12 +121,7 @@
   },
   {
     "template": "diene/workspace",
-    "name": "secret-guards",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "secret-scan-command",
+    "name": "secret-login-guard",
     "class": "smoke"
   },
   {
@@ -142,16 +137,6 @@
   {
     "template": "diene/workspace",
     "name": "skills-freshness",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "release-config-schema",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "release-type-vocabulary",
     "class": "gate"
   },
   {
@@ -173,12 +158,6 @@
     "template": "diene/workspace",
     "name": "non-trusted-action-pins",
     "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "releaser-hook-registration",
-    "class": "presence",
-    "deferredUntil": "the releaser tool is published"
   },
   {
     "template": "diene/workspace",

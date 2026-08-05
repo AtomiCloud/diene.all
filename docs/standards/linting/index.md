@@ -41,9 +41,13 @@ The formatters treefmt drives are the `programs` attribute set in
 [`nix/fmt.nix`](../../../nix/fmt.nix); each entry enables one formatter and may
 carry its own `excludes`.
 
-The `a-releaser-commit` commit-msg hook is registered, but its binary — the
-`releaser` tool — is not published yet, so the hook cannot run. There is no
-`.gitlint` hook or file.
+**No hook checks commit messages.** There is no `.gitlint` hook or file, and the
+commit-msg hook that used to be registered here was removed: the `releaser` binary
+behind it is not published, so it was a registration with nothing to run. The commit
+types themselves are still defined in `atomi_release.yaml` — see
+[the conventional-commits standard](../conventional-commits/index.md) — but writing
+a commit that respects them is a convention now, not something this repository
+enforces.
 
 ## Configuration rules
 

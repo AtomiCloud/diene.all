@@ -23,17 +23,22 @@ plugins:
     version: 6.0.3
     config:
       changelogFile: Changelog.md
+  # Deliberately unconfigured, and kept for that reason. Every step of
+  # @semantic-release/exec is skipped unless its own `*Cmd` (or a shared `cmd`) is
+  # set, so an entry with no `config:` is a valid no-op rather than an error - the
+  # plugin stays here, pinned, as the hook point a downstream node fills in. The
+  # usual filling is a `prepareCmd` that stamps the version into whatever file that
+  # node's ecosystem versions; if you add one, add the file it writes to the
+  # `assets` list below in the same edit. This workspace stamps no version file, so
+  # it configures nothing and lists none.
   - module: '@semantic-release/exec'
     version: 6.0.3
-    config:
-      prepareCmd: './scripts/release/bump.sh ${nextRelease.version}'
   - module: '@semantic-release/git'
     version: 10.0.1
     config:
       message: "release: ${nextRelease.version}\n\n${nextRelease.notes}"
       assets:
         - Changelog.md
-        - VERSION
         - docs/developer/CommitConventions.md
   - module: '@semantic-release/github'
     version: 10.3.5

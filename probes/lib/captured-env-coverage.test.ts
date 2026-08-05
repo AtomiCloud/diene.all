@@ -57,16 +57,21 @@ describe('captured-env coverage of direct repo.exec shell entries', () => {
   // call site is a decision somebody makes on purpose. It went 15 -> 16 when
   // cache-tag-shape.ts gained a second direct site, then 16 -> 14 when that probe was
   // deleted with the cache-policy gate it tested (owner ruling, 2026-08-05) — it had
-  // carried two of the sites. Move it only together with the sites that justify it.
-  test('the wrapped set is the 14 known shell-entering call sites, across 7 files', () => {
+  // carried two of the sites. It is now 15 across 8 files: secret-guards.ts was deleted
+  // with the secrets fetch/scan actions it tested (-1), and hook-enforce-exec.ts and
+  // hook-shellcheck.ts each took a direct site so their mutation arms can assert the
+  // gate's refusal TEXT and not merely its exit code (+2). Move it only together with
+  // the sites that justify it.
+  test('the wrapped set is the 15 known shell-entering call sites, across 8 files', () => {
     const wrapped = allSites.filter(site => site.wrapped);
-    expect(wrapped).toHaveLength(14);
+    expect(wrapped).toHaveLength(15);
     expect([...new Set(wrapped.map(site => site.file))].sort()).toEqual([
+      'hook-enforce-exec.ts',
+      'hook-shellcheck.ts',
       'precommit-treefmt-actionlint.ts',
       'precommit-treefmt-nixfmt.ts',
       'precommit-treefmt-prettier.ts',
       'precommit-treefmt-shfmt.ts',
-      'secret-guards.ts',
       'skills-freshness.ts',
       'skills-sync.ts',
     ]);

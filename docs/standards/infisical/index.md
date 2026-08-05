@@ -17,17 +17,26 @@ secrets to the parent shell — secrets are only available inside the Infisical 
 This is a common footgun; always include `-- <command>` when you need secrets in your
 current shell environment.
 
-## Setup
+## Logging in
 
-[`scripts/local/secrets.sh`](../../../scripts/local/secrets.sh) owns the secret
-actions. It takes the action as its first argument, and the `case` block near the
-top of the script is the authoritative list of the actions it accepts; each branch
-also declares, as `[ -z "${VAR:-}" ] && … && exit 1` guards, the environment
-variables that action requires.
+[`scripts/local/secrets.sh`](../../../scripts/local/secrets.sh) does one thing: it
+makes sure this machine has a usable Infisical session, logging in only when there
+is not one already. It takes no arguments, writes no files, and is safe to run
+again at any time.
 
-The task wrappers are in [`tasks/Taskfile.secret.yaml`](../../../tasks/Taskfile.secret.yaml),
-included under the `secret` namespace, so each task there is `task secret:<task>`.
-Read the file, or run `task --list`, to see which ones exist.
+```bash
+./scripts/local/secrets.sh
+```
 
-Authentication is not a separate step: the fetch path logs you in when no valid
-token is present.
+`INFISICAL_API_URL` selects the instance and defaults to `https://secrets.atomi.cloud`.
+
+There is no task wrapper and no fetch action. Once you have a session, read secrets
+with the `infisical run -- <command>` form above rather than exporting them into a
+file — a `.env` on disk is a copy of your secrets that nothing keeps current.
+
+## Scanning for committed secrets
+
+Two pre-commit hooks run `infisical scan` on every commit — one over the whole tree
+and one over the staged changes. Both pass `--redact`, so a finding reports its file
+and line but never the candidate value; these hooks also run in CI, where the value
+would otherwise reach a build log. Do not remove `--redact`.
