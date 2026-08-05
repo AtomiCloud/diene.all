@@ -95,18 +95,6 @@ pre-commit-lib.run {
       language = "system";
     };
 
-    a-nixpkgs-pin = {
-      enable = true;
-      name = "Every nixpkgs input is commit-pinned";
-      entry = validator "scripts/validate/nixpkgs-pin.sh";
-      # nix/.* still triggers it: the gate refuses a re-created
-      # nix/snapshots/nixpkgs.json, so the path that no longer exists must still
-      # be able to wake the hook up.
-      files = "^(flake\\.nix|flake\\.lock|nix/.*)$";
-      pass_filenames = false;
-      language = "system";
-    };
-
     a-release-config = {
       enable = true;
       name = "Release config schema and types";
@@ -150,19 +138,20 @@ pre-commit-lib.run {
       language = "system";
     };
 
-    # The wiring mode keeps both of its halves — every referenced scripts/ci entry
-    # point exists and is executable, and every orchestrator job resolves to a
-    # repository-local reusable workflow that calls one — unchanged. The
-    # cache-tag-shape mode shares this workflow hook without increasing the
-    # committer-facing hook count.
+    # Wiring keeps both of its halves - every referenced scripts/ci entry point
+    # exists and is executable, and every orchestrator job resolves to a
+    # repository-local reusable workflow that calls one - and shares this hook with
+    # the two release-policy assertions, so the committer waits on one hook.
+    #
+    # Runner and cache LABELS are plain workflow configuration and are deliberately
+    # not validated here (owner ruling, 2026-08-05). Do not add a mode back.
     a-workflows = {
       enable = true;
-      name = "Workflow wiring, release policy and runner cache shape";
+      name = "Workflow wiring and release policy";
       entry = validators [
         "scripts/validate/workflows.sh wiring"
         "scripts/validate/workflows.sh release-trigger"
         "scripts/validate/workflows.sh release-concurrency"
-        "scripts/validate/workflows.sh cache-tag-shape"
       ];
       files = "^\\.github/workflows/.*\\.ya?ml$";
       pass_filenames = false;

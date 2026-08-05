@@ -110,23 +110,38 @@ cache split cannot make the check silently inspect zero jobs.
 
 ## Cache eligibility is decided from behavior, not from labels
 
-> **Superseded — read this first.** The three sections that follow describe a shell
-> reader that decided, from the text of each `run:` script, whether it "definitely
-> runs Nix", "definitely does not", or "cannot be read". That reader is **gone**.
-> It only ever existed because a job was allowed to run a script _outside_ a dev
-> shell, which left the gate guessing whether the script touched the store. The
-> rule now is simply that **every `run:` step enters a Nix shell that declares its
-> dependencies**, so there is nothing left to guess: a bare command is refused
-> outright, whichever command it is.
+> **DELETED — read this first, and do not implement any of what follows.**
 >
-> The sections below are kept because the failure modes they name are real and a
-> future reader should not have to rediscover them — but do not implement any of
-> it. [The CI/CD workflows standard](docs/standards/ci-cd/index.md) states the
-> current rule, and `scripts/validate/workflows.sh cache-tag-shape` enforces it.
-> The two marker names were also renamed in that change:
+> By owner ruling, 2026-08-05, the **entire cache-policy gate is gone and has no
+> successor**. Removed: `scripts/validate/workflows.sh`'s `cache-tag-shape` mode,
+> `probes/cache-tag-shape.ts` and its feature row, the exemption and fallback
+> environment markers (**deleted, not renamed** — they only ever served the gate),
+> and the label/lexer specification that used to sit in the CI/CD standard.
+>
+> **Runner and cache labels are now plain workflow configuration that nothing
+> validates.** Cache-eligible lanes carry the labels; a lane that must not share
+> the store just uses the bare Namespace label; no check confirms either.
+> [The CI/CD workflows standard](docs/standards/ci-cd/index.md) describes them in
+> one short section, as configuration rather than as a contract. **Do not
+> resurrect this check here or in any later linter** — that is the ruling, not an
+> oversight.
+>
+> The same ruling deleted the nixpkgs-pin validator and its probe. Pinning every
+> input to an exact commit **remains the practice**; it is simply no longer
+> enforced, so `flake.lock` is now an unvalidated second copy of the pin.
+>
+> Two intermediate states are worth naming, because a reader meeting either will
+> otherwise assume this text is current. Between them and now, the gate had already
+> been rewritten once: the three-answer shell reader described below was replaced by
+> a single rule — every `run:` step enters a declared Nix shell — which made the
+> reader unnecessary rather than merely simpler. That rewrite also renamed
 > `S31_CACHE_EXEMPT_REASON` → `NIX_CACHE_EXEMPT_REASON` and
-> `S31_RUNNER_FALLBACK_REASON` → `NIX_RUNNER_FALLBACK_REASON`; the text below uses
-> the current names throughout.
+> `S31_RUNNER_FALLBACK_REASON` → `NIX_RUNNER_FALLBACK_REASON`, which is why the text
+> below carries those names. Both the reader and the rule that replaced it are now
+> deleted; only the **conversion** survives, and it survives as a convention.
+>
+> The sections are kept because the failure modes they name are real and a future
+> reader should not have to rediscover them. They are history, not instructions.
 
 Review found that the mode above still inferred cache eligibility from the labels it was
 validating. "I carry no cache tag" was therefore read as "I am a deliberate

@@ -28,8 +28,8 @@ their trigger block:
 Callers grant permissions, pass only repository-specific values, and use
 `secrets: inherit`. The `a-workflows` gate enforces that every orchestrator job
 resolves to a repository-local reusable workflow, that each reusable workflow
-calls an existing, executable `scripts/ci` entry point, and that every job obeys
-the dependency and cache rules below.
+calls an existing, executable `scripts/ci` entry point, and that the release
+workflow keeps its trigger and concurrency group.
 
 `AtomiCloud/actions.setup-nix` checks out the repository, so do not add an
 adjacent `actions/checkout`.
@@ -45,9 +45,6 @@ action means adding its entry there.
 
 ## Every job declares its dependencies
 
-There is one rule, and the caching rules follow from it rather than standing
-alongside it:
-
 > **Every `run:` step enters a Nix shell that declares what it needs.**
 
 In practice a `run:` step is exactly one line:
@@ -58,46 +55,24 @@ nix develop .#<shell> -c <command>
 
 `<shell>` is one of the shells declared in
 [`nix/shells.nix`](../../../nix/shells.nix) — today `default`, `ci`, `cd` and
-`releaser`. Nothing else is allowed to run: not a bare command, not a shell this
-repository does not declare, and not a second command on a following line.
+`releaser`. Three things follow: a job's dependencies are visible without reading
+the job, CI and your laptop run the same tools, and every job can reuse the shared
+Nix store cache.
 
-Three things come for free once that holds, and together they are the whole cache
-law:
+## Runners and cache labels
 
-1. **A job's dependencies are visible.** The shell names its tools, so you can see
-   what a lane needs without reading the lane.
-2. **CI and your laptop run the same tools.** Take the `run:` line out of the
-   workflow and paste it into a terminal; that is the whole reproduction recipe.
-3. **Every job can reuse the shared Nix store cache** — which is why the cache
-   rules below are short.
+These are plain workflow configuration. Nothing validates them, so read the
+existing `runs-on:` blocks and copy the shape.
 
-## Which cache a job carries
-
-Every job falls into exactly one of three cases.
-
-| The job…                                       | Runs on                           | Cache labels       | `NIX_CACHE_EXEMPT_REASON` |
-| ---------------------------------------------- | --------------------------------- | ------------------ | ------------------------- |
-| runs a script, so it enters a Nix shell        | the cache-capable Namespace venue | both, exactly once | must be absent            |
-| runs a script but **must not** share the store | the bare Namespace venue          | none               | **required**, non-empty   |
-| runs no script at all — only `uses:` steps     | any permitted runner              | none               | must be absent            |
-
-Reading the rows in words:
-
-- **Cached lanes** are the normal case. They select
-  `nscloud-ubuntu-26.04-amd64-16x32-with-cache`, plus `nscloud-cache-size-50gb`
-  and the one shared store-cache tag.
-- **Isolation lanes** are deliberate. A bare Namespace label cannot attach a cache
-  volume at all, so cache absence is part of their contract — and the recorded
-  reason is what distinguishes a lane that meant it from a lane that lost its
-  cache by accident. Do not create one without writing down why.
-- **Action-only jobs** — the merge gatekeeper is the example — run no repository
-  script, so there is no Nix store for them to share and no cache for them to be
-  exempt from. They may sit on a GitHub-hosted runner.
-
-The cache is **shared, one per OS and architecture**. It is not per platform, per
-service or per repository, and the tag deliberately carries no organization name.
-Changing the runner OS rotates the tag, which means one cold build before warm
-reuse resumes; never alias or carry a 24.04 cache into 26.04.
+Selection is 26.04-first: GitHub-hosted jobs take `ubuntu-26.04`, Namespace jobs
+take `nscloud-ubuntu-26.04-amd64-16x32-with-cache` plus `nscloud-cache-size-50gb`
+and the shared store-cache tag `nscloud-cache-tag-nix-store-cache-ubuntu-26.04-amd64`.
+The 24.04 equivalents are the fallbacks. A lane that must **not** share the store
+uses the bare `nscloud-ubuntu-26.04-amd64-16x32` with no cache labels at all — a
+bare label cannot attach a cache volume, which is the point of using it. The cache
+is shared per OS and architecture, carries no organization, platform or service
+name, and changing the OS rotates the tag and costs one cold build before warm
+reuse resumes.
 
 ## Local reproduction
 
@@ -120,58 +95,3 @@ repository-specific branching into the reusable workflow.
 
 Release execution is wired but not runnable yet: the `releaser` binary is not
 published, so nothing here claims a working `releaser`.
-
-## Appendix: the exact declarations the gate accepts
-
-The prose above is the rule. This appendix is the literal text, for when you need
-to copy a label or read a refusal.
-
-**Runner labels.** Selection is 26.04-first, and each job selects exactly one venue
-label:
-
-| Venue                    | Primary                                       | Fallback                                      |
-| ------------------------ | --------------------------------------------- | --------------------------------------------- |
-| Namespace, cache-capable | `nscloud-ubuntu-26.04-amd64-16x32-with-cache` | `nscloud-ubuntu-24.04-amd64-16x32-with-cache` |
-| Namespace, bare          | `nscloud-ubuntu-26.04-amd64-16x32`            | `nscloud-ubuntu-24.04-amd64-16x32`            |
-| GitHub-hosted            | `ubuntu-26.04`                                | `ubuntu-24.04`                                |
-
-Primary and fallback labels are never combined. A job that selects a fallback
-records a non-empty job-level `env.NIX_RUNNER_FALLBACK_REASON`; a job on the
-primary must not carry that record.
-
-**Cache label pairs.** A cache-capable job carries `nscloud-cache-size-50gb` and
-exactly one tag, matching its OS:
-
-```text
-nscloud-ubuntu-26.04-amd64-16x32-with-cache
-nscloud-cache-tag-nix-store-cache-ubuntu-26.04-amd64
-
-nscloud-ubuntu-24.04-amd64-16x32-with-cache
-nscloud-cache-tag-nix-store-cache-ubuntu-24.04-amd64
-```
-
-**Marker placement.** `NIX_CACHE_EXEMPT_REASON` and `NIX_RUNNER_FALLBACK_REASON`
-are job-level `env:` records. A marker on a step or on the workflow cannot say
-which lane it excuses, so it is rejected as misplaced rather than read as a record.
-
-**What the gate refuses.** `scripts/validate/workflows.sh cache-tag-shape` is the
-enforcement, and each of its messages names its own fix:
-
-- a `run:` step that is not exactly one `nix develop .#<shell> -c <command>`,
-  including one naming a shell absent from `nix/shells.nix`;
-- a step-level `uses:` pointing back into this repository — a local composite
-  action would carry `run:` steps the gate never sees, so that work belongs in a
-  `scripts/ci` entry point instead;
-- a job that runs a script on a bare Namespace venue with no exemption recorded;
-- an exemption recorded on a cache-capable venue, or on a GitHub-hosted runner;
-- a job that runs no script yet claims the shared cache, or records an exemption
-  from it;
-- a job that runs a script on a GitHub-hosted runner;
-- a missing, duplicated, unrotated or organization-scoped cache tag; a missing or
-  duplicated cache-size label; cache metadata on a bare or GitHub-hosted venue;
-- more than one venue label, an unrecognised label, an unrecorded fallback, or a
-  fallback reason recorded on a primary runner.
-
-The gate also refuses to pass vacuously: it fails if no `run:` step, no cached job,
-no Namespace job or no GitHub-hosted job was checked at all, and if it cannot read
-the shell set out of `nix/shells.nix`.

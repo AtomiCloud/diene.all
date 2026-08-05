@@ -166,22 +166,12 @@
   },
   {
     "template": "diene/workspace",
-    "name": "nixpkgs-pin",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
     "name": "trusted-action-pins",
     "class": "gate"
   },
   {
     "template": "diene/workspace",
     "name": "non-trusted-action-pins",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "cache-tag-shape",
     "class": "gate"
   },
   {

@@ -14,6 +14,12 @@
     # separately, on its own regular cadence, and that report never bumps
     # anything itself.
     #
+    # NOTHING VALIDATES THIS. The gate that used to assert it was deleted by owner
+    # ruling on 2026-08-05; the practice stayed, the enforcer did not. So this
+    # comment is the whole of the rule, `flake.lock` is an unchecked second copy of
+    # what the lines below already say, and a floating ref reintroduced here would
+    # go unnoticed until a build differed. Read the URLs, do not trust a green run.
+    #
     # nixos-unstable @ 2026-08-05
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/e72e4f299401a3689d4b3d5fc6496b11db7064eb";
     # nixos-26.05 (Yarara) @ 2026-07-17
