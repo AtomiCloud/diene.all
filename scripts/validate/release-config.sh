@@ -41,7 +41,7 @@ refactor
 style
 test"
   actual="$(jq -r '.types[].type' "${tmp}" | sort)"
-  [ "${actual}" != "${expected}" ] && echo "❌ release types do not match the D3 vocabulary" >&2 && exit 1
+  [ "${actual}" != "${expected}" ] && echo "❌ release types do not match the configured vocabulary" >&2 && exit 1
 fi
 
 echo "✅ Release config ${mode} validation passed"

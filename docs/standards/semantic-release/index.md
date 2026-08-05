@@ -13,7 +13,7 @@ not add a standalone `.gitlint` file or legacy semantic-release plugin chain.
 
 The repository consumes `AtomiCloud/releaser` v1.0.0 directly as an immutable
 flake input. The repository-owned validators enforce the canonical schema and
-exact D3 type vocabulary, while the real releaser binary implements the
+exact configured type vocabulary, while the real releaser binary implements the
 registered commit and release commands.
 
 ## Commands
@@ -36,7 +36,7 @@ tag format, and `Changelog.md` output. Its commit assets are `Changelog.md`,
 prepare hook runs `scripts/release/bump.sh ${version}`, which stamps the manifest;
 GitHub publication is enabled for this template through `release.github`.
 
-The unified D3 commit-type vocabulary is:
+The unified commit-type vocabulary is:
 
 ```text
 amend, build, chore, ci, config, dep, docs, feat, fix, perf, refactor, style, test
