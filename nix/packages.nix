@@ -65,10 +65,7 @@ let
           git
           go-task
           infisical
-          kubeconform
-          kyverno
           pre-commit
-          ripgrep
           shellcheck
           skopeo
           treefmt

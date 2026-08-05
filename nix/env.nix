@@ -12,10 +12,7 @@ with packages;
   lint = [
     actionlint
     infralint
-    kubeconform
-    kyverno
     pre-commit
-    ripgrep
     shellcheck
     treefmt
   ];
@@ -25,9 +22,6 @@ with packages;
     git
     go-task
     infisical
-    kubeconform
-    kyverno
-    ripgrep
     shellcheck
     skopeo
   ];
