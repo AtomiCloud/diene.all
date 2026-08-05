@@ -79,12 +79,16 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        // The subject was `scripts/release/bump.sh`, then the freshness validator, and
-        // both were deleted - the second by the move to `dlint skills-fresh`. Any tracked
-        // shell script proves the same thing, that the hook reads real repository shell
-        // and refuses incorrect shell, so this points at the surviving validator, which
-        // the workspace cannot lose because each of its two release-policy modes has its
-        // own probe.
+        // Any tracked shell script proves the same thing - that the hook reads real
+        // repository shell and refuses incorrect shell. `scripts/validate/workflows.sh` is
+        // chosen because it is the hardest file on this node to lose silently: all THREE
+        // of its modes - `workflow-names`, `release-trigger`, `release-concurrency` - have
+        // their own probes.
+        //
+        // The parent's copy of this comment narrates `scripts/release/bump.sh` and the
+        // freshness validator as deleted, the latter by a move to `dlint skills-fresh`.
+        // That is the PARENT's history and none of it holds here: both files are kept on
+        // this node, and only `ci-wiring` is routed through dlint.
         const target = 'scripts/validate/workflows.sh';
         const source = await repo.read(target);
         await repo.write(target, `${source}\necho $UNQUOTED\n`);
