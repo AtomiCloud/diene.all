@@ -9,6 +9,16 @@
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     nixpkgs-2605.url = "github:NixOS/nixpkgs/4382ed2b7a6839d4280a9b386db49cbc5907414d";
     atomipkgs.url = "github:AtomiCloud/nix-registry/v3";
+    # releaser v1.0.0
+    releaser = {
+      url = "github:AtomiCloud/releaser/3200bdd95a0fdd8f43f9905faa8c85afe4595d1f";
+      inputs.atomipkgs.follows = "atomipkgs";
+      inputs.flake-utils.follows = "flake-utils";
+      inputs.nixpkgs-2605.follows = "nixpkgs-2605";
+      inputs.nixpkgs-unstable.follows = "nixpkgs-unstable";
+      inputs.pre-commit-hooks.follows = "pre-commit-hooks";
+      inputs.treefmt-nix.follows = "treefmt-nix";
+    };
   };
   outputs =
     {
@@ -23,6 +33,7 @@
       atomipkgs,
       nixpkgs-2605,
       nixpkgs-unstable,
+      releaser,
 
     }@inputs:
     (flake-utils.lib.eachDefaultSystem (
@@ -31,6 +42,7 @@
         pkgs-2605 = nixpkgs-2605.legacyPackages.${system};
         pkgs-unstable = nixpkgs-unstable.legacyPackages.${system};
         atomi = atomipkgs.packages.${system};
+        releaser-pkg = releaser.packages.${system}.releaser;
         pre-commit-lib = pre-commit-hooks.lib.${system};
       in
       let
@@ -54,6 +66,7 @@
             pkgs-2605
             pkgs-unstable
             atomi
+            releaser-pkg
             ;
         };
         env = import ./nix/env.nix {

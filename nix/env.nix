@@ -6,7 +6,7 @@ with packages;
     go-task
     infisical
     pls
-    sg
+    releaser
     skopeo
   ];
 
@@ -34,9 +34,8 @@ with packages;
     skopeo
   ];
 
-  # C2: sg is retained only until tools/releaser is published at step 2p.
   releaser = [
-    sg
+    releaser
   ];
 
   system = [
