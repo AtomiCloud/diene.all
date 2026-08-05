@@ -1,3 +1,11 @@
 ### nix-init
 .direnv
 .pre-commit-config.yaml
+
+# The root layer deliberately has NO committed lock. Its flake.nix pins every
+# input to an exact commit, so a lock adds a second copy of the same fact that
+# can disagree with the first. Nix writes this file whenever the flake is
+# evaluated, and `git add` picks it up, so it is ignored rather than merely
+# absent: without this line the next edit to flake.nix commits a lock by
+# accident, and nothing would notice.
+flake.lock
