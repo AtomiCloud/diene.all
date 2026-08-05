@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedBecause } from './lib/helpers.ts';
 
 const declarationFiles = 'nix/packages.nix nix/env.nix';
 
@@ -168,7 +168,9 @@ export default {
             throw new Error(`could not find the registry inherit anchor in nix/packages.nix`);
           }
           await repo.write('nix/packages.nix', source.replace(anchor, `${anchor}          ${binary}\n`));
-          await expectRed(repo, absenceCommand(binary), 'binary-smoke');
+          await expectRedBecause(repo, absenceCommand(binary), 'binary-smoke', [
+            `${binary} is back in the nix inventory`,
+          ]);
         },
       },
     ]),

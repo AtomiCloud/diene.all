@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedBecause } from './lib/helpers.ts';
 
 const syntheticAuthor = 'GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=user.email GIT_CONFIG_VALUE_0=cyanprint@example.com';
 
@@ -24,10 +24,11 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        await expectRed(
+        await expectRedBecause(
           repo,
           `message_path="$(mktemp)" && trap 'rm -f "$message_path"' EXIT && printf 'not conventional\\n' >"$message_path" && ${syntheticAuthor} nix develop .#ci -c pre-commit run a-releaser-commit --hook-stage commit-msg --commit-msg-filename "$message_path"`,
           'hook-releaser-commit',
+          ['- hook id: a-releaser-commit', 'CT1: header must match type(scope)!?: subject'],
         );
       },
     },

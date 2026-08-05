@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedBecause } from './lib/helpers.ts';
 
 export default {
   contractVersion: 1,
@@ -26,7 +26,10 @@ export default {
           find: 'case "${status}" in',
           replace: 'case "${status}"    in',
         });
-        await expectRed(repo, 'nix fmt --no-write-lock-file -- --ci --formatters shfmt', 'fmt-shfmt');
+        await expectRedBecause(repo, 'nix fmt --no-write-lock-file -- --ci --formatters shfmt', 'fmt-shfmt', [
+          'scripts/local/skills-sync.sh',
+          'unexpected changes detected',
+        ]);
       },
     },
   ],

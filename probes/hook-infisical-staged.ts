@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedBecause } from './lib/helpers.ts';
 
 export default {
   contractVersion: 1,
@@ -27,10 +27,11 @@ export default {
         const secret = ['AKIA', 'QRSTUVWXYZABCDEF'].join('');
         await repo.write('probe-secret.txt', `aws_access_key_id=${secret}\n`);
         await repo.exec('git add probe-secret.txt');
-        await expectRed(
+        await expectRedBecause(
           repo,
           'nix develop .#ci -c pre-commit run a-infisical-staged --all-files',
           'hook-infisical-staged',
+          ['- hook id: a-infisical-staged', 'probe-secret.txt:aws-access-token'],
         );
       },
     },

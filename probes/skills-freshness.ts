@@ -1,4 +1,4 @@
-import { capturedEnvCommand, expectGreen, expectRed, withCleanProbeState } from './lib/helpers.ts';
+import { capturedEnvCommand, expectGreen, expectRedBecause, withCleanProbeState } from './lib/helpers.ts';
 
 const vendorDir = '.claude/skills/vendor';
 const freshnessCommand = 'nix develop .#ci -c dlint skills-fresh';
@@ -53,7 +53,10 @@ export default {
           if (staged.exitCode !== 0) {
             throw new Error(`could not stage the stale vendored-skill fixture: ${staged.stderr || staged.stdout}`);
           }
-          await expectRed(repo, freshnessCommand, 'skills-freshness');
+          await expectRedBecause(repo, freshnessCommand, 'skills-freshness', [
+            'vendored tree is stale',
+            `${vendorDir}/stale/SKILL.md`,
+          ]);
         });
       },
     },

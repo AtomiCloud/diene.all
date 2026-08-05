@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedBecause } from './lib/helpers.ts';
 
 export default {
   contractVersion: 1,
@@ -26,7 +26,12 @@ export default {
         await repo.exec(
           'git add probe-secret.txt && git -c user.name=Probe -c user.email=probe@example.invalid commit -qm probe-secret',
         );
-        await expectRed(repo, 'nix develop .#ci -c pre-commit run a-infisical --all-files', 'hook-infisical-full');
+        await expectRedBecause(
+          repo,
+          'nix develop .#ci -c pre-commit run a-infisical --all-files',
+          'hook-infisical-full',
+          ['- hook id: a-infisical', 'probe-secret.txt:aws-access-token'],
+        );
       },
     },
   ],
