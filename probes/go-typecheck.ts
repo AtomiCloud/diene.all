@@ -1,7 +1,7 @@
 import { expectGreen, expectRedWithDiagnostic, restoreProbeState } from './lib/helpers.ts';
 import { plantGoFile } from './lib/go.ts';
 
-const gate = 'nix develop .#ci -c pls typecheck';
+const gate = 'nix develop .#ci -c task typecheck';
 
 export default {
   contractVersion: 1,

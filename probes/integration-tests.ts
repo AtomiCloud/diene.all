@@ -1,7 +1,7 @@
 import { expectGreen, expectRedWithDiagnostic, restoreProbeState } from './lib/helpers.ts';
 import { breakAdapter } from './lib/go.ts';
 
-const gate = 'nix develop .#ci -c pls test:int';
+const gate = 'nix develop .#ci -c task test:int';
 
 export default {
   contractVersion: 1,

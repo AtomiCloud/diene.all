@@ -21,14 +21,14 @@ conventions.
 
 ## Go commands
 
-- `pls build` — create `dist/go-base`.
-- `pls typecheck` — compile every source package without running tests.
-- `pls test` — run the unit, integration, and system integration tiers.
-- `pls test:coverage` — enforce the scoped unit and integration coverage ledgers.
-- `pls deadcode` — run strict whole-repository and production passes plus the LLM-lax report.
-- `pls run -- slug "Hello World"` — execute from source.
-- `pls preview -- slug "Hello World"` — execute the compiled artifact.
-- `pls up` / `pls down` — start or stop local Redis.
+- `task build` — create `dist/go-base`.
+- `task typecheck` — compile every source package without running tests.
+- `task test` — run the unit, integration, and system integration tiers.
+- `task test:coverage` — enforce the scoped unit and integration coverage ledgers.
+- `task deadcode` — run strict whole-repository and production passes plus the LLM-lax report.
+- `task run -- slug "Hello World"` — execute from source.
+- `task preview -- slug "Hello World"` — execute the compiled artifact.
+- `task up` / `task down` — start or stop local Redis.
 
 See the [Go baseline](docs/developer/go-baseline.md) for the language contract and
 template-maintenance boundary.

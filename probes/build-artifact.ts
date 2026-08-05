@@ -11,7 +11,7 @@ export default {
       async run(repo: any) {
         await expectGreen(
           repo,
-          'nix develop .#ci -c bash -lc \'pls build && test -x dist/go-base && test "$(./dist/go-base slug Diene)" = diene\'',
+          'nix develop .#ci -c bash -lc \'task build && test -x dist/go-base && test "$(./dist/go-base slug Diene)" = diene\'',
           'build-artifact',
         );
       },

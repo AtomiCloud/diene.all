@@ -33,22 +33,22 @@ inside those fences while retaining the same gates and tier boundaries.
 
 ## Commands
 
-- `pls setup` installs modules and synchronizes vendored skills.
-- `pls build` creates `dist/go-base`.
-- `pls typecheck` compiles source packages without running tests.
-- `pls test`, `pls test:unit`, `pls test:int`, and `pls test:sit` run the
-  tiered suites; `pls test:sit` runs the compiled-artifact Redis journey.
-- `pls test:coverage`, `pls test:unit:coverage`, and
-  `pls test:int:coverage` enforce the scoped ledgers.
-- `pls test:watch` watches the unit tier.
-- `pls deadcode` runs staticcheck and deadcode independently across the
+- `task setup` installs modules and synchronizes vendored skills.
+- `task build` creates `dist/go-base`.
+- `task typecheck` compiles source packages without running tests.
+- `task test`, `task test:unit`, `task test:int`, and `task test:sit` run the
+  tiered suites; `task test:sit` runs the compiled-artifact Redis journey.
+- `task test:coverage`, `task test:unit:coverage`, and
+  `task test:int:coverage` enforce the scoped ledgers.
+- `task test:watch` watches the unit tier.
+- `task deadcode` runs staticcheck and deadcode independently across the
   whole-repository and production-only scopes, then writes the nonblocking
   review feed to `reports/deadcode-llm.txt`.
-- `pls run -- slug "Hello World"` runs from source.
-- `pls preview -- slug "Hello World"` runs the compiled artifact.
-- `pls up` and `pls down` manage the local Redis dependency.
+- `task run -- slug "Hello World"` runs from source.
+- `task preview -- slug "Hello World"` runs the compiled artifact.
+- `task up` and `task down` manage the local Redis dependency.
 
-There is deliberately no `pls dev`: this base is not a long-running server, so
+There is deliberately no `task dev`: this base is not a long-running server, so
 an Air hot-reload loop would add machinery without a real use case.
 
 ## Test and coverage law

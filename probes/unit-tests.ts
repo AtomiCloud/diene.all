@@ -1,7 +1,7 @@
 import { expectGreen, expectRedWithDiagnostic, restoreProbeState } from './lib/helpers.ts';
 import { flipGoAssertion } from './lib/go.ts';
 
-const gate = 'nix develop .#ci -c pls test:unit';
+const gate = 'nix develop .#ci -c task test:unit';
 
 export default {
   contractVersion: 1,

@@ -6,9 +6,9 @@ status=0
 cleanup_status=0
 trap 'status=$?; cleanup_status=0; docker rm -f "${container}" >/dev/null 2>&1 || cleanup_status=$?; [ "${status}" -ne 0 ] && exit "${status}"; [ "${cleanup_status}" -ne 0 ] && echo "❌ could not remove sample journey container" >&2 && exit "${cleanup_status}"; true' EXIT
 
-source_result="$(pls run -- slug "Sample Journey" | tail -n 1)"
+source_result="$(task run -- slug "Sample Journey" | tail -n 1)"
 [ "${source_result}" != "sample-journey" ] && echo "❌ source task returned '${source_result}'" >&2 && exit 1
-preview_result="$(pls preview -- slug "Sample Journey" | tail -n 1)"
+preview_result="$(task preview -- slug "Sample Journey" | tail -n 1)"
 [ "${preview_result}" != "sample-journey" ] && echo "❌ preview task returned '${preview_result}'" >&2 && exit 1
 docker run -d --name "${container}" -p 127.0.0.1::6379 redis:7.4.5-alpine >/dev/null
 # Match the bounded readiness log directly so the script needs no polling loop.
