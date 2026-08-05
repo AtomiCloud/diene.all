@@ -11,11 +11,11 @@ This repository follows [Conventional Commits](https://www.conventionalcommits.o
 ## Status of this file
 
 This file is generated. `atomi_release.yaml` names this path in its
-`conventionMarkdown.path` value, `releaser conventions` writes it, and a release
-run rewrites it as well. Change `atomi_release.yaml` and regenerate rather than
+`conventions.path` value, `releaser conventions` writes it, and a release run
+rewrites it as well. Change `atomi_release.yaml` and regenerate rather than
 editing this file: everything up to here comes from that file's
-`conventionMarkdown.template`, and everything from the `type(scope)` line below
-is generated from the commit vocabulary.
+`conventions.template`, and everything from the `type(scope)` line below is
+generated from the commit vocabulary.
 
 Use `type(scope)!: subject`. Omit `(scope)` only when the type's `default` scope applies.
 
