@@ -15,5 +15,5 @@ jobs:
     steps:
       - uses: AtomiCloud/actions.setup-nix@v3
       - uses: AtomiCloud/actions.cache-bun@v2
-      - name: Build sample bundle
+      - name: Build validation bundle
         run: nix develop .#ci -c ./scripts/ci/build.sh
