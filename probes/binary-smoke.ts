@@ -160,9 +160,16 @@ export default {
         description: `Re-declaring ${binary} in the nix inventory must turn the absence assertion red.`,
         kind: 'mutation' as const,
         expectedImpact: [],
+        // Injected into the package set, not into an env group: an env group naming a
+        // package the set does not carry breaks `nix develop` at EVALUATION, so the
+        // arm would go red without ever reaching the assertion.
         async run(repo: any) {
-          const source = await repo.read('nix/env.nix');
-          await repo.write('nix/env.nix', source.replace('    git\n', `    git\n    ${binary}\n`));
+          const source = await repo.read('nix/packages.nix');
+          const anchor = '          atomiutils\n';
+          if (!source.includes(anchor)) {
+            throw new Error(`could not find the registry inherit anchor in nix/packages.nix`);
+          }
+          await repo.write('nix/packages.nix', source.replace(anchor, `${anchor}          ${binary}\n`));
           await expectRed(repo, absenceCommand(binary), 'binary-smoke');
         },
       },
