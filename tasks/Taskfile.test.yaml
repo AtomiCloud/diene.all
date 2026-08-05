@@ -5,19 +5,16 @@ vars:
 
 tasks:
   default:
-    internal: true
     desc: Run the {{.MODE}} test tier
     cmds:
       - ./scripts/local/dotnet-test.sh {{.MODE}}
 
   coverage:
-    internal: true
     desc: Run the {{.MODE}} test tier with merged blocking coverage
     cmds:
       - ./scripts/local/dotnet-test.sh {{.MODE}} --coverage
 
   watch:
-    internal: true
     desc: Watch the {{.MODE}} test tier
     cmds:
       - ./scripts/local/dotnet-test.sh {{.MODE}} --watch

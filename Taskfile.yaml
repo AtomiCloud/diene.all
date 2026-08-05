@@ -9,11 +9,11 @@ includes:
 
   # ### dotnet-base-test-includes
   # #### source: dotnet-base
-  unit:
+  test:unit:
     taskfile: tasks/Taskfile.test.yaml
     vars:
       MODE: unit
-  int:
+  test:int:
     taskfile: tasks/Taskfile.test.yaml
     vars:
       MODE: int
@@ -84,36 +84,5 @@ tasks:
   test:
     desc: Run unit and integration tests
     cmds:
-      - task: unit:default
-      - task: int:default
-
-  test:unit:
-    desc: Run unit tests
-    cmds:
-      - task: unit:default
-
-  test:int:
-    desc: Run integration tests
-    cmds:
-      - task: int:default
-
-  test:coverage:
-    desc: Run every test tier with merged blocking coverage
-    cmds:
-      - task: unit:coverage
-      - task: int:coverage
-
-  test:unit:coverage:
-    desc: Run unit tests with merged blocking coverage
-    cmds:
-      - task: unit:coverage
-
-  test:int:coverage:
-    desc: Run integration tests with merged blocking coverage
-    cmds:
-      - task: int:coverage
-
-  test:watch:
-    desc: Watch the fast unit suite
-    cmds:
-      - task: unit:watch
+      - task: test:unit
+      - task: test:int
