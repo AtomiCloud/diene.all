@@ -53,9 +53,14 @@ describe('captured-env coverage of direct repo.exec shell entries', () => {
     expect(unwrapped).toEqual([]);
   });
 
-  test('the wrapped set is the 15 sites stage-2 converted, across 8 files', () => {
+  // The count is a tripwire, not a target: it exists so that ADDING a shell-entering
+  // call site is a decision somebody makes on purpose. Moved 15 -> 16 when
+  // cache-tag-shape.ts gained a second direct site, `expectGreenReporting`, which
+  // asserts the gate's summary tally alongside its exit code. Raise it only together
+  // with the site that justifies it.
+  test('the wrapped set is the 16 known shell-entering call sites, across 8 files', () => {
     const wrapped = allSites.filter(site => site.wrapped);
-    expect(wrapped).toHaveLength(15);
+    expect(wrapped).toHaveLength(16);
     expect([...new Set(wrapped.map(site => site.file))].sort()).toEqual([
       'cache-tag-shape.ts',
       'precommit-treefmt-actionlint.ts',

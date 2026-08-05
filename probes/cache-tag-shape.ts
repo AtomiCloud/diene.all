@@ -129,6 +129,30 @@ export default {
           repo,
           '5 jobs, 4 run: steps in declared shells (4 cached, 0 isolation lanes, 0 bare Namespace, 1 GitHub-hosted script-free)',
         );
+        // A legal VARIANT, asserted here rather than as its own mutation arm: this is
+        // a green the gate must produce, and an arm whose success is a green would be
+        // reported as a "caught" sabotage, which is not what it proves.
+        //
+        // It matters because it is the only thing standing between this rule and a
+        // blanket ban. A gate that simply refused every bare Namespace venue would
+        // pass every mutation arm in this file — and would make the threat model's
+        // must-not-share-cache lane unexpressible. So: bare venue, no cache labels,
+        // a recorded reason, and the tally must show it counted as an isolation lane.
+        await rewrite(repo, PRECOMMIT, [
+          {
+            find: `    runs-on:\n${CACHED_VENUE}`,
+            replace: [
+              '    env:',
+              '      NIX_CACHE_EXEMPT_REASON: probe-only isolation lane',
+              '    runs-on:',
+              '      - nscloud-ubuntu-26.04-amd64-16x32',
+            ].join('\n'),
+          },
+        ]);
+        await expectGreenReporting(
+          repo,
+          '5 jobs, 4 run: steps in declared shells (3 cached, 1 isolation lanes, 1 bare Namespace, 1 GitHub-hosted script-free)',
+        );
       },
     },
     caughtSequence(
@@ -160,34 +184,6 @@ export default {
       [{ find: CACHED_VENUE, replace: '      - nscloud-ubuntu-26.04-amd64-16x32' }],
       'bare venue that cannot attach a cache volume',
     ),
-    {
-      // A positive arm, and the reason the rule is two-sided rather than a blanket
-      // ban: the threat model's must-not-share-cache lane has to stay expressible.
-      // Without this, a gate that simply refused every bare venue would still pass
-      // every other arm in this file.
-      name: 'mutation-declared-isolation-lane-stays-legal',
-      description:
-        'A Nix-store job on the bare Namespace venue that records a non-empty job-level env.NIX_CACHE_EXEMPT_REASON is a deliberate isolation lane and must stay GREEN, so the cache rule refuses accidents without making the isolation lane unexpressible.',
-      kind: 'mutation' as const,
-      expectedImpact: [],
-      async run(repo: any) {
-        await rewrite(repo, PRECOMMIT, [
-          {
-            find: `    runs-on:\n${CACHED_VENUE}`,
-            replace: [
-              '    env:',
-              '      NIX_CACHE_EXEMPT_REASON: probe-only isolation lane',
-              '    runs-on:',
-              '      - nscloud-ubuntu-26.04-amd64-16x32',
-            ].join('\n'),
-          },
-        ]);
-        await expectGreenReporting(
-          repo,
-          '5 jobs, 4 run: steps in declared shells (3 cached, 1 isolation lanes, 1 bare Namespace, 1 GitHub-hosted script-free)',
-        );
-      },
-    },
     caught(
       'mutation-stale-cache-exemption-caught',
       'An isolation-lane exemption recorded while the job still selects a cache-capable venue is stale and must turn the gate red.',
