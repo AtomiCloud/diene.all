@@ -24,12 +24,17 @@ actionlint "$tmp/workflow.yaml"
 bash --version >/dev/null
 [ "$(bash -c 'printf smoke')" != "smoke" ] && echo "bash failed a real invocation" >&2 && exit 1
 
-cyanprint_pins="$(awk -F'"' '/^[[:space:]]*cyanprintVersion = "[^"]+";$/ { print $2 }' nix/packages.nix)"
-if [ "$(printf '%s\n' "$cyanprint_pins" | grep -c .)" -ne 1 ]; then
-  echo "expected exactly one cyanprintVersion pin in nix/packages.nix" >&2
+# The version is the registry's, so there is no pin in this tree to compare against.
+# The store path the shell resolved is the declaration's own answer: it carries the
+# derivation name, so a version the binary reports that the resolved derivation does
+# not carry is caught here rather than reported as agreement with itself.
+cyanprint_version="$(cyanprint --version | awk '{ print $2 }')"
+[ -n "$cyanprint_version" ] || { echo "cyanprint --version printed no version" >&2; exit 1; }
+cyanprint_path="$(command -v cyanprint)"
+printf '%s\n' "$cyanprint_path" | rg -q "/nix/store/[^/]*-cyanprint-${cyanprint_version}/" || {
+  echo "cyanprint reports ${cyanprint_version} but resolved to ${cyanprint_path}" >&2
   exit 1
-fi
-cyanprint --version | grep -Fqx "cyanprint $cyanprint_pins"
+}
 cyanprint cache inspect --cache-dir "$tmp/cyanprint-cache" --json |
   jq -e '.status == "done" and .action == "inspect"' >/dev/null
 

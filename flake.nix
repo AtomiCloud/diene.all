@@ -81,7 +81,6 @@
         };
         packages = import ./nix/packages.nix {
           inherit
-            pkgs
             pkgs-2605
             pkgs-unstable
             atomi
