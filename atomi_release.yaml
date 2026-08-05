@@ -138,7 +138,6 @@ release:
     assets:
       - Changelog.md
       - package.json
-      - VERSION
       - docs/developer/CommitConventions.md
   github:
     enabled: true
@@ -146,6 +145,13 @@ release:
     releasedLabels:
       - released
   hooks:
+    # The releaser does not stamp a version file of its own: a repository that wants one
+    # supplies the hook that writes it. Here the language manifest IS the version record,
+    # so `bump.sh` writes `package.json` and there is deliberately no `VERSION` file.
+    # Same-edit rule, in both directions: whatever a hook stamps enters `commit.assets` in
+    # the SAME edit that adds the hook, and leaves it in the SAME edit that drops it. A
+    # stamped file missing from `assets` is never committed; an `assets` entry nothing
+    # stamps goes stale in silence. Both failures are quiet, which is why it is one edit.
     prepare:
       - phase: afterWrite
         command: './scripts/release/bump.sh ${version}'

@@ -18,7 +18,7 @@ consumed as a pinned Nix flake input
 package and the `.#releaser` dev shell:
 
 - the repository-owned validators check the configuration schema and the exact
-  D3 type vocabulary;
+  commit-type vocabulary;
 - the commit-msg hook runs `releaser lint-commit -c atomi_release.yaml`; and
 - `releaser release -c atomi_release.yaml` executes the release inside
   `nix develop .#releaser`.
@@ -31,34 +31,33 @@ releaser conventions
 releaser release -c atomi_release.yaml
 ```
 
-`releaser conventions` maintains the file named by `conventionMarkdown.path` in
+`releaser conventions` maintains the file named by `conventions.path` in
 `atomi_release.yaml`. That generated file must not be edited by hand.
 
 ## Configuration
 
-`atomi_release.yaml` uses `schemaVersion: 2`. The release pipeline is fixed:
+`atomi_release.yaml` uses `schemaVersion: 2`, so there is no `plugins:` list and
+no per-plugin `module:`/`version:` pin: one strict configuration replaces the
+runtime plugin chain, and nothing loads a plugin or invokes a package manager at
+release time. The release pipeline is fixed:
 
 1. write the changelog to `Changelog.md`;
 2. run the `afterWrite` hook `scripts/release/bump.sh ${version}`, which stamps
-   `package.json` and `VERSION`;
-3. commit `Changelog.md`, `package.json`, `VERSION`, and the generated
-   commit-conventions document; and
+   `package.json`;
+3. commit `Changelog.md`, `package.json`, and the generated commit-conventions
+   document; and
 4. publish the GitHub release.
 
-The unified D3 commit-type vocabulary is:
+**The version lives in the language manifest.** `package.json` is the version
+record; this repository carries no `VERSION` file, because a second copy of a
+number nothing reads goes stale in silence. The releaser stamps no version file
+of its own — the repository's `prepare` hook does — so what a hook writes and
+what `release.commit.assets` commits are edited together, always. Read
+`release.hooks.prepare` and `release.commit.assets` side by side: every stamped
+path appears in both.
 
-```text
-amend, build, chore, ci, config, dep, docs, feat, fix, perf, refactor, style, test
-```
-
-The plugin chain is declared in the `plugins:` list of `atomi_release.yaml`. Each
-entry names its `module:`, its pinned `version:`, and a `config:` block holding
-that plugin's own settings — which files it writes, which it commits, and what
-commands it runs. Read the list in order; the order is itself part of the
-contract.
-
-Two things about that file are fixed policy rather than free configuration: the
-base plugin chain and the unified D3 commit-type vocabulary. Both are enforced by
+The commit-type vocabulary and the configuration schema are fixed policy rather
+than free configuration. Both are enforced by
 `scripts/validate/release-config.sh`, which holds the exact expected values —
 read it to see what the `a-release-config` gate will accept. Changing either
 means changing the validator and the configuration together, deliberately.
