@@ -50,16 +50,8 @@ let
       {
         deadcode = gotools;
         staticcheck = go-tools;
-        go = pkgs-2605.go.overrideAttrs (
-          finalAttrs: _previousAttrs: {
-            version = "1.26.5";
-            src = pkgs-2605.fetchurl {
-              url = "https://go.dev/dl/go${finalAttrs.version}.src.tar.gz";
-              hash = "sha256-SVvkvIcXasVnOS5bQRar2YRm0z17SdQedkzMaXay3EI=";
-            };
-          }
-        );
         inherit
+          go
           gofumpt
           golangci-lint
           gotestsum
@@ -73,6 +65,7 @@ let
       {
         inherit
           atomiutils
+          go-validator
           infralint
           infrautils
           pls

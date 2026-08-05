@@ -31,7 +31,8 @@ if [ "${push}" = "true" ]; then
   # shellcheck disable=SC2086
   docker buildx build "${CI_DOCKER_CONTEXT}" -f "${CI_DOCKERFILE}" --platform="${CI_DOCKER_PLATFORM}" --push -t "${image_id}:${image_version}" -t "${image_id}:${branch}" ${latest_arg} ${semver_arg}
 elif [ -n "${output}" ]; then
-  # Same buildx multi-architecture build the push path runs, exported to a local OCI archive instead of a registry.
+  # The repository's multi-architecture smoke probe consumes this local OCI
+  # archive with skopeo, so it exercises the same buildx output as publishing.
   echo "🔨 Building ${CI_DOCKER_IMAGE} for ${CI_DOCKER_PLATFORM} into ${output}"
   docker buildx build "${CI_DOCKER_CONTEXT}" -f "${CI_DOCKERFILE}" --platform="${CI_DOCKER_PLATFORM}" --output="type=oci,dest=${output}" -t "${CI_DOCKER_IMAGE}:local"
 else
