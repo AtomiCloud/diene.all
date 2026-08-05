@@ -51,6 +51,7 @@ let
       {
         inherit
           atomiutils
+          dlint
           infralint
           infrautils
           ;
@@ -67,7 +68,6 @@ let
           infisical
           pre-commit
           shellcheck
-          skopeo
           treefmt
           ;
       }
@@ -79,15 +79,6 @@ let
       }
     );
 
-    # The releaser is its own flake, not a registry bundle member, so it gets its
-    # own group rather than joining `atomipkgs`. It replaces the temporary gitlint
-    # bootstrap this toolchain carried while the releaser was unavailable here,
-    # which is dropped from the registry group above.
-    #
-    # That bootstrap's own name is deliberately absent from this file: binary
-    # smoke refuses if it appears in this file or in nix/env.nix, and a comment
-    # naming it would turn the guard red on a tree that is correct. The removal is
-    # explained where the guard lives, not where the guard reads.
     releaser-pkgs = {
       releaser = releaser-pkg;
     };

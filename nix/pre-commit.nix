@@ -33,6 +33,12 @@ let
         map (command: "${packages.atomiutils}/bin/bash ${command}") commands
       )
     }'";
+  dlint = check: "${packages.dlint}/bin/dlint ${check}";
+  dlints =
+    checks:
+    "${packages.atomiutils}/bin/bash -c '${
+      builtins.concatStringsSep " && " (map (check: "${packages.dlint}/bin/dlint ${check}") checks)
+    }'";
 in
 pre-commit-lib.run {
   src = ../.;
@@ -52,11 +58,11 @@ pre-commit-lib.run {
     a-action-pins = {
       enable = true;
       name = "Action pins";
-      entry = validators [
-        "scripts/validate/action-pins.sh trusted"
-        "scripts/validate/action-pins.sh non-trusted"
+      entry = dlints [
+        "action-pins trusted"
+        "action-pins non-trusted"
       ];
-      files = "^\\.github/workflows/.*\\.ya?ml$";
+      files = "^(\\.github/workflows/.*\\.ya?ml|config/action-trust\\.json)$";
       pass_filenames = false;
       language = "system";
     };
@@ -64,7 +70,7 @@ pre-commit-lib.run {
     a-enforce-exec = {
       enable = true;
       name = "Executable shell scripts";
-      entry = validator "scripts/validate/executable-shells.sh";
+      entry = dlint "exec-bits";
       files = ".*\\.sh$";
       pass_filenames = false;
       language = "system";
@@ -95,16 +101,6 @@ pre-commit-lib.run {
       language = "system";
     };
 
-    # The releaser validates the message against `atomi_release.yaml`, so the commit
-    # vocabulary has exactly one authority and there is no second gitlint file.
-    #
-    # This hook was deleted in the previous round for a narrow reason worth keeping
-    # in view: no shell here provided the binary, and because entering a dev shell
-    # reinstalls hooks into the SHARED bare repository, a commit-msg hook whose
-    # binary was missing broke plain `git commit` in every worktree of this
-    # repository at once. The entry below is an absolute store path, not a PATH
-    # lookup, so it resolves from any worktree and any shell - and it is proved by
-    # real `git commit` runs in both directions, not by invoking the binary by hand.
     a-releaser-commit = {
       enable = true;
       name = "Conventional commit";
@@ -134,26 +130,15 @@ pre-commit-lib.run {
     a-skills-freshness = {
       enable = true;
       name = "Vendored skills freshness";
-      entry = validator "scripts/validate/skills-freshness.sh";
+      entry = dlint "skills-fresh";
       pass_filenames = false;
       language = "system";
     };
 
-    # Wiring keeps both of its halves - every referenced scripts/ci entry point
-    # exists and is executable, and every orchestrator job resolves to a
-    # repository-local reusable workflow that calls one - and shares this hook with
-    # the two release-policy assertions, so the committer waits on one hook.
-    #
-    # Runner and cache LABELS are plain workflow configuration and are deliberately
-    # not validated here (owner ruling, 2026-08-05). Do not add a mode back.
     a-workflows = {
       enable = true;
       name = "Workflow wiring and release policy";
-      entry = validators [
-        "scripts/validate/workflows.sh wiring"
-        "scripts/validate/workflows.sh release-trigger"
-        "scripts/validate/workflows.sh release-concurrency"
-      ];
+      entry = "${packages.atomiutils}/bin/bash -c '${packages.dlint}/bin/dlint ci-wiring && ( export PATH=${validator-runtime}/bin; ${packages.atomiutils}/bin/bash scripts/validate/workflows.sh release-trigger && ${packages.atomiutils}/bin/bash scripts/validate/workflows.sh release-concurrency )'";
       files = "^\\.github/workflows/.*\\.ya?ml$";
       pass_filenames = false;
       language = "system";
