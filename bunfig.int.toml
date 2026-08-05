@@ -1,12 +1,24 @@
 [test]
 root = "tests/integration"
-timeout = 120000
-# Preload makes untested src/adapters modules appear as 0% instead of disappearing from the ledger.
-preload = ["./tests/support/int-ledger.ts"]
 coverageReporter = ["text", "lcov"]
 coverageDir = "coverage/int"
 coverageSkipTestFiles = true
-# Int ledger = the adapters tier only; the domain is the unit ledger, the glue is not an adapter, tests/** never counts.
+
+# Two minutes, not the default: these tests start real containers, and the first run of a
+# lane pulls the image.
+timeout = 120000
+
+# Without this, a src/adapters module that no test imports never appears in the ledger at
+# all, so the threshold below cannot see it. Importing every module in the tier makes an
+# untested one show up at 0% instead of vanishing.
+preload = ["./tests/support/int-ledger.ts"]
+
+# The integration ledger is the adapter tier and nothing else: the domain belongs to the
+# unit ledger, src/index.ts is glue rather than an adapter, and tests are never their own
+# coverage.
 coveragePathIgnorePatterns = ["src/index.ts", "src/lib/**", "tests/**"]
-# Bun 1.3.13 only enforces the scalar threshold form.
+
+# Load-bearing rather than a preference. This IS the 100% coverage gate: scripts/ci/test.sh
+# no longer re-checks the ledger, so bun's own refusal is the only thing enforcing it.
+# Scalar and not the per-metric object form, because Bun 1.3.13 enforces only the scalar.
 coverageThreshold = 1.0

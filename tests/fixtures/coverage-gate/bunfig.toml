@@ -1,8 +1,14 @@
-# This isolated ledger proves the scalar coverage threshold blocks without weakening a real suite.
+# An isolated ledger, so tests/unit/coverage-gate.test.ts can drive the scalar coverage
+# threshold green and then sabotaged without weakening either real suite's own threshold.
+
 [test]
 root = "tests/fixtures/coverage-gate/spec"
 coverageReporter = ["text", "lcov"]
 coverageDir = "coverage/fixture"
 coverageSkipTestFiles = true
+
+# Everything real is excluded: the only subject is this fixture's own src/gated.ts, which
+# is what makes one skipped test enough to drop the fixture under 100%.
 coveragePathIgnorePatterns = ["src/**", "tests/support/**", "tests/unit/**", "tests/integration/**"]
+
 coverageThreshold = 1.0
