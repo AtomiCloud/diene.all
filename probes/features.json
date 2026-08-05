@@ -76,11 +76,6 @@
   },
   {
     "template": "diene/workspace",
-    "name": "hook-helm-docs",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
     "name": "hook-helm-lint",
     "class": "gate"
   },

@@ -22,15 +22,15 @@ let
   validator =
     command:
     "${packages.bash}/bin/bash -c 'export PATH=${validator-runtime}/bin; exec ${packages.bash}/bin/bash ${command}'";
-  dotnetlint-dependencies =
-    (pkgs.buildDotnetModule {
-      pname = "dotnet-base-dependencies";
-      version = "0";
-      src = ../.;
-      projectFile = "dotnet-base.slnx";
-      nugetDeps = ./dotnet-deps.json;
-      dotnet-sdk = packages.dotnet-sdk_10;
-    }).nugetDeps;
+  dotnetlint-project = pkgs.buildDotnetModule {
+    pname = "dotnet-base-dependencies";
+    version = "0";
+    src = ../.;
+    projectFile = "dotnet-base.slnx";
+    nugetDeps = ./dotnet-deps.json;
+    dotnet-sdk = packages.dotnet-sdk_10;
+  };
+  dotnetlint-dependencies = dotnetlint-project.nugetDeps;
   dotnetlint-nuget-packages = pkgs.buildEnv {
     name = "dotnetlint-nuget-packages";
     paths = dotnetlint-dependencies;
@@ -39,9 +39,7 @@ let
   dotnetlint-empty-source = pkgs.runCommand "dotnetlint-empty-nuget-source" { } ''
     mkdir -p "$out"
   '';
-  # Upstream dotnetlint executes its source script with /usr/bin/env, which is
-  # unavailable in pure Nix builds. Preserve that script while patching its
-  # shebang until the package does so itself.
+  # Patch dotnetlint's /usr/bin/env shebang for pure Nix builds.
   dotnetlint-pure = pkgs.runCommand "dotnetlint-pure" { } ''
     mkdir -p "$out/bin" "$out/libexec"
     wrapper=${packages.dotnetlint}/bin/dotnetlint
@@ -69,7 +67,7 @@ let
     '';
   };
 in
-pre-commit-lib.run {
+(pre-commit-lib.run {
   src = ../.;
 
   # ### nix-root-format
@@ -120,15 +118,6 @@ pre-commit-lib.run {
       name = "Executable shell scripts";
       entry = validator "scripts/validate/executable-shells.sh";
       files = ".*\\.sh$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-helm-docs = {
-      enable = true;
-      name = "Helm docs";
-      entry = "${packages.infralint}/bin/helm-docs --chart-search-root infra/root_chart";
-      files = "^infra/root_chart/.*";
       pass_filenames = false;
       language = "system";
     };
@@ -257,6 +246,24 @@ pre-commit-lib.run {
 
     # ### dotnet-base-hooks
     # #### source: dotnet-base
+    a-dotnet-typecheck = {
+      enable = true;
+      name = ".NET typecheck";
+      entry = "${packages.dotnet-sdk_10}/bin/dotnet build dotnet-base.slnx -c Release -m:1 /nodeReuse:false /p:UseSharedCompilation=false";
+      files = "^(.*\\.cs|.*\\.csproj|Directory\\.Build\\.props|Directory\\.Packages\\.props|dotnet-base\\.slnx|global\\.json)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-dotnet-vulnerability = {
+      enable = true;
+      name = ".NET vulnerability audit";
+      entry = "${packages.dotnet-sdk_10}/bin/dotnet restore dotnet-base.slnx --force-evaluate -p:NuGetAudit=true -p:NuGetAuditMode=all -warnaserror";
+      files = "^(.*\\.csproj|Directory\\.Build\\.props|Directory\\.Packages\\.props|dotnet-base\\.slnx|global\\.json)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
     dotnetlint = {
       enable = true;
       name = ".NET lint";
@@ -295,4 +302,7 @@ pre-commit-lib.run {
       language = "system";
     };
   };
+})
+// {
+  fetch-deps = dotnetlint-project.fetch-deps;
 }

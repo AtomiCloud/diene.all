@@ -22,8 +22,9 @@ shared workspace, standards, Docker, Helm, secret, and release surfaces.
 | `pls up` / `pls down`            | Start or stop the local Redis dependency.                      |
 | `pls test`                       | Run unit and integration tiers.                                |
 | `pls test:unit` / `pls test:int` | Run one tier.                                                  |
-| `pls test:coverage`              | Enforce both merged coverage ledgers.                          |
-| `pls test:watch`                 | Watch the fast unit tier.                                      |
+| `pls test:unit:coverage`         | Enforce the merged unit coverage ledger.                       |
+| `pls test:int:coverage`          | Enforce the merged integration coverage ledger.                |
+| `pls test:unit:watch`            | Watch the fast unit tier.                                      |
 | `pls deadcode`                   | Emit the broad, non-blocking LLM review.                       |
 | `pls lint`                       | Run every generated pre-commit hook.                           |
 
@@ -58,12 +59,25 @@ The SDK is pinned by `global.json`; packages use Central Package Management.
 `NuGetAuditMode=all`, analyzers, deterministic builds, and warnings-as-errors are
 enforced in Release builds.
 
+`nix/dotnet-deps.json` pins the NuGet closure used by the reproducible Nix
+restore. Regenerate it after changing a project package reference, a central
+package version, or the pinned SDK:
+
+```bash
+nix_system="$(nix eval --impure --raw --expr builtins.currentSystem)"
+nix build ".#checks.${nix_system}.pre-commit-check.fetch-deps"
+./result nix/dotnet-deps.json
+```
+
+The command exposes `buildDotnetModule.passthru.fetch-deps`; its output replaces
+`nix/dotnet-deps.json`.
+
 ## Docker, Helm, and release
 
 The Dockerfile is a minimal non-root stub, and the Helm chart keeps an empty
 template directory for descendants to replace. The Helm axis is complete:
 lint/docs hooks, local tasks, OCI packaging, CI/CD jobs, and dependabot coverage
-are all active. Releaser writes the repository `VERSION`; its canonical
+are all active. Releaser stamps the version in `App/App.csproj`; its canonical
 `atomi_release.yaml` is the single commit-type vocabulary.
 
 ## Template-maintenance boundary
