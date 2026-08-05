@@ -94,9 +94,12 @@ pre-commit-lib.run {
 
     a-nixpkgs-pin = {
       enable = true;
-      name = "Shared nixpkgs pin";
+      name = "Every nixpkgs input is commit-pinned";
       entry = validator "scripts/validate/nixpkgs-pin.sh";
-      files = "^(flake\\.nix|flake\\.lock|nix/.*|nix/snapshots/nixpkgs\\.json)$";
+      # nix/.* still triggers it: the gate refuses a re-created
+      # nix/snapshots/nixpkgs.json, so the path that no longer exists must still
+      # be able to wake the hook up.
+      files = "^(flake\\.nix|flake\\.lock|nix/.*)$";
       pass_filenames = false;
       language = "system";
     };
