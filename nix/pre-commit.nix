@@ -211,7 +211,7 @@ pre-commit-lib.run {
     a-releaser-commit = {
       enable = true;
       name = "Conventional commit";
-      entry = "${packages.releaser}/bin/releaser lint-commit -c atomi_release.yaml";
+      entry = "releaser lint-commit -c atomi_release.yaml";
       stages = [ "commit-msg" ];
       pass_filenames = true;
       language = "system";
