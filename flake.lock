@@ -12,16 +12,16 @@
         "worktrunkpkgs": "worktrunkpkgs"
       },
       "locked": {
-        "lastModified": 1783476428,
-        "narHash": "sha256-v/yLWWRJ4KUUT6V9h/YIqXvrj3vMwshC3dxWgeLkcy0=",
+        "lastModified": 1785913041,
+        "narHash": "sha256-uloOux4l82+mLSqspHbd0r4AzvJuKbAQOwGbcP9nE1o=",
         "owner": "AtomiCloud",
         "repo": "nix-registry",
-        "rev": "4b6052544564891b8695b5f4769c7593ec060372",
+        "rev": "8bf1f2744b0551ad6779a49d02a1df36b5ff2853",
         "type": "github"
       },
       "original": {
         "owner": "AtomiCloud",
-        "ref": "v3",
+        "ref": "v3.14.0",
         "repo": "nix-registry",
         "type": "github"
       }
@@ -348,17 +348,17 @@
     },
     "nixpkgs-unstable_2": {
       "locked": {
-        "lastModified": 1784120854,
-        "narHash": "sha256-KesHgItiZPgGX740axSiQLcIQ8D24MDqNpkKYWIek8k=",
+        "lastModified": 1785828668,
+        "narHash": "sha256-8fsyqeO+mJqvIzeO4xIpgJe/f7MTbbVTEC6RT6WSXNs=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "753cc8a3a87467296ddd1fa93f0cc3e81120ee46",
+        "rev": "e72e4f299401a3689d4b3d5fc6496b11db7064eb",
         "type": "github"
       },
       "original": {
         "owner": "NixOS",
-        "ref": "nixos-unstable",
         "repo": "nixpkgs",
+        "rev": "e72e4f299401a3689d4b3d5fc6496b11db7064eb",
         "type": "github"
       }
     },

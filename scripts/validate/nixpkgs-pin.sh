@@ -18,8 +18,8 @@ rg -q "nixpkgs-2605.url = \"github:NixOS/nixpkgs/${rev}\";" flake.nix || {
   echo "❌ flake.nix does not use the authoritative nixpkgs SHA" >&2
   exit 1
 }
-rg -q 'atomipkgs.url = "github:AtomiCloud/nix-registry/v3";' flake.nix || {
-  echo "❌ atomipkgs must use registry v3" >&2
+rg -q 'atomipkgs.url = "github:AtomiCloud/nix-registry/v3\.[0-9]+\.[0-9]+";' flake.nix || {
+  echo "❌ atomipkgs must pin an exact registry v3 tag" >&2
   exit 1
 }
 rg -q 'nix-2605' nix/packages.nix || {

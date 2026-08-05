@@ -7,16 +7,12 @@ with packages;
     infisical
     pls
     releaser
-    skopeo
   ];
 
   lint = [
     actionlint
     infralint
-    kubeconform
-    kyverno
     pre-commit
-    ripgrep
     shellcheck
     treefmt
   ];
@@ -26,12 +22,8 @@ with packages;
     git
     go-task
     infisical
-    kubeconform
-    kyverno
     pls
-    ripgrep
     shellcheck
-    skopeo
   ];
 
   releaser = [
