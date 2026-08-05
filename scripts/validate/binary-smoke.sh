@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-for binary in actionlint bash cyanprint docker git gomplate hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pls pre-commit rg sg shellcheck skopeo task treefmt yq; do
+for binary in actionlint bash cyanprint docker git gomplate hadolint helm helm-docs infisical jq k3d kubeconform kubectl kyverno nix pre-commit rg sg shellcheck skopeo task treefmt yq; do
   command -v "${binary}" >/dev/null || {
     echo "❌ binary '${binary}' is missing" >&2
     exit 1
@@ -73,9 +73,6 @@ printf '%s\n' '{"probe":{"ok":true}}' | kyverno jp query 'probe.ok' 2>/dev/null 
 nix --version >/dev/null
 nix flake metadata --no-write-lock-file --json . | jq -e '.url | type == "string"' >/dev/null
 
-pls --help >/dev/null 2>&1
-pls --list >/dev/null
-
 pre-commit --version >/dev/null
 pre-commit validate-config .pre-commit-config.yaml
 
@@ -97,6 +94,18 @@ skopeo manifest-digest "${tmp}/manifest.json" | rg -q '^sha256:[0-9a-f]{64}$'
 
 task --version >/dev/null
 task --list >/dev/null
+# `task` (go-task) is the ONE task runner. `pls` was removed by owner ruling: it
+# was not a second program but a second NAME for this one - both reported
+# version 3.48.0 and both read the same Taskfile.yaml / tasks/Taskfile.*.yaml set.
+#
+# This is a text assertion on the declaration, not a `command -v pls` check. The
+# dev shell inherits the caller's PATH, so a `pls` the developer installed for
+# their own unrelated reasons would turn a PATH check red for a fault this
+# repository does not have. What must not come back is the DECLARATION.
+if rg -q '\bpls\b' nix/packages.nix nix/env.nix; then
+  echo "❌ pls is back in the nix inventory - task (go-task) is the only task runner (owner ruling, review round 1 item A3)" >&2
+  exit 1
+fi
 
 treefmt --version >/dev/null
 treefmt --completion bash >"${tmp}/treefmt-completion.bash"

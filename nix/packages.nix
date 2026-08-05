@@ -52,7 +52,6 @@ let
           atomiutils
           infralint
           infrautils
-          pls
           sg
           ;
       }

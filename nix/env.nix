@@ -5,7 +5,6 @@ with packages;
     git
     go-task
     infisical
-    pls
     sg
     skopeo
   ];
@@ -28,7 +27,6 @@ with packages;
     infisical
     kubeconform
     kyverno
-    pls
     ripgrep
     shellcheck
     skopeo

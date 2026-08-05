@@ -9,7 +9,7 @@ export default {
       description: 'The public secret-scan task invokes the real scanner.',
       kind: 'baseline',
       async run(repo: any) {
-        await expectGreen(repo, 'nix develop .#default -c pls secret:scan', 'secret-scan-command');
+        await expectGreen(repo, 'nix develop .#default -c task secret:scan', 'secret-scan-command');
       },
     },
   ],

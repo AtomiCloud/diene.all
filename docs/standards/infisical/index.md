@@ -9,7 +9,7 @@ command:
 
 ```bash
 infisical run --env=dev -- env | grep MY_SECRET
-infisical run --env=dev -- pls lint
+infisical run --env=dev -- task lint
 ```
 
 The bare form `infisical run --env=dev` (without `-- <command>`) does **not** propagate
@@ -26,8 +26,8 @@ also declares, as `[ -z "${VAR:-}" ] && … && exit 1` guards, the environment
 variables that action requires.
 
 The task wrappers are in [`tasks/Taskfile.secret.yaml`](../../../tasks/Taskfile.secret.yaml),
-included under the `secret` namespace, so each task there is `pls secret:<task>`.
-Read the file, or run `pls --list`, to see which ones exist.
+included under the `secret` namespace, so each task there is `task secret:<task>`.
+Read the file, or run `task --list`, to see which ones exist.
 
 Authentication is not a separate step: the fetch path logs you in when no valid
 token is present.

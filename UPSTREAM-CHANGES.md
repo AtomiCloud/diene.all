@@ -281,6 +281,13 @@ resolve these tools.
 Kept, because no imported bundle ships them: `actionlint`, `git`, `go-task`, `infisical`,
 `kubeconform`, `kyverno`, `pre-commit`, `ripgrep`, `shellcheck`, `skopeo`, `treefmt`.
 
+`pls` came in from the atomi bundle and has since been **removed** by owner ruling (review
+round 1, item A3): it was a second NAME for `go-task`, not a second program. Both reported
+version `3.48.0`, both read the same `Taskfile.yaml` / `tasks/Taskfile.*.yaml` set, and both
+produced identical output and exit codes on the same task. `go-task` is the surviving runner
+and every caller now invokes `task`. The Taskfiles themselves are unchanged — they were never
+specific to either name.
+
 No removal was blocked and nothing had to be recorded in place of a removal: the two
 references to the removed packages were repointed successfully in workspace-owned regions
 (`validator-runtime` and `validator` to `packages.atomiutils`; `a-helm-lint` to

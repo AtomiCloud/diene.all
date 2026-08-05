@@ -11,7 +11,7 @@ environment.
 ## Commands
 
 ```bash
-pls lint
+task lint
 pre-commit run --all-files
 nix develop .#ci -c ./scripts/ci/pre-commit.sh
 ```
