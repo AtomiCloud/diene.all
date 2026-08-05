@@ -36,6 +36,21 @@ let
       pkgs.jq
     ];
   };
+  # G7, justified rather than reduced: the four are a 2x2 over (tool) x (test
+  # reachability), not four spellings of one check, and each axis catches a class the
+  # other cannot see.
+  #   deadcode -test ./...      vs  deadcode ./...       (-test counts tests as callers)
+  #   staticcheck -tests=true   vs  staticcheck -tests=false
+  # Dropping the production pass loses production code kept alive ONLY by its own test,
+  # which is dead in the shipped binary and invisible to the whole pass. Dropping the
+  # whole pass loses defects inside test files, which the production pass never loads.
+  # The nonblocking lax feed is a report, not a gate, so it stays out of this entry.
+  #
+  # G3: the vendored-GOPROXY plumbing below stays in this template. The registry
+  # (v3.14.0) ships the go BINARIES - deadcode, go-validator, dlint - but not this
+  # machinery, and `go-deps` cannot move as-is: it is `buildGoModule` over `src = ../.`
+  # with this repo's own vendorHash, so it is parameterised on this module graph rather
+  # than shared. Left whole rather than half-moved.
   # The four strict components in CI's order, stopping at the first non-zero exit; the nonblocking lax feed stays out.
   go-deadcode = "${pkgs.bash}/bin/bash -c 'export PATH=${go-deadcode-runtime}/bin; export CGO_ENABLED=0; export GOPROXY=file://${go-deps.goModules}; export GOSUMDB=off; export GOMODCACHE=\"\${TMPDIR:-/tmp}/go-base-mod-cache\"; ${
     builtins.concatStringsSep " && " (
