@@ -103,7 +103,7 @@ task --list >/dev/null
 # their own unrelated reasons would turn a PATH check red for a fault this
 # repository does not have. What must not come back is the DECLARATION.
 if rg -q '\bpls\b' nix/packages.nix nix/env.nix; then
-  echo "❌ pls is back in the nix inventory - task (go-task) is the only task runner (owner ruling, review round 1 item A3)" >&2
+  echo "❌ pls is back in the nix inventory - by owner ruling, task (go-task) is the only task runner" >&2
   exit 1
 fi
 
@@ -117,7 +117,7 @@ yq -en '.ok = true | .ok == true' >/dev/null
 if command -v releaser >/dev/null; then
   releaser --help >/dev/null
 else
-  echo "⏭️ releaser binary awaits the C2 step-2p tools/releaser publish"
+  echo "⏭️ releaser binary is not present: the tools/releaser publish has not happened yet"
 fi
 
 echo "✅ Binary smoke passed"

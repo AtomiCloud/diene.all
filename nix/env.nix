@@ -32,7 +32,7 @@ with packages;
     skopeo
   ];
 
-  # C2: sg is retained only until tools/releaser is published at step 2p.
+  # sg is a temporary bootstrap, retained only until the releaser tool is published.
   releaser = [
     sg
   ];
