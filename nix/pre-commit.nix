@@ -19,20 +19,6 @@ let
       packages.git
     ];
   };
-  validator =
-    command:
-    "${packages.atomiutils}/bin/bash -c 'export PATH=${validator-runtime}/bin; exec ${packages.atomiutils}/bin/bash ${command}'";
-  # One hook, several invocations of the same validator: identical runtime PATH,
-  # stopping at the first non-zero exit so the reported failure is the gate that
-  # actually failed. Used where one validator script owns several modes and the
-  # modes do not warrant separate hooks.
-  validators =
-    commands:
-    "${packages.atomiutils}/bin/bash -c 'export PATH=${validator-runtime}/bin; ${
-      builtins.concatStringsSep " && " (
-        map (command: "${packages.atomiutils}/bin/bash ${command}") commands
-      )
-    }'";
   dlint = check: "${packages.dlint}/bin/dlint ${check}";
   dlints =
     checks:

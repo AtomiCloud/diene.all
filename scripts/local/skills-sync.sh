@@ -89,8 +89,14 @@ for package_dir in node_modules/@atomicloud/diene.*; do
   skills_dir="${package_dir}/skills"
   [ -d "${skills_dir}" ] || continue
   [ -n "$(find "${skills_dir}" -type f -print -quit)" ] || continue
-  mkdir -p "${staging}/${package}"
-  cp -R "${skills_dir}/." "${staging}/${package}/"
+  # A copy that fails is a hard stop, never a silent "nothing to stage". `set -e` already
+  # ends the run, but only with whatever cp wrote to stderr; naming the package is what
+  # tells the reader which dependency it was. Package caches ship read-only directories,
+  # so an unwritable staging target is the failure this expects to report.
+  if ! mkdir -p "${staging}/${package}" || ! cp -R "${skills_dir}/." "${staging}/${package}/"; then
+    echo "❌ Failed to stage the skills shipped by ${package}" >&2
+    exit 1
+  fi
   node_staged=true
 done
 
@@ -125,8 +131,10 @@ if [ -f Directory.Packages.props ]; then
     skills_dir="${package_dir}/skills"
     [ -d "${skills_dir}" ] || continue
     [ -n "$(find "${skills_dir}" -type f -print -quit)" ] || continue
-    mkdir -p "${staging}/${package}"
-    cp -R "${skills_dir}/." "${staging}/${package}/"
+    if ! mkdir -p "${staging}/${package}" || ! cp -R "${skills_dir}/." "${staging}/${package}/"; then
+      echo "❌ Failed to stage the skills shipped by ${package}" >&2
+      exit 1
+    fi
     nuget_staged=true
   done <"${nuget_packages}"
 
@@ -178,8 +186,10 @@ if [ -f go.mod ]; then
     [ -d "${skills_dir}" ] || continue
     [ -n "$(find "${skills_dir}" -type f -print -quit)" ] || continue
     package="$(basename "${module}")"
-    mkdir -p "${staging}/${package}"
-    cp -R "${skills_dir}/." "${staging}/${package}/"
+    if ! mkdir -p "${staging}/${package}" || ! cp -R "${skills_dir}/." "${staging}/${package}/"; then
+      echo "❌ Failed to stage the skills shipped by ${package}" >&2
+      exit 1
+    fi
     if [ "${main_module}" = false ] || [ "${go_declares_external}" = false ]; then
       go_staged=true
     fi
@@ -232,8 +242,10 @@ if [ -f .dart_tool/package_config.json ]; then
     skills_dir="${package_root}/skills"
     [ -d "${skills_dir}" ] || continue
     [ -n "$(find "${skills_dir}" -type f -print -quit)" ] || continue
-    mkdir -p "${staging}/${package}"
-    cp -R "${skills_dir}/." "${staging}/${package}/"
+    if ! mkdir -p "${staging}/${package}" || ! cp -R "${skills_dir}/." "${staging}/${package}/"; then
+      echo "❌ Failed to stage the skills shipped by ${package}" >&2
+      exit 1
+    fi
     pub_staged=true
   done <"${pub_entries}"
 fi

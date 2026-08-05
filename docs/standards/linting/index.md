@@ -64,7 +64,8 @@ instead of keeping its own copy of each: `action-pins`, `exec-bits`, `ci-wiring`
 and `skills-fresh`. They replaced three whole validator scripts and one mode of a
 fourth. `scripts/validate/` still holds
 the checks that are about **this** repository rather than about repositories in
-general: the release trigger and concurrency assertions, and the toolchain smoke.
+general, and now holds only `workflows.sh`: the release trigger and concurrency
+assertions. The toolchain smoke is not among them — `dlint toolchain-smoke` owns it.
 
 All four read one file, `.dlint.json`, resolved from the repository root. Three
 things about that file are decisions rather than transcription, and none of them
@@ -87,9 +88,14 @@ can be written down inside it, because it is strict JSON with no comments:
   treats `3` as success defeats the tool's whole design, so a hook or CI step must
   pass the exit code through rather than swallow it.
 
-`scripts/validate/binary-smoke.sh` runs `dlint exec-bits` as part of the toolchain
-smoke, which is also how the presence and loadability of `.dlint.json` is asserted:
-an absent config or an absent section turns that red at `3`.
+No script asserts the presence and loadability of `.dlint.json`, and none needs to:
+`dlint` refuses to run a check it could not configure, so every invocation asserts
+the file. An absent config exits `3` before the check runs, and a config that is
+present but unloadable exits `4`. The invocations that carry that assertion here are
+the `a-` `dlint` hooks in `nix/pre-commit.nix` — of which `a-skills-freshness`
+declares no `files` filter and so runs on every commit — and `probes/binary-smoke.ts`,
+whose `baseline-binary-smoke-resolves` arm runs `dlint toolchain-smoke` and whose
+`baseline-binary-smoke-invokes` arm runs `dlint exec-bits`.
 
 ## Configuration rules
 
