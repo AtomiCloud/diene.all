@@ -34,6 +34,7 @@ Use `type(scope)!: subject`. Omit `(scope)` only when the type's `default` scope
 | `docs` | Documentation changes | no release |
 | `feat` | New features | scope-dependent |
 | `fix` | Bug fixes | patch |
+| `merge` | Branch merges | no release |
 | `perf` | Performance improvements | patch |
 | `refactor` | Refactors | minor |
 | `style` | Non-functional style changes | patch |
@@ -60,6 +61,9 @@ Use `type(scope)!: subject`. Omit `(scope)` only when the type's `default` scope
 | Scope | Description | Release |
 | --- | --- | --- |
 | `default` | Perform a chore | no release |
+| `many-owner` | Surfaces with several owners | no release |
+| `nix` | Nix flake and modules | no release |
+| `workspace` | Workspace tree itself | no release |
 
 ### `ci` scopes
 
@@ -87,6 +91,7 @@ Use `type(scope)!: subject`. Omit `(scope)` only when the type's `default` scope
 | Scope | Description | Release |
 | --- | --- | --- |
 | `default` | Update documentation | no release |
+| `nix` | Nix flake and modules | no release |
 
 ### `feat` scopes
 
@@ -94,36 +99,54 @@ Use `type(scope)!: subject`. Omit `(scope)` only when the type's `default` scope
 | --- | --- | --- |
 | `default` | Add a feature | minor |
 | `breaking` | Add a breaking feature | major |
+| `nix` | Nix flake and modules | minor |
+| `probes` | Verification corpus | minor |
 
 ### `fix` scopes
 
 | Scope | Description | Release |
 | --- | --- | --- |
 | `default` | Fix a bug | patch |
+| `nix` | Nix flake and modules | patch |
+| `probes` | Verification corpus | patch |
+| `skills` | Vendored agent skills | patch |
+| `workspace` | Workspace tree itself | patch |
+
+### `merge` scopes
+
+| Scope | Description | Release |
+| --- | --- | --- |
+| `default` | Merge a branch | no release |
+| `main` | Root branch layer | no release |
+| `workspace` | Workspace tree itself | no release |
 
 ### `perf` scopes
 
 | Scope | Description | Release |
 | --- | --- | --- |
 | `default` | Improve performance | patch |
+| `probes` | Verification corpus | patch |
 
 ### `refactor` scopes
 
 | Scope | Description | Release |
 | --- | --- | --- |
 | `default` | Refactor implementation | minor |
+| `ci` | CI/CD wiring | minor |
 
 ### `style` scopes
 
 | Scope | Description | Release |
 | --- | --- | --- |
 | `default` | Update style | patch |
+| `probes` | Verification corpus | patch |
 
 ### `test` scopes
 
 | Scope | Description | Release |
 | --- | --- | --- |
 | `default` | Add or correct tests | minor |
+| `probes` | Verification corpus | minor |
 
 ## Special scopes
 
