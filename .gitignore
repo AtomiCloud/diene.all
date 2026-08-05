@@ -2,10 +2,14 @@
 .direnv
 .pre-commit-config.yaml
 
-# The root layer deliberately has NO committed lock. Its flake.nix pins every
-# input to an exact commit, so a lock adds a second copy of the same fact that
-# can disagree with the first. Nix writes this file whenever the flake is
-# evaluated, and `git add` picks it up, so it is ignored rather than merely
-# absent: without this line the next edit to flake.nix commits a lock by
-# accident, and nothing would notice.
+# ROOT-LAYER ONLY — do NOT cascade this line to a descendant.
+#
+# The root deliberately has NO committed lock: its flake.nix pins every input to
+# an exact commit, so a lock is a second copy of the same fact that can disagree
+# with the first. But nix WRITES the lock on every evaluation and `git add` picks
+# it up, so the absence has to be enforced rather than merely intended.
+#
+# `workspace` and everything below it DO commit a lock, and their pin gate reads
+# it as a second copy that must agree with flake.nix. Inheriting this line there
+# would contradict their own law, so a merge from the root drops it.
 flake.lock
