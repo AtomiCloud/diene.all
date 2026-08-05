@@ -13,9 +13,9 @@ This repository follows [Conventional Commits](https://www.conventionalcommits.o
 This file is generated. `atomi_release.yaml` names this path in its
 `conventions.path` value, `releaser conventions` writes it, and a release run
 rewrites it as well. Change `atomi_release.yaml` and regenerate rather than
-editing this file: everything above the next heading comes from that file's
-`conventions.template`, and everything below it is generated from the commit
-vocabulary.
+editing this file: everything up to here comes from that file's
+`conventions.template`, and everything from the `type(scope)` line below is
+generated from the commit vocabulary.
 
 Use `type(scope)!: subject`. Omit `(scope)` only when the type's `default` scope applies.
 

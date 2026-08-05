@@ -108,10 +108,6 @@ keywords:
   - BREAKING CHANGES
   - BREAKING
 
-# Message rules for `releaser lint-commit`, which the commit-msg hook runs. These
-# values are the tool's own defaults, written out rather than left implicit,
-# because they are what a rejected commit will be measured against and a
-# committer should be able to read them here.
 lint:
   header:
     maxLength: 72
@@ -130,12 +126,6 @@ lint:
     - fixup-amend
     - squash
 
-# `releaser conventions` writes `path` from this `template`, substituting the
-# generated type/scope tables for CONVENTION_DOCS_PLACEHOLDER. A release run
-# rewrites that file too, so anything a reader should find there has to live in
-# this template - the generated block alone is tables and nothing else. The prose
-# below is therefore not decoration: it is the only place the reading guide can
-# survive regeneration.
 conventions:
   path: docs/developer/CommitConventions.md
   template: |-
@@ -172,10 +162,6 @@ release:
       release: ${version}
 
       ${notes}
-    # Every file a release writes has to be listed here: the releaser refuses the
-    # release outright if a write lands outside this list, and a file that is
-    # written but unlisted is never committed. Both files below are written by the
-    # tool itself - the changelog and the generated conventions document.
     assets:
       - Changelog.md
       - docs/developer/CommitConventions.md
@@ -185,19 +171,7 @@ release:
     releasedLabels:
       - released
   hooks:
-    # Deliberately empty, and kept for that reason. This is where the
-    # `@semantic-release/exec` hook point moved to when this configuration became
-    # schemaVersion 2: a downstream node fills `prepare` with
-    # `{ phase: beforeWrite | afterWrite, command: ... }` entries, usually an
-    # `afterWrite` command that stamps the version into whatever file that node's
-    # ecosystem versions.
-    #
-    # This workspace versions no manifest, so it fills nothing and stamps nothing.
-    # The releaser does not write a version file on its own - it writes only the
-    # changelog and the conventions document - so an unfilled `prepare` means no
-    # version file exists to commit. If you add a command that writes one, add that
-    # file to `commit.assets` above in the SAME edit; a stamped-but-unlisted file is
-    # refused by the asset fence, and a listed-but-unstamped file is dead
-    # configuration.
+    # Deliberately empty: the hook point a downstream node fills. A version file
+    # enters commit.assets in the SAME edit as the command that writes it.
     prepare: []
     success: []
