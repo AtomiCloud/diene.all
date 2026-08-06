@@ -1,6 +1,6 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, test } from 'bun:test';
@@ -170,6 +170,24 @@ describe('structural probe mutators', () => {
         },
         async write(file: string, content: string) {
           await writeFile(join(path, file), content);
+        },
+        async remove(file: string) {
+          await rm(join(path, file), { force: true, recursive: true });
+        },
+        async glob(pattern: string) {
+          const matches: string[] = [];
+          for await (const file of new Bun.Glob(pattern).scan({ cwd: path, onlyFiles: true })) {
+            matches.push(file);
+          }
+          return matches.sort();
+        },
+        async patch(file: string, edit: { find: string; replace: string }) {
+          const target = join(path, file);
+          const source = readFileSync(target, 'utf8');
+          if (!source.includes(edit.find)) {
+            throw new Error(`missing patch target: ${edit.find}`);
+          }
+          await writeFile(target, source.replace(edit.find, edit.replace));
         },
       };
       return { path, repo, git: run };
