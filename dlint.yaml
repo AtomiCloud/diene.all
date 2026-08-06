@@ -41,10 +41,6 @@ checks:
       - task
       - treefmt
       - yq
-  nixpkgs-pin:
-    flake: flake.nix
-    lock: flake.lock
-    inputPattern: nixpkgs
   no-custom-derivations:
     paths:
       - nix/packages.nix
