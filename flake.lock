@@ -12,16 +12,16 @@
         "worktrunkpkgs": "worktrunkpkgs"
       },
       "locked": {
-        "lastModified": 1785913041,
-        "narHash": "sha256-uloOux4l82+mLSqspHbd0r4AzvJuKbAQOwGbcP9nE1o=",
+        "lastModified": 1786001302,
+        "narHash": "sha256-Rlmh/TjIg4o0akTJsM/vQZwyAb+VmYjsjCitcRRdHzw=",
         "owner": "AtomiCloud",
         "repo": "nix-registry",
-        "rev": "8bf1f2744b0551ad6779a49d02a1df36b5ff2853",
+        "rev": "6739dfd756a536df36b4006542ca8845ab6ca105",
         "type": "github"
       },
       "original": {
         "owner": "AtomiCloud",
-        "ref": "v3.14.0",
+        "ref": "v4",
         "repo": "nix-registry",
         "type": "github"
       }
@@ -497,42 +497,6 @@
         "type": "github"
       }
     },
-    "releaser": {
-      "inputs": {
-        "atomipkgs": [
-          "atomipkgs"
-        ],
-        "flake-utils": [
-          "flake-utils"
-        ],
-        "nixpkgs-2605": [
-          "nixpkgs-2605"
-        ],
-        "nixpkgs-unstable": [
-          "nixpkgs-unstable"
-        ],
-        "pre-commit-hooks": [
-          "pre-commit-hooks"
-        ],
-        "treefmt-nix": [
-          "treefmt-nix"
-        ]
-      },
-      "locked": {
-        "lastModified": 1784889346,
-        "narHash": "sha256-L8kPuS1uc0RPOk9eqrvYGjtKqq780Tdcy7o42df6eyo=",
-        "owner": "AtomiCloud",
-        "repo": "releaser",
-        "rev": "3200bdd95a0fdd8f43f9905faa8c85afe4595d1f",
-        "type": "github"
-      },
-      "original": {
-        "owner": "AtomiCloud",
-        "repo": "releaser",
-        "rev": "3200bdd95a0fdd8f43f9905faa8c85afe4595d1f",
-        "type": "github"
-      }
-    },
     "root": {
       "inputs": {
         "atomipkgs": "atomipkgs",
@@ -540,7 +504,6 @@
         "nixpkgs-2605": "nixpkgs-2605_2",
         "nixpkgs-unstable": "nixpkgs-unstable_2",
         "pre-commit-hooks": "pre-commit-hooks_2",
-        "releaser": "releaser",
         "treefmt-nix": "treefmt-nix_2"
       }
     },

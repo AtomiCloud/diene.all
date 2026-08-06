@@ -7,13 +7,13 @@ title: Semantic Release
 
 ## What this covers
 
-`atomi_release.yaml` is the single source of truth for the commit types, the
+`release.yaml` is the single source of truth for the commit types, the
 release level each one produces, the message rules the commit-msg hook applies, the
 generated commit-convention document, and how a release commits and publishes.
 Everything about releases in this repository is configured in that one file. There
 is no standalone `.gitlint` file and one must not be added.
 
-The tool that reads it is `releaser`, and it **replaces** semantic-release: there is
+The tool that reads it is registry-supplied `releaser` v2, and it **replaces** semantic-release: there is
 no plugin list, no package manager invoked at release time, and no separate
 `.releaserc.yaml`. The configuration is `schemaVersion: 2`.
 
@@ -93,11 +93,13 @@ format gate in permanent disagreement.
 Release is its own workflow, and it runs off a successful `CI` run rather than off
 a push. `.github/workflows/release.yaml` declares that `workflow_run` trigger, the
 restriction to `main`, and the `release` concurrency group; the `a-workflows` gate
-pins those values, and `scripts/validate/workflows.sh` holds the exact ones it
-expects.
+pins those values through `dlint.yaml`'s
+`checks["workflow-policy"].assertions`. The trigger and concurrency probes each
+sabotage their own value and drive that check directly, so both independent
+release policies are shown able to fail.
 
 The workflow ends in a single `scripts/ci/release.sh` call inside the `releaser`
-Nix shell. That script runs `releaser release -c atomi_release.yaml`, which
+Nix shell. That script runs `releaser release -c release.yaml`, which
 calculates the version, writes the changelog and the conventions document, commits
 the configured assets, tags, pushes, and publishes the GitHub release.
 
@@ -110,9 +112,9 @@ commit-msg hook would refuse the commit the tool is in the middle of making.
 ```bash
 releaser next                          # the version the current commits would produce
 releaser changelog                     # the release notes they would produce
-releaser conventions                   # regenerate the commit-conventions document
+releaser conventions -c release.yaml   # regenerate the commit-conventions document
 releaser release --dry-run             # everything a release would do, changing nothing
-releaser release -c atomi_release.yaml # the real thing; CI runs this one
+releaser release -c release.yaml       # the real thing; CI runs this one
 ```
 
 `releaser release` without `--dry-run` is the only command that changes git or
@@ -121,5 +123,5 @@ branch is listed in `release.branches`, so on a feature branch they report that
 rather than guessing.
 
 `releaser conventions` maintains the file named by `conventions.path`. That file is
-generated output and must not be edited by hand — edit `atomi_release.yaml` and
+generated output and must not be edited by hand — edit `release.yaml` and
 regenerate.

@@ -43,12 +43,21 @@ The formatters treefmt drives are the `programs` attribute set in
 carry its own `excludes`.
 
 **Commit messages are checked.** The `a-releaser-commit` hook runs at the
-`commit-msg` stage and calls `releaser lint-commit -c atomi_release.yaml`, so the
+`commit-msg` stage and calls `releaser lint-commit -c release.yaml`, so the
 message is measured against the same file that defines the commit types and the
 release levels — see
 [the conventional-commits standard](../conventional-commits/index.md). There is
 still no `.gitlint` hook or file and one must not be added; the vocabulary has one
 authority.
+
+**Vendored skills are checked without amending a commit.** The `a-skills-sync`
+hook calls the registry package by its absolute Nix store path as
+`skills-sync sync --tier pre-commit`. The writer refuses if it had to regenerate
+the vendor tree or if the index does not already carry what the packages ship;
+it never stages files. This tier may skip when dependencies are not restored and
+says that it is the warning tier. CI therefore runs `sync --tier ci` explicitly
+before the ordinary pre-commit script; the hook is not promoted into a guarantee
+merely because CI also executes hooks.
 
 This hook was absent for one round, and the reason is worth knowing before you
 touch it: no development shell provided the `releaser` binary then, and because
@@ -61,14 +70,18 @@ command name, which is what makes it resolve from any worktree and any shell.
 
 This repository takes four checks from `dlint`, a tool from the Nix registry,
 instead of keeping its own copy of each: `action-pins`, `exec-bits`, `ci-wiring`
-and `skills-fresh`. They replaced three whole validator scripts and one mode of a
-fourth. `scripts/validate/` still holds
-the checks that are about **this** repository rather than about repositories in
-general: the release trigger and concurrency assertions, and the toolchain smoke.
+and `workflow-policy`. All four replaced repository-local validator scripts.
+`workflow-policy` owns the five exact release values after its predecessor was
+shown equivalent and retired. The `a-workflows` hook runs `ci-wiring` and
+`workflow-policy` unconditionally because they cover independent properties, then
+returns the higher exit code so one refusal never hides the other.
+`scripts/validate/` still holds checks that are about **this** repository rather
+than repositories in general, and now holds only `nixpkgs-pin.sh`. The toolchain
+smoke is not among them — `dlint toolchain-smoke` owns it.
 
-All four read one file, `.dlint.json`, resolved from the repository root. Three
-things about that file are decisions rather than transcription, and none of them
-can be written down inside it, because it is strict JSON with no comments:
+Every check reads one file, `dlint.yaml`, resolved from the repository root. Three
+things about that file are decisions rather than transcription, and they are
+recorded here rather than inside it:
 
 - **`ci-wiring.orchestrators` lists `ci.yaml`, `cd.yaml` and `release.yaml`, and
   deliberately not `🛡️merge-gatekeeper.yml`.** The `⚡`-prefixed workflows are the
@@ -80,16 +93,22 @@ can be written down inside it, because it is strict JSON with no comments:
 - **No check is disabled and `requireSubjects` is left at its default.** Turning a
   check off is a declaration `dlint` supports — `"exec-bits": false` — and it is
   the honest way to say a check does not apply. It is not a way to make a failing
-  check pass, and all four apply here.
+  check pass, and every check the file declares applies here.
 - **An absent section is an error, not a pass.** `dlint` exits `3` when its
   configuration, or a section it needs, or a subject it was told to expect, is
   missing — and `1` only when the repository actually breaks a rule. Any wiring that
   treats `3` as success defeats the tool's whole design, so a hook or CI step must
   pass the exit code through rather than swallow it.
 
-`scripts/validate/binary-smoke.sh` runs `dlint exec-bits` as part of the toolchain
-smoke, which is also how the presence and loadability of `.dlint.json` is asserted:
-an absent config or an absent section turns that red at `3`.
+No script asserts the presence and loadability of `dlint.yaml`, and none needs to:
+`dlint` refuses to run a check it could not configure, so every invocation asserts
+the file. An absent config exits `3` before the check runs, and a config that is
+present but unloadable exits `4`. The invocations that carry that assertion here are
+the `a-` `dlint` hooks in `nix/pre-commit.nix` — every one of which declares a
+`files` filter, so a commit touching none of those paths asserts the config through
+no hook at all — and `probes/binary-smoke.ts`, whose
+`baseline-binary-smoke-resolves` arm runs `dlint toolchain-smoke` and whose
+`baseline-binary-smoke-invokes` arm runs `dlint exec-bits`.
 
 ## Configuration rules
 

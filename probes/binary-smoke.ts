@@ -11,7 +11,11 @@ const retired = [
 const absenceCommand = (binary: string) =>
   `nix develop .#default -c bash -c 'if rg -q "\\b${binary}\\b" ${declarationFiles}; then echo "${binary} is back in the nix inventory" >&2; exit 1; fi; echo "${binary} is absent from the nix inventory"'`;
 
-// No ${ or backticks below: this is a JS template literal, not raw shell.
+// This is a JS template literal, not raw shell. String.raw suppresses ESCAPE
+// processing only; it does not suppress interpolation, so a ${...} below is read by
+// JS and never reaches the shell. Shell variables are written bare ($var) for that
+// reason. probes/lib/probe-modules.test.ts imports every probe module, which is what
+// makes this checkable: a ${...} naming no JS binding throws at module scope.
 const invocations = String.raw`
 set -euo pipefail
 tmp="$(mktemp -d)"
@@ -24,12 +28,17 @@ actionlint "$tmp/workflow.yaml"
 bash --version >/dev/null
 [ "$(bash -c 'printf smoke')" != "smoke" ] && echo "bash failed a real invocation" >&2 && exit 1
 
-cyanprint_pins="$(awk -F'"' '/^[[:space:]]*cyanprintVersion = "[^"]+";$/ { print $2 }' nix/packages.nix)"
-if [ "$(printf '%s\n' "$cyanprint_pins" | grep -c .)" -ne 1 ]; then
-  echo "expected exactly one cyanprintVersion pin in nix/packages.nix" >&2
+# The version is the registry's, so there is no pin in this tree to compare against.
+# The store path the shell resolved is the declaration's own answer: it carries the
+# derivation name, so a version the binary reports that the resolved derivation does
+# not carry is caught here rather than reported as agreement with itself.
+cyanprint_version="$(cyanprint --version | awk '{ print $2 }')"
+[ -n "$cyanprint_version" ] || { echo "cyanprint --version printed no version" >&2; exit 1; }
+cyanprint_path="$(command -v cyanprint)"
+printf '%s\n' "$cyanprint_path" | rg -q "/nix/store/[^/]*-cyanprint-$cyanprint_version/" || {
+  echo "cyanprint reports $cyanprint_version but resolved to $cyanprint_path" >&2
   exit 1
-fi
-cyanprint --version | grep -Fqx "cyanprint $cyanprint_pins"
+}
 cyanprint cache inspect --cache-dir "$tmp/cyanprint-cache" --json |
   jq -e '.status == "done" and .action == "inspect"' >/dev/null
 
@@ -82,12 +91,34 @@ nix flake metadata --no-write-lock-file --json . | jq -e '.url | type == "string
 pre-commit --version >/dev/null
 pre-commit validate-config .pre-commit-config.yaml
 
-releaser --version >/dev/null
+releaser_version="$(releaser --version)"
+[ "$releaser_version" = "2.0.0" ] || {
+  echo "releaser reports $releaser_version; the registry wire requires v2.0.0" >&2
+  exit 1
+}
+releaser_path="$(command -v releaser)"
+printf '%s\n' "$releaser_path" | rg -q "/nix/store/[^/]*-releaser-$releaser_version/bin/releaser$" || {
+  echo "releaser reports $releaser_version but resolved to $releaser_path" >&2
+  exit 1
+}
+legacy_dir="$tmp/releaser-legacy-config"
+mkdir -p "$legacy_dir"
+cp release.yaml "$legacy_dir/atomi_release.yaml"
+legacy_rc=0
+(cd "$legacy_dir" && releaser conventions >legacy-out.txt 2>&1) || legacy_rc=$?
+[ "$legacy_rc" = "1" ] || {
+  echo "releaser v2 accepted its retired default config name (exit $legacy_rc)" >&2
+  exit 1
+}
+rg -Fxq 'release.yaml not found, but atomi_release.yaml exists. This tool formerly read atomi_release.yaml; rename it to release.yaml (or pass -c atomi_release.yaml to keep the old name).' "$legacy_dir/legacy-out.txt" || {
+  echo "releaser v2 refused the retired config name without its migration remedy" >&2
+  exit 1
+}
 printf '%s\n' 'chore: smoke the releaser commit linter' >"$tmp/releaser-msg-ok.txt"
-releaser lint-commit "$tmp/releaser-msg-ok.txt" -c atomi_release.yaml >/dev/null
+releaser lint-commit "$tmp/releaser-msg-ok.txt" -c release.yaml >/dev/null
 printf '%s\n' 'nope: this commit type is not configured' >"$tmp/releaser-msg-bad.txt"
-if releaser lint-commit "$tmp/releaser-msg-bad.txt" -c atomi_release.yaml >/dev/null 2>&1; then
-  echo "releaser lint-commit accepted a commit type that is not in atomi_release.yaml" >&2
+if releaser lint-commit "$tmp/releaser-msg-bad.txt" -c release.yaml >/dev/null 2>&1; then
+  echo "releaser lint-commit accepted a commit type that is not in release.yaml" >&2
   exit 1
 fi
 
@@ -100,7 +131,17 @@ rg -q 'no-such-needle-should-ever-match' "$tmp/rg-fixture.txt" || rc=$?
 [ "$rc" = "1" ] || { echo "rg: expected exit 1 (no match), got $rc" >&2; exit 1; }
 
 shellcheck --version >/dev/null
-shellcheck scripts/validate/workflows.sh
+printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' 'echo "shellcheck smoke"' >"$tmp/shellcheck-clean.sh"
+shellcheck "$tmp/shellcheck-clean.sh"
+# A clean file exits 0 and so does a shellcheck that inspected nothing, so the green above
+# carries no evidence on its own. shellcheck exits 1 for a finding and 2 for a file it could
+# not read: only the exact code, plus the code of the finding itself, proves the fixture was
+# read. Same reasoning as the rg fixture above.
+printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' 'echo $UNQUOTED' >"$tmp/shellcheck-finding.sh"
+rc=0
+shellcheck "$tmp/shellcheck-finding.sh" >"$tmp/shellcheck-out.txt" 2>&1 || rc=$?
+[ "$rc" = "1" ] || { echo "shellcheck: expected exit 1 (finding), got $rc" >&2; exit 1; }
+rg -q 'SC2086' "$tmp/shellcheck-out.txt" || { echo "shellcheck: exit 1 without the SC2086 finding" >&2; exit 1; }
 
 skopeo --version >/dev/null
 printf '%s\n' '{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{"mediaType":"application/vnd.oci.image.config.v1+json","digest":"sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a","size":2},"layers":[]}' >"$tmp/manifest.json"

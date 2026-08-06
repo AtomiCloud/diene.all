@@ -47,7 +47,7 @@ let
   # The nonblocking lax feed is a report, not a gate, so it stays out of this entry.
   #
   # G3: the vendored-GOPROXY plumbing below stays in this template. The registry
-  # (v3.14.0) ships the go BINARIES - deadcode, go-validator, dlint - but not this
+  # (v4) ships the go BINARIES - deadcode, go-validator, dlint - but not this
   # machinery, and `go-deps` cannot move as-is: it is `buildGoModule` over `src = ../.`
   # with this repo's own vendorHash, so it is parameterised on this module graph rather
   # than shared. Left whole rather than half-moved.
@@ -172,12 +172,36 @@ pre-commit-lib.run {
       language = "system";
     };
 
+    # flake.nix says every nixpkgs input is pinned to an exact commit and that nothing
+    # validates it. This is that validation. It guards the ROOT's nixpkgs inputs only -
+    # the transitive closure floats on channels legitimately and is not ours to police.
+    a-nixpkgs-pin = {
+      enable = true;
+      name = "Nixpkgs pin honesty";
+      entry = "${packages.atomiutils}/bin/bash -c 'export PATH=${validator-runtime}/bin; exec ${packages.atomiutils}/bin/bash scripts/validate/nixpkgs-pin.sh'";
+      files = "^flake\\.(nix|lock)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
     a-releaser-commit = {
       enable = true;
       name = "Conventional commit";
-      entry = "${packages.releaser}/bin/releaser lint-commit -c atomi_release.yaml";
+      entry = "${packages.releaser}/bin/releaser lint-commit -c release.yaml";
       stages = [ "commit-msg" ];
       pass_filenames = true;
+      language = "system";
+    };
+
+    # `sync` owns both halves of the commit-time guarantee: it refuses when it
+    # regenerates the vendor tree and when the index does not already carry what
+    # the packages ship. It never stages files, and it skips only when dependency
+    # restoration is absent at this warning tier; CI below is the guarantee.
+    a-skills-sync = {
+      enable = true;
+      name = "Vendored skills";
+      entry = "${packages.skills-sync}/bin/skills-sync sync --tier pre-commit";
+      pass_filenames = false;
       language = "system";
     };
 
@@ -198,18 +222,14 @@ pre-commit-lib.run {
       language = "system";
     };
 
-    a-skills-freshness = {
-      enable = true;
-      name = "Vendored skills freshness";
-      entry = dlint "skills-fresh";
-      pass_filenames = false;
-      language = "system";
-    };
-
+    # `ci-wiring` and `workflow-policy` cover independent workflow properties, so
+    # neither gates the other: both run on every invocation and the hook returns
+    # the higher exit code. `workflow-policy` is the sole owner of the five exact
+    # release values after its redundant repository-local predecessor was retired.
     a-workflows = {
       enable = true;
       name = "Workflow wiring and release policy";
-      entry = "${packages.atomiutils}/bin/bash -c '${packages.dlint}/bin/dlint ci-wiring && ( export PATH=${validator-runtime}/bin; ${packages.atomiutils}/bin/bash scripts/validate/workflows.sh release-trigger && ${packages.atomiutils}/bin/bash scripts/validate/workflows.sh release-concurrency )'";
+      entry = "${packages.atomiutils}/bin/bash -c 'c=0; p=0; ${packages.dlint}/bin/dlint ci-wiring || c=$?; ${packages.dlint}/bin/dlint workflow-policy || p=$?; r=$c; [ $p -gt $r ] && r=$p; exit $r'";
       files = "^\\.github/workflows/.*\\.ya?ml$";
       pass_filenames = false;
       language = "system";

@@ -75,9 +75,13 @@ describe('captured-env coverage of direct repo.exec shell entries', () => {
   // beside it went through expectGreen. The rule arrived with the merge, so the site
   // predates the assertion that now covers it. Wrapping it is the fix the rule asks
   // for, and the count follows the site.
-  test('the wrapped set is the 19 known shell-entering call sites, across 9 files', () => {
+  //
+  // 19 -> 11 across 7 files when the old local skills synchronizer was replaced by
+  // the compact three-call-path registry probe and skills-freshness was retired:
+  // those two old probes carried eight of the nineteen direct shell-entry sites.
+  test('the wrapped set is the 11 known shell-entering call sites, across 7 files', () => {
     const wrapped = allSites.filter(site => site.wrapped);
-    expect(wrapped).toHaveLength(19);
+    expect(wrapped).toHaveLength(11);
     expect([...new Set(wrapped.map(site => site.file))].sort()).toEqual([
       'docker-build.ts',
       'hook-enforce-exec.ts',
@@ -86,8 +90,6 @@ describe('captured-env coverage of direct repo.exec shell entries', () => {
       'precommit-treefmt-nixfmt.ts',
       'precommit-treefmt-prettier.ts',
       'precommit-treefmt-shfmt.ts',
-      'skills-freshness.ts',
-      'skills-sync.ts',
     ]);
   });
 

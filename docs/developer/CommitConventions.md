@@ -2,7 +2,7 @@
 
 This repository follows [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
-- `atomi_release.yaml` is the machine-readable source of truth: it owns the
+- `release.yaml` is the machine-readable source of truth: it owns the
   commit types, the scopes valid for each one, and the version bump each scope
   causes.
 - [The conventional-commits standard](../standards/conventional-commits/index.md)
@@ -10,9 +10,9 @@ This repository follows [Conventional Commits](https://www.conventionalcommits.o
 
 ## Status of this file
 
-This file is generated. `atomi_release.yaml` names this path in its
+This file is generated. `release.yaml` names this path in its
 `conventions.path` value, `releaser conventions` writes it, and a release run
-rewrites it as well. Change `atomi_release.yaml` and regenerate rather than
+rewrites it as well. Change `release.yaml` and regenerate rather than
 editing this file: everything up to here comes from that file's
 `conventions.template`, and everything from the `type(scope)` line below is
 generated from the commit vocabulary.
@@ -109,7 +109,7 @@ Use `type(scope)!: subject`. Omit `(scope)` only when the type's `default` scope
 | `default` | Fix a bug | patch |
 | `nix` | Nix flake and modules | patch |
 | `probes` | Verification corpus | patch |
-| `skills` | Vendored agent skills | patch |
+| `skills` | Agent skills | patch |
 | `workspace` | Workspace tree itself | patch |
 
 ### `merge` scopes

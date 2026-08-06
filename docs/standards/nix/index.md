@@ -42,6 +42,28 @@ flake.nix          # Main flake (orchestrator)
 
 **To find what registries and variable names are available**: Read `flake.nix` to see the inputs and what parameters are passed to `packages.nix`.
 
+**Outside the two Go-local exceptions below, `packages.nix`, `env.nix` and
+`pre-commit.nix` carry plain lists and attribute sets. Do not build a package
+here.** No `mkDerivation`, no `overrideAttrs`, no `fetchurl` of a release archive
+— a package that needs building belongs in the Nix registry, and this tree
+consumes it by name.
+
+The exceptions are parameterized by this repository rather than reusable
+packages: `nix/packages.nix` overrides Go 1.26.5 with the source that fixes
+GO-2026-5856, and `nix/pre-commit.nix` builds this module graph into the vendored
+GOPROXY used by the Go lint and deadcode hooks. They stay local because their
+inputs are this repository's source and `vendorHash`; they are not precedent for
+building release, skills, or other reusable tools here.
+
+That rule applies to the release and skills tools too: `releaser` and
+`skills-sync` are inherited from `atomipkgs` in `nix/packages.nix`. There is no
+second direct releaser flake input and no repository-local skills-sync script;
+the registry pin is the single package provenance for both.
+
+The reason is composition, not taste. The CyanPrint Nix resolver merges these files by merging simple attribute lists when templates compose; a custom derivation is not resolver-mergeable, so a template that defines one cannot be composed with another that touches the same file. Complexity hoists to the registry because the registry is the layer that is allowed to be complex.
+
+This is about _building_, not about _arranging_. `pkgs.buildEnv`, `pkgs.lib.optionals` and `pkgs.stdenv.hostPlatform.system` arrange packages that already exist and stay permitted — `nix/pre-commit.nix` uses `buildEnv` to give one hook a fixed PATH.
+
 ### nix/env.nix - Environment Groups
 
 **Purpose**: Organize packages into functional groups so different shells can include only what they need.
