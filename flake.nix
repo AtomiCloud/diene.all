@@ -15,7 +15,7 @@
     # nixos-26.05 (Yarara) @ 2026-08-06
     nixpkgs-2605.url = "github:NixOS/nixpkgs/445d861c6d31b4af0c79d8d4be2331f762a361d7";
     # Rev-pinned during the 2026-08-06 Actions outage (no release could cut); restore to /v4 after.
-    atomipkgs.url = "github:AtomiCloud/nix-registry/cc4ccb95852ec1174c14f74521eba5cfdb25866a";
+    atomipkgs.url = "github:AtomiCloud/nix-registry/ce192c0844d1a19c807839fd1a840ae858bb572d";
   };
   outputs =
     {
