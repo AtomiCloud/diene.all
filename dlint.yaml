@@ -13,34 +13,7 @@ checks:
       - .github/workflows/ci.yaml
       - .github/workflows/cd.yaml
       - .github/workflows/release.yaml
-  toolchain-smoke:
-    shell: default
-    binaries:
-      - actionlint
-      - bash
-      - cyanprint
-      - dlint
-      - docker
-      - git
-      - gomplate
-      - hadolint
-      - helm
-      - helm-docs
-      - infisical
-      - jq
-      - k3d
-      - kubeconform
-      - kubectl
-      - kyverno
-      - nix
-      - pre-commit
-      - releaser
-      - rg
-      - shellcheck
-      - skopeo
-      - task
-      - treefmt
-      - yq
+  toolchain-smoke: false
   workflow-policy:
     assertions:
       - file: .github/workflows/release.yaml
@@ -67,3 +40,8 @@ checks:
     flake: flake.nix
     lock: flake.lock
     inputPattern: nixpkgs
+  no-custom-derivations:
+    paths:
+      - nix/packages.nix
+      - nix/env.nix
+      - nix/shells.nix
