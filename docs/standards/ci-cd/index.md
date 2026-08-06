@@ -41,7 +41,7 @@ plus its tag in a trailing comment. Which actions are trusted is recorded in
 `config/action-trust.json`: each key is an action reference and its value is
 `trusted` or `non-trusted`. `dlint action-pins` reads that file and refuses any
 action used in a workflow that has no classification, so adding an action means
-adding its entry there. Which path it reads is `.dlint.json`'s
+adding its entry there. Which path it reads is `dlint.yaml`'s
 `checks["action-pins"].trustMap`.
 
 ## Every job declares its dependencies
