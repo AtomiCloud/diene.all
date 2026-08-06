@@ -11,7 +11,11 @@ const retired = [
 const absenceCommand = (binary: string) =>
   `nix develop .#default -c bash -c 'if rg -q "\\b${binary}\\b" ${declarationFiles}; then echo "${binary} is back in the nix inventory" >&2; exit 1; fi; echo "${binary} is absent from the nix inventory"'`;
 
-// No ${ or backticks below: this is a JS template literal, not raw shell.
+// This is a JS template literal, not raw shell. String.raw suppresses ESCAPE
+// processing only; it does not suppress interpolation, so a ${...} below is read by
+// JS and never reaches the shell. Shell variables are written bare ($var) for that
+// reason. probes/lib/probe-modules.test.ts imports every probe module, which is what
+// makes this checkable: a ${...} naming no JS binding throws at module scope.
 const invocations = String.raw`
 set -euo pipefail
 tmp="$(mktemp -d)"
@@ -31,8 +35,8 @@ bash --version >/dev/null
 cyanprint_version="$(cyanprint --version | awk '{ print $2 }')"
 [ -n "$cyanprint_version" ] || { echo "cyanprint --version printed no version" >&2; exit 1; }
 cyanprint_path="$(command -v cyanprint)"
-printf '%s\n' "$cyanprint_path" | rg -q "/nix/store/[^/]*-cyanprint-${cyanprint_version}/" || {
-  echo "cyanprint reports ${cyanprint_version} but resolved to ${cyanprint_path}" >&2
+printf '%s\n' "$cyanprint_path" | rg -q "/nix/store/[^/]*-cyanprint-$cyanprint_version/" || {
+  echo "cyanprint reports $cyanprint_version but resolved to $cyanprint_path" >&2
   exit 1
 }
 cyanprint cache inspect --cache-dir "$tmp/cyanprint-cache" --json |
