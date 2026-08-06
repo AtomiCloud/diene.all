@@ -1,3 +1,8 @@
+import { execFileSync, spawnSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, test } from 'bun:test';
 import type { ProbeExecResult, ProbeRepo } from '@cyanprint/contracts';
 import { restoreProbeState } from './helpers.ts';
@@ -135,8 +140,92 @@ describe('structural probe mutators', () => {
     await restoreProbeState(repo, ['lib/note/note.go']);
     expect(repo.commands).toEqual([
       `for target in 'lib/note/note.go'; do if [ -e "$target" ]; then chmod -R u+w -- "$target" || exit 1; fi; done`,
-      `git ls-files -z -- 'lib/note/note.go' | xargs -0 -r git restore --source=HEAD --staged --worktree --`,
+      `for target in 'lib/note/note.go'; do if [ -n "$(git ls-tree -r --name-only HEAD -- "$target")" ]; then ` +
+        `git restore --source=HEAD --staged --worktree -- "$target" || exit 1; ` +
+        `else git rm -r --cached -q --ignore-unmatch -- "$target" || exit 1; fi; done`,
       `git clean -fdx -- 'lib/note/note.go'`,
     ]);
+  });
+
+  // The assertion above compares command STRINGS against a FakeRepo whose exec is a no-op. It
+  // cannot distinguish a restore that works from one that silently does nothing, which is exactly
+  // how the `git ls-files` worklist survived: a staged deletion drops the path from the index, the
+  // piped `xargs -0 -r` runs zero commands, and the helper reports success. These tests run the
+  // helper against a REAL git repository so a regression has to actually restore the file.
+  describe('against a real repository', () => {
+    async function sandbox(): Promise<{ path: string; repo: ProbeRepo; git: (c: string) => string }> {
+      const path = await mkdtemp(join(tmpdir(), 'probe-restore-'));
+      const run = (command: string) => execFileSync('bash', ['-c', command], { cwd: path, encoding: 'utf8' });
+      run('git init -q . && git config user.email probe@test && git config user.name probe');
+      await mkdir(join(path, 'lib', 'note'), { recursive: true });
+      await writeFile(join(path, 'lib', 'note', 'note.go'), 'package note\n');
+      run('git add -A && git commit -qm seed');
+      const repo: ProbeRepo = {
+        async exec(command: string): Promise<ProbeExecResult> {
+          const result = spawnSync('bash', ['-c', command], { cwd: path, encoding: 'utf8' });
+          return { exitCode: result.status ?? 1, stdout: result.stdout ?? '', stderr: result.stderr ?? '' };
+        },
+        async read(file: string) {
+          return readFileSync(join(path, file), 'utf8');
+        },
+        async write(file: string, content: string) {
+          await writeFile(join(path, file), content);
+        },
+      };
+      return { path, repo, git: run };
+    }
+
+    test('restores a target whose deletion has been STAGED', async () => {
+      const { path, repo, git } = await sandbox();
+      git(`git rm -q --cached -- lib/note/note.go && rm -f -- lib/note/note.go`);
+      expect(git('git status --porcelain').trim()).toBe('D  lib/note/note.go');
+
+      await restoreProbeState(repo, ['lib/note/note.go']);
+
+      expect(git('git status --porcelain').trim()).toBe('');
+      expect(existsSync(join(path, 'lib/note/note.go'))).toBe(true);
+    });
+
+    test('restores a target whose deletion has been staged as part of a DIRECTORY', async () => {
+      const { path, repo, git } = await sandbox();
+      git(`git rm -q -r --cached -- lib && rm -rf -- lib`);
+      expect(git('git status --porcelain').trim()).toBe('D  lib/note/note.go');
+
+      await restoreProbeState(repo, ['lib']);
+
+      expect(git('git status --porcelain').trim()).toBe('');
+      expect(existsSync(join(path, 'lib/note/note.go'))).toBe(true);
+    });
+
+    test('drops a STAGED ADDITION under a target HEAD has never seen', async () => {
+      const { path, repo, git } = await sandbox();
+      await mkdir(join(path, 'fixture'), { recursive: true });
+      await writeFile(join(path, 'fixture', 'planted.go'), 'package fixture\n');
+      git('git add fixture/planted.go');
+
+      await restoreProbeState(repo, ['fixture']);
+
+      expect(git('git status --porcelain').trim()).toBe('');
+      expect(existsSync(join(path, 'fixture/planted.go'))).toBe(false);
+    });
+
+    test('tolerates a target that exists nowhere', async () => {
+      const { repo, git } = await sandbox();
+      await restoreProbeState(repo, ['never_existed']);
+      expect(git('git status --porcelain').trim()).toBe('');
+    });
+
+    test('leaves uncommitted work OUTSIDE the caller targets alone', async () => {
+      const { path, repo, git } = await sandbox();
+      await writeFile(join(path, 'peer.txt'), 'peer edit\n');
+      git('git add peer.txt && git commit -qm peer');
+      await writeFile(join(path, 'peer.txt'), 'peer edit in flight\n');
+      await writeFile(join(path, 'lib', 'note', 'note.go'), 'package note // mutated\n');
+
+      await restoreProbeState(repo, ['lib/note/note.go']);
+
+      expect(readFileSync(join(path, 'peer.txt'), 'utf8')).toBe('peer edit in flight\n');
+      expect(readFileSync(join(path, 'lib/note/note.go'), 'utf8')).toBe('package note\n');
+    });
   });
 });
