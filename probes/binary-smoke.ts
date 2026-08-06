@@ -109,7 +109,17 @@ rg -q 'no-such-needle-should-ever-match' "$tmp/rg-fixture.txt" || rc=$?
 [ "$rc" = "1" ] || { echo "rg: expected exit 1 (no match), got $rc" >&2; exit 1; }
 
 shellcheck --version >/dev/null
-shellcheck scripts/validate/workflows.sh
+printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' 'echo "shellcheck smoke"' >"$tmp/shellcheck-clean.sh"
+shellcheck "$tmp/shellcheck-clean.sh"
+# A clean file exits 0 and so does a shellcheck that inspected nothing, so the green above
+# carries no evidence on its own. shellcheck exits 1 for a finding and 2 for a file it could
+# not read: only the exact code, plus the code of the finding itself, proves the fixture was
+# read. Same reasoning as the rg fixture above.
+printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' 'echo $UNQUOTED' >"$tmp/shellcheck-finding.sh"
+rc=0
+shellcheck "$tmp/shellcheck-finding.sh" >"$tmp/shellcheck-out.txt" 2>&1 || rc=$?
+[ "$rc" = "1" ] || { echo "shellcheck: expected exit 1 (finding), got $rc" >&2; exit 1; }
+rg -q 'SC2086' "$tmp/shellcheck-out.txt" || { echo "shellcheck: exit 1 without the SC2086 finding" >&2; exit 1; }
 
 skopeo --version >/dev/null
 printf '%s\n' '{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{"mediaType":"application/vnd.oci.image.config.v1+json","digest":"sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a","size":2},"layers":[]}' >"$tmp/manifest.json"
