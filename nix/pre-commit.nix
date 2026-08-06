@@ -192,7 +192,7 @@ in
     a-releaser-commit = {
       enable = true;
       name = "Conventional commit";
-      entry = "${packages.releaser}/bin/releaser lint-commit -c atomi_release.yaml";
+      entry = "${packages.releaser}/bin/releaser lint-commit -c release.yaml";
       stages = [ "commit-msg" ];
       pass_filenames = true;
       language = "system";
@@ -215,10 +215,10 @@ in
       language = "system";
     };
 
-    a-skills-freshness = {
+    a-skills-sync = {
       enable = true;
-      name = "Vendored skills freshness";
-      entry = validator "scripts/validate/skills-freshness.sh";
+      name = "Vendored skills";
+      entry = "${packages.skills-sync}/bin/skills-sync sync --tier pre-commit";
       pass_filenames = false;
       language = "system";
     };

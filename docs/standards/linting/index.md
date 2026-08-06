@@ -43,7 +43,7 @@ The formatters treefmt drives are the `programs` attribute set in
 carry its own `excludes`.
 
 **Commit messages are checked.** The `a-releaser-commit` hook runs at the
-`commit-msg` stage and calls `releaser lint-commit -c atomi_release.yaml`, so the
+`commit-msg` stage and calls `releaser lint-commit -c release.yaml`, so the
 message is measured against the same file that defines the commit types and the
 release levels — see
 [the conventional-commits standard](../conventional-commits/index.md). There is
@@ -67,7 +67,7 @@ point exists and is executable. It replaced the `wiring` mode of
 
 **The rest of `scripts/validate/` stays, and that is a deliberate difference from
 the parent.** The parent template moved four checks to `dlint` — `action-pins`,
-`exec-bits`, `skills-fresh` and `ci-wiring` — and deleted the scripts behind the
+`exec-bits` and `ci-wiring` — and deleted the scripts behind the
 first three. Only `ci-wiring` has moved here so far. Read `nix/pre-commit.nix` for
 which mechanism each hook actually runs; do not infer it from the parent's copy of
 this page.

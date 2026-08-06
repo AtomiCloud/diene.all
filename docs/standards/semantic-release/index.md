@@ -7,7 +7,7 @@ title: Semantic Release
 
 ## What this covers
 
-`atomi_release.yaml` is the single source of truth for the commit types, the
+`release.yaml` is the single source of truth for the commit types, the
 release level each one produces, the message rules the commit-msg hook applies, the
 generated commit-convention document, and how a release commits and publishes.
 Everything about releases in this repository is configured in that one file. There
@@ -99,7 +99,7 @@ pins those values, and `scripts/validate/workflows.sh` holds the exact ones it
 expects.
 
 The workflow ends in a single `scripts/ci/release.sh` call inside the `releaser`
-Nix shell. That script runs `releaser release -c atomi_release.yaml`, which
+Nix shell. That script runs `releaser release -c release.yaml`, which
 calculates the version, writes the changelog and the conventions document, commits
 the configured assets, tags, pushes, and publishes the GitHub release.
 
@@ -114,7 +114,7 @@ releaser next                          # the version the current commits would p
 releaser changelog                     # the release notes they would produce
 releaser conventions                   # regenerate the commit-conventions document
 releaser release --dry-run             # everything a release would do, changing nothing
-releaser release -c atomi_release.yaml # the real thing; CI runs this one
+releaser release -c release.yaml # the real thing; CI runs this one
 ```
 
 `releaser release` without `--dry-run` is the only command that changes git or
@@ -123,5 +123,5 @@ branch is listed in `release.branches`, so on a feature branch they report that
 rather than guessing.
 
 `releaser conventions` maintains the file named by `conventions.path`. That file is
-generated output and must not be edited by hand — edit `atomi_release.yaml` and
+generated output and must not be edited by hand — edit `release.yaml` and
 regenerate.

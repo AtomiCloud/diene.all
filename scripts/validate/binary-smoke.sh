@@ -99,9 +99,9 @@ rg --version >/dev/null
 rg -q 'Diene .NET base template' README.md
 
 printf '%s\n' 'feat: binary smoke' >"${tmp}/commit-message"
-releaser lint-commit -c atomi_release.yaml "${tmp}/commit-message"
+releaser lint-commit -c release.yaml "${tmp}/commit-message"
 printf '%s\n' 'not conventional' >"${tmp}/invalid-commit-message"
-if releaser lint-commit -c atomi_release.yaml "${tmp}/invalid-commit-message"; then
+if releaser lint-commit -c release.yaml "${tmp}/invalid-commit-message"; then
   echo "❌ releaser accepted an invalid commit message" >&2
   exit 1
 fi

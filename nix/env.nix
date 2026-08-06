@@ -7,6 +7,7 @@ with packages;
     git
     go-task
     infisical
+    releaser
     jq
     skopeo
   ];
@@ -23,6 +24,7 @@ with packages;
     pre-commit
     ripgrep
     shellcheck
+    skills-sync
     treefmt
     yq-go
 

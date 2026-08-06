@@ -78,7 +78,7 @@ The Dockerfile is a minimal non-root stub, and the Helm chart keeps an empty
 template directory for descendants to replace. The Helm axis is complete:
 lint/docs hooks, local tasks, OCI packaging, CI/CD jobs, and dependabot coverage
 are all active. Releaser stamps the version in `App/App.csproj`; its canonical
-`atomi_release.yaml` is the single commit-type vocabulary.
+`release.yaml` is the single commit-type vocabulary.
 
 ## Template-maintenance boundary
 

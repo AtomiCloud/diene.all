@@ -82,14 +82,15 @@ reuse resumes.
 ## The pre-vendor hook
 
 Every lane starts at `scripts/ci/setup.sh`, which vendors each dependency's skills
-before anything else runs. `scripts/local/skills-sync.sh` reads them out of the
+before anything else runs. `skills-sync sync --tier setup` validates the explicit
+no-runtime contract.
 package manager's own on-disk cache, so it can only see packages that have already
 been materialised there.
 
 > **Before skills are vendored, each ecosystem gets one chance to materialise its
 > declared packages.** An ecosystem that takes it makes the vendor tree a function
 > of the declared dependency set. An ecosystem that does not may vendor a partial
-> tree, and the `a-skills-freshness` gate then fails several steps later on a diff
+> tree, and the `a-skills-sync` gate then fails several steps later on a diff
 > that does not name this as the cause.
 
 The hook is an optional executable at `scripts/ci/pre-vendor.sh`. `setup.sh` runs
@@ -137,7 +138,7 @@ repository-specific branching into the reusable workflow.
 
 Release execution runs the real tool: `⚡reusable-release.yaml` enters the
 `releaser` shell and calls `scripts/ci/release.sh`, which invokes
-`releaser release -c atomi_release.yaml`. That script clears `.git/hooks` first,
+`releaser release -c release.yaml`. That script clears `.git/hooks` first,
 which is not incidental — the release commit's own message uses a `release:` prefix
 that is not a configured commit type, so the commit-msg hook would refuse the
 release the tool is in the middle of making.

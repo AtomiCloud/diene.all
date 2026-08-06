@@ -22,7 +22,7 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        await repo.patch('atomi_release.yaml', { find: '  - type: chore', replace: '  - type: chores' });
+        await repo.patch('release.yaml', { find: '  - type: chore', replace: '  - type: chores' });
         await expectRed(
           repo,
           'nix develop .#ci -c ./scripts/validate/release-config.sh types',

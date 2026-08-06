@@ -15,5 +15,7 @@ jobs:
     steps:
       - uses: AtomiCloud/actions.setup-nix@v3
       - uses: AtomiCloud/actions.cache-nuget@v1
+      - name: Verify vendored skills
+        run: nix develop .#ci -c skills-sync sync --tier ci
       - name: Run pre-commit
         run: nix develop .#ci -c ./scripts/ci/pre-commit.sh

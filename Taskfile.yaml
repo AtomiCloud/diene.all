@@ -19,7 +19,8 @@ tasks:
   setup:
     desc: Set up generated workspace assets
     cmds:
-      - ./scripts/local/skills-sync.sh
+      - releaser conventions -c release.yaml
+      - skills-sync sync --tier setup
       # ### dotnet-base-setup
       # #### source: dotnet-base
       - ./scripts/local/setup.sh
@@ -30,9 +31,9 @@ tasks:
       - pre-commit run --all-files
 
   skills:sync:
-    desc: Synchronize installed diene package skills
+    desc: Verify the repository's explicit no-runtime skills contract
     cmds:
-      - ./scripts/local/skills-sync.sh
+      - skills-sync sync --tier setup
 
   # ### dotnet-base-tasks
   # #### source: dotnet-base

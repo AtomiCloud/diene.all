@@ -3,7 +3,6 @@
   pkgs,
   pkgs-2605,
   pkgs-unstable,
-  releaser-pkg,
 }:
 let
   cyanprintVersion = "4.9.0";
@@ -64,6 +63,8 @@ let
           dlint
           infralint
           infrautils
+          releaser
+          skills-sync
           ;
       }
     );
@@ -102,16 +103,10 @@ let
       }
     );
 
-    # ### dotnet-base-releaser
-    # #### source: dotnet-base
-    releaser-pkgs = {
-      releaser = releaser-pkg;
-    };
-
     root = {
       inherit cyanprint;
     };
   };
 in
 with all;
-atomipkgs // nix-2605 // nix-unstable // releaser-pkgs // root // dotnet-base
+atomipkgs // nix-2605 // nix-unstable // root // dotnet-base

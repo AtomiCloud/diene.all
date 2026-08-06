@@ -22,7 +22,7 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        await repo.patch('atomi_release.yaml', {
+        await repo.patch('release.yaml', {
           find: '  - type: test',
           replace: '  - type: tests',
         });

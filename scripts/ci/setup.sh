@@ -16,7 +16,8 @@ fi
 
 # ### workspace-setup
 # #### source: workspace
-./scripts/local/skills-sync.sh
+releaser conventions -c release.yaml
+skills-sync sync --tier setup
 
 # ### dotnet-base-setup
 # #### source: dotnet-base
