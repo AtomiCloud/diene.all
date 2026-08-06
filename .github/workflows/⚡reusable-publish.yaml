@@ -14,6 +14,13 @@ on:
         description: Release tag whose bytes are published (v*.*.*)
         required: true
         type: string
+    secrets:
+      # Declared so a missing or misnamed org secret fails at workflow-call resolution,
+      # the same way bun-lib declares NPM_API_KEY and dotnet-lib declares NUGET_API_KEY.
+      # The runtime non-empty check below still stands; this only moves the earliest
+      # possible failure earlier.
+      PUB_CREDENTIALS_JSON:
+        required: true
 
 jobs:
   publish:
