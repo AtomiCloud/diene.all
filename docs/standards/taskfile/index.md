@@ -8,13 +8,6 @@ title: Taskfile Conventions
 `task` (go-task) is the repository task runner — the only one. Root tasks live in
 `Taskfile.yaml`; grouped tasks live under `tasks/` and are included by namespace.
 
-`pls` used to sit in the toolchain beside it and was removed by owner ruling.
-It was not a different program: `pls --version` and `task --version` both report
-`3.48.0` and both read the same `Taskfile.yaml` / `tasks/Taskfile.*.yaml` set, so
-it added a second name for one runner and no capability. Do not re-add it, and do
-not write `pls <name>` anywhere — in a document, a script, a workflow or a probe.
-The invocation is `task <name>`.
-
 ## Reading the task surface
 
 `task --list` prints every available task with its description; that output is the
