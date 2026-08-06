@@ -1,1 +1,7 @@
-[]
+{
+  "schemaVersion": 1,
+  "generator": "skills-sync",
+  "runtime": "go",
+  "packages": [],
+  "entries": []
+}

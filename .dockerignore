@@ -14,3 +14,7 @@ probes
 
 result
 result-*
+
+coverage
+dist
+reports

@@ -23,8 +23,8 @@ const callPaths = [
 
 async function assertDeclaredWiring(repo: any): Promise<void> {
   const config = await repo.read(configPath);
-  if (config !== 'schemaVersion: 1\nruntime: none\n') {
-    throw new Error(`${configPath} must declare the workspace's explicit runtime: none opt-out`);
+  if (config !== 'schemaVersion: 1\nruntime: go\nrequireSubjects: false\n') {
+    throw new Error(`${configPath} must declare Go and explicitly permit this template's empty subject set`);
   }
 
   for (const callPath of callPaths) {
@@ -41,8 +41,8 @@ export default {
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
   probes: callPaths.flatMap(callPath => [
     {
-      name: `baseline-skills-sync-${callPath.name}-off-empty`,
-      description: `The ${callPath.name} call path executes skills-sync and accepts the explicit off/empty workspace.`,
+      name: `baseline-skills-sync-${callPath.name}-empty-go`,
+      description: `The ${callPath.name} call path executes skills-sync and accepts the explicitly declared empty Go subject set.`,
       kind: 'baseline' as const,
       async run(repo: any) {
         await assertDeclaredWiring(repo);
@@ -51,11 +51,12 @@ export default {
     },
     {
       name: `mutation-skills-sync-${callPath.name}-vendored-content-caught`,
-      description: `The ${callPath.name} call path refuses probe-owned vendored content while runtime is none.`,
+      description: `The ${callPath.name} call path refuses probe-owned vendored content after its Go runtime declaration is sabotaged to none.`,
       kind: 'mutation' as const,
       expectedImpact: [],
       async run(repo: any) {
         await assertDeclaredWiring(repo);
+        await repo.write(configPath, 'schemaVersion: 1\nruntime: none\n');
         const fixtureName = `probe-skills-sync-${callPath.name}.txt`;
         const fixturePath = `${vendorDir}/${fixtureName}`;
         const tracked = await repo.exec(`git ls-files --error-unmatch -- '${fixturePath}'`);

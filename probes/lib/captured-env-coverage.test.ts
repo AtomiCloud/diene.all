@@ -69,16 +69,21 @@ describe('captured-env coverage of direct repo.exec shell entries', () => {
   // skills-sync.ts has no such sites, so the merge is what first asserted the rule
   // here — the sites predate it. Wrapping them is the fix the rule asks for; the count
   // follows the sites, which is the direction this tripwire is meant to move in.
+  // 18 -> 19 on `go-base`, same shape and same reason as the 15 -> 18 above: no call
+  // site was added. `docker-build.ts` is a go-only probe the parent does not have, and
+  // its skopeo index inspection was entering `.#cd` unwrapped while the build command
+  // beside it went through expectGreen. The rule arrived with the merge, so the site
+  // predates the assertion that now covers it. Wrapping it is the fix the rule asks
+  // for, and the count follows the site.
   //
-  // 18 -> 10 across 6 files when skills-sync.ts and skills-freshness.ts were deleted:
-  // those two files carried eight of the eighteen sites between them. The number was
-  // measured on this tree, not carried over from the parent — the parent reaches 10 from
-  // a different starting count, so an equal number here is a coincidence of arithmetic
-  // and not evidence that either count is right.
-  test('the wrapped set is the 10 known shell-entering call sites, across 6 files', () => {
+  // 19 -> 11 across 7 files when the old local skills synchronizer was replaced by
+  // the compact three-call-path registry probe and skills-freshness was retired:
+  // those two old probes carried eight of the nineteen direct shell-entry sites.
+  test('the wrapped set is the 11 known shell-entering call sites, across 7 files', () => {
     const wrapped = allSites.filter(site => site.wrapped);
-    expect(wrapped).toHaveLength(10);
+    expect(wrapped).toHaveLength(11);
     expect([...new Set(wrapped.map(site => site.file))].sort()).toEqual([
+      'docker-build.ts',
       'hook-enforce-exec.ts',
       'hook-shellcheck.ts',
       'precommit-treefmt-actionlint.ts',

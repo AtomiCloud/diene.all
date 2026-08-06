@@ -19,3 +19,7 @@
 Thumbs.db
 desktop.ini
 infra/root_chart/uploads/
+
+coverage/
+dist/
+reports/

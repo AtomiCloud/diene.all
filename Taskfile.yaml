@@ -4,6 +4,10 @@ includes:
   docker: tasks/Taskfile.docker.yaml
   helm: tasks/Taskfile.helm.yaml
 
+  gotest:
+    taskfile: tasks/Taskfile.test.yaml
+    internal: true
+
 tasks:
   setup:
     desc: Set up generated workspace assets
@@ -11,6 +15,8 @@ tasks:
     # binary move so setup never depends on a stale default. Skills sync is the
     # only writer of the vendor tree and setup is its repair-capable tier.
     cmds:
+      # Populate the module cache first so skills-sync cannot vendor from a partial tree.
+      - go mod download
       - releaser conventions -c release.yaml
       - skills-sync sync --tier setup
 
@@ -18,3 +24,89 @@ tasks:
     desc: Run all repository gates
     cmds:
       - pre-commit run --all-files
+
+  clean:
+    desc: Remove Go build, coverage, and report outputs
+    cmds:
+      - rm -rf dist coverage reports
+
+  build:
+    desc: Build the Go binary
+    cmds:
+      - ./scripts/local/build.sh
+
+  typecheck:
+    desc: Typecheck Go source packages
+    cmds:
+      - ./scripts/local/typecheck.sh
+
+  deadcode:
+    desc: Run strict Go deadcode passes and the LLM-lax report
+    cmds:
+      - ./scripts/local/deadcode.sh strict
+
+  test:
+    desc: Run unit, integration, and system integration tiers
+    deps: [test:unit, test:int, test:sit]
+
+  test:unit:
+    desc: Run black-box unit tests
+    cmds:
+      - task: gotest:run
+        vars: { MODE: unit }
+
+  test:int:
+    desc: Run adapter integration tests
+    cmds:
+      - task: gotest:run
+        vars: { MODE: int }
+
+  test:sit:
+    desc: Run the compiled-artifact Redis journey
+    deps: [build]
+    cmds:
+      - task: gotest:run
+        vars: { MODE: sit }
+
+  test:coverage:
+    desc: Run every coverage ledger
+    deps: [test:unit:coverage, test:int:coverage]
+
+  test:unit:coverage:
+    desc: Enforce the unit coverage ledger
+    cmds:
+      - task: gotest:run
+        vars: { MODE: unit, COVERAGE: 'true' }
+
+  test:int:coverage:
+    desc: Enforce the integration coverage ledger
+    cmds:
+      - task: gotest:run
+        vars: { MODE: int, COVERAGE: 'true' }
+
+  test:watch:
+    desc: Re-run unit tests when Go files change
+    cmds:
+      - task: gotest:run
+        vars: { MODE: unit, WATCH: 'true' }
+
+  run:
+    desc: Run the Go composition root in development mode
+    cmds:
+      - go run ./cmd/go-base {{.CLI_ARGS}}
+
+  preview:
+    desc: Run the compiled Go artifact
+    deps: [build]
+    cmds:
+      - ./dist/go-base {{.CLI_ARGS}}
+
+  up:
+    desc: Start every local dependency
+    cmds:
+      - ./scripts/local/up.sh
+
+  down:
+    desc: Stop every local dependency
+    cmds:
+      - ./scripts/local/down.sh
