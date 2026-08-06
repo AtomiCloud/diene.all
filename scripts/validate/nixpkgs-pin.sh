@@ -1,23 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# flake.nix states the rule and, until this script, nothing enforced it: every nixpkgs
-# input this repository declares is pinned to an EXACT COMMIT, never to a channel name.
-# The comment above those lines says so and adds that nothing validates it, which was
-# accurate.
-#
-# BOUNDARY. This guards the ROOT's nixpkgs inputs and nothing else. It is silent about
-# the transitive closure, where other flakes' own nixpkgs inputs float on channels
-# legitimately and are none of this repository's business.
-#
-# ⚠ RESOLUTION GOES THROUGH `.nodes.root.inputs`, NEVER THROUGH `.nodes` BY DECLARED
-# NAME. That distinction is the entire reason this script is careful: flake.lock carries
-# transitive dependencies' nixpkgs under the bare names `nixpkgs-2605` and
-# `nixpkgs-unstable`, while the root's own inputs are the `_2`-suffixed nodes. An audit
-# that read the lock by name compared this repository's declaration against somebody
-# else's input, found a channel ref, and reported the rule broken when it was in force.
-# A guard that reproduced that lookup would be worse than no guard: it would be loud and
-# wrong.
+# Every ROOT nixpkgs input must pin an exact commit; transitive inputs may float.
+# Resolve via .nodes.root.inputs, never .nodes by declared name — transitive deps
+# carry the bare names, and reading them checks someone else's pin as ours.
 
 lock="flake.lock"
 declaration="flake.nix"
@@ -33,8 +19,6 @@ declaration="flake.nix"
 
 mapfile -t nodes < <(jq -r '.nodes.root.inputs | to_entries[] | select(.key | test("nixpkgs")) | .value' "${lock}")
 
-# A check that inspects nothing is not a pass. If the root declares no nixpkgs input at
-# all the assumption behind this script has changed and it must be re-read, not skipped.
 if [ "${#nodes[@]}" -eq 0 ]; then
   echo "❌ nixpkgs-pin: the root declares no nixpkgs input, so this guard inspected nothing" >&2
   exit 1
@@ -59,17 +43,14 @@ for node in "${nodes[@]}"; do
     continue
   fi
 
-  # The lock records what was asked for and what was resolved separately, so a lock can
-  # be internally dishonest: an exact request whose resolution moved elsewhere.
+  # original vs locked can disagree: an exact request whose resolution moved.
   if [ "${locked_rev}" != "${original_rev}" ]; then
     echo "❌ nixpkgs-pin: root input '${node}' asks for ${original_rev} but is locked to ${locked_rev}" >&2
     failed=1
   fi
 done
 
-# The lock alone cannot catch a declaration edited without re-locking: `original` would
-# still carry the previous commit and agree with `locked`. So every commit flake.nix
-# names for a nixpkgs input must actually be in force.
+# Catch a declaration edited without re-locking: every rev flake.nix names must be in force.
 while read -r declared; do
   [ -n "${declared}" ] || continue
   if ! jq -e --arg r "${declared}" '[.nodes.root.inputs | to_entries[] | select(.key | test("nixpkgs")) | .value] as $roots
