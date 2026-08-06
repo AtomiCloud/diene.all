@@ -1,16 +1,20 @@
-.git
-.gitignore
+### workspace [vcs-env]
 .direnv
 .env
 .env.*
+.git
+.gitignore
 *.log
 
+### workspace [non-runtime]
+!README.md
+*.md
 .claude
+.dockerignore
 .github
 docs
 probes
-*.md
-!README.md
 
+### workspace [nix]
 result
 result-*
