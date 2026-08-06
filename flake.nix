@@ -29,7 +29,7 @@
     # `flake.lock` alone records which commit is in force. Downstream templates
     # inherit this line rather than re-pinning it, so an exact tag here would pin
     # every child too. Unlike the nixpkgs inputs above, a moving ref is the intent.
-    atomipkgs.url = "github:AtomiCloud/nix-registry/v3";
+    atomipkgs.url = "github:AtomiCloud/nix-registry/v4";
     # NOTHING VALIDATES THIS. releaser v1.0.0 = the commit below.
     releaser = {
       url = "github:AtomiCloud/releaser/3200bdd95a0fdd8f43f9905faa8c85afe4595d1f";
