@@ -10,6 +10,8 @@
     # nixpkgs inputs pin exact commits (enforced by the a-nixpkgs-pin hook);
     # atomipkgs deliberately floats on the v4 major line.
 
+    # nixos-unstable @ 2026-08-06
+    nixpkgs-unstable.url = "github:NixOS/nixpkgs/b7c2ada94fe99c15b0dbcf4d11fd7850b957a436";
     # nixos-26.05 (Yarara) @ 2026-08-06
     nixpkgs-2605.url = "github:NixOS/nixpkgs/445d861c6d31b4af0c79d8d4be2331f762a361d7";
     atomipkgs.url = "github:AtomiCloud/nix-registry/v4";
@@ -26,12 +28,14 @@
       # registries
       atomipkgs,
       nixpkgs-2605,
+      nixpkgs-unstable,
 
     }@inputs:
     (flake-utils.lib.eachDefaultSystem (
       system:
       let
         pkgs-2605 = nixpkgs-2605.legacyPackages.${system};
+        pkgs-unstable = nixpkgs-unstable.legacyPackages.${system};
         atomi = atomipkgs.packages.${system};
         pre-commit-lib = pre-commit-hooks.lib.${system};
       in
@@ -51,7 +55,7 @@
           inherit treefmt-nix pkgs;
         };
         packages = import ./nix/packages.nix {
-          inherit pkgs-2605 atomi;
+          inherit pkgs-2605 pkgs-unstable atomi;
         };
         env = import ./nix/env.nix {
           inherit pkgs packages;

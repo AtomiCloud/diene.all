@@ -1,4 +1,8 @@
-{ atomi, pkgs-2605 }:
+{
+  atomi,
+  pkgs-2605,
+  pkgs-unstable,
+}:
 (with atomi; {
   inherit
     atomiutils
@@ -21,3 +25,4 @@
     treefmt
     ;
 })
+// (with pkgs-unstable; { })
