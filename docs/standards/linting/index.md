@@ -61,17 +61,14 @@ command name, which is what makes it resolve from any worktree and any shell.
 
 This repository takes four checks from `dlint`, a tool from the Nix registry,
 instead of keeping its own copy of each: `action-pins`, `exec-bits`, `ci-wiring`
-and `workflow-policy`. The first three replaced repository-local validator
-scripts. `workflow-policy` has not replaced one yet: it asserts the same five
-values as `workflows.sh`, and the `a-workflows` hook runs both unconditionally
-rather than letting either gate the other, so their verdicts can be compared. The
-hook reports a disagreement as its own finding, because "both refused" and "they
-disagreed" are different facts and only the second says anything about whether
-the incumbent can be removed.
-`scripts/validate/` still holds
-the checks that are about **this** repository rather than about repositories in
-general, and now holds only `workflows.sh`: the release trigger and concurrency
-assertions. The toolchain smoke is not among them — `dlint toolchain-smoke` owns it.
+and `workflow-policy`. All four replaced repository-local validator scripts.
+`workflow-policy` owns the five exact release values after its predecessor was
+shown equivalent and retired. The `a-workflows` hook runs `ci-wiring` and
+`workflow-policy` unconditionally because they cover independent properties, then
+returns the higher exit code so one refusal never hides the other.
+`scripts/validate/` still holds checks that are about **this** repository rather
+than repositories in general, and now holds only `nixpkgs-pin.sh`. The toolchain
+smoke is not among them — `dlint toolchain-smoke` owns it.
 
 Every check reads one file, `dlint.yaml`, resolved from the repository root. Three
 things about that file are decisions rather than transcription, and they are
