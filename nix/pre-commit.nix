@@ -140,10 +140,19 @@ pre-commit-lib.run {
       language = "system";
     };
 
+    # `workflow-policy` and `workflows.sh` assert the same five values while the
+    # migration is in flight, so neither gates the other: `&&` would stop the
+    # second the moment the first refused, and the case it would hide is the one
+    # the transition is about. Their verdicts are compared, and a DISAGREEMENT is
+    # reported as its own fact - "both refused" and "they disagreed" are different
+    # findings and only the second says anything about deleting the incumbent.
+    # Which of the two spoke stays readable from the message shape: `dlint` names
+    # the file, the path and the value it expected; the script prints its reason
+    # alone.
     a-workflows = {
       enable = true;
       name = "Workflow wiring and release policy";
-      entry = "${packages.atomiutils}/bin/bash -c '${packages.dlint}/bin/dlint ci-wiring && ${packages.dlint}/bin/dlint workflow-policy && ( export PATH=${validator-runtime}/bin; ${packages.atomiutils}/bin/bash scripts/validate/workflows.sh release-trigger && ${packages.atomiutils}/bin/bash scripts/validate/workflows.sh release-concurrency )'";
+      entry = "${packages.atomiutils}/bin/bash -c 'c=0; p=0; s=0; ${packages.dlint}/bin/dlint ci-wiring || c=$?; ${packages.dlint}/bin/dlint workflow-policy || p=$?; ( export PATH=${validator-runtime}/bin; ${packages.atomiutils}/bin/bash scripts/validate/workflows.sh release-trigger && ${packages.atomiutils}/bin/bash scripts/validate/workflows.sh release-concurrency ) || s=$?; if [ $p -ne 0 ] && [ $s -eq 0 ]; then echo \"❌ release policy DISAGREEMENT: dlint workflow-policy refused what scripts/validate/workflows.sh accepted, so the wired check is STRICTER than the incumbent it would replace.\" >&2; elif [ $p -eq 0 ] && [ $s -ne 0 ]; then echo \"❌ release policy DISAGREEMENT: scripts/validate/workflows.sh refused what dlint workflow-policy accepted, so the wired check MISSES a fault the incumbent catches.\" >&2; fi; r=$c; [ $p -gt $r ] && r=$p; [ $s -gt $r ] && r=$s; exit $r'";
       files = "^\\.github/workflows/.*\\.ya?ml$";
       pass_filenames = false;
       language = "system";

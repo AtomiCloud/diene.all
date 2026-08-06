@@ -63,8 +63,11 @@ This repository takes four checks from `dlint`, a tool from the Nix registry,
 instead of keeping its own copy of each: `action-pins`, `exec-bits`, `ci-wiring`
 and `workflow-policy`. The first three replaced repository-local validator
 scripts. `workflow-policy` has not replaced one yet: it asserts the same five
-values as `workflows.sh` and runs beside it in the same hook, so the two are
-expected to agree until the script is removed under its own change.
+values as `workflows.sh`, and the `a-workflows` hook runs both unconditionally
+rather than letting either gate the other, so their verdicts can be compared. The
+hook reports a disagreement as its own finding, because "both refused" and "they
+disagreed" are different facts and only the second says anything about whether
+the incumbent can be removed.
 `scripts/validate/` still holds
 the checks that are about **this** repository rather than about repositories in
 general, and now holds only `workflows.sh`: the release trigger and concurrency
