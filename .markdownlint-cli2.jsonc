@@ -1,3 +1,35 @@
 {
-  "ignores": [".claude/skills/vendor/**"],
+  // One config for one linter. The rule set lived in a second .markdownlint.json
+  // until the wave-5 cascade; markdownlint-cli2 reads both, so two files for one
+  // tool meant two places to look and two places to drift.
+  // Changelog.md and docs/developer/CommitConventions.md are written by the
+  // releaser, so linting them would refuse tool output the tree cannot hand-fix.
+  "ignores": [
+    ".claude/skills/vendor/**",
+    "Changelog.md",
+    "docs/developer/CommitConventions.md",
+  ],
+  "config": {
+    "MD009": false,
+    "MD010": false,
+    "MD012": false,
+    "MD013": false,
+    "MD022": false,
+    "MD023": false,
+    "MD024": false,
+    "MD025": { "front_matter_title": "" },
+    "MD027": false,
+    "MD028": false,
+    "MD029": false,
+    "MD030": false,
+    "MD031": false,
+    "MD032": false,
+    "MD034": false,
+    "MD037": false,
+    "MD038": false,
+    "MD039": false,
+    "MD040": false,
+    "MD041": false,
+    "MD047": false,
+  },
 }

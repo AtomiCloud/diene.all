@@ -23,7 +23,7 @@ ci: add workflow cache validation
 
 ## Reading the vocabulary
 
-`atomi_release.yaml` owns the commit types, their scopes, and what each one does
+`release.yaml` owns the commit types, their scopes, and what each one does
 to the version. Read its `types:` list like this:
 
 - each entry's `type:` is the word before the colon in a commit subject, and its
@@ -41,22 +41,22 @@ cannot drift independently.
 
 ## Finding your generated conventions
 
-Each project generates a commit-conventions document from `atomi_release.yaml`
-using the `releaser` tool. Its output path is the `conventionMarkdown.path` value
-in `atomi_release.yaml`. To view or regenerate it after `tools/releaser` lands at
-C2 step 2p:
+Each project generates a commit-conventions document from `release.yaml`
+using the `releaser` tool. Its output path is the `conventions.path` value in
+`release.yaml`:
 
 ```bash
 # View the generated file
-cat "$(yq -r '.conventionMarkdown.path' atomi_release.yaml)"
+cat "$(yq -r '.conventions.path' release.yaml)"
 
-# Regenerate (if needed)
-releaser conventions
+# Regenerate
+releaser conventions -c release.yaml
 ```
 
-Before step 2p, treat `atomi_release.yaml` as authoritative. The checked-in
-generated document carries an explicit bootstrap notice, and the repository does
-not claim that the `releaser` command is available yet.
+That document is generated output: edit `release.yaml` and regenerate rather
+than editing it. Anything a reader should find there that is not a type or scope
+table belongs in the `conventions.template` value, because the generator writes the
+whole file from that template and a release run writes it again.
 
 ## Breaking Changes
 
@@ -74,14 +74,14 @@ BREAKING CHANGE: This changes the API contract
 ```
 
 The footer keywords that count as breaking are the `keywords:` list in
-`atomi_release.yaml`.
+`release.yaml`.
 
 ## Summary
 
-| Aspect            | Pattern                                               |
-| ----------------- | ----------------------------------------------------- |
-| **Format**        | `type(scope): description`                            |
-| **Configuration** | `atomi_release.yaml`                                  |
-| **Reference**     | the file named by its `conventionMarkdown.path`       |
-| **Release**       | each scope's `release:` value in `atomi_release.yaml` |
-| **Breaking**      | Add `!` or a footer keyword from `keywords:`          |
+| Aspect            | Pattern                                         |
+| ----------------- | ----------------------------------------------- |
+| **Format**        | `type(scope): description`                      |
+| **Configuration** | `release.yaml`                                  |
+| **Reference**     | the file named by its `conventions.path`        |
+| **Release**       | each scope's `release:` value in `release.yaml` |
+| **Breaking**      | Add `!` or a footer keyword from `keywords:`    |

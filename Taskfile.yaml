@@ -1,7 +1,6 @@
 version: '3'
 
 includes:
-  secret: tasks/Taskfile.secret.yaml
   unit:
     taskfile: tasks/Taskfile.test.yaml
     vars:
@@ -14,18 +13,17 @@ includes:
 tasks:
   setup:
     desc: Set up generated workspace assets
+    # Releaser v2 hard-renamed its config; keep the explicit path beside the
+    # binary move so setup never depends on a stale default. Skills sync is the
+    # only writer of the vendor tree and setup is its repair-capable tier.
     cmds:
-      - ./scripts/local/skills-sync.sh
+      - releaser conventions -c release.yaml
+      - skills-sync sync --tier setup
 
   lint:
     desc: Run all repository gates
     cmds:
       - pre-commit run --all-files
-
-  skills:sync:
-    desc: Synchronize installed diene package skills
-    cmds:
-      - ./scripts/local/skills-sync.sh
 
   clean:
     desc: Remove Dart dependency, build, coverage, and generated-doc artifacts
@@ -84,8 +82,3 @@ tasks:
     desc: Run TestHelper meta tests with the helper-only coverage ledger
     cmds:
       - task: meta:coverage
-
-  test:watch:
-    desc: Re-run the fast unit and C0 suites when Dart files change
-    cmds:
-      - ./scripts/local/watch-tests.sh
