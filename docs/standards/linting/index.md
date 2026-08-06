@@ -67,9 +67,9 @@ the checks that are about **this** repository rather than about repositories in
 general, and now holds only `workflows.sh`: the release trigger and concurrency
 assertions. The toolchain smoke is not among them — `dlint toolchain-smoke` owns it.
 
-Every check reads one file, `.dlint.json`, resolved from the repository root. Three
-things about that file are decisions rather than transcription, and none of them
-can be written down inside it, because it is strict JSON with no comments:
+Every check reads one file, `dlint.yaml`, resolved from the repository root. Three
+things about that file are decisions rather than transcription, and they are
+recorded here rather than inside it:
 
 - **`ci-wiring.orchestrators` lists `ci.yaml`, `cd.yaml` and `release.yaml`, and
   deliberately not `🛡️merge-gatekeeper.yml`.** The `⚡`-prefixed workflows are the
@@ -88,7 +88,7 @@ can be written down inside it, because it is strict JSON with no comments:
   treats `3` as success defeats the tool's whole design, so a hook or CI step must
   pass the exit code through rather than swallow it.
 
-No script asserts the presence and loadability of `.dlint.json`, and none needs to:
+No script asserts the presence and loadability of `dlint.yaml`, and none needs to:
 `dlint` refuses to run a check it could not configure, so every invocation asserts
 the file. An absent config exits `3` before the check runs, and a config that is
 present but unloadable exits `4`. The invocations that carry that assertion here are

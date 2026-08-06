@@ -1,0 +1,43 @@
+schemaVersion: 1
+checks:
+  action-pins:
+    trustMap: config/action-trust.json
+    workflowsDir: .github/workflows
+  exec-bits:
+    globs:
+      - '*.sh'
+  ci-wiring:
+    workflowsDir: .github/workflows
+    entrypointPattern: scripts/ci/[A-Za-z0-9._-]+[.]sh
+    orchestrators:
+      - .github/workflows/ci.yaml
+      - .github/workflows/cd.yaml
+      - .github/workflows/release.yaml
+  toolchain-smoke:
+    shell: default
+    binaries:
+      - actionlint
+      - bash
+      - cyanprint
+      - dlint
+      - docker
+      - git
+      - gomplate
+      - hadolint
+      - helm
+      - helm-docs
+      - infisical
+      - jq
+      - k3d
+      - kubeconform
+      - kubectl
+      - kyverno
+      - nix
+      - pre-commit
+      - releaser
+      - rg
+      - shellcheck
+      - skopeo
+      - task
+      - treefmt
+      - yq
