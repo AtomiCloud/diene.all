@@ -1,5 +1,18 @@
 import { capturedEnvCommand, expectGreen } from './lib/helpers.ts';
 
+// The arm needs a TRACKED shell script whose executable bit it can clear, and any one
+// will do. It used to borrow scripts/validate/workflows.sh on the grounds that the file
+// could not be lost; subjects have since been deleted out from under this arm twice, so
+// the arm writes and tracks its own instead. Ownership is what keeps a subject present,
+// not a belief about permanence.
+const execBitSubject = `#!/usr/bin/env bash
+# Fixture owned by the hook-enforce-exec mutation arm. Written, tracked and removed
+# inside the arm; it is never committed.
+set -euo pipefail
+
+echo "hook-enforce-exec probe subject"
+`;
+
 export default {
   contractVersion: 1,
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
@@ -18,40 +31,43 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        // The subject only has to be a tracked *.sh; the mechanism is that one loses its
-        // executable bit. `scripts/validate/workflows.sh` is chosen because it is the
-        // hardest file on this node to lose silently: all THREE of its modes -
-        // `workflow-names`, `release-trigger`, `release-concurrency` - have their own
-        // probes, so a deletion cannot pass unnoticed.
-        //
-        // The parent's copy of this comment narrates `scripts/release/bump.sh` and the
-        // freshness validator as deleted, the latter by a move to `dlint skills-fresh`.
-        // That is the PARENT's history and none of it is true here: this node keeps
-        // `scripts/release/bump.sh` (per-language version bump) and keeps
-        // `scripts/validate/skills-freshness.sh`, and it routes only `ci-wiring` through
-        // dlint. Left unedited, that text made an audit report a dlint check this node
-        // does not run.
-        const target = 'scripts/validate/workflows.sh';
-        // Unstaged on purpose, and measured rather than assumed: an `--all-files` run reads
-        // the worktree, so a bare `chmod` reaches the gate. Staging the mode change as well
-        // was tried and is redundant.
-        const sabotaged = await repo.exec(`chmod -x ${target}`);
-        if (sabotaged.exitCode !== 0) {
-          throw new Error(`could not clear the executable bit: ${sabotaged.stderr || sabotaged.stdout}`);
-        }
-        const result = await repo.exec(
-          capturedEnvCommand('nix develop .#ci -c pre-commit run a-enforce-exec --all-files', 'hook-enforce-exec'),
-          { timeoutMs: 240000 },
-        );
-        if (result.exitCode === 0) {
-          throw new Error('hook-enforce-exec stayed green after sabotage');
-        }
-        // A non-zero exit is also what a hook that failed to start looks like, so the
-        // refusal has to name the file it is refusing.
-        if (!`${result.stdout}${result.stderr}`.includes(`'${target}' is tracked but not executable`)) {
-          throw new Error(
-            `hook-enforce-exec refused without naming the non-executable script: ${result.stdout}${result.stderr}`,
+        // The mechanism is that a tracked *.sh loses its executable bit, so the arm's own
+        // fixture proves it exactly as a borrowed repository script did - and cannot be
+        // removed by somebody else's change.
+        const target = 'probe-enforce-exec-subject.sh';
+        await repo.write(target, execBitSubject);
+        try {
+          // Tracking it is the point: the check inspects TRACKED scripts, so an untracked
+          // fixture would leave the gate inspecting the same files it already did and the
+          // arm would prove nothing.
+          const staged = await repo.exec(`chmod +x ${target} && git add ${target}`);
+          if (staged.exitCode !== 0) {
+            throw new Error(`could not stage the exec-bit fixture: ${staged.stderr || staged.stdout}`);
+          }
+          // The sabotage is unstaged on purpose: an `--all-files` run reads the worktree,
+          // so a bare `chmod` reaches the gate.
+          const sabotaged = await repo.exec(`chmod -x ${target}`);
+          if (sabotaged.exitCode !== 0) {
+            throw new Error(`could not clear the executable bit on ${target}: ${sabotaged.stderr || sabotaged.stdout}`);
+          }
+          const result = await repo.exec(
+            capturedEnvCommand('nix develop .#ci -c pre-commit run a-enforce-exec --all-files', 'hook-enforce-exec'),
+            { timeoutMs: 240000 },
           );
+          if (result.exitCode === 0) {
+            throw new Error('hook-enforce-exec stayed green after sabotage');
+          }
+          // A non-zero exit is also what a hook that failed to start looks like, and it is
+          // what a gate inspecting a smaller world looks like too, so the refusal has to
+          // name the file it is refusing.
+          if (!`${result.stdout}${result.stderr}`.includes(`'${target}' is tracked but not executable`)) {
+            throw new Error(
+              `hook-enforce-exec refused without naming the non-executable script: ${result.stdout}${result.stderr}`,
+            );
+          }
+        } finally {
+          await repo.exec(`git reset -q -- ${target}`);
+          await repo.remove(target);
         }
       },
     },

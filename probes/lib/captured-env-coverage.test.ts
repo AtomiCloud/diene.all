@@ -69,9 +69,15 @@ describe('captured-env coverage of direct repo.exec shell entries', () => {
   // skills-sync.ts has no such sites, so the merge is what first asserted the rule
   // here — the sites predate it. Wrapping them is the fix the rule asks for; the count
   // follows the sites, which is the direction this tripwire is meant to move in.
-  test('the wrapped set is the 18 known shell-entering call sites, across 8 files', () => {
+  //
+  // 18 -> 10 across 6 files when skills-sync.ts and skills-freshness.ts were deleted:
+  // those two files carried eight of the eighteen sites between them. The number was
+  // measured on this tree, not carried over from the parent — the parent reaches 10 from
+  // a different starting count, so an equal number here is a coincidence of arithmetic
+  // and not evidence that either count is right.
+  test('the wrapped set is the 10 known shell-entering call sites, across 6 files', () => {
     const wrapped = allSites.filter(site => site.wrapped);
-    expect(wrapped).toHaveLength(18);
+    expect(wrapped).toHaveLength(10);
     expect([...new Set(wrapped.map(site => site.file))].sort()).toEqual([
       'hook-enforce-exec.ts',
       'hook-shellcheck.ts',
@@ -79,8 +85,6 @@ describe('captured-env coverage of direct repo.exec shell entries', () => {
       'precommit-treefmt-nixfmt.ts',
       'precommit-treefmt-prettier.ts',
       'precommit-treefmt-shfmt.ts',
-      'skills-freshness.ts',
-      'skills-sync.ts',
     ]);
   });
 
