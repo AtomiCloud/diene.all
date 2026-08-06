@@ -21,6 +21,7 @@ set -euo pipefail
 
 lock="flake.lock"
 declaration="flake.nix"
+snapshot="nix/snapshots/nixpkgs.json"
 
 [ -f "${lock}" ] || {
   echo "❌ nixpkgs-pin: ${lock} is absent, so no pin can be checked" >&2
@@ -30,6 +31,21 @@ declaration="flake.nix"
   echo "❌ nixpkgs-pin: ${declaration} is absent, so no pin can be checked" >&2
   exit 1
 }
+[ -f "${snapshot}" ] || {
+  echo "❌ nixpkgs-pin: ${snapshot} is absent, so no pin can be checked" >&2
+  exit 1
+}
+
+snapshot_rev="$(jq -r '.rev // ""' "${snapshot}")"
+if ! printf '%s' "${snapshot_rev}" | grep -Eq '^[0-9a-f]{40}$'; then
+  echo "❌ nixpkgs-pin: ${snapshot} does not declare an exact 40-character commit" >&2
+  exit 1
+fi
+
+if ! grep -Fq "nixpkgs-2605.url = \"github:NixOS/nixpkgs/${snapshot_rev}\";" "${declaration}"; then
+  echo "❌ flake.nix does not use the authoritative nixpkgs SHA" >&2
+  exit 1
+fi
 
 mapfile -t nodes < <(jq -r '.nodes.root.inputs | to_entries[] | select(.key | test("nixpkgs")) | .value' "${lock}")
 

@@ -22,7 +22,10 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        await repo.patch('release.yaml', { find: 'branches:\n  - main', replace: 'branches:\n  - develop' });
+        await repo.patch('release.yaml', {
+          find: '  branches:\n    - main',
+          replace: '  branches:\n    - develop',
+        });
         await expectRed(
           repo,
           'nix develop .#ci -c ./scripts/validate/release-config.sh schema',

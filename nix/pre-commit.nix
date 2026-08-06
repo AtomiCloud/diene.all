@@ -285,7 +285,7 @@ in
       enable = true;
       name = ".NET release type vocabulary";
       entry = validator "scripts/validate/dotnet-release.sh";
-      files = "^atomi_release\\.yaml$";
+      files = "^release\\.yaml$";
       pass_filenames = false;
       language = "system";
     };
