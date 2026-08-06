@@ -2,7 +2,6 @@
   atomi,
   pkgs-2605,
   pkgs-unstable,
-  releaser-pkg,
 }:
 let
   all = rec {
@@ -15,6 +14,8 @@ let
           dlint
           infralint
           infrautils
+          releaser
+          skills-sync
           ;
       }
     );
@@ -40,10 +41,7 @@ let
       }
     );
 
-    releaser-pkgs = {
-      releaser = releaser-pkg;
-    };
   };
 in
 with all;
-atomipkgs // nix-2605 // nix-unstable // releaser-pkgs
+atomipkgs // nix-2605 // nix-unstable

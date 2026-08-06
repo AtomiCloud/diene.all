@@ -80,20 +80,40 @@ export async function expectRed(repo: any, command: string, label: string): Prom
   }
 }
 
+function shellArgument(value: string): string {
+  return "'" + value.replaceAll("'", "'\\''") + "'";
+}
+
 // Restore the sandbox to HEAD and drop the probe's own fixtures. `git clean` is
 // scoped to the caller's targets so a probe never removes work it does not own.
 // Fixtures are made writable first: a probe that proves read-only package content
 // is vendored leaves read-only trees behind, and both `git clean` and a later
 // `rm -rf` fail on those unless the permission is restored.
 export async function restoreProbeState(repo: any, cleanTargets: readonly string[]): Promise<void> {
-  const targets = cleanTargets.join(' ');
+  if (cleanTargets.length === 0) {
+    throw new Error('probe cleanup requires at least one owned target');
+  }
+  const targets = cleanTargets.map(shellArgument).join(' ');
   const madeWritable = await repo.exec(
     `for target in ${targets}; do if [ -e "$target" ]; then chmod -R u+w -- "$target" || exit 1; fi; done`,
   );
   if (madeWritable.exitCode !== 0) {
     throw new Error(`could not make probe fixtures writable: ${madeWritable.stderr || madeWritable.stdout}`);
   }
-  const restored = await repo.exec('git restore --source=HEAD --staged --worktree -- .');
+  // The worklist comes from HEAD, never from the index. `git ls-files` reads the index, so a
+  // STAGED DELETION removes the path from its output and the restore reports success while leaving
+  // the deletion staged. `git ls-tree` reads HEAD, where that path remains visible.
+  //
+  // Classify each owned target independently: paths present in HEAD are restored from HEAD; paths
+  // absent from HEAD can only be staged additions or untracked fixtures, so remove them from the
+  // index and let the scoped clean below remove their worktree copies. This remains target-scoped
+  // because restoring `-- .` would discard unrelated work in a shared checkout.
+  const restored = await repo.exec(
+    `for target in ${targets}; do ` +
+      `if [ -n "$(git ls-tree -r --name-only HEAD -- "$target")" ]; then ` +
+      `git restore --source=HEAD --staged --worktree -- "$target" || exit 1; ` +
+      `else git rm -r --cached -q --ignore-unmatch -- "$target" || exit 1; fi; done`,
+  );
   if (restored.exitCode !== 0) {
     throw new Error(`could not restore tracked probe state: ${restored.stderr || restored.stdout}`);
   }

@@ -21,9 +21,11 @@ their trigger block:
   Read a job's `uses:` to see which lane it runs, and the orchestrator's `on:`
   block to see when.
 - **Reusable workflows** — `on.workflow_call` only, named with a `⚡` prefix.
-  Each owns runner selection and setup and ends in exactly one `run:` line of the
-  form `nix develop .#<shell> -c ./scripts/ci/<script>.sh`. That line is the
-  authoritative statement of which script the lane runs and in which shell.
+  Each owns runner selection and setup and ends in a `run:` line of the form
+  `nix develop .#<shell> -c ./scripts/ci/<script>.sh`. The pre-commit workflow
+  additionally runs `skills-sync sync --tier ci` as an explicit step before its
+  script: the hook uses the warning tier, so running the hook in CI cannot stand
+  in for the guarantee tier.
 
 Callers grant permissions, pass only repository-specific values, and use
 `secrets: inherit`. The `a-workflows` gate enforces that every orchestrator job
@@ -91,8 +93,13 @@ Run the same entry point the lane runs. Take the `run:` line from the reusable
 workflow you want to reproduce and run it verbatim, for example:
 
 ```bash
+nix develop .#ci -c skills-sync sync --tier ci
 nix develop .#ci -c ./scripts/ci/pre-commit.sh
 ```
+
+Run both lines, in that order, to reproduce the pre-commit workflow. A downstream
+runtime restores its dependencies before the skills step; workspace declares
+`runtime: none`, so the generic call is deliberately inert here.
 
 The Docker and Helm scripts build locally by default. Their reusable workflows set
 the documented environment contract to enable publishing.
@@ -106,7 +113,7 @@ repository-specific branching into the reusable workflow.
 
 Release execution runs the real tool: `⚡reusable-release.yaml` enters the
 `releaser` shell and calls `scripts/ci/release.sh`, which invokes
-`releaser release -c atomi_release.yaml`. That script clears `.git/hooks` first,
+`releaser release -c release.yaml`. That script clears `.git/hooks` first,
 which is not incidental — the release commit's own message uses a `release:` prefix
 that is not a configured commit type, so the commit-msg hook would refuse the
 release the tool is in the middle of making.

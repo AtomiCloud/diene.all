@@ -14,6 +14,7 @@ with packages;
     infralint
     pre-commit
     shellcheck
+    skills-sync
     treefmt
   ];
 

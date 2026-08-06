@@ -32,21 +32,6 @@
     # inherit this line rather than re-pinning it, so an exact tag here would pin
     # every child too. Unlike the nixpkgs inputs above, a moving ref is the intent.
     atomipkgs.url = "github:AtomiCloud/nix-registry/v4";
-    # Pinned to the release tag, not to the commit it happens to resolve to. The claim
-    # being made is "v1.0.0", so let git be what checks it; a raw commit beside a comment
-    # naming a version is a correspondence kept by hand, and the comment that used to sit
-    # here said outright that nothing validated it.
-    # ⚠ A FULL VERSION TAG ONLY. `v1` is a MAJOR tag and majors move, so pinning one would
-    # turn this back into a floating input - the thing the nixpkgs comment above forbids.
-    releaser = {
-      url = "github:AtomiCloud/releaser/v1.0.0";
-      inputs.atomipkgs.follows = "atomipkgs";
-      inputs.flake-utils.follows = "flake-utils";
-      inputs.nixpkgs-2605.follows = "nixpkgs-2605";
-      inputs.nixpkgs-unstable.follows = "nixpkgs-unstable";
-      inputs.pre-commit-hooks.follows = "pre-commit-hooks";
-      inputs.treefmt-nix.follows = "treefmt-nix";
-    };
   };
   outputs =
     {
@@ -61,7 +46,6 @@
       atomipkgs,
       nixpkgs-2605,
       nixpkgs-unstable,
-      releaser,
 
     }@inputs:
     (flake-utils.lib.eachDefaultSystem (
@@ -70,7 +54,6 @@
         pkgs-2605 = nixpkgs-2605.legacyPackages.${system};
         pkgs-unstable = nixpkgs-unstable.legacyPackages.${system};
         atomi = atomipkgs.packages.${system};
-        releaser-pkg = releaser.packages.${system}.releaser;
         pre-commit-lib = pre-commit-hooks.lib.${system};
       in
       let
@@ -93,7 +76,6 @@
             pkgs-2605
             pkgs-unstable
             atomi
-            releaser-pkg
             ;
         };
         env = import ./nix/env.nix {

@@ -43,12 +43,21 @@ The formatters treefmt drives are the `programs` attribute set in
 carry its own `excludes`.
 
 **Commit messages are checked.** The `a-releaser-commit` hook runs at the
-`commit-msg` stage and calls `releaser lint-commit -c atomi_release.yaml`, so the
+`commit-msg` stage and calls `releaser lint-commit -c release.yaml`, so the
 message is measured against the same file that defines the commit types and the
 release levels — see
 [the conventional-commits standard](../conventional-commits/index.md). There is
 still no `.gitlint` hook or file and one must not be added; the vocabulary has one
 authority.
+
+**Vendored skills are checked without amending a commit.** The `a-skills-sync`
+hook calls the registry package by its absolute Nix store path as
+`skills-sync sync --tier pre-commit`. The writer refuses if it had to regenerate
+the vendor tree or if the index does not already carry what the packages ship;
+it never stages files. This tier may skip when dependencies are not restored and
+says that it is the warning tier. CI therefore runs `sync --tier ci` explicitly
+before the ordinary pre-commit script; the hook is not promoted into a guarantee
+merely because CI also executes hooks.
 
 This hook was absent for one round, and the reason is worth knowing before you
 touch it: no development shell provided the `releaser` binary then, and because
