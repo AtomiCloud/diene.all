@@ -1,7 +1,6 @@
 import { expectGreen, expectRedBecause } from './lib/helpers.ts';
 
 const configPath = 'skills-sync.yaml';
-const vendorDir = '.claude/skills/vendor';
 
 const callPaths = [
   {
@@ -21,10 +20,11 @@ const callPaths = [
   },
 ] as const;
 
-async function assertDeclaredWiring(repo: any): Promise<void> {
+async function assertDeclaredWiring(repo: any): Promise<string> {
   const config = await repo.read(configPath);
-  if (config !== 'schemaVersion: 1\nruntime: none\n') {
-    throw new Error(`${configPath} must declare the workspace's explicit runtime: none opt-out`);
+  const runtime = /^runtime:\s*([^\s#]+)\s*$/m.exec(config)?.[1];
+  if (!runtime) {
+    throw new Error(`${configPath} must declare a runtime`);
   }
 
   for (const callPath of callPaths) {
@@ -34,6 +34,8 @@ async function assertDeclaredWiring(repo: any): Promise<void> {
       throw new Error(`${callPath.name} skills-sync wiring is missing from ${path}: ${invocation}`);
     }
   }
+
+  return runtime;
 }
 
 export default {
@@ -42,30 +44,26 @@ export default {
   probes: callPaths.flatMap(callPath => [
     {
       name: `baseline-skills-sync-${callPath.name}-off-empty`,
-      description: `The ${callPath.name} call path executes skills-sync and accepts the explicit off/empty workspace.`,
+      description: `The ${callPath.name} call path executes skills-sync with the runtime declared by its configuration.`,
       kind: 'baseline' as const,
       async run(repo: any) {
-        await assertDeclaredWiring(repo);
-        await expectGreen(repo, callPath.command, 'skills-sync');
+        const runtime = await assertDeclaredWiring(repo);
+        await expectGreen(repo, callPath.command, `skills-sync (${runtime})`);
       },
     },
     {
-      name: `mutation-skills-sync-${callPath.name}-vendored-content-caught`,
-      description: `The ${callPath.name} call path refuses probe-owned vendored content while runtime is none.`,
+      name: `mutation-skills-sync-${callPath.name}-wrong-runtime-caught`,
+      description: `The ${callPath.name} call path refuses an explicit opt-out when the repository already vendors skills.`,
       kind: 'mutation' as const,
       expectedImpact: [],
       async run(repo: any) {
-        await assertDeclaredWiring(repo);
-        const fixtureName = `probe-skills-sync-${callPath.name}.txt`;
-        const fixturePath = `${vendorDir}/${fixtureName}`;
-        const tracked = await repo.exec(`git ls-files --error-unmatch -- '${fixturePath}'`);
-        if (tracked.exitCode === 0) {
-          throw new Error(`${callPath.name} probe fixture must be owned by this arm, not tracked at ${fixturePath}`);
+        const runtime = await assertDeclaredWiring(repo);
+        if (runtime === 'none') {
+          throw new Error(`${configPath} must name an active runtime before this wrong-runtime mutation can differ`);
         }
-        await repo.write(fixturePath, 'owned by the skills-sync probe\n');
+        await repo.write(configPath, `schemaVersion: 1\nruntime: none\n`);
         await expectRedBecause(repo, callPath.command, 'skills-sync', [
           'skills-sync names no runtime',
-          `holds 1 vendored file(s): ${fixtureName}`,
           'A repository that vendors skills has a runtime',
         ]);
       },
