@@ -20,6 +20,7 @@
     git
     go-task
     infisical
+    nix
     pre-commit
     shellcheck
     treefmt

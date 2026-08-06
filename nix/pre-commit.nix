@@ -3,7 +3,12 @@
   formatter,
   pkgs,
   pre-commit-lib,
+  env,
 }:
+let
+  # toolchain-smoke asserts the DECLARED env lists actually provide their binaries.
+  envPath = pkgs.lib.makeBinPath (env.system ++ env.main ++ env.lint ++ env.dev);
+in
 pre-commit-lib.run {
   src = ../.;
 
@@ -22,7 +27,7 @@ pre-commit-lib.run {
     a-dlint = {
       enable = true;
       name = "dlint";
-      entry = "${packages.dlint}/bin/dlint lint";
+      entry = "${packages.atomiutils}/bin/bash -c 'PATH=${envPath}:\$PATH ${packages.dlint}/bin/dlint lint'";
       pass_filenames = false;
       language = "system";
     };

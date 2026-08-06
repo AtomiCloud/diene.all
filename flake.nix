@@ -50,6 +50,7 @@
             pkgs
             pre-commit-lib
             formatter
+            env
             ;
         };
         formatter = import ./nix/fmt.nix {
