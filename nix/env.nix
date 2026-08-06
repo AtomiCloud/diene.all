@@ -20,6 +20,7 @@ with packages;
     kubernetes-helm
     pre-commit
     shellcheck
+    skills-sync
     treefmt
     yq-go
   ];

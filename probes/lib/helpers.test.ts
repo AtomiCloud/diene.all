@@ -73,7 +73,7 @@ describe('captured-env rewrite — flag on', () => {
 
   test('everything after `-c ` is carried through byte-for-byte', () => {
     const payload = EMBEDDED_QUOTES.slice('nix develop .#ci -c '.length);
-    expect(capturedEnvCommand(EMBEDDED_QUOTES, 'skills-sync', ENV_DIR).endsWith(payload)).toBe(true);
+    expect(capturedEnvCommand(EMBEDDED_QUOTES, 'hook-shellcheck', ENV_DIR).endsWith(payload)).toBe(true);
   });
 
   test('a capture directory containing a quote is escaped, not injected', () => {

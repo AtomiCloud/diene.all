@@ -19,22 +19,20 @@ includes:
 tasks:
   setup:
     desc: Set up generated workspace assets
+    # Releaser v2 hard-renamed its config; keep the explicit path beside the
+    # binary move so setup never depends on a stale default. Skills sync is the
+    # only writer of the vendor tree and setup is its repair-capable tier.
     cmds:
-      - ./scripts/local/skills-sync.sh
       # ### bun-base-setup
       # #### source: bun-base
+      - releaser conventions -c release.yaml
+      - skills-sync sync --tier setup
       - ./scripts/local/setup.sh
 
   lint:
     desc: Run all repository gates
     cmds:
       - pre-commit run --all-files
-
-  skills:sync:
-    desc: Synchronize installed diene package skills
-    cmds:
-      - ./scripts/local/skills-sync.sh
-
   # ### bun-base-tasks
   # #### source: bun-base
   clean:
