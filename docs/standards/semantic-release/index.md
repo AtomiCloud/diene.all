@@ -93,8 +93,11 @@ format gate in permanent disagreement.
 Release is its own workflow, and it runs off a successful `CI` run rather than off
 a push. `.github/workflows/release.yaml` declares that `workflow_run` trigger, the
 restriction to `main`, and the `release` concurrency group; the `a-workflows` gate
-pins those values, and `scripts/validate/workflows.sh` holds the exact ones it
-expects.
+pins those values, and two things hold the exact ones it expects:
+`scripts/validate/workflows.sh` and `dlint.yaml`'s
+`checks["workflow-policy"].assertions`. That duplication is deliberate and
+temporary — the script is removed under its own change, once the wired check has
+been shown able to fail here.
 
 The workflow ends in a single `scripts/ci/release.sh` call inside the `releaser`
 Nix shell. That script runs `releaser release -c atomi_release.yaml`, which

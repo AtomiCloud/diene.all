@@ -59,9 +59,12 @@ command name, which is what makes it resolve from any worktree and any shell.
 
 ## The repo-agnostic checks: `dlint`
 
-This repository takes three checks from `dlint`, a tool from the Nix registry,
-instead of keeping its own copy of each: `action-pins`, `exec-bits` and
-`ci-wiring`. They replaced repository-local validator scripts.
+This repository takes four checks from `dlint`, a tool from the Nix registry,
+instead of keeping its own copy of each: `action-pins`, `exec-bits`, `ci-wiring`
+and `workflow-policy`. The first three replaced repository-local validator
+scripts. `workflow-policy` has not replaced one yet: it asserts the same five
+values as `workflows.sh` and runs beside it in the same hook, so the two are
+expected to agree until the script is removed under its own change.
 `scripts/validate/` still holds
 the checks that are about **this** repository rather than about repositories in
 general, and now holds only `workflows.sh`: the release trigger and concurrency
