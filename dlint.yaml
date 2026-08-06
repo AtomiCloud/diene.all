@@ -63,3 +63,7 @@ checks:
         path: .concurrency.group
         equals: release
         reason: release concurrency group must be release
+  nixpkgs-pin:
+    flake: flake.nix
+    lock: flake.lock
+    inputPattern: nixpkgs

@@ -4,19 +4,6 @@
   pkgs,
   pre-commit-lib,
 }:
-let
-  # atomiutils already bundles bash/jq/yq/coreutils/rg; adding them separately
-  # collides in this buildEnv ("conflicting subpath .../bin/rg").
-  validator-runtime = pkgs.buildEnv {
-    name = "workspace-validator-runtime";
-    paths = [
-      packages.atomiutils
-      packages.git
-    ];
-  };
-  dlint = "${packages.dlint}/bin/dlint";
-  bash = "${packages.atomiutils}/bin/bash";
-in
 pre-commit-lib.run {
   src = ../.;
 
@@ -32,20 +19,10 @@ pre-commit-lib.run {
       ];
     };
 
-    a-action-pins = {
+    a-dlint = {
       enable = true;
-      name = "Action pins";
-      entry = "${bash} -c '${dlint} action-pins trusted && ${dlint} action-pins non-trusted'";
-      files = "^(\\.github/workflows/.*\\.ya?ml|config/action-trust\\.json)$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-enforce-exec = {
-      enable = true;
-      name = "Executable shell scripts";
-      entry = "${dlint} exec-bits";
-      files = ".*\\.sh$";
+      name = "dlint";
+      entry = "${packages.dlint}/bin/dlint lint";
       pass_filenames = false;
       language = "system";
     };
@@ -75,16 +52,6 @@ pre-commit-lib.run {
       language = "system";
     };
 
-    # Guards the root flake's nixpkgs pins only; the transitive closure floats.
-    a-nixpkgs-pin = {
-      enable = true;
-      name = "Nixpkgs pin honesty";
-      entry = "${bash} -c 'export PATH=${validator-runtime}/bin; exec ${bash} scripts/validate/nixpkgs-pin.sh'";
-      files = "^flake\\.(nix|lock)$";
-      pass_filenames = false;
-      language = "system";
-    };
-
     a-releaser-commit = {
       enable = true;
       name = "Conventional commit";
@@ -110,15 +77,6 @@ pre-commit-lib.run {
       entry = "${packages.shellcheck}/bin/shellcheck -x --source-path=SCRIPTDIR";
       files = ".*\\.sh$";
       pass_filenames = true;
-      language = "system";
-    };
-
-    a-workflows = {
-      enable = true;
-      name = "Workflow wiring and release policy";
-      entry = "${bash} -c '${dlint} ci-wiring && ${dlint} workflow-policy'";
-      files = "^\\.github/workflows/.*\\.ya?ml$";
-      pass_filenames = false;
       language = "system";
     };
   };
