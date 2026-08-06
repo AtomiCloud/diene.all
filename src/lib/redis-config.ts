@@ -1,0 +1,54 @@
+import { z } from 'zod';
+
+const DEFAULT_REDIS_PORT = 6379;
+const MIN_PORT = 1;
+const MAX_PORT = 65535;
+
+/** The slice of the process environment this module reads. */
+export interface RedisEnvironment {
+  readonly [name: string]: string | undefined;
+}
+
+/** Where a Redis instance lives; owned by the domain, not by any adapter. */
+export interface RedisConnection {
+  readonly host: string;
+  readonly port: number;
+}
+
+export type RedisConfigResult =
+  | { readonly ok: true; readonly connection: RedisConnection | undefined }
+  | { readonly ok: false; readonly issues: readonly string[] };
+
+/** Treat blank environment values as unset so defaults apply consistently. */
+function blankAsUnset(value: unknown): unknown {
+  return typeof value === 'string' && value.trim() === '' ? undefined : value;
+}
+
+const redisEnvironmentSchema = z.object({
+  REDIS_HOST: z.preprocess(blankAsUnset, z.string().trim().optional()),
+  REDIS_PORT: z.preprocess(
+    blankAsUnset,
+    z
+      .string()
+      .trim()
+      .regex(/^\d+$/, 'must be a whole number, for example 6379')
+      .transform(Number)
+      .refine(port => port >= MIN_PORT && port <= MAX_PORT, `must be between ${MIN_PORT} and ${MAX_PORT}`)
+      .default(DEFAULT_REDIS_PORT),
+  ),
+});
+
+/** Return invalid configuration as data; a missing host intentionally disables Redis. */
+export function parseRedisEnvironment(environment: RedisEnvironment): RedisConfigResult {
+  const parsed = redisEnvironmentSchema.safeParse(environment);
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      issues: parsed.error.issues.map(issue => `${issue.path.join('.')} ${issue.message}`),
+    };
+  }
+
+  const { REDIS_HOST: host, REDIS_PORT: port } = parsed.data;
+  return { ok: true, connection: host === undefined ? undefined : { host, port } };
+}

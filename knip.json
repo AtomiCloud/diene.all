@@ -1,0 +1,20 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": ["src/index.ts", "tests/**/*.test.ts"],
+  "project": ["src/**/*.ts"],
+  "rules": {
+    "files": "error",
+    "exports": "error",
+    "types": "error",
+    "nsExports": "error",
+    "nsTypes": "error",
+    "duplicates": "error",
+    "dependencies": "off",
+    "devDependencies": "off",
+    "optionalPeerDependencies": "off",
+    "unlisted": "off",
+    "unresolved": "off",
+    "binaries": "off",
+    "enumMembers": "off"
+  }
+}

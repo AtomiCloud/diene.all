@@ -1,3 +1,5 @@
+# ### workspace-release
+# #### source: workspace
 schemaVersion: 2
 
 types:
@@ -218,6 +220,7 @@ release:
       ${notes}
     assets:
       - Changelog.md
+      - package.json
       - docs/developer/CommitConventions.md
   github:
     enabled: true
@@ -225,7 +228,12 @@ release:
     releasedLabels:
       - released
   hooks:
-    # Deliberately empty: the hook point a downstream node fills. A version file
-    # enters commit.assets in the SAME edit as the command that writes it.
-    prepare: []
+    # The hook point the parent leaves empty, filled here. This node's version
+    # lives in `package.json` rather than in a `VERSION` file, so the manifest
+    # the command below stamps is the same file listed in `commit.assets` above -
+    # written and committed by the same edit, which is what stops a version
+    # record going stale in silence.
+    prepare:
+      - phase: afterWrite
+        command: './scripts/release/bump.sh ${version}'
     success: []

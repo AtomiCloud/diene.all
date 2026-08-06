@@ -97,3 +97,13 @@ See [docs/standards/three-layer-architecture/index.md](docs/standards/three-laye
 ## Utility libraries
 
 See [docs/standards/utilities/index.md](docs/standards/utilities/index.md).
+
+<!-- ### bun-base -->
+<!-- #### source: bun-base -->
+
+## Bun and TypeScript
+
+Read [the Bun baseline](docs/developer/bun-baseline.md) before changing the Bun
+toolchain, task surface, test tiers, coverage ledgers, build, or illustrative
+sample. Follow the TypeScript variants linked from that baseline alongside the
+shared engineering standards.

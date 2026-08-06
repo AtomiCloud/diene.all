@@ -14,3 +14,11 @@ probes
 
 result
 result-*
+
+### bun-base
+#### source: bun-base
+node_modules
+dist
+coverage
+*.tsbuildinfo
+tests

@@ -54,14 +54,18 @@ The configuration is one document with five top-level parts.
 
 Two parts of `release:` carry a note worth reading before you edit them:
 
-- `release.hooks.prepare` is **deliberately empty**. It is where the old
+- `release.hooks.prepare` is **filled here**. It is where the old
   `@semantic-release/exec` hook point moved to: a list of
   `{ phase: beforeWrite | afterWrite, command: … }` entries a downstream node
   fills, usually with an `afterWrite` command that stamps the version into whatever
-  file that node's ecosystem versions. This workspace versions no manifest, so it
-  fills nothing. The releaser does not write a version file on its own — it writes
-  only the changelog and the conventions document — so there is no version file
-  here to commit, and that is why there is none in `assets`.
+  file that node's ecosystem versions. This node versions `package.json`, so it
+  carries one `afterWrite` entry, `scripts/release/bump.sh ${version}`, and
+  `package.json` appears in `assets` because that hook writes it. **The version
+  lives in the language manifest and nowhere else** — there is no `VERSION` file,
+  because a second copy of a number nothing writes goes stale in silence. The
+  releaser stamps no version file of its own; it writes only the changelog and the
+  conventions document, so every versioned path here comes from a `prepare`
+  command.
 - `release.commit.assets` lists the files a release commits, and it is enforced
   rather than advisory: the releaser aborts if a write lands outside the list, and a
   file listed but never written is dead configuration. So if you add a `prepare`

@@ -24,3 +24,20 @@ checks that it names every surface.
 
 Domain-specific architecture and behavior belongs under
 [`docs/domain/`](docs/domain/README.md), not under `docs/standards/`.
+
+<!-- ### bun-base -->
+<!-- #### source: bun-base -->
+
+## Bun foundation
+
+See the [Bun baseline](docs/developer/bun-baseline.md) for the language-specific
+toolchain, task surface, test tiers, coverage ledgers, build, and maintenance
+boundary. TypeScript variants accompany the shared standards for
+[date/time](docs/standards/datetime/languages/typescript.md),
+[domain-driven design](docs/standards/domain-driven-design/languages/typescript.md),
+[functional practices](docs/standards/functional-practices/languages/typescript.md),
+[SOLID](docs/standards/solid-principles/languages/typescript.md),
+[stateless OOP/DI](docs/standards/stateless-oop-di/languages/typescript.md),
+[testing](docs/standards/testing/languages/typescript.md),
+[utilities](docs/standards/utilities/languages/typescript.md), and
+[validation](docs/standards/validation/languages/typescript.md).

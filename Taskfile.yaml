@@ -3,6 +3,18 @@ version: '3'
 includes:
   docker: tasks/Taskfile.docker.yaml
   helm: tasks/Taskfile.helm.yaml
+  # ### bun-base-test-includes
+  # #### source: bun-base
+  unit:
+    taskfile: tasks/Taskfile.test.yaml
+    vars:
+      MODE: unit
+      CONFIG: bunfig.unit.toml
+  int:
+    taskfile: tasks/Taskfile.test.yaml
+    vars:
+      MODE: int
+      CONFIG: bunfig.int.toml
 
 tasks:
   setup:
@@ -11,10 +23,78 @@ tasks:
     # binary move so setup never depends on a stale default. Skills sync is the
     # only writer of the vendor tree and setup is its repair-capable tier.
     cmds:
+      # ### bun-base-setup
+      # #### source: bun-base
       - releaser conventions -c release.yaml
+      - ./scripts/local/setup.sh
       - skills-sync sync --tier setup
 
   lint:
     desc: Run all repository gates
     cmds:
       - pre-commit run --all-files
+  # ### bun-base-tasks
+  # #### source: bun-base
+  clean:
+    desc: Remove Bun build, dependency, and coverage artifacts
+    cmds:
+      - rm -rf dist coverage
+      - '[ -d node_modules ] && find node_modules -mindepth 1 -maxdepth 1 -exec rm -rf {} + || true'
+
+  build:
+    desc: Build the Bun bundle to dist/
+    cmds:
+      - ./scripts/local/build.sh
+
+  deadcode:
+    desc: Review strict and LLM-assisted dead-code findings
+    cmds:
+      - ./scripts/local/deadcode.sh
+
+  test:
+    desc: Run unit and integration suites without coverage
+    cmds:
+      - task: unit:default
+      - task: int:default
+
+  test:unit:
+    desc: Run the unit suite without coverage
+    cmds:
+      - task: unit:default
+
+  test:int:
+    desc: Run the integration suite without coverage
+    cmds:
+      - task: int:default
+
+  test:coverage:
+    desc: Run every coverage-capable suite with coverage
+    cmds:
+      - task: unit:coverage
+      - task: int:coverage
+
+  test:unit:coverage:
+    desc: Run the unit suite with coverage
+    cmds:
+      - task: unit:coverage
+
+  test:int:coverage:
+    desc: Run the integration suite with coverage
+    cmds:
+      - task: int:coverage
+
+  test:watch:
+    desc: Watch the fast unit suite
+    cmds:
+      - task: unit:watch
+
+  run:
+    desc: Run the Bun source entry point
+    cmds:
+      - bun run ./src/index.ts -- {{.CLI_ARGS}}
+
+  preview:
+    desc: Build and run the bundled Bun artifact
+    deps: [build]
+    cmds:
+      - bun run ./dist/index.js -- {{.CLI_ARGS}}
