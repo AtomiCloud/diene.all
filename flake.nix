@@ -30,9 +30,14 @@
     # inherit this line rather than re-pinning it, so an exact tag here would pin
     # every child too. Unlike the nixpkgs inputs above, a moving ref is the intent.
     atomipkgs.url = "github:AtomiCloud/nix-registry/v4";
-    # NOTHING VALIDATES THIS. releaser v1.0.0 = the commit below.
+    # Pinned to the release tag, not to the commit it happens to resolve to. The claim
+    # being made is "v1.0.0", so let git be what checks it; a raw commit beside a comment
+    # naming a version is a correspondence kept by hand, and the comment that used to sit
+    # here said outright that nothing validated it.
+    # ⚠ A FULL VERSION TAG ONLY. `v1` is a MAJOR tag and majors move, so pinning one would
+    # turn this back into a floating input - the thing the nixpkgs comment above forbids.
     releaser = {
-      url = "github:AtomiCloud/releaser/3200bdd95a0fdd8f43f9905faa8c85afe4595d1f";
+      url = "github:AtomiCloud/releaser/v1.0.0";
       inputs.atomipkgs.follows = "atomipkgs";
       inputs.flake-utils.follows = "flake-utils";
       inputs.nixpkgs-2605.follows = "nixpkgs-2605";

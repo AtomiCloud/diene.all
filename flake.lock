@@ -528,8 +528,8 @@
       },
       "original": {
         "owner": "AtomiCloud",
+        "ref": "v1.0.0",
         "repo": "releaser",
-        "rev": "3200bdd95a0fdd8f43f9905faa8c85afe4595d1f",
         "type": "github"
       }
     },
