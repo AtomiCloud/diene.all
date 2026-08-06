@@ -28,11 +28,11 @@ because it changes whenever a hook is added or removed. Read it like this:
 - each attribute name is the hook id you pass to `pre-commit run <hook-id>`;
 - `name` is the label the run prints;
 - `entry` is what actually executes — either a Nix store path
-  (`${packages.<tool>}/bin/<tool> …`, so the pinned tool runs) or a call to one of
-  the four helpers in that file: `validator` and `validators` run one or several
-  scripts under `scripts/validate/` with a fixed PATH, and `dlint` and `dlints`
-  run one or several `dlint` checks. `dlint` is never routed through the
-  `validator` PATH, and the file says why;
+  (`${packages.<tool>}/bin/<tool> …`, so the pinned tool runs) or a call to the
+  `validator` helper in that file, which runs one script under `scripts/validate/`
+  with a fixed PATH. The single `dlint` invocation is written out in full in the
+  `a-workflows` entry rather than routed through `validator`, and that entry says
+  why;
 - `files` is the regex selecting which paths trigger the hook; a hook with no
   `files` runs on every commit;
 - `stages` narrows a hook to a non-default stage; a hook without it runs at the
@@ -50,15 +50,6 @@ release levels — see
 still no `.gitlint` hook or file and one must not be added; the vocabulary has one
 authority.
 
-**Vendored skills are checked without amending a commit.** The `a-skills-sync`
-hook calls the registry package by its absolute Nix store path as
-`skills-sync sync --tier pre-commit`. The writer refuses if it had to regenerate
-the vendor tree or if the index does not already carry what the packages ship;
-it never stages files. This tier may skip when dependencies are not restored and
-says that it is the warning tier. CI therefore runs `sync --tier ci` explicitly
-before the ordinary pre-commit script; the hook is not promoted into a guarantee
-merely because CI also executes hooks.
-
 This hook was absent for one round, and the reason is worth knowing before you
 touch it: no development shell provided the `releaser` binary then, and because
 entering a Nix shell reinstalls hooks into the repository's shared git directory,
@@ -66,22 +57,24 @@ a commit-msg hook whose binary was missing broke plain `git commit` for every
 worktree at once. Its `entry` is an absolute Nix store path rather than a bare
 command name, which is what makes it resolve from any worktree and any shell.
 
-## The repo-agnostic checks: `dlint`
+## The repo-agnostic check: `dlint ci-wiring`
 
-This repository takes four checks from `dlint`, a tool from the Nix registry,
-instead of keeping its own copy of each: `action-pins`, `exec-bits`, `ci-wiring`
-and `workflow-policy`. All four replaced repository-local validator scripts.
-`workflow-policy` owns the five exact release values after its predecessor was
-shown equivalent and retired. The `a-workflows` hook runs `ci-wiring` and
-`workflow-policy` unconditionally because they cover independent properties, then
-returns the higher exit code so one refusal never hides the other.
-`scripts/validate/` still holds checks that are about **this** repository rather
-than repositories in general, and now holds only `nixpkgs-pin.sh`. The toolchain
-smoke is not among them — `dlint toolchain-smoke` owns it.
+This repository takes **one** check from `dlint`, a tool from the Nix registry:
+`ci-wiring`, which asserts that every orchestrator job resolves to a
+repository-local reusable workflow and that every referenced `scripts/ci` entry
+point exists and is executable. It replaced the `wiring` mode of
+`scripts/validate/workflows.sh`, which is why that script no longer has one.
 
-Every check reads one file, `dlint.yaml`, resolved from the repository root. Three
-things about that file are decisions rather than transcription, and they are
-recorded here rather than inside it:
+**The rest of `scripts/validate/` stays, and that is a deliberate difference from
+the parent.** The parent template moved four checks to `dlint` — `action-pins`,
+`exec-bits` and `ci-wiring` — and deleted the scripts behind the
+first three. Only `ci-wiring` has moved here so far. Read `nix/pre-commit.nix` for
+which mechanism each hook actually runs; do not infer it from the parent's copy of
+this page.
+
+`.dlint.json` in the repository root configures the check, and two things about
+that file are decisions rather than transcription, neither of which can be written
+down inside it because it is strict JSON with no comments:
 
 - **`ci-wiring.orchestrators` lists `ci.yaml`, `cd.yaml` and `release.yaml`, and
   deliberately not `🛡️merge-gatekeeper.yml`.** The `⚡`-prefixed workflows are the
@@ -90,25 +83,24 @@ recorded here rather than inside it:
   the tree, and its job calls a third-party action rather than a repository-local
   reusable workflow. `ci-wiring` refuses an orchestrator whose job does not call
   one, so listing it would make the check red for a repository that is correct.
-- **No check is disabled and `requireSubjects` is left at its default.** Turning a
-  check off is a declaration `dlint` supports — `"exec-bits": false` — and it is
-  the honest way to say a check does not apply. It is not a way to make a failing
-  check pass, and every check the file declares applies here.
 - **An absent section is an error, not a pass.** `dlint` exits `3` when its
   configuration, or a section it needs, or a subject it was told to expect, is
   missing — and `1` only when the repository actually breaks a rule. Any wiring that
   treats `3` as success defeats the tool's whole design, so a hook or CI step must
   pass the exit code through rather than swallow it.
 
-No script asserts the presence and loadability of `dlint.yaml`, and none needs to:
-`dlint` refuses to run a check it could not configure, so every invocation asserts
-the file. An absent config exits `3` before the check runs, and a config that is
-present but unloadable exits `4`. The invocations that carry that assertion here are
-the `a-` `dlint` hooks in `nix/pre-commit.nix` — every one of which declares a
-`files` filter, so a commit touching none of those paths asserts the config through
-no hook at all — and `probes/binary-smoke.ts`, whose
-`baseline-binary-smoke-resolves` arm runs `dlint toolchain-smoke` and whose
-`baseline-binary-smoke-invokes` arm runs `dlint exec-bits`.
+The `a-workflows` hook writes `dlint` as an absolute Nix store path,
+`${packages.dlint}/bin/dlint`, and that is a safety property rather than a style
+rule. A missing package fails at Nix evaluation, loudly, and no shell builds. A
+bare `dlint` name would instead fail at runtime with exit `127` — which the probe
+helper reports as "could not prove sabotage", so a mutation arm would refuse for
+the wrong reason while the baseline arm merely failed.
+
+**Workflow naming is checked here and nowhere upstream.** `.dlint.json` configures
+no naming check, so `scripts/validate/workflows.sh workflow-names` — which asserts
+`ci.yaml` is named `CI` and `cd.yaml` is named `CD` — has no successor to move to
+and is kept on this node. It is nominated for hoist to the parent template so the
+check reaches every node instead of this one alone.
 
 ## Configuration rules
 

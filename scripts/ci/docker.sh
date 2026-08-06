@@ -17,9 +17,7 @@ if [ "${push}" = "true" ]; then
   [ -z "${GITHUB_REPO_REF:-}" ] && echo "❌ 'GITHUB_REPO_REF' env var not set" >&2 && exit 1
   [ -z "${GITHUB_SHA:-}" ] && echo "❌ 'GITHUB_SHA' env var not set" >&2 && exit 1
   [ -z "${LATEST_BRANCH:-}" ] && echo "❌ 'LATEST_BRANCH' env var not set" >&2 && exit 1
-fi
 
-if [ "${push}" = "true" ]; then
   echo "${DOCKER_PASSWORD}" | docker login "${DOMAIN}" -u "${DOCKER_USER}" --password-stdin
   image_id="$(echo "${DOMAIN}/${GITHUB_REPO_REF}/${CI_DOCKER_IMAGE}" | tr '[:upper:]' '[:lower:]')"
   sha="$(echo "${GITHUB_SHA}" | head -c 6)"

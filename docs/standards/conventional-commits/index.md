@@ -50,7 +50,7 @@ using the `releaser` tool. Its output path is the `conventions.path` value in
 cat "$(yq -r '.conventions.path' release.yaml)"
 
 # Regenerate
-releaser conventions -c release.yaml
+releaser conventions
 ```
 
 That document is generated output: edit `release.yaml` and regenerate rather

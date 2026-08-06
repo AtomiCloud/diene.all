@@ -1,3 +1,5 @@
+# ### workspace-release
+# #### source: workspace
 schemaVersion: 2
 
 types:
@@ -96,7 +98,7 @@ types:
         desc: Verification corpus
         release: patch
       skills:
-        desc: Agent skills
+        desc: Vendored agent skills
         release: patch
       workspace:
         desc: Workspace tree itself
@@ -218,6 +220,7 @@ release:
       ${notes}
     assets:
       - Changelog.md
+      - App/App.csproj
       - docs/developer/CommitConventions.md
   github:
     enabled: true
@@ -225,7 +228,11 @@ release:
     releasedLabels:
       - released
   hooks:
-    # Deliberately empty: the hook point a downstream node fills. A version file
-    # enters commit.assets in the SAME edit as the command that writes it.
-    prepare: []
+    # This node fills the hook point the parent template leaves empty. `App/App.csproj`
+    # carries the .NET version, and it is listed in commit.assets above in the same
+    # breath as the command that writes it - a committed version file that nothing
+    # writes goes stale in silence.
+    prepare:
+      - phase: afterWrite
+        command: './scripts/release/bump.sh ${version}'
     success: []

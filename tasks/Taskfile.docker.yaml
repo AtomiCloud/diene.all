@@ -1,3 +1,5 @@
+# ### workspace-docker
+# #### source: workspace
 version: '3'
 
 # One task set per Dockerfile under infra/. The task key is the Dockerfile's own
@@ -8,20 +10,20 @@ tasks:
   build:main:
     desc: Build the infra/Dockerfile image locally
     vars:
-      IMAGE: diene-workspace:local
+      IMAGE: diene-dotnet-base:local
     cmds:
       - docker build -f infra/Dockerfile -t {{.IMAGE}}{{if .CLI_ARGS}}-{{.CLI_ARGS}}{{end}} .
 
   run:main:
     desc: Run the locally built infra/Dockerfile image
     vars:
-      IMAGE: diene-workspace:local
+      IMAGE: diene-dotnet-base:local
     cmds:
       - docker run --rm {{.IMAGE}}{{if .CLI_ARGS}}-{{.CLI_ARGS}}{{end}}
 
   clean:main:
     desc: Remove the locally built infra/Dockerfile image
     vars:
-      IMAGE: diene-workspace:local
+      IMAGE: diene-dotnet-base:local
     cmds:
       - docker image rm {{.IMAGE}}{{if .CLI_ARGS}}-{{.CLI_ARGS}}{{end}} || true

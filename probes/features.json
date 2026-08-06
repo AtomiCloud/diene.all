@@ -71,11 +71,6 @@
   },
   {
     "template": "diene/workspace",
-    "name": "skills-sync",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
     "name": "hook-shellcheck",
     "class": "gate"
   },
@@ -131,12 +126,37 @@
   },
   {
     "template": "diene/workspace",
+    "name": "skills-sync",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "release-config-schema",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "release-type-vocabulary",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
     "name": "release-workflow-trigger",
     "class": "gate"
   },
   {
     "template": "diene/workspace",
     "name": "release-workflow-concurrency",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "workflow-names",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "nixpkgs-pin",
     "class": "gate"
   },
   {
@@ -151,8 +171,8 @@
   },
   {
     "template": "diene/workspace",
-    "name": "probe-artifacts",
-    "class": "presence"
+    "name": "many-owner-schema",
+    "class": "gate"
   },
   {
     "template": "diene/workspace",
@@ -161,8 +181,23 @@
   },
   {
     "template": "diene/workspace",
-    "name": "hook-releaser-commit",
+    "name": "probe-artifacts",
+    "class": "presence"
+  },
+  {
+    "template": "diene/shared",
+    "name": "claude-link-integrity",
     "class": "gate"
+  },
+  {
+    "template": "diene/shared",
+    "name": "standards-inventory",
+    "class": "presence"
+  },
+  {
+    "template": "diene/shared",
+    "name": "thin-skills",
+    "class": "presence"
   },
   {
     "template": "diene/shared",
@@ -175,13 +210,93 @@
     "class": "gate"
   },
   {
-    "template": "diene/shared",
-    "name": "standards-inventory",
+    "template": "diene/dotnet-base",
+    "name": "dotnet-unit-tests",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-base",
+    "name": "dotnet-integration-tests",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-base",
+    "name": "dotnet-analyzers",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-base",
+    "name": "hook-dotnetlint",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-base",
+    "name": "dotnet-unit-coverage",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-base",
+    "name": "dotnet-integration-coverage",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-base",
+    "name": "dotnet-multi-project-coverage",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-base",
+    "name": "dotnet-coverage-artifact-scope",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-base",
+    "name": "dotnet-deadcode-all",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-base",
+    "name": "dotnet-deadcode-production",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-base",
+    "name": "dotnet-deadcode-llm",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/dotnet-base",
+    "name": "dotnet-build",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/dotnet-base",
+    "name": "dotnet-dev",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/dotnet-base",
+    "name": "dotnet-run",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/dotnet-base",
+    "name": "dotnet-preview",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/dotnet-base",
+    "name": "dotnet-codecov-config",
     "class": "presence"
   },
   {
-    "template": "diene/shared",
-    "name": "thin-skills",
-    "class": "presence"
+    "template": "diene/dotnet-base",
+    "name": "hook-dotnet-release-types",
+    "class": "gate"
+  },
+  {
+    "template": "diene/dotnet-base",
+    "name": "hook-releaser-commit",
+    "class": "gate"
   }
 ]

@@ -21,11 +21,9 @@ their trigger block:
   Read a job's `uses:` to see which lane it runs, and the orchestrator's `on:`
   block to see when.
 - **Reusable workflows** — `on.workflow_call` only, named with a `⚡` prefix.
-  Each owns runner selection and setup and ends in a `run:` line of the form
-  `nix develop .#<shell> -c ./scripts/ci/<script>.sh`. The pre-commit workflow
-  additionally runs `skills-sync sync --tier ci` as an explicit step before its
-  script: the hook uses the warning tier, so running the hook in CI cannot stand
-  in for the guarantee tier.
+  Each owns runner selection and setup and ends in exactly one `run:` line of the
+  form `nix develop .#<shell> -c ./scripts/ci/<script>.sh`. That line is the
+  authoritative statement of which script the lane runs and in which shell.
 
 Callers grant permissions, pass only repository-specific values, and use
 `secrets: inherit`. The `a-workflows` gate enforces that every orchestrator job
@@ -41,10 +39,14 @@ adjacent `actions/checkout`.
 Trusted actions use major pins; every other action uses an exact 40-character SHA
 plus its tag in a trailing comment. Which actions are trusted is recorded in
 `config/action-trust.json`: each key is an action reference and its value is
-`trusted` or `non-trusted`. `dlint action-pins` reads that file and refuses any
-action used in a workflow that has no classification, so adding an action means
-adding its entry there. Which path it reads is `dlint.yaml`'s
-`checks["action-pins"].trustMap`.
+`trusted` or `non-trusted`. On this node the check is
+`scripts/validate/action-pins.sh`, run in two modes by the `a-action-pins-trusted`
+and `a-action-pins-non-trusted` hooks; it reads that file and refuses any action
+used in a workflow that has no classification, so adding an action means adding
+its entry there. The parent template runs the same rule through `dlint
+action-pins` instead and takes the path from `.dlint.json`'s
+`checks["action-pins"].trustMap`; this node's `.dlint.json` configures only
+`ci-wiring`, so that key is deliberately absent here.
 
 ## Every job declares its dependencies
 
@@ -77,15 +79,43 @@ is shared per OS and architecture, carries no organization, platform or service
 name, and changing the OS rotates the tag and costs one cold build before warm
 reuse resumes.
 
-## Dependency materialisation
+## The pre-vendor hook
 
-Each lane's `run:` line enters a Nix shell, and the shell is the whole of that
-lane's dependency contract: there is no separate setup entry point to call first.
+Every lane starts at `scripts/ci/setup.sh`, which vendors each dependency's skills
+before anything else runs. `skills-sync sync --tier setup` validates the explicit
+no-runtime contract.
+package manager's own on-disk cache, so it can only see packages that have already
+been materialised there.
 
-A language template built from this one materialises its own ecosystem's packages
-— a .NET node its `dotnet restore`, a Node node its install — in its own
-configuration, not through an extension point here. A new language therefore
-changes one place.
+> **Before skills are vendored, each ecosystem gets one chance to materialise its
+> declared packages.** An ecosystem that takes it makes the vendor tree a function
+> of the declared dependency set. An ecosystem that does not may vendor a partial
+> tree, and the `a-skills-sync` gate then fails several steps later on a diff
+> that does not name this as the cause.
+
+The hook is an optional executable at `scripts/ci/pre-vendor.sh`. `setup.sh` runs
+it, if it is there, immediately before `skills-sync.sh`. There is nothing to
+configure and no workflow to edit: a lane that already calls `setup.sh` picks the
+hook up by the file existing.
+
+This template declares no packages of its own, so it ships no hook and every lane
+here runs the absent case. A node built from it supplies one — a .NET node runs
+`dotnet restore`, a Node node its install — and writes the command in that file
+rather than in this document, which is why the command is not listed here.
+
+Three states, three outcomes, and the middle one is the reason the hook is not
+just `[ -x … ] && …`:
+
+| `scripts/ci/pre-vendor.sh` | `setup.sh`                                    |
+| -------------------------- | --------------------------------------------- |
+| absent                     | proceeds — this is a normal, successful setup |
+| present, not executable    | refuses, naming the file and the `chmod`      |
+| present, exits non-zero    | refuses with the hook's own exit status       |
+
+A hook that cannot run is a misconfiguration, not an absent hook, so it gets its
+own refusal. Folding it into the absent case would turn a broken restore into a
+silent skip — and a silently skipped restore is the failure the hook exists to
+prevent, arriving later wearing the freshness gate's face.
 
 ## Local reproduction
 
@@ -93,13 +123,8 @@ Run the same entry point the lane runs. Take the `run:` line from the reusable
 workflow you want to reproduce and run it verbatim, for example:
 
 ```bash
-nix develop .#ci -c skills-sync sync --tier ci
 nix develop .#ci -c ./scripts/ci/pre-commit.sh
 ```
-
-Run both lines, in that order, to reproduce the pre-commit workflow. A downstream
-runtime restores its dependencies before the skills step; workspace declares
-`runtime: none`, so the generic call is deliberately inert here.
 
 The Docker and Helm scripts build locally by default. Their reusable workflows set
 the documented environment contract to enable publishing.

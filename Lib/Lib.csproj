@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AtomiCloud.DotnetBase.Lib</RootNamespace>
+  </PropertyGroup>
+
+</Project>

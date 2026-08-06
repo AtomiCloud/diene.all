@@ -1,1 +1,3 @@
-message: diene workspace
+# ### workspace-values
+# #### source: workspace
+replicaCount: 1

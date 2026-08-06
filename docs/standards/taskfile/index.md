@@ -24,11 +24,6 @@ current surface. To read it from source instead, start at `Taskfile.yaml`: its
 Every task carries a `desc:` explaining what it does, and its `cmds:` are the
 literal commands it runs.
 
-The root `setup` task owns generated workspace assets. It runs
-`releaser conventions -c release.yaml` and then the only permitted vendor-tree
-writer, `skills-sync sync --tier setup`. Setup is repair-capable; the pre-commit
-and CI tiers refuse rather than silently staging or repairing a commit.
-
 Docker and Helm tasks are keyed by the artifact they act on — one task set per
 Dockerfile and per chart. See [the Docker standard](../docker/index.md) and
 [the Helm standard](../helm/index.md) for that naming convention.

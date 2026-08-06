@@ -1,0 +1,56 @@
+# ### dotnet-base-reusable-test
+# #### source: dotnet-base
+name: ⚡ Reusable Test
+
+on:
+  workflow_call:
+    inputs:
+      mode:
+        required: true
+        type: string
+      name:
+        required: true
+        type: string
+    secrets:
+      CODECOV_TOKEN:
+        required: false
+
+jobs:
+  test:
+    name: ${{ inputs.name }} Tests
+    runs-on:
+      - nscloud-ubuntu-22.04-amd64-4x8-with-cache
+      - nscloud-cache-size-50gb
+      - nscloud-cache-tag-nix-store-cache-linux-amd64
+    steps:
+      - uses: AtomiCloud/actions.setup-nix@v3
+      - uses: AtomiCloud/actions.cache-nuget@v1
+      - uses: AtomiCloud/actions.setup-docker@v2
+      - name: Run ${{ inputs.name }} coverage
+        env:
+          MODE: ${{ inputs.mode }}
+        run: nix develop .#ci -c ./scripts/ci/test.sh "${MODE}"
+      - name: Upload ${{ inputs.name }} test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results-${{ inputs.mode }}
+          path: TestResults/${{ inputs.mode }}/*.trx
+          if-no-files-found: warn
+      - name: Upload ${{ inputs.name }} coverage report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-${{ inputs.mode }}
+          path: TestResults/${{ inputs.mode }}/coverage/coverage.cobertura.xml
+          if-no-files-found: warn
+      - name: Upload ${{ inputs.name }} coverage to Codecov
+        if: always()
+        continue-on-error: true
+        uses: codecov/codecov-action@v7
+        with:
+          files: TestResults/${{ inputs.mode }}/coverage/coverage.cobertura.xml
+          flags: ${{ inputs.mode }}
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+          disable_search: true

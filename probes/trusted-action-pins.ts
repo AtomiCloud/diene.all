@@ -9,7 +9,7 @@ export default {
       description: 'Every authored trusted action uses a major-version pin.',
       kind: 'baseline',
       async run(repo: any) {
-        await expectGreen(repo, 'nix develop .#ci -c dlint action-pins trusted', 'trusted-action-pins');
+        await expectGreen(repo, 'nix develop .#ci -c ./scripts/validate/action-pins.sh trusted', 'trusted-action-pins');
       },
     },
     {
@@ -22,10 +22,15 @@ export default {
           find: 'AtomiCloud/actions.setup-nix@v3',
           replace: 'AtomiCloud/actions.setup-nix@f366a9f3997acdf7f335445809fd85e3a157147f',
         });
-        await expectRedBecause(repo, 'nix develop .#ci -c dlint action-pins trusted', 'trusted-action-pins', [
-          '.github/workflows/⚡reusable-precommit.yaml',
-          "trusted action 'AtomiCloud/actions.setup-nix' must use a major pin",
-        ]);
+        await expectRedBecause(
+          repo,
+          'nix develop .#ci -c ./scripts/validate/action-pins.sh trusted',
+          'trusted-action-pins',
+          [
+            '.github/workflows/⚡reusable-precommit.yaml',
+            "trusted action 'AtomiCloud/actions.setup-nix' must use a major pin",
+          ],
+        );
       },
     },
   ],

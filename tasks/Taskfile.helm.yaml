@@ -23,11 +23,11 @@ tasks:
     vars:
       CHART: infra/root_chart
     cmds:
-      - helm template diene-workspace {{.CHART}} {{.CLI_ARGS}}
+      - helm template dotnet-base {{.CHART}} {{.CLI_ARGS}}
 
   root_chart:debug:
     desc: Render infra/root_chart with debug output
     vars:
       CHART: infra/root_chart
     cmds:
-      - helm template diene-workspace {{.CHART}} --debug {{.CLI_ARGS}}
+      - helm template dotnet-base {{.CHART}} --debug {{.CLI_ARGS}}

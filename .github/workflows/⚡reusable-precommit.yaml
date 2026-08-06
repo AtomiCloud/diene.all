@@ -1,3 +1,5 @@
+# ### workspace-reusable-precommit
+# #### source: workspace
 name: ⚡ Reusable Pre-Commit
 
 on:
@@ -12,6 +14,7 @@ jobs:
       - nscloud-cache-tag-nix-store-cache-linux-amd64
     steps:
       - uses: AtomiCloud/actions.setup-nix@v3
+      - uses: AtomiCloud/actions.cache-nuget@v1
       - name: Verify vendored skills
         run: nix develop .#ci -c skills-sync sync --tier ci
       - name: Run pre-commit

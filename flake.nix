@@ -1,4 +1,6 @@
 {
+  # ### workspace-flake
+  # #### source: workspace
   inputs = {
     # util
     flake-utils.url = "github:numtide/flake-utils";
@@ -14,23 +16,19 @@
     # separately, on its own regular cadence, and that report never bumps
     # anything itself.
     #
-    # THIS IS ENFORCED. `scripts/validate/nixpkgs-pin.sh` runs as the `a-nixpkgs-pin`
-    # hook whenever this file or the lock changes, and refuses a root nixpkgs input
-    # that follows a channel, a lock whose resolution disagrees with what it asked
-    # for, or a commit named here that is not the one in force. The gate this comment
-    # used to mourn was deleted by owner ruling on 2026-08-05; the practice outlived
-    # it and now has an enforcer again. A floating ref reintroduced here turns the
-    # commit red, which was demonstrated before the guard landed.
+    # On THIS node the rule is enforced: scripts/validate/nixpkgs-pin.sh checks the
+    # nixpkgs-2605 revision against nix/snapshots/nixpkgs.json, checks flake.lock
+    # agrees, refuses a floating nixos-26.05 input, and requires the registry tag
+    # below to be a three-part one. The parent deleted that gate by owner ruling on
+    # 2026-08-05 and its copy of this comment says nothing validates it - that is
+    # true there and false here, so the wording is deliberately not the parent's.
     #
     # nixos-unstable @ 2026-08-05
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/e72e4f299401a3689d4b3d5fc6496b11db7064eb";
     # nixos-26.05 (Yarara) @ 2026-07-17
     nixpkgs-2605.url = "github:NixOS/nixpkgs/4382ed2b7a6839d4280a9b386db49cbc5907414d";
-    # NOTHING VALIDATES THIS. `v4` is retargeted at every registry release, so this
-    # input moves within the v4 major line whenever the lock is refreshed, and
-    # `flake.lock` alone records which commit is in force. Downstream templates
-    # inherit this line rather than re-pinning it, so an exact tag here would pin
-    # every child too. Unlike the nixpkgs inputs above, a moving ref is the intent.
+    # The v4 major is intentionally floating; flake.lock records the exact resolved
+    # registry revision. Releaser v2 and skills-sync are supplied by this registry.
     atomipkgs.url = "github:AtomiCloud/nix-registry/v4";
   };
   outputs =
@@ -73,6 +71,7 @@
         };
         packages = import ./nix/packages.nix {
           inherit
+            pkgs
             pkgs-2605
             pkgs-unstable
             atomi
