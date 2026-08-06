@@ -9,25 +9,25 @@ tasks:
     vars:
       CHART: infra/root_chart
     cmds:
-      - nix develop --no-write-lock-file .#default -c helm dependency build {{.CHART}}
+      - helm dependency build {{.CHART}}
 
   root_chart:lint:
     desc: Lint infra/root_chart
     vars:
       CHART: infra/root_chart
     cmds:
-      - nix develop --no-write-lock-file .#default -c helm lint {{.CHART}}
+      - helm lint {{.CHART}}
 
   root_chart:template:
     desc: Render infra/root_chart
     vars:
       CHART: infra/root_chart
     cmds:
-      - nix develop --no-write-lock-file .#default -c helm template diene-workspace {{.CHART}} {{.CLI_ARGS}}
+      - helm template diene-workspace {{.CHART}} {{.CLI_ARGS}}
 
   root_chart:debug:
     desc: Render infra/root_chart with debug output
     vars:
       CHART: infra/root_chart
     cmds:
-      - nix develop --no-write-lock-file .#default -c helm template diene-workspace {{.CHART}} --debug {{.CLI_ARGS}}
+      - helm template diene-workspace {{.CHART}} --debug {{.CLI_ARGS}}

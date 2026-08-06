@@ -8,14 +8,15 @@ let
   validator-runtime = pkgs.buildEnv {
     name = "workspace-validator-runtime";
     # atomiutils supplies bash/jq/yq plus the coreutils/find/grep/sed binaries the
-    # validators call, so declaring those separately would duplicate the bundle
-    # (and collide with it in this buildEnv). git, ripgrep, and util-linux (for
-    # flock) do not overlap it.
+    # validators call - and, since registry v3.12.0, rg as well - so declaring any
+    # of those separately would duplicate the bundle and collide with it in this
+    # buildEnv. That is not a prediction: while v3.12.0 was landing, a standalone
+    # nixpkgs ripgrep alongside the bundle failed this very buildEnv with
+    # "conflicting subpath ... /bin/rg". git is the only entry left that the
+    # bundle does not already carry.
     paths = [
       packages.atomiutils
       packages.git
-      packages.ripgrep
-      pkgs.util-linux
     ];
   };
   validator =
@@ -31,6 +32,12 @@ let
       builtins.concatStringsSep " && " (
         map (command: "${packages.atomiutils}/bin/bash ${command}") commands
       )
+    }'";
+  dlint = check: "${packages.dlint}/bin/dlint ${check}";
+  dlints =
+    checks:
+    "${packages.atomiutils}/bin/bash -c '${
+      builtins.concatStringsSep " && " (map (check: "${packages.dlint}/bin/dlint ${check}") checks)
     }'";
 in
 pre-commit-lib.run {
@@ -51,40 +58,11 @@ pre-commit-lib.run {
     a-action-pins = {
       enable = true;
       name = "Action pins";
-      entry = validators [
-        "scripts/validate/action-pins.sh trusted"
-        "scripts/validate/action-pins.sh non-trusted"
+      entry = dlints [
+        "action-pins trusted"
+        "action-pins non-trusted"
       ];
-      files = "^\\.github/workflows/.*\\.ya?ml$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    # always_run, not a files pattern: the check reads CLAUDE.md but fails on the
-    # state of its *targets*, and a deleted or renamed target need not touch any
-    # path a pattern could name. Selecting on content would make deletion coverage
-    # depend on the deleter also editing a watched file. The check is offline and
-    # costs milliseconds, so running it every time is cheaper than the gap.
-    # SSL_CERT_FILE is bound explicitly because the pure flake derivation has no
-    # ambient certificate file, and lychee refuses to start without one even under
-    # --offline.
-    a-claude-links = {
-      enable = true;
-      name = "CLAUDE link integrity";
-      entry = "${pkgs.coreutils}/bin/env SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt ${pkgs.lychee}/bin/lychee --offline --no-progress CLAUDE.md";
-      always_run = true;
-      pass_filenames = false;
-      language = "system";
-    };
-
-    # The contributor-doc workflow is an executable state contract, not prose-only
-    # guidance. This assert-the-asserter checks its mirrored schemas and step sets,
-    # then drives healthy and destructive transition fixtures on every commit.
-    a-contributor-docs-contract = {
-      enable = true;
-      name = "Contributor-doc state contract";
-      entry = validator "docs/standards/contributor-docs/scripts/init-state.sh --check-write-contract";
-      always_run = true;
+      files = "^(\\.github/workflows/.*\\.ya?ml|config/action-trust\\.json)$";
       pass_filenames = false;
       language = "system";
     };
@@ -92,7 +70,7 @@ pre-commit-lib.run {
     a-enforce-exec = {
       enable = true;
       name = "Executable shell scripts";
-      entry = validator "scripts/validate/executable-shells.sh";
+      entry = dlint "exec-bits";
       files = ".*\\.sh$";
       pass_filenames = false;
       language = "system";
@@ -110,7 +88,7 @@ pre-commit-lib.run {
     a-infisical = {
       enable = true;
       name = "Secrets scan";
-      entry = "${packages.infisical}/bin/infisical scan . -v";
+      entry = "${packages.infisical}/bin/infisical scan . -v --redact";
       pass_filenames = false;
       language = "system";
     };
@@ -118,7 +96,7 @@ pre-commit-lib.run {
     a-infisical-staged = {
       enable = true;
       name = "Staged secrets scan";
-      entry = "${packages.infisical}/bin/infisical scan git-changes --staged -v";
+      entry = "${packages.infisical}/bin/infisical scan git-changes --staged -v --redact";
       pass_filenames = false;
       language = "system";
     };
@@ -136,20 +114,14 @@ pre-commit-lib.run {
       language = "system";
     };
 
+    # flake.nix says every nixpkgs input is pinned to an exact commit and that nothing
+    # validates it. This is that validation. It guards the ROOT's nixpkgs inputs only -
+    # the transitive closure floats on channels legitimately and is not ours to police.
     a-nixpkgs-pin = {
       enable = true;
-      name = "Shared nixpkgs pin";
-      entry = validator "scripts/validate/nixpkgs-pin.sh";
-      files = "^(flake\\.nix|flake\\.lock|nix/.*|nix/snapshots/nixpkgs\\.json)$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-release-config = {
-      enable = true;
-      name = "Release config schema and types";
-      entry = validator "scripts/validate/release-config.sh all";
-      files = "^atomi_release\\.yaml$";
+      name = "Nixpkgs pin honesty";
+      entry = "${packages.atomiutils}/bin/bash -c 'export PATH=${validator-runtime}/bin; exec ${packages.atomiutils}/bin/bash scripts/validate/nixpkgs-pin.sh'";
+      files = "^flake\\.(nix|lock)$";
       pass_filenames = false;
       language = "system";
     };
@@ -157,9 +129,21 @@ pre-commit-lib.run {
     a-releaser-commit = {
       enable = true;
       name = "Conventional commit";
-      entry = "releaser lint-commit -c atomi_release.yaml";
+      entry = "${packages.releaser}/bin/releaser lint-commit -c release.yaml";
       stages = [ "commit-msg" ];
       pass_filenames = true;
+      language = "system";
+    };
+
+    # `sync` owns both halves of the commit-time guarantee: it refuses when it
+    # regenerates the vendor tree and when the index does not already carry what
+    # the packages ship. It never stages files, and it skips only when dependency
+    # restoration is absent at this warning tier; CI below is the guarantee.
+    a-skills-sync = {
+      enable = true;
+      name = "Vendored skills";
+      entry = "${packages.skills-sync}/bin/skills-sync sync --tier pre-commit";
+      pass_filenames = false;
       language = "system";
     };
 
@@ -180,25 +164,14 @@ pre-commit-lib.run {
       language = "system";
     };
 
-    a-skills-freshness = {
-      enable = true;
-      name = "Vendored skills freshness";
-      entry = validator "scripts/validate/skills-freshness.sh";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    # The wiring mode keeps both of its halves — every referenced scripts/ci entry
-    # point exists and is executable, and every orchestrator job resolves to a
-    # repository-local reusable workflow that calls one — unchanged.
+    # `ci-wiring` and `workflow-policy` cover independent workflow properties, so
+    # neither gates the other: both run on every invocation and the hook returns
+    # the higher exit code. `workflow-policy` is the sole owner of the five exact
+    # release values after its redundant repository-local predecessor was retired.
     a-workflows = {
       enable = true;
-      name = "Workflow wiring, release trigger and concurrency";
-      entry = validators [
-        "scripts/validate/workflows.sh wiring"
-        "scripts/validate/workflows.sh release-trigger"
-        "scripts/validate/workflows.sh release-concurrency"
-      ];
+      name = "Workflow wiring and release policy";
+      entry = "${packages.atomiutils}/bin/bash -c 'c=0; p=0; ${packages.dlint}/bin/dlint ci-wiring || c=$?; ${packages.dlint}/bin/dlint workflow-policy || p=$?; r=$c; [ $p -gt $r ] && r=$p; exit $r'";
       files = "^\\.github/workflows/.*\\.ya?ml$";
       pass_filenames = false;
       language = "system";

@@ -1,4 +1,5 @@
 import type { ProbeExecResult, ProbeRepo } from '@cyanprint/contracts';
+import { capturedEnvCommand } from './helpers';
 
 function commandFailure(command: string, result: ProbeExecResult): string {
   return [
@@ -31,7 +32,7 @@ export async function expectFailure(repo: ProbeRepo, command: string): Promise<P
 }
 
 export function devShellCommand(command: string, shell = 'ci'): string {
-  return `nix develop --no-write-lock-file .#${shell} -c bash -lc ${shellQuote(command)}`;
+  return capturedEnvCommand(`nix develop --no-write-lock-file .#${shell} -c bash -lc ${shellQuote(command)}`);
 }
 
 export async function expectDevShellSuccess(repo: ProbeRepo, command: string, shell = 'ci'): Promise<ProbeExecResult> {

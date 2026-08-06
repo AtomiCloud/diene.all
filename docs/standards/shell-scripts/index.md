@@ -75,8 +75,8 @@ says who is allowed to call them:
 
 - `scripts/ci/` — CI/CD lane entry points. Only GitHub workflows invoke these; a
   Taskfile must never call one.
-- `scripts/local/` — developer-facing helpers. Taskfiles invoke these.
-- `scripts/release/` — release-time helpers, invoked by the release process.
+- `scripts/local/` — developer-facing helpers. Taskfiles invoke these, and a
+  developer may also run one directly.
 - `scripts/validate/` — repository-owned policy checks, invoked by pre-commit
   hooks.
 

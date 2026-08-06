@@ -5,17 +5,29 @@ title: Taskfile Conventions
 
 # Taskfile Conventions
 
-`pls` is the repository task runner. Root tasks live in `Taskfile.yaml`; grouped
-tasks live under `tasks/` and are included by namespace.
+`task` (go-task) is the repository task runner — the only one. Root tasks live in
+`Taskfile.yaml`; grouped tasks live under `tasks/` and are included by namespace.
+
+`pls` used to sit in the toolchain beside it and was removed by owner ruling.
+It was not a different program: `pls --version` and `task --version` both report
+`3.48.0` and both read the same `Taskfile.yaml` / `tasks/Taskfile.*.yaml` set, so
+it added a second name for one runner and no capability. Do not re-add it, and do
+not write `pls <name>` anywhere — in a document, a script, a workflow or a probe.
+The invocation is `task <name>`.
 
 ## Reading the task surface
 
-`pls --list` prints every available task with its description; that output is the
+`task --list` prints every available task with its description; that output is the
 current surface. To read it from source instead, start at `Taskfile.yaml`: its
 `includes:` block maps each namespace to a file under `tasks/`, so a task shown as
 `<namespace>:<task>` is the `<task>` key in the file that namespace includes.
 Every task carries a `desc:` explaining what it does, and its `cmds:` are the
 literal commands it runs.
+
+The root `setup` task owns generated workspace assets. It runs
+`releaser conventions -c release.yaml` and then the only permitted vendor-tree
+writer, `skills-sync sync --tier setup`. Setup is repair-capable; the pre-commit
+and CI tiers refuse rather than silently staging or repairing a commit.
 
 Docker and Helm tasks are keyed by the artifact they act on — one task set per
 Dockerfile and per chart. See [the Docker standard](../docker/index.md) and
