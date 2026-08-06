@@ -114,6 +114,18 @@ pre-commit-lib.run {
       language = "system";
     };
 
+    # flake.nix says every nixpkgs input is pinned to an exact commit and that nothing
+    # validates it. This is that validation. It guards the ROOT's nixpkgs inputs only -
+    # the transitive closure floats on channels legitimately and is not ours to police.
+    a-nixpkgs-pin = {
+      enable = true;
+      name = "Nixpkgs pin honesty";
+      entry = "${packages.atomiutils}/bin/bash -c 'export PATH=${validator-runtime}/bin; exec ${packages.atomiutils}/bin/bash scripts/validate/nixpkgs-pin.sh'";
+      files = "^flake\\.(nix|lock)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
     a-releaser-commit = {
       enable = true;
       name = "Conventional commit";
