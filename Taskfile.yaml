@@ -26,8 +26,8 @@ tasks:
       # ### bun-base-setup
       # #### source: bun-base
       - releaser conventions -c release.yaml
-      - skills-sync sync --tier setup
       - ./scripts/local/setup.sh
+      - skills-sync sync --tier setup
 
   lint:
     desc: Run all repository gates
