@@ -102,9 +102,21 @@ pre-commit-lib.run {
     a-releaser-commit = {
       enable = true;
       name = "Conventional commit";
-      entry = "${packages.releaser}/bin/releaser lint-commit -c atomi_release.yaml";
+      entry = "${packages.releaser}/bin/releaser lint-commit -c release.yaml";
       stages = [ "commit-msg" ];
       pass_filenames = true;
+      language = "system";
+    };
+
+    # `sync` owns both halves of the commit-time guarantee: it refuses when it
+    # regenerates the vendor tree and when the index does not already carry what
+    # the packages ship. It never stages files, and it skips only when dependency
+    # restoration is absent at this warning tier; CI below is the guarantee.
+    a-skills-sync = {
+      enable = true;
+      name = "Vendored skills";
+      entry = "${packages.skills-sync}/bin/skills-sync sync --tier pre-commit";
+      pass_filenames = false;
       language = "system";
     };
 

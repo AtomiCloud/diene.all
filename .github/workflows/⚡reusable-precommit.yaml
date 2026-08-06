@@ -12,5 +12,7 @@ jobs:
       - nscloud-cache-tag-nix-store-cache-ubuntu-26.04-amd64
     steps:
       - uses: AtomiCloud/actions.setup-nix@v3
+      - name: Verify vendored skills
+        run: nix develop .#ci -c skills-sync sync --tier ci
       - name: Run pre-commit
         run: nix develop .#ci -c ./scripts/ci/pre-commit.sh

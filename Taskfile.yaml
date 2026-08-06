@@ -7,10 +7,12 @@ includes:
 tasks:
   setup:
     desc: Set up generated workspace assets
-    # `releaser conventions` takes no config path and reads `atomi_release.yaml`
-    # from the working directory.
+    # Releaser v2 hard-renamed its config; keep the explicit path beside the
+    # binary move so setup never depends on a stale default. Skills sync is the
+    # only writer of the vendor tree and setup is its repair-capable tier.
     cmds:
-      - releaser conventions
+      - releaser conventions -c release.yaml
+      - skills-sync sync --tier setup
 
   lint:
     desc: Run all repository gates
