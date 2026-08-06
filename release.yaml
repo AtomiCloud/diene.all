@@ -1,12 +1,6 @@
 schemaVersion: 2
 
 types:
-  - type: amend
-    desc: Small amendments and typo fixes
-    scopes:
-      default:
-        desc: Amend existing work
-        release: false
   - type: build
     desc: Build-system changes
     scopes:
@@ -18,15 +12,6 @@ types:
     scopes:
       default:
         desc: Perform a chore
-        release: false
-      many-owner:
-        desc: Surfaces with several owners
-        release: false
-      nix:
-        desc: Nix flake and modules
-        release: false
-      workspace:
-        desc: Workspace tree itself
         release: false
   - type: ci
     desc: CI/CD changes
@@ -63,9 +48,6 @@ types:
       default:
         desc: Update documentation
         release: false
-      nix:
-        desc: Nix flake and modules
-        release: false
   - type: feat
     desc: New features
     section: ✨ Features ✨
@@ -76,12 +58,6 @@ types:
       breaking:
         desc: Add a breaking feature
         release: major
-      nix:
-        desc: Nix flake and modules
-        release: minor
-      probes:
-        desc: Verification corpus
-        release: minor
   - type: fix
     desc: Bug fixes
     section: 🐛 Bug Fixes 🐛
@@ -89,29 +65,11 @@ types:
       default:
         desc: Fix a bug
         release: patch
-      nix:
-        desc: Nix flake and modules
-        release: patch
-      probes:
-        desc: Verification corpus
-        release: patch
-      skills:
-        desc: Agent skills
-        release: patch
-      workspace:
-        desc: Workspace tree itself
-        release: patch
   - type: merge
     desc: Branch merges
     scopes:
       default:
         desc: Merge a branch
-        release: false
-      main:
-        desc: Root branch layer
-        release: false
-      workspace:
-        desc: Workspace tree itself
         release: false
   - type: perf
     desc: Performance improvements
@@ -120,17 +78,11 @@ types:
       default:
         desc: Improve performance
         release: patch
-      probes:
-        desc: Verification corpus
-        release: patch
   - type: refactor
     desc: Refactors
     scopes:
       default:
         desc: Refactor implementation
-        release: minor
-      ci:
-        desc: CI/CD wiring
         release: minor
   - type: style
     desc: Non-functional style changes
@@ -138,18 +90,12 @@ types:
       default:
         desc: Update style
         release: patch
-      probes:
-        desc: Verification corpus
-        release: patch
   - type: test
     desc: Test changes
     section: 🧪 Tests 🧪
     scopes:
       default:
         desc: Add or correct tests
-        release: minor
-      probes:
-        desc: Verification corpus
         release: minor
 
 specialScopes:
@@ -225,7 +171,7 @@ release:
     releasedLabels:
       - released
   hooks:
-    # Deliberately empty: the hook point a downstream node fills. A version file
-    # enters commit.assets in the SAME edit as the command that writes it.
+    # Hook point a downstream node fills; a version file enters commit.assets in
+    # the same edit as the command that writes it.
     prepare: []
     success: []
