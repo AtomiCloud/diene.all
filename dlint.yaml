@@ -24,14 +24,14 @@ checks:
       - git
       - gomplate
       - hadolint
-      - helm
+      - helm version
       - helm-docs
       - infisical
       - jq
       - k3d
-      - kubeconform
-      - kubectl
-      - kyverno
+      - kubeconform -v
+      - kubectl version --client
+      - kyverno version
       - nix
       - pre-commit
       - releaser
