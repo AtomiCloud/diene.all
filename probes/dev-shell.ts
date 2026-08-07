@@ -1,28 +1,16 @@
-import type { ProbeDefinition } from "@cyanprint/contracts";
+import { expectDevShellsOnce } from './lib/helpers.ts';
 
-const definition: ProbeDefinition = {
+export default {
   contractVersion: 1,
-  sandbox: { snapshot: "git" },
+  sandbox: { snapshot: 'git', preserve: ['.direnv'] },
   probes: [
     {
-      name: "default-dev-shell-loads",
-      description:
-        "The default Nix development shell loads and executes a real command.",
-      kind: "baseline",
-      timeoutMs: 240000,
-      async run(repo) {
-        const result = await repo.exec(
-          "nix develop --no-write-lock-file .#default -c true",
-          { timeoutMs: 240000 },
-        );
-        if (result.exitCode !== 0) {
-          throw new Error(
-            `default dev shell failed to load: ${result.stderr || result.stdout}`,
-          );
-        }
+      name: 'baseline-dev-shell-green',
+      description: 'Every workspace development shell evaluates and starts.',
+      kind: 'baseline',
+      async run(repo: any) {
+        await expectDevShellsOnce(repo);
       },
     },
   ],
 };
-
-export default definition;

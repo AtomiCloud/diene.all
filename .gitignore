@@ -1,15 +1,29 @@
-### nix-init
-.direnv
+### workspace [nix]
+.direnv/
 .pre-commit-config.yaml
+/result
+/result-*
 
-# ROOT-LAYER ONLY — do NOT cascade this line to a descendant.
-#
-# The root deliberately has NO committed lock: its flake.nix pins every input to
-# an exact commit, so a lock is a second copy of the same fact that can disagree
-# with the first. But nix WRITES the lock on every evaluation and `git add` picks
-# it up, so the absence has to be enforced rather than merely intended.
-#
-# `workspace` and everything below it DO commit a lock, and their pin gate reads
-# it as a second copy that must agree with flake.nix. Inheriting this line there
-# would contradict their own law, so a merge from the root drops it.
-flake.lock
+### workspace [secrets]
+!.env.example
+.env
+.env.*
+
+### workspace [tooling]
+*.log
+*.swo
+*.swp
+*~
+.kagent/
+.kloop/
+
+### workspace [os-editors]
+._*
+.DS_Store
+.idea/
+.vscode/
+Thumbs.db
+desktop.ini
+
+### workspace [helm]
+infra/root_chart/uploads/

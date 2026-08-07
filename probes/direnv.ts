@@ -1,28 +1,20 @@
-import type { ProbeDefinition } from "@cyanprint/contracts";
+import { expectGreen } from './lib/helpers.ts';
 
-const definition: ProbeDefinition = {
+export default {
   contractVersion: 1,
-  sandbox: { snapshot: "git" },
+  sandbox: { snapshot: 'git', preserve: ['.direnv'] },
   probes: [
     {
-      name: "direnv-loads-repo-environment",
-      description:
-        "The committed .envrc loads the repository environment in an isolated direnv config.",
-      kind: "baseline",
-      timeoutMs: 240000,
-      async run(repo) {
-        const result = await repo.exec(
+      name: 'baseline-direnv-green',
+      description: 'The committed .envrc loads the repository environment with an isolated direnv config.',
+      kind: 'baseline',
+      async run(repo: any) {
+        await expectGreen(
+          repo,
           'config="$(mktemp -d)" && DIRENV_CONFIG="$config" direnv allow . && DIRENV_CONFIG="$config" direnv exec . true',
-          { timeoutMs: 240000 },
+          'direnv',
         );
-        if (result.exitCode !== 0) {
-          throw new Error(
-            `direnv failed to load .envrc: ${result.stderr || result.stdout}`,
-          );
-        }
       },
     },
   ],
 };
-
-export default definition;

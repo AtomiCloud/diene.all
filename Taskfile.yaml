@@ -1,0 +1,16 @@
+version: '3'
+
+includes:
+  docker: tasks/Taskfile.docker.yaml
+  helm: tasks/Taskfile.helm.yaml
+
+tasks:
+  setup:
+    desc: Set up the workspace
+    cmds:
+      - ./scripts/local/setup.sh
+
+  lint:
+    desc: Run all repository gates
+    cmds:
+      - pre-commit run --all-files
