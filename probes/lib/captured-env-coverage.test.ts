@@ -54,17 +54,15 @@ describe('captured-env coverage of direct repo.exec shell entries', () => {
   });
 
   // The count is a tripwire, not a target: it exists so that ADDING a shell-entering
-  // call site is a decision somebody makes on purpose. It went 15 -> 16 when
-  // cache-tag-shape.ts gained a second direct site, then 16 -> 14 when that probe was
-  // deleted with the cache-policy gate it tested (owner ruling, 2026-08-05) — it had
-  // carried two of the sites. It is now 15 across 8 files: secret-guards.ts was deleted
-  // with the secrets fetch/scan actions it tested (-1), and hook-enforce-exec.ts and
-  // hook-shellcheck.ts each took a direct site so their mutation arms can assert the
-  // gate's refusal TEXT and not merely its exit code (+2). Move it only together with
-  // the sites that justify it.
-  test('the wrapped set is the 15 known shell-entering call sites, across 8 files', () => {
+  // call site is a decision somebody makes on purpose. The population it names is every
+  // `repo.exec` in `probes/*.ts` whose command enters a development shell, so deleting a
+  // probe lowers it and a new direct site raises it. Move it only together with the sites
+  // that justify it — a number left one too high is an assertion that fails silently.
+  // The two `hook-` files hold a direct site each so their mutation arms can assert the
+  // gate's refusal TEXT and not merely its exit code.
+  test('the wrapped set is the 10 known shell-entering call sites, across 6 files', () => {
     const wrapped = allSites.filter(site => site.wrapped);
-    expect(wrapped).toHaveLength(15);
+    expect(wrapped).toHaveLength(10);
     expect([...new Set(wrapped.map(site => site.file))].sort()).toEqual([
       'hook-enforce-exec.ts',
       'hook-shellcheck.ts',
@@ -72,8 +70,6 @@ describe('captured-env coverage of direct repo.exec shell entries', () => {
       'precommit-treefmt-nixfmt.ts',
       'precommit-treefmt-prettier.ts',
       'precommit-treefmt-shfmt.ts',
-      'skills-freshness.ts',
-      'skills-sync.ts',
     ]);
   });
 

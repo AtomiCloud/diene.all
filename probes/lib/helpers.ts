@@ -79,3 +79,90 @@ export async function expectRed(repo: any, command: string, label: string): Prom
     throw new Error(`${label} stayed green after sabotage`);
   }
 }
+
+function shellArgument(value: string): string {
+  return "'" + value.replaceAll("'", "'\\''") + "'";
+}
+
+export async function restoreProbeState(repo: any, cleanTargets: readonly string[]): Promise<void> {
+  if (cleanTargets.length === 0) {
+    throw new Error('probe cleanup requires at least one owned target');
+  }
+  const targets = cleanTargets.map(shellArgument).join(' ');
+  const madeWritable = await repo.exec(
+    `for target in ${targets}; do if [ -e "$target" ]; then chmod -R u+w -- "$target" || exit 1; fi; done`,
+  );
+  if (madeWritable.exitCode !== 0) {
+    throw new Error(`could not make probe fixtures writable: ${madeWritable.stderr || madeWritable.stdout}`);
+  }
+  // The worklist comes from HEAD, never from the index. `git ls-files` reads the index, so a
+  // STAGED DELETION removes the path from its output and the restore reports success while leaving
+  // the deletion staged. `git ls-tree` reads HEAD, where that path remains visible.
+  //
+  // Classify each owned target independently: paths present in HEAD are restored from HEAD; paths
+  // absent from HEAD can only be staged additions or untracked fixtures, so remove them from the
+  // index and let the scoped clean below remove their worktree copies. This remains target-scoped
+  // because restoring `-- .` would discard unrelated work in a shared checkout.
+  const restored = await repo.exec(
+    `for target in ${targets}; do ` +
+      `if [ -n "$(git ls-tree -r --name-only HEAD -- "$target")" ]; then ` +
+      `git restore --source=HEAD --staged --worktree -- "$target" || exit 1; ` +
+      `else git rm -r --cached -q --ignore-unmatch -- "$target" || exit 1; fi; done`,
+  );
+  if (restored.exitCode !== 0) {
+    throw new Error(`could not restore tracked probe state: ${restored.stderr || restored.stdout}`);
+  }
+  const cleaned = await repo.exec(`git clean -fdx -- ${targets}`);
+  if (cleaned.exitCode !== 0) {
+    throw new Error(`could not remove untracked probe fixtures: ${cleaned.stderr || cleaned.stdout}`);
+  }
+}
+
+export async function withCleanProbeState(
+  repo: any,
+  cleanTargets: readonly string[],
+  body: () => Promise<void>,
+): Promise<void> {
+  await restoreProbeState(repo, cleanTargets);
+  try {
+    await body();
+  } finally {
+    await restoreProbeState(repo, cleanTargets);
+  }
+}
+
+const UNEXECUTED_EXIT_CODES = new Map([
+  [126, 'not executable'],
+  [127, 'not found'],
+]);
+
+// A nonzero exit cannot tell a real catch from a sabotage that merely failed to parse.
+export async function expectRedBecause(
+  repo: any,
+  command: string,
+  label: string,
+  reasons: readonly string[],
+  options?: { timeoutMs?: number; forbidden?: readonly string[] },
+): Promise<string> {
+  if (reasons.length === 0 || reasons.some(reason => reason.trim().length === 0)) {
+    throw new Error(`${label}: expectRedBecause was given no refusal reason, so it could not fail`);
+  }
+  const result = await repo.exec(capturedEnvCommand(command, label), { timeoutMs: options?.timeoutMs ?? 240000 });
+  const output = `${result.stdout}\n${result.stderr}`;
+  if (result.exitCode === 0) {
+    throw new Error(`${label} stayed green after sabotage`);
+  }
+  const unexecuted = UNEXECUTED_EXIT_CODES.get(result.exitCode);
+  if (unexecuted) {
+    throw new Error(`${label} could not prove sabotage: command ${unexecuted} (exit ${result.exitCode})\n${output}`);
+  }
+  const missing = reasons.filter(reason => !output.includes(reason));
+  if (missing.length > 0) {
+    throw new Error(`${label} went red for the wrong reason (missing: ${missing.join(', ')})\n${output}`);
+  }
+  const disqualifying = (options?.forbidden ?? []).filter(marker => output.includes(marker));
+  if (disqualifying.length > 0) {
+    throw new Error(`${label} went red through a disqualified path (found: ${disqualifying.join(', ')})\n${output}`);
+  }
+  return output;
+}
