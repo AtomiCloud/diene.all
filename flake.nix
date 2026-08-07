@@ -14,8 +14,7 @@
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/b7c2ada94fe99c15b0dbcf4d11fd7850b957a436";
     # nixos-26.05 (Yarara) @ 2026-08-06
     nixpkgs-2605.url = "github:NixOS/nixpkgs/445d861c6d31b4af0c79d8d4be2331f762a361d7";
-    # Rev-pinned during the 2026-08-06 Actions outage (no release could cut); restore to /v4 after.
-    atomipkgs.url = "github:AtomiCloud/nix-registry/0d75f6006677c591605e4eff4a84419695e02526";
+    atomipkgs.url = "github:AtomiCloud/nix-registry/v4";
   };
   outputs =
     {
