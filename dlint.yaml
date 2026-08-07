@@ -1,7 +1,7 @@
 schemaVersion: 1
 checks:
   action-pins:
-    trustMap: config/action-trust.json
+    trustedPattern: ^AtomiCloud/
     workflowsDir: .github/workflows
   exec-bits:
     globs:

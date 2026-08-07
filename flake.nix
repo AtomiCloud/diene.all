@@ -8,13 +8,13 @@
     # registry
     #
     # nixpkgs inputs pin exact commits;
-    # atomipkgs deliberately floats on the v4 major line.
+    # atomipkgs deliberately floats on the v5 major line.
 
     # nixos-unstable @ 2026-08-06
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/b7c2ada94fe99c15b0dbcf4d11fd7850b957a436";
     # nixos-26.05 (Yarara) @ 2026-08-06
     nixpkgs-2605.url = "github:NixOS/nixpkgs/445d861c6d31b4af0c79d8d4be2331f762a361d7";
-    atomipkgs.url = "github:AtomiCloud/nix-registry/v4";
+    atomipkgs.url = "github:AtomiCloud/nix-registry/v5";
   };
   outputs =
     {
