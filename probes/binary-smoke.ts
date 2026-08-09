@@ -166,7 +166,7 @@ export default {
   probes: [
     {
       name: 'baseline-binary-smoke-resolves',
-      description: 'Every binary the workspace declares for the default shell resolves in it.',
+      description: 'Every binary this node declares for the default shell resolves in it.',
       kind: 'baseline',
       async run(repo: any) {
         await expectGreen(repo, 'nix develop .#default -c dlint toolchain-smoke', 'binary-smoke');

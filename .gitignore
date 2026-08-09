@@ -27,3 +27,10 @@ desktop.ini
 
 ### workspace [helm]
 infra/root_chart/uploads/
+
+### bun-base
+#### source: bun-base
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo

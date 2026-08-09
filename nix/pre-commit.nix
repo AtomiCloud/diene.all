@@ -6,11 +6,60 @@
   env,
 }:
 let
+  bun-tooling = pkgs.stdenvNoCC.mkDerivation {
+    pname = "bun-base-pre-commit-tooling";
+    version = "1";
+    src = builtins.path {
+      path = ../.;
+      name = "bun-base-pre-commit-tooling-source";
+      filter =
+        path: type:
+        type == "directory"
+        || builtins.elem (baseNameOf path) [
+          "bun.lock"
+          "package.json"
+        ];
+    };
+    nativeBuildInputs = [
+      packages.bun
+      pkgs.cacert
+    ];
+    dontConfigure = true;
+    buildPhase = ''
+      runHook preBuild
+      export HOME="$TMPDIR"
+      export SSL_CERT_FILE="${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
+      bun install --frozen-lockfile --no-progress --backend=copyfile --cpu='*' --os='*'
+      runHook postBuild
+    '';
+    installPhase = ''
+      runHook preInstall
+      mkdir -p "$out"
+      cp -R node_modules "$out/node_modules"
+      runHook postInstall
+    '';
+    dontFixup = true;
+    outputHashMode = "recursive";
+    outputHashAlgo = "sha256";
+    outputHash = "sha256-rAk5chYo8iCSowuIrdOc9jX7THNpgFd2kezoVTMWdcw=";
+  };
+  bun-tool = name: "${packages.bun}/bin/bun ${bun-tooling}/node_modules/.bin/${name}";
+  biome-platform =
+    if pkgs.stdenv.hostPlatform.isLinux then
+      "linux-${if pkgs.stdenv.hostPlatform.isAarch64 then "arm64" else "x64"}-musl"
+    else
+      "darwin-${if pkgs.stdenv.hostPlatform.isAarch64 then "arm64" else "x64"}";
+  biome-tool = "${bun-tooling}/node_modules/@biomejs/cli-${biome-platform}/biome";
+  pre-commit-source = pkgs.runCommand "bun-base-pre-commit-source" { } ''
+    mkdir -p "$out"
+    cp -R ${../.}/. "$out/"
+    ln -s ${bun-tooling}/node_modules "$out/node_modules"
+  '';
   # toolchain-smoke asserts the DECLARED env lists actually provide their binaries.
   envPath = pkgs.lib.makeBinPath (env.system ++ env.main ++ env.lint ++ env.dev);
 in
 pre-commit-lib.run {
-  src = ../.;
+  src = pre-commit-source;
 
   hooks = {
     treefmt = {
@@ -95,6 +144,44 @@ pre-commit-lib.run {
       entry = "${packages.shellcheck}/bin/shellcheck -x --source-path=SCRIPTDIR";
       files = ".*\\.sh$";
       pass_filenames = true;
+      language = "system";
+    };
+
+    # ### bun-base-hooks
+    # #### source: bun-base
+    a-biome = {
+      enable = true;
+      name = "Biome lint";
+      entry = "${biome-tool} lint --no-errors-on-unmatched";
+      files = "(^biome\\.json$|\\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$)";
+      pass_filenames = true;
+      language = "system";
+    };
+
+    a-deadcode = {
+      enable = true;
+      name = "Knip repository dead code";
+      entry = "${bun-tool "knip"} --config knip.json";
+      files = "(^package\\.json$|^tsconfig\\.json$|^knip\\.json$|\\.(ts|tsx)$)";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-deadcode-production = {
+      enable = true;
+      name = "Knip production dead code";
+      entry = "${bun-tool "knip"} --config knip.production.json";
+      files = "(^package\\.json$|^tsconfig\\.json$|^knip\\.production\\.json$|\\.(ts|tsx)$)";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    typecheck = {
+      enable = true;
+      name = "TypeScript typecheck";
+      entry = "${bun-tool "tsc"} --noEmit";
+      files = "(^package\\.json$|^tsconfig\\.json$|\\.(ts|tsx|mts|cts)$)";
+      pass_filenames = false;
       language = "system";
     };
   };

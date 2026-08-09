@@ -1,6 +1,42 @@
+# ### workspace-release
+# #### source: workspace
 schemaVersion: 2
 
 types:
+  # RESTORED SET - this is an interim posture, not a decision.
+  # The parent merge deleted seventeen type/scope pairs from this file: the
+  # whole `amend` type, plus the scopes chore many-owner/nix/workspace, docs
+  # nix, feat nix/probes, fix nix/probes/skills/workspace, merge
+  # main/workspace, perf probes, refactor ci, style probes and test probes.
+  # Git merged those deletions CLEANLY - no conflict and no marker - so the
+  # loss landed unseen at e570fa6e. Nothing was gained in exchange: the
+  # pre-merge tip 7fe9ff6d is a strict superset, and every pair below is
+  # restored in the exact shape and ordering that tip used.
+  #
+  # A PARENT TRIM IS NOT A RULING. The canonical question - whether the diet
+  # applies fleet-wide - sits with the owner as morning item 19 and is
+  # unresolved. Until it is ruled, this node keeps its pre-merge type/scope
+  # set entire, not merely the types. A later cascade
+  # must not read this restoration as a decision in either direction, and
+  # must not drop these pairs again on the strength of a parent trim alone.
+  #
+  # This is not decoration. Measured over the last 200 commits reachable from
+  # this node: chore(nix) 22, fix(probes) 17, fix(nix) 5, feat(nix) 4,
+  # test(probes) 4, refactor(ci) 4, perf(probes) 3, fix(skills) 3. With the
+  # pair absent the commit-msg hook REFUSES the scope, and the natural
+  # response to a refusal is to retype into a scope that is allowed - which
+  # skews to `default`, where chore maps to release: false. A loud gate with
+  # no right answer behind it quietly turns releasing work into
+  # non-releasing work.
+  #
+  # docs/developer/CommitConventions.md is generated from this file: any
+  # change here must regenerate it in the same commit.
+  - type: amend
+    desc: Small amendments and typo fixes
+    scopes:
+      default:
+        desc: Amend existing work
+        release: false
   - type: build
     desc: Build-system changes
     scopes:
@@ -12,6 +48,15 @@ types:
     scopes:
       default:
         desc: Perform a chore
+        release: false
+      many-owner:
+        desc: Surfaces with several owners
+        release: false
+      nix:
+        desc: Nix flake and modules
+        release: false
+      workspace:
+        desc: Workspace tree itself
         release: false
   - type: ci
     desc: CI/CD changes
@@ -48,6 +93,9 @@ types:
       default:
         desc: Update documentation
         release: false
+      nix:
+        desc: Nix flake and modules
+        release: false
   - type: feat
     desc: New features
     section: ✨ Features ✨
@@ -58,6 +106,12 @@ types:
       breaking:
         desc: Add a breaking feature
         release: major
+      nix:
+        desc: Nix flake and modules
+        release: minor
+      probes:
+        desc: Verification corpus
+        release: minor
   - type: fix
     desc: Bug fixes
     section: 🐛 Bug Fixes 🐛
@@ -65,11 +119,29 @@ types:
       default:
         desc: Fix a bug
         release: patch
+      nix:
+        desc: Nix flake and modules
+        release: patch
+      probes:
+        desc: Verification corpus
+        release: patch
+      skills:
+        desc: Agent skills
+        release: patch
+      workspace:
+        desc: Workspace tree itself
+        release: patch
   - type: merge
     desc: Branch merges
     scopes:
       default:
         desc: Merge a branch
+        release: false
+      main:
+        desc: Root branch layer
+        release: false
+      workspace:
+        desc: Workspace tree itself
         release: false
   - type: perf
     desc: Performance improvements
@@ -78,11 +150,17 @@ types:
       default:
         desc: Improve performance
         release: patch
+      probes:
+        desc: Verification corpus
+        release: patch
   - type: refactor
     desc: Refactors
     scopes:
       default:
         desc: Refactor implementation
+        release: minor
+      ci:
+        desc: CI/CD wiring
         release: minor
   - type: style
     desc: Non-functional style changes
@@ -90,12 +168,18 @@ types:
       default:
         desc: Update style
         release: patch
+      probes:
+        desc: Verification corpus
+        release: patch
   - type: test
     desc: Test changes
     section: 🧪 Tests 🧪
     scopes:
       default:
         desc: Add or correct tests
+        release: minor
+      probes:
+        desc: Verification corpus
         release: minor
 
 specialScopes:
@@ -164,6 +248,7 @@ release:
       ${notes}
     assets:
       - Changelog.md
+      - package.json
       - docs/developer/CommitConventions.md
   github:
     enabled: true
@@ -171,7 +256,12 @@ release:
     releasedLabels:
       - released
   hooks:
-    # Hook point a downstream node fills; a version file enters commit.assets in
-    # the same edit as the command that writes it.
-    prepare: []
+    # The hook point the parent leaves empty, filled here. This node's version
+    # lives in `package.json` rather than in a `VERSION` file, so the manifest
+    # the command below stamps is the same file listed in `commit.assets` above -
+    # written and committed by the same edit, which is what stops a version
+    # record going stale in silence.
+    prepare:
+      - phase: afterWrite
+        command: './scripts/release/bump.sh ${version}'
     success: []

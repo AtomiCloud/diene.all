@@ -13,6 +13,33 @@ jobs:
     uses: ./.github/workflows/⚡reusable-precommit.yaml
     secrets: inherit
 
+  # ### bun-base-ci
+  # #### source: bun-base
+  unit:
+    name: Unit Tests
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-test.yaml
+    secrets: inherit
+    with:
+      mode: unit
+
+  int:
+    name: Integration Tests
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-test.yaml
+    secrets: inherit
+    with:
+      mode: int
+
+  build:
+    name: Build Validation
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-build.yaml
+    secrets: inherit
+
   docker:
     name: Docker Image
     permissions:
