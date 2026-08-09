@@ -1,6 +1,20 @@
 schemaVersion: 2
 
 types:
+  # RE-ADDED after the shared@99a297e9 propagation. The parent dropped this type,
+  # and that deletion auto-merges CLEANLY into every child - no conflict, no marker,
+  # nothing for a seat to notice. It went 14 types to 13 here (release.yaml 231 lines
+  # to 177). A node that does not compare the type sets across the merge loses the
+  # type silently and stays fully green, because no gate we run asserts a set. It has
+  # already landed that way on one sibling node.
+  # Removing this type is a decision for whoever owns the commit-type policy, taken
+  # on purpose and written down - not a side effect of a propagation.
+  - type: amend
+    desc: Small amendments and typo fixes
+    scopes:
+      default:
+        desc: Amend existing work
+        release: false
   - type: build
     desc: Build-system changes
     scopes:
