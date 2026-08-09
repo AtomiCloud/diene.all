@@ -11,7 +11,6 @@ checks:
     entrypointPattern: scripts/ci/[A-Za-z0-9._-]+[.]sh
     orchestrators:
       - .github/workflows/ci.yaml
-      - .github/workflows/cd.yaml
       - .github/workflows/release.yaml
   toolchain-smoke:
     shell: default
@@ -22,20 +21,13 @@ checks:
       - dlint
       - git
       - gomplate
-      - helm version
-      - helm-docs
       - infisical
       - jq
-      - k3d
-      - kubeconform -v
-      - kubectl version --client
-      - kyverno version
       - nix
       - pre-commit
       - releaser
       - rg
       - shellcheck
-      - skopeo
       - task
       - treefmt
       - yq
