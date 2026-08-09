@@ -40,6 +40,7 @@ let
           infisical
           jq
           kubernetes-helm
+          nix
           pre-commit
           shellcheck
           treefmt
@@ -59,4 +60,4 @@ let
   };
 in
 with all;
-atomipkgs // nix-2605 // nix-unstable
+nix-2605 // nix-unstable // atomipkgs

@@ -3,6 +3,7 @@
   formatter,
   pkgs,
   pre-commit-lib,
+  env,
 }:
 let
   bun-tooling = pkgs.stdenvNoCC.mkDerivation {
@@ -54,40 +55,8 @@ let
     cp -R ${../.}/. "$out/"
     ln -s ${bun-tooling}/node_modules "$out/node_modules"
   '';
-  validator-runtime = pkgs.buildEnv {
-    name = "workspace-validator-runtime";
-    # atomiutils supplies bash/jq/yq plus the coreutils/find/grep/sed binaries the
-    # validators call - and, since registry v3.12.0, rg as well - so declaring any
-    # of those separately would duplicate the bundle and collide with it in this
-    # buildEnv. That is not a prediction: while v3.12.0 was landing, a standalone
-    # nixpkgs ripgrep alongside the bundle failed this very buildEnv with
-    # "conflicting subpath ... /bin/rg". git is the only entry left that the
-    # bundle does not already carry.
-    paths = [
-      packages.atomiutils
-      packages.git
-    ];
-  };
-  validator =
-    command:
-    "${packages.atomiutils}/bin/bash -c 'export PATH=${validator-runtime}/bin; exec ${packages.atomiutils}/bin/bash ${command}'";
-  # One hook, several invocations of the same validator: identical runtime PATH,
-  # stopping at the first non-zero exit so the reported failure is the gate that
-  # actually failed. Used where one validator script owns several modes and the
-  # modes do not warrant separate hooks.
-  validators =
-    commands:
-    "${packages.atomiutils}/bin/bash -c 'export PATH=${validator-runtime}/bin; ${
-      builtins.concatStringsSep " && " (
-        map (command: "${packages.atomiutils}/bin/bash ${command}") commands
-      )
-    }'";
-  dlint = check: "${packages.dlint}/bin/dlint ${check}";
-  dlints =
-    checks:
-    "${packages.atomiutils}/bin/bash -c '${
-      builtins.concatStringsSep " && " (map (check: "${packages.dlint}/bin/dlint ${check}") checks)
-    }'";
+  # toolchain-smoke asserts the DECLARED env lists actually provide their binaries.
+  envPath = pkgs.lib.makeBinPath (env.system ++ env.main ++ env.lint ++ env.dev);
 in
 pre-commit-lib.run {
   src = pre-commit-source;
@@ -104,23 +73,10 @@ pre-commit-lib.run {
       ];
     };
 
-    a-action-pins = {
+    a-dlint = {
       enable = true;
-      name = "Action pins";
-      entry = dlints [
-        "action-pins trusted"
-        "action-pins non-trusted"
-      ];
-      files = "^(\\.github/workflows/.*\\.ya?ml|config/action-trust\\.json)$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-enforce-exec = {
-      enable = true;
-      name = "Executable shell scripts";
-      entry = dlint "exec-bits";
-      files = ".*\\.sh$";
+      name = "dlint";
+      entry = "${packages.atomiutils}/bin/bash -c 'PATH=${envPath}:\$PATH ${packages.dlint}/bin/dlint lint'";
       pass_filenames = false;
       language = "system";
     };
@@ -163,18 +119,6 @@ pre-commit-lib.run {
       language = "system";
     };
 
-    # flake.nix says every nixpkgs input is pinned to an exact commit and that nothing
-    # validates it. This is that validation. It guards the ROOT's nixpkgs inputs only -
-    # the transitive closure floats on channels legitimately and is not ours to police.
-    a-nixpkgs-pin = {
-      enable = true;
-      name = "Nixpkgs pin honesty";
-      entry = "${packages.atomiutils}/bin/bash -c 'export PATH=${validator-runtime}/bin; exec ${packages.atomiutils}/bin/bash scripts/validate/nixpkgs-pin.sh'";
-      files = "^flake\\.(nix|lock)$";
-      pass_filenames = false;
-      language = "system";
-    };
-
     a-releaser-commit = {
       enable = true;
       name = "Conventional commit";
@@ -184,45 +128,22 @@ pre-commit-lib.run {
       language = "system";
     };
 
-    # `sync` owns both halves of the commit-time guarantee: it refuses when it
-    # regenerates the vendor tree and when the index does not already carry what
-    # the packages ship. It never stages files, and it skips only when dependency
-    # restoration is absent at this warning tier; CI below is the guarantee.
     a-skills-sync = {
       enable = true;
       name = "Vendored skills";
-      entry = "${packages.skills-sync}/bin/skills-sync sync --tier pre-commit";
+      entry = "${packages.skills-sync}/bin/skills-sync sync --frozen";
       pass_filenames = false;
       language = "system";
     };
 
-    # Source following belongs to the gate itself, not to an ambient SHELLCHECK_OPTS:
-    # pre-commit partitions the staged files, so a script and the script it sources
-    # routinely land in different batches, and bare ShellCheck then raises SC1091 on
-    # healthy sources. `-x` follows a declared `source=`, and `--source-path=SCRIPTDIR`
-    # adds the checked script's own directory so script-relative directives resolve
-    # too, on top of the repository-root-relative ones the working directory already
-    # covers. Findings from the sourced file stay out of the report (that would need
-    # `-a`), so the gate gains resolution without gaining noise.
+    # -x + SCRIPTDIR: staged-file batching splits scripts from their sources,
+    # so ShellCheck must follow source= directives itself.
     a-shellcheck = {
       enable = true;
       name = "Shellcheck";
       entry = "${packages.shellcheck}/bin/shellcheck -x --source-path=SCRIPTDIR";
       files = ".*\\.sh$";
       pass_filenames = true;
-      language = "system";
-    };
-
-    # `ci-wiring` and `workflow-policy` cover independent workflow properties, so
-    # neither gates the other: both run on every invocation and the hook returns
-    # the higher exit code. `workflow-policy` is the sole owner of the five exact
-    # release values after its redundant repository-local predecessor was retired.
-    a-workflows = {
-      enable = true;
-      name = "Workflow wiring and release policy";
-      entry = "${packages.atomiutils}/bin/bash -c 'c=0; p=0; ${packages.dlint}/bin/dlint ci-wiring || c=$?; ${packages.dlint}/bin/dlint workflow-policy || p=$?; r=$c; [ $p -gt $r ] && r=$p; exit $r'";
-      files = "^\\.github/workflows/.*\\.ya?ml$";
-      pass_filenames = false;
       language = "system";
     };
 
