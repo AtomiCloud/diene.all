@@ -1,0 +1,6 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+reviews:
+  path_filters:
+    - '!docs/standards/**/*.md'
+    - '!docs/domain/**/*.md'
+version: 2

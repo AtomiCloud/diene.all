@@ -1,0 +1,51 @@
+name: ⚡ Reusable Docker
+
+on:
+  workflow_call:
+    inputs:
+      image_name:
+        required: true
+        type: string
+      dockerfile:
+        required: false
+        type: string
+        default: ./infra/Dockerfile
+      context:
+        required: false
+        type: string
+        default: .
+      platform:
+        required: false
+        type: string
+        default: linux/arm64,linux/amd64
+      version:
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  build:
+    name: Build Docker
+    runs-on:
+      - nscloud-ubuntu-26.04-amd64-4x8-with-cache
+      - nscloud-cache-size-50gb
+      - nscloud-cache-tag-nix-store-cache-ubuntu-26.04-amd64
+    steps:
+      - uses: AtomiCloud/actions.setup-nix@v3
+      - uses: AtomiCloud/actions.setup-docker@v2
+      - name: Build and push Docker
+        env:
+          CI_DOCKER_CONTEXT: ${{ inputs.context }}
+          CI_DOCKER_IMAGE: ${{ inputs.image_name }}
+          CI_DOCKER_PLATFORM: ${{ inputs.platform }}
+          CI_DOCKER_PUSH: 'true'
+          CI_DOCKERFILE: ${{ inputs.dockerfile }}
+          DOMAIN: ghcr.io
+          DOCKER_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          DOCKER_USER: ${{ github.actor }}
+          GITHUB_BRANCH: ${{ github.ref_name }}
+          GITHUB_REPO_REF: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+          LATEST_BRANCH: main
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: nix develop .#cd -c ./scripts/ci/docker.sh
