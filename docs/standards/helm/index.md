@@ -18,10 +18,10 @@ Local work uses Taskfile one-liners (these never call the CI scripts). The
 authoritative list is `tasks/Taskfile.helm.yaml`: it holds one `deps`, `lint`,
 `template`, and `debug` task per chart, namespaced by the chart directory's own
 name — `infra/root_chart` is `root_chart:<verb>`. Read the task `desc` to see which
-chart a task acts on, or run `pls --list`.
+chart a task acts on, or run `task --list`.
 
 Pass extra `helm template` arguments after `--`. Chart linting is available
-directly and also runs in `pls lint`. Generated chart docs are produced by
+directly and also runs in `task lint`. Generated chart docs are produced by
 `helm-docs` from each chart's own values; no commit-time gate enforces them.
 
 Adding a chart means adding its own task set under its own key. Never generalize

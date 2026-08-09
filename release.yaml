@@ -1,0 +1,177 @@
+schemaVersion: 2
+
+types:
+  - type: build
+    desc: Build-system changes
+    scopes:
+      default:
+        desc: Update build machinery
+        release: false
+  - type: chore
+    desc: Repository chores
+    scopes:
+      default:
+        desc: Perform a chore
+        release: false
+  - type: ci
+    desc: CI/CD changes
+    scopes:
+      default:
+        desc: Update CI/CD
+        release: false
+  - type: config
+    desc: Configuration changes
+    scopes:
+      default:
+        desc: Update configuration
+        release: false
+  - type: dep
+    desc: Dependency updates
+    section: 🔼 Dependency Upstreams 🔼
+    scopes:
+      default:
+        desc: Update a dependency
+        release: false
+      patch:
+        desc: Patch dependency update
+        release: patch
+      minor:
+        desc: Minor dependency update
+        release: minor
+      major:
+        desc: Major dependency update
+        release: major
+  - type: docs
+    desc: Documentation changes
+    section: 📜 Documentation 📜
+    scopes:
+      default:
+        desc: Update documentation
+        release: false
+  - type: feat
+    desc: New features
+    section: ✨ Features ✨
+    scopes:
+      default:
+        desc: Add a feature
+        release: minor
+      breaking:
+        desc: Add a breaking feature
+        release: major
+  - type: fix
+    desc: Bug fixes
+    section: 🐛 Bug Fixes 🐛
+    scopes:
+      default:
+        desc: Fix a bug
+        release: patch
+  - type: merge
+    desc: Branch merges
+    scopes:
+      default:
+        desc: Merge a branch
+        release: false
+  - type: perf
+    desc: Performance improvements
+    section: 🚀 Performance Improvement 🚀
+    scopes:
+      default:
+        desc: Improve performance
+        release: patch
+  - type: refactor
+    desc: Refactors
+    scopes:
+      default:
+        desc: Refactor implementation
+        release: minor
+  - type: style
+    desc: Non-functional style changes
+    scopes:
+      default:
+        desc: Update style
+        release: patch
+  - type: test
+    desc: Test changes
+    section: 🧪 Tests 🧪
+    scopes:
+      default:
+        desc: Add or correct tests
+        release: minor
+
+specialScopes:
+  no-release:
+    desc: Prevent release from happening
+    release: false
+
+keywords:
+  - BREAKING CHANGE
+  - BREAKING CHANGES
+  - BREAKING
+
+lint:
+  header:
+    maxLength: 72
+    minLength: 5
+    forbiddenWords:
+      - WIP
+    forbidTrailingPunctuation: true
+  body:
+    maxLineLength: 80
+    minLengthWhenPresent: 20
+    requireBlankSecondLine: true
+  ignore:
+    - merge
+    - revert
+    - fixup
+    - fixup-amend
+    - squash
+
+conventions:
+  path: docs/developer/CommitConventions.md
+  template: |-
+    # Commit conventions
+
+    This repository follows [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
+
+    - `release.yaml` is the machine-readable source of truth: it owns the
+      commit types, the scopes valid for each one, and the version bump each scope
+      causes.
+    - [The conventional-commits standard](../standards/conventional-commits/index.md)
+      explains how to read that vocabulary and how to mark a breaking change.
+
+    ## Status of this file
+
+    This file is generated. `release.yaml` names this path in its
+    `conventions.path` value, `releaser conventions` writes it, and a release run
+    rewrites it as well. Change `release.yaml` and regenerate rather than
+    editing this file: everything up to here comes from that file's
+    `conventions.template`, and everything from the `type(scope)` line below is
+    generated from the commit vocabulary.
+
+    CONVENTION_DOCS_PLACEHOLDER
+
+release:
+  branches:
+    - main
+  tagFormat: 'v${version}'
+  changelog:
+    path: Changelog.md
+    title: '# Changelog'
+  commit:
+    message: |-
+      release: ${version}
+
+      ${notes}
+    assets:
+      - Changelog.md
+      - docs/developer/CommitConventions.md
+  github:
+    enabled: true
+    successComment: 'Released in ${version}.'
+    releasedLabels:
+      - released
+  hooks:
+    # Hook point a downstream node fills; a version file enters commit.assets in
+    # the same edit as the command that writes it.
+    prepare: []
+    success: []

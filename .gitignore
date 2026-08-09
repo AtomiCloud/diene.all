@@ -1,21 +1,29 @@
+### workspace [nix]
 .direnv/
 .pre-commit-config.yaml
 /result
 /result-*
 
+### workspace [secrets]
+!.env.example
 .env
 .env.*
-!.env.example
-.kagent/
-.kloop/
+
+### workspace [tooling]
 *.log
 *.swo
 *.swp
 *~
-.DS_Store
+.kagent/
+.kloop/
+
+### workspace [os-editors]
 ._*
+.DS_Store
 .idea/
 .vscode/
 Thumbs.db
 desktop.ini
+
+### workspace [helm]
 infra/root_chart/uploads/

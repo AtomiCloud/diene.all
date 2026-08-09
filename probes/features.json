@@ -71,6 +71,11 @@
   },
   {
     "template": "diene/workspace",
+    "name": "skills-sync",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
     "name": "hook-shellcheck",
     "class": "gate"
   },
@@ -121,38 +126,8 @@
   },
   {
     "template": "diene/workspace",
-    "name": "secret-guards",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "secret-scan-command",
+    "name": "secret-login-guard",
     "class": "smoke"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "skills-vendor-directory",
-    "class": "presence"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "skills-sync",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "skills-freshness",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "release-config-schema",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "release-type-vocabulary",
-    "class": "gate"
   },
   {
     "template": "diene/workspace",
@@ -162,11 +137,6 @@
   {
     "template": "diene/workspace",
     "name": "release-workflow-concurrency",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "nixpkgs-pin",
     "class": "gate"
   },
   {
@@ -181,18 +151,17 @@
   },
   {
     "template": "diene/workspace",
-    "name": "releaser-hook-registration",
-    "class": "presence",
-    "deferredUntil": "tools/releaser step 2p publish"
-  },
-  {
-    "template": "diene/workspace",
     "name": "probe-artifacts",
     "class": "presence"
   },
   {
-    "template": "diene/shared",
-    "name": "claude-link-integrity",
+    "template": "diene/workspace",
+    "name": "releaser-hook-registration",
+    "class": "presence"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "hook-releaser-commit",
     "class": "gate"
   },
   {
