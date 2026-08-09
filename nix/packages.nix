@@ -14,8 +14,16 @@ let
           atomiutils
           cyanprint
           dlint
-          infralint
-          infrautils
+          # The axis-pure slices, not the `infralint`/`infrautils` aggregates.
+          # This node strips BOTH the helm axis and the docker axis, and the
+          # aggregates carry both by CONTENT: infrautils ships helm, k3d,
+          # kubectl, kubectx, kubens AND docker, dockerd, dockerd-rootless;
+          # infralint ships helm-docs, helmlint AND hadolint, skopeo. A node
+          # named for the absence of two axes cannot declare a bundle that
+          # smuggles them back in. Unlike the parent, `infralint-docker` is NOT
+          # taken here: the docker axis is exactly what this node strips.
+          infralint-core
+          infrautils-core
           releaser
           skills-sync
           ;
@@ -34,7 +42,6 @@ let
           # #### source: bun-base
           bun
           nodejs
-          docker-client
           git
           go-task
           infisical
