@@ -1,5 +1,4 @@
 import { afterAll, beforeAll, describe, it } from 'bun:test';
-import type { TCPSocketListener } from 'bun';
 import should from 'should';
 import { GenericContainer, type StartedTestContainer, Wait } from 'testcontainers';
 import { RedisKeyValueStore } from '../../src/adapters/kv/data/redis-kv-store';
@@ -42,10 +41,13 @@ describe('RedisKeyValueStore (Testcontainers)', () => {
   it('should overwrite the value already stored under a key', async () => {
     // Arrange
     const expected = 'second';
+    const key = namespacedKey('Bun Base', 'overwrite');
+    const store = subject as IKeyValueStore;
 
     // Act
-    await persistSample(subject as IKeyValueStore, 'Bun Base', 'overwrite', 'first');
-    const actual = await persistSample(subject as IKeyValueStore, 'Bun Base', 'overwrite', expected);
+    await store.set(key, 'first');
+    await store.set(key, expected);
+    const actual = await store.get(key);
 
     // Assert
     should(actual).equal(expected);
