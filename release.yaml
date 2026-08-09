@@ -3,6 +3,16 @@
 schemaVersion: 2
 
 types:
+  # Retained on this node against the parent's vocabulary diet: the parent dropped
+  # `amend`, but scripts/validate/dotnet-release.sh asserts the exact type set and
+  # this node's own history uses it. Git merged the removal cleanly, so nothing but
+  # that validator would have reported the loss.
+  - type: amend
+    desc: Small amendments and typo fixes
+    scopes:
+      default:
+        desc: Amend existing work
+        release: false
   - type: build
     desc: Build-system changes
     scopes:
