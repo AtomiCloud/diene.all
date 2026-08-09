@@ -17,12 +17,8 @@ includes:
 
 tasks:
   setup:
-    desc: Set up generated workspace assets
+    desc: Set up the workspace
     cmds:
-      - releaser conventions -c release.yaml
-      - skills-sync sync --tier setup
-      # ### dotnet-base-setup
-      # #### source: dotnet-base
       - ./scripts/local/setup.sh
 
   lint:
@@ -33,7 +29,7 @@ tasks:
   skills:sync:
     desc: Verify the repository's explicit no-runtime skills contract
     cmds:
-      - skills-sync sync --tier setup
+      - skills-sync sync
 
   # ### dotnet-base-tasks
   # #### source: dotnet-base

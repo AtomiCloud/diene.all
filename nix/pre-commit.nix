@@ -3,6 +3,7 @@
   formatter,
   pkgs,
   pre-commit-lib,
+  env,
 }:
 let
   validator-runtime = pkgs.buildEnv {
@@ -107,6 +108,12 @@ in
       language = "system";
     };
 
+    # The parent's blanket `dlint lint` hook is deliberately NOT taken here. It would
+    # run every check `dlint.yaml` configures, and two of those contradict this node:
+    # `no-custom-derivations` forbids exactly the `cyanprint` derivation nix/packages.nix
+    # builds on purpose, and `action-pins` by `trustedPattern` states a different policy
+    # from the trust map this node still enforces through scripts/validate/action-pins.sh.
+    # `ci-wiring` is taken explicitly, by name, in the `a-workflows` hook below.
     a-enforce-exec = {
       enable = true;
       name = "Executable shell scripts";
@@ -218,7 +225,7 @@ in
     a-skills-sync = {
       enable = true;
       name = "Vendored skills";
-      entry = "${packages.skills-sync}/bin/skills-sync sync --tier pre-commit";
+      entry = "${packages.skills-sync}/bin/skills-sync sync --frozen";
       pass_filenames = false;
       language = "system";
     };

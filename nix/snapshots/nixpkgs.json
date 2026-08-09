@@ -3,14 +3,15 @@
   "source": "github:NixOS/nixpkgs",
   "channel": "nixos-26.05",
   "release": "Yarara",
-  "rev": "4382ed2b7a6839d4280a9b386db49cbc5907414d",
-  "selectedAt": "2026-07-17T02:47:00Z",
+  "rev": "445d861c6d31b4af0c79d8d4be2331f762a361d7",
+  "selectedAt": "2026-08-09T00:00:00Z",
   "upstream": {
-    "commitDate": "2026-07-16T00:11:27Z",
-    "subject": "[Backport release-26.05] webkitgtk_6_0: 2.52.4 → 2.52.5 (#540618)"
+    "note": "Adopted from the shared parent's declaration at 99a297e9; upstream commit metadata was not independently observed on this node."
   },
   "selection": {
-    "method": "Pinned the verified nixos-26.05 branch head at workspace replay time.",
+    "method": "Adopted the revision the shared parent declares, propagated into this node by the cascade merge of shared@99a297e9. Moving the pin stays a deliberate act: the act here is the parent's owner-ruled pin move, not a local bump.",
+    "priorMethod": "Pinned the verified nixos-26.05 branch head at workspace replay time.",
+    "priorRev": "4382ed2b7a6839d4280a9b386db49cbc5907414d",
     "rationale": [
       "The checked-in Bun/shared and Dotnet family locks disagreed, so no existing family lock was authoritative.",
       "Selecting the current release-branch head keeps the new replay current while creating one immutable direct nixpkgs identity for every descendant.",

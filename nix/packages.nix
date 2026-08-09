@@ -85,6 +85,7 @@ let
           kubeconform
           kubernetes-helm
           kyverno
+          nix
           pre-commit
           ripgrep
           shellcheck
@@ -109,4 +110,4 @@ let
   };
 in
 with all;
-atomipkgs // nix-2605 // nix-unstable // root // dotnet-base
+nix-2605 // nix-unstable // atomipkgs // root // dotnet-base

@@ -1,29 +1,21 @@
----
-id: linting
-title: Linting
----
-
 # Linting
 
-All repository gates are generated from `nix/pre-commit.nix` and run in the Nix
-environment.
-
-## Commands
+## Running lints
 
 ```bash
-task lint
-pre-commit run --all-files
-nix develop .#ci -c ./scripts/ci/pre-commit.sh
+task lint            # everything, exactly what CI runs
+pre-commit run       # the staged files only (what a commit runs)
 ```
 
-The first two commands are the local entry points. CI uses the third so the same
-hooks and pinned tools run locally and remotely.
+CI runs `pre-commit run --all-files`, so the hook set in `nix/pre-commit.nix` is
+the single source of truth: local commits, `task lint`, and CI all execute the
+same gates.
 
-## Reading the hook set
+## Adding a lint
 
-The authoritative hook set is the `hooks` attribute set in
-[`nix/pre-commit.nix`](../../../nix/pre-commit.nix). It is not restated here,
-because it changes whenever a hook is added or removed. Read it like this:
+1. Add a hook to `nix/pre-commit.nix` (one entry: the tool, its files pattern).
+2. If the tool comes from the registry or nixpkgs, add it to `nix/packages.nix`.
+3. Run `task lint` to see it fire.
 
 - each attribute name is the hook id you pass to `pre-commit run <hook-id>`;
 - `name` is the label the run prints;
@@ -59,8 +51,13 @@ command name, which is what makes it resolve from any worktree and any shell.
 
 ## The repo-agnostic check: `dlint ci-wiring`
 
-This repository takes **one** check from `dlint`, a tool from the Nix registry:
-`ci-wiring`, which asserts that every orchestrator job resolves to a
+`dlint` is a tool from the Nix registry. The parent template runs every check
+`dlint.yaml` configures through a single blanket `dlint lint` hook; **this node
+deliberately does not take that hook**, because two of the configured checks
+contradict this node — see the comment above `a-enforce-exec` in
+`nix/pre-commit.nix`. This repository takes **one** mode, `ci-wiring`, called
+explicitly by name from the `a-workflows` hook: it asserts that every orchestrator
+job resolves to a
 repository-local reusable workflow and that every referenced `scripts/ci` entry
 point exists and is executable. It replaced the `wiring` mode of
 `scripts/validate/workflows.sh`, which is why that script no longer has one.
@@ -72,9 +69,9 @@ first three. Only `ci-wiring` has moved here so far. Read `nix/pre-commit.nix` f
 which mechanism each hook actually runs; do not infer it from the parent's copy of
 this page.
 
-`.dlint.json` in the repository root configures the check, and two things about
+`dlint.yaml` in the repository root configures the checks, and two things about
 that file are decisions rather than transcription, neither of which can be written
-down inside it because it is strict JSON with no comments:
+down inside it because the schema carries no place for them:
 
 - **`ci-wiring.orchestrators` lists `ci.yaml`, `cd.yaml` and `release.yaml`, and
   deliberately not `🛡️merge-gatekeeper.yml`.** The `⚡`-prefixed workflows are the

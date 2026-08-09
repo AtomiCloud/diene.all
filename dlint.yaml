@@ -1,7 +1,7 @@
 schemaVersion: 1
 checks:
   action-pins:
-    trustMap: config/action-trust.json
+    trustedPattern: ^AtomiCloud/
     workflowsDir: .github/workflows
   exec-bits:
     globs:
@@ -24,14 +24,14 @@ checks:
       - git
       - gomplate
       - hadolint
-      - helm
+      - helm version
       - helm-docs
       - infisical
       - jq
       - k3d
-      - kubeconform
-      - kubectl
-      - kyverno
+      - kubeconform -v
+      - kubectl version --client
+      - kyverno version
       - nix
       - pre-commit
       - releaser
@@ -41,25 +41,8 @@ checks:
       - task
       - treefmt
       - yq
-  workflow-policy:
-    assertions:
-      - file: .github/workflows/release.yaml
-        path: .on.workflow_run.workflows
-        equals: ['CI']
-        reason: release must trigger from CI
-      - file: .github/workflows/release.yaml
-        path: .on.workflow_run.branches
-        equals: [main]
-        reason: release must be limited to main
-      - file: .github/workflows/release.yaml
-        path: .on.workflow_run.types
-        equals: [completed]
-        reason: release workflow_run type must be completed
-      - file: .github/workflows/release.yaml
-        path: .jobs.release.if
-        equals: github.event.workflow_run.conclusion == 'success'
-        reason: release job must require CI success
-      - file: .github/workflows/release.yaml
-        path: .concurrency.group
-        equals: release
-        reason: release concurrency group must be release
+  no-custom-derivations:
+    paths:
+      - nix/packages.nix
+      - nix/env.nix
+      - nix/shells.nix

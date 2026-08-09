@@ -23,13 +23,13 @@
     # 2026-08-05 and its copy of this comment says nothing validates it - that is
     # true there and false here, so the wording is deliberately not the parent's.
     #
-    # nixos-unstable @ 2026-08-05
-    nixpkgs-unstable.url = "github:NixOS/nixpkgs/e72e4f299401a3689d4b3d5fc6496b11db7064eb";
-    # nixos-26.05 (Yarara) @ 2026-07-17
-    nixpkgs-2605.url = "github:NixOS/nixpkgs/4382ed2b7a6839d4280a9b386db49cbc5907414d";
-    # The v4 major is intentionally floating; flake.lock records the exact resolved
+    # nixos-unstable @ 2026-08-06
+    nixpkgs-unstable.url = "github:NixOS/nixpkgs/b7c2ada94fe99c15b0dbcf4d11fd7850b957a436";
+    # nixos-26.05 (Yarara) @ 2026-08-06
+    nixpkgs-2605.url = "github:NixOS/nixpkgs/445d861c6d31b4af0c79d8d4be2331f762a361d7";
+    # The v5 major is intentionally floating; flake.lock records the exact resolved
     # registry revision. Releaser v2 and skills-sync are supplied by this registry.
-    atomipkgs.url = "github:AtomiCloud/nix-registry/v4";
+    atomipkgs.url = "github:AtomiCloud/nix-registry/v5";
   };
   outputs =
     {
@@ -64,6 +64,7 @@
             pkgs
             pre-commit-lib
             formatter
+            env
             ;
         };
         formatter = import ./nix/fmt.nix {
