@@ -18,6 +18,7 @@ export default {
       name: 'mutation-go-workflow-wiring-caught',
       description: 'A Go reusable workflow that calls a missing CI script must turn wiring red.',
       kind: 'mutation',
+      expectedImpact: ['workflow-wiring'],
       async run(repo: any) {
         const paths = (await repo.glob('.github/workflows/⚡reusable-go-*.yaml')).sort();
         if (paths.length === 0) {

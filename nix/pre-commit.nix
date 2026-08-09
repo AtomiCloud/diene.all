@@ -135,11 +135,17 @@ pre-commit-lib.run {
     # docs/standards/ and every first-level skill trigger is linted, so adding a
     # topic needs no edit here. Vendored skills sit deeper than one level and are
     # ignored again by .markdownlint-cli2.jsonc.
+    #
+    # The trailing alternatives are this node's observability payload, which the
+    # directory-shaped selector does not reach: observability/ and the
+    # observability probe notes sit outside docs/standards/, and the grafana and
+    # observability-check skills carry markdown TEMPLATES one level below their
+    # SKILL.md. They are kept here so the payload stays linted after a cascade.
     a-markdownlint = {
       enable = true;
       name = "Markdown lint";
       entry = "${pkgs.markdownlint-cli2}/bin/markdownlint-cli2";
-      files = "^(CLAUDE\\.md|README\\.md|docs/developer/go-baseline\\.md|docs/standards/.*\\.md|\\.claude/skills/[^/]+/SKILL\\.md)$";
+      files = "^(CLAUDE\\.md|README\\.md|docs/developer/go-baseline\\.md|docs/standards/.*\\.md|\\.claude/skills/[^/]+/SKILL\\.md|observability/.*\\.md|probes/observability-.*\\.md|\\.claude/skills/(grafana-alert|grafana-alert-set|grafana-dashboards|grafana-runbook|observability-check)/.*\\.md)$";
       pass_filenames = true;
       language = "system";
     };
