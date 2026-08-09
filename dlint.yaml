@@ -22,7 +22,6 @@ checks:
       - dlint
       - git
       - gomplate
-      - hadolint
       - helm version
       - helm-docs
       - infisical
