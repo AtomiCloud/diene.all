@@ -1,5 +1,3 @@
-# ### workspace-cd
-# #### source: workspace
 name: CD
 
 on:

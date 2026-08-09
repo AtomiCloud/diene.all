@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedBecause } from './lib/helpers.ts';
 
 export default {
   contractVersion: 1,
@@ -19,7 +19,10 @@ export default {
       expectedImpact: ['hook-helm-lint'],
       async run(repo: any) {
         await repo.patch('infra/root_chart/Chart.yaml', { find: 'apiVersion: v2', replace: 'apiVersion: invalid' });
-        await expectRed(repo, 'nix develop .#ci -c helm lint infra/root_chart', 'helm-lint');
+        await expectRedBecause(repo, 'nix develop .#ci -c helm lint infra/root_chart', 'helm-lint', [
+          "Chart.yaml: apiVersion 'invalid' is not valid",
+          '1 chart(s) failed',
+        ]);
       },
     },
   ],
