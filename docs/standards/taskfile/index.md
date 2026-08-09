@@ -5,8 +5,8 @@ title: Taskfile Conventions
 
 # Taskfile Conventions
 
-`task` (go-task) is the repository task runner — the only one. Root tasks live in
-`Taskfile.yaml`; grouped tasks live under `tasks/` and are included by namespace.
+`task` is the repository task runner. Root tasks live in `Taskfile.yaml`; grouped
+tasks live under `tasks/` and are included by namespace.
 
 ## Reading the task surface
 

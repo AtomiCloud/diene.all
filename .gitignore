@@ -24,3 +24,15 @@
 .vscode/
 Thumbs.db
 desktop.ini
+
+### dart-lib [node]
+.probe-evidence/
+
+### dart-lib [dart]
+.dart_tool/
+.packages
+.pub-cache/
+build/
+coverage/
+doc/api/
+pubspec.lock

@@ -52,6 +52,16 @@
             env
             ;
         };
+        pre-commit-offline = import ./nix/pre-commit.nix {
+          inherit
+            packages
+            pkgs
+            pre-commit-lib
+            formatter
+            env
+            ;
+          offline = true;
+        };
         formatter = import ./nix/fmt.nix {
           inherit treefmt-nix pkgs;
         };
@@ -63,10 +73,10 @@
         };
         devShells = import ./nix/shells.nix {
           inherit pkgs env packages;
-          shellHook = checks.pre-commit-check.shellHook;
+          shellHook = pre-commit.shellHook;
         };
         checks = {
-          pre-commit-check = pre-commit;
+          pre-commit-check = pre-commit-offline;
           format = formatter;
         };
       };

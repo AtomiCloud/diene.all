@@ -1,0 +1,29 @@
+name: diene_dart_lib
+description: A generic pure-Dart library template — a Note value type with a JSON wire codec and a pure summariser, ready to retokenize into a real package.
+version: 0.0.0
+repository: https://github.com/AtomiCloud/diene.dart_lib
+issue_tracker: https://github.com/AtomiCloud/diene.dart_lib/issues
+homepage: https://github.com/AtomiCloud/diene.dart_lib
+
+topics:
+  - template
+  - library
+  - sample
+  - json
+  - codec
+
+resolution: workspace
+
+environment:
+  sdk: '>=3.12.0 <4.0.0'
+
+# No runtime dependencies: the replaceable sample is pure Dart.
+dependencies: {}
+
+dev_dependencies:
+  coverage: ^1.15.1
+  crypto: ^3.0.6
+  dart_code_linter: ^4.1.7
+  lints: ^6.1.0
+  pana: ^0.23.14
+  test: ^1.31.2

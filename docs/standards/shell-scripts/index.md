@@ -35,7 +35,6 @@ set -euo pipefail
 
 - Do **not** use flow control (if/else, loops, functions) for simplification or abstraction
 - Prefer parameter/command substitution over `if`/`else` — e.g.
-  `artifact_version="${version:-v0.0.0-${commit}}"` instead of an `if` block, and
   `arg="$([[ cond ]] && echo "--flag" || echo "")"` for a conditional flag
 - Use flow control **only when necessary** (e.g. iterating an unknown number of files)
 

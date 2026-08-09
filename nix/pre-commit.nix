@@ -4,10 +4,29 @@
   pkgs,
   pre-commit-lib,
   env,
+  offline ? false,
 }:
 let
   # toolchain-smoke asserts the DECLARED env lists actually provide their binaries.
   envPath = pkgs.lib.makeBinPath (env.system ++ env.main ++ env.lint ++ env.dev);
+  validator-runtime = pkgs.buildEnv {
+    name = "workspace-validator-runtime";
+    # atomiutils supplies bash/jq/yq plus the coreutils/find/grep/sed binaries the
+    # validators call - and, since registry v3.12.0, rg as well - so declaring any
+    # of those separately would duplicate the bundle and collide with it in this
+    # buildEnv. That is not a prediction: while v3.12.0 was landing, a standalone
+    # nixpkgs ripgrep alongside the bundle failed this very buildEnv with
+    # "conflicting subpath ... /bin/rg". git is the only entry left that the
+    # bundle does not already carry.
+    paths = [
+      packages.atomiutils
+      packages.dart
+      packages.git
+    ];
+  };
+  validator =
+    command:
+    "${packages.atomiutils}/bin/bash -c 'export PATH=${validator-runtime}/bin; exec ${packages.atomiutils}/bin/bash ${command}'";
 in
 pre-commit-lib.run {
   src = ../.;
@@ -23,6 +42,9 @@ pre-commit-lib.run {
       ];
     };
 
+    # One invocation runs every check declared in dlint.yaml, so the checks this
+    # node owns (`ci-wiring`, `workflow-policy`) are covered here rather than by
+    # per-check hooks. Adding a check to dlint.yaml needs no edit in this file.
     a-dlint = {
       enable = true;
       name = "dlint";
@@ -60,6 +82,18 @@ pre-commit-lib.run {
       language = "system";
     };
 
+    # flake.nix says every nixpkgs input is pinned to an exact commit and that nothing
+    # validates it. This is that validation. It guards the ROOT's nixpkgs inputs only -
+    # the transitive closure floats on channels legitimately and is not ours to police.
+    a-nixpkgs-pin = {
+      enable = true;
+      name = "Nixpkgs pin honesty";
+      entry = "${packages.atomiutils}/bin/bash -c 'export PATH=${validator-runtime}/bin; exec ${packages.atomiutils}/bin/bash scripts/validate/nixpkgs-pin.sh'";
+      files = "^flake\\.(nix|lock)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
     a-releaser-commit = {
       enable = true;
       name = "Conventional commit";
@@ -77,14 +111,56 @@ pre-commit-lib.run {
       language = "system";
     };
 
-    # -x + SCRIPTDIR: staged-file batching splits scripts from their sources,
-    # so ShellCheck must follow source= directives itself.
+    # Source following belongs to the gate itself, not to an ambient SHELLCHECK_OPTS:
+    # pre-commit partitions the staged files, so a script and the script it sources
+    # routinely land in different batches, and bare ShellCheck then raises SC1091 on
+    # healthy sources. `-x` follows a declared `source=`, and `--source-path=SCRIPTDIR`
+    # adds the checked script's own directory so script-relative directives resolve
+    # too, on top of the repository-root-relative ones the working directory already
+    # covers. Findings from the sourced file stay out of the report (that would need
+    # `-a`), so the gate gains resolution without gaining noise.
     a-shellcheck = {
       enable = true;
       name = "Shellcheck";
       entry = "${packages.shellcheck}/bin/shellcheck -x --source-path=SCRIPTDIR";
       files = ".*\\.sh$";
       pass_filenames = true;
+      language = "system";
+    };
+
+    a-dart-format = {
+      enable = true;
+      name = "Dart format";
+      entry = "${packages.dart}/bin/dart format --output=none --set-exit-if-changed";
+      files = "^packages/diene_dart_lib/(lib|test|example)/.*[.]dart$";
+      pass_filenames = true;
+      language = "system";
+    };
+
+    a-dart-analyze = {
+      enable = !offline;
+      name = "Dart analyze";
+      entry = validator "scripts/ci/analyze.sh";
+      files = "^packages/diene_dart_lib/(lib|test|example|tool)/.*[.]dart$|^(packages/diene_dart_lib/(pubspec|analysis_options)|pubspec)[.]yaml$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-dart-test = {
+      enable = !offline;
+      name = "Dart unit, C0, and meta tests";
+      entry = validator "scripts/ci/test-all.sh";
+      files = "^packages/diene_dart_lib/(lib|test)/.*[.]dart$|^(packages/diene_dart_lib/pubspec|pubspec)[.]yaml$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-dart-package = {
+      enable = !offline;
+      name = "Dart package and TestHelper boundary";
+      entry = validator "scripts/validate/dart-package.sh";
+      files = "^(packages/diene_dart_lib/(lib/.*[.]dart|pubspec[.]yaml|README[.]md|CHANGELOG[.]md|LICENSE|skills/.*|doc/diene_dart_lib[.]md)|pubspec[.]yaml|VERSION)$";
+      pass_filenames = false;
       language = "system";
     };
   };

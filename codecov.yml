@@ -1,0 +1,27 @@
+# Coverage statuses are informational; local unit and meta ledgers block at 100%.
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+        informational: true
+    patch:
+      default:
+        target: auto
+        threshold: 1%
+        informational: true
+
+flags:
+  unit:
+    paths:
+      - packages/diene_dart_lib/lib/src
+    carryforward: true
+  meta:
+    paths:
+      - packages/diene_dart_lib/lib/test_helper.dart
+    carryforward: true
+
+comment:
+  layout: 'reach, diff, flags, files'
+  require_changes: false

@@ -35,7 +35,13 @@ let
           ;
       }
     );
+    dart-lib-packages = (
+      with pkgs-unstable;
+      {
+        dart = flutter.dart;
+      }
+    );
   };
 in
 with all;
-nix-2605 // nix-unstable // atomipkgs
+nix-2605 // nix-unstable // atomipkgs // dart-lib-packages
