@@ -20,10 +20,8 @@
   },
   "dependencies": {
     "@atomicloud/diene.e2e": "1.1.0",
-    "@atomicloud/diene.otel": "1.0.0",
     "commander": "^15.0.0",
     "ioredis": "^5.11.1",
-    "pino": "^9.14.0",
     "postgres": "^3.4.9",
     "zod": "^4.4.3"
   },
