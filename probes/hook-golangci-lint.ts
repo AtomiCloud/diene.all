@@ -1,6 +1,20 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedWithDiagnostic, restoreProbeState } from './lib/helpers.ts';
+import { plantGoFile } from './lib/go.ts';
 
 const gate = 'nix develop .#ci -c pre-commit run a-golangci-lint --all-files';
+
+// Plant beside a structural Go target so sample renames cannot defuse the probe.
+const goSources = 'lib/**/*.go';
+const fixture = 'probe_ineffectual_assignment.go';
+
+// Export the fixture so ineffassign, not unused, owns the red diagnostic.
+const ineffectualAssignment = [
+  'func ProbeIneffectualAssignment() string {',
+  '\tvalue := "probe"',
+  '\tvalue = "probe-sabotage"',
+  '\treturn value',
+  '}',
+].join('\n');
 
 export default {
   contractVersion: 1,
@@ -19,12 +33,17 @@ export default {
       description: 'A native ineffassign violation must turn the owning hook red.',
       kind: 'mutation',
       async run(repo: any) {
-        await repo.patch('lib/note/note.go', {
-          find: 'func Slug(value string) string {\n\treturn strings.Join(strings.Fields(strings.ToLower(value)), "-")\n}',
-          replace:
-            'func Slug(value string) string {\n\tnormalized := value\n\tnormalized = value\n\treturn strings.Join(strings.Fields(strings.ToLower(normalized)), "-")\n}',
-        });
-        await expectRed(repo, gate, 'hook-golangci-lint');
+        const planted = await plantGoFile(repo, goSources, fixture, ineffectualAssignment);
+        try {
+          await expectRedWithDiagnostic(
+            repo,
+            gate,
+            'hook-golangci-lint',
+            /probe_ineffectual_assignment\.go:\d+:\d+: ineffectual assignment to \w+ \(ineffassign\)/,
+          );
+        } finally {
+          await restoreProbeState(repo, [planted]);
+        }
       },
     },
   ],
