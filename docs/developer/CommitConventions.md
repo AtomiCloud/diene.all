@@ -34,7 +34,6 @@ Use `type(scope)!: subject`. Omit `(scope)` only when the type's `default` scope
 | `docs` | Documentation changes | no release |
 | `feat` | New features | scope-dependent |
 | `fix` | Bug fixes | patch |
-| `merge` | Branch merges | no release |
 | `perf` | Performance improvements | patch |
 | `refactor` | Refactors | minor |
 | `style` | Non-functional style changes | patch |
@@ -101,12 +100,6 @@ Use `type(scope)!: subject`. Omit `(scope)` only when the type's `default` scope
 | Scope | Description | Release |
 | --- | --- | --- |
 | `default` | Fix a bug | patch |
-
-### `merge` scopes
-
-| Scope | Description | Release |
-| --- | --- | --- |
-| `default` | Merge a branch | no release |
 
 ### `perf` scopes
 
