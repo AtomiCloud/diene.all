@@ -56,7 +56,11 @@
           inherit treefmt-nix pkgs;
         };
         packages = import ./nix/packages.nix {
-          inherit pkgs-2605 pkgs-unstable atomi;
+          inherit
+            pkgs-2605
+            pkgs-unstable
+            atomi
+            ;
         };
         env = import ./nix/env.nix {
           inherit pkgs packages;

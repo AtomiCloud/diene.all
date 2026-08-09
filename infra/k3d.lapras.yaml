@@ -1,0 +1,22 @@
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: diene-helm-wrapper
+servers: 1
+agents: 0
+image: rancher/k3s:v1.31.5-k3s1
+ports:
+  - port: 18080:80
+    nodeFilters:
+      - loadbalancer
+registries:
+  create:
+    name: diene-wrapper-registry
+    host: 0.0.0.0
+    hostPort: '5001'
+options:
+  k3s:
+    extraArgs:
+      - arg: --disable=traefik
+        nodeFilters:
+          - server:*

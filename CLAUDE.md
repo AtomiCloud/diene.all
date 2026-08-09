@@ -93,3 +93,13 @@ See [docs/standards/three-layer-architecture/index.md](docs/standards/three-laye
 ## Utility libraries
 
 See [docs/standards/utilities/index.md](docs/standards/utilities/index.md).
+
+Domain-specific architecture and behavior belongs under
+[docs/domain/](docs/domain/README.md).
+
+<!-- ### helm-wrapper -->
+<!-- #### source: helm-wrapper -->
+
+## Helm wrapper sample
+
+Read [docs/developer/helm-wrapper-baseline.md](docs/developer/helm-wrapper-baseline.md) before changing `chart/`, the stacked values, CR/LPSM helpers, provider LoadBalancer annotations, config vendoring, or chart publishing.

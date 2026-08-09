@@ -1,0 +1,39 @@
+{{- if .Values.gateway.enabled -}}
+{{- include "diene-helm-wrapper.validateServiceTree" . -}}
+{{- if and (eq .Values.gateway.provider "aws") (ne (len .Values.gateway.aws.subnetIds) (len .Values.gateway.aws.eipAllocationIds)) -}}
+{{- fail "gateway.aws.subnetIds and gateway.aws.eipAllocationIds must have identical lengths" -}}
+{{- end -}}
+{{- if and (eq .Values.gateway.provider "aws") (eq (len .Values.gateway.aws.subnetIds) 0) -}}
+{{- fail "AWS gateway mode requires at least one immutable subnet/EIP pair" -}}
+{{- end -}}
+{{- if and (eq .Values.gateway.provider "oci") (empty .Values.gateway.oci.reservedPublicIp) -}}
+{{- fail "OCI gateway mode requires gateway.oci.reservedPublicIp" -}}
+{{- end -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "diene-helm-wrapper.resourceName" (dict "root" . "token" "gateway") }}
+  labels:
+    {{- include "diene-helm-wrapper.labels" . | nindent 4 }}
+  annotations:
+    {{- include "diene-helm-wrapper.annotations" . | nindent 4 }}
+    {{- if eq .Values.gateway.provider "aws" }}
+    service.beta.kubernetes.io/aws-load-balancer-type: external
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+    service.beta.kubernetes.io/aws-load-balancer-subnets: {{ join "," .Values.gateway.aws.subnetIds | quote }}
+    service.beta.kubernetes.io/aws-load-balancer-eip-allocations: {{ join "," .Values.gateway.aws.eipAllocationIds | quote }}
+    {{- else if eq .Values.gateway.provider "oci" }}
+    oci.oraclecloud.com/reserved-ips: {{ .Values.gateway.oci.reservedPublicIp | quote }}
+    {{- end }}
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Cluster
+  selector:
+    {{- include "diene-helm-wrapper.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.gateway.port }}
+      targetPort: http
+      protocol: TCP
+{{- end }}

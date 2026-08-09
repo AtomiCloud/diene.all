@@ -27,3 +27,9 @@ desktop.ini
 
 ### workspace [helm]
 infra/root_chart/uploads/
+
+### helm-wrapper
+#### source: helm-wrapper
+chart/files/config/
+dist/
+probe-report.json

@@ -6,6 +6,31 @@
   env,
 }:
 let
+  # The wrapper hooks below run their validators through a pinned runtime rather
+  # than the ambient shell, so this stays even though the parent no longer needs it.
+  validator-runtime = pkgs.buildEnv {
+    name = "workspace-validator-runtime";
+    paths = [
+      packages.bash
+      packages.git
+      packages.gitlint
+      packages.helm-schema
+      packages.jq
+      packages.kubeconform
+      packages.kubernetes-helm
+      packages.kyverno
+      packages.ripgrep
+      packages.yq-go
+      pkgs.coreutils
+      pkgs.findutils
+      pkgs.gnugrep
+      pkgs.gnused
+    ];
+  };
+  validator =
+    command:
+    "${packages.bash}/bin/bash -c 'export PATH=${validator-runtime}/bin; exec ${packages.bash}/bin/bash ${command}'";
+
   # toolchain-smoke asserts the DECLARED env lists actually provide their binaries.
   envPath = pkgs.lib.makeBinPath (env.system ++ env.main ++ env.lint ++ env.dev);
 in
@@ -21,6 +46,7 @@ pre-commit-lib.run {
         "^Changelog\\.md$"
         "^docs/developer/CommitConventions\\.md$"
         "^infra/root_chart/"
+        "^chart/"
       ];
     };
 
@@ -95,6 +121,26 @@ pre-commit-lib.run {
       entry = "${packages.shellcheck}/bin/shellcheck -x --source-path=SCRIPTDIR";
       files = ".*\\.sh$";
       pass_filenames = true;
+      language = "system";
+    };
+
+    # ### helm-wrapper-hooks
+    # #### source: helm-wrapper
+    a-wrapper-helm-docs = {
+      enable = true;
+      name = "Helm wrapper docs";
+      entry = "${packages.infralint}/bin/helm-docs --chart-search-root chart";
+      files = "^chart/.*";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-wrapper-helm-lint = {
+      enable = true;
+      name = "Helm wrapper lint";
+      entry = validator "scripts/validate/helm-wrapper.sh lint";
+      files = "^(chart/.*|config/.*|scripts/(local|validate)/.*)$";
+      pass_filenames = false;
       language = "system";
     };
   };

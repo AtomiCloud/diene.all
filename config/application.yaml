@@ -1,0 +1,5 @@
+$schema: ./application.schema.json
+server:
+  port: 9898
+health:
+  path: /healthz

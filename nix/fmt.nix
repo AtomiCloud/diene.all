@@ -13,6 +13,7 @@ let
           "Changelog.md"
           "docs/developer/CommitConventions.md"
           "infra/root_chart/**"
+          "chart/**"
         ];
       };
       shfmt.enable = true;

@@ -12,6 +12,7 @@ let
           atomiutils
           cyanprint
           dlint
+          helm-schema
           infralint
           infrautils
           releaser
@@ -26,12 +27,25 @@ let
         inherit
           actionlint
           git
+          gitlint
           go-task
           infisical
           nix
           pre-commit
           shellcheck
           treefmt
+          # Wrapper toolchain. The parent trimmed these out of the shared list
+          # along with its docker strip; this node's own gates still name them
+          # (`nix/pre-commit.nix` validator-runtime, `scripts/validate/helm-wrapper.sh`,
+          # `scripts/local/latest-chart-upstreams.sh`), so they stay.
+          bash
+          jq
+          kubeconform
+          kubernetes-helm
+          kyverno
+          ripgrep
+          skopeo
+          yq-go
           ;
       }
     );

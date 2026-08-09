@@ -1,0 +1,58 @@
+{{- include "diene-helm-wrapper.validateServiceTree" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "diene-helm-wrapper.primaryName" . }}
+  labels:
+    {{- include "diene-helm-wrapper.labels" . | nindent 4 }}
+  annotations:
+    {{- include "diene-helm-wrapper.annotations" . | nindent 4 }}
+    {{- include "diene-helm-wrapper.reloaderAnnotations" (dict "enabled" .Values.workload.reloader.enabled) | nindent 4 }}
+spec:
+  replicas: {{ .Values.workload.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "diene-helm-wrapper.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "diene-helm-wrapper.labels" . | nindent 8 }}
+      annotations:
+        {{- include "diene-helm-wrapper.annotations" . | nindent 8 }}
+        {{- include "diene-helm-wrapper.reloaderAnnotations" (dict "enabled" .Values.workload.reloader.enabled) | nindent 8 }}
+    spec:
+      securityContext:
+        {{- toYaml .Values.workload.podSecurityContext | nindent 8 }}
+      containers:
+        - name: api
+          image: '{{ .Values.workload.image.repository }}:{{ .Values.workload.image.tag }}'
+          imagePullPolicy: {{ .Values.workload.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.workload.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.workload.port }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.contracts.health.path }}
+              port: http
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.contracts.health.path }}
+              port: http
+          resources:
+            {{- toYaml .Values.workload.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "diene-helm-wrapper.resourceName" (dict "root" . "token" "config") }}
