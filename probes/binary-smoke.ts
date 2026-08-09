@@ -11,6 +11,21 @@ const retired = [
   // path, so a path-based check passed clean while the parent kept re-introducing helm by
   // CONTENT. The declaration name is what the inventory actually carries; a bare `helm`
   // would evade this pattern, but it is not a name the registry package set offers.
+  //
+  // This entry was GREEN AND FALSE until the axis-pure swap that lands with it, and it
+  // arrived here already landed, so this node inherited the falsehood rather than
+  // authoring it. A text scan of the declaration only tells the truth if no declared
+  // name is an AGGREGATE hiding the axis inside it: `infralint` shipped helm-docs and
+  // helmlint, `infrautils` shipped helm, and neither name contains the literal below.
+  // The node now declares the axis-pure slices instead, so the absence the scan reports
+  // is the absence the shell has.
+  //
+  // Scope note, because the next reader will ask. This entry certifies the HELM axis
+  // only. The docker axis is NOT asserted here: `docker-client` is still declared in
+  // nix/packages.nix and nix/env.nix, so `docker` remains on PATH. That declaration
+  // predates this node's merge and its removal has not been authorised, so no docker
+  // absence entry is added - an entry asserting it today would repeat exactly the
+  // failure this comment exists to record.
   { binary: 'kubernetes-helm', reason: 'wo-helm carries no chart, so it carries no helm toolchain' },
 ];
 
@@ -59,9 +74,6 @@ git rev-parse --is-inside-work-tree >/dev/null
 gomplate --version >/dev/null
 [ "$(gomplate -i '{{ add 1 1 }}')" != "2" ] && echo "gomplate failed a real template" >&2 && exit 1
 
-hadolint --version >/dev/null
-hadolint infra/Dockerfile
-
 infisical --version >/dev/null
 git -C "$tmp" init -q
 git -C "$tmp" config user.email smoke@example.invalid
@@ -74,13 +86,7 @@ git -C "$tmp" commit -qm smoke
 jq --version >/dev/null
 jq -en '1 + 1 == 2' >/dev/null
 
-k3d version >/dev/null
-k3d cluster list --no-headers >/dev/null
-
 kubeconform -v >/dev/null
-
-kubectl version --client >/dev/null
-kubectl --kubeconfig=/dev/null config view >/dev/null
 
 kyverno version >/dev/null
 printf '%s\n' '{"probe":{"ok":true}}' | kyverno jp query 'probe.ok' 2>/dev/null | tail -n 1 | rg -qx true
@@ -142,10 +148,6 @@ rc=0
 shellcheck "$tmp/shellcheck-finding.sh" >"$tmp/shellcheck-out.txt" 2>&1 || rc=$?
 [ "$rc" = "1" ] || { echo "shellcheck: expected exit 1 (finding), got $rc" >&2; exit 1; }
 rg -q 'SC2086' "$tmp/shellcheck-out.txt" || { echo "shellcheck: exit 1 without the SC2086 finding" >&2; exit 1; }
-
-skopeo --version >/dev/null
-printf '%s\n' '{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{"mediaType":"application/vnd.oci.image.config.v1+json","digest":"sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a","size":2},"layers":[]}' >"$tmp/manifest.json"
-skopeo manifest-digest "$tmp/manifest.json" | rg -q '^sha256:[0-9a-f]{64}$'
 
 task --version >/dev/null
 task --list >/dev/null

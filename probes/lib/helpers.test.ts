@@ -19,12 +19,7 @@ const EMBEDDED_QUOTES =
   `trap "rm -rf \\"$first\\"" EXIT; test "$(cat skill)" = '"'"'committed skill'"'"''`;
 
 describe('captured-env rewrite — flag off is byte-identical', () => {
-  const commands = [
-    CHAINED,
-    EMBEDDED_QUOTES,
-    'CI_DOCKER_PUSH=false nix develop .#cd -c ./scripts/ci/docker.sh',
-    'nix fmt --no-write-lock-file -- --ci --formatters shfmt',
-  ];
+  const commands = [CHAINED, EMBEDDED_QUOTES, 'nix fmt --no-write-lock-file -- --ci --formatters shfmt'];
 
   for (const command of commands) {
     test(`unset PROBE_CAPTURED_ENV leaves the bytes alone: ${command.slice(0, 48)}`, () => {

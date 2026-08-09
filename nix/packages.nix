@@ -14,8 +14,15 @@ let
           atomiutils
           cyanprint
           dlint
-          infralint
-          infrautils
+          # The axis-pure slices, not the `infralint`/`infrautils` aggregates. The
+          # aggregates carry BOTH stripped axes by CONTENT - infralint ships
+          # hadolint, skopeo, helm-docs and helmlint, infrautils ships docker,
+          # dockerd and helm - so this node cannot declare them and still be the
+          # node its name describes. Neither docker slice is taken: this node
+          # strips that axis, and `docker-client` below is a separate pre-existing
+          # declaration, not part of this swap.
+          infralint-core
+          infrautils-core
           releaser
           skills-sync
           ;
