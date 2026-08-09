@@ -1,0 +1,80 @@
+{{- /* ### bun-consumer-deployment */ -}}
+{{- /* #### source: bun-consumer */ -}}
+{{- include "bunconsumer.validateServiceTree" . -}}
+{{- /* The consumer serves no HTTP: no Service, no HTTPRoute, no scrape port.
+       Telemetry is push-based OTLP (R20). Liveness AND readiness are exec probes
+       on the binary's `health` subcommand and are dependency-blind (DQ16).
+       The db-init hook Job is deliberately NOT checksummed into this pod template:
+       a migration must never force app recreation — this is always a rolling update. */ -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "bunconsumer.resourceName" (dict "root" . "token" "worker") }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "bunconsumer.labels" . | nindent 4 }}
+  annotations:
+    {{- include "bunconsumer.annotations" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.worker.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: {{ .Values.worker.rollingUpdate.maxUnavailable }}
+      maxSurge: {{ .Values.worker.rollingUpdate.maxSurge }}
+  selector:
+    matchLabels:
+      {{- include "bunconsumer.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "bunconsumer.labels" . | nindent 8 }}
+      annotations:
+        {{- include "bunconsumer.annotations" . | nindent 8 }}
+    spec:
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.worker.terminationGracePeriodSeconds }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Values.serviceTree.module }}
+          image: {{ include "bunconsumer.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            {{- toYaml .Values.worker.args | nindent 12 }}
+          env:
+            {{- include "bunconsumer.commonEnv" . | trim | nindent 12 }}
+            {{- with .Values.worker.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with (include "bunconsumer.envFrom" . | trim) }}
+          envFrom:
+            {{- . | nindent 12 }}
+          {{- end }}
+          livenessProbe:
+            exec:
+              command:
+                {{- toYaml .Values.health.command | nindent 16 }}
+            initialDelaySeconds: {{ .Values.health.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.health.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.health.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.health.liveness.failureThreshold }}
+          readinessProbe:
+            exec:
+              command:
+                {{- toYaml .Values.health.command | nindent 16 }}
+            initialDelaySeconds: {{ .Values.health.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.health.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.health.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.health.readiness.failureThreshold }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.worker.resources | nindent 12 }}
+          volumeMounts:
+            {{- include "bunconsumer.volumeMounts" (dict "root" .) | nindent 12 }}
+      volumes:
+        {{- include "bunconsumer.volumes" (dict "root" . "configMapName" (include "bunconsumer.resourceName" (dict "root" . "token" "config"))) | nindent 8 }}

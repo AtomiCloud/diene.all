@@ -42,6 +42,10 @@ with packages;
     releaser
     shellcheck
     yq-go
+    # ### bun-consumer-main
+    # #### source: bun-consumer
+    minio-client
+    postgresql
   ];
 
   # ### workspace-releaser-bootstrap

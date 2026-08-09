@@ -1,0 +1,30 @@
+{{- /* ### bun-consumer-primordial-grafana-folder */ -}}
+{{- /* #### source: bun-consumer */ -}}
+{{- if .Values.observability.enabled -}}
+{{- include "bunconsumerPrimordial.validateServiceTree" . -}}
+{{- /* One GrafanaFolder per service identity (primordial-chart.md, "One source
+       file, one resource"). Deterministic uid `<platform>-<service>-folder`; the
+       `-folder` suffix keeps it out of the shared dashboard/alert-group uid pool.
+       The parent platform folder (uid `<platform>`) is the platform's, created
+       once — deterministic uids mean no ordering coordination, the operator
+       retries until the parent exists. Nobody hand-creates folders in the UI.
+
+       The folder is emitted even with zero dashboards and zero alerts: the
+       observability scaffold's six-gate method legitimately yields none, and the
+       folder is the service's stable home either way. */ -}}
+apiVersion: {{ .Values.observability.apiVersion }}
+kind: GrafanaFolder
+metadata:
+  name: {{ include "bunconsumerPrimordial.resourceName" (dict "root" . "token" "obsfolder") }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "bunconsumerPrimordial.labels" . | nindent 4 }}
+  annotations:
+    {{- include "bunconsumerPrimordial.annotations" . | nindent 4 }}
+spec:
+  uid: {{ include "bunconsumerPrimordial.grafanaFolderUid" . }}
+  title: {{ printf "%s / %s" .Values.serviceTree.platform .Values.serviceTree.service | quote }}
+  parentFolderUID: {{ .Values.serviceTree.platform | quote }}
+  instanceSelector:
+    {{- toYaml .Values.observability.instanceSelector | nindent 4 }}
+{{- end }}

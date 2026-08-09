@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=../schemas/bun-consumer.schema.json
+compose:
+  project: bun-consumer
+postgres:
+  host: localhost
+  port: 5432
+  database: bun_consumer
+  username: bun_consumer
+  password: bun_consumer
+redis:
+  host: localhost
+  port: 6379
+  cacheDb: 0
+  kvDb: 1
+storage:
+  endpoint: http://localhost:9000
+  consolePort: 9001
+  accessKeyId: minioadmin
+  secretAccessKey: minioadmin
+otel:
+  endpoint: http://localhost:4318
+clickhouse:
+  endpoint: http://localhost:8123
+victoriaMetrics:
+  endpoint: http://localhost:8428
+grafana:
+  port: 3000
+encryption:
+  key: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=

@@ -1,0 +1,54 @@
+# ### bun-consumer-primordial-values-lapras
+# #### source: bun-consumer
+# lapras landscape overlay — connected local development (k3d). One of the TWO
+# independent stacked overlay dimensions (R16/B26).
+#
+# Dependencies are STILL declared as CRs here (B30): the dependency operator runs
+# locally too and realizes the in-cluster classes. Only the CLASS changes —
+# neon -> cnpg, upstash -> dragonfly with SNAPSHOT durability (Q-A2: AOF does not
+# exist), tigris -> minio. `delivery: local` is the direct-apply path.
+serviceTree:
+  landscape: lapras
+
+platformDependencies:
+  - landscape: lapras
+    placement:
+      preferredHost: lapras
+    deletionPolicy:
+      retainSecret: 1h
+    database:
+      type: cnpg
+      delivery: local
+      credentialMode: standard
+      rotation: 'off'
+      cpu: 1
+      ram: 512Mi
+      storage: 1Gi
+      version: '16'
+    kv:
+      type: dragonfly
+      delivery: local
+      credentialMode: standard
+      rotation: 'off'
+      cpu: 1
+      ram: 256Mi
+      engine:
+        dragonfly:
+          durability: SNAPSHOT
+    cache:
+      type: dragonfly
+      delivery: local
+      credentialMode: standard
+      rotation: 'off'
+      cpu: 1
+      ram: 256Mi
+    store:
+      type: minio
+      delivery: local
+      credentialMode: standard
+      rotation: 'off'
+      storage: 1Gi
+
+problems:
+  landscapes:
+    - lapras

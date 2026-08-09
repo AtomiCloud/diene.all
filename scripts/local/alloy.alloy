@@ -1,0 +1,38 @@
+otelcol.receiver.otlp "default" {
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+
+  output {
+    logs    = [otelcol.processor.batch.default.input]
+    metrics = [otelcol.processor.batch.default.input]
+    traces  = [otelcol.processor.batch.default.input]
+  }
+}
+
+otelcol.processor.batch "default" {
+  output {
+    logs    = [otelcol.exporter.otlp.clickhouse.input]
+    metrics = [otelcol.exporter.prometheus.victoria.input]
+    traces  = [otelcol.exporter.otlp.clickhouse.input]
+  }
+}
+
+otelcol.exporter.otlp "clickhouse" {
+  client {
+    endpoint = "otel-collector:4317"
+    tls {
+      insecure = true
+    }
+  }
+}
+
+otelcol.exporter.prometheus "victoria" {
+  forward_to = [prometheus.remote_write.victoria.receiver]
+}
+
+prometheus.remote_write "victoria" {
+  endpoint {
+    url = "http://victoria-metrics:8428/api/v1/write"
+  }
+}

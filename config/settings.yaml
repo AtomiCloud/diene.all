@@ -1,0 +1,143 @@
+# yaml-language-server: $schema=../schemas/bun-consumer.schema.json
+app:
+  landscape: lapras
+  platform: diene
+  service: bun-consumer
+  module: worker
+  version: 1.3.1
+postgres:
+  MAIN:
+    host: postgres
+    port: 5432
+    database: bun_consumer
+    username: bun_consumer
+    password: ''
+    ssl: false
+    pool:
+      min: 0
+      max: 10
+cache:
+  MAIN:
+    host: redis
+    port: 6379
+    password: ''
+    db: 0
+    tls: false
+kv:
+  MAIN:
+    host: redis
+    port: 6379
+    password: ''
+    db: 1
+    tls: false
+storage:
+  MAIN:
+    endpoint: http://minio:9000
+    region: us-east-1
+    bucket: bun-consumer
+    accessKeyId: ''
+    secretAccessKey: ''
+    forcePathStyle: true
+  ARCHIVE:
+    endpoint: http://minio:9000
+    region: us-east-1
+    bucket: bun-consumer-archive
+    accessKeyId: ''
+    secretAccessKey: ''
+    forcePathStyle: true
+otel:
+  logs:
+    enabled: true
+    exporter:
+      console:
+        enabled: false
+      otlp:
+        enabled: false
+        endpoint: ''
+        protocol: http/protobuf
+        headers: {}
+        timeout: PT10S
+  metrics:
+    enabled: true
+    interval: PT10S
+    exporter:
+      console:
+        enabled: false
+      otlp:
+        enabled: false
+        endpoint: ''
+        protocol: http/protobuf
+        headers: {}
+        timeout: PT10S
+  traces:
+    enabled: true
+    sampler:
+      type: parentbased_traceidratio
+      ratio: 1
+    exporter:
+      console:
+        enabled: false
+      otlp:
+        enabled: false
+        endpoint: ''
+        protocol: http/protobuf
+        headers: {}
+        timeout: PT10S
+auth:
+  logto:
+    endpoint: http://logto:3001
+    appId: ''
+    appSecret: ''
+    management:
+      endpoint: http://logto:3001
+      clientId: ''
+      clientSecret: ''
+  handoff:
+    mount: /app-handoff
+  store:
+    kind: redis
+    host: redis
+    port: 6379
+api:
+  backends:
+    - coordinate:
+        landscape: lapras
+        platform: diene
+        service: control-plane
+        module: api
+      baseUrl: http://control-plane:8080
+      resource:
+        platform: diene
+        landscape: lapras
+        service: control-plane
+        resourceName: api
+      timeoutMs: 15000
+      retry: opaque-network-once
+encryption:
+  key: ''
+transport:
+  stream: bun-consumer.messages
+  consumerGroup: bun-consumer
+  consumerName: worker-main
+  blockMs: 1000
+  idleMs: 5000
+  batchSize: 10
+errorPortal:
+  scheme: https
+  host: errors.atomi.cloud
+  landscape: lapras
+  platform: diene
+  service: bun-consumer
+  module: worker
+  version: v1
+domain:
+  blobPrefix: processed
+  maxMessageBytes: 1048576
+dbInit:
+  createBucket: false
+  migrationsDir: migrations/pg
+  redisMigrationKey: bun-consumer:migrations:v1
+  seedDir: seed
+health:
+  heartbeatFile: dist/run/worker-heartbeat.json
+  maxAgeMs: 30000

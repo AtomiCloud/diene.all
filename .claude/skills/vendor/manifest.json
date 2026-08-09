@@ -3,16 +3,12 @@
   "generator": "skills-sync",
   "runtime": "node",
   "packages": [
-    "@atomicloud/diene.otel"
+    "@atomicloud/diene.e2e"
   ],
   "entries": [
     {
-      "path": "diene.otel/diene-otel-usage/SKILL.md",
-      "sha256": "35c94010c6fcbf898e9ddfa08a02127f02684a58e0d54d57beadd7270d5dba27"
-    },
-    {
-      "path": "diene.otel/diene-otel-usage/patterns.md",
-      "sha256": "9890dcd65f8b5943d66d2e5698a2cc3750147615a5f36f7d43bae64629aad283"
+      "path": "diene.e2e/diene-e2e-usage/SKILL.md",
+      "sha256": "3b26ee62439409741e43503d5509c3abdba64341b8fc7ec7e8a7c8142ee214d1"
     }
   ]
 }

@@ -45,6 +45,10 @@ let
           shellcheck
           treefmt
           yq-go
+          # ### bun-consumer-packages
+          # #### source: bun-consumer
+          minio-client
+          postgresql
           ;
       }
     );

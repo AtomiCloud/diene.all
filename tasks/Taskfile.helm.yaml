@@ -31,3 +31,33 @@ tasks:
       CHART: infra/root_chart
     cmds:
       - helm template diene-workspace {{.CHART}} --debug {{.CLI_ARGS}}
+
+  # ### bun-consumer-primordial-chart
+  # #### source: bun-consumer
+  primordial_chart:deps:
+    desc: Build dependencies for infra/primordial_chart
+    vars:
+      CHART: infra/primordial_chart
+    cmds:
+      - helm dependency build {{.CHART}}
+
+  primordial_chart:lint:
+    desc: Lint infra/primordial_chart
+    vars:
+      CHART: infra/primordial_chart
+    cmds:
+      - helm lint {{.CHART}}
+
+  primordial_chart:template:
+    desc: Render infra/primordial_chart
+    vars:
+      CHART: infra/primordial_chart
+    cmds:
+      - helm template bun-consumer-primordial {{.CHART}} {{.CLI_ARGS}}
+
+  primordial_chart:debug:
+    desc: Render infra/primordial_chart with debug output
+    vars:
+      CHART: infra/primordial_chart
+    cmds:
+      - helm template bun-consumer-primordial {{.CHART}} --debug {{.CLI_ARGS}}

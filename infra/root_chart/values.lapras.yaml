@@ -1,0 +1,29 @@
+# ### bun-consumer-values-lapras
+# #### source: bun-consumer
+# lapras landscape overlay — connected local development (k3d). One of the TWO
+# independent stacked overlay dimensions (R16/B26): stack
+# `values.yaml` -> `values.lapras.yaml` -> `values.<cluster>.yaml`.
+#
+# Dependencies are STILL requested through CRs here (B30) — the dependency
+# operator runs locally and realizes CNPG/Dragonfly/MinIO in-cluster. This
+# overlay therefore carries no endpoint literals: they arrive through the
+# service secret the operator writes.
+serviceTree:
+  landscape: lapras
+
+worker:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      memory: 192Mi
+
+dbInit:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      memory: 192Mi

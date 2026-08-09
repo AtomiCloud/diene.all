@@ -1,0 +1,73 @@
+{{- /* ### bun-consumer-primordial-logtoapp */ -}}
+{{- /* #### source: bun-consumer */ -}}
+{{- if .Values.logtoApp.enabled -}}
+{{- include "bunconsumerPrimordial.validateServiceTree" . -}}
+{{- /* Exactly ONE LogtoApp CR per (app x vlandscape) — the single home of all
+       app-level truth (S6/Q-I36); the old per-row fragment CRs are abolished.
+
+       PLACEMENT-OWNER CONDITION: render this only when THIS chart is the selected
+       placement owner for the app. A worker that serves no HTTP is normally NOT
+       the owner — the owning chart is whichever one declares the app's serve-set.
+       The surface ships regardless so an app-owning consumer built from this
+       template only has to flip `logtoApp.enabled`.
+
+       Redirect URIs are DERIVED, never declared per row: the operator resolves
+       the live serve-set (`VirtualLandscapeService` rows with this exact
+       (platform, service, module) coordinate and `serve: true`) and builds
+       `origin(L) + declaredPath`. This chart therefore declares PATHS only.
+       Non-HTTPS / local / vendor exceptions are explicit through the `extra*`
+       lists, and nothing here branches on environment. */ -}}
+{{- $root := . -}}
+{{- $paths := .Values.logtoApp.paths -}}
+{{- range $key := (list "redirectPath" "postLogoutPath") }}
+{{- $value := get $paths $key }}
+{{- if $value }}
+{{- if not (hasPrefix "/" $value) }}
+{{- fail (printf "logtoApp.paths.%s %q must be an absolute RFC 3986 path beginning with one `/` (C0 §8)" $key $value) }}
+{{- end }}
+{{- if regexMatch "^//|[?#]|(^|/)\\.{1,2}(/|$)|%2[fF]" $value }}
+{{- fail (printf "logtoApp.paths.%s %q must carry no authority, query, fragment, empty/dot segment, or percent-encoded `/`" $key $value) }}
+{{- end }}
+{{- end }}
+{{- end }}
+apiVersion: {{ .Values.logtoApp.apiVersion }}
+kind: LogtoApp
+metadata:
+  name: {{ include "bunconsumerPrimordial.resourceName" (dict "root" . "token" .Values.serviceTree.module) }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "bunconsumerPrimordial.labels" . | nindent 4 }}
+  annotations:
+    {{- include "bunconsumerPrimordial.annotations" . | nindent 4 }}
+spec:
+  {{- /* The endpoint is DERIVED from identityRef + namespace, never configured. */}}
+  identityRef: {{ required "logtoApp.identityRef is required when logtoApp.enabled" .Values.logtoApp.identityRef }}
+  platform: {{ .Values.serviceTree.platform }}
+  service: {{ .Values.serviceTree.service }}
+  module: {{ .Values.serviceTree.module }}
+  type: {{ .Values.logtoApp.type }}
+  {{- with $paths.redirectPath }}
+  redirectPath: {{ . | quote }}
+  {{- end }}
+  {{- with $paths.postLogoutPath }}
+  postLogoutPath: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.logtoApp.resourceRefs }}
+  {{- /* Explicit LogtoResource CR names; a missing ref is a hard
+         ResourceRefMissing error, never inferred. */}}
+  resourceRefs:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.logtoApp.extraRedirectUris }}
+  extraRedirectUris:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.logtoApp.extraPostLogoutRedirectUris }}
+  extraPostLogoutRedirectUris:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.logtoApp.extraCorsOrigins }}
+  extraCorsOrigins:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}

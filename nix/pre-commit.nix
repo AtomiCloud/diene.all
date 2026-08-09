@@ -41,7 +41,7 @@ let
     dontFixup = true;
     outputHashMode = "recursive";
     outputHashAlgo = "sha256";
-    outputHash = "sha256-rAk5chYo8iCSowuIrdOc9jX7THNpgFd2kezoVTMWdcw=";
+    outputHash = "sha256-VXqXzz/eVbSs/JwHiQHGR2J/hd95pQww0dzVB5KObwU=";
   };
   bun-tool = name: "${packages.bun}/bin/bun ${bun-tooling}/node_modules/.bin/${name}";
   biome-platform =
@@ -55,6 +55,28 @@ let
     cp -R ${../.}/. "$out/"
     ln -s ${bun-tooling}/node_modules "$out/node_modules"
   '';
+  # Kept for the bun-consumer validator hooks below, which the parent's dlint
+  # migration does not cover. ripgrep left the workspace package block when the
+  # registry started bundling it, so atomiutils supplies rg on the wrapper PATH
+  # rather than being merged into the buildEnv (which would collide).
+  validator-runtime = pkgs.buildEnv {
+    name = "workspace-validator-runtime";
+    paths = [
+      packages.bash
+      packages.bun
+      packages.git
+      packages.jq
+      packages.yq-go
+      pkgs.coreutils
+      pkgs.diffutils
+      pkgs.findutils
+      pkgs.gnugrep
+      pkgs.gnused
+    ];
+  };
+  validator =
+    command:
+    "${packages.bash}/bin/bash -c 'export PATH=${validator-runtime}/bin:${packages.atomiutils}/bin; exec ${packages.bash}/bin/bash ${command}'";
   # toolchain-smoke asserts the DECLARED env lists actually provide their binaries.
   envPath = pkgs.lib.makeBinPath (env.system ++ env.main ++ env.lint ++ env.dev);
 in
@@ -69,7 +91,9 @@ pre-commit-lib.run {
         "^\\.claude/skills/vendor/"
         "^Changelog\\.md$"
         "^docs/developer/CommitConventions\\.md$"
+        "^infra/primordial_chart/"
         "^infra/root_chart/"
+        "^schemas/"
       ];
     };
 
@@ -86,6 +110,26 @@ pre-commit-lib.run {
       name = "Helm lint";
       entry = "${packages.infrautils}/bin/helm lint infra/root_chart";
       files = "^infra/root_chart/.*";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    # ### bun-consumer-primordial-chart-hooks
+    # #### source: bun-consumer
+    a-helm-docs-primordial = {
+      enable = true;
+      name = "Primordial Helm docs";
+      entry = "${packages.infralint}/bin/helm-docs --chart-search-root infra/primordial_chart";
+      files = "^infra/primordial_chart/.*";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-helm-lint-primordial = {
+      enable = true;
+      name = "Primordial Helm lint";
+      entry = "${packages.kubernetes-helm}/bin/helm lint infra/primordial_chart";
+      files = "^infra/primordial_chart/.*";
       pass_filenames = false;
       language = "system";
     };
@@ -110,11 +154,18 @@ pre-commit-lib.run {
     # docs/standards/ and every first-level skill trigger is linted, so adding a
     # topic needs no edit here. Vendored skills sit deeper than one level and are
     # ignored again by .markdownlint-cli2.jsonc.
+    #
+    # ### observability-markdown
+    # #### source: observability
+    # The observability payload adds markdown the directory shape does not reach:
+    # the top-level observability/ dir, the probe add-back checklist, and the
+    # grafana / observability-check skill templates, which sit one level deeper
+    # than SKILL.md. They were linted before the bun-base cascade and stay linted.
     a-markdownlint = {
       enable = true;
       name = "Markdown lint";
       entry = "${pkgs.markdownlint-cli2}/bin/markdownlint-cli2";
-      files = "^(CLAUDE\\.md|README\\.md|docs/standards/.*\\.md|\\.claude/skills/[^/]+/SKILL\\.md)$";
+      files = "^(CLAUDE\\.md|README\\.md|docs/standards/.*\\.md|\\.claude/skills/[^/]+/SKILL\\.md|observability/.*\\.md|probes/observability-.*\\.md|\\.claude/skills/(grafana-alert|grafana-alert-set|grafana-dashboards|grafana-runbook|observability-check)/.*\\.md)$";
       pass_filenames = true;
       language = "system";
     };
@@ -184,5 +235,35 @@ pre-commit-lib.run {
       pass_filenames = false;
       language = "system";
     };
+
+    # ### bun-consumer-hooks
+    # #### source: bun-consumer
+    a-constants-sync = {
+      enable = true;
+      name = "Keyed adapter constants sync";
+      entry = validator "scripts/validate/constants-sync.sh";
+      files = "^(config/settings\\.yaml|src/config/constants\\.ts)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-rebrand-config = {
+      enable = true;
+      name = "Config-driven rebrand guard";
+      entry = validator "scripts/validate/rebrand.sh";
+      files = "^(config/settings\\.yaml|src/.*\\.ts)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-schema-drift = {
+      enable = true;
+      name = "Generated config schema drift";
+      entry = validator "scripts/validate/schema-drift.sh";
+      files = "^(config/.*\\.yaml|schemas/.*\\.json|src/config/.*\\.ts)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
   };
 }
