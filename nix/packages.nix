@@ -10,16 +10,6 @@ let
       {
         deadcode = gotools;
         staticcheck = go-tools;
-        # GO-2026-5856: crypto/tls, reachable via adapters/kv, fixed in 1.26.5.
-        go = pkgs-2605.go.overrideAttrs (
-          finalAttrs: _previousAttrs: {
-            version = "1.26.5";
-            src = pkgs-2605.fetchurl {
-              url = "https://go.dev/dl/go${finalAttrs.version}.src.tar.gz";
-              hash = "sha256-SVvkvIcXasVnOS5bQRar2YRm0z17SdQedkzMaXay3EI=";
-            };
-          }
-        );
         inherit
           gofumpt
           golangci-lint
@@ -29,6 +19,10 @@ let
       }
     );
 
+    # GO-2026-5856: crypto/tls, reachable via adapters/kv, fixed in 1.26.5. The
+    # registry has exported go at that version declaratively since v5.2.0, so the
+    # node takes it from here instead of carrying its own custom build. Verified by
+    # building and running it, not by reading a manifest.
     atomipkgs = (
       with atomi;
       {
@@ -36,6 +30,7 @@ let
           atomiutils
           cyanprint
           dlint
+          go
           go-validator
           infralint
           infrautils
