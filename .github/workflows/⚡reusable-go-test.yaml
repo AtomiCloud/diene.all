@@ -27,7 +27,7 @@ jobs:
         if: inputs.mode == 'int'
         run: nix develop .#ci -c ./scripts/ci/sit.sh
       - name: Upload coverage
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5
         with:
           disable_search: true
           fail_ci_if_error: false
