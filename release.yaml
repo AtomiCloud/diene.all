@@ -1,14 +1,30 @@
 schemaVersion: 2
 
 types:
-  # RE-ADDED after the shared@99a297e9 propagation. The parent dropped this type,
-  # and that deletion auto-merges CLEANLY into every child - no conflict, no marker,
-  # nothing for a seat to notice. It went 14 types to 13 here (release.yaml 231 lines
-  # to 177). A node that does not compare the type sets across the merge loses the
-  # type silently and stays fully green, because no gate we run asserts a set. It has
-  # already landed that way on one sibling node.
-  # Removing this type is a decision for whoever owns the commit-type policy, taken
-  # on purpose and written down - not a side effect of a propagation.
+  # RESTORATION, NOT A DECISION. The shared@99a297e9 propagation trimmed this
+  # node's set: the `amend` type plus 16 type/scope pairs (chore/many-owner,
+  # chore/nix, chore/workspace, docs/nix, feat/nix, feat/probes, fix/nix,
+  # fix/probes, fix/skills, fix/workspace, merge/main, merge/workspace,
+  # perf/probes, refactor/ci, style/probes, test/probes). All of it is put back
+  # here in the pre-merge shape and ordering, per the standing rule that every
+  # node keeps its pre-merge set entire.
+  #
+  # Why this note exists:
+  #   * A PARENT TRIM IS NOT A RULING. The parent dropping an entry says nothing
+  #     about whether this node should carry it; a deletion that arrives by
+  #     propagation was never argued, only inherited.
+  #   * THE CANONICAL QUESTION SITS WITH THE OWNER of the commit-type policy.
+  #     Whether go-base should keep these types and scopes is theirs to settle,
+  #     on purpose and in writing - not a side effect of a cascade.
+  #   * A LATER CASCADE MUST NOT READ THIS RESTORATION AS A DECISION. Nothing
+  #     here ratifies the set; it preserves the pre-merge state until the owner
+  #     rules.
+  #
+  # How the loss was found, and how to check it again: the trim auto-merges
+  # CLEANLY into every child - no conflict, no marker, and no gate we run
+  # asserts a set. DO NOT COMPARE COUNTS: a sibling measured 13 types before and
+  # after while one was lost and another gained. Diff the (type, scope) SETS in
+  # BOTH directions against the pre-merge tip.
   - type: amend
     desc: Small amendments and typo fixes
     scopes:
@@ -26,6 +42,15 @@ types:
     scopes:
       default:
         desc: Perform a chore
+        release: false
+      many-owner:
+        desc: Surfaces with several owners
+        release: false
+      nix:
+        desc: Nix flake and modules
+        release: false
+      workspace:
+        desc: Workspace tree itself
         release: false
   - type: ci
     desc: CI/CD changes
@@ -62,6 +87,9 @@ types:
       default:
         desc: Update documentation
         release: false
+      nix:
+        desc: Nix flake and modules
+        release: false
   - type: feat
     desc: New features
     section: ✨ Features ✨
@@ -72,6 +100,12 @@ types:
       breaking:
         desc: Add a breaking feature
         release: major
+      nix:
+        desc: Nix flake and modules
+        release: minor
+      probes:
+        desc: Verification corpus
+        release: minor
   - type: fix
     desc: Bug fixes
     section: 🐛 Bug Fixes 🐛
@@ -79,11 +113,29 @@ types:
       default:
         desc: Fix a bug
         release: patch
+      nix:
+        desc: Nix flake and modules
+        release: patch
+      probes:
+        desc: Verification corpus
+        release: patch
+      skills:
+        desc: Agent skills
+        release: patch
+      workspace:
+        desc: Workspace tree itself
+        release: patch
   - type: merge
     desc: Branch merges
     scopes:
       default:
         desc: Merge a branch
+        release: false
+      main:
+        desc: Root branch layer
+        release: false
+      workspace:
+        desc: Workspace tree itself
         release: false
   - type: perf
     desc: Performance improvements
@@ -92,11 +144,17 @@ types:
       default:
         desc: Improve performance
         release: patch
+      probes:
+        desc: Verification corpus
+        release: patch
   - type: refactor
     desc: Refactors
     scopes:
       default:
         desc: Refactor implementation
+        release: minor
+      ci:
+        desc: CI/CD wiring
         release: minor
   - type: style
     desc: Non-functional style changes
@@ -104,12 +162,18 @@ types:
       default:
         desc: Update style
         release: patch
+      probes:
+        desc: Verification corpus
+        release: patch
   - type: test
     desc: Test changes
     section: 🧪 Tests 🧪
     scopes:
       default:
         desc: Add or correct tests
+        release: minor
+      probes:
+        desc: Verification corpus
         release: minor
 
 specialScopes:
