@@ -1,8 +1,5 @@
 version: '3'
 
-includes:
-  helm: tasks/Taskfile.helm.yaml
-
 tasks:
   setup:
     desc: Set up the workspace

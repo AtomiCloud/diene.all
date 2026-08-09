@@ -24,6 +24,3 @@
 .vscode/
 Thumbs.db
 desktop.ini
-
-### workspace [helm]
-infra/root_chart/uploads/

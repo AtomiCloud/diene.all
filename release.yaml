@@ -1,6 +1,18 @@
 schemaVersion: 2
 
 types:
+  # This node keeps its own pre-merge vocabulary in BOTH directions: `amend` was
+  # restored after the shared-wo-docker cascade dropped it, and the `merge` type
+  # the same cascade added was removed again. The parent renames
+  # atomi_release.yaml to release.yaml, and the rename hid the exchange from a
+  # count check — 17 pairs before, 17 after, one lost and one gained. The set
+  # here is exactly the pre-merge set: nothing added, nothing missing.
+  - type: amend
+    desc: Small amendments and typo fixes
+    scopes:
+      default:
+        desc: Amend existing work
+        release: false
   - type: build
     desc: Build-system changes
     scopes:
@@ -65,12 +77,6 @@ types:
       default:
         desc: Fix a bug
         release: patch
-  - type: merge
-    desc: Branch merges
-    scopes:
-      default:
-        desc: Merge a branch
-        release: false
   - type: perf
     desc: Performance improvements
     section: 🚀 Performance Improvement 🚀

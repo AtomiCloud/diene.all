@@ -99,16 +99,6 @@ Run both lines, in that order, to reproduce the pre-commit workflow. A downstrea
 runtime restores its dependencies before the skills step; workspace declares
 `runtime: none`, so the generic call is deliberately inert here.
 
-The Helm script builds locally by default. Its reusable workflow sets the
-documented environment contract to enable publishing.
-
-## Artifact publishing
-
-Helm callers pass per-repository chart values through workflow `with:` inputs.
-Empty release versions produce commit builds; CD passes the tag as the version.
-Add another chart as another caller job rather than putting repository-specific
-branching into the reusable workflow.
-
 Release execution runs the real tool: `⚡reusable-release.yaml` enters the
 `releaser` shell and calls `scripts/ci/release.sh`, which invokes
 `releaser release -c release.yaml`. That script clears `.git/hooks` first,

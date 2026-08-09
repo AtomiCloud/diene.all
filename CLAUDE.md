@@ -30,10 +30,6 @@ See [docs/standards/domain-driven-design/index.md](docs/standards/domain-driven-
 
 See [docs/standards/functional-practices/index.md](docs/standards/functional-practices/index.md).
 
-## Helm charts and publishing
-
-See [docs/standards/helm/index.md](docs/standards/helm/index.md).
-
 ## Infisical and secrets
 
 See [docs/standards/infisical/index.md](docs/standards/infisical/index.md).

@@ -20,7 +20,6 @@ pre-commit-lib.run {
         "^\\.claude/skills/vendor/"
         "^Changelog\\.md$"
         "^docs/developer/CommitConventions\\.md$"
-        "^infra/root_chart/"
       ];
     };
 
@@ -28,15 +27,6 @@ pre-commit-lib.run {
       enable = true;
       name = "dlint";
       entry = "${packages.atomiutils}/bin/bash -c 'PATH=${envPath}:\$PATH ${packages.dlint}/bin/dlint lint'";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-helm-lint = {
-      enable = true;
-      name = "Helm lint";
-      entry = "${packages.infrautils}/bin/helm lint infra/root_chart";
-      files = "^infra/root_chart/.*";
       pass_filenames = false;
       language = "system";
     };
