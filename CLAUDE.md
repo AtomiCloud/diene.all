@@ -1,5 +1,8 @@
 # Diene workspace agent guide
 
+<!-- ### workspace -->
+<!-- #### source: workspace -->
+
 ## Agent skills
 
 `.claude/skills/vendor/` is tool-owned and is never hand-edited. Nothing in this
@@ -45,6 +48,9 @@ See [docs/standards/infisical/index.md](docs/standards/infisical/index.md).
 ## Linting and pre-commit
 
 See [docs/standards/linting/index.md](docs/standards/linting/index.md).
+
+<!-- ### nix-root -->
+<!-- #### source: main -->
 
 ## Nix flakes and development shells
 
@@ -97,3 +103,35 @@ See [docs/standards/three-layer-architecture/index.md](docs/standards/three-laye
 ## Utility libraries
 
 See [docs/standards/utilities/index.md](docs/standards/utilities/index.md).
+
+<!-- ### shared -->
+<!-- #### source: shared -->
+
+## Authorization
+
+See [docs/standards/authorization/index.md](docs/standards/authorization/index.md).
+The standard left the parent template with the .NET layer that is its only user,
+so this node owns it.
+
+<!-- ### dotnet-base -->
+<!-- #### source: dotnet-base -->
+
+## .NET base template
+
+Read [the .NET baseline](docs/developer/dotnet-baseline.md) and use `task` for
+setup, build, run, test, coverage, dead-code review, Docker, and Helm tasks.
+
+Language variants:
+
+- [C# date and time](docs/standards/datetime/languages/csharp.md)
+- [C# domain-driven design](docs/standards/domain-driven-design/languages/csharp.md)
+- [C# functional practices](docs/standards/functional-practices/languages/csharp.md)
+- [C# SOLID principles](docs/standards/solid-principles/languages/csharp.md)
+- [C# stateless OOP and DI](docs/standards/stateless-oop-di/languages/csharp.md)
+- [C# testing](docs/standards/testing/languages/csharp.md)
+- [C# utilities](docs/standards/utilities/languages/csharp.md)
+- [C# validation](docs/standards/validation/languages/csharp.md)
+
+Keep `dotnet-base.slnx`, `.config/dotnet-base.test.yaml`, and
+`AtomiCloud.DotnetBase.*` root namespaces base-named. Observability is absent on
+this branch.

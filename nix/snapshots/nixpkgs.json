@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "source": "github:NixOS/nixpkgs",
+  "channel": "nixos-26.05",
+  "release": "Yarara",
+  "rev": "445d861c6d31b4af0c79d8d4be2331f762a361d7",
+  "selectedAt": "2026-08-09T00:00:00Z",
+  "upstream": {
+    "note": "Adopted from the shared parent's declaration at 99a297e9; upstream commit metadata was not independently observed on this node."
+  },
+  "selection": {
+    "method": "Adopted the revision the shared parent declares, propagated into this node by the cascade merge of shared@99a297e9. Moving the pin stays a deliberate act: the act here is the parent's owner-ruled pin move, not a local bump.",
+    "priorMethod": "Pinned the verified nixos-26.05 branch head at workspace replay time.",
+    "priorRev": "4382ed2b7a6839d4280a9b386db49cbc5907414d",
+    "rationale": [
+      "The checked-in Bun/shared and Dotnet family locks disagreed, so no existing family lock was authoritative.",
+      "Selecting the current release-branch head keeps the new replay current while creating one immutable direct nixpkgs identity for every descendant.",
+      "All later diene branches must copy this revision exactly; family-local lock history is evidence only."
+    ],
+    "observedDisagreement": [
+      {
+        "family": "bun",
+        "directRev": "4062d36ebeae843c750011eef6b61ec9a9dbc9a9"
+      },
+      {
+        "family": "shared",
+        "directRev": "4062d36ebeae843c750011eef6b61ec9a9dbc9a9",
+        "note": "The input was also misnamed nixpkgs-2511."
+      },
+      {
+        "family": "dotnet",
+        "directRev": "1f01958ffb5b3545c96d9ef2f4e24c5e5e1eb846"
+      }
+    ],
+    "registryPin": "The atomipkgs/nix-registry nested nixpkgs pin stays registry-owned and is deferred; direct diene inputs use this file's revision now."
+  }
+}

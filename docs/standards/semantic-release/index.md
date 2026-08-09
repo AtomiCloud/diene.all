@@ -13,7 +13,7 @@ generated commit-convention document, and how a release commits and publishes.
 Everything about releases in this repository is configured in that one file. There
 is no standalone `.gitlint` file and one must not be added.
 
-The tool that reads it is registry-supplied `releaser` v2, and it **replaces** semantic-release: there is
+The tool that reads it is `releaser`, and it **replaces** semantic-release: there is
 no plugin list, no package manager invoked at release time, and no separate
 `.releaserc.yaml`. The configuration is `schemaVersion: 2`.
 
@@ -54,14 +54,16 @@ The configuration is one document with five top-level parts.
 
 Two parts of `release:` carry a note worth reading before you edit them:
 
-- `release.hooks.prepare` is **deliberately empty**. It is where the old
+- `release.hooks.prepare` is **filled on this node**. It is where the old
   `@semantic-release/exec` hook point moved to: a list of
-  `{ phase: beforeWrite | afterWrite, command: … }` entries a downstream node
-  fills, usually with an `afterWrite` command that stamps the version into whatever
-  file that node's ecosystem versions. This workspace versions no manifest, so it
-  fills nothing. The releaser does not write a version file on its own — it writes
-  only the changelog and the conventions document — so there is no version file
-  here to commit, and that is why there is none in `assets`.
+  `{ phase: beforeWrite | afterWrite, command: … }` entries each node fills with a
+  command that stamps the version into whatever file that node's ecosystem
+  versions. The parent template versions no manifest and leaves this empty; .NET
+  versions `App/App.csproj`, so this node runs
+  `./scripts/release/bump.sh ${version}` at the `afterWrite` phase and lists
+  `App/App.csproj` in `assets`. There is no separate `VERSION` file: the language
+  manifest is the version, and a committed version file that nothing writes goes
+  stale in silence.
 - `release.commit.assets` lists the files a release commits, and it is enforced
   rather than advisory: the releaser aborts if a write lands outside the list, and a
   file listed but never written is dead configuration. So if you add a `prepare`
@@ -93,10 +95,8 @@ format gate in permanent disagreement.
 Release is its own workflow, and it runs off a successful `CI` run rather than off
 a push. `.github/workflows/release.yaml` declares that `workflow_run` trigger, the
 restriction to `main`, and the `release` concurrency group; the `a-workflows` gate
-pins those values through `dlint.yaml`'s
-`checks["workflow-policy"].assertions`. The trigger and concurrency probes each
-sabotage their own value and drive that check directly, so both independent
-release policies are shown able to fail.
+pins those values, and `scripts/validate/workflows.sh` holds the exact ones it
+expects.
 
 The workflow ends in a single `scripts/ci/release.sh` call inside the `releaser`
 Nix shell. That script runs `releaser release -c release.yaml`, which
@@ -112,9 +112,9 @@ commit-msg hook would refuse the commit the tool is in the middle of making.
 ```bash
 releaser next                          # the version the current commits would produce
 releaser changelog                     # the release notes they would produce
-releaser conventions -c release.yaml   # regenerate the commit-conventions document
+releaser conventions                   # regenerate the commit-conventions document
 releaser release --dry-run             # everything a release would do, changing nothing
-releaser release -c release.yaml       # the real thing; CI runs this one
+releaser release -c release.yaml # the real thing; CI runs this one
 ```
 
 `releaser release` without `--dry-run` is the only command that changes git or

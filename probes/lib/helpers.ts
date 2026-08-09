@@ -46,8 +46,15 @@ export function capturedEnvCommand(
   );
 }
 
-export async function expectGreen(repo: any, command: string, label: string): Promise<void> {
-  const result = await repo.exec(capturedEnvCommand(command, label), { timeoutMs: 240000 });
+// `timeoutMs` is a node-local parameter, not a stylistic difference from the parent.
+// The .NET arms drive `dotnet build`/`dotnet test` through a cold NuGet restore and
+// measure past the parent's hardcoded 240 s; nine probe files pass 600000 here. A
+// resolve that took the parent's three-argument signature would still compile and
+// still run — it would just cap those arms and report a timeout as a real regression.
+// Nominated for hoist: a parent that hardcodes the timeout is a latent trap for any
+// slow node downstream, not only this one.
+export async function expectGreen(repo: any, command: string, label: string, timeoutMs = 240000): Promise<void> {
+  const result = await repo.exec(capturedEnvCommand(command, label), { timeoutMs });
   if (result.exitCode !== 0) {
     throw new Error(`${label} failed on the healthy repo: ${result.stderr || result.stdout}`);
   }
@@ -73,8 +80,8 @@ export async function expectDevShellsOnce(repo: any): Promise<void> {
   }
 }
 
-export async function expectRed(repo: any, command: string, label: string): Promise<void> {
-  const result = await repo.exec(capturedEnvCommand(command, label), { timeoutMs: 240000 });
+export async function expectRed(repo: any, command: string, label: string, timeoutMs = 240000): Promise<void> {
+  const result = await repo.exec(capturedEnvCommand(command, label), { timeoutMs });
   if (result.exitCode === 0) {
     throw new Error(`${label} stayed green after sabotage`);
   }

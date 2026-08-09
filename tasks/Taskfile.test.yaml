@@ -1,0 +1,20 @@
+version: '3'
+
+vars:
+  MODE: '{{.MODE | default "unit"}}'
+
+tasks:
+  default:
+    desc: Run the {{.MODE}} test tier
+    cmds:
+      - ./scripts/local/dotnet-test.sh {{.MODE}}
+
+  coverage:
+    desc: Run the {{.MODE}} test tier with merged blocking coverage
+    cmds:
+      - ./scripts/local/dotnet-test.sh {{.MODE}} --coverage
+
+  watch:
+    desc: Watch the {{.MODE}} test tier
+    cmds:
+      - ./scripts/local/dotnet-test.sh {{.MODE}} --watch

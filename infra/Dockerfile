@@ -1,7 +1,7 @@
 FROM alpine:3.21 AS build
 WORKDIR /app
 COPY . .
-RUN printf 'diene workspace\n' > /app/message.txt
+RUN printf 'diene dotnet base\n' > /app/message.txt
 
 FROM alpine:3.21 AS runtime
 RUN addgroup -S app && adduser -S -G app app

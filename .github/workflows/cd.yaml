@@ -1,3 +1,5 @@
+# ### workspace-cd
+# #### source: workspace
 name: CD
 
 on:
@@ -15,7 +17,7 @@ jobs:
     uses: ./.github/workflows/⚡reusable-docker.yaml
     secrets: inherit
     with:
-      image_name: diene-workspace
+      image_name: diene-dotnet-base
       dockerfile: ./infra/Dockerfile
       version: ${{ github.ref_name }}
 
