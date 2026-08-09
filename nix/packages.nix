@@ -10,16 +10,6 @@ let
       {
         deadcode = gotools;
         staticcheck = go-tools;
-        # GO-2026-5856: crypto/tls, reachable via adapters/kv, fixed in 1.26.5.
-        go = pkgs-2605.go.overrideAttrs (
-          finalAttrs: _previousAttrs: {
-            version = "1.26.5";
-            src = pkgs-2605.fetchurl {
-              url = "https://go.dev/dl/go${finalAttrs.version}.src.tar.gz";
-              hash = "sha256-SVvkvIcXasVnOS5bQRar2YRm0z17SdQedkzMaXay3EI=";
-            };
-          }
-        );
         inherit
           gofumpt
           golangci-lint
@@ -36,6 +26,10 @@ let
           atomiutils
           cyanprint
           dlint
+          # GO-2026-5856: crypto/tls, reachable via adapters/kv, fixed in 1.26.5.
+          # The registry exports go 1.26.5 from v5.2.0 onward, so the fix is
+          # inherited declaratively here rather than re-pinned by this node.
+          go
           go-validator
           infralint
           infrautils
