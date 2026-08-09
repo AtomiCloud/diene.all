@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedBecause } from './lib/helpers.ts';
 
 export default {
   contractVersion: 1,
@@ -14,15 +14,15 @@ export default {
     },
     {
       name: 'mutation-hook-helm-lint-caught',
-      description: 'A schema-invalid value wired through the generated Helm hook turns that hook red.',
+      description: 'A focused sabotage must turn the hook-helm-lint mechanism red.',
       kind: 'mutation',
+      expectedImpact: ['helm-lint'],
       async run(repo: any) {
-        await repo.patch('nix/pre-commit.nix', {
-          find: 'entry = "${packages.kubernetes-helm}/bin/helm lint infra/root_chart";',
-          replace:
-            'entry = "${packages.kubernetes-helm}/bin/helm lint infra/root_chart --set worker.replicas=invalid";',
-        });
-        await expectRed(repo, 'nix develop .#ci -c pre-commit run a-helm-lint --all-files', 'hook-helm-lint');
+        await repo.patch('infra/root_chart/Chart.yaml', { find: 'apiVersion: v2', replace: 'apiVersion: invalid' });
+        await expectRedBecause(repo, 'nix develop .#ci -c pre-commit run a-helm-lint --all-files', 'hook-helm-lint', [
+          '- hook id: a-helm-lint',
+          "Chart.yaml: apiVersion 'invalid' is not valid",
+        ]);
       },
     },
   ],

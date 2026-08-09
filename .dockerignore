@@ -1,23 +1,21 @@
-### workspace-build
-#### source: workspace
-.git
-.gitignore
+### workspace [vcs-env]
 .direnv
 .env
 .env.*
+.git
+.gitignore
 *.log
 
-### workspace-docs
-#### source: workspace
+### workspace [non-runtime]
+!README.md
+*.md
 .claude
+.dockerignore
 .github
 docs
 probes
-*.md
-!README.md
 
-### workspace-output
-#### source: workspace
+### workspace [nix]
 result
 result-*
 

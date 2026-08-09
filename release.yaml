@@ -1,0 +1,224 @@
+# ### workspace-release
+# #### source: workspace
+schemaVersion: 2
+
+types:
+  # THIS NODE'S OWN PRE-MERGE SET - restored, not chosen.
+  # Ruled by coordinator-8: every node keeps the type/scope set its own
+  # pre-merge tip carried, in BOTH directions. A GAIN from a parent is reverted
+  # exactly as a LOSS from a parent is restored, because either way the node
+  # stops speaking its own vocabulary on the strength of a parent edit alone.
+  #
+  # Measured on THIS node (bun-consumer), which is not the same measurement the
+  # parent recorded here for itself - that paragraph described
+  # bun-base-w-observability's own merge and was false of this node, so it was
+  # localised on coordinator-8's ruling rather than propagated: a comment that
+  # describes a different node's history reads as evidence and is worse than no
+  # comment at all.
+  #
+  # This node's pre-merge tip cdf50359 carried 13 types / 17 type/scope pairs.
+  # The parent tip merged in, bun-base-w-observability at 3bdae94c, carries the
+  # SAME 13 types / 17 pairs - the parent seat had already resolved itself down
+  # before this cascade reached here. So the pair-set diff between this node's
+  # pre-merge tip and its post-merge tip is EMPTY IN BOTH DIRECTIONS: nothing
+  # was lost and had to be restored, and nothing was gained and had to be
+  # removed. The pairs below are this node's own, unchanged by the merge.
+  #
+  # A PARENT EDIT IS NOT A RULING. Whether this vocabulary applies fleet-wide
+  # is still the owner's to decide. A later cascade must not read this revert
+  # as a decision in either direction, and must not re-add these pairs on the
+  # strength of a parent merge alone.
+  #
+  # RENAME HAZARD, for whoever compares next. This node's pre-merge file was
+  # named atomi_release.yaml and the parent RENAMES it to release.yaml, so a
+  # same-path comparison compares nothing at all and silently reports no
+  # change. Resolve the rename first. On this node the counts happened not to
+  # move across it - 13 types / 17 pairs on both sides - but do not read that
+  # as licence to compare counts: on a node where the parent DOES carry a wider
+  # vocabulary the type count understates the move by an order of magnitude
+  # (13 types to 14 while the PAIR count goes 17 to 34). Only a pair-set diff,
+  # run in both directions, sizes it, and only that diff can tell "unchanged"
+  # apart from "changed by equal numbers in both directions".
+  #
+  # docs/developer/CommitConventions.md is generated from this file: any
+  # change here must regenerate it in the same commit.
+  - type: amend
+    desc: Small amendments and typo fixes
+    scopes:
+      default:
+        desc: Amend existing work
+        release: false
+  - type: build
+    desc: Build-system changes
+    scopes:
+      default:
+        desc: Update build machinery
+        release: false
+  - type: chore
+    desc: Repository chores
+    scopes:
+      default:
+        desc: Perform a chore
+        release: false
+  - type: ci
+    desc: CI/CD changes
+    scopes:
+      default:
+        desc: Update CI/CD
+        release: false
+  - type: config
+    desc: Configuration changes
+    scopes:
+      default:
+        desc: Update configuration
+        release: false
+  - type: dep
+    desc: Dependency updates
+    section: 🔼 Dependency Upstreams 🔼
+    scopes:
+      default:
+        desc: Update a dependency
+        release: false
+      patch:
+        desc: Patch dependency update
+        release: patch
+      minor:
+        desc: Minor dependency update
+        release: minor
+      major:
+        desc: Major dependency update
+        release: major
+  - type: docs
+    desc: Documentation changes
+    section: 📜 Documentation 📜
+    scopes:
+      default:
+        desc: Update documentation
+        release: false
+  - type: feat
+    desc: New features
+    section: ✨ Features ✨
+    scopes:
+      default:
+        desc: Add a feature
+        release: minor
+      breaking:
+        desc: Add a breaking feature
+        release: major
+  - type: fix
+    desc: Bug fixes
+    section: 🐛 Bug Fixes 🐛
+    scopes:
+      default:
+        desc: Fix a bug
+        release: patch
+  - type: perf
+    desc: Performance improvements
+    section: 🚀 Performance Improvement 🚀
+    scopes:
+      default:
+        desc: Improve performance
+        release: patch
+  - type: refactor
+    desc: Refactors
+    scopes:
+      default:
+        desc: Refactor implementation
+        release: minor
+  - type: style
+    desc: Non-functional style changes
+    scopes:
+      default:
+        desc: Update style
+        release: patch
+  - type: test
+    desc: Test changes
+    section: 🧪 Tests 🧪
+    scopes:
+      default:
+        desc: Add or correct tests
+        release: minor
+
+specialScopes:
+  no-release:
+    desc: Prevent release from happening
+    release: false
+
+keywords:
+  - BREAKING CHANGE
+  - BREAKING CHANGES
+  - BREAKING
+
+lint:
+  header:
+    maxLength: 72
+    minLength: 5
+    forbiddenWords:
+      - WIP
+    forbidTrailingPunctuation: true
+  body:
+    maxLineLength: 80
+    minLengthWhenPresent: 20
+    requireBlankSecondLine: true
+  ignore:
+    - merge
+    - revert
+    - fixup
+    - fixup-amend
+    - squash
+
+conventions:
+  path: docs/developer/CommitConventions.md
+  template: |-
+    # Commit conventions
+
+    This repository follows [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
+
+    - `release.yaml` is the machine-readable source of truth: it owns the
+      commit types, the scopes valid for each one, and the version bump each scope
+      causes.
+    - [The conventional-commits standard](../standards/conventional-commits/index.md)
+      explains how to read that vocabulary and how to mark a breaking change.
+
+    ## Status of this file
+
+    This file is generated. `release.yaml` names this path in its
+    `conventions.path` value, `releaser conventions` writes it, and a release run
+    rewrites it as well. Change `release.yaml` and regenerate rather than
+    editing this file: everything up to here comes from that file's
+    `conventions.template`, and everything from the `type(scope)` line below is
+    generated from the commit vocabulary.
+
+    CONVENTION_DOCS_PLACEHOLDER
+
+release:
+  branches:
+    - main
+  tagFormat: 'v${version}'
+  changelog:
+    path: Changelog.md
+    title: '# Changelog'
+  commit:
+    message: |-
+      release: ${version}
+
+      ${notes}
+    assets:
+      - Changelog.md
+      - package.json
+      - docs/developer/CommitConventions.md
+  github:
+    enabled: true
+    successComment: 'Released in ${version}.'
+    releasedLabels:
+      - released
+  hooks:
+    # The hook point the parent leaves empty, filled here. This node's version
+    # lives in `package.json` rather than in a `VERSION` file, so the manifest
+    # the command below stamps is the same file listed in `commit.assets` above -
+    # written and committed by the same edit, which is what stops a version
+    # record going stale in silence.
+    prepare:
+      - phase: afterWrite
+        command: './scripts/release/bump.sh ${version}'
+    success: []
