@@ -81,11 +81,6 @@
   },
   {
     "template": "diene/workspace",
-    "name": "hook-helm-lint",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
     "name": "hook-infisical-full",
     "class": "gate"
   },
@@ -112,16 +107,6 @@
   {
     "template": "diene/workspace",
     "name": "docker-build",
-    "class": "smoke"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "helm-lint",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "helm-render",
     "class": "smoke"
   },
   {

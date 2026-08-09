@@ -24,7 +24,6 @@ rules remain in `docs/standards/`.
 - `task run -- <args>` executes the source entry point.
 - `task preview -- <args>` rebuilds and executes the bundled artifact.
 - `task docker:build` and `task docker:run` build and run the Bun image.
-- `task helm:lint` and `task helm:template` retain the inherited Helm axis.
 
 There is no `task dev`, `task up`, or `task down` surface in this base. Hot reload
 belongs to runnable descendants, and the integration tier owns its Redis
@@ -80,7 +79,7 @@ Read the TypeScript variants alongside their shared standards:
 
 - Codecov upload runs only in CI and is best-effort.
 - Integration tests and Docker image builds require a Docker runtime.
-- Unit, integration, build, Docker, and Helm are separate CI jobs.
+- Unit, integration, build, and Docker are separate CI jobs.
 
 ## Template maintenance boundary
 

@@ -14,8 +14,17 @@ let
           atomiutils
           cyanprint
           dlint
-          infralint
-          infrautils
+          # The axis-pure slices, not the `infralint`/`infrautils` aggregates.
+          # The aggregates carry the helm axis by CONTENT — infralint ships
+          # helm-docs and helmlint, infrautils ships helm — so a node whose
+          # defining property is the absence of that axis cannot declare them
+          # and still be telling the truth. `infralint-docker` is taken because
+          # hadolint and skopeo are invoked here; `infrautils-docker` is not,
+          # because `docker-client` below already provides the only binary of
+          # it this node uses.
+          infralint-core
+          infralint-docker
+          infrautils-core
           releaser
           skills-sync
           ;
@@ -39,7 +48,6 @@ let
           go-task
           infisical
           jq
-          kubernetes-helm
           nix
           pre-commit
           shellcheck

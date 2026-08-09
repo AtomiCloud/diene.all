@@ -16,8 +16,8 @@ with packages;
   lint = [
     actionlint
     dlint
-    infralint
-    kubernetes-helm
+    infralint-core
+    infralint-docker
     pre-commit
     shellcheck
     skills-sync
@@ -38,7 +38,6 @@ with packages;
     go-task
     infisical
     jq
-    kubernetes-helm
     releaser
     shellcheck
     yq-go
@@ -54,7 +53,7 @@ with packages;
   # #### source: main
   system = [
     atomiutils
-    infrautils
+    infrautils-core
     nix
   ];
 }

@@ -1,32 +1,27 @@
-### workspace [nix]
+### nix-root
+#### source: main
 .direnv/
 .pre-commit-config.yaml
-/result
-/result-*
+result
+result-*
 
-### workspace [secrets]
-!.env.example
+### workspace
+#### source: workspace
 .env
 .env.*
-
-### workspace [tooling]
+!.env.example
+.kagent/
+.kloop/
 *.log
 *.swo
 *.swp
 *~
-.kagent/
-.kloop/
-
-### workspace [os-editors]
-._*
 .DS_Store
+._*
 .idea/
 .vscode/
 Thumbs.db
 desktop.ini
-
-### workspace [helm]
-infra/root_chart/uploads/
 
 ### bun-base
 #### source: bun-base

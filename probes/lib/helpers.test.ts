@@ -22,7 +22,6 @@ describe('captured-env rewrite — flag off is byte-identical', () => {
   const commands = [
     CHAINED,
     EMBEDDED_QUOTES,
-    'nix develop .#ci -c helm lint infra/root_chart',
     'CI_DOCKER_PUSH=false nix develop .#cd -c ./scripts/ci/docker.sh',
     'nix fmt --no-write-lock-file -- --ci --formatters shfmt',
   ];
@@ -53,8 +52,8 @@ describe('captured-env rewrite — flag on', () => {
   });
 
   test('both invocation variants are rewritten and the shell name selects the capture', () => {
-    expect(capturedEnvCommand('nix develop .#ci -c helm lint infra/root_chart', 'helm-lint', ENV_DIR)).toContain(
-      `probe-captured-env '/captures/ci.sh' helm lint infra/root_chart`,
+    expect(capturedEnvCommand('nix develop .#ci -c ./scripts/ci/pre-commit.sh', 'precommit', ENV_DIR)).toContain(
+      `probe-captured-env '/captures/ci.sh' ./scripts/ci/pre-commit.sh`,
     );
     expect(
       capturedEnvCommand('nix develop --no-write-lock-file .#default -c pre-commit run treefmt', 'fmt', ENV_DIR),
