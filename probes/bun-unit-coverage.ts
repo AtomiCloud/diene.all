@@ -20,7 +20,7 @@ export default {
       name: 'mutation-bun-unit-coverage-caught',
       description: 'An uncovered library source file turns the unit coverage ledger red.',
       kind: 'mutation',
-      expectedImpact: [],
+      expectedImpact: ['bun-deadcode'],
       async run(repo: any) {
         await repo.write('src/lib/__probe_uncovered__.ts', 'export const probeUncovered = (): number => 1;\n');
         await repo.write(
