@@ -9,7 +9,7 @@ artifact="dist/index.js"
 ./scripts/local/schema-gen.sh
 mkdir -p infra/primordial_chart/files
 ./scripts/local/problems-export.sh --out infra/primordial_chart/files/problems.json
-echo "🔨 Building sample bundle..."
+echo "🔨 Building validation bundle..."
 bun build ./src/index.ts --outdir ./dist --target bun
 
 [[ ! -f ${artifact} ]] && echo "❌ Build artifact missing: ${artifact}" >&2 && exit 1

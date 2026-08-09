@@ -8,6 +8,5 @@ root_dir="$(git rev-parse --show-toplevel)"
 cd "${root_dir}"
 
 bun pm pkg set "version=${version#v}"
-printf '%s\n' "${version#v}" >VERSION
 
-echo "✅ package.json and VERSION stamped to ${version#v}"
+echo "✅ package.json stamped to ${version#v}"
