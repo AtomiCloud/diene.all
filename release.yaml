@@ -3,6 +3,18 @@
 schemaVersion: 2
 
 types:
+  # `amend` is re-added here after the bun-base cascade. The parent renamed
+  # atomi_release.yaml to release.yaml and, in the same clean merge, dropped
+  # `amend` and added `merge`. The type COUNT was 13 before and 13 after, so a
+  # count or line-length check sees nothing; only a set comparison finds it.
+  # Restored because this node used it before the cascade. The lost scopes are
+  # not restored here - that policy call sits with the owner.
+  - type: amend
+    desc: Small amendments and typo fixes
+    scopes:
+      default:
+        desc: Amend existing work
+        release: false
   - type: build
     desc: Build-system changes
     scopes:
