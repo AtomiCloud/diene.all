@@ -6,6 +6,7 @@ export type FeatureEntry = {
   template: string;
   name: string;
   class: EvidenceClass;
+  deferredUntil?: string;
 };
 
 type ProbeBody = Omit<Probe, 'kind'>;

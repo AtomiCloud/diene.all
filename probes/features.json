@@ -183,5 +183,10 @@
     "template": "diene/shared",
     "name": "thin-skills",
     "class": "presence"
+  },
+  {
+    "template": "diene/observability",
+    "name": "observability-standards-present",
+    "class": "presence"
   }
 ]

@@ -52,6 +52,14 @@ Use the repository's Nix shell for every command. Read
 [docs/standards/nix/index.md](docs/standards/nix/index.md) before changing the
 flake or `nix/` modules.
 
+## Observability standards
+
+- [Observability](docs/standards/observability/index.md)
+- [Grafana dashboards](docs/standards/grafana-dashboards/index.md)
+- [OpenTelemetry alignment](docs/standards/observability/otel.md)
+- [Faro frontend variant](docs/standards/observability/faro.md)
+- [Primordial-chart rendering](docs/standards/observability/primordial-chart.md)
+
 ## Release automation
 
 See [docs/standards/semantic-release/index.md](docs/standards/semantic-release/index.md).
