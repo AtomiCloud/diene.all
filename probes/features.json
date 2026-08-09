@@ -71,6 +71,11 @@
   },
   {
     "template": "diene/workspace",
+    "name": "skills-sync",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
     "name": "hook-shellcheck",
     "class": "gate"
   },
@@ -126,21 +131,6 @@
   },
   {
     "template": "diene/workspace",
-    "name": "skills-vendor-directory",
-    "class": "presence"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "skills-sync",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "skills-freshness",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
     "name": "release-workflow-trigger",
     "class": "gate"
   },
@@ -163,5 +153,15 @@
     "template": "diene/workspace",
     "name": "probe-artifacts",
     "class": "presence"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "releaser-hook-registration",
+    "class": "presence"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "hook-releaser-commit",
+    "class": "gate"
   }
 ]

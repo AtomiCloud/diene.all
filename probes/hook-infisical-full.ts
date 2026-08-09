@@ -1,3 +1,4 @@
+import { expectSuccess } from './lib/exec.ts';
 import { expectGreen, expectRed } from './lib/helpers.ts';
 
 export default {
@@ -23,7 +24,14 @@ export default {
       async run(repo: any) {
         const secret = ['AKIA', 'ABCDEFGHIJKLMNOP'].join('');
         await repo.write('probe-secret.txt', `aws_access_key_id=${secret}\n`);
-        await repo.exec(
+        // The assertion below scans git history, so a commit that never lands leaves it
+        // nothing to find. Discarding this exit code did not make the arm green - it made it
+        // red for the wrong reason, reporting that the secret scanner stayed green after a
+        // sabotage that never happened. The commit is the failure-prone step: the installed
+        // pre-commit and commit-msg hooks refuse a staged secret and the subject
+        // `probe-secret`, so asserting it here is what names the real cause.
+        await expectSuccess(
+          repo,
           'git add probe-secret.txt && git -c user.name=Probe -c user.email=probe@example.invalid commit -qm probe-secret',
         );
         await expectRed(repo, 'nix develop .#ci -c pre-commit run a-infisical --all-files', 'hook-infisical-full');

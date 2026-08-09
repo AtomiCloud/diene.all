@@ -20,10 +20,6 @@
       },
       "class": {
         "enum": ["gate", "smoke", "presence"]
-      },
-      "deferredUntil": {
-        "type": "string",
-        "minLength": 1
       }
     }
   }
