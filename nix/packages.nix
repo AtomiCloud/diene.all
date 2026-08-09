@@ -5,45 +5,13 @@
   pkgs-unstable,
 }:
 let
-  cyanprintVersion = "4.9.0";
-  cyanprintSystem = pkgs.stdenv.hostPlatform.system;
-  cyanprintPlatform =
-    ({
-      x86_64-linux = "linux_amd64";
-      aarch64-linux = "linux_arm64";
-      x86_64-darwin = "darwin_amd64";
-      aarch64-darwin = "darwin_arm64";
-    }).${cyanprintSystem};
-  cyanprintHash =
-    ({
-      x86_64-linux = "sha256-z5whvbKPJTgyR5qWeYefN7NuTKY1pWaRkYDnyyaNG9k=";
-      aarch64-linux = "sha256-SrhazRJbeK3vJHGvv0TwKHdz/ulqZM04qMtKgX0AJgA=";
-      x86_64-darwin = "sha256-XIolxZN+KVf/Ui5/rQjg+k3OXLrbJuGGxh6iYkki+/k=";
-      aarch64-darwin = "sha256-xugPBTO6CTixUjpq9PPq2WOQySci735gfuOXZSn75Ew=";
-    }).${cyanprintSystem};
-  cyanprint = pkgs.stdenvNoCC.mkDerivation {
-    pname = "cyanprint";
-    version = cyanprintVersion;
-    src = pkgs.fetchurl {
-      url = "https://github.com/AtomiCloud/sulfone.lite/releases/download/v${cyanprintVersion}/cyanprint_${cyanprintVersion}_${cyanprintPlatform}.tar.gz";
-      hash = cyanprintHash;
-    };
-    sourceRoot = ".";
-    strictDeps = true;
-    dontStrip = true;
-    nativeBuildInputs = pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.autoPatchelfHook ];
-    buildInputs = pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.glibc ];
-    installPhase = ''
-      runHook preInstall
-      install -Dm755 cyanprint "$out/bin/cyanprint"
-      runHook postInstall
-    '';
-    doInstallCheck = true;
-    installCheckPhase = ''
-      "$out/bin/cyanprint" --version | grep -Fx "cyanprint ${cyanprintVersion}"
-    '';
-    meta.mainProgram = "cyanprint";
-  };
+  # `helm-schema` is this node's own payload: it is the Helm wrapper, and
+  # `scripts/local/generate-chart-schema.sh` plus the `schema` and `schema-drift`
+  # arms of `scripts/validate/helm-wrapper.sh` are built on it. The parent
+  # dropped the whole `let` prelude when it retired its locally-built cyanprint
+  # (which now comes from the registry as `atomi.cyanprint`, adopted below), and
+  # that removal would have taken this wrapper with it. It is kept, and `pkgs` is
+  # kept in the argument set because the wrapper needs it.
   helm-schema = pkgs.writeShellApplication {
     name = "helm-schema";
     runtimeInputs = [
@@ -55,61 +23,57 @@ let
       exec helm schema "$@"
     '';
   };
+in
+let
   all = rec {
-    # ### nix-root
-    # #### source: main
     atomipkgs = (
       with atomi;
       {
         inherit
           atomiutils
+          cyanprint
+          dlint
           infralint
           infrautils
-          pls
-          sg
+          releaser
+          skills-sync
           ;
       }
     );
-
-    # ### workspace
-    # #### source: workspace
+    nix-unstable = (with pkgs-unstable; { });
     nix-2605 = (
       with pkgs-2605;
       {
         inherit
           actionlint
-          bash
-          docker-client
           git
           gitlint
           go-task
           infisical
+          nix
+          pre-commit
+          shellcheck
+          treefmt
+          # Wrapper toolchain. The parent trimmed these out of the shared list
+          # along with its docker strip; this node's own gates still name them
+          # (`nix/pre-commit.nix` validator-runtime, `scripts/validate/helm-wrapper.sh`,
+          # `scripts/local/latest-chart-upstreams.sh`), so they stay.
+          bash
           jq
           kubeconform
           kubernetes-helm
           kyverno
-          pre-commit
           ripgrep
-          shellcheck
           skopeo
-          treefmt
           yq-go
           ;
       }
     );
 
-    # ### nix-unstable
-    # #### source: main
-    nix-unstable = (
-      with pkgs-unstable;
-      {
-      }
-    );
-
     root = {
-      inherit cyanprint helm-schema;
+      inherit helm-schema;
     };
   };
 in
 with all;
-atomipkgs // nix-2605 // nix-unstable // root
+nix-2605 // nix-unstable // atomipkgs // root

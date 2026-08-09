@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedBecause } from './lib/helpers.ts';
 
 export default {
   contractVersion: 1,
@@ -19,7 +19,10 @@ export default {
       expectedImpact: [],
       async run(repo: any) {
         await repo.patch('nix/env.nix', { find: '  dev = [', replace: '  dev=[' });
-        await expectRed(repo, 'nix fmt --no-write-lock-file -- --ci --formatters nixfmt', 'fmt-nixfmt');
+        await expectRedBecause(repo, 'nix fmt --no-write-lock-file -- --ci --formatters nixfmt', 'fmt-nixfmt', [
+          'nix/env.nix',
+          'unexpected changes detected',
+        ]);
       },
     },
   ],
