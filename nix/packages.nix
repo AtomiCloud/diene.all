@@ -19,7 +19,7 @@ let
           ;
       }
     );
-
+    nix-unstable = (with pkgs-unstable; { });
     nix-2605 = (
       with pkgs-2605;
       {
@@ -28,27 +28,20 @@ let
           git
           go-task
           infisical
+          nix
           pre-commit
           shellcheck
           treefmt
           ;
       }
     );
-
-    nix-unstable = (
-      with pkgs-unstable;
-      {
-      }
-    );
-
     dart-lib-packages = (
       with pkgs-unstable;
       {
         dart = flutter.dart;
       }
     );
-
   };
 in
 with all;
-atomipkgs // nix-2605 // nix-unstable // dart-lib-packages
+nix-2605 // nix-unstable // atomipkgs // dart-lib-packages

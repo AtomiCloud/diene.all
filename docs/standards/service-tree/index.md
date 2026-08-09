@@ -128,8 +128,11 @@ the isolation lanes that carry no cache at all.
 ### Platform / Service usage
 
 The platform and service identify the service in the LPSM tree and appear in published
-artifact names. They are **not** passed as reusable-workflow inputs; the shared cache
-makes that unnecessary.
+artifact names. They are **not** passed as reusable-workflow inputs (the shared cache
+makes that unnecessary). This node carries neither a Helm chart nor a container image,
+so it has no such `with:` inputs anywhere; the package it does publish goes to pub.dev
+through `cd.yaml`, which needs none of them. A downstream node that publishes a chart
+or an image passes them on its own caller jobs.
 
 ## Trigger Words
 

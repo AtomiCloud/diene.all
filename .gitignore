@@ -1,25 +1,34 @@
+### workspace [nix]
 .direnv/
 .pre-commit-config.yaml
 /result
 /result-*
 
+### workspace [secrets]
+!.env.example
 .env
 .env.*
-!.env.example
-.kagent/
-.kloop/
-.probe-evidence/
+
+### workspace [tooling]
 *.log
 *.swo
 *.swp
 *~
-.DS_Store
+.kagent/
+.kloop/
+
+### workspace [os-editors]
 ._*
+.DS_Store
 .idea/
 .vscode/
 Thumbs.db
 desktop.ini
 
+### dart-lib [node]
+.probe-evidence/
+
+### dart-lib [dart]
 .dart_tool/
 .packages
 .pub-cache/

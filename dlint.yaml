@@ -1,7 +1,7 @@
 schemaVersion: 1
 checks:
   action-pins:
-    trustMap: config/action-trust.json
+    trustedPattern: ^AtomiCloud/
     workflowsDir: .github/workflows
   exec-bits:
     globs:
@@ -20,27 +20,23 @@ checks:
       - bash
       - cyanprint
       - dlint
-      - docker
       - git
       - gomplate
-      - hadolint
-      - helm
-      - helm-docs
       - infisical
       - jq
-      - k3d
-      - kubeconform
-      - kubectl
-      - kyverno
       - nix
       - pre-commit
       - releaser
       - rg
       - shellcheck
-      - skopeo
       - task
       - treefmt
       - yq
+  no-custom-derivations:
+    paths:
+      - nix/packages.nix
+      - nix/env.nix
+      - nix/shells.nix
   workflow-policy:
     assertions:
       - file: .github/workflows/release.yaml

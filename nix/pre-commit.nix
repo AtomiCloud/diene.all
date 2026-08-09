@@ -3,9 +3,12 @@
   formatter,
   pkgs,
   pre-commit-lib,
+  env,
   offline ? false,
 }:
 let
+  # toolchain-smoke asserts the DECLARED env lists actually provide their binaries.
+  envPath = pkgs.lib.makeBinPath (env.system ++ env.main ++ env.lint ++ env.dev);
   validator-runtime = pkgs.buildEnv {
     name = "workspace-validator-runtime";
     # atomiutils supplies bash/jq/yq plus the coreutils/find/grep/sed binaries the
@@ -24,23 +27,6 @@ let
   validator =
     command:
     "${packages.atomiutils}/bin/bash -c 'export PATH=${validator-runtime}/bin; exec ${packages.atomiutils}/bin/bash ${command}'";
-  # One hook, several invocations of the same validator: identical runtime PATH,
-  # stopping at the first non-zero exit so the reported failure is the gate that
-  # actually failed. Used where one validator script owns several modes and the
-  # modes do not warrant separate hooks.
-  validators =
-    commands:
-    "${packages.atomiutils}/bin/bash -c 'export PATH=${validator-runtime}/bin; ${
-      builtins.concatStringsSep " && " (
-        map (command: "${packages.atomiutils}/bin/bash ${command}") commands
-      )
-    }'";
-  dlint = check: "${packages.dlint}/bin/dlint ${check}";
-  dlints =
-    checks:
-    "${packages.atomiutils}/bin/bash -c '${
-      builtins.concatStringsSep " && " (map (check: "${packages.dlint}/bin/dlint ${check}") checks)
-    }'";
 in
 pre-commit-lib.run {
   src = ../.;
@@ -53,27 +39,16 @@ pre-commit-lib.run {
         "^\\.claude/skills/vendor/"
         "^Changelog\\.md$"
         "^docs/developer/CommitConventions\\.md$"
-        "^infra/root_chart/"
       ];
     };
 
-    a-action-pins = {
+    # One invocation runs every check declared in dlint.yaml, so the checks this
+    # node owns (`ci-wiring`, `workflow-policy`) are covered here rather than by
+    # per-check hooks. Adding a check to dlint.yaml needs no edit in this file.
+    a-dlint = {
       enable = true;
-      name = "Action pins";
-      entry = dlints [
-        "action-pins trusted"
-        "action-pins non-trusted"
-      ];
-      files = "^(\\.github/workflows/.*\\.ya?ml|config/action-trust\\.json)$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-enforce-exec = {
-      enable = true;
-      name = "Executable shell scripts";
-      entry = dlint "exec-bits";
-      files = ".*\\.sh$";
+      name = "dlint";
+      entry = "${packages.atomiutils}/bin/bash -c 'PATH=${envPath}:\$PATH ${packages.dlint}/bin/dlint lint'";
       pass_filenames = false;
       language = "system";
     };
@@ -128,14 +103,10 @@ pre-commit-lib.run {
       language = "system";
     };
 
-    # `sync` owns both halves of the commit-time guarantee: it refuses when it
-    # regenerates the vendor tree and when the index does not already carry what
-    # the packages ship. It never stages files, and it skips only when dependency
-    # restoration is absent at this warning tier; CI below is the guarantee.
     a-skills-sync = {
       enable = true;
       name = "Vendored skills";
-      entry = "${packages.skills-sync}/bin/skills-sync sync --tier pre-commit";
+      entry = "${packages.skills-sync}/bin/skills-sync sync --frozen";
       pass_filenames = false;
       language = "system";
     };
@@ -154,19 +125,6 @@ pre-commit-lib.run {
       entry = "${packages.shellcheck}/bin/shellcheck -x --source-path=SCRIPTDIR";
       files = ".*\\.sh$";
       pass_filenames = true;
-      language = "system";
-    };
-
-    # `ci-wiring` and `workflow-policy` cover independent workflow properties, so
-    # neither gates the other: both run on every invocation and the hook returns
-    # the higher exit code. `workflow-policy` is the sole owner of the five exact
-    # release values after its redundant repository-local predecessor was retired.
-    a-workflows = {
-      enable = true;
-      name = "Workflow wiring and release policy";
-      entry = "${packages.atomiutils}/bin/bash -c 'c=0; p=0; ${packages.dlint}/bin/dlint ci-wiring || c=$?; ${packages.dlint}/bin/dlint workflow-policy || p=$?; r=$c; [ $p -gt $r ] && r=$p; exit $r'";
-      files = "^\\.github/workflows/.*\\.ya?ml$";
-      pass_filenames = false;
       language = "system";
     };
 

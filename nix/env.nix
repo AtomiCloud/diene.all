@@ -35,5 +35,6 @@ with packages;
   system = [
     atomiutils
     infrautils
+    nix
   ];
 }

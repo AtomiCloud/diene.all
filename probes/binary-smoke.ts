@@ -51,6 +51,10 @@ dart format --output=none --set-exit-if-changed "$tmp/smoke.dart"
 git --version >/dev/null
 git rev-parse --is-inside-work-tree >/dev/null
 
+gomplate --version >/dev/null
+[ "$(gomplate -i '{{ add 1 1 }}')" != "2" ] && echo "gomplate failed a real template" >&2 && exit 1
+
+
 infisical --version >/dev/null
 git -C "$tmp" init -q
 git -C "$tmp" config user.email smoke@example.invalid
