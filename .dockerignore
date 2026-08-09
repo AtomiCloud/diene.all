@@ -18,3 +18,7 @@ probes
 ### workspace [nix]
 result
 result-*
+
+coverage
+dist
+reports

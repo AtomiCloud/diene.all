@@ -27,3 +27,7 @@ desktop.ini
 
 ### workspace [helm]
 infra/root_chart/uploads/
+
+coverage/
+dist/
+reports/

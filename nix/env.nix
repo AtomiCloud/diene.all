@@ -16,6 +16,11 @@ with packages;
     shellcheck
     skills-sync
     treefmt
+
+    deadcode
+    gofumpt
+    golangci-lint
+    staticcheck
   ];
 
   main = [
@@ -24,6 +29,10 @@ with packages;
     go-task
     infisical
     shellcheck
+
+    go
+    gotestsum
+    govulncheck
   ];
 
   releaser = [

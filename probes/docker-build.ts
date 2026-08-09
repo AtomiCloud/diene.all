@@ -1,4 +1,17 @@
-import { expectGreen } from './lib/helpers.ts';
+import { capturedEnvCommand, expectGreen } from './lib/helpers.ts';
+
+// Export under the git-ignored and docker-ignored reports tree so the archive never enters the build context.
+const artifacts = 'reports/docker-oci';
+const archive = `${artifacts}/diene-go-base.oci.tar`;
+const platforms = 'linux/arm64,linux/amd64';
+const published = ['amd64', 'arm64'];
+
+// Remove stale output before building so skopeo can only inspect this run's archive.
+const build = [
+  `rm -rf ${artifacts}`,
+  `mkdir -p ${artifacts}`,
+  `CI_DOCKER_CONTEXT=. CI_DOCKER_IMAGE=diene-go-base CI_DOCKERFILE=infra/Dockerfile CI_DOCKER_OUTPUT=${archive} CI_DOCKER_PLATFORM=${platforms} CI_DOCKER_PUSH=false nix develop .#cd -c ./scripts/ci/docker.sh`,
+].join(' && ');
 
 export default {
   contractVersion: 1,
@@ -6,14 +19,32 @@ export default {
   probes: [
     {
       name: 'baseline-docker-build-green',
-      description: 'The workspace Docker script builds the unprivileged stub image.',
+      description: 'The workspace Docker script builds the unprivileged Go image for every published architecture.',
       kind: 'baseline',
       async run(repo: any) {
-        await expectGreen(
-          repo,
-          'CI_DOCKER_CONTEXT=. CI_DOCKER_IMAGE=diene-workspace CI_DOCKERFILE=infra/Dockerfile CI_DOCKER_PUSH=false nix develop .#cd -c ./scripts/ci/docker.sh',
-          'docker-build',
-        );
+        try {
+          await expectGreen(repo, build, 'docker-build', 1800000);
+          // An exit code only proves buildx ran; the index has to name both architectures CI publishes.
+          const inspected = await repo.exec(
+            capturedEnvCommand(`nix develop .#cd -c skopeo inspect --raw oci-archive:${archive}`, 'docker-build'),
+            { timeoutMs: 240000 },
+          );
+          if (inspected.exitCode !== 0) {
+            throw new Error(`docker-build left no readable OCI index: ${inspected.stderr || inspected.stdout}`);
+          }
+          // Treat an absent manifests list as zero architectures so a single-architecture export fails clearly.
+          const architectures = (JSON.parse(inspected.stdout).manifests ?? []).map(
+            (entry: any) => entry.platform?.architecture,
+          );
+          const missing = published.filter(architecture => !architectures.includes(architecture));
+          if (missing.length > 0) {
+            throw new Error(
+              `the exported OCI index omits ${missing.join(', ')}; it declares ${architectures.join(', ') || 'none'}`,
+            );
+          }
+        } finally {
+          await repo.exec(`rm -rf ${artifacts}`);
+        }
       },
     },
   ],

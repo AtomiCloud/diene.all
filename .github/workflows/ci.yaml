@@ -13,6 +13,52 @@ jobs:
     uses: ./.github/workflows/⚡reusable-precommit.yaml
     secrets: inherit
 
+  typecheck:
+    name: Typecheck
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-go-typecheck.yaml
+    secrets: inherit
+
+  unit:
+    name: Unit Tests
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-go-test.yaml
+    secrets: inherit
+    with:
+      mode: unit
+
+  integration:
+    name: Integration Tests
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-go-test.yaml
+    secrets: inherit
+    with:
+      mode: int
+
+  go-build:
+    name: Go Build
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-go-build.yaml
+    secrets: inherit
+
+  deadcode:
+    name: Deadcode
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-go-deadcode.yaml
+    secrets: inherit
+
+  vulnerability:
+    name: Vulnerability
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-go-vuln.yaml
+    secrets: inherit
+
   docker:
     name: Docker Image
     permissions:
@@ -22,7 +68,7 @@ jobs:
     uses: ./.github/workflows/⚡reusable-docker.yaml
     secrets: inherit
     with:
-      image_name: diene-workspace
+      image_name: diene-go-base
       dockerfile: ./infra/Dockerfile
 
   helm:

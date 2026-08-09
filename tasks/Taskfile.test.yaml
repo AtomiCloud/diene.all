@@ -1,0 +1,12 @@
+version: '3'
+
+tasks:
+  run:
+    internal: true
+    requires:
+      vars: [MODE]
+    vars:
+      COVERAGE: '{{default "false" .COVERAGE}}'
+      WATCH: '{{default "false" .WATCH}}'
+    cmds:
+      - ./scripts/local/test.sh {{.MODE}} {{.COVERAGE}} {{.WATCH}}

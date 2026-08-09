@@ -1,11 +1,14 @@
-FROM alpine:3.21 AS build
+FROM golang:1.26.5-alpine AS build
 WORKDIR /app
-COPY . .
-RUN printf 'diene workspace\n' > /app/message.txt
+COPY go.mod go.sum ./
+RUN go mod download && go mod verify
+COPY adapters ./adapters
+COPY cmd ./cmd
+COPY lib ./lib
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags='-s -w' -o /out/go-base ./cmd/go-base
 
-FROM alpine:3.21 AS runtime
-RUN addgroup -S app && adduser -S -G app app
-WORKDIR /app
-COPY --from=build --chown=app:app /app/message.txt ./message.txt
-USER app
-CMD ["cat", "/app/message.txt"]
+FROM gcr.io/distroless/static-debian12:nonroot AS runtime
+COPY --from=build /out/go-base /go-base
+USER 65532:65532
+ENTRYPOINT ["/go-base"]
+CMD ["slug", "Diene Go Base"]

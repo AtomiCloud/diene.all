@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+mode="${1:-}"
+[ "${mode}" != "unit" ] && [ "${mode}" != "int" ] && echo "❌ usage: test.sh <unit|int>" >&2 && exit 2
+
+./scripts/local/test.sh "${mode}" true false
+
+echo "✅ CI Go ${mode} tests passed"

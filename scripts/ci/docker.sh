@@ -2,11 +2,13 @@
 set -euo pipefail
 
 push="${CI_DOCKER_PUSH:-false}"
+output="${CI_DOCKER_OUTPUT:-}"
 version="${RELEASE_VERSION:-}"
 
 [ -z "${CI_DOCKER_CONTEXT:-}" ] && echo "❌ 'CI_DOCKER_CONTEXT' env var not set" >&2 && exit 1
 [ -z "${CI_DOCKER_IMAGE:-}" ] && echo "❌ 'CI_DOCKER_IMAGE' env var not set" >&2 && exit 1
 [ -z "${CI_DOCKERFILE:-}" ] && echo "❌ 'CI_DOCKERFILE' env var not set" >&2 && exit 1
+[ -n "${output}" ] && [ -z "${CI_DOCKER_PLATFORM:-}" ] && echo "❌ 'CI_DOCKER_PLATFORM' env var not set" >&2 && exit 1
 
 if [ "${push}" = "true" ]; then
   [ -z "${CI_DOCKER_PLATFORM:-}" ] && echo "❌ 'CI_DOCKER_PLATFORM' env var not set" >&2 && exit 1
@@ -31,6 +33,16 @@ if [ "${push}" = "true" ]; then
   echo "🔨 Building and pushing ${image_id}"
   # shellcheck disable=SC2086
   docker buildx build "${CI_DOCKER_CONTEXT}" -f "${CI_DOCKERFILE}" --platform="${CI_DOCKER_PLATFORM}" --push -t "${image_id}:${image_version}" -t "${image_id}:${branch}" ${latest_arg} ${semver_arg}
+# Why this node carries a local-archive path the parent does not: the multi-platform
+# build is verified without a registry. `docker build` cannot emit more than one
+# platform, and `buildx --push` needs credentials a build check must not hold, so the
+# only way to produce a multi-platform artifact that can be inspected afterwards is an
+# OCI archive on disk. Its sole caller is probes/docker-build.ts, which sets
+# CI_DOCKER_OUTPUT and CI_DOCKER_PLATFORM together; the guard above keeps that pairing
+# a loud refusal rather than an unbound expansion.
+elif [ -n "${output}" ]; then
+  echo "🔨 Building ${CI_DOCKER_IMAGE} for ${CI_DOCKER_PLATFORM} into ${output}"
+  docker buildx build "${CI_DOCKER_CONTEXT}" -f "${CI_DOCKERFILE}" --platform="${CI_DOCKER_PLATFORM}" --output="type=oci,dest=${output}" -t "${CI_DOCKER_IMAGE}:local"
 else
   echo "🔨 Building ${CI_DOCKER_IMAGE}:local"
   docker build "${CI_DOCKER_CONTEXT}" -f "${CI_DOCKERFILE}" -t "${CI_DOCKER_IMAGE}:local"

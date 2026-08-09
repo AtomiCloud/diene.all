@@ -71,11 +71,6 @@
   },
   {
     "template": "diene/workspace",
-    "name": "skills-sync",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
     "name": "hook-shellcheck",
     "class": "gate"
   },
@@ -131,6 +126,11 @@
   },
   {
     "template": "diene/workspace",
+    "name": "skills-sync",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
     "name": "release-workflow-trigger",
     "class": "gate"
   },
@@ -182,6 +182,121 @@
   {
     "template": "diene/shared",
     "name": "thin-skills",
+    "class": "presence"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "unit-tests",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "hook-go-black-box",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "integration-tests",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "go-typecheck",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "hook-golangci-lint",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "govulncheck",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "unit-coverage-scope",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "integration-coverage-scope",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "staticcheck-whole-repo",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "deadcode-whole-repo",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "staticcheck-production",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "deadcode-production",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "hook-deadcode-strict",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "distroless-base-policy",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "nonroot-image-policy",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "go-workflow-wiring",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "fmt-gofumpt",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "precommit-treefmt-gofumpt",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "build-artifact",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "deadcode-llm-lax",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "sample-domain-journey",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "system-integration-tests",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "codecov-config",
     "class": "presence"
   }
 ]

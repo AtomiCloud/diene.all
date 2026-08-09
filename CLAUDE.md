@@ -2,9 +2,8 @@
 
 ## Agent skills
 
-`.claude/skills/vendor/` is tool-owned and is never hand-edited. Nothing in this
-tree writes it: the tool that does is consumed per-template from the Nix registry,
-and this tree declares no packages for it to vendor.
+`.claude/skills/vendor/` is tool-owned and is never hand-edited. The
+registry-sourced skills synchronizer owns that tree for every call tier.
 
 ## CI/CD workflows
 
@@ -97,3 +96,11 @@ See [docs/standards/three-layer-architecture/index.md](docs/standards/three-laye
 ## Utility libraries
 
 See [docs/standards/utilities/index.md](docs/standards/utilities/index.md).
+
+## Go language baseline
+
+Read [docs/developer/go-baseline.md](docs/developer/go-baseline.md) before changing
+Go source, tests, coverage, deadcode, vulnerability scanning, Docker, Helm, or Go
+workflow machinery. The language variants live under each standard's
+`languages/go.md` path. Keep every Go test in an external `_test` package and never
+introduce `export_test.go`.

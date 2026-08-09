@@ -5,6 +5,7 @@ let
 
     programs = {
       actionlint.enable = true;
+      gofumpt.enable = true;
       nixfmt.enable = true;
       prettier = {
         enable = true;
