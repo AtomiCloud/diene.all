@@ -2,4 +2,4 @@
 ignore = B6
 
 [contrib-title-conventional-commits]
-types = amend,build,chore,ci,config,dep,docs,feat,fix,merge,perf,refactor,style,test
+types = amend,build,chore,ci,config,dep,docs,feat,fix,perf,refactor,style,test

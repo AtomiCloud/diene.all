@@ -3,9 +3,14 @@ schemaVersion: 2
 types:
   # `amend` is this node's own commit vocabulary. The parent's release.yaml does
   # not carry it, so the merge would have dropped it silently while the type
-  # count stayed at 13 (the parent adds `merge` in the same edit). Restored here
+  # count stayed at 13 — the parent adds `merge` in the same edit. Restored here
   # deliberately: removing a type retires commit messages that already exist in
   # this node's history and in its contributor docs.
+  #
+  # The parent's `merge` type is deliberately NOT carried for the same reason,
+  # applied symmetrically: a node keeps its own pre-merge vocabulary in both
+  # directions, because gaining pairs moves it out of its tier just as losing
+  # them does, only upward. This node's set is the 13 types / 17 pairs below.
   - type: amend
     desc: Small amendments and typo fixes
     scopes:
@@ -76,12 +81,6 @@ types:
       default:
         desc: Fix a bug
         release: patch
-  - type: merge
-    desc: Branch merges
-    scopes:
-      default:
-        desc: Merge a branch
-        release: false
   - type: perf
     desc: Performance improvements
     section: 🚀 Performance Improvement 🚀
