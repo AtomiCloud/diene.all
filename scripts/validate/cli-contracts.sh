@@ -19,16 +19,18 @@ nonroot)
   rg -F ':nonroot AS runtime' infra/Dockerfile
   ;;
 release-backup-order)
-  yq -o=json '.' atomi_release.yaml | jq -e '
-    .plugins[0].module == "@semantic-release/exec" and
-    .plugins[0].config.prepareCmd == "./scripts/release/backup-changelog.sh" and
-    ([.plugins[].module] | index("@semantic-release/github") == null)'
+  # schemaVersion 2: the old semantic-release plugin list is gone. The backup must
+  # still run BEFORE the release writes the new changelog, and the releaser must not
+  # publish a GitHub release of its own because GoReleaser owns this node's.
+  yq -o=json '.' release.yaml | jq -e '
+    .release.hooks.prepare[0].phase == "beforeWrite" and
+    .release.hooks.prepare[0].command == "./scripts/release/backup-changelog.sh" and
+    .release.github == false'
   ;;
 changelog-asset)
   test -f Changelog.old.md
-  yq -o=json '.' atomi_release.yaml | jq -e '
-    [.plugins[] | select(.module == "@semantic-release/git") | .config.assets[]] |
-    index("Changelog.old.md") != null'
+  yq -o=json '.' release.yaml | jq -e '
+    .release.commit.assets | index("Changelog.old.md") != null'
   rg -F -- '--release-notes ./IncrementalChangelog.md' scripts/release/publish.sh
   ;;
 release-artifacts)

@@ -11,24 +11,24 @@ rules remain in `docs/standards/`.
 
 ## Local commands
 
-- `pls setup` installs the locked Bun dependencies after synchronizing vendored
+- `task setup` installs the locked Bun dependencies after synchronizing vendored
   package skills.
-- `pls lint` runs every generated pre-commit hook.
-- `pls test`, `pls test:unit`, `pls test:int`, and `pls test:sit` run the test
-  tiers without coverage; SIT drives the freshly compiled binary.
-- `pls test:coverage`, `pls test:unit:coverage`,
-  `pls test:int:coverage`, and `pls test:sit:coverage` write scoped LCOV
+- `task lint` runs every generated pre-commit hook.
+- `task test`, `task test:unit`, `task test:int`, and `task test:sit` run the
+  test tiers without coverage; SIT drives the freshly compiled binary.
+- `task test:coverage`, `task test:unit:coverage`,
+  `task test:int:coverage`, and `task test:sit:coverage` write scoped LCOV
   artifacts. SIT coverage uses the in-process driver only.
-- `pls test:watch` watches the unit tier.
-- `pls build` bundles the `package.json` `bin` entry to `dist/bun-cli.js`.
-- `pls compile` emits the three supported standalone binaries under `dist/bin/`.
-- `pls deadcode` runs the two non-blocking LLM-review Knip configurations.
-- `pls run -- <args>` executes the source entry point.
-- `pls preview -- <args>` compiles and executes this host's standalone binary.
-- `pls up` and `pls down` manage the sample Redis used for interactive CLI runs.
-- `pls docker:build` and `pls docker:run` build and run the Bun image.
+- `task test:watch` watches the unit tier.
+- `task build` bundles the `package.json` `bin` entry to `dist/bun-cli.js`.
+- `task compile` emits the three supported standalone binaries under `dist/bin/`.
+- `task deadcode` runs the two non-blocking LLM-review Knip configurations.
+- `task run -- <args>` executes the source entry point.
+- `task preview -- <args>` compiles and executes this host's standalone binary.
+- `task up` and `task down` manage the sample Redis used for interactive CLI runs.
+- `task docker:build` and `task docker:run` build and run the Bun image.
 
-There is no `pls dev` surface. Integration and SIT own isolated Redis containers;
+There is no `task dev` surface. Integration and SIT own isolated Redis containers;
 `up`/`down` exist only for interactive sample commands.
 
 ## Quality gates
@@ -77,6 +77,12 @@ Read the TypeScript variants alongside their shared standards:
 - [testing](../standards/testing/languages/typescript.md)
 - [utilities](../standards/utilities/languages/typescript.md)
 - [validation](../standards/validation/languages/typescript.md)
+
+## External service / compute cost
+
+- Codecov upload runs only in CI and is best-effort.
+- Integration tests and Docker image builds require a Docker runtime.
+- Unit, integration, build, and Docker are separate CI jobs.
 
 ## Template maintenance boundary
 

@@ -8,21 +8,18 @@ with packages;
     go-task
     infisical
     jq
-    pls
-    skopeo
+    releaser
   ];
 
   # ### workspace-lint
   # #### source: workspace
   lint = [
     actionlint
+    dlint
     infralint
-    kubeconform
-    kubernetes-helm
-    kyverno
     pre-commit
-    ripgrep
     shellcheck
+    skills-sync
     treefmt
     yq-go
   ];
@@ -33,20 +30,15 @@ with packages;
     # ### bun-base-main
     # #### source: bun-base
     bun
+    nodejs
     cyanprint
     docker-client
     git
     go-task
     infisical
     jq
-    kubeconform
-    kubernetes-helm
-    kyverno
-    pls
     releaser
-    ripgrep
     shellcheck
-    skopeo
     yq-go
   ];
 
@@ -69,5 +61,6 @@ with packages;
   system = [
     atomiutils
     infrautils
+    nix
   ];
 }
