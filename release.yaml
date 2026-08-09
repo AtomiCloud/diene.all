@@ -3,6 +3,19 @@
 schemaVersion: 2
 
 types:
+  # RE-ADDED after the shared@99a297e9 cascade. The parent went from 14 commit types
+  # to 13 by dropping `amend`, and that deletion auto-merges CLEANLY into every child:
+  # no conflict, no marker, nothing to notice. It was caught here only because this
+  # node owns `scripts/validate/dotnet-release.sh`, which asserts the exact type set
+  # and refused; a node without that validator loses the type and stays fully green.
+  # bun-base has already landed having lost it. Restored on coordinator-8 ruling.
+  # Do not remove this type as part of a cascade — a parent trim is not a ruling.
+  - type: amend
+    desc: Small amendments and typo fixes
+    scopes:
+      default:
+        desc: Amend existing work
+        release: false
   - type: build
     desc: Build-system changes
     scopes:
