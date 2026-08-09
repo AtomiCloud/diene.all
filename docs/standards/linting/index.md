@@ -53,11 +53,25 @@ command name, which is what makes it resolve from any worktree and any shell.
 
 `dlint` is a tool from the Nix registry. The parent template runs every check
 `dlint.yaml` configures through a single blanket `dlint lint` hook; **this node
-deliberately does not take that hook**, because one of the configured checks
-contradicts this node — `no-custom-derivations` forbids exactly the `cyanprint`
-derivation `nix/packages.nix` builds on purpose. That collision is settled by a
-registry hoist, not by deleting the derivation and not by an exemption; see the
-comment above `a-enforce-exec` in `nix/pre-commit.nix`.
+deliberately does not take that hook** — but the reason is no longer the one this
+page used to give, so read the current one rather than the remembered one.
+
+The old reason was that `no-custom-derivations` forbade exactly the `cyanprint`
+build recipe `nix/packages.nix` authored on purpose. **That collision is gone.**
+The lead ruled it settled by a registry hoist rather than by deleting the
+capability or by an exemption, the hoist landed in `nix-registry` v5.5.0, and this
+node now inherits `cyanprint` from the registry instead of building it. The check
+was measured passing at this tip.
+
+The reason the hook stays unadopted now is different and larger. `dlint lint` is
+`--all-configured`, so it runs every check `dlint` ships — including
+`toolchain-smoke`, which **enters each declared development shell**. Entering the
+shell fires the `shellHook`, which reinstalls hooks into the repository's shared
+git directory, so a pre-commit hook that entered a shell would rewrite the gate of
+every other worktree mid-commit. That is the same hazard described above for the
+commit-msg hook, and it is why adoption is a routed question rather than a
+seat-level cleanup; see the comment above `a-enforce-exec` in
+`nix/pre-commit.nix`.
 
 This repository takes **three** modes, each called explicitly by name:
 

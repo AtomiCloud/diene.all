@@ -114,14 +114,26 @@ in
       language = "system";
     };
 
-    # The parent's blanket `dlint lint` hook is deliberately NOT taken here. It would
-    # run every check `dlint.yaml` configures, and one of those contradicts this node:
-    # `no-custom-derivations` forbids exactly the `cyanprint` derivation nix/packages.nix
-    # builds on purpose. The lead has ruled that collision is settled by a REGISTRY
-    # HOIST, not by deleting the derivation and not by an exemption, so the hook stays
-    # unadopted until that hoist lands. Every check this node does want is taken
-    # explicitly, by name: `action-pins` in the two hooks above and `ci-wiring` in
-    # `a-workflows` below.
+    # The parent's blanket `dlint lint` hook is still NOT taken here, but the REASON
+    # has changed, so this comment is rewritten rather than left standing on an expired
+    # one. It used to say the blanket hook runs `no-custom-derivations`, which forbade
+    # exactly the `cyanprint` build recipe nix/packages.nix authored on purpose. That
+    # collision is GONE: the lead ruled it settled by a REGISTRY HOIST, the hoist
+    # landed in nix-registry v5.5.0, this node now inherits `cyanprint` from the
+    # registry, and the check was measured PASSING at this tip - 3 files inspected, so
+    # not a vacuous run.
+    #
+    # What blocks adoption now is a DIFFERENT and larger thing. `dlint lint` is
+    # `--all-configured`: it runs every check dlint ships, and one of them is
+    # `toolchain-smoke`, which ENTERS EACH DECLARED SHELL (`nix develop .#<shell>`).
+    # Entering the dev shell fires the shellHook, which uninstalls and reinstalls
+    # `.git/hooks` - and in this repository that directory is SHARED by every worktree,
+    # so a pre-commit hook that enters the shell would rewrite the gate of every other
+    # working copy mid-commit. That is a hazard, not a preference, and it is not
+    # something a seat may trade away. Adoption is a LIVE QUESTION routed to the
+    # coordinator; the removal of the old blocker is not an instruction to adopt.
+    # Until that ruling, every check this node does want is taken explicitly, by name:
+    # `action-pins` in the two hooks above and `ci-wiring` in `a-workflows` below.
     a-enforce-exec = {
       enable = true;
       name = "Executable shell scripts";

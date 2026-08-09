@@ -20,14 +20,26 @@ actionlint "${tmp}/workflow.yaml"
 bash --version >/dev/null
 [ "$(bash -c 'printf smoke')" != "smoke" ] && echo "❌ bash failed a real invocation" >&2 && exit 1
 
-mapfile -t cyanprint_versions < <(
-  awk -F'"' '/^[[:space:]]*cyanprintVersion = "[^"]+";$/ { print $2 }' nix/packages.nix
-)
-if [ "${#cyanprint_versions[@]}" -ne 1 ]; then
-  echo "expected exactly one cyanprintVersion pin in nix/packages.nix" >&2
+# `cyanprint` is a REGISTRY EXPORT as of nix-registry v5.5.0, so nix/packages.nix no
+# longer holds a `cyanprintVersion` pin to grep - the derivation that carried it was
+# deleted with the hoist. The declared version did not disappear, it moved one layer
+# out: it is what the registry revision in THIS repository's flake.lock exports. So the
+# expected version is read from the flake, which keeps the property the old grep had -
+# the binary on PATH is the one this node pinned - rather than degrading to a shape
+# match on `cyanprint X.Y.Z`, which would accept any version at all.
+#
+# `|| exit` is written out because under `set -e` a failing command substitution inside
+# an assignment aborts the script before the following guard can run, which would leave
+# that guard unreachable and therefore never exercised.
+cyanprint_version="$(nix eval --raw --no-write-lock-file '.#cyanprint.version')" || {
+  echo "❌ could not read the pinned cyanprint version from the flake" >&2
+  exit 1
+}
+if [ -z "${cyanprint_version}" ]; then
+  echo "❌ the flake reports an empty cyanprint version" >&2
   exit 1
 fi
-cyanprint --version | grep -Fqx "cyanprint ${cyanprint_versions[0]}"
+cyanprint --version | grep -Fqx "cyanprint ${cyanprint_version}"
 
 docker --version >/dev/null
 docker info --format '{{.ServerVersion}}' >/dev/null

@@ -5,45 +5,6 @@
   pkgs-unstable,
 }:
 let
-  cyanprintVersion = "4.9.0";
-  cyanprintSystem = pkgs.stdenv.hostPlatform.system;
-  cyanprintPlatform =
-    ({
-      x86_64-linux = "linux_amd64";
-      aarch64-linux = "linux_arm64";
-      x86_64-darwin = "darwin_amd64";
-      aarch64-darwin = "darwin_arm64";
-    }).${cyanprintSystem};
-  cyanprintHash =
-    ({
-      x86_64-linux = "sha256-z5whvbKPJTgyR5qWeYefN7NuTKY1pWaRkYDnyyaNG9k=";
-      aarch64-linux = "sha256-SrhazRJbeK3vJHGvv0TwKHdz/ulqZM04qMtKgX0AJgA=";
-      x86_64-darwin = "sha256-XIolxZN+KVf/Ui5/rQjg+k3OXLrbJuGGxh6iYkki+/k=";
-      aarch64-darwin = "sha256-xugPBTO6CTixUjpq9PPq2WOQySci735gfuOXZSn75Ew=";
-    }).${cyanprintSystem};
-  cyanprint = pkgs.stdenvNoCC.mkDerivation {
-    pname = "cyanprint";
-    version = cyanprintVersion;
-    src = pkgs.fetchurl {
-      url = "https://github.com/AtomiCloud/sulfone.lite/releases/download/v${cyanprintVersion}/cyanprint_${cyanprintVersion}_${cyanprintPlatform}.tar.gz";
-      hash = cyanprintHash;
-    };
-    sourceRoot = ".";
-    strictDeps = true;
-    dontStrip = true;
-    nativeBuildInputs = pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.autoPatchelfHook ];
-    buildInputs = pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.glibc ];
-    installPhase = ''
-      runHook preInstall
-      install -Dm755 cyanprint "$out/bin/cyanprint"
-      runHook postInstall
-    '';
-    doInstallCheck = true;
-    installCheckPhase = ''
-      "$out/bin/cyanprint" --version | grep -Fx "cyanprint ${cyanprintVersion}"
-    '';
-    meta.mainProgram = "cyanprint";
-  };
   all = rec {
     # ### dotnet-base
     # #### source: dotnet-base
@@ -105,7 +66,21 @@ let
     );
 
     root = {
-      inherit cyanprint;
+      # `cyanprint` is a REGISTRY EXPORT as of nix-registry v5.5.0. The hand-written
+      # `pkgs.stdenvNoCC.mkDerivation` that used to stand here - with its own version
+      # pin, its per-system platform and hash lookups, and its whole derivation body -
+      # is DELETED, not disabled. The capability is KEPT: it now arrives from `atomi`,
+      # which is exactly what the hoist was for. Authoring a derivation inside a node
+      # was refused by two independent instruments at two layers - `dlint`'s
+      # `no-custom-derivations` check and the published resolver's merger - and both
+      # refusals named this one construct. Do not reintroduce it here.
+      #
+      # Naming the construct in prose is only safe because `no-custom-derivations`
+      # became comment-aware in nix-registry v5.6.0, which is the revision this node's
+      # flake.lock pins. Before that it was a plain text scan and this very comment
+      # made the check refuse - measured, on this file. If the pin is ever moved BACK
+      # below v5.6.0, this paragraph turns into a false positive.
+      inherit (atomi) cyanprint;
     };
   };
 in
