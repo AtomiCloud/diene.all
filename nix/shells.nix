@@ -6,8 +6,6 @@
 }:
 with env;
 {
-  # ### workspace-cd
-  # #### source: workspace
   cd = pkgs.mkShell {
     buildInputs = main ++ system;
     inherit shellHook;
@@ -37,8 +35,6 @@ with env;
     inherit shellHook;
   };
 
-  # ### nix-root-default
-  # #### source: main
   default = pkgs.mkShell {
     buildInputs = system ++ main ++ lint ++ dev ++ mobile ++ android;
     inherit shellHook;
@@ -47,8 +43,6 @@ with env;
     JAVA_HOME = "${packages.jdk17.home}";
   };
 
-  # ### workspace-releaser
-  # #### source: workspace
   releaser = pkgs.mkShell {
     buildInputs = lint ++ main ++ releaser ++ system;
     inherit shellHook;

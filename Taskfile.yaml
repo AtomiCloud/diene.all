@@ -1,28 +1,18 @@
-# ### workspace-root
-# #### source: workspace
 version: '3'
-
-includes:
-  secret: tasks/Taskfile.secret.yaml
 
 tasks:
   setup:
-    desc: Set up generated workspace assets
+    desc: Set up the workspace
     cmds:
       # ### flutter-base-setup
       # #### source: flutter-base
       - flutter pub get
-      - ./scripts/local/skills-sync.sh
+      - ./scripts/local/setup.sh
 
   lint:
     desc: Run all repository gates
     cmds:
       - pre-commit run --all-files
-
-  skills:sync:
-    desc: Synchronize installed diene package skills
-    cmds:
-      - ./scripts/local/skills-sync.sh
 
   # ### flutter-base-tasks
   # #### source: flutter-base
