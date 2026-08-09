@@ -2,10 +2,20 @@
 set -euo pipefail
 
 mode="${1:-}"
-[[ ${mode} != "unit" && ${mode} != "int" ]] && echo "❌ usage: $0 <unit|int>" >&2 && exit 2
+[[ ${mode} != "unit" && ${mode} != "int" && ${mode} != "sit" ]] && echo "❌ usage: $0 <unit|int|sit>" >&2 && exit 2
 
 root_dir="$(git rev-parse --show-toplevel)"
 cd "${root_dir}"
+
+# sit runs the compiled binary, so it has no coverage ledger to scope.
+if [[ ${mode} == "sit" ]]; then
+  if [[ -d dist/bin ]]; then chmod -R +x dist/bin; fi
+  if [[ -n ${CLI_BIN:-} ]]; then chmod +x "${CLI_BIN}"; fi
+  echo "🧪 Running sit tests..."
+  bun test --config=bunfig.sit.toml
+  echo "✅ sit tests passed"
+  exit 0
+fi
 
 config="bunfig.${mode}.toml"
 coverage_file="coverage/${mode}/lcov.info"

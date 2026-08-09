@@ -14,9 +14,9 @@ jobs:
       - uses: AtomiCloud/actions.setup-nix@v3
       - uses: AtomiCloud/actions.cache-bun@v2
       - name: Cross-compile standalone binaries
-        run: nix develop .#ci -c ./scripts/release/compile.sh
+        run: nix develop .#ci -c ./scripts/ci/compile.sh
       - name: Upload binaries
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: cli-binaries
           path: dist/bin/
