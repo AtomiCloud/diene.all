@@ -90,11 +90,17 @@ in
 
     # ### workspace-hooks
     # #### source: workspace
+    # The parent retired `config/action-trust.json` for `dlint.yaml`'s
+    # `checks["action-pins"].trustedPattern`, so the rule now lives in the registry
+    # tool and the two modes stay split as two hooks. The absolute store path is a
+    # safety property: a missing package fails at nix evaluation instead of at
+    # runtime with exit 127, which a mutation arm would report as "could not prove
+    # sabotage" rather than as the gate refusing.
     a-action-pins-non-trusted = {
       enable = true;
       name = "Non-trusted action SHA pins";
-      entry = validator "scripts/validate/action-pins.sh non-trusted";
-      files = "^(\\.github/workflows/.*\\.ya?ml|config/action-trust\\.json)$";
+      entry = "${packages.dlint}/bin/dlint action-pins non-trusted";
+      files = "^\\.github/workflows/.*\\.ya?ml$";
       pass_filenames = false;
       language = "system";
     };
@@ -102,18 +108,20 @@ in
     a-action-pins-trusted = {
       enable = true;
       name = "Trusted action major pins";
-      entry = validator "scripts/validate/action-pins.sh trusted";
-      files = "^(\\.github/workflows/.*\\.ya?ml|config/action-trust\\.json)$";
+      entry = "${packages.dlint}/bin/dlint action-pins trusted";
+      files = "^\\.github/workflows/.*\\.ya?ml$";
       pass_filenames = false;
       language = "system";
     };
 
     # The parent's blanket `dlint lint` hook is deliberately NOT taken here. It would
-    # run every check `dlint.yaml` configures, and two of those contradict this node:
+    # run every check `dlint.yaml` configures, and one of those contradicts this node:
     # `no-custom-derivations` forbids exactly the `cyanprint` derivation nix/packages.nix
-    # builds on purpose, and `action-pins` by `trustedPattern` states a different policy
-    # from the trust map this node still enforces through scripts/validate/action-pins.sh.
-    # `ci-wiring` is taken explicitly, by name, in the `a-workflows` hook below.
+    # builds on purpose. The lead has ruled that collision is settled by a REGISTRY
+    # HOIST, not by deleting the derivation and not by an exemption, so the hook stays
+    # unadopted until that hoist lands. Every check this node does want is taken
+    # explicitly, by name: `action-pins` in the two hooks above and `ci-wiring` in
+    # `a-workflows` below.
     a-enforce-exec = {
       enable = true;
       name = "Executable shell scripts";
