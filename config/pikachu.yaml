@@ -1,0 +1,15 @@
+$schema: ./schema.json
+app:
+  landscape: pikachu
+branding:
+  appName: Diene Mobile (Pikachu)
+  iconAsset: assets/brand/icon-pikachu.png
+theme:
+  primary: '#D97706'
+  secondary: '#2563EB'
+auth:
+  endpoint: https://auth.platform.pikachu.example
+  resource: https://api.platform.pikachu.example
+  redirectUri: cloud.atomi.pikachu.platform.service.app://callback
+api:
+  baseUrl: https://api.platform.pikachu.example

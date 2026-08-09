@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 160" role="img" aria-labelledby="title desc">
+  <title id="title">Diene Mobile signal mark</title>
+  <desc id="desc">A layered teal signal aperture beside the Diene Mobile wordmark.</desc>
+  <defs>
+    <linearGradient id="a" x1="24" y1="24" x2="136" y2="136" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#34D399"/>
+      <stop offset="1" stop-color="#0F766E"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="144" height="144" rx="38" fill="#071B1B"/>
+  <path d="M39 95c21-42 61-59 88-42-20 5-38 18-49 38 18-11 38-13 56-5-21 38-62 52-93 34 15-4 27-12 36-23-13 5-26 5-38-2Z" fill="url(#a)"/>
+  <circle cx="105" cy="52" r="9" fill="#F59E0B"/>
+  <text x="184" y="78" fill="#0B2928" font-family="Newsreader, Georgia, serif" font-size="54" font-weight="650">Diene</text>
+  <text x="186" y="113" fill="#3F5F5C" font-family="Atkinson, sans-serif" font-size="22" letter-spacing="5">MOBILE</text>
+</svg>

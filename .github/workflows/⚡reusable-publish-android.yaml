@@ -1,0 +1,53 @@
+# ### flutter-base-reusable-publish-android
+# #### source: flutter-base
+name: ⚡ Reusable Publish Android
+
+on:
+  workflow_call:
+    inputs:
+      flavor:
+        description: Landscape to stamp and publish
+        required: true
+        type: string
+      package-name:
+        description: Play applicationId
+        required: true
+        type: string
+
+jobs:
+  publish:
+    name: Play ${{ inputs.flavor }}
+    runs-on:
+      - nscloud-ubuntu-22.04-amd64-4x8-with-cache
+      - nscloud-cache-size-50gb
+      - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
+    timeout-minutes: 30
+    env:
+      FLAVOR: ${{ inputs.flavor }}
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+    steps:
+      - uses: AtomiCloud/actions.setup-nix@v3
+      - uses: actions/download-artifact@v4
+        with:
+          name: aab
+          path: donor
+      - name: Stamp landscape
+        run: nix develop .#cd-android -c ./scripts/ci/publish-android.sh "$FLAVOR" "$(find donor -name '*.aab' | head -1)"
+      - name: Publish to Play internal
+        uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1.1.5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: ${{ inputs.package-name }}
+          releaseFiles: build/app/outputs/stamped/${{ inputs.flavor }}.aab
+          track: internal
+          status: completed
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aab-${{ inputs.flavor }}
+          path: build/app/outputs/stamped/*.aab
+          if-no-files-found: error
+          retention-days: 14

@@ -1,12 +1,12 @@
 schemaVersion: 2
 
 types:
-  # This node keeps its own pre-merge vocabulary in BOTH directions: `amend` was
-  # restored after the shared-wo-docker cascade dropped it, and the `merge` type
-  # the same cascade added was removed again. The parent renames
-  # atomi_release.yaml to release.yaml, and the rename hid the exchange from a
-  # count check — 17 pairs before, 17 after, one lost and one gained. The set
-  # here is exactly the pre-merge set: nothing added, nothing missing.
+  # This node keeps its own pre-merge vocabulary in BOTH directions: nothing this
+  # cascade dropped was left out, and nothing it added was let in. The parent
+  # renames atomi_release.yaml to release.yaml, so a count check compares two
+  # different files and cannot see an exchange — flutter-base was set-compared
+  # instead, pre-merge atomi_release.yaml against this file, and both directions
+  # came back empty at 17 type/scope pairs.
   - type: amend
     desc: Small amendments and typo fixes
     scopes:
@@ -170,6 +170,10 @@ release:
       ${notes}
     assets:
       - Changelog.md
+      # ### flutter-base-release-assets
+      # #### source: flutter-base
+      - VERSION
+      - pubspec.yaml
       - docs/developer/CommitConventions.md
   github:
     enabled: true
@@ -179,5 +183,11 @@ release:
   hooks:
     # Hook point a downstream node fills; a version file enters commit.assets in
     # the same edit as the command that writes it.
-    prepare: []
+    # ### flutter-base-release-hook
+    # #### source: flutter-base
+    # Shape taken from `releaser migrate` run on this node's own pre-merge
+    # atomi_release.yaml, so the legacy prepareCmd survives the schema change.
+    prepare:
+      - phase: afterWrite
+        command: './scripts/release/bump.sh ${version}'
     success: []

@@ -36,6 +36,15 @@
       let
         pkgs-2605 = nixpkgs-2605.legacyPackages.${system};
         pkgs-unstable = nixpkgs-unstable.legacyPackages.${system};
+        # ### flutter-base-android
+        # #### source: flutter-base
+        pkgs-android = import nixpkgs-unstable {
+          inherit system;
+          config = {
+            allowUnfree = true;
+            android_sdk.accept_license = true;
+          };
+        };
         atomi = atomipkgs.packages.${system};
         pre-commit-lib = pre-commit-hooks.lib.${system};
       in
@@ -56,17 +65,32 @@
           inherit treefmt-nix pkgs;
         };
         packages = import ./nix/packages.nix {
-          inherit pkgs-2605 pkgs-unstable atomi;
+          inherit
+            pkgs-2605
+            pkgs-unstable
+            pkgs-android
+            atomi
+            ;
         };
         env = import ./nix/env.nix {
           inherit pkgs packages;
         };
         devShells = import ./nix/shells.nix {
           inherit pkgs env packages;
-          shellHook = checks.pre-commit-check.shellHook;
+          shellHook = pre-commit.shellHook;
         };
         checks = {
-          pre-commit-check = pre-commit;
+          # Pub-backed Flutter hooks run in local pre-commit after workspace setup.
+          pre-commit-check = pre-commit.overrideAttrs {
+            SKIP = builtins.concatStringsSep "," [
+              "a-flutter-analyze"
+              "a-flutter-config"
+              "a-flutter-sdk-freshness"
+              "a-flutter-slang-freshness"
+              "a-flutter-test"
+              "a-flutter-translation-compile"
+            ];
+          };
           format = formatter;
         };
       };

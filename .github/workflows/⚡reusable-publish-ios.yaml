@@ -1,0 +1,47 @@
+# ### flutter-base-reusable-publish-ios
+# #### source: flutter-base
+name: ⚡ Reusable Publish iOS
+
+on:
+  workflow_call:
+    inputs:
+      flavor:
+        description: Landscape to stamp and publish
+        required: true
+        type: string
+
+jobs:
+  publish:
+    name: TestFlight ${{ inputs.flavor }}
+    runs-on:
+      - nscloud-macos-sequoia-arm64-6x14-with-cache
+      - nscloud-cache-size-50gb
+      - nscloud-cache-tag-atomi-nix-store-cache-darwin-arm64
+    timeout-minutes: 30
+    env:
+      FLAVOR: ${{ inputs.flavor }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APP_STORE_CONNECT_KEY_IDENTIFIER: ${{ secrets.APP_STORE_CONNECT_KEY_IDENTIFIER }}
+      APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+      CERTIFICATE_PRIVATE_KEY: ${{ secrets.CERTIFICATE_PRIVATE_KEY }}
+    steps:
+      - uses: AtomiCloud/actions.setup-nix@v3
+      - name: Select newest Xcode
+        run: |
+          set -euo pipefail
+          xcode=$(printf '%s\n' /Applications/Xcode*.app | sort -V | tail -1)
+          echo "DEVELOPER_DIR_OVERRIDE=$xcode/Contents/Developer" >> "$GITHUB_ENV"
+      - uses: actions/download-artifact@v4
+        with:
+          name: ipa
+          path: donor
+      - name: Stamp landscape
+        run: nix develop .#cd-ios -c ./scripts/ci/publish-ios.sh "$FLAVOR" "$(find donor -name '*.ipa' | head -1)"
+      - name: Publish to TestFlight
+        run: nix develop .#cd-ios -c app-store-connect publish --path "build/ios/stamped/$FLAVOR.ipa"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ipa-${{ inputs.flavor }}
+          path: build/ios/stamped/*.ipa
+          if-no-files-found: error
+          retention-days: 14

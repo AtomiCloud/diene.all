@@ -1,0 +1,22 @@
+domain: cloud.atomi
+platform: platform
+service: service
+app_name: Diene Mobile
+define_prefix: FLUTTER_BASE
+apple_team: ''
+capabilities:
+  app:
+    - app-group
+landscapes:
+  - name: lapras
+    store_suffix: lapras
+    apple_id: ''
+  - name: pichu
+    store_suffix: pichu
+    apple_id: ''
+  - name: pikachu
+    store_suffix: pikachu
+    apple_id: ''
+  - name: raichu
+    store_suffix: raichu
+    apple_id: ''
