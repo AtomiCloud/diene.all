@@ -3,6 +3,18 @@
 schemaVersion: 2
 
 types:
+  # `amend` is restored here after a parent merge deleted it cleanly - no
+  # conflict and no marker - when this node landed at e570fa6e. The pre-merge
+  # tip 7fe9ff6d carried it, and the generated
+  # `docs/developer/CommitConventions.md` still documents it, so its absence
+  # from this file was a silent loss rather than a decision. Do not drop it
+  # again without regenerating that doc in the same commit.
+  - type: amend
+    desc: Small amendments and typo fixes
+    scopes:
+      default:
+        desc: Amend existing work
+        release: false
   - type: build
     desc: Build-system changes
     scopes:
