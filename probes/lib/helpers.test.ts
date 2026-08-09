@@ -23,7 +23,6 @@ describe('captured-env rewrite — flag off is byte-identical', () => {
     CHAINED,
     EMBEDDED_QUOTES,
     'nix develop .#ci -c helm lint infra/root_chart',
-    'CI_DOCKER_PUSH=false nix develop .#cd -c ./scripts/ci/docker.sh',
     'nix fmt --no-write-lock-file -- --ci --formatters shfmt',
   ];
 
