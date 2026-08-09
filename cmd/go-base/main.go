@@ -1,5 +1,6 @@
 package main
 
+// DOMAIN WIRING: replaceable Note/KV command composition.
 import (
 	"context"
 	"fmt"
@@ -67,3 +68,5 @@ func Execute(args []string, stdout io.Writer, stderr io.Writer) int {
 func main() {
 	os.Exit(Execute(os.Args[1:], os.Stdout, os.Stderr))
 }
+
+// END DOMAIN WIRING

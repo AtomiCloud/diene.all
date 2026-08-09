@@ -1,5 +1,6 @@
 package note
 
+// DOMAIN WIRING: replaceable Note sample domain.
 import "strings"
 
 type Note struct {
@@ -18,3 +19,5 @@ func NamespacedKey(namespace string, key string) string {
 func New(title string, body string) Note {
 	return Note{Slug: Slug(title), Body: body}
 }
+
+// END DOMAIN WIRING

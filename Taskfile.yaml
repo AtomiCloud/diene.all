@@ -1,39 +1,24 @@
-# ### workspace-root
-# #### source: workspace
 version: '3'
 
 includes:
   docker: tasks/Taskfile.docker.yaml
   helm: tasks/Taskfile.helm.yaml
-  secret: tasks/Taskfile.secret.yaml
 
-  # ### go-base-test-includes
-  # #### source: go-base
   gotest:
     taskfile: tasks/Taskfile.test.yaml
     internal: true
 
 tasks:
   setup:
-    desc: Set up generated workspace assets
+    desc: Set up the workspace
     cmds:
-      - ./scripts/local/skills-sync.sh
-      # ### go-base-setup
-      # #### source: go-base
-      - go mod download
+      - ./scripts/local/setup.sh
 
   lint:
     desc: Run all repository gates
     cmds:
       - pre-commit run --all-files
 
-  skills:sync:
-    desc: Synchronize installed diene package skills
-    cmds:
-      - ./scripts/local/skills-sync.sh
-
-  # ### go-base
-  # #### source: go-base
   clean:
     desc: Remove Go build, coverage, and report outputs
     cmds:
@@ -55,8 +40,8 @@ tasks:
       - ./scripts/local/deadcode.sh strict
 
   test:
-    desc: Run unit and integration tiers
-    deps: [test:unit, test:int]
+    desc: Run unit, integration, and system integration tiers
+    deps: [test:unit, test:int, test:sit]
 
   test:unit:
     desc: Run black-box unit tests
@@ -69,6 +54,13 @@ tasks:
     cmds:
       - task: gotest:run
         vars: { MODE: int }
+
+  test:sit:
+    desc: Run the compiled-artifact Redis journey
+    deps: [build]
+    cmds:
+      - task: gotest:run
+        vars: { MODE: sit }
 
   test:coverage:
     desc: Run every coverage ledger
