@@ -11,6 +11,12 @@ const retired = [
   // path, so a path-based check passed clean while the parent kept re-introducing helm by
   // CONTENT. The declaration name is what the inventory actually carries; a bare `helm`
   // would evade this pattern, but it is not a name the registry package set offers.
+  //
+  // This entry was GREEN AND FALSE until the axis-pure swap that lands with it. A text
+  // scan of the declaration only tells the truth if no declared name is an AGGREGATE
+  // hiding the axis inside it: `infralint` shipped helm-docs and helmlint, `infrautils`
+  // shipped helm, and neither name contains the literal below. The node now declares the
+  // axis-pure slices instead, so the absence the scan reports is the absence the shell has.
   { binary: 'kubernetes-helm', reason: 'wo-helm carries no chart, so it carries no helm toolchain' },
 ];
 
@@ -74,13 +80,7 @@ git -C "$tmp" commit -qm smoke
 jq --version >/dev/null
 jq -en '1 + 1 == 2' >/dev/null
 
-k3d version >/dev/null
-k3d cluster list --no-headers >/dev/null
-
 kubeconform -v >/dev/null
-
-kubectl version --client >/dev/null
-kubectl --kubeconfig=/dev/null config view >/dev/null
 
 kyverno version >/dev/null
 printf '%s\n' '{"probe":{"ok":true}}' | kyverno jp query 'probe.ok' 2>/dev/null | tail -n 1 | rg -qx true

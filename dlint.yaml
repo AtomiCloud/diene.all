@@ -26,9 +26,7 @@ checks:
       - hadolint
       - infisical
       - jq
-      - k3d
       - kubeconform -v
-      - kubectl version --client
       - kyverno version
       - nix
       - pre-commit
