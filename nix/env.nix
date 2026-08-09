@@ -46,6 +46,14 @@ with packages;
   # ### workspace-releaser-bootstrap
   # #### source: bun-base
   releaser = [
+    # ### bun-cli-release-tools
+    # #### source: bun-cli
+    dpkg
+    gh
+    git
+    go
+    goreleaser
+    rpm
     releaser
   ];
 

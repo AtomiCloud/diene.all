@@ -21,5 +21,5 @@
 
     "types": ["bun"]
   },
-  "include": ["src", "tests"]
+  "include": ["bin", "src", "tests"]
 }

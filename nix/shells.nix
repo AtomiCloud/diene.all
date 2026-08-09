@@ -17,7 +17,7 @@ with env;
   };
 
   default = pkgs.mkShell {
-    buildInputs = system ++ main ++ lint ++ dev;
+    buildInputs = system ++ main ++ lint ++ dev ++ releaser;
     inherit shellHook;
   };
 

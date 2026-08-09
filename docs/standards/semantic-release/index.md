@@ -105,7 +105,9 @@ release policies are shown able to fail.
 The workflow ends in a single `scripts/ci/release.sh` call inside the `releaser`
 Nix shell. That script runs `releaser release -c release.yaml`, which
 calculates the version, writes the changelog and the conventions document, commits
-the configured assets, tags, pushes, and publishes the GitHub release.
+the configured assets, tags and pushes. On this node it stops there: `release.github`
+is `false` and GoReleaser publishes the GitHub release from the tag instead — see
+"What this node does differently" below.
 
 It clears `.git/hooks` first, and that line is load-bearing: the release commit's
 message begins `release:`, which is not one of the configured commit types, so the
@@ -129,3 +131,18 @@ rather than guessing.
 `releaser conventions` maintains the file named by `conventions.path`. That file is
 generated output and must not be edited by hand — edit `release.yaml` and
 regenerate.
+
+## What this node does differently
+
+This node ships a compiled CLI, so two parts of `release:` differ from the base
+and are deliberate rather than drift:
+
+- `release.github` is `false`. GoReleaser owns the GitHub release for this node —
+  it publishes the archives, checksums, packages and cask — so letting the
+  releaser publish one as well would put two publishers on the same tag.
+- `release.hooks.prepare` carries a `beforeWrite` command,
+  `scripts/release/backup-changelog.sh`, in addition to the `afterWrite` bump. It
+  snapshots `Changelog.md` to `Changelog.old.md` so `scripts/release/publish.sh`
+  can diff the two into `IncrementalChangelog.md` and hand GoReleaser exactly this
+  version's notes. `Changelog.old.md` is therefore listed in
+  `release.commit.assets`, because that hook writes it.

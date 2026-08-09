@@ -26,10 +26,6 @@ export default {
           'src/adapters/__probe_uncovered__.ts',
           'export function probeAdapterUncovered(): number {\n  return 1;\n}\n',
         );
-        await repo.write(
-          'src/index.ts',
-          `${await repo.read('src/index.ts')}\nexport { probeAdapterUncovered } from './adapters/__probe_uncovered__';\n`,
-        );
         await expectBunRed(repo, command, 'bun-integration-coverage');
       },
     },
