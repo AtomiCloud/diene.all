@@ -39,12 +39,10 @@ adjacent `actions/checkout`.
 ## Action pins
 
 Trusted actions use major pins; every other action uses an exact 40-character SHA
-plus its tag in a trailing comment. Which actions are trusted is recorded in
-`config/action-trust.json`: each key is an action reference and its value is
-`trusted` or `non-trusted`. `dlint action-pins` reads that file and refuses any
-action used in a workflow that has no classification, so adding an action means
-adding its entry there. Which path it reads is `dlint.yaml`'s
-`checks["action-pins"].trustMap`.
+plus its tag in a trailing comment. Which actions are trusted is one regex,
+`dlint.yaml`'s `checks["action-pins"].trustedPattern`: an action matching it is
+trusted, everything else is non-trusted by default — so an action nobody thought
+about gets the strictest pin, and there is no list to maintain.
 
 ## Every job declares its dependencies
 
