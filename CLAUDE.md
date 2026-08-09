@@ -33,10 +33,6 @@ See [docs/standards/domain-driven-design/index.md](docs/standards/domain-driven-
 
 See [docs/standards/functional-practices/index.md](docs/standards/functional-practices/index.md).
 
-## Helm charts and publishing
-
-See [docs/standards/helm/index.md](docs/standards/helm/index.md).
-
 ## Infisical and secrets
 
 See [docs/standards/infisical/index.md](docs/standards/infisical/index.md).
@@ -100,7 +96,7 @@ See [docs/standards/utilities/index.md](docs/standards/utilities/index.md).
 ## Go language baseline
 
 Read [docs/developer/go-baseline.md](docs/developer/go-baseline.md) before changing
-Go source, tests, coverage, deadcode, vulnerability scanning, Docker, Helm, or Go
+Go source, tests, coverage, deadcode, vulnerability scanning, Docker, or Go
 workflow machinery. The language variants live under each standard's
 `languages/go.md` path. Keep every Go test in an external `_test` package and never
 introduce `export_test.go`.

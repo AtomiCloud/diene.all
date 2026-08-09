@@ -24,8 +24,6 @@ checks:
       - git
       - gomplate
       - hadolint
-      - helm version
-      - helm-docs
       - infisical
       - jq
       - k3d
