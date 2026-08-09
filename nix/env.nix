@@ -1,68 +1,58 @@
 { pkgs, packages }:
 with packages;
 {
-  # ### workspace-dev
-  # #### source: workspace
   dev = [
     git
     gitlint
     go-task
     helm-schema
     infisical
-    jq
-    pls
-    sg
+    releaser
+    # scripts/local/latest-chart-upstreams.sh reads the upstream chart and image
+    # tags out of the registry with skopeo. Node-owned, so it survives the
+    # parent's trim of the shared toolchain.
     skopeo
   ];
 
-  # ### workspace-lint
-  # #### source: workspace
   lint = [
     actionlint
+    dlint
     gitlint
     helm-schema
     infralint
-    kubeconform
-    kubernetes-helm
-    kyverno
     pre-commit
-    ripgrep
     shellcheck
+    skills-sync
     treefmt
-    yq-go
   ];
 
-  # ### workspace-main
-  # #### source: workspace
   main = [
     cyanprint
-    docker-client
     git
     go
     go-task
     infisical
-    jq
-    kubeconform
-    kubernetes-helm
-    kyverno
-    pls
-    ripgrep
     shellcheck
-    skopeo
+    # scripts/ci/helm-wrapper.sh runs the wrapper validation tiers in `.#ci` and
+    # those arms invoke these directly, not through the validator-runtime in
+    # nix/pre-commit.nix.
+    kubeconform
+    kyverno
+    ripgrep
     yq-go
   ];
 
-  # ### workspace-releaser-bootstrap
-  # #### source: workspace
-  # C2: sg is retained only until tools/releaser is published at step 2p.
   releaser = [
-    sg
+    releaser
+    # release.hooks.prepare stamps chart/Chart.yaml with yq and regenerates
+    # chart/README.md with helm-docs (infralint); the release runs in `.#releaser`.
+    infralint
+    yq-go
   ];
 
-  # ### nix-root-system
-  # #### source: main
   system = [
     atomiutils
     infrautils
+    nix
   ];
 }
