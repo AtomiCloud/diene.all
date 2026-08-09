@@ -1,10 +1,7 @@
-# ### workspace-root
-# #### source: workspace
 version: '3'
 
 includes:
   docker: tasks/Taskfile.docker.yaml
-  secret: tasks/Taskfile.secret.yaml
   # ### bun-base-test-includes
   # #### source: bun-base
   unit:
@@ -20,23 +17,14 @@ includes:
 
 tasks:
   setup:
-    desc: Set up generated workspace assets
+    desc: Set up the workspace
     cmds:
-      - ./scripts/local/skills-sync.sh
-      # ### bun-base-setup
-      # #### source: bun-base
       - ./scripts/local/setup.sh
 
   lint:
     desc: Run all repository gates
     cmds:
       - pre-commit run --all-files
-
-  skills:sync:
-    desc: Synchronize installed diene package skills
-    cmds:
-      - ./scripts/local/skills-sync.sh
-
   # ### bun-base-tasks
   # #### source: bun-base
   clean:
