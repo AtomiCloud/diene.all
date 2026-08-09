@@ -22,9 +22,9 @@ same gates.
 - `entry` is what actually executes — either a Nix store path
   (`${packages.<tool>}/bin/<tool> …`, so the pinned tool runs) or a call to the
   `validator` helper in that file, which runs one script under `scripts/validate/`
-  with a fixed PATH. The single `dlint` invocation is written out in full in the
-  `a-workflows` entry rather than routed through `validator`, and that entry says
-  why;
+  with a fixed PATH. The `dlint` invocations are written out in full in the
+  `a-action-pins-trusted`, `a-action-pins-non-trusted` and `a-workflows` entries
+  rather than routed through `validator`, and those entries say why;
 - `files` is the regex selecting which paths trigger the hook; a hook with no
   `files` runs on every commit;
 - `stages` narrows a hook to a non-default stage; a hook without it runs at the
@@ -49,25 +49,33 @@ a commit-msg hook whose binary was missing broke plain `git commit` for every
 worktree at once. Its `entry` is an absolute Nix store path rather than a bare
 command name, which is what makes it resolve from any worktree and any shell.
 
-## The repo-agnostic check: `dlint ci-wiring`
+## The repo-agnostic checks: `dlint action-pins` and `dlint ci-wiring`
 
 `dlint` is a tool from the Nix registry. The parent template runs every check
 `dlint.yaml` configures through a single blanket `dlint lint` hook; **this node
-deliberately does not take that hook**, because two of the configured checks
-contradict this node — see the comment above `a-enforce-exec` in
-`nix/pre-commit.nix`. This repository takes **one** mode, `ci-wiring`, called
-explicitly by name from the `a-workflows` hook: it asserts that every orchestrator
-job resolves to a
-repository-local reusable workflow and that every referenced `scripts/ci` entry
-point exists and is executable. It replaced the `wiring` mode of
-`scripts/validate/workflows.sh`, which is why that script no longer has one.
+deliberately does not take that hook**, because one of the configured checks
+contradicts this node — `no-custom-derivations` forbids exactly the `cyanprint`
+derivation `nix/packages.nix` builds on purpose. That collision is settled by a
+registry hoist, not by deleting the derivation and not by an exemption; see the
+comment above `a-enforce-exec` in `nix/pre-commit.nix`.
+
+This repository takes **three** modes, each called explicitly by name:
+
+- `action-pins trusted` and `action-pins non-trusted`, from the two
+  `a-action-pins-*` hooks. Trust is one regex, `dlint.yaml`'s
+  `checks["action-pins"].trustedPattern`, and there is no trust map to maintain;
+- `ci-wiring`, from the `a-workflows` hook: every orchestrator job must resolve to
+  a repository-local reusable workflow and every referenced `scripts/ci` entry
+  point must exist and be executable. It replaced the `wiring` mode of
+  `scripts/validate/workflows.sh`, which is why that script no longer has one.
 
 **The rest of `scripts/validate/` stays, and that is a deliberate difference from
 the parent.** The parent template moved four checks to `dlint` — `action-pins`,
-`exec-bits` and `ci-wiring` — and deleted the scripts behind the
-first three. Only `ci-wiring` has moved here so far. Read `nix/pre-commit.nix` for
-which mechanism each hook actually runs; do not infer it from the parent's copy of
-this page.
+`exec-bits`, `ci-wiring` and `workflow-policy` — and deleted the scripts behind
+them. Here `action-pins` and `ci-wiring` have moved, and `scripts/validate/action-pins.sh`
+went with `action-pins`; `exec-bits` and the release-policy modes have not. Read
+`nix/pre-commit.nix` for which mechanism each hook actually runs; do not infer it
+from the parent's copy of this page.
 
 `dlint.yaml` in the repository root configures the checks, and two things about
 that file are decisions rather than transcription, neither of which can be written
