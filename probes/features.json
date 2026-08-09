@@ -111,11 +111,6 @@
   },
   {
     "template": "diene/workspace",
-    "name": "docker-build",
-    "class": "smoke"
-  },
-  {
-    "template": "diene/workspace",
     "name": "helm-lint",
     "class": "gate"
   },

@@ -22,8 +22,7 @@ The root `setup` task owns generated workspace assets. It runs
 writer, `skills-sync sync --tier setup`. Setup is repair-capable; the pre-commit
 and CI tiers refuse rather than silently staging or repairing a commit.
 
-Docker and Helm tasks are keyed by the artifact they act on — one task set per
-Dockerfile and per chart. See [the Docker standard](../docker/index.md) and
+Helm tasks are keyed by the artifact they act on — one task set per chart. See
 [the Helm standard](../helm/index.md) for that naming convention.
 
 ## Rules
