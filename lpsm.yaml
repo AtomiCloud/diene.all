@@ -1,0 +1,6 @@
+domain: cloud.atomi
+platform: platform
+service: service
+module: api-engine
+kind: library
+package: diene_api_engine

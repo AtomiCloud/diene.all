@@ -174,3 +174,51 @@ export async function expectRedBecause(
   }
   return output;
 }
+
+// Restore `path` to `original` at the end of a mutation arm, PRESERVING the mutated bytes
+// first so a failed restore can be diagnosed instead of merely reported.
+//
+// WHY THIS EXISTS AT ALL. Eight probes in this tree import it and the parent that
+// introduced those call sites never shipped the definition (its own upstream item G21-8),
+// so every one of them failed at IMPORT time — before a single assertion ran. Authoring it
+// here is what makes those probes loadable; the alternative, dropping the try/finally shape,
+// would give back the leak it was added to close.
+//
+// WHY IT MUST THROW ON A FAILED RESTORE. A mutation arm runs against a shared checkout. If
+// the file is left mutated, every probe that runs afterwards is measuring a tree nobody
+// intended, and it does so silently — the arm that caused it has already reported its own
+// verdict. A restore that cannot be confirmed is therefore a hard error, not a warning.
+//
+// WHY IT DOES NOT THROW WHEN THE MUTATION LOOKS ABSENT. This runs from `finally`, so it may
+// be executing while an assertion error is already in flight; throwing for a second,
+// lesser reason would REPLACE that error and hide the real cause. Whether the mutation took
+// effect is `expectRed`'s question, and it is already asked there.
+export async function preserveMutationBeforeRestore(
+  repo: any,
+  label: string,
+  path: string,
+  original: string,
+): Promise<void> {
+  // Read the mutated bytes BEFORE overwriting them. Once the restore runs they are gone,
+  // and a restore that half-applied is exactly the case where they are worth having.
+  let mutated: string | null = null;
+  try {
+    mutated = await repo.read(path);
+  } catch {
+    // The arm removed the file outright. That is still restorable from `original`.
+    mutated = null;
+  }
+
+  await repo.write(path, original);
+
+  // Verify by READING BACK, not by trusting the write's return. The whole point is that the
+  // next probe sees the original bytes, and only a read proves that.
+  const readback = await repo.read(path);
+  if (readback !== original) {
+    throw new Error(
+      `${label}: ${path} was not restored after the mutation arm; the shared checkout is left dirty. ` +
+        `Preserved mutated bytes: ${JSON.stringify(mutated)}. Intended bytes: ${JSON.stringify(original)}. ` +
+        `Bytes actually on disk: ${JSON.stringify(readback)}.`,
+    );
+  }
+}

@@ -26,7 +26,7 @@ export default {
       expectedImpact: ['pub-workspace-metadata-validator'],
       async run(repo: any) {
         const version = (await repo.read('VERSION')).trim();
-        const path = 'packages/diene_dart_lib/pubspec.yaml';
+        const path = 'packages/diene_api_engine/pubspec.yaml';
         const original = await repo.read(path);
         try {
           await repo.patch(path, {

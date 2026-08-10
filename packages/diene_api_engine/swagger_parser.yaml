@@ -1,0 +1,12 @@
+swagger_parser:
+  schema_path: openapi/service.openapi.yaml
+  output_directory: lib/src/generated
+  language: dart
+  json_serializer: json_serializable
+  root_client: true
+  root_client_name: ServiceSdk
+  client_postfix: Client
+  put_clients_in_folder: true
+  enums_to_json: true
+  use_freezed: false
+  squash_clients: false

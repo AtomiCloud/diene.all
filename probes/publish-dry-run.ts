@@ -7,17 +7,19 @@ export default {
   contractVersion: 1,
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
   setup: {
-    post: ['nix develop .#ci --no-write-lock-file -c dart pub get --offline'],
+    post: [
+      'nix develop .#ci --no-write-lock-file -c flutter pub get --offline || nix develop .#ci --no-write-lock-file -c flutter pub get',
+    ],
   },
   probes: [
     {
       name: 'baseline-publish-dry-run-green',
-      description: 'dart pub publish builds the dry-run archive without remote validation',
+      description: 'flutter pub publish builds the dry-run archive without remote validation',
       kind: 'baseline',
       async run(repo: any) {
         await expectGreen(
           repo,
-          "nix develop .#ci --no-write-lock-file -c bash -lc 'cd packages/diene_dart_lib && dart pub publish --dry-run --skip-validation'",
+          "nix develop .#ci --no-write-lock-file -c bash -lc 'cd packages/diene_api_engine && flutter pub publish --dry-run --skip-validation'",
           'publish-dry-run',
         );
       },

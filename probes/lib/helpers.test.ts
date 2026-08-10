@@ -3,7 +3,13 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { devShellCommand } from './exec';
-import { capturedEnvCommand, DEV_SHELL_CHAIN, expectDevShellsOnce, expectRedBecause } from './helpers';
+import {
+  capturedEnvCommand,
+  DEV_SHELL_CHAIN,
+  expectDevShellsOnce,
+  expectRedBecause,
+  preserveMutationBeforeRestore,
+} from './helpers';
 
 const ENV_DIR = '/captures';
 
@@ -272,4 +278,74 @@ describe('expectRedBecause', () => {
       );
     });
   }
+});
+
+// preserveMutationBeforeRestore is the helper eight probes import and the parent never
+// defined. It is proved in BOTH directions here: the satisfied state returns green, and a
+// deliberately broken restore returns red. A restore helper that cannot report failure is
+// exactly the gate that can never say "no".
+describe('preserveMutationBeforeRestore', () => {
+  function fakeRepo(initial: string) {
+    let content: string | null = initial;
+    return {
+      current: () => content,
+      read: async () => {
+        if (content === null) throw new Error('ENOENT');
+        return content;
+      },
+      write: async (_path: string, next: string) => {
+        content = next;
+      },
+    };
+  }
+
+  test('restores the original bytes after a mutation arm', async () => {
+    const repo = fakeRepo('version: 1.0.0-probe-drift');
+    await preserveMutationBeforeRestore(repo, 'publish-version-guard', 'pubspec.yaml', 'version: 1.0.0');
+    expect(repo.current()).toBe('version: 1.0.0');
+  });
+
+  test('restores a file the mutation arm deleted outright', async () => {
+    const repo = fakeRepo('gone');
+    // Simulate deletion: read throws until the restore writes it back.
+    const deleted = {
+      ...repo,
+      read: (() => {
+        let first = true;
+        return async () => {
+          if (first) {
+            first = false;
+            throw new Error('ENOENT');
+          }
+          return repo.current();
+        };
+      })(),
+    };
+    await preserveMutationBeforeRestore(deleted, 'label', 'p', 'restored');
+    expect(repo.current()).toBe('restored');
+  });
+
+  test('THROWS when the restore does not actually land, and preserves the mutated bytes', async () => {
+    // A write that silently no-ops — the precise failure the read-back exists to catch.
+    const stuck = {
+      read: async () => 'resolution: none',
+      write: async () => {},
+    };
+    let caught: Error | null = null;
+    try {
+      await preserveMutationBeforeRestore(
+        stuck,
+        'pub-workspace-metadata-validator',
+        'pubspec.yaml',
+        'resolution: workspace',
+      );
+    } catch (error) {
+      caught = error as Error;
+    }
+    expect(caught).not.toBeNull();
+    expect(caught!.message).toContain('was not restored');
+    // The mutated bytes must survive into the report, not be overwritten and lost.
+    expect(caught!.message).toContain('resolution: none');
+    expect(caught!.message).toContain('resolution: workspace');
+  });
 });
