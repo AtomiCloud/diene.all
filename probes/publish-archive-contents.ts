@@ -1,10 +1,11 @@
 import { expectGreen, expectRed } from './lib/helpers.ts';
 
-// Gate: the publishable archive (as reported by `flutter pub publish --dry-run`)
+// Gate: the publishable archive (as reported by the offline-safe
+// `flutter pub publish --dry-run --skip-validation` archive builder)
 // must ship the consumer usage skill. Sabotage adds `skills/` to `.pubignore`
 // and proves the skill drops out of the archive listing.
 const DRY_RUN_HAS_SKILL =
-  'nix develop .#ci --no-write-lock-file -c bash -lc \'cd packages/diene_auth_engine && out=$(flutter pub publish --dry-run 2>&1 || true); echo "$out" | grep -q diene-auth-engine-usage\'';
+  'nix develop .#ci --no-write-lock-file -c bash -lc \'cd packages/diene_auth_engine && out=$(flutter pub publish --dry-run --skip-validation 2>&1) && printf "%s\\n" "$out" | grep -F -q diene-auth-engine-usage\'';
 
 export default {
   contractVersion: 1,

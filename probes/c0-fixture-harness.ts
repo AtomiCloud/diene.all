@@ -28,7 +28,7 @@ export default {
       name: 'mutation-c0-fixture-harness-caught',
       description: 'the conformance harness fails once a fixture digest is corrupted',
       kind: 'mutation',
-      expectedImpact: [],
+      expectedImpact: ['unit-coverage-ledger'],
       async run(repo: any) {
         // The inherited sample sabotaged a `manifest.json` carrying a
         // `fixtures` digest MAP. This package uses a `SHA256SUMS` ledger

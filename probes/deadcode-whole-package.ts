@@ -29,7 +29,7 @@ export default {
       name: 'mutation-deadcode-whole-package-caught',
       description: 'the whole-package dead-code pass flags an unused private member',
       kind: 'mutation',
-      expectedImpact: [],
+      expectedImpact: ['deadcode-production-only'],
       async run(repo: any) {
         // Drop an orphan source under the member's lib/src that nothing
         // references. dart_code_linter surfaces it as unused code AND an unused

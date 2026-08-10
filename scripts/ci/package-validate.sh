@@ -8,21 +8,18 @@ cd "${root_dir}"
 ./scripts/validate/dart-package.sh
 ./scripts/validate/release-policy.sh
 
-# pub.dev dry-run and pana score run against the publishable member.
+# Build the publish archive and run the hermetic Pana categories against the
+# publishable member. Full `dart pub publish --dry-run` always refreshes the
+# advisory database; `--skip-validation` deliberately limits this step to the
+# offline-safe archive build while the repository validators and Pana retain
+# semantic coverage.
 cd "${root_dir}/packages/diene_auth_engine"
 
-echo "📦 Running pub.dev publish dry-run..."
-flutter pub publish --dry-run
+echo "📦 Building pub.dev dry-run archive..."
+flutter pub publish --dry-run --skip-validation
 
-echo "📊 Running pana package analysis..."
-pana_args=(--exit-code-threshold 0)
-[[ -n ${PUB_HOSTED_URL:-} ]] && pana_args+=(--hosted-url "${PUB_HOSTED_URL}")
-
-# pana must be told where the FLUTTER SDK is. It shells out to `dart pub` to
-# resolve the package under analysis, and for a Flutter package that fails with
-# "Because diene_auth_engine requires the Flutter SDK, version solving failed"
-# unless pana knows to use `flutter pub` instead. The nix dev shell does not set
-# FLUTTER_ROOT, so derive the SDK root from the resolved `flutter` binary
+# Dartdoc and pana must be told where the Flutter SDK is. The nix dev shell does
+# not set FLUTTER_ROOT, so derive the SDK root from the resolved `flutter` binary
 # (…/bin/flutter -> two levels up is the SDK root, verified to contain version,
 # packages/flutter, bin/cache and bin/internal) rather than hard-coding a
 # /nix/store path that changes on every toolchain bump.
@@ -36,6 +33,13 @@ flutter_root="$(dirname "$(dirname "${flutter_bin}")")"
   exit 1
 }
 echo "   using Flutter SDK: ${flutter_root}"
+
+echo "📚 Generating Dart API documentation..."
+FLUTTER_ROOT="${flutter_root}" dart doc --dry-run
+
+echo "📊 Running hermetic pana package analysis..."
+pana_args=(--no-dartdoc --exit-code-threshold 0)
+[[ -n ${PUB_HOSTED_URL:-} ]] && pana_args+=(--hosted-url "${PUB_HOSTED_URL}")
 pana_args+=(--flutter-sdk "${flutter_root}")
 
 dart pub global run pana "${pana_args[@]}" .

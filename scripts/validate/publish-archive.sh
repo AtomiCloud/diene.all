@@ -131,7 +131,7 @@ must_exclude=(
   "test/unit/auth_seam_test.dart"
   "tool/deadcode_entrypoints.dart"
   "config/base.yaml"
-  "atomi_release.yaml"
+  "release.yaml"
   "VERSION"
 )
 kept_out=0
