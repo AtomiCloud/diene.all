@@ -148,17 +148,17 @@ A critical design decision—timezone belongs at the right level of your domain:
 **Example - Alarm Done Right:**
 
 ```yaml
-User {
-  id: "user-123"
-  timezone: "America/New_York"  // ← TZ lives here
-}
+user:
+  id: 'user-123'
+  # The timezone lives on the user, not on each alarm.
+  timezone: 'America/New_York'
 
-Alarm {
-  id: "alarm-456"
-  userId: "user-123"
-  time: "07:00:00"              // ← Just time, no TZ
-  daysOfWeek: ["MON", "TUE", "WED", "THU", "FRI"]
-}
+alarm:
+  id: 'alarm-456'
+  userId: 'user-123'
+  # Just a wall-clock time, deliberately carrying no timezone.
+  time: '07:00:00'
+  daysOfWeek: ['MON', 'TUE', 'WED', 'THU', 'FRI']
 ```
 
 When the user moves to "Europe/London", update the user's timezone once—all alarms automatically adjust.
@@ -178,12 +178,23 @@ When the user moves to "Europe/London", update the user's timezone once—all al
 
 ### 1. Timezone Confusion
 
-```typescript
-// WRONG - Uses local time, ambiguous
-const createdAt = new Date();
+`new Date()` is not itself the hazard: it captures the current epoch instant and
+carries no timezone. The hazards are the APIs around it that silently substitute
+the machine's timezone — parsing an offset-less string, the local getters, and
+local display.
 
-// RIGHT - Explicitly UTC
-const createdAt = Temporal.Now.instant();
+```typescript
+// WRONG - a timestamp string with no offset is parsed in the machine's
+// timezone, so the same source text becomes a different instant per machine
+const startsAt = new Date('2026-03-15T09:00');
+
+// WRONG - the instant may be right, but the getters reinterpret it in the
+// machine's timezone, so the calendar day can come out off by one
+const dayShown = startsAt.getDate();
+
+// RIGHT - the zone is part of the value instead of inherited from the machine
+const starts = Temporal.PlainDateTime.from('2026-03-15T09:00').toZonedDateTime('Asia/Singapore');
+const day = starts.day;
 ```
 
 ### 2. DST Transitions

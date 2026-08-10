@@ -9,7 +9,7 @@ export default {
       description: 'Both lax LLM-review Knip variants run without enforcing false positives.',
       kind: 'baseline',
       async run(repo: any) {
-        await expectBunGreen(repo, 'nix develop .#ci -c pls deadcode', 'bun-deadcode-review');
+        await expectBunGreen(repo, 'nix develop .#ci -c task deadcode', 'bun-deadcode-review');
       },
     },
   ],
