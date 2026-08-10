@@ -97,9 +97,9 @@ See [docs/standards/utilities/index.md](docs/standards/utilities/index.md).
 Domain-specific architecture and behavior belongs under
 [docs/domain/](docs/domain/README.md).
 
-<!-- ### helm-wrapper -->
-<!-- #### source: helm-wrapper -->
+<!-- ### platinum -->
+<!-- #### source: platinum -->
 
-## Helm wrapper sample
+## Platinum Gateway API chart
 
-Read [docs/developer/helm-wrapper-baseline.md](docs/developer/helm-wrapper-baseline.md) before changing `chart/`, the stacked values, CR/LPSM helpers, provider LoadBalancer annotations, config vendoring, or chart publishing.
+Read [docs/developer/platinum-baseline.md](docs/developer/platinum-baseline.md) before changing `chart/`, the GatewayClass/Gateway/health-route templates, registered-fleet certificates, the ENTEI dev-host overlay, provider LoadBalancer annotations, or chart publishing.

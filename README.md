@@ -24,15 +24,16 @@ checks that it names every surface.
 Domain-specific architecture and behavior belongs under
 [`docs/domain/`](docs/domain/README.md), not under `docs/standards/`.
 
-<!-- ### helm-wrapper -->
-<!-- #### source: helm-wrapper -->
+<!-- ### platinum -->
+<!-- #### source: platinum -->
 
-## Helm wrapper sample
+## Platinum Gateway API chart
 
-This branch adds the production-grade wrapper chart, stacked values, generated schema, rendered-manifest validation, k3d proof, and dual publish modes.
+This branch materializes the platform Gateway API ingress chart (element platinum, wrapping kgateway): shared GatewayClass/Gateway, the `/healthz` route, per-cloud fixed-IP LoadBalancer exposure, registered-fleet wildcard certificates, and the ENTEI dev-host shared-Gateway overlay.
 
-- `task build` — vendor external config and build pinned chart dependencies.
-- `task test:unit` — run schema, lint, render, contracts, VAP, and publish dry-runs.
-- `task test:int` — install on ephemeral k3d and round-trip the chart through a local OCI registry.
+- `task build` — build pinned kgateway + kgateway-crds dependencies.
+- `task latest` — resolve the latest upstream kgateway chart, CRD, and image tags.
+- `task test:unit` — run schema, lint, render, gateway, VAP (with NodePort sabotage), and publish dry-runs.
+- `task test:int` — install on ephemeral k3d with the live kgateway control plane and prove the Gateway reaches `Programmed=True`.
 - `task example:lapras:template` — render the independent landscape + cluster stack.
-- [Helm wrapper baseline](docs/developer/helm-wrapper-baseline.md)
+- [Platinum baseline](docs/developer/platinum-baseline.md)

@@ -1,0 +1,8 @@
+# Vendored, byte-exact upstream Gateway API standard-channel CRD fixture.
+# The verbatim upstream bytes contain trailing whitespace inside two CEL
+# expressions (ValidatingAdmissionPolicy safe-upgrades), which trips git's
+# `git diff --check` trailing-whitespace gate. Preserve the bytes unchanged so
+# the pinned SHA-256 in scripts/local/gateway-api-crd-fixture.sh keeps matching
+# the authoritative upstream release; disable git's whitespace-error check for
+# this path only. Integrity is enforced by the checksum, not by whitespace.
+tests/fixtures/gateway-api-standard-channel-*.yaml -whitespace

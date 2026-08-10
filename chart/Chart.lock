@@ -1,6 +1,9 @@
 dependencies:
-- name: podinfo
-  repository: oci://ghcr.io/stefanprodan/charts
-  version: 6.9.2
-digest: sha256:9d1305090db49b16eabe426c36e15bd33cbf53ace496ecdc0e3c8d1ba7b8d57a
-generated: "2026-07-18T01:11:45.928074846Z"
+- name: kgateway
+  repository: oci://cr.kgateway.dev/kgateway-dev/charts
+  version: v2.2.9
+- name: kgateway-crds
+  repository: oci://cr.kgateway.dev/kgateway-dev/charts
+  version: v2.2.9
+digest: sha256:aaa733cef8a2abee3999903ab288d57f97e28d78c3a17b9a53f9007d8094b599
+generated: "2026-07-19T10:01:53.74303324Z"

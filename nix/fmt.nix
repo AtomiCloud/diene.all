@@ -14,6 +14,7 @@ let
           "docs/developer/CommitConventions.md"
           "infra/root_chart/**"
           "chart/**"
+          "tests/fixtures/gateway-api-standard-channel-*"
         ];
       };
       shfmt.enable = true;
