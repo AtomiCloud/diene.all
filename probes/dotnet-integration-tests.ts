@@ -9,7 +9,7 @@ export default {
       description: 'The ASP.NET Core TestServer boundary renders registered and unknown typed problems.',
       kind: 'baseline',
       async run(repo: any) {
-        await expectGreen(repo, 'nix develop .#ci -c pls test:int', 'dotnet-integration-tests', 600000);
+        await expectGreen(repo, 'nix develop .#ci -c task test:int', 'dotnet-integration-tests', 600000);
       },
     },
     {
@@ -29,7 +29,7 @@ export default {
           find: '.Add<NoteMissing>(404, false,',
           replace: '.Add<NoteMissing>(409, false,',
         });
-        await expectRed(repo, 'nix develop .#ci -c pls test:int', 'dotnet-integration-tests', 600000);
+        await expectRed(repo, 'nix develop .#ci -c task test:int', 'dotnet-integration-tests', 600000);
       },
     },
   ],

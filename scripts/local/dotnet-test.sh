@@ -4,7 +4,13 @@ set -euo pipefail
 kind="${1:-}"
 mode="${2:-normal}"
 
-[ "${kind}" != "unit" ] && [ "${kind}" != "int" ] && [ "${kind}" != "meta" ] && echo "❌ Usage: dotnet-test.sh <unit|int|meta> [--watch|--coverage]" >&2 && exit 1
+# This is the ONE place the tier list lives. scripts/ci/test.sh used to keep a
+# second copy; it passes the mode straight through now, so the refusal has to name
+# the value it rejected or a caller two scripts up cannot tell what it sent.
+# The `meta` tier is this node's own: it holds a TestHelper project, which the
+# parent does not, so the parent's list is narrower by one. Taking the parent's
+# list wholesale would leave the meta handler below unreachable.
+[ "${kind}" != "unit" ] && [ "${kind}" != "int" ] && [ "${kind}" != "meta" ] && echo "❌ test tier '${kind}' is not one of unit|int|meta (usage: dotnet-test.sh <unit|int|meta> [--watch|--coverage])" >&2 && exit 1
 [ "${mode}" != "normal" ] && [ "${mode}" != "--watch" ] && [ "${mode}" != "--coverage" ] && echo "❌ Unknown mode '${mode}'" >&2 && exit 1
 
 root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"

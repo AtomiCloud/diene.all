@@ -1,32 +1,29 @@
-# ### workspace-root
-# #### source: workspace
 version: '3'
 
 includes:
-  secret: tasks/Taskfile.secret.yaml
-
   # ### dotnet-base-test-includes
   # #### source: dotnet-base
-  unit:
+  test:unit:
     taskfile: tasks/Taskfile.test.yaml
     vars:
       MODE: unit
-  int:
+  test:int:
     taskfile: tasks/Taskfile.test.yaml
     vars:
       MODE: int
-  meta:
+  # This node carries a third tier the parent does not (it holds a TestHelper
+  # project). It is named into the parent's `test:<tier>` include scheme rather
+  # than left as a bare `meta:`, so `test:meta`, `test:meta:coverage` and
+  # `test:meta:watch` derive from the include exactly as the other two tiers do.
+  test:meta:
     taskfile: tasks/Taskfile.test.yaml
     vars:
       MODE: meta
 
 tasks:
   setup:
-    desc: Set up generated workspace assets
+    desc: Set up the workspace
     cmds:
-      - ./scripts/local/skills-sync.sh
-      # ### dotnet-base-setup
-      # #### source: dotnet-base
       - ./scripts/local/setup.sh
 
   lint:
@@ -35,9 +32,9 @@ tasks:
       - pre-commit run --all-files
 
   skills:sync:
-    desc: Synchronize installed diene package skills
+    desc: Verify the repository's explicit no-runtime skills contract
     cmds:
-      - ./scripts/local/skills-sync.sh
+      - skills-sync sync
 
   # ### dotnet-base-tasks
   # #### source: dotnet-base
@@ -76,48 +73,13 @@ tasks:
   test:
     desc: Run unit, integration, and TestHelper meta tests
     cmds:
-      - task: unit:default
-      - task: int:default
-      - task: meta:default
-
-  test:unit:
-    desc: Run unit tests
-    cmds:
-      - task: unit:default
-
-  test:int:
-    desc: Run integration tests
-    cmds:
-      - task: int:default
-
-  test:meta:
-    desc: Run TestHelper meta tests
-    cmds:
-      - task: meta:default
+      - task: test:unit
+      - task: test:int
+      - task: test:meta
 
   test:coverage:
     desc: Run every test tier with merged blocking coverage
     cmds:
-      - task: unit:coverage
-      - task: int:coverage
-      - task: meta:coverage
-
-  test:unit:coverage:
-    desc: Run unit tests with merged blocking coverage
-    cmds:
-      - task: unit:coverage
-
-  test:int:coverage:
-    desc: Run integration tests with merged blocking coverage
-    cmds:
-      - task: int:coverage
-
-  test:meta:coverage:
-    desc: Run TestHelper meta tests with merged blocking coverage
-    cmds:
-      - task: meta:coverage
-
-  test:watch:
-    desc: Watch the fast unit suite
-    cmds:
-      - task: unit:watch
+      - task: test:unit:coverage
+      - task: test:int:coverage
+      - task: test:meta:coverage

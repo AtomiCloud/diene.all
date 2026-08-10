@@ -11,20 +11,20 @@ shared workspace, standards, secret, and release surfaces.
 
 ## Local commands
 
-| Command                          | Purpose                                                        |
-| -------------------------------- | -------------------------------------------------------------- |
-| `pls setup`                      | Synchronize vendored skills and restore repo-local .NET tools. |
-| `pls clean`                      | Remove build and test artifacts.                               |
-| `pls build`                      | Build every project in Release.                                |
-| `pls dev`                        | Run the App through `dotnet watch`.                            |
-| `pls run -- <args>`              | Run the App in development mode.                               |
-| `pls preview -- <args>`          | Build and run the compiled Release artifact.                   |
-| `pls test`                       | Run unit and integration tiers.                                |
-| `pls test:unit` / `pls test:int` | Run one tier.                                                  |
-| `pls test:coverage`              | Enforce both merged coverage ledgers.                          |
-| `pls test:watch`                 | Watch the fast unit tier.                                      |
-| `pls deadcode`                   | Emit the broad, non-blocking LLM review.                       |
-| `pls lint`                       | Run every generated pre-commit hook.                           |
+| Command                             | Purpose                                                        |
+| ----------------------------------- | -------------------------------------------------------------- |
+| `task setup`                        | Synchronize vendored skills and restore repo-local .NET tools. |
+| `task clean`                        | Remove build and test artifacts.                               |
+| `task build`                        | Build every project in Release.                                |
+| `task dev`                          | Run the App through `dotnet watch`.                            |
+| `task run -- <args>`                | Run the App in development mode.                               |
+| `task preview -- <args>`            | Build and run the compiled Release artifact.                   |
+| `task test`                         | Run unit, integration, and TestHelper meta tiers.              |
+| `task test:unit` / `:int` / `:meta` | Run one tier.                                                  |
+| `task test:coverage`                | Enforce all three merged coverage ledgers.                     |
+| `task test:unit:watch`              | Watch the fast unit tier.                                      |
+| `task deadcode`                     | Emit the broad, non-blocking LLM review.                       |
+| `task lint`                         | Run every generated pre-commit hook.                           |
 
 ## Projects and coverage
 
@@ -50,18 +50,31 @@ automatically. Codecov remains informational.
 
 CI runs two strict dn-inspect mechanisms: all projects, then production-only
 `App*`/`Lib*` projects so exports reachable only from tests still fail. Local
-`pls deadcode` uses a deliberately broad filter and never blocks. Exclusion lists
+`task deadcode` uses a deliberately broad filter and never blocks. Exclusion lists
 are forbidden.
 
 The SDK is pinned by `global.json`; packages use Central Package Management.
 `NuGetAuditMode=all`, analyzers, deterministic builds, and warnings-as-errors are
 enforced in Release builds.
 
+`nix/dotnet-deps.json` pins the NuGet closure used by the reproducible Nix
+restore. Regenerate it after changing a project package reference, a central
+package version, or the pinned SDK:
+
+```bash
+nix_system="$(nix eval --impure --raw --expr builtins.currentSystem)"
+nix build ".#checks.${nix_system}.pre-commit-check.fetch-deps"
+./result nix/dotnet-deps.json
+```
+
+The command exposes `buildDotnetModule.passthru.fetch-deps`; its output replaces
+`nix/dotnet-deps.json`.
+
 ## Release
 
-The library descendant replaces the base `VERSION` marker with its imported
-`Version.props` package manifest. `.gitlint` and `atomi_release.yaml` share one
-commit-type vocabulary.
+Releaser stamps the version in the imported `Version.props` package manifest,
+which `Directory.Build.props` applies to every project; its canonical
+`release.yaml` is the single commit-type vocabulary.
 
 ## Template-maintenance boundary
 
