@@ -53,15 +53,15 @@ stays at `1.0.0` in-branch, `probes/dotnet-lib-api-compatibility.ts` packs with
 
 ## Testing tiers
 
-- `pls test:unit` measures the real `AtomiCloud.Diene.Config` assembly plus the
+- `task test:unit` measures the real `AtomiCloud.Diene.Config` assembly plus the
   inherited `[Lib*]*` scaling wildcard at 100%, and explicitly excludes
   `*.TestHelper` assemblies. The scope guard in
   `scripts/local/dotnet-test.sh` reads the allowed assembly names from the
   `AssemblyName` each `Lib*` project declares, so it scales with a renamed
   library instead of naming one.
-- `pls test:int` exercises the demo consumer against its real layered YAML files
+- `task test:int` exercises the demo consumer against its real layered YAML files
   on disk and measures only `[App*]*`.
-- `pls test:meta` independently measures `[*.TestHelper]*` at 100%. Its tests
+- `task test:meta` independently measures `[*.TestHelper]*` at 100%. Its tests
   include known-good and known-bad assertion cases.
 
 Codecov uploads the `unit`, `int`, and `meta` ledgers as informational flags;

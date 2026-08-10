@@ -9,7 +9,7 @@ export default defineGate({
     async run(repo: any) {
       await expectGreen(
         repo,
-        'nix develop .#ci -c pls test:meta:coverage',
+        'nix develop .#ci -c task test:meta:coverage',
         'dotnet-lib-testhelper-meta-ledger',
         600000,
       );
@@ -24,7 +24,7 @@ export default defineGate({
         'TestHelper/MetaCoverageGap.cs',
         'namespace AtomiCloud.Diene.Config.TestHelper;\n\npublic static class MetaCoverageGap\n{\n    public static int Uncovered() => 42;\n}\n',
       );
-      await expectRed(repo, 'nix develop .#ci -c pls test:meta:coverage', 'dotnet-lib-testhelper-meta-ledger', 600000);
+      await expectRed(repo, 'nix develop .#ci -c task test:meta:coverage', 'dotnet-lib-testhelper-meta-ledger', 600000);
     },
   },
 });
