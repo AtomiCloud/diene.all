@@ -16,7 +16,7 @@ export default {
           'dotnet-dev-build',
           480000,
         );
-        await runWebApp(repo, 'dotnet-e2e-dev', 'nix develop .#default -c pls dev');
+        await runWebApp(repo, 'dotnet-e2e-dev', 'nix develop .#default -c task dev');
       },
     },
   ],

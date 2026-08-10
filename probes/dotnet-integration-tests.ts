@@ -9,7 +9,7 @@ export default {
       description: 'The in-process SIT driver reaches the demo through its real ASP.NET pipeline.',
       kind: 'baseline',
       async run(repo: any) {
-        await expectGreen(repo, 'nix develop .#ci -c pls test:int', 'dotnet-integration-tests', 600000);
+        await expectGreen(repo, 'nix develop .#ci -c task test:int', 'dotnet-integration-tests', 600000);
       },
     },
     {
@@ -22,7 +22,7 @@ export default {
           find: 'new { Status = "ok" }',
           replace: 'new { Status = "probe" }',
         });
-        await expectRed(repo, 'nix develop .#ci -c pls test:int', 'dotnet-integration-tests', 600000);
+        await expectRed(repo, 'nix develop .#ci -c task test:int', 'dotnet-integration-tests', 600000);
       },
     },
   ],

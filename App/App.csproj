@@ -5,9 +5,7 @@
     <RootNamespace>AtomiCloud.Diene.E2e.Demo</RootNamespace>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
-
   <ItemGroup>
     <ProjectReference Include="../Lib/Lib.csproj" />
   </ItemGroup>
-
 </Project>

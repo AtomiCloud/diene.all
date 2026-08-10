@@ -9,7 +9,7 @@ export default {
       description: 'The development run task executes the sample App.',
       kind: 'baseline',
       async run(repo: any) {
-        await runWebApp(repo, 'dotnet-e2e-run', 'nix develop .#default -c pls run');
+        await runWebApp(repo, 'dotnet-e2e-run', 'nix develop .#default -c task run');
       },
     },
   ],
