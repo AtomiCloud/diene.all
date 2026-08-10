@@ -19,7 +19,8 @@ export default {
   probes: [
     {
       name: 'baseline-docker-build-green',
-      description: 'The workspace Docker script builds the unprivileged manager image for every published architecture.',
+      description:
+        'The workspace Docker script builds the unprivileged manager image for every published architecture.',
       kind: 'baseline',
       async run(repo: any) {
         try {
