@@ -1,19 +1,19 @@
-# Diene Go OpenTelemetry library
+# Diene Go library template
 
 <!-- ### go-base-badges -->
 <!-- #### source: go-base -->
 
-[![CI](https://github.com/AtomiCloud/diene.go-otel/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.go-otel/actions/workflows/ci.yaml)
-[![Unit coverage](https://codecov.io/gh/AtomiCloud/diene.go-otel/branch/main/graph/badge.svg?flag=unit)](https://codecov.io/gh/AtomiCloud/diene.go-otel)
-[![Integration coverage](https://codecov.io/gh/AtomiCloud/diene.go-otel/branch/main/graph/badge.svg?flag=int)](https://codecov.io/gh/AtomiCloud/diene.go-otel)
-[![Meta coverage](https://codecov.io/gh/AtomiCloud/diene.go-otel/branch/main/graph/badge.svg?flag=meta)](https://codecov.io/gh/AtomiCloud/diene.go-otel)
-[![Go Reference](https://pkg.go.dev/badge/github.com/AtomiCloud/diene.go-otel.svg)](https://pkg.go.dev/github.com/AtomiCloud/diene.go-otel)
-[![Commit activity](https://img.shields.io/github/commit-activity/m/AtomiCloud/diene.go-otel)](https://github.com/AtomiCloud/diene.go-otel/commits/main)
+[![CI](https://github.com/AtomiCloud/diene.go-lib/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.go-lib/actions/workflows/ci.yaml)
+[![Unit coverage](https://codecov.io/gh/AtomiCloud/diene.go-lib/branch/main/graph/badge.svg?flag=unit)](https://codecov.io/gh/AtomiCloud/diene.go-lib)
+[![Integration coverage](https://codecov.io/gh/AtomiCloud/diene.go-lib/branch/main/graph/badge.svg?flag=int)](https://codecov.io/gh/AtomiCloud/diene.go-lib)
+[![Meta coverage](https://codecov.io/gh/AtomiCloud/diene.go-lib/branch/main/graph/badge.svg?flag=meta)](https://codecov.io/gh/AtomiCloud/diene.go-lib)
+[![Go Reference](https://pkg.go.dev/badge/github.com/AtomiCloud/diene.go-lib.svg)](https://pkg.go.dev/github.com/AtomiCloud/diene.go-lib)
+[![Commit activity](https://img.shields.io/github/commit-activity/m/AtomiCloud/diene.go-lib)](https://github.com/AtomiCloud/diene.go-lib/commits/main)
 
 <!-- ### nix-root -->
 <!-- #### source: main -->
 
-Diene's reproducible development environment is managed by Nix. Run `direnv allow` once, then use `pls` tasks from the loaded shell.
+Diene's reproducible development environment is managed by Nix. Run `direnv allow` once, then use `task` tasks from the loaded shell.
 
 <!-- ### workspace -->
 <!-- #### source: workspace -->
@@ -24,61 +24,38 @@ synchronization.
 
 ## Commands
 
-- `pls setup` — synchronize installed diene package skills.
-- `pls lint` — run every pre-commit gate.
-- `pls secret:scan` — scan tracked content for secrets.
-- `pls skills:sync` — rebuild `.claude/skills/vendor/` from installed packages.
+- `task setup` — synchronize installed diene package skills.
+- `task lint` — run every pre-commit gate.
+- `task skills:sync` — rebuild `.claude/skills/vendor/` from installed packages.
 
 <!-- ### go-lib -->
 <!-- #### source: go-lib -->
 
 ## Publishable Go module
 
-`github.com/AtomiCloud/diene.go-otel` is the Go family's OpenTelemetry engine.
-It exposes the canonical C0 telemetry configuration block and JSON Schema,
-service-tree resource attributes, real SDK-backed logs/metrics/traces, and
-consumer-facing in-memory test helpers. Exporters are off by default; landscape
-overlays enable OTLP HTTP/protobuf on port 4318.
+`github.com/AtomiCloud/diene.go-lib` is the reusable parent for the
+`github.com/AtomiCloud/diene.go-*` module family. It demonstrates small public
+packages, a consumer-facing `testhelper` package, strict black-box tests, and
+tag-based publication through the Go proxy.
 
 ```bash
-go get github.com/AtomiCloud/diene.go-otel@latest
+go get github.com/AtomiCloud/diene.go-lib@latest
 ```
 
 ```go
-config := otel.DefaultConfig()
-identity := otel.AppIdentity{
-	Landscape: "lapras",
-	Platform:  "payments",
-	Service:   "api",
-	Module:    "server",
-	Version:   "1.0.0",
-}
-runtime, err := otelsdk.New(ctx, config, identity)
-if err != nil {
-	return err
-}
-defer runtime.Shutdown(ctx) // handle the returned error in production
+value := note.New("Living Documentation", "pkg.go.dev examples stay executable")
 ```
-
-Applications may opt into process-wide providers once at boot with
-`otelsdk.WithGlobalRegistration(true)`; the default is local registration only.
-`OTEL_SDK_DISABLED` and set `OTEL_*` variables take precedence over the block.
-
-For tests, inject the three doubles from
-`github.com/AtomiCloud/diene.go-otel/testhelper`. In particular, assert traces
-with `NewInMemoryTraceEmitter` and `AssertTraceRecords`; never start a collector
-or telemetry container in library tests. See the shipped
-`skills/diene-go-otel-usage` skill and package examples for complete patterns.
 
 <!-- ### go-base-commands -->
 <!-- #### source: go-base -->
 
 ## Go commands
 
-- `pls build` — build every package in the module.
-- `pls typecheck` — compile every source package without running tests.
-- `pls test` / `pls test:coverage` — run unit, integration, and active meta tiers.
-- `pls deadcode` — run strict whole-repository and production passes plus the LLM-lax report.
+- `task build` — build every package in the module.
+- `task typecheck` — compile every source package without running tests.
+- `task test` / `task test:coverage` — run unit, integration, and active meta tiers.
+- `task deadcode` — run strict whole-repository and production passes plus the LLM-lax report.
+- `task up` / `task down` — start or stop local Redis.
 - `./scripts/ci/pkg-validate.sh all` — run module-path, vet, API, docs, and example validators.
 
 See the [Go baseline](docs/developer/go-baseline.md) for the language contract and

@@ -58,8 +58,8 @@ are real; the pre-1.0 logs dependency is hidden behind an opaque stable handle.
 
 Unit coverage targets domain packages at 100%. Integration coverage targets
 user-designed adapters against real dependencies. The conditional meta tier
-targets `<module>/testhelper` only: when that package exists, `pls test:meta`
-and `pls test:meta:coverage` run its black-box contract, failure, assertion, and
+targets `<module>/testhelper` only: when that package exists, `task test:meta`
+and `task test:meta:coverage` run its black-box contract, failure, assertion, and
 fixture tests; when it does not exist, they succeed without uploading an empty
 Codecov flag. TestHelper code is excluded from the unit ledger.
 
