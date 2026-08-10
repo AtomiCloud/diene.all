@@ -13,7 +13,7 @@ cd "${root_dir}"
 # advisory database; `--skip-validation` deliberately limits this step to the
 # offline-safe archive build while the repository validators and Pana retain
 # semantic coverage.
-cd "${root_dir}/packages/diene_dart_lib"
+cd "${root_dir}/packages/diene_interfaces"
 
 echo "📦 Building pub.dev dry-run archive..."
 dart pub publish --dry-run --skip-validation

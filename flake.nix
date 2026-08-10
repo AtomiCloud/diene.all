@@ -76,7 +76,7 @@
           shellHook = pre-commit.shellHook;
         };
         checks = {
-          pre-commit-check = pre-commit-offline;
+          pre-commit-check = pre-commit;
           format = formatter;
         };
       };

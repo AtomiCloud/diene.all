@@ -13,6 +13,7 @@ let
           "Changelog.md"
           "docs/developer/CommitConventions.md"
           "infra/root_chart/**"
+          "packages/diene_interfaces/test/fixtures/c0/problem-envelope.json"
         ];
       };
       shfmt.enable = true;

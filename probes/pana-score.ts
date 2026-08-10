@@ -8,7 +8,7 @@ import { expectGreen, expectRed } from './lib/helpers.ts';
 // Sabotage comments out the member `description:` (a scored metadata field) and
 // proves pana docks points and fails the threshold.
 const PANA =
-  "nix develop .#ci --no-write-lock-file -c bash -lc 'cd packages/diene_dart_lib && dart doc --dry-run && dart run pana --no-dartdoc --exit-code-threshold 0 .'";
+  "nix develop .#ci --no-write-lock-file -c bash -lc 'cd packages/diene_interfaces && dart doc --dry-run && dart run pana --no-dartdoc --exit-code-threshold 0 .'";
 
 export default {
   contractVersion: 1,
@@ -31,7 +31,7 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        await repo.patch('packages/diene_dart_lib/pubspec.yaml', {
+        await repo.patch('packages/diene_interfaces/pubspec.yaml', {
           find: 'description:',
           replace: '#description:',
         });
