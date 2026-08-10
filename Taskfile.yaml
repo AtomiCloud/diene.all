@@ -1,36 +1,43 @@
+# ### workspace-root
+# #### source: workspace
 version: '3'
 
 includes:
   helm: tasks/Taskfile.helm.yaml
-  example:lapras:
+  secret: tasks/Taskfile.secret.yaml
+  lapras:k3d:
     taskfile: tasks/Taskfile.cluster.yaml
     vars:
-      RELEASE_NAME: helm-wrapper
+      RELEASE_NAME: xenon
       NAMESPACE: sample
-      LANDSCAPE: example
-      CLUSTER: lapras
+      LANDSCAPE: lapras
+      CLUSTER: k3d
 
 tasks:
   setup:
-    desc: Set up the workspace
+    desc: Set up generated workspace assets
     cmds:
-      - ./scripts/local/setup.sh
+      - ./scripts/local/skills-sync.sh
 
   lint:
     desc: Run all repository gates
     cmds:
       - pre-commit run --all-files
 
-  build:
-    desc: Vendor config and build chart dependencies
+  skills:sync:
+    desc: Synchronize installed diene package skills
     cmds:
-      - ./scripts/local/vendor-chart-config.sh
-      - helm dependency build chart
+      - ./scripts/local/skills-sync.sh
+
+  build:
+    desc: Build chart dependencies
+    cmds:
+      - ./scripts/local/vendor-metrics-server.sh build
 
   update:
     desc: Refresh the pinned upstream chart dependency
     cmds:
-      - helm dependency update chart
+      - ./scripts/local/vendor-metrics-server.sh update
 
   latest:
     desc: Resolve the latest real upstream chart and image tags
@@ -38,19 +45,19 @@ tasks:
       - ./scripts/local/latest-chart-upstreams.sh
 
   test:
-    desc: Run the Helm wrapper unit/static tier
+    desc: Run the xenon unit/static tier
     cmds:
-      - ./scripts/ci/helm-wrapper.sh
+      - ./scripts/ci/xenon.sh
 
   test:unit:
-    desc: Run schema, lint, render, policy, and contract validation
+    desc: Run schema, lint, render, policy, toggle, and contract validation
     cmds:
-      - ./scripts/ci/helm-wrapper.sh
+      - ./scripts/ci/xenon.sh
 
   test:int:
-    desc: Run the local k3d installation proof
+    desc: Run the SIT integration tier (install + kubectl top; orchestration-authorized)
     cmds:
-      - ./scripts/validate/helm-wrapper-k3d.sh
+      - ./scripts/validate/xenon-sit.sh
 
   start:cluster:
     desc: Start the local k3d lapras proof cluster

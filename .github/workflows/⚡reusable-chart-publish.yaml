@@ -1,5 +1,5 @@
-# ### helm-wrapper-reusable-publish
-# #### source: helm-wrapper
+# ### xenon-reusable-publish
+# #### source: xenon
 name: ⚡ Reusable Chart Publish
 
 on:

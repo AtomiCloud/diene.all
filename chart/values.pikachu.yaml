@@ -1,0 +1,10 @@
+# Named cloud-landscape overlay. The supported EKS classic, EKS Auto Mode, and
+# DOKS offerings do not preinstall metrics-server, so xenon remains ON with
+# secure kubelet certificate validation.
+global:
+  serviceTree:
+    landscape: pikachu
+
+metricsServer:
+  enabled: true
+  args: []
