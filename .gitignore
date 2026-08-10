@@ -34,3 +34,11 @@ coverage/
 #### source: bun-lib
 *.tgz
 .npmrc
+
+### bun-result
+#### source: lib/bun/result
+!.claude/skills/result/
+!.claude/skills/result/**
+!docs/standards/result/
+!docs/standards/result/**
+!tests/**/result-*.test.ts
