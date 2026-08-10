@@ -9,7 +9,7 @@ export default {
       description: 'Helm renders the root chart successfully.',
       kind: 'baseline',
       async run(repo: any) {
-        await expectGreen(repo, 'nix develop .#ci -c helm template diene-go-base infra/root_chart', 'helm-render');
+        await expectGreen(repo, 'nix develop .#ci -c helm template operator-template infra/root_chart', 'helm-render');
       },
     },
   ],

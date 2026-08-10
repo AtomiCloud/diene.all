@@ -68,7 +68,7 @@ jobs:
     uses: ./.github/workflows/⚡reusable-docker.yaml
     secrets: inherit
     with:
-      image_name: diene-go-base
+      image_name: operator-template
       dockerfile: ./infra/Dockerfile
 
   helm:

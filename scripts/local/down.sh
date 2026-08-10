@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-container="diene-go-base-redis"
+container="${OPERATOR_LEDGER_CONTAINER:-operator-template-ledger}"
 
 # Treat only absence of the exact container as a no-op so Docker daemon and permission failures propagate.
 existing="$(docker ps --all --quiet --filter "name=^/${container}$")"
@@ -9,4 +9,4 @@ existing="$(docker ps --all --quiet --filter "name=^/${container}$")"
 
 docker rm --force "${container}" >/dev/null
 
-echo "✅ Local dependencies stopped"
+echo "✅ Local MinIO ledger stopped"

@@ -32,6 +32,13 @@ bash --version >/dev/null
 # The store path the shell resolved is the declaration's own answer: it carries the
 # derivation name, so a version the binary reports that the resolved derivation does
 # not carry is caught here rather than reported as agreement with itself.
+# ### operator-template
+# #### source: operator-template
+# This node's own toolchain. The parent retired scripts/validate/binary-smoke.sh in
+# favour of this script, and that retirement carried the operator half of the
+# inventory away with it; these four lines are that half, restored.
+controller-gen --version >/dev/null
+
 cyanprint_version="$(cyanprint --version | awk '{ print $2 }')"
 [ -n "$cyanprint_version" ] || { echo "cyanprint --version printed no version" >&2; exit 1; }
 cyanprint_path="$(command -v cyanprint)"
@@ -60,7 +67,10 @@ helm-docs --version >/dev/null
 helm-docs --dry-run --chart-search-root infra/root_chart >/dev/null 2>&1
 
 helm version --short >/dev/null
-helm template diene-workspace infra/root_chart | kubeconform -strict -summary >/dev/null
+# -ignore-missing-schemas is this node's, not a loosening: the manager chart ships
+# ServiceMonitor, GrafanaAlertRuleGroup and its own CRs, for which kubeconform has no
+# upstream schema. Without it the render is refused for resources that are correct.
+helm template operator-template infra/root_chart | kubeconform -strict -ignore-missing-schemas -summary >/dev/null
 
 infisical --version >/dev/null
 git -C "$tmp" init -q
@@ -76,6 +86,8 @@ jq -en '1 + 1 == 2' >/dev/null
 
 k3d version >/dev/null
 k3d cluster list --no-headers >/dev/null
+
+kubebuilder version >/dev/null 2>&1
 
 kubeconform -v >/dev/null
 
@@ -129,6 +141,27 @@ rg -q 'ripgrep smoke needle' "$tmp/rg-fixture.txt"
 rc=0
 rg -q 'no-such-needle-should-ever-match' "$tmp/rg-fixture.txt" || rc=$?
 [ "$rc" = "1" ] || { echo "rg: expected exit 1 (no match), got $rc" >&2; exit 1; }
+# This node's public identity, asserted in BOTH directions so a cascade that carries the
+# parent's README down is loud rather than silent. The bound is honest: it reads README.md
+# only, so an identity that leaked into another file would not be caught here.
+rg -q 'operator-template' README.md || {
+  echo "README no longer names the operator-template product identity" >&2
+  exit 1
+}
+! rg -q 'diene[.-]go-base' README.md || {
+  echo "README retains the retired diene-go-base public product identity" >&2
+  exit 1
+}
+
+# The envtest asset directory is a declaration of this node's shell, not of PATH, so
+# the binary answering is only half the claim: the assets it points at must exist, or
+# the int tier silently downloads them at test time.
+# Written with bare $var and no braced expansion: this is a JS template literal, so a
+# braced dollar form here is read by JS at module load and never reaches the shell.
+setup-envtest version >/dev/null
+envtest_assets="$KUBEBUILDER_ASSETS"
+[ -n "$envtest_assets" ] || envtest_assets=/nonexistent
+test -x "$envtest_assets/kube-apiserver"
 
 shellcheck --version >/dev/null
 printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' 'echo "shellcheck smoke"' >"$tmp/shellcheck-clean.sh"

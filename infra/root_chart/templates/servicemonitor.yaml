@@ -1,0 +1,37 @@
+{{- if .Values.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "operator-template.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "operator-template.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "operator-template.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: metrics
+      scheme: https
+      interval: {{ .Values.serviceMonitor.interval }}
+      # An enabled ServiceMonitor must always present an authorized identity: the
+      # chart-owned least-privilege scraper token, or an externally-provisioned
+      # authorized bearer-token Secret. Neither is a render-time error.
+      {{- if .Values.serviceMonitor.scraper.create }}
+      authorization:
+        type: Bearer
+        credentials:
+          name: {{ include "operator-template.scraperName" . }}-token
+          key: token
+      {{- else if and .Values.serviceMonitor.scraper.externalSecret.name .Values.serviceMonitor.scraper.externalSecret.key }}
+      authorization:
+        type: Bearer
+        credentials:
+          name: {{ .Values.serviceMonitor.scraper.externalSecret.name }}
+          key: {{ .Values.serviceMonitor.scraper.externalSecret.key }}
+      {{- else }}
+      {{- fail "serviceMonitor.enabled requires serviceMonitor.scraper.create=true, or BOTH serviceMonitor.scraper.externalSecret.name and .key set — an enabled ServiceMonitor must present a complete authorized bearer credential (nonempty name and key) for the authn/authz-filtered /metrics endpoint" }}
+      {{- end }}
+      tlsConfig:
+        insecureSkipVerify: true
+{{- end }}

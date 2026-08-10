@@ -46,6 +46,9 @@ linters:
     - wastedassign
     - whitespace
   settings:
+    exhaustive:
+      # A default case that handles the remaining enum values counts as exhaustive.
+      default-signifies-exhaustive: true
     govet:
       enable-all: true
       disable:
@@ -71,6 +74,25 @@ linters:
           disabled: true
   exclusions:
     generated: lax
+    rules:
+      # Kubernetes API types require the ",inline" json tag on embedded TypeMeta
+      # and ListMeta; revive's struct-tag rule does not recognise it.
+      - path: api/v1alpha1/
+        linters: [revive]
+        text: 'struct-tag: unknown option "inline"'
+      # The composition root parses flags in run() (returning an exit code) so it
+      # stays testable; main() only wraps it.
+      - path: cmd/manager/
+        linters: [revive]
+        text: deep-exit
+      # TestMain must call os.Exit to propagate the code after deferred envtest
+      # teardown.
+      - path: _test\.go
+        linters: [revive]
+        text: redundant-test-main-exit
+      # Test helpers legitimately fix some parameters across call sites.
+      - path: _test\.go
+        linters: [unparam]
 
 issues:
   max-issues-per-linter: 0

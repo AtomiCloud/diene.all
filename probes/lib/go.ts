@@ -21,17 +21,22 @@ async function first(repo: ProbeRepo, glob: string): Promise<string> {
   return paths[0];
 }
 
+// Returns the mutated path so the caller can restore exactly what it owns.
+//
+// The upstream structural matcher (`if x != y { t.Fatalf(`) finds NOTHING in this
+// node: its unit tier asserts through testify `require`, so a discovered target
+// would leave the mutation arm throwing instead of proving the tier. The sabotage
+// is therefore pinned to this node's own assertion, and the `includes` guard makes
+// a rename of that assertion loud rather than silently un-sabotaging the probe.
 export async function flipGoAssertion(repo: ProbeRepo): Promise<string> {
-  const paths = (await repo.glob('tests/unit/**/*_test.go')).sort();
-  for (const path of paths) {
-    const source = await repo.read(path);
-    const assertion = source.match(/if [^\n{]* != [^\n{]* \{\n\s*t\.(?:Fatal|Error)f?\(/);
-    if (assertion) {
-      await repo.write(path, source.replace(assertion[0], assertion[0].replace(' != ', ' == ')));
-      return path;
-    }
+  const path = 'tests/unit/operator/note_test.go';
+  const source = await repo.read(path);
+  const target = 'require.Equal(t, "note-a-copy-2", note.CopyName("note-a", 2))';
+  if (!source.includes(target)) {
+    throw new Error('operator unit assertion target is missing');
   }
-  throw new Error('no structural Go assertion target found');
+  await repo.write(path, source.replace(target, 'require.Equal(t, "probe-wrong", note.CopyName("note-a", 2))'));
+  return path;
 }
 
 // Return the untracked fixture path so the caller can clean it precisely.
@@ -53,17 +58,20 @@ export async function plantWhiteBoxTest(repo: ProbeRepo): Promise<string> {
   return target;
 }
 
+// Returns the mutated path, same contract as flipGoAssertion above.
+//
+// The upstream matcher looks for a keyed `.Set(ctx, key, value, ttl)` write, which
+// this node has no instance of — its adapter writes the payload into a ConfigMap.
+// Pinned to that write for the same reason, with the same loud guard.
 export async function breakAdapter(repo: ProbeRepo): Promise<string> {
-  const paths = (await repo.glob('adapters/**/*.go')).sort();
-  for (const path of paths) {
-    const source = await repo.read(path);
-    const target = source.match(/\.Set\(\s*ctx\s*,\s*([^,\s]+)\s*,\s*[^,\n]+\s*,\s*[^)\n]+\)/);
-    if (target) {
-      await repo.write(path, source.replace(target[0], target[0].replace(target[1], `${target[1]}+"-probe"`)));
-      return path;
-    }
+  const path = 'adapters/operator/kube/resources.go';
+  const source = await repo.read(path);
+  const target = 'cm.Data[payloadKey] = payload';
+  if (!source.includes(target)) {
+    throw new Error('operator adapter write target is missing');
   }
-  throw new Error('no structural adapter method target found');
+  await repo.write(path, source.replace(target, 'cm.Data[payloadKey] = "probe-wrong"'));
+  return path;
 }
 
 // Resolve fallible metadata before writing, then return the exact fixture path.

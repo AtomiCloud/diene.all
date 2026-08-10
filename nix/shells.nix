@@ -4,6 +4,15 @@
   env,
   shellHook,
 }:
+let
+  # ### operator-template-shellhook
+  # #### source: operator-template
+  # Point envtest at the offline nix asset directory (kube-apiserver/etcd/kubectl)
+  # so int-tier envtest suites never download binaries at test time (M14).
+  shellHookWithEnvtest = shellHook + ''
+    export KUBEBUILDER_ASSETS="${packages.envtest-assets}"
+  '';
+in
 with env;
 {
   # `infralint` is the PROVIDER of skopeo, and `.#cd` is the one shell that needs it:
@@ -19,21 +28,21 @@ with env;
   # and lint carries actionlint/pre-commit/treefmt/golangci-lint/staticcheck.
   cd = pkgs.mkShell {
     buildInputs = main ++ system ++ [ packages.infralint ];
-    inherit shellHook;
+    shellHook = shellHookWithEnvtest;
   };
 
   ci = pkgs.mkShell {
     buildInputs = lint ++ main ++ system;
-    inherit shellHook;
+    shellHook = shellHookWithEnvtest;
   };
 
   default = pkgs.mkShell {
     buildInputs = system ++ main ++ lint ++ dev;
-    inherit shellHook;
+    shellHook = shellHookWithEnvtest;
   };
 
   releaser = pkgs.mkShell {
     buildInputs = lint ++ main ++ releaser ++ system;
-    inherit shellHook;
+    shellHook = shellHookWithEnvtest;
   };
 }

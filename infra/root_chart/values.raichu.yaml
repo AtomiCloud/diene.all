@@ -1,0 +1,9 @@
+# Landscape overlay: raichu (production landscape).
+controllers:
+  note: true
+ledger:
+  landscape: raichu
+  endpoint: minio.raichu.svc.cluster.local:9000
+  secure: true
+mode: active
+replicas: 2

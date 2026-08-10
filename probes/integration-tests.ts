@@ -22,7 +22,7 @@ export default {
       async run(repo: any) {
         const mutated = await breakAdapter(repo);
         try {
-          await expectRedWithDiagnostic(repo, gate, 'integration-tests', /Load\(\) error = redis: nil/);
+          await expectRedWithDiagnostic(repo, gate, 'integration-tests', /probe-wrong/);
         } finally {
           await restoreProbeState(repo, [mutated]);
         }

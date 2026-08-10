@@ -2,7 +2,7 @@ import { capturedEnvCommand, expectGreen } from './lib/helpers.ts';
 
 // Export under the git-ignored and docker-ignored reports tree so the archive never enters the build context.
 const artifacts = 'reports/docker-oci';
-const archive = `${artifacts}/diene-go-base.oci.tar`;
+const archive = `${artifacts}/operator-template.oci.tar`;
 const platforms = 'linux/arm64,linux/amd64';
 const published = ['amd64', 'arm64'];
 
@@ -10,7 +10,7 @@ const published = ['amd64', 'arm64'];
 const build = [
   `rm -rf ${artifacts}`,
   `mkdir -p ${artifacts}`,
-  `CI_DOCKER_CONTEXT=. CI_DOCKER_IMAGE=diene-go-base CI_DOCKERFILE=infra/Dockerfile CI_DOCKER_OUTPUT=${archive} CI_DOCKER_PLATFORM=${platforms} CI_DOCKER_PUSH=false nix develop .#cd -c ./scripts/ci/docker.sh`,
+  `CI_DOCKER_CONTEXT=. CI_DOCKER_IMAGE=operator-template CI_DOCKERFILE=infra/Dockerfile CI_DOCKER_OUTPUT=${archive} CI_DOCKER_PLATFORM=${platforms} CI_DOCKER_PUSH=false nix develop .#cd -c ./scripts/ci/docker.sh`,
 ].join(' && ');
 
 export default {
@@ -19,7 +19,8 @@ export default {
   probes: [
     {
       name: 'baseline-docker-build-green',
-      description: 'The workspace Docker script builds the unprivileged Go image for every published architecture.',
+      description:
+        'The workspace Docker script builds the unprivileged manager image for every published architecture.',
       kind: 'baseline',
       async run(repo: any) {
         try {
