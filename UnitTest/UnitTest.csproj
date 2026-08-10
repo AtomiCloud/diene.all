@@ -17,6 +17,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The published sibling TestHelpers are consumed rather than reimplemented: the
+         classification suite asserts envelopes with Problems.TestHelper and Results with
+         Result.TestHelper, which is also this node's registry dogfood of both packages. -->
+    <PackageReference Include="AtomiCloud.Diene.Problems.TestHelper" />
+    <PackageReference Include="AtomiCloud.Diene.Result.TestHelper" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
 

@@ -1,13 +1,34 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <RootNamespace>AtomiCloud.Diene.Note</RootNamespace>
-    <AssemblyName>AtomiCloud.Diene.Note</AssemblyName>
-    <PackageId>AtomiCloud.Diene.Note</PackageId>
-    <Description>An illustrative note-domain library and the Diene .NET library template.</Description>
+    <RootNamespace>AtomiCloud.Diene.ApiEngine</RootNamespace>
+    <AssemblyName>AtomiCloud.Diene.ApiEngine</AssemblyName>
+    <PackageId>AtomiCloud.Diene.ApiEngine</PackageId>
+    <Description>The typed backend-client engine for Diene services: an LPSM client tree over generated SDKs, per-backend token attachment, retry-once-on-network-error transport, and full response classification into Result&lt;T, Problem&gt;.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IsPackable>true</IsPackable>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Supplies IHttpClientFactory, the options binder, and DI without pinning any of them
+         in CPM, matching how the problems and auth-engine libraries take their framework
+         dependencies. Nothing in this package hosts a server. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The ambient failure capture is internal so a consumer cannot bind to the mechanism
+         that carries a response body out of the pipeline, but the unit suite drives it
+         directly rather than inferring its behaviour through a whole client tree. -->
+    <InternalsVisibleTo Include="UnitTest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AtomiCloud.Diene.AuthEngine" />
+    <PackageReference Include="AtomiCloud.Diene.CoreUtils" />
+    <PackageReference Include="AtomiCloud.Diene.Problems" />
+    <PackageReference Include="AtomiCloud.Diene.Result" />
+  </ItemGroup>
 
   <ItemGroup>
     <None Include="../LICENSE" Pack="true" PackagePath="/" />

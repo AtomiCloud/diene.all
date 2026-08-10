@@ -1,32 +1,63 @@
-using AtomiCloud.DotnetBase.App.Adapters.Redis;
-using AtomiCloud.Diene.Note;
-using StackExchange.Redis;
+using AtomiCloud.Diene.ApiEngine.Client;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace AtomiCloud.DotnetBase.App;
 
-/// <summary>Composition root: explicit wiring of domain interfaces to concrete adapters.</summary>
+/// <summary>
+/// Composition root and demo consumer: registers two upstreams and walks every branch of the
+/// classification matrix against a real HTTP server.
+/// </summary>
 public static class Program
 {
-    public static async Task Main()
+    /// <summary>Runs the demo and returns a process exit code.</summary>
+    public static async Task<int> Main(string[] args)
     {
-        var connectionString = Environment.GetEnvironmentVariable("REDIS_CONNECTION");
-        if (string.IsNullOrWhiteSpace(connectionString)) connectionString = "localhost:6379";
+        _ = args;
 
-        // ── Domain wiring (illustrative sample) — replace this block with your domain ──
-        INoteSummariser summariser = new NoteSummariser();
-        await using var redis = await ConnectionMultiplexer.ConnectAsync(connectionString);
-        INoteRepository notes = new RedisNoteRepository(redis);
+        await using var upstream = await DemoUpstream.StartAsync().ConfigureAwait(false);
+        Console.WriteLine($"demo upstream listening on {upstream.BaseAddress}");
 
-        var saved = await notes.Save(new NoteRecord
+        var built = ApiEngineDemo.BuildConfig(upstream.BaseAddress);
+        if (built.IsFailure(out var error))
         {
-            Title = "Welcome",
-            Body = "The first note stored through the Redis adapter.",
-        });
-        var found = await notes.Find(saved.Id);
+            Console.WriteLine($"configuration rejected -> {error}");
+            return 1;
+        }
 
-        Console.WriteLine(found is null
-            ? $"Note {saved.Id} could not be read back."
-            : summariser.Summarise(found.Record, 80));
-        // ── End domain wiring ──
+        var config = built.Get();
+        Console.WriteLine(
+            $"registered {config.Upstreams.Count} upstream(s), " +
+            $"timeout {config.Find(ApiEngineDemo.Notes).Get().Timeout}");
+
+        await using var services = ApiEngineDemo.Compose(config);
+        Console.WriteLine($"client tree resolved: {services.GetRequiredService<IClientTree>().GetType().Name}");
+
+        // One line per classification branch. The success case first, so a failure in the
+        // interesting cases cannot be mistaken for the whole pipeline being broken.
+        Console.WriteLine(await ApiEngineDemo
+            .Describe(services, ApiEngineDemo.Notes, DemoUpstream.OkPath).ConfigureAwait(false));
+        Console.WriteLine(await ApiEngineDemo
+            .DescribePing(services, ApiEngineDemo.Notes, DemoUpstream.OkPath).ConfigureAwait(false));
+        Console.WriteLine(await ApiEngineDemo
+            .Describe(services, ApiEngineDemo.Notes, DemoUpstream.ProblemPath).ConfigureAwait(false));
+        Console.WriteLine(await ApiEngineDemo
+            .Describe(services, ApiEngineDemo.Notes, DemoUpstream.NestedProblemPath).ConfigureAwait(false));
+        Console.WriteLine(await ApiEngineDemo
+            .Describe(services, ApiEngineDemo.Notes, DemoUpstream.LegacyPath).ConfigureAwait(false));
+        Console.WriteLine(await ApiEngineDemo
+            .Describe(services, ApiEngineDemo.Notes, DemoUpstream.GarbagePath).ConfigureAwait(false));
+        Console.WriteLine(await ApiEngineDemo
+            .Describe(services, ApiEngineDemo.Notes, DemoUpstream.SilentPath).ConfigureAwait(false));
+
+        // The second upstream shares the first one's host, so the tokens the server saw are the
+        // evidence that each backend carried its own credential.
+        Console.WriteLine(await ApiEngineDemo
+            .Describe(services, ApiEngineDemo.Archive, DemoUpstream.OkPath).ConfigureAwait(false));
+        Console.WriteLine(
+            $"tokens seen upstream: {string.Join(", ", upstream.Authorizations.Distinct().Order())}");
+
+        Console.WriteLine(await ApiEngineDemo.DescribeUnreachable(services).ConfigureAwait(false));
+        Console.WriteLine(ApiEngineDemo.DescribeCatalog());
+        return 0;
     }
 }
