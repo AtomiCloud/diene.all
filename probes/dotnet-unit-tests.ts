@@ -1,5 +1,4 @@
 import { expectGreen, expectRed } from './lib/helpers.ts';
-import { flipAssertion } from './lib/mutations.ts';
 
 export default {
   contractVersion: 1,
@@ -10,17 +9,20 @@ export default {
       description: 'The registered unit projects pass through the public task surface.',
       kind: 'baseline',
       async run(repo: any) {
-        await expectGreen(repo, 'nix develop .#ci -c task test:unit', 'dotnet-unit-tests', 600000);
+        await expectGreen(repo, 'nix develop .#ci -c pls test:unit', 'dotnet-unit-tests', 600000);
       },
     },
     {
       name: 'mutation-dotnet-unit-tests-caught',
-      description: 'Flipping a real FluentAssertions equality turns the unit tier red.',
+      description: 'Weakening the frozen block-key assertion turns the unit tier red.',
       kind: 'mutation',
       expectedImpact: ['dotnet-unit-coverage', 'dotnet-multi-project-coverage'],
       async run(repo: any) {
-        await flipAssertion(repo, { globs: ['UnitTest*/**/*.cs'] });
-        await expectRed(repo, 'nix develop .#ci -c task test:unit', 'dotnet-unit-tests', 600000);
+        await repo.patch('UnitTest/PresetValidationTests.cs', {
+          find: '        PostgresOption.Key.Should().Be("Postgres");',
+          replace: '        PostgresOption.Key.Should().NotBe("Postgres");',
+        });
+        await expectRed(repo, 'nix develop .#ci -c pls test:unit', 'dotnet-unit-tests', 600000);
       },
     },
   ],

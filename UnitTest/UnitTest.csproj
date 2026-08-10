@@ -8,9 +8,18 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="AtomiCloud.Diene.Config" />
+    <PackageReference Include="AtomiCloud.Diene.Result.TestHelper" />
+    <PackageReference Include="AWSSDK.S3" />
     <PackageReference Include="coverlet.msbuild" />
     <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="FluentValidation" />
     <PackageReference Include="GitHubActionsTestLogger" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="xunit.runner.visualstudio" />
@@ -22,7 +31,6 @@
 
   <ItemGroup>
     <ProjectReference Include="../Lib/Lib.csproj" />
-    <ProjectReference Include="../TestHelper/TestHelper.csproj" />
   </ItemGroup>
 
 </Project>
