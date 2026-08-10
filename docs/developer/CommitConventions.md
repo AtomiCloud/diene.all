@@ -118,5 +118,5 @@ Use `type(scope)!: subject`. Omit `(scope)` only when the type's `default` scope
 
 | Type | Verb | Application | Example |
 | --- | --- | --- | --- |
-| `feat` | add | <scope>, <title> | `feat: add a release capability` |
-| `fix` | fix | <title> | `fix: preserve changelog preamble` |
+| feat | add | <scope>, <title> | `feat: add a release capability` |
+| fix | fix | <title> | `fix: preserve changelog preamble` |

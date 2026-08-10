@@ -50,7 +50,7 @@ function renderVae(config: ReleaserConfig): string {
     .filter(type => type.vae !== undefined)
     .map(
       type =>
-        `| \`${type.type}\` | ${escapeCell(type.vae?.verb ?? '')} | ${escapeCell(type.vae?.application ?? '')} | \`${escapeCell(type.vae?.example ?? '')}\` |`,
+        `| ${type.type} | ${escapeCell(type.vae?.verb ?? '')} | ${escapeCell(type.vae?.application ?? '')} | \`${escapeCell(type.vae?.example ?? '')}\` |`,
     );
   if (rows.length === 0) return '## V.A.E. guidance\n\nNo V.A.E. guidance is configured.';
   return [
