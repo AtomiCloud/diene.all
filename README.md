@@ -1,19 +1,19 @@
-# Diene Go standard-config library
+# Diene Go library template
 
 <!-- ### go-base-badges -->
 <!-- #### source: go-base -->
 
-[![CI](https://github.com/AtomiCloud/diene.go-standard-config/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.go-standard-config/actions/workflows/ci.yaml)
-[![Unit coverage](https://codecov.io/gh/AtomiCloud/diene.go-standard-config/branch/main/graph/badge.svg?flag=unit)](https://codecov.io/gh/AtomiCloud/diene.go-standard-config)
-[![Integration coverage](https://codecov.io/gh/AtomiCloud/diene.go-standard-config/branch/main/graph/badge.svg?flag=int)](https://codecov.io/gh/AtomiCloud/diene.go-standard-config)
-[![Meta coverage](https://codecov.io/gh/AtomiCloud/diene.go-standard-config/branch/main/graph/badge.svg?flag=meta)](https://codecov.io/gh/AtomiCloud/diene.go-standard-config)
-[![Go Reference](https://pkg.go.dev/badge/github.com/AtomiCloud/diene.go-standard-config.svg)](https://pkg.go.dev/github.com/AtomiCloud/diene.go-standard-config)
-[![Commit activity](https://img.shields.io/github/commit-activity/m/AtomiCloud/diene.go-standard-config)](https://github.com/AtomiCloud/diene.go-standard-config/commits/main)
+[![CI](https://github.com/AtomiCloud/diene.go-lib/actions/workflows/ci.yaml/badge.svg)](https://github.com/AtomiCloud/diene.go-lib/actions/workflows/ci.yaml)
+[![Unit coverage](https://codecov.io/gh/AtomiCloud/diene.go-lib/branch/main/graph/badge.svg?flag=unit)](https://codecov.io/gh/AtomiCloud/diene.go-lib)
+[![Integration coverage](https://codecov.io/gh/AtomiCloud/diene.go-lib/branch/main/graph/badge.svg?flag=int)](https://codecov.io/gh/AtomiCloud/diene.go-lib)
+[![Meta coverage](https://codecov.io/gh/AtomiCloud/diene.go-lib/branch/main/graph/badge.svg?flag=meta)](https://codecov.io/gh/AtomiCloud/diene.go-lib)
+[![Go Reference](https://pkg.go.dev/badge/github.com/AtomiCloud/diene.go-lib.svg)](https://pkg.go.dev/github.com/AtomiCloud/diene.go-lib)
+[![Commit activity](https://img.shields.io/github/commit-activity/m/AtomiCloud/diene.go-lib)](https://github.com/AtomiCloud/diene.go-lib/commits/main)
 
 <!-- ### nix-root -->
 <!-- #### source: main -->
 
-Diene's reproducible development environment is managed by Nix. Run `direnv allow` once, then use `pls` tasks from the loaded shell.
+Diene's reproducible development environment is managed by Nix. Run `direnv allow` once, then use `task` tasks from the loaded shell.
 
 <!-- ### workspace -->
 <!-- #### source: workspace -->
@@ -24,69 +24,38 @@ synchronization.
 
 ## Commands
 
-- `pls setup` — synchronize installed diene package skills.
-- `pls lint` — run every pre-commit gate.
-- `pls secret:scan` — scan tracked content for secrets.
-- `pls skills:sync` — rebuild `.claude/skills/vendor/` from installed packages.
+- `task setup` — synchronize installed diene package skills.
+- `task lint` — run every pre-commit gate.
+- `task skills:sync` — rebuild `.claude/skills/vendor/` from installed packages.
 
 <!-- ### go-lib -->
 <!-- #### source: go-lib -->
 
 ## Publishable Go module
 
-`github.com/AtomiCloud/diene.go-standard-config` ships the Diene infrastructure
-configuration presets: the four frozen infra blocks of C0 §3 — `postgres`,
-`cache`, `kv`, and `storage` — as draft-2020-12 JSON Schema fragments, plus the
-Testcontainers glue that boots each one and emits the matching config block.
-
-It ships **presets only**. It never loads, merges, or validates a configuration
-document: `github.com/AtomiCloud/diene.go-config` is the sole merger and
-validator. A service composes its own root schema from the engine blocks it uses
-(otel, auth-engine, api-engine), the infra presets it needs from here, and its
-own keys. There is no one-call bootstrap.
+`github.com/AtomiCloud/diene.go-lib` is the reusable parent for the
+`github.com/AtomiCloud/diene.go-*` module family. It demonstrates small public
+packages, a consumer-facing `testhelper` package, strict black-box tests, and
+tag-based publication through the Go proxy.
 
 ```bash
-go get github.com/AtomiCloud/diene.go-standard-config@latest
+go get github.com/AtomiCloud/diene.go-lib@latest
 ```
 
 ```go
-schema := config.ComposeSchema(
-    config.AppBlockSchema(),
-    config.NewBlock(otel.BlockKey, false, otel.JSONSchema()),
-    config.NewBlock(standardconfig.PostgresBlockKey, true, standardconfig.PostgresSchema()),
-)
+value := note.New("Living Documentation", "pkg.go.dev examples stay executable")
 ```
-
-Packages:
-
-- `lib/standardconfig` — the four preset fragments, the typed entries they
-  decode into, the keyed multi-instance helpers, and the problem catalog.
-- `testhelper` — per-preset Testcontainers start helpers that emit a
-  schema-valid keyed block, container-free block fakes for unit tiers, and
-  fail-fast assertions.
-
-Each preset is a KEYED MAP of named connections, so a second Postgres pool or a
-second bucket is a YAML entry rather than a schema change. Connection names are
-authored UPPERCASE (R14); the config loader canonicalizes key spelling, so
-`standardconfig.Named` resolves them case-insensitively and
-`standardconfig.ValidateKeys` enforces the half of the contract that survives
-loading. Secrets are blank in YAML and injected per landscape through the
-environment override tier.
-
-The preset shapes, the keyed multi-instance contract, and the composition
-boundary are documented on the packages themselves and in the shipped usage
-skill `skills/diene-go-standard-config-usage/SKILL.md`.
 
 <!-- ### go-base-commands -->
 <!-- #### source: go-base -->
 
 ## Go commands
 
-- `pls build` — build every package in the module.
-- `pls typecheck` — compile every source package without running tests.
-- `pls test` / `pls test:coverage` — run unit, integration, and active meta tiers.
-- `pls deadcode` — run strict whole-repository and production passes plus the LLM-lax report.
-- `pls up` / `pls down` — start or stop local infrastructure (this library binds none of its own).
+- `task build` — build every package in the module.
+- `task typecheck` — compile every source package without running tests.
+- `task test` / `task test:coverage` — run unit, integration, and active meta tiers.
+- `task deadcode` — run strict whole-repository and production passes plus the LLM-lax report.
+- `task up` / `task down` — start or stop local Redis.
 - `./scripts/ci/pkg-validate.sh all` — run module-path, vet, API, docs, and example validators.
 
 See the [Go baseline](docs/developer/go-baseline.md) for the language contract and

@@ -1,6 +1,4 @@
 {
-  # ### workspace-flake
-  # #### source: workspace
   inputs = {
     # util
     flake-utils.url = "github:numtide/flake-utils";
@@ -8,9 +6,15 @@
     pre-commit-hooks.url = "github:cachix/pre-commit-hooks.nix";
 
     # registry
-    nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
-    nixpkgs-2605.url = "github:NixOS/nixpkgs/4382ed2b7a6839d4280a9b386db49cbc5907414d";
-    atomipkgs.url = "github:AtomiCloud/nix-registry/v3";
+    #
+    # nixpkgs inputs pin exact commits;
+    # atomipkgs deliberately floats on the v5 major line.
+
+    # nixos-unstable @ 2026-08-06
+    nixpkgs-unstable.url = "github:NixOS/nixpkgs/b7c2ada94fe99c15b0dbcf4d11fd7850b957a436";
+    # nixos-26.05 (Yarara) @ 2026-08-06
+    nixpkgs-2605.url = "github:NixOS/nixpkgs/445d861c6d31b4af0c79d8d4be2331f762a361d7";
+    atomipkgs.url = "github:AtomiCloud/nix-registry/v5";
   };
   outputs =
     {
@@ -45,18 +49,14 @@
             pkgs
             pre-commit-lib
             formatter
+            env
             ;
         };
         formatter = import ./nix/fmt.nix {
           inherit treefmt-nix pkgs;
         };
         packages = import ./nix/packages.nix {
-          inherit
-            pkgs
-            pkgs-2605
-            pkgs-unstable
-            atomi
-            ;
+          inherit pkgs-2605 pkgs-unstable atomi;
         };
         env = import ./nix/env.nix {
           inherit pkgs packages;
