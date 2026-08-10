@@ -6,8 +6,8 @@ mode="${1:-}"
 
 if [ "${mode}" = "workflow-names" ]; then
   [ "$(yq -r '.name' .github/workflows/ci.yaml)" != "CI" ] && echo "❌ ci.yaml workflow name must be CI" >&2 && exit 1
-  [ "$(yq -r '.name' .github/workflows/cd.yaml)" != "CD" ] && echo "❌ cd.yaml workflow name must be CD" >&2 && exit 1
-  echo "✅ CI/CD workflow names conform"
+  [ -f .github/workflows/cd.yaml ] && [ "$(yq -r '.name' .github/workflows/cd.yaml)" != "CD" ] && echo "❌ cd.yaml workflow name must be CD" >&2 && exit 1
+  echo "✅ Workflow names conform"
   exit 0
 fi
 

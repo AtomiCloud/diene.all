@@ -25,10 +25,6 @@ See [docs/standards/validation/index.md](docs/standards/validation/index.md).
 
 See [docs/standards/datetime/index.md](docs/standards/datetime/index.md).
 
-## Docker build and publishing
-
-See [docs/standards/docker/index.md](docs/standards/docker/index.md).
-
 ## Domain-driven design
 
 See [docs/standards/domain-driven-design/index.md](docs/standards/domain-driven-design/index.md).
@@ -115,7 +111,7 @@ so this node owns it.
 ## .NET base template
 
 Read [the .NET baseline](docs/developer/dotnet-baseline.md) and use `task` for
-setup, build, run, test, coverage, dead-code review, and Docker tasks.
+setup, build, run, test, coverage, and dead-code review.
 
 Language variants:
 

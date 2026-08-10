@@ -2,15 +2,14 @@
 
 Diene's reproducible development environment is managed by Nix. Run `direnv allow` once, then use `task` tasks from the loaded shell.
 
-This branch is the all-features workspace baseline inherited by every downstream sample: split CI/CD, Docker, secrets, release configuration, validators, and standards.
+This branch is the all-features workspace baseline inherited by every downstream sample: split CI/CD, secrets, release configuration, validators, and standards.
 
 ## Commands
 
 Run `task --list` for every available task and its description. The task set is
 declared in [`Taskfile.yaml`](Taskfile.yaml), whose `includes:` block maps each
 namespace to a file under [`tasks/`](tasks); a task shown as `<namespace>:<task>`
-is that key in the included file. Build artifacts — Dockerfiles — live under
-[`infra/`](infra) and may be plural, so their tasks are keyed per artifact. See [the Taskfile standard](docs/standards/taskfile/index.md) for the
+is that key in the included file. See [the Taskfile standard](docs/standards/taskfile/index.md) for the
 conventions.
 
 ## Standards
@@ -52,15 +51,13 @@ Domain-specific architecture and behavior belongs under
 [![Commit activity](https://img.shields.io/github/commit-activity/m/AtomiCloud/diene.dotnet-base)](https://github.com/AtomiCloud/diene.dotnet-base/commits/main)
 
 This branch adds the .NET 10 toolchain, the `App`/`Lib`/`UnitTest`/`IntTest`
-sample, merged multi-project coverage, strict and LLM dead-code modes, and the
-complete Docker axis. See [the .NET baseline](docs/developer/dotnet-baseline.md).
+sample, merged multi-project coverage, strict and LLM dead-code modes. See [the .NET baseline](docs/developer/dotnet-baseline.md).
 
 Common commands:
 
 - `task build`, `task dev`, `task run`, and `task preview`
 - `task test`, `task test:unit`, `task test:int`, and the coverage variants
 - `task deadcode` for the non-blocking review; CI owns strict dn-inspect
-- `task docker:build:main`
 
 The illustrative Note domain is documented in [docs/domain/note.md](docs/domain/note.md).
 Production observability is intentionally absent until the observability add-back.

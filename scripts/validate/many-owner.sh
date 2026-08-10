@@ -4,7 +4,7 @@ set -euo pipefail
 tmp="$(mktemp)"
 trap 'rm -f "${tmp}"' EXIT
 
-printf '%s\n' .gitignore .dockerignore Taskfile.yaml CLAUDE.md >"${tmp}"
+printf '%s\n' .gitignore Taskfile.yaml CLAUDE.md >"${tmp}"
 find nix -maxdepth 1 -type f -name '*.nix' | sort >>"${tmp}"
 find .github/workflows -maxdepth 1 -type f \( -name '*.yaml' -o -name '*.yml' \) | sort >>"${tmp}"
 

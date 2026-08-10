@@ -36,7 +36,6 @@ dep
 docs
 feat
 fix
-merge
 perf
 refactor
 style

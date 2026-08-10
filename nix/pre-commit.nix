@@ -193,7 +193,7 @@ in
       enable = true;
       name = "Release config schema";
       entry = validator "scripts/validate/release-config.sh schema";
-      files = "^atomi_release\\.yaml$";
+      files = "^release\\.yaml$";
       pass_filenames = false;
       language = "system";
     };
@@ -202,7 +202,7 @@ in
       enable = true;
       name = "Release type vocabulary";
       entry = validator "scripts/validate/release-config.sh types";
-      files = "^atomi_release\\.yaml$";
+      files = "^release\\.yaml$";
       pass_filenames = false;
       language = "system";
     };
