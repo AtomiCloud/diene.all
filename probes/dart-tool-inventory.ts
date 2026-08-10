@@ -16,7 +16,7 @@ export default {
       async run(repo: any) {
         await expectGreen(
           repo,
-          'nix develop .#ci --no-write-lock-file -c bash -lc \'dart --version >/dev/null 2>&1 && releaser --help >/dev/null 2>&1 && cd packages/diene_interfaces && dart run pana --no-dartdoc --exit-code-threshold 1000 . >/dev/null && dart run coverage:format_coverage --help >/dev/null 2>&1 && dart run dart_code_linter:metrics --help >/dev/null 2>&1\'',
+          "nix develop .#ci --no-write-lock-file -c bash -lc 'dart --version >/dev/null 2>&1 && releaser --help >/dev/null 2>&1 && cd packages/diene_interfaces && dart run pana --no-dartdoc --exit-code-threshold 1000 . >/dev/null && dart run coverage:format_coverage --help >/dev/null 2>&1 && dart run dart_code_linter:metrics --help >/dev/null 2>&1'",
           'dart-tool-inventory',
         );
       },
