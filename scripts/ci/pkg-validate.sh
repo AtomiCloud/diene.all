@@ -4,7 +4,7 @@ set -euo pipefail
 mode="${1:-all}"
 [ "${mode}" != "module-path" ] && [ "${mode}" != "vet" ] && [ "${mode}" != "api-compat" ] && [ "${mode}" != "export-docs" ] && [ "${mode}" != "examples" ] && [ "${mode}" != "all" ] && echo "❌ unknown package-validation mode '${mode}'" >&2 && exit 1
 
-./scripts/ci/setup.sh
+./scripts/local/setup.sh
 
 if [ "${mode}" = "module-path" ] || [ "${mode}" = "all" ]; then
   ./scripts/validate/go-module-path.sh
