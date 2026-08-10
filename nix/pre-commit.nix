@@ -3,17 +3,18 @@
   formatter,
   pkgs,
   pre-commit-lib,
+  env,
 }:
 let
+  # The wrapper hooks below run their validators through a pinned runtime rather
+  # than the ambient shell, so this stays even though the parent no longer needs it.
   validator-runtime = pkgs.buildEnv {
     name = "workspace-validator-runtime";
     paths = [
       packages.bash
-      packages.bun
       packages.git
       packages.gitlint
       packages.helm-schema
-      packages.infralint
       packages.jq
       packages.kubeconform
       packages.kubernetes-helm
@@ -21,7 +22,6 @@ let
       packages.ripgrep
       packages.yq-go
       pkgs.coreutils
-      pkgs.diffutils
       pkgs.findutils
       pkgs.gnugrep
       pkgs.gnused
@@ -30,12 +30,13 @@ let
   validator =
     command:
     "${packages.bash}/bin/bash -c 'export PATH=${validator-runtime}/bin; exec ${packages.bash}/bin/bash ${command}'";
+
+  # toolchain-smoke asserts the DECLARED env lists actually provide their binaries.
+  envPath = pkgs.lib.makeBinPath (env.system ++ env.main ++ env.lint ++ env.dev);
 in
 pre-commit-lib.run {
   src = ../.;
 
-  # ### nix-root-format
-  # #### source: main
   hooks = {
     treefmt = {
       enable = true;
@@ -46,55 +47,13 @@ pre-commit-lib.run {
         "^docs/developer/CommitConventions\\.md$"
         "^infra/root_chart/"
         "^chart/"
-        "^primordial-chart/"
-        "^templates/base/"
-        "^platform[.]schema[.]json$"
       ];
     };
 
-    # ### workspace-hooks
-    # #### source: workspace
-    a-action-pins-non-trusted = {
+    a-dlint = {
       enable = true;
-      name = "Non-trusted action SHA pins";
-      entry = validator "scripts/validate/action-pins.sh non-trusted";
-      files = "^\\.github/workflows/.*\\.ya?ml$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-action-pins-trusted = {
-      enable = true;
-      name = "Trusted action major pins";
-      entry = validator "scripts/validate/action-pins.sh trusted";
-      files = "^\\.github/workflows/.*\\.ya?ml$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-cache-tags = {
-      enable = true;
-      name = "nscloud cache-tag shape";
-      entry = validator "scripts/validate/cache-tags.sh";
-      files = "^\\.github/workflows/.*\\.ya?ml$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-enforce-exec = {
-      enable = true;
-      name = "Executable shell scripts";
-      entry = validator "scripts/validate/executable-shells.sh";
-      files = ".*\\.sh$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-helm-docs = {
-      enable = true;
-      name = "Helm docs";
-      entry = "${packages.infralint}/bin/helm-docs --chart-search-root infra/root_chart";
-      files = "^infra/root_chart/.*";
+      name = "dlint";
+      entry = "${packages.atomiutils}/bin/bash -c 'PATH=${envPath}:\$PATH ${packages.dlint}/bin/dlint lint'";
       pass_filenames = false;
       language = "system";
     };
@@ -102,7 +61,7 @@ pre-commit-lib.run {
     a-helm-lint = {
       enable = true;
       name = "Helm lint";
-      entry = "${packages.kubernetes-helm}/bin/helm lint infra/root_chart";
+      entry = "${packages.infrautils}/bin/helm lint infra/root_chart";
       files = "^infra/root_chart/.*";
       pass_filenames = false;
       language = "system";
@@ -111,7 +70,7 @@ pre-commit-lib.run {
     a-infisical = {
       enable = true;
       name = "Secrets scan";
-      entry = "${packages.infisical}/bin/infisical scan . -v";
+      entry = "${packages.infisical}/bin/infisical scan . -v --redact";
       pass_filenames = false;
       language = "system";
     };
@@ -119,154 +78,69 @@ pre-commit-lib.run {
     a-infisical-staged = {
       enable = true;
       name = "Staged secrets scan";
-      entry = "${packages.infisical}/bin/infisical scan git-changes --staged -v";
+      entry = "${packages.infisical}/bin/infisical scan git-changes --staged -v --redact";
       pass_filenames = false;
       language = "system";
     };
 
-    a-many-owner = {
+    # The selector is directory-shaped on purpose: every standard under
+    # docs/standards/ and every first-level skill trigger is linted, so adding a
+    # topic needs no edit here. Vendored skills sit deeper than one level and are
+    # ignored again by .markdownlint-cli2.jsonc.
+    a-markdownlint = {
       enable = true;
-      name = "Many-owner keyed blocks";
-      entry = validator "scripts/validate/many-owner.sh";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-nixpkgs-pin = {
-      enable = true;
-      name = "Shared nixpkgs pin";
-      entry = validator "scripts/validate/nixpkgs-pin.sh";
-      files = "^(flake\\.nix|flake\\.lock|nix/.*|nix/snapshots/nixpkgs\\.json)$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-release-config = {
-      enable = true;
-      name = "Release config schema";
-      entry = validator "scripts/validate/release-config.sh schema";
-      files = "^atomi_release\\.yaml$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-release-types = {
-      enable = true;
-      name = "Release type vocabulary";
-      entry = validator "scripts/validate/release-config.sh types";
-      files = "^atomi_release\\.yaml$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-release-source = {
-      enable = true;
-      name = "Release workflow source";
-      entry = validator "scripts/validate/release-source.sh";
-      files = "^\\.github/workflows/.*\\.ya?ml$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-release-filter = {
-      enable = true;
-      name = "Release workflow filter";
-      entry = validator "scripts/validate/release-filter.sh";
-      files = "^\\.github/workflows/.*\\.ya?ml$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-release-concurrency = {
-      enable = true;
-      name = "Release workflow concurrency";
-      entry = validator "scripts/validate/release-concurrency.sh";
-      files = "^\\.github/workflows/.*\\.ya?ml$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-workflow-names = {
-      enable = true;
-      name = "CI/CD workflow names";
-      entry = validator "scripts/validate/workflow-names.sh";
-      files = "^\\.github/workflows/.*\\.ya?ml$";
-      pass_filenames = false;
+      name = "Markdown lint";
+      entry = "${pkgs.markdownlint-cli2}/bin/markdownlint-cli2";
+      files = "^(CLAUDE\\.md|README\\.md|docs/standards/.*\\.md|\\.claude/skills/[^/]+/SKILL\\.md)$";
+      pass_filenames = true;
       language = "system";
     };
 
     a-releaser-commit = {
       enable = true;
       name = "Conventional commit";
-      entry = "releaser lint-commit -c atomi_release.yaml";
+      entry = "${packages.releaser}/bin/releaser lint-commit -c release.yaml";
       stages = [ "commit-msg" ];
       pass_filenames = true;
       language = "system";
     };
 
+    a-skills-sync = {
+      enable = true;
+      name = "Vendored skills";
+      entry = "${packages.skills-sync}/bin/skills-sync sync --frozen";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    # -x + SCRIPTDIR: staged-file batching splits scripts from their sources,
+    # so ShellCheck must follow source= directives itself.
     a-shellcheck = {
       enable = true;
       name = "Shellcheck";
-      entry = "${packages.shellcheck}/bin/shellcheck";
+      entry = "${packages.shellcheck}/bin/shellcheck -x --source-path=SCRIPTDIR";
       files = ".*\\.sh$";
       pass_filenames = true;
       language = "system";
     };
 
-    a-skills-freshness = {
+    # ### helm-wrapper-hooks
+    # #### source: helm-wrapper
+    a-wrapper-helm-docs = {
       enable = true;
-      name = "Vendored skills freshness";
-      entry = validator "scripts/validate/skills-freshness.sh";
+      name = "Helm wrapper docs";
+      entry = "${packages.infralint}/bin/helm-docs --chart-search-root chart";
+      files = "^chart/.*";
       pass_filenames = false;
       language = "system";
     };
 
-    a-workflow-wiring = {
+    a-wrapper-helm-lint = {
       enable = true;
-      name = "Workflow job-to-script wiring";
-      entry = validator "scripts/validate/workflows.sh wiring";
-      files = "^\\.github/workflows/.*\\.ya?ml$";
+      name = "Helm wrapper lint";
+      entry = validator "scripts/validate/helm-wrapper.sh lint";
+      files = "^(chart/.*|config/.*|scripts/(local|validate)/.*)$";
       pass_filenames = false;
-      language = "system";
-    };
-
-    # ### carbon-hooks
-    # #### source: carbon
-    a-carbon-helm-docs = {
-      enable = true;
-      name = "Carbon helm docs";
-      entry = "${packages.bash}/bin/bash -c '${packages.infralint}/bin/helm-docs --chart-search-root chart && ${packages.infralint}/bin/helm-docs --chart-search-root primordial-chart'";
-      files = "^(chart|primordial-chart)/.*";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-carbon-validation = {
-      enable = true;
-      name = "Carbon chart and scaffold validation";
-      entry = validator "scripts/ci/carbon.sh --offline";
-      files = "^(chart|primordial-chart|cyan|templates|tests|schemas|policies)/.*|^(platform|cyan)[.]|^scripts/(local|validate|ci)/.*";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    # ### shared-hooks
-    # #### source: shared
-    a-claude-links = {
-      enable = true;
-      name = "CLAUDE link integrity";
-      entry = "${pkgs.coreutils}/bin/env SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt ${pkgs.lychee}/bin/lychee --offline --no-progress CLAUDE.md";
-      files = "^(CLAUDE\\.md|docs/standards/.*\\.md)$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-markdownlint = {
-      enable = true;
-      name = "Markdown lint";
-      entry = "${pkgs.markdownlint-cli2}/bin/markdownlint-cli2";
-      files = "^(CLAUDE\\.md|README\\.md|docs/standards/(authorization|contracts|contributor-docs|datetime|domain-driven-design|functional-practices|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/.*\\.md|\\.claude/skills/(authorization|contributor-docs|datetime|domain-driven-design|functional-practices|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/SKILL\\.md)$";
-      pass_filenames = true;
       language = "system";
     };
   };

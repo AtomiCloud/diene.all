@@ -42,6 +42,17 @@ flake.nix          # Main flake (orchestrator)
 
 **To find what registries and variable names are available**: Read `flake.nix` to see the inputs and what parameters are passed to `packages.nix`.
 
+**`packages.nix`, `env.nix` and `pre-commit.nix` carry plain lists and attribute sets. Do not build a package here.** No `mkDerivation`, no `overrideAttrs`, no `fetchurl` of a release archive — a package that needs building belongs in the Nix registry, and this tree consumes it by name.
+
+That rule applies to the release and skills tools too: `releaser` and
+`skills-sync` are inherited from `atomipkgs` in `nix/packages.nix`. There is no
+second direct releaser flake input and no repository-local skills-sync script;
+the registry pin is the single package provenance for both.
+
+The reason is composition, not taste. The CyanPrint Nix resolver merges these files by merging simple attribute lists when templates compose; a custom derivation is not resolver-mergeable, so a template that defines one cannot be composed with another that touches the same file. Complexity hoists to the registry because the registry is the layer that is allowed to be complex.
+
+This is about _building_, not about _arranging_. `pkgs.buildEnv`, `pkgs.lib.optionals` and `pkgs.stdenv.hostPlatform.system` arrange packages that already exist and stay permitted — `nix/pre-commit.nix` uses `buildEnv` to give one hook a fixed PATH.
+
 ### nix/env.nix - Environment Groups
 
 **Purpose**: Organize packages into functional groups so different shells can include only what they need.
@@ -334,9 +345,9 @@ minimal = group-a;  # No group-b
 
 ## For Implementation Help
 
-When you need help implementing Nix changes, use the **nix skill** which provides step-by-step instructions and examples.
+When you need help implementing Nix changes, read the actual `nix/` modules and
+`flake.nix` alongside the operations above.
 
 See also:
 
-- **Skill**: `.claude/skills/nix/SKILL.md` - Quick reference and critical rules
-- **Reference**: `.claude/skills/nix/reference.md` - File patterns and examples
+- **Skill**: `.claude/skills/nix/SKILL.md` - the agent entry point that routes back to this standard
