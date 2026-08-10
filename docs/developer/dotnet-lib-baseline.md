@@ -5,12 +5,11 @@ title: .NET Library Baseline
 
 # .NET library baseline
 
-This branch turns the `.NET 10` base into a publishable library template. It
-keeps the base `App` as a non-packable consumer and publishes two lockstep
+This Result materialization keeps `App` as a non-packable consumer and publishes two lockstep
 packages from one solution:
 
-- `AtomiCloud.Diene.Note` contains the illustrative Note domain;
-- `AtomiCloud.Diene.Note.TestHelper` contains consumer assertions and references
+- `AtomiCloud.Diene.Result` contains the typed Result/Option structs and C0 codecs;
+- `AtomiCloud.Diene.Result.TestHelper` contains FluentAssertions steps and references
   the main package.
 
 Both package ids and assembly names are consumer-visible, real identities.
@@ -26,41 +25,19 @@ so normal build and pack invocations produce both packages at the same version.
 nix develop .#ci -c ./scripts/ci/pkg-validate.sh
 ```
 
-The validation entrypoint restores dependencies, packs the solution, requires a
-`.nupkg` and a `.snupkg` for every packable project, validates README/icon/
-license/repository metadata and portable PDB contents, then restores both
-package ids into a scratch .NET 10 project.
-
-`scripts/validate/dotnet-package.sh` derives every identity it asserts. Package
-ids come from the `IsPackable` projects listed in the root `.slnx`, the expected
-artifact count from how many of those there are, the project and repository URLs
-from `Directory.Build.props`, and the shipped skill paths from `skills/`. A
-materialized library therefore never edits this validator.
-
-`EnablePackageValidation` is always on. `PackageValidationBaselineVersion` is
-`1.0.0`, but only while the build is _not_ producing `1.0.0` itself:
-
-```xml
-<PackageValidationBaselineVersion Condition="'$(Version)' != '1.0.0'">1.0.0</PackageValidationBaselineVersion>
-```
-
-The baseline package does not exist until the library's own first release, so an
-unconditional pin makes a fresh materialization unrestorable (`NU1101`). With
-the condition, the first release packs without a baseline and every release
-after it compares its public API against `1.0.0`. Because the committed manifest
-stays at `1.0.0` in-branch, `probes/dotnet-lib-api-compatibility.ts` packs with
-`-p:Version=1.0.1` so the gate exercises the state that actually ships.
+The validation entrypoint restores dependencies, packs the solution, requires
+the two `.nupkg` and two `.snupkg` artifacts, validates README/icon/license/
+repository metadata and portable PDB contents, then restores both package ids
+into a scratch .NET 10 project. `EnablePackageValidation` is active; releases
+after 1.0 compare their public API with the `1.0.0` baseline.
 
 ## Testing tiers
 
-- `pls test:unit` measures the real `AtomiCloud.Diene.Note` assembly plus the
+- `pls test:unit` measures the real `AtomiCloud.Diene.Result` assembly plus the
   inherited `[Lib*]*` scaling wildcard at 100%, and explicitly excludes
-  `*.TestHelper` assemblies. The scope guard in
-  `scripts/local/dotnet-test.sh` reads the allowed assembly names from the
-  `AssemblyName` each `Lib*` project declares, so it scales with a renamed
-  library instead of naming one.
-- `pls test:int` retains the base Testcontainers-backed adapter boundary and
-  measures only `[App*]*`.
+  `*.TestHelper` assemblies.
+- `pls test:int` exercises the source-owned versioned C0 fixture without a
+  container or network service.
 - `pls test:meta` independently measures `[*.TestHelper]*` at 100%. Its tests
   include known-good and known-bad assertion cases.
 
@@ -89,13 +66,8 @@ A materialized library changes only these owned surfaces:
 - shared author/company/repository URLs in `Directory.Build.props`;
 - README badges, install snippet, icon, and illustrative source/tests;
 - unit/meta thresholds when the shipped surface justifies a stricter value;
-- `skills/diene-dotnet-note-usage/` to the materialized library's namespaced
+- `skills/diene-dotnet-result-usage/` to the materialized library's namespaced
   usage skill.
-
-`scripts/local/dotnet-test.sh`, `scripts/validate/dotnet-package.sh`, and the
-package-validation baseline are **not** promotion knobs. They read identity from
-the projects and props above, and a materialization that edits them is moving a
-hardcode rather than removing one.
 
 Keep CPM, SDK SourceLink, symbols, committed versioning, package validation,
 API-key publishing, scratch consumption, and the three coverage ledgers intact.
