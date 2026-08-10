@@ -109,8 +109,6 @@ awk -v inc="${include}" -v exc="${exclude}" '
 ' "${all_ledger}" >"${ledger}"
 rm -f "${all_ledger}"
 
-# ### lib-dart-api-engine-coverage-floor
-# #### source: lib/dart/api-engine
 #
 # THE UNIT FLOOR IS THE MEASURED ACHIEVABLE MAXIMUM, NOT 100%. Ruled by the lead
 # after the residue was measured (not predicted) at the landed head.
