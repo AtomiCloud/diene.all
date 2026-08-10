@@ -1,8 +1,5 @@
-# Landscape overlay: pichu.
-controllers:
-  note: true
-ledger:
+# Landscape overlay: pichu (registered-fleet cluster; Boron remains
+# independently selectable for admin use — profile: registered).
+installation:
+  profile: registered
   landscape: pichu
-  endpoint: minio.pichu.svc.cluster.local:9000
-  secure: true
-mode: active

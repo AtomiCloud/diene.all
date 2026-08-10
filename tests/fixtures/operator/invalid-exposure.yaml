@@ -1,0 +1,17 @@
+# Invalid on multiple axes: empty policies (minItems=1), path without a leading
+# slash (pattern), port out of range (maximum), and a missing required instance.
+apiVersion: boron.atomi.cloud/v1alpha1
+kind: Exposure
+metadata:
+  name: invalid-exposure
+  namespace: nitroso
+spec:
+  tunnelRef: { name: admin }
+  coordinates:
+    landscape: lapras
+    platform: nitroso
+    service: oxygen
+    module: viewer
+  path: no-leading-slash
+  backend: { name: oxygen-viewer, port: 99999 }
+  policies: []

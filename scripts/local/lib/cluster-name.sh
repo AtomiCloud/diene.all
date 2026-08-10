@@ -21,12 +21,12 @@ e2e_invocation_id() {
 e2e_cluster_name() {
   local override="${1:-}"
   [ -n "${override}" ] && printf '%s' "${override}" && return 0
-  printf 'operator-e2e-%s' "${2:-}"
+  printf 'boron-e2e-%s' "${2:-}"
 }
 
 # e2e_image_name OVERRIDE INVOCATION_ID
 e2e_image_name() {
   local override="${1:-}"
   [ -n "${override}" ] && printf '%s' "${override}" && return 0
-  printf 'operator-template:e2e-%s' "${2:-}"
+  printf 'boron:e2e-%s' "${2:-}"
 }

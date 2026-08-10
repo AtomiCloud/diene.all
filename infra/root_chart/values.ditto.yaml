@@ -1,0 +1,7 @@
+# Landscape overlay: ditto (connected system-integration testing).
+# Boron runs here ONLY when explicitly requested for inspection.
+installation:
+  profile: ditto
+  connected: true
+  dittoInspect: true
+  landscape: ditto

@@ -1,9 +1,0 @@
-apiVersion: sample.diene.atomi.cloud/v1alpha1
-kind: Note
-metadata:
-  name: invalid-note
-spec:
-  title: Invalid Note
-  body: this category is outside the enum and must be rejected
-  category: nonsense
-  replicas: 1

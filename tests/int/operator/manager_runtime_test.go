@@ -34,8 +34,8 @@ func TestManagerRuntimeHealthEndpoints(t *testing.T) {
 	command := exec.CommandContext(
 		t.Context(),
 		binary,
-		"--enable-note=false",
-		"--enable-journal=false",
+		"--enable-account=false",
+		"--enable-tunnel=false", "--enable-exposure=false",
 		"--leader-elect=false",
 		"--metrics-bind-address=0",
 		"--health-probe-bind-address="+healthAddress,

@@ -59,7 +59,7 @@ func run() error {
 		ast.Inspect(file, func(n ast.Node) bool {
 			switch node := n.(type) {
 			case *ast.SelectorExpr:
-				if ident, ok := node.X.(*ast.Ident); ok && ident.Name == "reconcile" && node.Sel.Name == "Decide" {
+				if ident, ok := node.X.(*ast.Ident); ok && ident.Name == "reconcile" && strings.HasPrefix(node.Sel.Name, "Decide") {
 					delegates = true
 				}
 			case *ast.BinaryExpr:

@@ -1,7 +1,12 @@
-# operator-template
+# boron
 
-The reusable kubebuilder/controller-runtime operator skeleton in family
-conventions — a manager image plus manager chart, proven on a toy CRD pair.
+The Boron edge-access operator: declarative Cloudflare Tunnel + Access exposure
+for PRIVATE/ADMIN ingress, CR-driven through three CRDs — Account (credentials,
+once), Tunnel (1 CR = 1 CF Tunnel = 1 zone, fixed 2 cloudflared replicas,
+remote API-pushed hot-reload config), and Exposure (1 CR = 1 CF Access
+Application; hostname always derived as
+module.service.platform.instance.landscape.zone). Public traffic never touches
+Boron tunnels.
 
 Diene's reproducible development environment is managed by Nix. Run `direnv allow` once, then use `task` tasks from the loaded shell.
 

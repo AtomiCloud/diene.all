@@ -2,16 +2,16 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "operator-template.fullname" . }}-dashboard
+  name: {{ include "boron.fullname" . }}-dashboard
   namespace: {{ .Release.Namespace }}
   labels:
     grafana_dashboard: "1"
-    {{- include "operator-template.labels" . | nindent 4 }}
+    {{- include "boron.labels" . | nindent 4 }}
 data:
-  operator-template.json: |
+  boron.json: |
     {
-      "title": "Operator Template — Reconcile",
-      "uid": "operator-template",
+      "title": "Boron — Edge-Access Reconcile",
+      "uid": "boron",
       "schemaVersion": 39,
       "editable": true,
       "panels": [
@@ -57,16 +57,16 @@ data:
           "type": "timeseries",
           "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
           "targets": [
-            { "refId": "A", "expr": "operator_template_condition" }
+            { "refId": "A", "expr": "boron_condition" }
           ]
         },
         {
           "id": 6,
-          "title": "Ledger failures by controller",
+          "title": "Cloudflare provider failures by controller",
           "type": "timeseries",
           "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
           "targets": [
-            { "refId": "A", "expr": "sum by (controller) (rate(operator_template_ledger_failures_total[5m]))" }
+            { "refId": "A", "expr": "sum by (controller) (rate(boron_provider_failures_total[5m]))" }
           ]
         },
         {
@@ -75,35 +75,16 @@ data:
           "type": "timeseries",
           "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
           "targets": [
-            { "refId": "A", "expr": "sum by (controller) (rate(operator_template_reconcile_ticks_total[5m]))" }
+            { "refId": "A", "expr": "sum by (controller) (rate(boron_reconcile_ticks_total[5m]))" }
           ]
         },
         {
           "id": 8,
-          "title": "DNS/vendor API failures by controller (consumer-extension)",
+          "title": "Tunnel replica availability",
           "type": "timeseries",
           "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
           "targets": [
-            { "refId": "A", "expr": "sum by (controller) (rate(operator_template_vendor_api_failures_total[5m]))" }
-          ]
-        },
-        {
-          "id": 9,
-          "title": "Provisioning duration p99 (consumer-extension)",
-          "type": "timeseries",
-          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
-          "targets": [
-            { "refId": "A", "expr": "histogram_quantile(0.99, sum by (le, controller) (rate(operator_template_provisioning_duration_seconds_bucket[30m])))" }
-          ]
-        },
-        {
-          "id": 10,
-          "title": "Webhook intake by six-state taxonomy (consumer-extension)",
-          "type": "timeseries",
-          "description": "owned/double-own/no-owner/misroute/dead-letter/lag",
-          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
-          "targets": [
-            { "refId": "A", "expr": "sum by (state) (rate(operator_template_webhook_events_total{state=~\"owned|double-own|no-owner|misroute|dead-letter|lag\"}[5m]))" }
+            { "refId": "A", "expr": "max by (type) (boron_condition{controller=\"tunnel\",type=\"ReplicasReady\"})" }
           ]
         }
       ]

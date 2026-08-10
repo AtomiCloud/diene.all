@@ -9,10 +9,10 @@ let
   # toolchain-smoke asserts the DECLARED env lists actually provide their binaries.
   envPath = pkgs.lib.makeBinPath (env.system ++ env.main ++ env.lint ++ env.dev);
   go-deps = pkgs.buildGoModule {
-    pname = "operator-template-dependencies";
+    pname = "boron-dependencies";
     version = "0";
     src = ../.;
-    vendorHash = "sha256-nGbJT3usBF3cjTHoL6XM38uLKzn8C0b0ldrc6EhISFU=";
+    vendorHash = "sha256-S+b7Z5GjcCuWtXERxzWv628vZwXLnxlLB+C1zjetxrU=";
     proxyVendor = true;
   };
   go-lint-runtime = pkgs.buildEnv {
@@ -261,5 +261,46 @@ pre-commit-lib.run {
       pass_filenames = false;
       language = "system";
     };
+
+    # ### boron-hooks
+    # #### source: boron
+    a-boron-secrets-law = {
+      enable = true;
+      name = "Boron secrets law (no inline token)";
+      entry = validator "scripts/validate/boron-secrets-law.sh";
+      files = "^(api/.*\\.go|infra/root_chart/.*|cmd/.*\\.go|internal/.*\\.go|adapters/.*\\.go|lib/.*\\.go|scripts/validate/boron-secrets-law\\.sh)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-boron-profile-render = {
+      enable = true;
+      name = "Boron Garden profile render filter";
+      entry = "${pkgs.bash}/bin/bash -c 'export PATH=${pkgs.kubernetes-helm}/bin:${pkgs.bash}/bin:${pkgs.coreutils}/bin; exec ${pkgs.bash}/bin/bash scripts/validate/boron-profile-render.sh'";
+      files = "^(infra/root_chart/.*|scripts/validate/boron-profile-render\\.sh)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-boron-observability-artifacts = {
+      enable = true;
+      name = "Boron observability artifacts";
+      entry = "${pkgs.bash}/bin/bash -c 'export PATH=${packages.bun}/bin:${pkgs.kubernetes-helm}/bin:${pkgs.yq-go}/bin:${pkgs.coreutils}/bin; exec ${packages.bun}/bin/bun scripts/validate/operator-observability-artifacts.ts'";
+      files = "^(infra/root_chart/.*|scripts/validate/operator-observability-artifacts\\.ts)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    # ### shared-hooks
+    # #### source: shared
+    a-claude-links = {
+      enable = true;
+      name = "CLAUDE link integrity";
+      entry = "${pkgs.coreutils}/bin/env SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt ${pkgs.lychee}/bin/lychee --offline --no-progress CLAUDE.md";
+      files = "^(CLAUDE\\.md|docs/standards/.*\\.md)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
   };
 }

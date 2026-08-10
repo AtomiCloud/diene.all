@@ -2,12 +2,28 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: operator-template-manager
+  name: boron-manager
 rules:
 - apiGroups:
   - ""
   resources:
-  - configmaps
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - deployments
   verbs:
   - create
   - delete
@@ -16,13 +32,6 @@ rules:
   - patch
   - update
   - watch
-- apiGroups:
-  - ""
-  resources:
-  - events
-  verbs:
-  - create
-  - patch
 - apiGroups:
   - authentication.k8s.io
   resources:
@@ -36,42 +45,38 @@ rules:
   verbs:
   - create
 - apiGroups:
+  - boron.atomi.cloud
+  resources:
+  - accounts
+  - exposures
+  - tunnels
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - boron.atomi.cloud
+  resources:
+  - accounts/status
+  - exposures/status
+  - tunnels/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - boron.atomi.cloud
+  resources:
+  - exposures/finalizers
+  - tunnels/finalizers
+  verbs:
+  - update
+- apiGroups:
   - coordination.k8s.io
   resources:
   - leases
   verbs:
   - create
   - get
-  - update
-- apiGroups:
-  - sample.diene.atomi.cloud
-  resources:
-  - journals
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - sample.diene.atomi.cloud
-  resources:
-  - journals/status
-  - notes/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - sample.diene.atomi.cloud
-  resources:
-  - notes
-  verbs:
-  - get
-  - list
-  - update
-  - watch
-- apiGroups:
-  - sample.diene.atomi.cloud
-  resources:
-  - notes/finalizers
-  verbs:
   - update

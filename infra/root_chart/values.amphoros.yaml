@@ -1,9 +1,6 @@
-# Landscape overlay: amphoros (production landscape).
-controllers:
-  note: true
-ledger:
+# Landscape overlay: amphoros (registered-fleet cluster; Boron remains
+# independently selectable for admin use — profile: registered).
+installation:
+  profile: registered
   landscape: amphoros
-  endpoint: minio.amphoros.svc.cluster.local:9000
-  secure: true
-mode: active
 replicas: 2

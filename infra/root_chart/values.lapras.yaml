@@ -1,8 +1,5 @@
-# Landscape overlay: lapras (local/dev k3d landscape).
-controllers:
-  note: true
-ledger:
+# Landscape overlay: lapras (connected laptop k3d landscape).
+installation:
+  profile: lapras
+  connected: true
   landscape: lapras
-  endpoint: minio.lapras.svc.cluster.local:9000
-  secure: false
-mode: active
