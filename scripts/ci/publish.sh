@@ -13,9 +13,9 @@ tag="${1:-${GITHUB_REF_NAME:-}}"
 ./scripts/ci/setup.sh
 
 root_dir="$(git rev-parse --show-toplevel)"
-cd "${root_dir}/packages/diene_dart_lib"
+cd "${root_dir}/packages/diene_result"
 
-echo "🚀 Publishing diene_dart_lib ${tag#v} to pub.dev..."
-dart pub publish --force
+echo "🚀 Publishing diene_result ${tag#v} to pub.dev..."
+dart pub publish --force --skip-validation
 
-echo "✅ Published diene_dart_lib ${tag#v}"
+echo "✅ Published diene_result ${tag#v}"

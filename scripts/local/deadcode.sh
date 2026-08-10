@@ -4,7 +4,7 @@ set -euo pipefail
 root_dir="$(git rev-parse --show-toplevel)"
 cd "${root_dir}"
 
-member_dir="packages/diene_dart_lib"
+member_dir="packages/diene_result"
 
 # Resolve the whole workspace once at the root.
 dart pub get
@@ -24,6 +24,9 @@ cp "${member_dir}/analysis_options.yaml" "${production_root}/analysis_options.ya
 # Standalone manifest: drop `resolution: workspace` so `dart pub get` resolves
 # outside the pub workspace. Runtime dependencies (if any) are preserved.
 yq 'del(.resolution)' "${member_dir}/pubspec.yaml" >"${production_root}/pubspec.yaml"
+if [[ -f "${member_dir}/pubspec_overrides.yaml" ]]; then
+  cp "${member_dir}/pubspec_overrides.yaml" "${production_root}/pubspec_overrides.yaml"
+fi
 cp -R "${member_dir}/lib" "${production_root}/lib"
 mkdir -p "${production_root}/bin"
 cp "${member_dir}/tool/deadcode_entrypoints.dart" "${production_root}/bin/main.dart"

@@ -3,7 +3,13 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { devShellCommand } from './exec';
-import { capturedEnvCommand, DEV_SHELL_CHAIN, expectDevShellsOnce, expectRedBecause } from './helpers';
+import {
+  capturedEnvCommand,
+  DEV_SHELL_CHAIN,
+  expectDevShellsOnce,
+  expectRedBecause,
+  preserveMutationBeforeRestore,
+} from './helpers';
 
 const ENV_DIR = '/captures';
 
@@ -272,4 +278,37 @@ describe('expectRedBecause', () => {
       );
     });
   }
+});
+
+function memoryRepo(initial: Record<string, string>, failEvidenceWrite = false) {
+  const files = new Map(Object.entries(initial));
+  return {
+    files,
+    async read(path: string): Promise<string> {
+      const value = files.get(path);
+      if (value === undefined) throw new Error(`missing fixture: ${path}`);
+      return value;
+    },
+    async write(path: string, value: string): Promise<void> {
+      if (failEvidenceWrite && path.startsWith('.probe-evidence/')) throw new Error('evidence write refused');
+      files.set(path, value);
+    },
+  };
+}
+
+describe('probe mutation evidence', () => {
+  test('copies exact mutated bytes before restoring the source', async () => {
+    const repo = memoryRepo({ 'nested/source.txt': 'mutated\\nbytes\\n' });
+    await preserveMutationBeforeRestore(repo, 'example-row', 'nested/source.txt', 'original\\nbytes\\n');
+    expect(repo.files.get('.probe-evidence/example-row/nested/source.txt')).toBe('mutated\\nbytes\\n');
+    expect(repo.files.get('nested/source.txt')).toBe('original\\nbytes\\n');
+  });
+
+  test('restores the source if evidence writing fails', async () => {
+    const repo = memoryRepo({ 'nested/source.txt': 'mutated\\n' }, true);
+    await expect(preserveMutationBeforeRestore(repo, 'example-row', 'nested/source.txt', 'original\\n')).rejects.toThrow(
+      'evidence write refused',
+    );
+    expect(repo.files.get('nested/source.txt')).toBe('original\\n');
+  });
 });

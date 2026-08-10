@@ -161,7 +161,7 @@ release:
     - main
   tagFormat: 'v${version}'
   changelog:
-    path: Changelog.md
+    path: packages/diene_result/CHANGELOG.md
     title: '# Changelog'
   commit:
     message: |-
@@ -169,7 +169,9 @@ release:
 
       ${notes}
     assets:
-      - Changelog.md
+      - packages/diene_result/CHANGELOG.md
+      - packages/diene_result/pubspec.yaml
+      - VERSION
       - docs/developer/CommitConventions.md
   github:
     enabled: true
@@ -179,5 +181,7 @@ release:
   hooks:
     # Hook point a downstream node fills; a version file enters commit.assets in
     # the same edit as the command that writes it.
-    prepare: []
+    prepare:
+      - phase: afterWrite
+        command: ./scripts/release/format-changelog.sh
     success: []

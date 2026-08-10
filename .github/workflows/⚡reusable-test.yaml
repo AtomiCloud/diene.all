@@ -31,18 +31,18 @@ jobs:
         run: nix develop .#ci -c ./scripts/ci/test.sh "$TEST_MODE" coverage
       # Uploads gate on the ARTIFACT rather than on a source file standing in for it.
       - name: Upload ${{ inputs.mode }} coverage artifact
-        if: always() && hashFiles(format('packages/diene_dart_lib/coverage/{0}/lcov.info', inputs.mode)) != ''
+        if: always() && hashFiles(format('packages/diene_result/coverage/{0}/lcov.info', inputs.mode)) != ''
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-${{ inputs.mode }}
-          path: packages/diene_dart_lib/coverage/${{ inputs.mode }}
+          path: packages/diene_result/coverage/${{ inputs.mode }}
           if-no-files-found: warn
       - name: Upload ${{ inputs.mode }} coverage to Codecov
-        if: always() && hashFiles(format('packages/diene_dart_lib/coverage/{0}/lcov.info', inputs.mode)) != ''
+        if: always() && hashFiles(format('packages/diene_result/coverage/{0}/lcov.info', inputs.mode)) != ''
         continue-on-error: true
         uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
-          files: packages/diene_dart_lib/coverage/${{ inputs.mode }}/lcov.info
+          files: packages/diene_result/coverage/${{ inputs.mode }}/lcov.info
           flags: ${{ inputs.mode }}
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false

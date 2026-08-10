@@ -11,21 +11,19 @@ set -euo pipefail
 # released commit.
 #
 # Repairing that afterwards is worse than the defect. The only repair available
-# is a commit to the changelog, and atomi_release.yaml maps every obvious commit
+# is a commit to the changelog, and release.yaml maps every obvious commit
 # type for it (fix, style, perf, refactor, test) to a release — so the repair
 # starts another release, another unformatted entry, and another IRREVERSIBLE
 # publish. diene_core_utils reached 1.0.1 exactly that way.
 #
-# This script runs from the @semantic-release/exec prepare step. The fixed plugin
-# chain places exec AFTER @semantic-release/changelog has written the entry and
-# BEFORE @semantic-release/git commits the assets, so the bytes that land in the
-# release commit are already the bytes the hook set demands.
+# This script runs from the releaser afterWrite prepare hook, after the changelog
+# entry has been written and before the release assets are committed.
 
 root_dir="$(git rev-parse --show-toplevel)"
 cd "${root_dir}"
 
-changelog="$(yq -r '.plugins[] | select(.module == "@semantic-release/changelog") | .config.changelogFile' atomi_release.yaml)"
-[[ -z ${changelog} || ${changelog} == "null" ]] && echo "❌ atomi_release.yaml declares no changelog plugin changelogFile" >&2 && exit 1
+changelog="$(yq -r '.release.changelog.path // ""' release.yaml)"
+[[ -z ${changelog} ]] && echo "❌ release.yaml declares no release changelog path" >&2 && exit 1
 [[ ! -f ${changelog} ]] && echo "❌ generated changelog '${changelog}' does not exist" >&2 && exit 1
 
 # Unconditional: the release environment is `nix develop .#releaser`, so nix is
