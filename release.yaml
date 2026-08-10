@@ -1,0 +1,205 @@
+schemaVersion: 2
+
+types:
+  # REVERTED GAIN, NOT A DECISION. The go-base@8a5d2063 cascade carried this
+  # node from its own 17 type/scope pairs to 34, adding the `merge` type plus 14
+  # further pairs (chore/many-owner, chore/nix, chore/workspace, docs/nix,
+  # feat/nix, feat/probes, fix/nix, fix/probes, fix/skills, fix/workspace,
+  # perf/probes, refactor/ci, style/probes, test/probes). All of it is taken
+  # back out here, restoring this node's pre-merge set in its pre-merge shape
+  # and ordering, per the standing rule that every node keeps its pre-merge set
+  # entire.
+  #
+  # Why this note exists:
+  #   * A GAIN IS REVERTED EXACTLY AS A LOSS IS RESTORED. Inheriting the
+  #     parent's larger vocabulary moves this node out of its own tier just as
+  #     surely as a trim would; neither direction is argued by the cascade.
+  #   * A PARENT ADDITION IS NOT A RULING. The parent carrying an entry says
+  #     nothing about whether this node should carry it; content that arrives by
+  #     propagation was never argued, only inherited.
+  #   * THE CANONICAL QUESTION SITS WITH THE OWNER of the commit-type policy.
+  #     Whether go-base-wo-helm should widen to the parent's set is theirs to
+  #     settle, on purpose and in writing - not a side effect of a cascade.
+  #   * A LATER CASCADE MUST NOT READ THIS REVERT AS A DECISION. Nothing here
+  #     ratifies the set; it preserves the pre-merge state until the owner
+  #     rules.
+  #
+  # How the drift was found, and how to check it again: it auto-merges CLEANLY
+  # into every child - no conflict, no marker, and no gate we run asserts a set.
+  # DO NOT COMPARE COUNTS: a sibling measured 13 types before and after while
+  # one was lost and another gained. Diff the (type, scope) SETS in BOTH
+  # directions against the pre-merge tip.
+  - type: amend
+    desc: Small amendments and typo fixes
+    scopes:
+      default:
+        desc: Amend existing work
+        release: false
+  - type: build
+    desc: Build-system changes
+    scopes:
+      default:
+        desc: Update build machinery
+        release: false
+  - type: chore
+    desc: Repository chores
+    scopes:
+      default:
+        desc: Perform a chore
+        release: false
+  - type: ci
+    desc: CI/CD changes
+    scopes:
+      default:
+        desc: Update CI/CD
+        release: false
+  - type: config
+    desc: Configuration changes
+    scopes:
+      default:
+        desc: Update configuration
+        release: false
+  - type: dep
+    desc: Dependency updates
+    section: 🔼 Dependency Upstreams 🔼
+    scopes:
+      default:
+        desc: Update a dependency
+        release: false
+      patch:
+        desc: Patch dependency update
+        release: patch
+      minor:
+        desc: Minor dependency update
+        release: minor
+      major:
+        desc: Major dependency update
+        release: major
+  - type: docs
+    desc: Documentation changes
+    section: 📜 Documentation 📜
+    scopes:
+      default:
+        desc: Update documentation
+        release: false
+  - type: feat
+    desc: New features
+    section: ✨ Features ✨
+    scopes:
+      default:
+        desc: Add a feature
+        release: minor
+      breaking:
+        desc: Add a breaking feature
+        release: major
+  - type: fix
+    desc: Bug fixes
+    section: 🐛 Bug Fixes 🐛
+    scopes:
+      default:
+        desc: Fix a bug
+        release: patch
+  - type: perf
+    desc: Performance improvements
+    section: 🚀 Performance Improvement 🚀
+    scopes:
+      default:
+        desc: Improve performance
+        release: patch
+  - type: refactor
+    desc: Refactors
+    scopes:
+      default:
+        desc: Refactor implementation
+        release: minor
+  - type: style
+    desc: Non-functional style changes
+    scopes:
+      default:
+        desc: Update style
+        release: patch
+  - type: test
+    desc: Test changes
+    section: 🧪 Tests 🧪
+    scopes:
+      default:
+        desc: Add or correct tests
+        release: minor
+
+specialScopes:
+  no-release:
+    desc: Prevent release from happening
+    release: false
+
+keywords:
+  - BREAKING CHANGE
+  - BREAKING CHANGES
+  - BREAKING
+
+lint:
+  header:
+    maxLength: 72
+    minLength: 5
+    forbiddenWords:
+      - WIP
+    forbidTrailingPunctuation: true
+  body:
+    maxLineLength: 80
+    minLengthWhenPresent: 20
+    requireBlankSecondLine: true
+  ignore:
+    - merge
+    - revert
+    - fixup
+    - fixup-amend
+    - squash
+
+conventions:
+  path: docs/developer/CommitConventions.md
+  template: |-
+    # Commit conventions
+
+    This repository follows [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
+
+    - `release.yaml` is the machine-readable source of truth: it owns the
+      commit types, the scopes valid for each one, and the version bump each scope
+      causes.
+    - [The conventional-commits standard](../standards/conventional-commits/index.md)
+      explains how to read that vocabulary and how to mark a breaking change.
+
+    ## Status of this file
+
+    This file is generated. `release.yaml` names this path in its
+    `conventions.path` value, `releaser conventions` writes it, and a release run
+    rewrites it as well. Change `release.yaml` and regenerate rather than
+    editing this file: everything up to here comes from that file's
+    `conventions.template`, and everything from the `type(scope)` line below is
+    generated from the commit vocabulary.
+
+    CONVENTION_DOCS_PLACEHOLDER
+
+release:
+  branches:
+    - main
+  tagFormat: 'v${version}'
+  changelog:
+    path: Changelog.md
+    title: '# Changelog'
+  commit:
+    message: |-
+      release: ${version}
+
+      ${notes}
+    assets:
+      - Changelog.md
+      - docs/developer/CommitConventions.md
+  github:
+    enabled: true
+    successComment: 'Released in ${version}.'
+    releasedLabels:
+      - released
+  hooks:
+    # Hook point a downstream node fills; a version file enters commit.assets in
+    # the same edit as the command that writes it.
+    prepare: []
+    success: []

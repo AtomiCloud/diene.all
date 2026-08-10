@@ -1,4 +1,19 @@
-[
-  "diene.go-errors-problems/diene-go-errors-problems-usage/SKILL.md",
-  "diene.go-interfaces/diene-go-interfaces-usage/SKILL.md"
-]
+{
+  "schemaVersion": 1,
+  "generator": "skills-sync",
+  "runtime": "go",
+  "packages": [
+    "github.com/AtomiCloud/diene.go-errors-problems",
+    "github.com/AtomiCloud/diene.go-interfaces"
+  ],
+  "entries": [
+    {
+      "path": "diene.go-errors-problems/diene-go-errors-problems-usage/SKILL.md",
+      "sha256": "eb5f06d3e59aaf0dc4d9fcc0118982dce85ae7626c9390fb5eddee831b1decbe"
+    },
+    {
+      "path": "diene.go-interfaces/diene-go-interfaces-usage/SKILL.md",
+      "sha256": "eb7f7631474e6313a2f864ff4c456c9ae240fce120988cacf70a6ccca0c9f60e"
+    }
+  ]
+}
