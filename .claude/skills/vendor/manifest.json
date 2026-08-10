@@ -1,4 +1,36 @@
-[
-  "diene_dart_lib/diene-dart-lib-usage/SKILL.md",
-  "diene_dart_lib/diene-dart-lib-usage/patterns.md"
-]
+{
+  "schemaVersion": 1,
+  "generator": "skills-sync",
+  "runtime": "pub",
+  "packages": [
+    "diene_interfaces",
+    "diene_problems",
+    "diene_result"
+  ],
+  "entries": [
+    {
+      "path": "diene_interfaces/diene-interfaces-usage/SKILL.md",
+      "sha256": "bb4488960bc155075480f360c681f08cfc4fc005c99a4a86a1cbba1861953f0d"
+    },
+    {
+      "path": "diene_interfaces/diene-interfaces-usage/patterns.md",
+      "sha256": "d2fd640d0cc7199d3db61153d5f8dbb0e31a69ba66d9ac8f7b8694691b0f9580"
+    },
+    {
+      "path": "diene_problems/diene-problems-usage/SKILL.md",
+      "sha256": "bab61ab1a83feb118b7504a976a7fd9f22b61e38dd9451f9d37c1544f211502a"
+    },
+    {
+      "path": "diene_problems/diene-problems-usage/patterns.md",
+      "sha256": "b4fb3ab24d23662820c9827129593482abea0b9b8bd350ec646e6a8e69aae796"
+    },
+    {
+      "path": "diene_result/diene-result-usage/SKILL.md",
+      "sha256": "ee618637d459388aa749ca505563c3b1c3a86f90f436cc94bde134b621bbbd57"
+    },
+    {
+      "path": "diene_result/diene-result-usage/patterns.md",
+      "sha256": "ad023370e915cab2fb3ef5849674c9cf3a3e610b36d39654aca466585b95a306"
+    }
+  ]
+}

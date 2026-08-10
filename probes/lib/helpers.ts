@@ -174,3 +174,44 @@ export async function expectRedBecause(
   }
   return output;
 }
+
+// The mutated bytes are the EVIDENCE that a mutation arm actually mutated. A probe
+// that restores its file in a `finally` and reports only red/green leaves nothing
+// behind to show WHAT was changed, so a mutation that silently no-opped and a gate
+// that genuinely caught something are indistinguishable after the fact.
+//
+// So: copy the mutated file under `.probe-evidence/<id>/<path>` (gitignored), read
+// it back to prove the write landed, and restore the original in a `finally` so the
+// sandbox is clean even when the evidence write itself throws. Restoration is the
+// one thing that must happen unconditionally — hence the outer try/finally.
+const PROBE_EVIDENCE_ROOT = '.probe-evidence';
+
+export async function preserveMutationBeforeRestore(
+  repo: any,
+  evidenceId: string,
+  path: string,
+  original: string,
+): Promise<void> {
+  try {
+    // Both ids and paths are interpolated straight into an evidence path, so
+    // reject anything that could escape the evidence root instead of trusting
+    // the caller.
+    if (!/^[a-z0-9-]+$/.test(evidenceId)) {
+      throw new Error(`invalid probe evidence id: ${evidenceId}`);
+    }
+    if (path.startsWith('/') || path.split('/').includes('..')) {
+      throw new Error(`invalid probe evidence source path: ${path}`);
+    }
+
+    const mutated = await repo.read(path);
+    const evidencePath = `${PROBE_EVIDENCE_ROOT}/${evidenceId}/${path}`;
+    await repo.write(evidencePath, mutated);
+    // A write that reports success but stored different bytes would make the
+    // evidence a claim about the writer rather than about the mutation.
+    if ((await repo.read(evidencePath)) !== mutated) {
+      throw new Error(`probe evidence differs from mutated source: ${evidencePath}`);
+    }
+  } finally {
+    await repo.write(path, original);
+  }
+}

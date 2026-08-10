@@ -76,7 +76,11 @@
           shellHook = pre-commit.shellHook;
         };
         checks = {
-          pre-commit-check = pre-commit-offline;
+          # ONLINE binding, restored from this node's pre-merge tip. The parent
+          # binds `pre-commit-offline` here, whose hook set OMITS the a-dart-*
+          # hooks entirely — so it returns green without ever running them. A
+          # green from a battery that never ran the Dart hooks is not a green.
+          pre-commit-check = pre-commit;
           format = formatter;
         };
       };

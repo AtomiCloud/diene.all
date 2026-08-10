@@ -161,15 +161,26 @@ release:
     - main
   tagFormat: 'v${version}'
   changelog:
-    path: Changelog.md
-    title: '# Changelog'
+    # This node publishes a pub package, so its changelog is the MEMBER changelog,
+    # not the parent's repo-root Changelog.md. A published package whose shipped
+    # CHANGELOG.md never updates is a consumer-visible regression.
+    path: packages/diene_core_utils/CHANGELOG.md
+    # R-E33: the title must be the file's exact leading bytes, or the generated
+    # entry is prepended ABOVE the heading and the heading is duplicated.
+    title: |-
+      # Changelog
+
+      All notable changes to this package are documented here. Releases are managed
+      from conventional commits by the repository release workflow.
   commit:
     message: |-
       release: ${version}
 
       ${notes}
     assets:
-      - Changelog.md
+      - packages/diene_core_utils/CHANGELOG.md
+      - packages/diene_core_utils/pubspec.yaml
+      - VERSION
       - docs/developer/CommitConventions.md
   github:
     enabled: true
@@ -177,7 +188,10 @@ release:
     releasedLabels:
       - released
   hooks:
-    # Hook point a downstream node fills; a version file enters commit.assets in
-    # the same edit as the command that writes it.
-    prepare: []
+    # Unlike the parent workspace, this node DOES version a manifest: bump.sh
+    # stamps both the root VERSION file and the member pubspec.yaml, so both are
+    # listed in commit.assets above, in the same edit as the command writing them.
+    prepare:
+      - phase: afterWrite
+        command: './scripts/release/bump.sh ${version} && ./scripts/release/format-changelog.sh'
     success: []

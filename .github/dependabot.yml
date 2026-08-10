@@ -5,6 +5,6 @@ updates:
     schedule:
       interval: daily
   - package-ecosystem: pub
-    directory: /packages/diene_dart_lib
+    directory: /packages/diene_core_utils
     schedule:
       interval: daily

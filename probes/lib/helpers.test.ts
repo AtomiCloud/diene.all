@@ -3,7 +3,13 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { devShellCommand } from './exec';
-import { capturedEnvCommand, DEV_SHELL_CHAIN, expectDevShellsOnce, expectRedBecause } from './helpers';
+import {
+  capturedEnvCommand,
+  DEV_SHELL_CHAIN,
+  expectDevShellsOnce,
+  expectRedBecause,
+  preserveMutationBeforeRestore,
+} from './helpers';
 
 const ENV_DIR = '/captures';
 
@@ -270,6 +276,78 @@ describe('expectRedBecause', () => {
       await expect(expectRedBecause(repo, 'tsc --noEmit', 'typecheck', ['error TS2322'])).rejects.toThrow(
         `exit ${exitCode}`,
       );
+    });
+  }
+});
+
+describe('preserveMutationBeforeRestore', () => {
+  // Minimal in-memory repo: only read/write are exercised, and `failWrites`
+  // simulates a writer that throws so the restore guarantee can be tested
+  // independently of the evidence capture succeeding.
+  function evidenceRepo(files: Record<string, string>, options?: { failWrites?: RegExp; lieOnReadBack?: boolean }) {
+    const store = { ...files };
+    return {
+      store,
+      async read(path: string) {
+        if (!(path in store)) throw new Error(`no such file: ${path}`);
+        return store[path];
+      },
+      async write(path: string, contents: string) {
+        if (options?.failWrites?.test(path)) throw new Error(`write refused: ${path}`);
+        store[path] = options?.lieOnReadBack && path.startsWith('.probe-evidence/') ? 'DIFFERENT BYTES' : contents;
+      },
+    };
+  }
+
+  const SOURCE = 'packages/diene_core_utils/pubspec.yaml';
+
+  test('captures the mutated bytes under .probe-evidence and restores the original', async () => {
+    const repo = evidenceRepo({ [SOURCE]: 'version: 9.9.9-probe-drift' });
+
+    await preserveMutationBeforeRestore(repo, 'publish-version-guard', SOURCE, 'version: 1.0.0');
+
+    expect(repo.store[`.probe-evidence/publish-version-guard/${SOURCE}`]).toBe('version: 9.9.9-probe-drift');
+    expect(repo.store[SOURCE]).toBe('version: 1.0.0');
+  });
+
+  test('restores the original even when the evidence write throws', async () => {
+    const repo = evidenceRepo({ [SOURCE]: 'mutated' }, { failWrites: /^\.probe-evidence\// });
+
+    await expect(preserveMutationBeforeRestore(repo, 'publish-version-guard', SOURCE, 'original')).rejects.toThrow(
+      'write refused',
+    );
+    // The restore is the one thing that must happen unconditionally.
+    expect(repo.store[SOURCE]).toBe('original');
+  });
+
+  test('refuses evidence whose read-back differs from the mutated source', async () => {
+    const repo = evidenceRepo({ [SOURCE]: 'mutated' }, { lieOnReadBack: true });
+
+    await expect(preserveMutationBeforeRestore(repo, 'pana-score', SOURCE, 'original')).rejects.toThrow(
+      'probe evidence differs from mutated source',
+    );
+    expect(repo.store[SOURCE]).toBe('original');
+  });
+
+  for (const badId of ['Publish-Version-Guard', 'publish_version_guard', '../escape', '']) {
+    test(`rejects the invalid evidence id ${JSON.stringify(badId)} and still restores`, async () => {
+      const repo = evidenceRepo({ [SOURCE]: 'mutated' });
+
+      await expect(preserveMutationBeforeRestore(repo, badId, SOURCE, 'original')).rejects.toThrow(
+        'invalid probe evidence id',
+      );
+      expect(repo.store[SOURCE]).toBe('original');
+    });
+  }
+
+  for (const badPath of ['/etc/passwd', '../outside.yaml', 'packages/../../escape.yaml']) {
+    test(`rejects the escaping source path ${JSON.stringify(badPath)} and still restores`, async () => {
+      const repo = evidenceRepo({ [badPath]: 'mutated' });
+
+      await expect(preserveMutationBeforeRestore(repo, 'dart-analyze', badPath, 'original')).rejects.toThrow(
+        'invalid probe evidence source path',
+      );
+      expect(repo.store[badPath]).toBe('original');
     });
   }
 });

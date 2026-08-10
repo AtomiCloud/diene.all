@@ -15,11 +15,17 @@ coverage:
 flags:
   unit:
     paths:
-      - packages/diene_dart_lib/lib/src
+      - packages/diene_core_utils/lib/src
     carryforward: true
+  # Base-registered machinery, deliberately DORMANT here: core-utils carries a NO
+  # TestHelper verdict (goals/lib/dart-family.md), so this path does not exist,
+  # ./scripts/ci/test.sh meta is a successful no-op, and the reusable-test
+  # workflow's hashFiles() guard means NO empty meta flag is ever uploaded. The
+  # declaration stays so the flag is defined once in the base rather than added
+  # per-lib the day a helper does appear.
   meta:
     paths:
-      - packages/diene_dart_lib/lib/test_helper.dart
+      - packages/diene_core_utils/lib/test_helper.dart
     carryforward: true
 
 comment:
