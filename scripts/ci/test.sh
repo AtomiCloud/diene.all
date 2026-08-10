@@ -37,6 +37,13 @@ if [[ ${mode} == "meta" ]]; then
   [[ -z ${helper_source} || -z ${meta_test} ]] && echo "❌ TestHelper source and meta tests must be added together" >&2 && exit 1
 fi
 
+if [[ ${mode} == "int" ]]; then
+  echo "🧪 Running family integration tests..."
+  bun test --config="${config}"
+  echo "✅ Family integration tests passed (the train owns no src/adapters coverage ledger)"
+  exit 0
+fi
+
 echo "🧪 Running ${mode} tests with coverage..."
 
 set +e
