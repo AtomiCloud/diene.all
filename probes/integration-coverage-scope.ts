@@ -1,5 +1,7 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedWithDiagnostic, restoreProbeState } from './lib/helpers.ts';
 import { plantGoFile } from './lib/go.ts';
+
+const gate = 'nix develop .#ci -c task test:int:coverage';
 
 export default {
   contractVersion: 1,
@@ -10,25 +12,31 @@ export default {
       description: 'The integration coverprofile contains only adapter packages at threshold.',
       kind: 'baseline',
       async run(repo: any) {
-        await expectGreen(
-          repo,
-          'nix develop .#ci -c ./scripts/local/test.sh int true false',
-          'integration-coverage-scope',
-        );
+        await expectGreen(repo, gate, 'integration-coverage-scope');
       },
     },
     {
       name: 'mutation-integration-coverage-caught',
-      description: 'An uncovered adapter function must turn the integration ledger red.',
+      description: 'An adapter source the profile never measures must turn the integration ledger red.',
       kind: 'mutation',
-      expectedImpact: ['deadcode-whole-repo', 'deadcode-production'],
       async run(repo: any) {
-        await plantGoFile(repo, 'adapters/**/*.go', 'probe_uncovered.go', 'func ProbeUncovered() int { return 1 }');
-        await expectRed(
+        // A statement-free declaration keeps the percentage at 100 and never reaches the profile, so only a derived source set sees it.
+        const planted = await plantGoFile(
           repo,
-          'nix develop .#ci -c ./scripts/local/test.sh int true false',
-          'integration-coverage-scope',
+          'adapters/**/*.go',
+          'probe_uncovered.go',
+          'type ProbeUncovered struct{}',
         );
+        try {
+          await expectRedWithDiagnostic(
+            repo,
+            gate,
+            'integration-coverage-scope',
+            /int coverage is missing 'adapters\/.*\.go'/,
+          );
+        } finally {
+          await restoreProbeState(repo, [planted]);
+        }
       },
     },
   ],

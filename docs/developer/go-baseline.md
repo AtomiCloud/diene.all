@@ -22,27 +22,33 @@ exclusion.
 - `tests/unit/` imports domain packages only through their public API.
 - `tests/int/` proves adapters against real dependencies with
   testcontainers-go.
+- `tests/sit/` exercises compiled artifacts from a client's perspective.
 
-The Note/Redis code is a replaceable sample fenced by these structural
-directories. Downstream templates may replace the sample while retaining the
-same gates and tier boundaries.
+The Note/Redis code is a replaceable sample fenced by `DOMAIN WIRING` and
+`END DOMAIN WIRING` comments in `lib/note/note.go`, `lib/note/service.go`,
+`adapters/kv/redis.go`, and `cmd/go-base/main.go`, with matching boundaries in
+`tests/unit/note/note_test.go`, `tests/int/kv/redis_test.go`, and
+`tests/sit/cli/cli_test.go`. Downstream templates may replace only the bytes
+inside those fences while retaining the same gates and tier boundaries.
 
 ## Commands
 
-- `pls setup` installs modules and synchronizes vendored skills.
-- `pls build` creates `dist/go-base`.
-- `pls typecheck` compiles source packages without running tests.
-- `pls test`, `pls test:unit`, and `pls test:int` run the tiered suites.
-- `pls test:coverage`, `pls test:unit:coverage`, and
-  `pls test:int:coverage` enforce the scoped ledgers.
-- `pls test:watch` watches the unit tier.
-- `pls deadcode` runs whole-repository and production-only strict passes, then
-  writes the nonblocking review feed to `reports/deadcode-llm.txt`.
-- `pls run -- slug "Hello World"` runs from source.
-- `pls preview -- slug "Hello World"` runs the compiled artifact.
-- `pls up` and `pls down` manage the local Redis dependency.
+- `task setup` installs modules and synchronizes vendored skills.
+- `task build` creates `dist/go-base`.
+- `task typecheck` compiles source packages without running tests.
+- `task test`, `task test:unit`, `task test:int`, and `task test:sit` run the
+  tiered suites; `task test:sit` runs the compiled-artifact Redis journey.
+- `task test:coverage`, `task test:unit:coverage`, and
+  `task test:int:coverage` enforce the scoped ledgers.
+- `task test:watch` watches the unit tier.
+- `task deadcode` runs staticcheck and deadcode independently across the
+  whole-repository and production-only scopes, then writes the nonblocking
+  review feed to `reports/deadcode-llm.txt`.
+- `task run -- slug "Hello World"` runs from source.
+- `task preview -- slug "Hello World"` runs the compiled artifact.
+- `task up` and `task down` manage the local Redis dependency.
 
-There is deliberately no `pls dev`: this base is not a long-running server, so
+There is deliberately no `task dev`: this base is not a long-running server, so
 an Air hot-reload loop would add machinery without a real use case.
 
 ## Test and coverage law
@@ -55,17 +61,18 @@ flags are informational and carry forward independently.
 
 ## Deadcode and vulnerability law
 
-The whole-repository pass runs deadcode with tests enabled and staticcheck with
-test analysis. The production pass disables test reachability so a symbol used
-only by tests fails. Neither pass has an exclusion list. Govulncheck is a
-blocking CI-only job; its negative proof routes a pinned vulnerable fixture
-through a deterministic scanner double, while the healthy path uses the real
-vulnerability database.
+Four independently invoked strict components cover unused code: staticcheck and
+deadcode each run once with test analysis/reachability enabled and once against
+production packages only. The production deadcode component therefore rejects
+a symbol reachable only from tests. None of the components has an exclusion
+list. Govulncheck is a blocking CI-only job; its negative proof routes a pinned
+vulnerable fixture through a deterministic scanner double, while the healthy
+path uses the real vulnerability database.
 
 ## Template-maintenance boundary
 
 Downstream authors may adapt package/module identity, sample domain code,
 coverage thresholds after adding real surface, and README
 badges. They must preserve black-box tests, tier scoping,
-both deadcode passes, the CI-only vulnerability gate, one composition root,
-and generated hook/probe coverage.
+all four staticcheck/deadcode components, the CI-only vulnerability gate, one
+composition root, and generated hook/probe coverage.

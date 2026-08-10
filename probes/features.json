@@ -101,37 +101,12 @@
   },
   {
     "template": "diene/workspace",
-    "name": "secret-guards",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "secret-scan-command",
+    "name": "secret-login-guard",
     "class": "smoke"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "skills-vendor-directory",
-    "class": "presence"
   },
   {
     "template": "diene/workspace",
     "name": "skills-sync",
-    "class": "smoke"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "skills-freshness",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "release-config-schema",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "release-type-vocabulary",
     "class": "gate"
   },
   {
@@ -146,16 +121,6 @@
   },
   {
     "template": "diene/workspace",
-    "name": "workflow-names",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "nixpkgs-pin",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
     "name": "trusted-action-pins",
     "class": "gate"
   },
@@ -166,28 +131,27 @@
   },
   {
     "template": "diene/workspace",
-    "name": "cache-tag-shape",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "many-owner-schema",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "releaser-hook-registration",
-    "class": "presence",
-    "deferredUntil": "tools/releaser step 2p publish"
-  },
-  {
-    "template": "diene/workspace",
     "name": "probe-artifacts",
     "class": "presence"
   },
   {
+    "template": "diene/workspace",
+    "name": "releaser-hook-registration",
+    "class": "presence"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "hook-releaser-commit",
+    "class": "gate"
+  },
+  {
     "template": "diene/shared",
-    "name": "claude-link-integrity",
+    "name": "docs-markdownlint",
+    "class": "gate"
+  },
+  {
+    "template": "diene/shared",
+    "name": "docs-prettier",
     "class": "gate"
   },
   {
@@ -199,16 +163,6 @@
     "template": "diene/shared",
     "name": "thin-skills",
     "class": "presence"
-  },
-  {
-    "template": "diene/shared",
-    "name": "docs-markdownlint",
-    "class": "gate"
-  },
-  {
-    "template": "diene/shared",
-    "name": "docs-prettier",
-    "class": "gate"
   },
   {
     "template": "diene/go-base",
@@ -252,12 +206,27 @@
   },
   {
     "template": "diene/go-base",
+    "name": "staticcheck-whole-repo",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
     "name": "deadcode-whole-repo",
     "class": "gate"
   },
   {
     "template": "diene/go-base",
+    "name": "staticcheck-production",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
     "name": "deadcode-production",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "hook-deadcode-strict",
     "class": "gate"
   },
   {
@@ -288,6 +257,11 @@
   {
     "template": "diene/go-base",
     "name": "sample-domain-journey",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "system-integration-tests",
     "class": "smoke"
   },
   {
