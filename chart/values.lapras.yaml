@@ -1,13 +1,6 @@
-# Independent local-cluster overlay. It contains no landscape decision.
-serviceTree:
-  cluster: lapras
-
-# The local install proves the ordinary Kubernetes resources only; the CRDs are owned by later nodes.
-secret:
-  enabled: false
-
-webhookRoute:
-  enabled: false
-
-primordial:
-  enabled: false
+# ### aluminium-lapras
+# #### source: aluminium
+# lapras cluster overlay — cluster identity delta only.
+upstream:
+  cluster:
+    name: lapras
