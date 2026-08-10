@@ -2,6 +2,7 @@
   pkgs,
   packages,
   env,
+  ciInputs,
   shellHook,
 }:
 with env;
@@ -12,7 +13,7 @@ with env;
   };
 
   ci = pkgs.mkShell {
-    buildInputs = lint ++ main ++ system;
+    buildInputs = ciInputs;
     inherit shellHook;
   };
 

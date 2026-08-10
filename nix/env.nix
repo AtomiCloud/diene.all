@@ -29,6 +29,7 @@ with packages;
   main = [
     cyanprint
     git
+    go
     go-task
     infisical
     shellcheck

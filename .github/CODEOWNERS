@@ -1,0 +1,36 @@
+# Fleet repository code ownership (Q-GH1 posture).
+#
+# The `registry/**` zone is the human-PR-gated control plane: fleet topology,
+# the fleet-root Application, the platforms ApplicationSet, and the
+# diene-platform compiler chart. Every change to it requires a fleet-admin
+# code-owner review, enforced together with the `main` branch ruleset
+# (.github/rulesets/registry-guard-main.json).
+#
+# `platforms/**` is deliberately ABSENT: it is 100% machine-written (the T3
+# materializer + the Kargo bot). The Kargo bot pushes it directly under the
+# ruleset's Always bypass, and a human break-glass row change is an ordinary
+# fast PR with no code-owner gate.
+
+/registry/           @AtomiCloud/fleet-admin
+/registry/**         @AtomiCloud/fleet-admin
+/.github/            @AtomiCloud/fleet-admin
+/.github/**          @AtomiCloud/fleet-admin
+/.github/CODEOWNERS  @AtomiCloud/fleet-admin
+/.github/rulesets/   @AtomiCloud/fleet-admin
+/.github/rulesets/** @AtomiCloud/fleet-admin
+/.github/workflows/  @AtomiCloud/fleet-admin
+/.github/workflows/** @AtomiCloud/fleet-admin
+/scripts/ci/         @AtomiCloud/fleet-admin
+/scripts/ci/**       @AtomiCloud/fleet-admin
+/scripts/validate/   @AtomiCloud/fleet-admin
+/scripts/validate/** @AtomiCloud/fleet-admin
+/scripts/local/materialize-fleet.sh @AtomiCloud/fleet-admin
+/scripts/local/registry-guard-apply.sh @AtomiCloud/fleet-admin
+/scripts/local/registry-guard-e2e.sh @AtomiCloud/fleet-admin
+/scripts/local/machinery-stable-tag-move.sh @AtomiCloud/fleet-admin
+/scripts/validate/registry-guard.sh @AtomiCloud/fleet-admin
+/flake.nix           @AtomiCloud/fleet-admin
+/flake.lock          @AtomiCloud/fleet-admin
+/.envrc              @AtomiCloud/fleet-admin
+/nix/                @AtomiCloud/fleet-admin
+/nix/**              @AtomiCloud/fleet-admin
