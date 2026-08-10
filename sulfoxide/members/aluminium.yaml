@@ -1,0 +1,21 @@
+id: aluminium
+home: sulfoxide
+owner: charts/aluminium
+role: instance-local telemetry collection (Alloy operator plus metrics and logs)
+chartRef:
+  repository: oci://ghcr.io/atomicloud/diene.all/charts/diene-charts-aluminium
+  version: 0.1.0
+  digest: null
+  promotion: { state: pending, owner: charts/aluminium, reason: chart-not-yet-promoted }
+imageRefs:
+  - ref: docker.io/grafana/k8s-monitoring:4.3.0
+    digest: null
+    pending: upstream-appversion-unpinned
+profiles:
+  lapras: { state: include }
+  ditto: { state: include }
+  rotom: { state: include, mode: local-sinks-only }
+  absol: { state: include, mode: local-sinks-only }
+  eevee: { state: include }
+  plusle: { state: include }
+  minun: { state: include, mode: allocation-local-sinks-only }

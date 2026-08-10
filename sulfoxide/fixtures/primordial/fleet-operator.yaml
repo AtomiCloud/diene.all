@@ -1,0 +1,21 @@
+id: fleet-operator
+home: primordial
+owner: primordial/baseline
+role: dependency controller; the full fleet operator stays Primordial-only and Garden runs the local subset
+chartRef:
+  repository: oci://ghcr.io/atomicloud/primordial/charts/fleet-operator
+  version: 0.1.0
+  digest: null
+  promotion: { state: pending, owner: dependency-operator, reason: owning-chart-node-incomplete }
+imageRefs:
+  - ref: ghcr.io/atomicloud/diene.fleet-operator:0.1.0
+    digest: null
+    pending: owning-node-incomplete
+profiles:
+  lapras: { state: include, mode: local-dependency-subset }
+  ditto: { state: include, mode: local-dependency-subset }
+  rotom: { state: include, mode: local-dependency-subset }
+  absol: { state: include, mode: local-dependency-subset }
+  eevee: { state: include, mode: local-dependency-subset }
+  plusle: { state: include, mode: local-dependency-subset }
+  minun: { state: include, mode: local-dependency-subset }

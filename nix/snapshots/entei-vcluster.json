@@ -1,0 +1,31 @@
+{
+  "schema": "diene-entei-vcluster-lock/v1",
+  "comment": "Atomic pure-OSS compatibility bundle. Garden and CI fail on a Pro image, Platform endpoint, license path, telemetry dependency, or floating version.",
+  "vclusterChart": {
+    "version": "0.35.1",
+    "digest": "sha256:ec1db9e9faf2da674eba5df3594b9d209861ee8e5889be850a9bb60861158c5b"
+  },
+  "images": {
+    "controlPlane": "ghcr.io/loft-sh/vcluster-oss:0.35.1@sha256:35faf06fbfce4a3802ca7e459998dc191aad06a3544bde1a46118a4edcdaef62",
+    "tenantKubernetes": "ghcr.io/loft-sh/kubernetes:v1.35.0@sha256:90097a08b87cd988e3c48f3885e9a459f25e9ea584bb8e77f13aff9471204fd0",
+    "tenantCoreDns": "1.14.1@sha256:82b57287b29beb757c740dbbe68f2d4723da94715b563fffad5c13438b71b14a",
+    "rewriteHostsHelper": "alpine:3.20.10@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc"
+  },
+  "gatewayApi": {
+    "version": "1.5.1",
+    "installDigest": "sha256:751002b3b91a87f7ae3bd2517c79a47a8d7ed6702901808a1cf9bd97d284f9b8"
+  },
+  "kgateway": {
+    "charts": "2.3.6",
+    "controller": "sha256:b685afe2e2b910fca225ae0392ce4f37a86d7c10338aa1556405b0648e842286",
+    "sds": "sha256:69a6e347c7f7cbad31714e219068a4f4c5362ed4eb427a1e6320c83b5bee378e",
+    "envoyWrapper": "sha256:b82081697d8d2524b3d3cd06ef64c6e0ba5d910276cb6974bda74e20a68b93c8"
+  },
+  "certManager": { "version": "1.20.3" },
+  "mirror": "ghcr.io/atomicloud/mirror",
+  "forbidden": {
+    "imageSubstrings": ["vcluster-pro", "loft-enterprise", "vcluster.pro"],
+    "keys": ["pro", "platform", "license", "telemetry", "sleepMode", "plugins", "connectors", "privateNodes"],
+    "floatingVersions": ["latest", "main", "edge", "stable"]
+  }
+}

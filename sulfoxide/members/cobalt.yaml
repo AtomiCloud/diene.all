@@ -1,0 +1,22 @@
+id: cobalt
+home: sulfoxide
+owner: charts/cobalt
+role: External Secrets Operator and the source-of-secrets store gateway
+chartRef:
+  repository: oci://ghcr.io/atomicloud/diene.all/charts/diene-cobalt
+  version: 0.1.0
+  digest: null
+  promotion: { state: pending, owner: charts/cobalt, reason: chart-not-yet-promoted }
+imageRefs:
+  - ref: ghcr.io/external-secrets/external-secrets:v2.7.0
+    digest: sha256:6615aaea8ff44924d9d7dbc99982a130c82913f7583e212fa3aeebc6dc21fbf9
+    platformDigests:
+      - sha256:04b0d005dc52fbfd92b1673011ae296772cde67fe57e8771b580a7e290e26b31
+profiles:
+  lapras: { state: include }
+  ditto: { state: include }
+  rotom: { state: include, mode: controller-only-fake-store }
+  absol: { state: include, mode: controller-only-fake-store }
+  eevee: { state: include }
+  plusle: { state: include }
+  minun: { state: include }

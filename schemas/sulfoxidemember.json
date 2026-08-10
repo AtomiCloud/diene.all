@@ -1,0 +1,167 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Sulfoxide baseline member definition",
+  "description": "One baseline member, authored exactly once in its declared home. Garden consumes these documents directly and never copies the membership list.",
+  "type": "object",
+  "required": ["id", "home", "owner", "chartRef", "imageRefs", "profiles"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
+    },
+    "home": {
+      "enum": ["primordial", "sulfoxide"]
+    },
+    "owner": {
+      "type": "string",
+      "minLength": 1
+    },
+    "role": {
+      "type": "string",
+      "minLength": 1
+    },
+    "chartRef": {
+      "$ref": "#/$defs/chartRef"
+    },
+    "imageRefs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/imageRef"
+      }
+    },
+    "profiles": {
+      "$ref": "#/$defs/profiles"
+    }
+  },
+  "$defs": {
+    "chartRef": {
+      "type": "object",
+      "required": ["repository", "version", "digest", "promotion"],
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "type": "string",
+          "pattern": "^oci://"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "digest": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            }
+          ]
+        },
+        "promotion": {
+          "type": "object",
+          "required": ["state"],
+          "additionalProperties": false,
+          "properties": {
+            "state": {
+              "enum": ["promoted", "pending"]
+            },
+            "owner": {
+              "type": "string",
+              "minLength": 1
+            },
+            "reason": {
+              "enum": ["chart-not-yet-promoted", "owning-chart-node-incomplete"]
+            }
+          }
+        }
+      }
+    },
+    "imageRef": {
+      "type": "object",
+      "required": ["ref", "digest"],
+      "additionalProperties": false,
+      "properties": {
+        "ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "digest": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            }
+          ]
+        },
+        "pending": {
+          "enum": ["upstream-appversion-unpinned", "owning-node-incomplete"]
+        },
+        "platformDigests": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "description": "Platform child digests of an image index. The index digest and any of its children name the same artifact, so the doctor accepts either."
+        }
+      }
+    },
+    "profiles": {
+      "type": "object",
+      "required": ["lapras", "ditto", "rotom", "absol", "eevee", "plusle", "minun"],
+      "additionalProperties": false,
+      "properties": {
+        "lapras": {
+          "$ref": "#/$defs/state"
+        },
+        "ditto": {
+          "$ref": "#/$defs/state"
+        },
+        "rotom": {
+          "$ref": "#/$defs/state"
+        },
+        "absol": {
+          "$ref": "#/$defs/state"
+        },
+        "eevee": {
+          "$ref": "#/$defs/state"
+        },
+        "plusle": {
+          "$ref": "#/$defs/state"
+        },
+        "minun": {
+          "$ref": "#/$defs/state"
+        }
+      }
+    },
+    "state": {
+      "type": "object",
+      "required": ["state"],
+      "additionalProperties": false,
+      "properties": {
+        "state": {
+          "enum": ["include", "omit"]
+        },
+        "reason": {
+          "enum": [
+            "entei-owns-shared-edge",
+            "connected-laptop-profiles-only",
+            "substrate-provides-metrics-server",
+            "host-substrate-provides-metrics",
+            "no-external-secret-source",
+            "no-local-consumer-requires-it"
+          ]
+        },
+        "mode": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

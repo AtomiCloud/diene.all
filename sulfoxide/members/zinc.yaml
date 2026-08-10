@@ -1,0 +1,18 @@
+id: zinc
+home: sulfoxide
+owner: charts/zinc
+role: cluster issuer set
+chartRef:
+  repository: oci://ghcr.io/atomicloud/diene.all/charts/diene-zinc
+  version: 0.1.0
+  digest: null
+  promotion: { state: pending, owner: charts/zinc, reason: chart-not-yet-promoted }
+imageRefs: []
+profiles:
+  lapras: { state: omit, reason: no-local-consumer-requires-it }
+  ditto: { state: omit, reason: no-local-consumer-requires-it }
+  rotom: { state: omit, reason: no-local-consumer-requires-it }
+  absol: { state: omit, reason: no-local-consumer-requires-it }
+  eevee: { state: omit, reason: entei-owns-shared-edge }
+  plusle: { state: omit, reason: entei-owns-shared-edge }
+  minun: { state: omit, reason: entei-owns-shared-edge }

@@ -1,0 +1,15 @@
+# Primordial-home members are authored in Primordial, never here. This file is the
+# import POINTER Garden resolves; copying Primordial's membership list into this tree
+# would create the second roster ENV-SPEC reconciliation 1 forbids.
+schema: diene-sulfoxide-import/v1
+primordial:
+  source: AtomiCloud/primordial
+  path: baseline/members
+  ref: null
+  digest: null
+  state: pending
+  reason: primordial-member-export-not-yet-published
+  # Until the export exists, union checks run against the clearly fenced fixture set
+  # in sulfoxide/fixtures/primordial/. Fixtures are test data and are never a roster:
+  # the renderer refuses them unless DIENE_PARITY_FIXTURES is set explicitly.
+  fixtures: sulfoxide/fixtures/primordial

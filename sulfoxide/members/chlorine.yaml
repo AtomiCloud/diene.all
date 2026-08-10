@@ -1,0 +1,22 @@
+id: chlorine
+home: sulfoxide
+owner: charts/chlorine
+role: secret and config rotation restarts (Reloader)
+chartRef:
+  repository: oci://ghcr.io/atomicloud/diene.all/charts/diene-chlorine
+  version: 0.1.0
+  digest: null
+  promotion: { state: pending, owner: charts/chlorine, reason: chart-not-yet-promoted }
+imageRefs:
+  - ref: ghcr.io/stakater/reloader:v1.4.19
+    digest: sha256:0530cf462fa3ba530fab887372e3b79caf608d0093ffc2fded9fa33bac8b74cd
+    platformDigests:
+      - sha256:7ca350e90b5fefecb879c3a165e789296ba7b3b6f59414b4023ee368784786a1
+profiles:
+  lapras: { state: include }
+  ditto: { state: include }
+  rotom: { state: include }
+  absol: { state: include }
+  eevee: { state: include }
+  plusle: { state: include }
+  minun: { state: include }

@@ -1,0 +1,20 @@
+id: platinum
+home: sulfoxide
+owner: charts/platinum
+role: cluster gateway (kgateway)
+chartRef:
+  repository: oci://ghcr.io/atomicloud/diene.all/charts/platinum
+  version: 0.1.0
+  digest: null
+  promotion: { state: pending, owner: charts/platinum, reason: chart-not-yet-promoted }
+imageRefs:
+  - ref: cr.kgateway.dev/kgateway-dev/kgateway:v2.2.9
+    digest: sha256:aa3aa48dace0008c6bcec746b9accca9f53d466fb67ccf85cd528dbb017844d6
+profiles:
+  lapras: { state: include }
+  ditto: { state: include }
+  rotom: { state: include }
+  absol: { state: include }
+  eevee: { state: omit, reason: entei-owns-shared-edge }
+  plusle: { state: omit, reason: entei-owns-shared-edge }
+  minun: { state: omit, reason: entei-owns-shared-edge }

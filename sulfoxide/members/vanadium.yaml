@@ -1,0 +1,18 @@
+id: vanadium
+home: sulfoxide
+owner: charts/vanadium
+role: ValidatingAdmissionPolicy set (sole admission layer)
+chartRef:
+  repository: oci://ghcr.io/atomicloud/diene.all/charts/vanadium
+  version: 0.1.0
+  digest: null
+  promotion: { state: pending, owner: charts/vanadium, reason: chart-not-yet-promoted }
+imageRefs: []
+profiles:
+  lapras: { state: include }
+  ditto: { state: include }
+  rotom: { state: include }
+  absol: { state: include }
+  eevee: { state: include }
+  plusle: { state: include }
+  minun: { state: include }
