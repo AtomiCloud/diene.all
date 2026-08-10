@@ -10,6 +10,7 @@
 ### workspace-docs
 #### source: workspace
 .claude
+.dockerignore
 .github
 docs
 probes

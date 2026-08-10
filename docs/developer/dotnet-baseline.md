@@ -11,21 +11,22 @@ shared workspace, standards, Docker, Helm, secret, and release surfaces.
 
 ## Local commands
 
-| Command                          | Purpose                                                        |
-| -------------------------------- | -------------------------------------------------------------- |
-| `pls setup`                      | Synchronize vendored skills and restore repo-local .NET tools. |
-| `pls clean`                      | Remove build and test artifacts.                               |
-| `pls build`                      | Build every project in Release.                                |
-| `pls dev`                        | Run the App through `dotnet watch`.                            |
-| `pls run -- <args>`              | Run the App in development mode.                               |
-| `pls preview -- <args>`          | Build and run the compiled Release artifact.                   |
-| `pls up` / `pls down`            | Start or stop the local Redis dependency.                      |
-| `pls test`                       | Run unit and integration tiers.                                |
-| `pls test:unit` / `pls test:int` | Run one tier.                                                  |
-| `pls test:coverage`              | Enforce both merged coverage ledgers.                          |
-| `pls test:watch`                 | Watch the fast unit tier.                                      |
-| `pls deadcode`                   | Emit the broad, non-blocking LLM review.                       |
-| `pls lint`                       | Run every generated pre-commit hook.                           |
+| Command                            | Purpose                                                        |
+| ---------------------------------- | -------------------------------------------------------------- |
+| `task setup`                       | Synchronize vendored skills and restore repo-local .NET tools. |
+| `task clean`                       | Remove build and test artifacts.                               |
+| `task build`                       | Build every project in Release.                                |
+| `task dev`                         | Run the App through `dotnet watch`.                            |
+| `task run -- <args>`               | Run the App in development mode.                               |
+| `task preview -- <args>`           | Build and run the compiled Release artifact.                   |
+| `task up` / `task down`            | Start or stop the local Redis dependency.                      |
+| `task test`                        | Run unit and integration tiers.                                |
+| `task test:unit` / `task test:int` | Run one tier.                                                  |
+| `task test:unit:coverage`          | Enforce the merged unit coverage ledger.                       |
+| `task test:int:coverage`           | Enforce the merged integration coverage ledger.                |
+| `task test:unit:watch`             | Watch the fast unit tier.                                      |
+| `task deadcode`                    | Emit the broad, non-blocking LLM review.                       |
+| `task lint`                        | Run every generated pre-commit hook.                           |
 
 ## Projects and coverage
 
@@ -51,20 +52,33 @@ automatically. Codecov remains informational.
 
 CI runs two strict dn-inspect mechanisms: all projects, then production-only
 `App*`/`Lib*` projects so exports reachable only from tests still fail. Local
-`pls deadcode` uses a deliberately broad filter and never blocks. Exclusion lists
+`task deadcode` uses a deliberately broad filter and never blocks. Exclusion lists
 are forbidden.
 
 The SDK is pinned by `global.json`; packages use Central Package Management.
 `NuGetAuditMode=all`, analyzers, deterministic builds, and warnings-as-errors are
 enforced in Release builds.
 
+`nix/dotnet-deps.json` pins the NuGet closure used by the reproducible Nix
+restore. Regenerate it after changing a project package reference, a central
+package version, or the pinned SDK:
+
+```bash
+nix_system="$(nix eval --impure --raw --expr builtins.currentSystem)"
+nix build ".#checks.${nix_system}.pre-commit-check.fetch-deps"
+./result nix/dotnet-deps.json
+```
+
+The command exposes `buildDotnetModule.passthru.fetch-deps`; its output replaces
+`nix/dotnet-deps.json`.
+
 ## Docker, Helm, and release
 
 The Dockerfile is a minimal non-root stub, and the Helm chart keeps an empty
 template directory for descendants to replace. The Helm axis is complete:
 lint/docs hooks, local tasks, OCI packaging, CI/CD jobs, and dependabot coverage
-are all active. Releaser writes the repository `VERSION`; its canonical
-`atomi_release.yaml` is the single commit-type vocabulary.
+are all active. Releaser stamps the version in `App/App.csproj`; its canonical
+`release.yaml` is the single commit-type vocabulary.
 
 ## Template-maintenance boundary
 

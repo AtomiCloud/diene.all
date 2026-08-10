@@ -1,6 +1,10 @@
-const topics = [
-  'authorization',
-  'contributor-docs',
+// The ten language-agnostic topics this node owns. Parent-owned tooling
+// standards are deliberately absent: their skill names do not track their
+// directory names, and asserting them here would be a topology check.
+// `authorization` left this node with the .NET layer that is its only user, and
+// the contributor-doc segment was removed outright, so neither is asserted here
+// any more — see the shared forward review.
+export const topics = [
   'datetime',
   'domain-driven-design',
   'functional-practices',
@@ -13,15 +17,13 @@ const topics = [
   'validation',
 ] as const;
 
-const contributorReferences = ['checklist.md', 'classification.md', 'frontmatter.md', 'structure.md', 'workflow.md'];
-
 export default {
   contractVersion: 1,
   sandbox: { snapshot: 'git' },
   probes: [
     {
       name: 'presence-standards-inventory',
-      description: 'All twelve agnostic standards, their thin triggers, contributor references, and the C0 slot exist.',
+      description: 'All ten agnostic standards and their thin triggers exist.',
       kind: 'baseline',
       async run(repo: any) {
         for (const topic of topics) {
@@ -31,16 +33,6 @@ export default {
           if ((await repo.glob(`.claude/skills/${topic}/SKILL.md`)).length !== 1) {
             throw new Error(`missing shared standard skill: ${topic}`);
           }
-        }
-
-        for (const reference of contributorReferences) {
-          if ((await repo.glob(`docs/standards/contributor-docs/${reference}`)).length !== 1) {
-            throw new Error(`missing contributor-docs reference: ${reference}`);
-          }
-        }
-
-        if ((await repo.glob('docs/standards/contracts/README.md')).length !== 1) {
-          throw new Error('the reserved C0 contracts slot is missing');
         }
       },
     },

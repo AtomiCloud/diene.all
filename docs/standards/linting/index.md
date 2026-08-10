@@ -1,51 +1,135 @@
----
-id: linting
-title: Linting
----
-
 # Linting
 
-All repository gates are generated from `nix/pre-commit.nix` and run in the Nix
-environment.
-
-## Commands
+## Running lints
 
 ```bash
-pls lint
-pre-commit run --all-files
-nix develop .#ci -c ./scripts/ci/pre-commit.sh
+task lint            # everything, exactly what CI runs
+pre-commit run       # the staged files only (what a commit runs)
 ```
 
-The first two commands are the local entry points. CI uses the third so the same
-hooks and pinned tools run locally and remotely.
+CI runs `pre-commit run --all-files`, so the hook set in `nix/pre-commit.nix` is
+the single source of truth: local commits, `task lint`, and CI all execute the
+same gates.
 
-## Hook inventory
+## Adding a lint
 
-The workspace owns these mechanisms:
+1. Add a hook to `nix/pre-commit.nix` (one entry: the tool, its files pattern).
+2. If the tool comes from the registry or nixpkgs, add it to `nix/packages.nix`.
+3. Run `task lint` to see it fire.
 
-- treefmt: actionlint, nixfmt, prettier, and shfmt;
-- trusted-major and non-trusted-SHA GitHub Action pins;
-- shared nscloud cache-tag shape;
-- executable shell-script permissions;
-- Helm docs and chart linting;
-- Infisical full-tree and staged-diff scans;
-- many-owner keyed-block structure;
-- nixpkgs snapshot, lock, registry, and channel consistency;
-- release schema, D3 type vocabulary, workflow trigger, concurrency, and names;
-- shellcheck;
-- vendored-skill freshness; and
-- workflow job-to-script wiring.
+- each attribute name is the hook id you pass to `pre-commit run <hook-id>`;
+- `name` is the label the run prints;
+- `entry` is what actually executes — either a Nix store path
+  (`${packages.<tool>}/bin/<tool> …`, so the pinned tool runs) or a call to the
+  `validator` helper in that file, which runs one script under `scripts/validate/`
+  with a fixed PATH. The `dlint` invocations are written out in full in the
+  `a-action-pins-trusted`, `a-action-pins-non-trusted` and `a-workflows` entries
+  rather than routed through `validator`, and those entries say why;
+- `files` is the regex selecting which paths trigger the hook; a hook with no
+  `files` runs on every commit;
+- `stages` narrows a hook to a non-default stage; a hook without it runs at the
+  default pre-commit stage.
 
-The commit-msg stage registers `releaser lint-commit -c atomi_release.yaml`
-from the immutable `AtomiCloud/releaser` v1.0.0 flake input. No `.gitlint` hook
-or file exists.
+The formatters treefmt drives are the `programs` attribute set in
+[`nix/fmt.nix`](../../../nix/fmt.nix); each entry enables one formatter and may
+carry its own `excludes`.
+
+**Commit messages are checked.** The `a-releaser-commit` hook runs at the
+`commit-msg` stage and calls `releaser lint-commit -c release.yaml`, so the
+message is measured against the same file that defines the commit types and the
+release levels — see
+[the conventional-commits standard](../conventional-commits/index.md). There is
+still no `.gitlint` hook or file and one must not be added; the vocabulary has one
+authority.
+
+This hook was absent for one round, and the reason is worth knowing before you
+touch it: no development shell provided the `releaser` binary then, and because
+entering a Nix shell reinstalls hooks into the repository's shared git directory,
+a commit-msg hook whose binary was missing broke plain `git commit` for every
+worktree at once. Its `entry` is an absolute Nix store path rather than a bare
+command name, which is what makes it resolve from any worktree and any shell.
+
+## The repo-agnostic checks: `dlint action-pins` and `dlint ci-wiring`
+
+`dlint` is a tool from the Nix registry. The parent template runs every check
+`dlint.yaml` configures through a single blanket `dlint lint` hook; **this node
+deliberately does not take that hook** — but the reason is no longer the one this
+page used to give, so read the current one rather than the remembered one.
+
+The old reason was that `no-custom-derivations` forbade exactly the `cyanprint`
+build recipe `nix/packages.nix` authored on purpose. **That collision is gone.**
+The lead ruled it settled by a registry hoist rather than by deleting the
+capability or by an exemption, the hoist landed in `nix-registry` v5.5.0, and this
+node now inherits `cyanprint` from the registry instead of building it. The check
+was measured passing at this tip.
+
+The reason the hook stays unadopted now is different and larger. `dlint lint` is
+`--all-configured`, so it runs every check `dlint` ships — including
+`toolchain-smoke`, which **enters each declared development shell**. Entering the
+shell fires the `shellHook`, which reinstalls hooks into the repository's shared
+git directory, so a pre-commit hook that entered a shell would rewrite the gate of
+every other worktree mid-commit. That is the same hazard described above for the
+commit-msg hook, and it is why adoption is a routed question rather than a
+seat-level cleanup; see the comment above `a-enforce-exec` in
+`nix/pre-commit.nix`.
+
+This repository takes **three** modes, each called explicitly by name:
+
+- `action-pins trusted` and `action-pins non-trusted`, from the two
+  `a-action-pins-*` hooks. Trust is one regex, `dlint.yaml`'s
+  `checks["action-pins"].trustedPattern`, and there is no trust map to maintain;
+- `ci-wiring`, from the `a-workflows` hook: every orchestrator job must resolve to
+  a repository-local reusable workflow and every referenced `scripts/ci` entry
+  point must exist and be executable. It replaced the `wiring` mode of
+  `scripts/validate/workflows.sh`, which is why that script no longer has one.
+
+**The rest of `scripts/validate/` stays, and that is a deliberate difference from
+the parent.** The parent template moved four checks to `dlint` — `action-pins`,
+`exec-bits`, `ci-wiring` and `workflow-policy` — and deleted the scripts behind
+them. Here `action-pins` and `ci-wiring` have moved, and `scripts/validate/action-pins.sh`
+went with `action-pins`; `exec-bits` and the release-policy modes have not. Read
+`nix/pre-commit.nix` for which mechanism each hook actually runs; do not infer it
+from the parent's copy of this page.
+
+`dlint.yaml` in the repository root configures the checks, and two things about
+that file are decisions rather than transcription, neither of which can be written
+down inside it because the schema carries no place for them:
+
+- **`ci-wiring.orchestrators` lists `ci.yaml`, `cd.yaml` and `release.yaml`, and
+  deliberately not `🛡️merge-gatekeeper.yml`.** The `⚡`-prefixed workflows are the
+  reusable workflows being called, so they are not orchestrators either. The
+  gatekeeper is neither: it has no `run:` step, it is the only GitHub-hosted job in
+  the tree, and its job calls a third-party action rather than a repository-local
+  reusable workflow. `ci-wiring` refuses an orchestrator whose job does not call
+  one, so listing it would make the check red for a repository that is correct.
+- **An absent section is an error, not a pass.** `dlint` exits `3` when its
+  configuration, or a section it needs, or a subject it was told to expect, is
+  missing — and `1` only when the repository actually breaks a rule. Any wiring that
+  treats `3` as success defeats the tool's whole design, so a hook or CI step must
+  pass the exit code through rather than swallow it.
+
+The `a-workflows` hook writes `dlint` as an absolute Nix store path,
+`${packages.dlint}/bin/dlint`, and that is a safety property rather than a style
+rule. A missing package fails at Nix evaluation, loudly, and no shell builds. A
+bare `dlint` name would instead fail at runtime with exit `127` — which the probe
+helper reports as "could not prove sabotage", so a mutation arm would refuse for
+the wrong reason while the baseline arm merely failed.
+
+**Workflow naming is checked here and nowhere upstream.** `.dlint.json` configures
+no naming check, so `scripts/validate/workflows.sh workflow-names` — which asserts
+`ci.yaml` is named `CI` and `cd.yaml` is named `CD` — has no successor to move to
+and is kept on this node. It is nominated for hoist to the parent template so the
+check reaches every node instead of this one alone.
 
 ## Configuration rules
 
 - Add custom hooks in `nix/pre-commit.nix` with an `a-` prefix.
 - Use Nix-provided tool paths or the repository validator wrapper; hooks must not
   depend on host-installed binaries.
-- Give each independent enforcement mechanism its own hook and probe mutation.
+- Group one validator script's modes into a single hook rather than one hook per
+  mode; hooks are the unit a committer waits on, not the unit of enforcement.
+- Give each independent enforcement mechanism its own probe mutation, including
+  the mechanisms that share a hook.
 - Run a single hook with
   `pre-commit run <hook-id> --all-files` when diagnosing a failure.
 

@@ -2,42 +2,7 @@
 set -euo pipefail
 
 mode="${1:-}"
-[ "${mode}" != "wiring" ] && [ "${mode}" != "release-trigger" ] && [ "${mode}" != "release-concurrency" ] && [ "${mode}" != "workflow-names" ] && echo "❌ unsupported workflow validation mode" >&2 && exit 1
-
-if [ "${mode}" = "wiring" ]; then
-  while IFS= read -r script; do
-    [ -f "${script}" ] || {
-      echo "❌ workflow references missing script '${script}'" >&2
-      exit 1
-    }
-    [ -x "${script}" ] || {
-      echo "❌ workflow script '${script}' is not executable" >&2
-      exit 1
-    }
-  done < <(rg -o --no-filename 'scripts/ci/[A-Za-z0-9._-]+[.]sh' .github/workflows | sort -u)
-
-  for orchestrator in .github/workflows/ci.yaml .github/workflows/cd.yaml .github/workflows/release.yaml; do
-    while IFS=$'\t' read -r job reusable; do
-      [ -z "${reusable}" ] && echo "❌ '${orchestrator}' job '${job}' must call a reusable workflow" >&2 && exit 1
-      [[ ${reusable} == ./.github/workflows/* ]] || {
-        echo "❌ '${orchestrator}' job '${job}' must call a repository-local reusable workflow" >&2
-        exit 1
-      }
-      target="${reusable#./}"
-      [ -f "${target}" ] || {
-        echo "❌ '${orchestrator}' references missing reusable workflow '${target}'" >&2
-        exit 1
-      }
-      rg -q 'scripts/ci/[A-Za-z0-9._-]+[.]sh' "${target}" || {
-        echo "❌ reusable workflow '${target}' does not call a scripts/ci entrypoint" >&2
-        exit 1
-      }
-    done < <(yq -r '.jobs | to_entries[] | [.key, (.value.uses // "")] | @tsv' "${orchestrator}")
-  done
-
-  echo "✅ Workflow jobs resolve to existing CI scripts"
-  exit 0
-fi
+[ "${mode}" != "release-trigger" ] && [ "${mode}" != "release-concurrency" ] && [ "${mode}" != "workflow-names" ] && echo "❌ unsupported workflow validation mode: expected 'release-trigger', 'release-concurrency' or 'workflow-names'" >&2 && exit 1
 
 if [ "${mode}" = "workflow-names" ]; then
   [ "$(yq -r '.name' .github/workflows/ci.yaml)" != "CI" ] && echo "❌ ci.yaml workflow name must be CI" >&2 && exit 1

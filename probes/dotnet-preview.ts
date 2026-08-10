@@ -9,7 +9,7 @@ export default {
       description: 'The preview task executes the compiled Release artifact.',
       kind: 'baseline',
       async run(repo: any) {
-        await runWithRedis(repo, 'dotnet-base-probe-preview', 'nix develop .#default -c pls preview');
+        await runWithRedis(repo, 'dotnet-base-probe-preview', 'nix develop .#default -c task preview');
       },
     },
   ],

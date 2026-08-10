@@ -1,5 +1,3 @@
-# ### workspace-chart
-# #### source: workspace
 apiVersion: v2
 name: dotnet-base
 description: Helm chart for diene/dotnet-base
