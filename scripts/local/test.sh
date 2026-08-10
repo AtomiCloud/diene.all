@@ -14,6 +14,11 @@ if [ "${mode}" = "meta" ] && ! go list ./testhelper/... >/dev/null 2>&1; then
   exit 0
 fi
 
+if [ "${mode}" = "int" ] && ! go list ./adapters/... >/dev/null 2>&1; then
+  echo "✅ Go int tests skipped: no adapters package"
+  exit 0
+fi
+
 if [ "${watch}" = "true" ]; then
   gotestsum --watch -- "${tests}"
 elif [ "${coverage}" = "true" ]; then

@@ -1,3 +1,3 @@
-module example.invalid/go-lib-api-baseline
+module github.com/AtomiCloud/diene.go-errors-problems
 
 go 1.26.0
