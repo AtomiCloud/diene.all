@@ -1,8 +1,11 @@
 import { defineGate } from './lib/definition.ts';
 import { expectGreen, expectRed } from './lib/helpers.ts';
 
+// The 1.0.0 baseline package only exists after the library's own first release, so the
+// baseline is conditioned off while 1.0.0 itself is being built. Pack a post-1.0.0 version
+// to exercise the compatibility gate in the state that actually ships it.
 const packAgainstPublishedBaseline =
-  'rm -rf artifacts/api-candidate && mkdir -p artifacts/api-candidate && dotnet pack Lib/Lib.csproj -c Release --output artifacts/api-candidate';
+  'rm -rf artifacts/api-candidate && mkdir -p artifacts/api-candidate && dotnet pack Lib/Lib.csproj -c Release -p:Version=1.0.1 --output artifacts/api-candidate';
 
 export default defineGate({
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },

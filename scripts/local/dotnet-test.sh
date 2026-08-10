@@ -4,7 +4,13 @@ set -euo pipefail
 kind="${1:-}"
 mode="${2:-normal}"
 
-[ "${kind}" != "unit" ] && [ "${kind}" != "int" ] && [ "${kind}" != "meta" ] && echo "❌ Usage: dotnet-test.sh <unit|int|meta> [--watch|--coverage]" >&2 && exit 1
+# This is the ONE place the tier list lives. scripts/ci/test.sh used to keep a
+# second copy; it passes the mode straight through now, so the refusal has to name
+# the value it rejected or a caller two scripts up cannot tell what it sent.
+# The `meta` tier is this node's own: it holds a TestHelper project, which the
+# parent does not, so the parent's list is narrower by one. Taking the parent's
+# list wholesale would leave the meta handler below unreachable.
+[ "${kind}" != "unit" ] && [ "${kind}" != "int" ] && [ "${kind}" != "meta" ] && echo "❌ test tier '${kind}' is not one of unit|int|meta (usage: dotnet-test.sh <unit|int|meta> [--watch|--coverage])" >&2 && exit 1
 [ "${mode}" != "normal" ] && [ "${mode}" != "--watch" ] && [ "${mode}" != "--coverage" ] && echo "❌ Unknown mode '${mode}'" >&2 && exit 1
 
 root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
@@ -60,6 +66,15 @@ mkdir -p "${coverage}"
 accumulator="${coverage}/coverage.json"
 last_index=$((${#projects[@]} - 1))
 
+# Build every registered project before measuring. Coverlet instruments assemblies after
+# the build that `dotnet test` performs implicitly; on a clean tree that ordering can hand
+# the test host an uninstrumented copy and report a fully exercised assembly as 0 covered
+# lines. Building first makes the instrumented output deterministic.
+for project_rel in "${projects[@]}"; do
+  echo "🏗️ Building ${kind} coverage project: ${project_rel}"
+  dotnet build "${root}/${project_rel}" -c Release
+done
+
 for index in "${!projects[@]}"; do
   project_rel="${projects[${index}]}"
   project_name="$(basename "${project_rel}" .csproj)"
@@ -97,9 +112,13 @@ valid="$(xmlstarlet sel -t -v '/coverage/@lines-valid' "${report}")"
 packages="$(xmlstarlet sel -t -m '/coverage/packages/package' -v '@name' -o $'\t' -v '@line-rate' -n "${report}")"
 [ -z "${packages}" ] && echo "❌ ${kind} coverage contains no packages" >&2 && exit 1
 
+# The unit ledger is read from the library projects themselves: the inherited [Lib*]*
+# wildcard plus whatever assembly names those projects declare, never a literal package name.
+unit_ledger="$(find "${root}" -mindepth 2 -maxdepth 2 -type f -name '*.csproj' -path "${root}/Lib*/*" -exec xmlstarlet sel -t -m '/Project/PropertyGroup/AssemblyName' -v . -n {} +)"
+
 while IFS=$'\t' read -r assembly line_rate; do
   if [ "${kind}" = "unit" ]; then
-    [[ ${assembly} =~ ^Lib.*$ || ${assembly} == "AtomiCloud.Diene.CoreUtils" ]] || {
+    [[ ${assembly} =~ ^Lib.*$ ]] || echo "${unit_ledger}" | rg -Fxq "${assembly}" || {
       echo "❌ unit coverage escaped its [Lib*]* ledger: ${assembly}" >&2
       exit 1
     }

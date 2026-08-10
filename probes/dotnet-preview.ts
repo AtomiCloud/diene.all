@@ -11,7 +11,7 @@ export default {
       async run(repo: any) {
         await expectGreen(
           repo,
-          'nix develop .#default -c pls preview | rg -F "Success: core-utils round trip matched"',
+          'nix develop .#default -c task preview | rg -F "Success: core-utils round trip matched"',
           'dotnet-base-probe-preview',
         );
       },

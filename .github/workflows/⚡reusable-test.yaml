@@ -21,7 +21,7 @@ jobs:
     runs-on:
       - nscloud-ubuntu-22.04-amd64-4x8-with-cache
       - nscloud-cache-size-50gb
-      - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
+      - nscloud-cache-tag-nix-store-cache-linux-amd64
     steps:
       - uses: AtomiCloud/actions.setup-nix@v3
       - uses: AtomiCloud/actions.cache-nuget@v1
@@ -43,14 +43,14 @@ jobs:
           fi
       - name: Upload ${{ inputs.name }} test results
         if: always() && steps.test.outputs.has-results == 'true'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: test-results-${{ inputs.mode }}
           path: TestResults/${{ inputs.mode }}/*.trx
           if-no-files-found: warn
       - name: Upload ${{ inputs.name }} coverage report
         if: always() && steps.test.outputs.has-results == 'true'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: coverage-${{ inputs.mode }}
           path: TestResults/${{ inputs.mode }}/coverage/coverage.cobertura.xml
@@ -58,7 +58,7 @@ jobs:
       - name: Upload ${{ inputs.name }} coverage to Codecov
         if: always() && steps.test.outputs.has-results == 'true'
         continue-on-error: true
-        uses: codecov/codecov-action@v7
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7
         with:
           files: TestResults/${{ inputs.mode }}/coverage/coverage.cobertura.xml
           flags: ${{ inputs.mode }}

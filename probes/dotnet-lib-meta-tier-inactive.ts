@@ -20,7 +20,7 @@ export default defineSmoke({
       );
       await expectGreen(
         repo,
-        `nix develop .#ci -c bash -c 'pls test:meta:coverage | rg -Fq "meta tier is inactive"'`,
+        `nix develop .#ci -c bash -c 'task test:meta:coverage | rg -Fq "meta tier is inactive"'`,
         'dotnet-lib-meta-tier-inactive',
         600000,
       );
