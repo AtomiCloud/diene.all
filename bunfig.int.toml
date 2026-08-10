@@ -1,12 +1,11 @@
 [test]
 root = "tests/integration"
+timeout = 120000
 coverageReporter = ["text", "lcov"]
 coverageDir = "coverage/int"
 coverageSkipTestFiles = true
-coveragePathIgnorePatterns = ["src/index.ts", "src/lib/**", "tests/**"]
-
-# Real containers; the first run of a lane pulls the image.
-timeout = 120000
+# Int ledger = the adapters tier only; the domain is the unit ledger, the glue is not an adapter, tests/** never counts.
+coveragePathIgnorePatterns = ["src/index.ts", "src/lib/**", "src/test-helper/**", "tests/**"]
 
 # Imports every src/adapters module so an untested one is measured at 0% rather than absent.
 preload = ["./tests/support/int-ledger.ts"]

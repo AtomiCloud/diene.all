@@ -26,7 +26,12 @@ if [[ ${mode} == "content" || ${mode} == "all" ]]; then
     package/dist/index.cjs
     package/dist/index.d.ts
     package/dist/index.d.cts
-    package/skills/diene-bun-lib-usage/SKILL.md
+    package/dist/test-helper.js
+    package/dist/test-helper.cjs
+    package/dist/test-helper.d.ts
+    package/dist/test-helper.d.cts
+    package/skills/diene-auth-engine-usage/SKILL.md
+    package/skills/diene-auth-engine-usage/patterns.md
   )
   missing=0
   for path in "${expected[@]}"; do
@@ -36,6 +41,25 @@ if [[ ${mode} == "content" || ${mode} == "all" ]]; then
     fi
   done
   [ "${missing}" -ne 0 ] && exit 1
+  if grep -q '^package/fixtures/' <<<"${listing}"; then
+    echo "❌ scratch-consumer fixtures must not be packed" >&2
+    exit 1
+  fi
+  usage_skill="$(tar -xOf pkg.tgz package/skills/diene-auth-engine-usage/SKILL.md)"
+  if ! grep -qF 'https://github.com/AtomiCloud/diene.bun-auth-engine/blob/main/docs/standards/auth/index.md' <<<"${usage_skill}"; then
+    echo "❌ packaged usage skill must point to the repository authentication standard" >&2
+    exit 1
+  fi
+  for contract_text in AppHandoffExpired registerAuthProblems app_handoff_expired; do
+    if ! grep -qF "${contract_text}" <<<"${usage_skill}"; then
+      echo "❌ packaged usage skill is missing the exact ${contract_text} handoff contract" >&2
+      exit 1
+    fi
+  done
+  if grep -q '^package/docs/' <<<"${listing}"; then
+    echo "❌ docs/ is outside the package allowlist; use the repository pointer" >&2
+    exit 1
+  fi
   echo "✅ pack-content: all declared artifacts present"
 fi
 
@@ -46,7 +70,9 @@ fi
 
 if [[ ${mode} == "attw" || ${mode} == "all" ]]; then
   echo "🔎 Checking type resolvability (attw)..."
-  ./node_modules/.bin/attw pkg.tgz
+  ./node_modules/.bin/attw pkg.tgz --profile node16
+  echo "🔎 Dogfooding the packed tarball in the scratch consumer..."
+  ./fixtures/scratch-consumer/validate.sh
 fi
 
 echo "✅ Package validation (${mode}) passed"
