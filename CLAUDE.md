@@ -1,25 +1,103 @@
-# Development Environment
+# Diene workspace agent guide
 
-All binaries, tools, and PATH are managed by **Nix**. Do not install tools manually or modify PATH outside of the nix configuration.
+## Agent skills
 
-## Prerequisites
+`.claude/skills/vendor/` is tool-owned and is never hand-edited. Nothing in this
+tree writes it: the tool that does is consumed per-template from the Nix registry,
+and this tree declares no packages for it to vendor.
 
-1. **Nix** — package manager ([install](https://nixos.org/download))
-2. **Docker** — container runtime ([install](https://docs.docker.com/get-docker))
-3. **direnv** — auto-loads the nix shell on `cd` ([install](https://direnv.net/docs/installation.html))
+## CI/CD workflows
 
-## Getting Started
+See [docs/standards/ci-cd/index.md](docs/standards/ci-cd/index.md).
 
-```bash
-direnv allow    # first time only — loads the nix dev shell
-```
+## Conventional commits
 
-## Nix Configuration
+See [docs/standards/conventional-commits/index.md](docs/standards/conventional-commits/index.md).
 
-See **[docs/standards/nix/index.md](docs/standards/nix/index.md)** for the full guide on:
+## Data validation
 
-- File structure (`flake.nix`, `nix/`, `.envrc`)
-- Adding/removing packages
-- Environment groups and shells
-- Formatters and pre-commit hooks
-- Adding registries
+See [docs/standards/validation/index.md](docs/standards/validation/index.md).
+
+## Date and time
+
+See [docs/standards/datetime/index.md](docs/standards/datetime/index.md).
+
+## Domain-driven design
+
+See [docs/standards/domain-driven-design/index.md](docs/standards/domain-driven-design/index.md).
+
+## Functional practices
+
+See [docs/standards/functional-practices/index.md](docs/standards/functional-practices/index.md).
+
+## Helm charts and publishing
+
+See [docs/standards/helm/index.md](docs/standards/helm/index.md).
+
+## Infisical and secrets
+
+See [docs/standards/infisical/index.md](docs/standards/infisical/index.md).
+
+## Linting and pre-commit
+
+See [docs/standards/linting/index.md](docs/standards/linting/index.md).
+
+## Nix flakes and development shells
+
+Use the repository's Nix shell for every command. Read
+[docs/standards/nix/index.md](docs/standards/nix/index.md) before changing the
+flake or `nix/` modules.
+
+## Release automation
+
+See [docs/standards/semantic-release/index.md](docs/standards/semantic-release/index.md).
+
+## Repository standards
+
+Follow the linked standard before changing its surface. Domain-specific
+architecture and behavior belongs under [docs/domain/](docs/domain/README.md),
+not under `docs/standards/`.
+
+## Service-tree identity
+
+See [docs/standards/service-tree/index.md](docs/standards/service-tree/index.md).
+
+## Shell scripts
+
+See [docs/standards/shell-scripts/index.md](docs/standards/shell-scripts/index.md).
+
+## Software design philosophy
+
+See [docs/standards/software-design-philosophy/index.md](docs/standards/software-design-philosophy/index.md).
+
+## SOLID principles
+
+See [docs/standards/solid-principles/index.md](docs/standards/solid-principles/index.md).
+
+## Stateless OOP and dependency injection
+
+See [docs/standards/stateless-oop-di/index.md](docs/standards/stateless-oop-di/index.md).
+
+## Taskfile conventions
+
+See [docs/standards/taskfile/index.md](docs/standards/taskfile/index.md).
+
+## Testing
+
+See [docs/standards/testing/index.md](docs/standards/testing/index.md).
+
+## Three-layer architecture
+
+See [docs/standards/three-layer-architecture/index.md](docs/standards/three-layer-architecture/index.md).
+
+## Utility libraries
+
+See [docs/standards/utilities/index.md](docs/standards/utilities/index.md).
+
+Domain-specific architecture and behavior belongs under
+[docs/domain/](docs/domain/README.md).
+
+## Vanadium admission policies
+
+Read [the Vanadium baseline](docs/developer/vanadium-baseline.md) before changing
+the ValidatingAdmissionPolicy chart, CEL rules, fixtures, or local proof.

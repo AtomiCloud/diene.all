@@ -1,0 +1,20 @@
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: vanadium
+servers: 1
+agents: 0
+image: rancher/k3s:v1.31.5-k3s1
+ports:
+  - port: 38080:80
+    nodeFilters: [loadbalancer]
+registries:
+  create:
+    name: vanadium-registry
+    host: 0.0.0.0
+    hostPort: '35001'
+options:
+  k3s:
+    extraArgs:
+      - arg: --disable=traefik
+        nodeFilters: [server:*]

@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: landscape-ok
+  labels:
+    atomi.cloud/landscape: example
+  annotations:
+    atomi.cloud/landscape: example
+spec:
+  selector:
+    matchLabels:
+      app: demo
+  template:
+    metadata:
+      labels:
+        app: demo
+    spec:
+      containers:
+        - name: app
+          image: demo:1.0.0

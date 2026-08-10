@@ -1,0 +1,27 @@
+version: '3'
+
+tasks:
+  setup:
+    desc: Set up generated workspace assets
+    cmds:
+      - ./scripts/local/setup.sh
+
+  lint:
+    desc: Run all repository gates
+    cmds:
+      - pre-commit run --all-files
+
+  test:
+    desc: Run the vanadium unit/static tier
+    cmds:
+      - ./scripts/ci/vanadium.sh
+
+  test:unit:
+    desc: Run schema, lint, render, label, exemption, audit/enforce, and per-rule CEL conformance
+    cmds:
+      - ./scripts/ci/vanadium.sh
+
+  test:int:
+    desc: Run the local k3d admission-policy proof (reserved for the live window)
+    cmds:
+      - K3D_ISOLATE_BY_PATH=true VANADIUM_EVIDENCE_DIR="{{.ROOT_DIR}}/.vanadium-evidence" ./scripts/validate/vanadium-k3d.sh

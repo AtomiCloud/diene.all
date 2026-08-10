@@ -1,0 +1,7 @@
+# Independent landscape overlay. It sets the cluster landscape on both the
+# service-tree projection and the admission params that drive value-checking CEL.
+serviceTree:
+  landscape: example
+
+params:
+  landscape: example

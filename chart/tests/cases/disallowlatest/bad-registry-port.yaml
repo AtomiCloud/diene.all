@@ -1,0 +1,17 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: registry-port-no-tag
+spec:
+  selector:
+    matchLabels:
+      app: demo
+  template:
+    metadata:
+      labels:
+        app: demo
+    spec:
+      initContainers: []
+      containers:
+        - name: app
+          image: registry.example.invalid:5000/team/app

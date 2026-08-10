@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unlabeled
+  labels:
+    atomi.cloud/landscape: example
+    atomi.cloud/platform: nitroso
+    atomi.cloud/service: demosvc
+    atomi.cloud/module: api
+spec:
+  selector:
+    matchLabels:
+      app: demo
+  template:
+    metadata:
+      labels:
+        app: demo
+    spec:
+      containers:
+        - name: app
+          image: demo:1.0.0
