@@ -156,23 +156,6 @@ export async function plantSecret(
   return { path };
 }
 
-export async function staleHelmDocs(repo: ProbeRepo, options?: { globs?: string[] }): Promise<MutationResult> {
-  const candidates = await uniquePaths(
-    repo,
-    options?.globs ?? ['infra/**/values.yaml', 'charts/**/values.yaml', 'values.yaml'],
-  );
-  if (candidates.length === 0) {
-    throw new Error('no Helm values file found for a stale helm-docs mutation');
-  }
-  const path = candidates[0];
-  const source = await repo.read(path);
-  await repo.write(
-    path,
-    `${source.trimEnd()}\n\n# -- Probe-only value that makes generated Helm docs stale.\nprobeHelmDocsStale: true\n`,
-  );
-  return { path };
-}
-
 export type FormatterKind = 'nixfmt' | 'prettier-markdown' | 'prettier-yaml' | 'shfmt';
 
 export async function unformatFile(

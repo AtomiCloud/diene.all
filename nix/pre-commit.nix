@@ -143,15 +143,6 @@ in
       language = "system";
     };
 
-    a-helm-lint = {
-      enable = true;
-      name = "Helm lint";
-      entry = "${packages.kubernetes-helm}/bin/helm lint infra/root_chart";
-      files = "^infra/root_chart/.*";
-      pass_filenames = false;
-      language = "system";
-    };
-
     a-infisical = {
       enable = true;
       name = "Secrets scan";

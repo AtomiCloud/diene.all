@@ -3,40 +3,38 @@
 schemaVersion: 2
 
 types:
-  # RESTORED after the shared@99a297e9 cascade: 16 type/scope pairs this node owned
-  # pre-merge were dropped by the merge and are re-added here in their pre-merge
-  # shape, ordering and wording, copied from 7919a1a2 rather than re-authored.
-  # They are `chore/many-owner` `chore/nix` `chore/workspace` `docs/nix` `feat/nix`
-  # `feat/probes` `fix/nix` `fix/probes` `fix/skills` `fix/workspace` `merge/main`
-  # `merge/workspace` `perf/probes` `refactor/ci` `style/probes` `test/probes` —
-  # character-for-character the same 16 `go-base` lost and had restored before it
-  # landed. Nothing here asserts a scope is CORRECT; it asserts only that a cascade
-  # did not get to decide. A PARENT TRIM IS NOT A RULING.
+  # THIS NODE KEEPS ITS OWN 17 TYPE/SCOPE PAIRS. The parent (`dotnet-base`) carries 34.
+  # Adopting the parent's set wholesale would silently re-tier this node upward, which
+  # is the same defect as a cascade dropping pairs, only in the other direction. So the
+  # 17 pairs the parent adds — `chore/many-owner` `chore/nix` `chore/workspace`
+  # `docs/nix` `feat/nix` `feat/probes` `fix/nix` `fix/probes` `fix/skills`
+  # `fix/workspace` `merge/default` `merge/main` `merge/workspace` `perf/probes`
+  # `refactor/ci` `style/probes` `test/probes` (the whole `merge` TYPE included) — are
+  # removed here, and nothing this node owned was lost. The file's SHAPE is the
+  # parent's: the rename to `release.yaml`, the richer `conventions.template`, the
+  # multi-line release commit message, and `App/App.csproj` as the version asset all
+  # come across unchanged. Only the vocabulary is resolved to this node's own set.
   #
-  # Why this is a restoration and not a decision: whether the fleet's commit
-  # vocabulary is one canonical tier or two by depth is OPEN WITH THE OWNER as
-  # coordinator-8 item 19, and is neither this node's call nor this seat's. The
-  # interim standing rule is that every node keeps its OWN pre-merge set in BOTH
-  # directions — losses restored, gains removed — with the generated doc rebuilt in
-  # the same commit. A LATER CASCADE MUST NOT READ THIS RESTORATION AS A RULING on
-  # what the vocabulary should be; when item 19 is settled, settle this file with it.
+  # This is an interim resolution, not a ruling. Whether the fleet's commit vocabulary
+  # is one canonical tier or two by depth is OPEN WITH THE OWNER as coordinator-8
+  # item 19. The standing interim rule is that every node keeps its OWN pre-merge set
+  # in BOTH directions — losses restored, gains removed — with the generated doc
+  # rebuilt in the same commit. A LATER CASCADE MUST NOT READ THIS REMOVAL AS A RULING
+  # on what the vocabulary should be; when item 19 is settled, settle this file with it.
   #
-  # Why the loss was invisible: the two gates that check this file, `Release config
-  # schema` and `Release type vocabulary`, are pinned to `^atomi_release\.yaml$` and
-  # the parent renamed that file to `release.yaml`, so both now match nothing and
+  # Why a change here is easy to miss: the two gates that check this file, `Release
+  # config schema` and `Release type vocabulary`, are pinned to `^atomi_release\.yaml$`
+  # and the parent renamed that file to `release.yaml`, so both now match nothing and
   # report `(no files to check)Skipped` — a clean exit that an aggregate exit code
-  # cannot tell apart from a pass. `.NET release type vocabulary` does match this
-  # file, which is why the lost `amend` TYPE below was caught, but it asserts the
-  # type set only and is structurally blind to lost SCOPES. Do not read a green
-  # battery on this file as coverage until those two patterns are repointed.
+  # cannot tell apart from a pass. `.NET release type vocabulary` does match this file,
+  # which is why a lost `amend` TYPE would be caught, but it asserts the type set only
+  # and is structurally blind to lost SCOPES. Do not read a green battery on this file
+  # as coverage until those two patterns are repointed.
   #
-  # RE-ADDED after the shared@99a297e9 cascade. The parent went from 14 commit types
-  # to 13 by dropping `amend`, and that deletion auto-merges CLEANLY into every child:
-  # no conflict, no marker, nothing to notice. It was caught here only because this
-  # node owns `scripts/validate/dotnet-release.sh`, which asserts the exact type set
-  # and refused; a node without that validator loses the type and stays fully green.
-  # bun-base has already landed having lost it. Restored on coordinator-8 ruling.
-  # Do not remove this type as part of a cascade — a parent trim is not a ruling.
+  # `amend` is a TYPE this node owns and a parent trim once dropped it fleet-wide; that
+  # deletion auto-merges CLEANLY into every child — no conflict, no marker, nothing to
+  # notice. It survives here. Do not remove it as part of a cascade: a parent trim is
+  # not a ruling.
   - type: amend
     desc: Small amendments and typo fixes
     scopes:
@@ -54,15 +52,6 @@ types:
     scopes:
       default:
         desc: Perform a chore
-        release: false
-      many-owner:
-        desc: Surfaces with several owners
-        release: false
-      nix:
-        desc: Nix flake and modules
-        release: false
-      workspace:
-        desc: Workspace tree itself
         release: false
   - type: ci
     desc: CI/CD changes
@@ -99,9 +88,6 @@ types:
       default:
         desc: Update documentation
         release: false
-      nix:
-        desc: Nix flake and modules
-        release: false
   - type: feat
     desc: New features
     section: ✨ Features ✨
@@ -112,12 +98,6 @@ types:
       breaking:
         desc: Add a breaking feature
         release: major
-      nix:
-        desc: Nix flake and modules
-        release: minor
-      probes:
-        desc: Verification corpus
-        release: minor
   - type: fix
     desc: Bug fixes
     section: 🐛 Bug Fixes 🐛
@@ -125,30 +105,6 @@ types:
       default:
         desc: Fix a bug
         release: patch
-      nix:
-        desc: Nix flake and modules
-        release: patch
-      probes:
-        desc: Verification corpus
-        release: patch
-      skills:
-        desc: Vendored agent skills
-        release: patch
-      workspace:
-        desc: Workspace tree itself
-        release: patch
-  - type: merge
-    desc: Branch merges
-    scopes:
-      default:
-        desc: Merge a branch
-        release: false
-      main:
-        desc: Root branch layer
-        release: false
-      workspace:
-        desc: Workspace tree itself
-        release: false
   - type: perf
     desc: Performance improvements
     section: 🚀 Performance Improvement 🚀
@@ -156,17 +112,11 @@ types:
       default:
         desc: Improve performance
         release: patch
-      probes:
-        desc: Verification corpus
-        release: patch
   - type: refactor
     desc: Refactors
     scopes:
       default:
         desc: Refactor implementation
-        release: minor
-      ci:
-        desc: CI/CD wiring
         release: minor
   - type: style
     desc: Non-functional style changes
@@ -174,18 +124,12 @@ types:
       default:
         desc: Update style
         release: patch
-      probes:
-        desc: Verification corpus
-        release: patch
   - type: test
     desc: Test changes
     section: 🧪 Tests 🧪
     scopes:
       default:
         desc: Add or correct tests
-        release: minor
-      probes:
-        desc: Verification corpus
         release: minor
 
 specialScopes:

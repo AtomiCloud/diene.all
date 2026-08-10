@@ -37,10 +37,6 @@ See [docs/standards/domain-driven-design/index.md](docs/standards/domain-driven-
 
 See [docs/standards/functional-practices/index.md](docs/standards/functional-practices/index.md).
 
-## Helm charts and publishing
-
-See [docs/standards/helm/index.md](docs/standards/helm/index.md).
-
 ## Infisical and secrets
 
 See [docs/standards/infisical/index.md](docs/standards/infisical/index.md).
@@ -119,7 +115,7 @@ so this node owns it.
 ## .NET base template
 
 Read [the .NET baseline](docs/developer/dotnet-baseline.md) and use `task` for
-setup, build, run, test, coverage, dead-code review, Docker, and Helm tasks.
+setup, build, run, test, coverage, dead-code review, and Docker tasks.
 
 Language variants:
 
