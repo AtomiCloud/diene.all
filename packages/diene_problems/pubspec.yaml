@@ -1,0 +1,38 @@
+name: diene_problems
+# Keep between 60 and 180 characters: pana scores a longer description as an
+# invalid pubspec, and the gate runs with --exit-code-threshold 0.
+description: >-
+  RFC 9457 problem-details for Dart: envelope with the `data` extension, one
+  type-URI builder, a typed registry, LocalError wrapping, and per-endpoint
+  catalog export.
+version: 0.1.1
+repository: https://github.com/AtomiCloud/diene.dart_problems
+issue_tracker: https://github.com/AtomiCloud/diene.dart_problems/issues
+homepage: https://github.com/AtomiCloud/diene.dart_problems
+
+topics:
+  - rfc-9457
+  - problem-details
+  - errors
+  - api
+
+resolution: workspace
+
+environment:
+  sdk: '>=3.12.0 <4.0.0'
+
+# Dependency-light by design: the `data` extension payload is a plain JSON map
+# and its catalog schema is authored as a JSON-Schema-shaped Map, so there are
+# no runtime dependencies. RB-315 makes this package the SOLE owner of the
+# public RFC 9457 Problem — `diene_result` and `diene_interfaces` depend on the
+# HOSTED release of this package, never the reverse, so nothing here may ever
+# import them (that edge is the cycle the ruling forbids).
+dependencies: {}
+
+dev_dependencies:
+  coverage: ^1.15.1
+  crypto: ^3.0.6
+  dart_code_linter: ^4.1.7
+  lints: ^6.1.0
+  pana: ^0.23.14
+  test: ^1.31.2

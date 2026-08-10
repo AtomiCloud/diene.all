@@ -47,8 +47,8 @@ const TAG_PIN_SCRIPT: Array<string | RegExp> = [
   'exit 1',
   '}',
   'git fetch --tags --force origin',
-  'git checkout "refs/tags/${TAG}" -- packages/diene_dart_lib',
-  'git --no-pager diff --stat "refs/tags/${TAG}" -- packages/diene_dart_lib',
+  'git checkout "refs/tags/${TAG}" -- packages/diene_problems',
+  'git --no-pager diff --stat "refs/tags/${TAG}" -- packages/diene_problems',
 ];
 const CONFIGURE_SCRIPT: Array<string | RegExp> = [
   `mkdir -p "${CREDENTIAL_DIR}"`,
@@ -357,7 +357,7 @@ const BYPASSES: Array<{ label: string; build: (source: string) => string }> = [
     build: source =>
       insertAfterConfigure(
         source,
-        '      - name: Extra publish\n        run: cd packages/diene_dart_lib && dart pub publish --force\n',
+        '      - name: Extra publish\n        run: cd packages/diene_problems && dart pub publish --force\n',
       ),
   },
   {
@@ -575,7 +575,7 @@ const BYPASSES: Array<{ label: string; build: (source: string) => string }> = [
   },
   {
     label: 'tag pin no longer restores the package from the tag',
-    build: source => source.replace('git checkout "refs/tags/${TAG}" -- packages/diene_dart_lib\n', ''),
+    build: source => source.replace('git checkout "refs/tags/${TAG}" -- packages/diene_problems\n', ''),
   },
   // --- the deployment environment ---------------------------------------
   {

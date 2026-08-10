@@ -26,7 +26,7 @@ export default {
       kind: 'mutation',
       expectedImpact: ['dart-analyze', 'unit-tests'],
       async run(repo: any) {
-        const path = 'packages/diene_dart_lib/pubspec.yaml';
+        const path = 'packages/diene_problems/pubspec.yaml';
         const original = await repo.read(path);
         try {
           await repo.patch(path, {

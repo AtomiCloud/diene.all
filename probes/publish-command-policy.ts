@@ -7,7 +7,7 @@ const PUBLISH_SH = 'scripts/ci/publish.sh';
 function commandPolicyHolds(source: string): boolean {
   return (
     source.includes('scripts/validate/publish-version.sh') &&
-    source.includes('packages/diene_dart_lib') &&
+    source.includes('packages/diene_problems') &&
     source.includes('dart pub publish --force')
   );
 }
@@ -36,7 +36,7 @@ export default {
         if (!commandPolicyHolds(source)) {
           throw new Error('publish-command-policy: policy already broken before sabotage');
         }
-        await repo.write(PUBLISH_SH, source.replace('cd "${root_dir}/packages/diene_dart_lib"', 'cd "${root_dir}"'));
+        await repo.write(PUBLISH_SH, source.replace('cd "${root_dir}/packages/diene_problems"', 'cd "${root_dir}"'));
         if (commandPolicyHolds(await repo.read(PUBLISH_SH))) {
           throw new Error('publish-command-policy: policy survived sabotage');
         }
