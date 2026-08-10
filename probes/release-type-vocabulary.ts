@@ -6,7 +6,7 @@ export default {
   probes: [
     {
       name: 'baseline-release-type-vocabulary-green',
-      description: 'The release type list equals the unified D3 vocabulary.',
+      description: 'The release type list equals the vocabulary the validators enforce.',
       kind: 'baseline',
       async run(repo: any) {
         await expectGreen(
@@ -22,7 +22,7 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        await repo.patch('atomi_release.yaml', { find: '  - type: chore', replace: '  - type: chores' });
+        await repo.patch('release.yaml', { find: '  - type: chore', replace: '  - type: chores' });
         await expectRed(
           repo,
           'nix develop .#ci -c ./scripts/validate/release-config.sh types',
