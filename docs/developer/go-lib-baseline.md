@@ -1,10 +1,27 @@
 # Go library baseline
 
-This template publishes the module
-`github.com/AtomiCloud/diene.go-lib`. A materialized child changes the final
-`go-lib` token to its library name in `.config/go-lib.yaml`, `go.mod`, mirror
-URLs, badges, documentation, and its usage-skill namespace. The mirror remains
-a single-module repository unless a concrete library proves otherwise.
+This library publishes the module
+`github.com/AtomiCloud/diene.go-standard-config`, materialized from the `go-lib`
+template. Retargeting a child changes the final identity token in
+`.config/go-lib.yaml`, `go.mod`, mirror URLs, badges, documentation, and its
+usage-skill namespace. The mirror remains a single-module repository unless a
+concrete library proves otherwise.
+
+It consumes its published siblings through the Go proxy — never a local
+`replace` or path dependency — so its own test suites are the family's
+downstream real-consumption evidence for
+`github.com/AtomiCloud/diene.go-config` and
+`github.com/AtomiCloud/diene.go-otel`. `tests/unit/compose` composes a service
+root schema from config's app block, otel's engine-owned block, and this
+library's four infra presets, then drives the real three-layer load; if either
+registry artifact changes, that suite is what turns red.
+
+Before tagging, run `./scripts/validate/go-proxy-roundtrip-dryrun.sh`. It
+compiles and runs the exact consumer payload of
+`scripts/validate/go-proxy-roundtrip.sh` against the working tree, because the
+published script only ever runs against a real tag: a compile error inside it
+passes branch CI and first surfaces as a red CD after the tag exists and can no
+longer be unpublished.
 
 ## Package and API shape
 
@@ -20,9 +37,12 @@ All tests use external `_test` packages, and `export_test.go` is forbidden;
 `scripts/validate/go-black-box-tests.sh` (pre-commit hook `a-go-black-box`)
 enforces both by rejecting any `export_test.go` or non-`_test` test package.
 
-The sample `note` package and Redis adapter are fenced by their directories for
-wholesale replacement in materialized children. The module has no `main` or
-`cmd` package. `go build ./...`, `go vet ./...`, golangci-lint, govulncheck,
+The public packages are `lib/standardconfig` and the consumer-facing
+`testhelper`. This library binds no infrastructure of its own — it publishes
+schema fragments, and the containers it starts belong to the consumer's tests —
+so it ships no `adapters/` tree and its integration tier is a documented no-op;
+the container runtime is a seam the meta tier substitutes. The module has no
+`main` or `cmd` package. `go build ./...`, `go vet ./...`, golangci-lint, govulncheck,
 strict deadcode, examples, and `gorelease` protect the resulting library shape.
 
 ## Test pyramid and TestHelper

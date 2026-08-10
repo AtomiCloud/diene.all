@@ -1,0 +1,19 @@
+package telemetry
+
+import (
+	"context"
+
+	"github.com/AtomiCloud/diene.go-otel/adapters/otelsdk"
+	"github.com/AtomiCloud/diene.go-otel/lib/otel"
+)
+
+// Bootstrap constructs the process-owned telemetry runtime. Call Shutdown from
+// the application lifecycle after every request producer has stopped.
+func Bootstrap(ctx context.Context, config otel.Config, identity otel.AppIdentity) (*otelsdk.Runtime, error) {
+	return otelsdk.New(
+		ctx,
+		config,
+		identity,
+		otelsdk.WithGlobalRegistration(true),
+	)
+}

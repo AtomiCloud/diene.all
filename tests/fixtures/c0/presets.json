@@ -1,0 +1,26 @@
+{
+  "source": "goals/c0-contracts.md §3 (config precedence, preset-shape parity) transcribed against the published bun sibling AtomiCloud/diene.bun-standard-config src/lib/presets/*.ts",
+  "note": "This fixture is the ORACLE for the C0 conformance suite. It is transcribed from the contract and the cross-language sibling, never generated from this library, so a drift in either direction turns the suite red instead of agreeing with itself.",
+  "presets": {
+    "postgres": {
+      "keys": ["host", "port", "database", "username", "password", "ssl", "pool"],
+      "secrets": ["password"],
+      "nested": { "pool": ["min", "max"] }
+    },
+    "cache": {
+      "keys": ["host", "port", "password", "db", "tls"],
+      "secrets": ["password"],
+      "nested": {}
+    },
+    "kv": {
+      "keys": ["host", "port", "password", "db", "tls"],
+      "secrets": ["password"],
+      "nested": {}
+    },
+    "storage": {
+      "keys": ["endpoint", "region", "bucket", "accessKeyId", "secretAccessKey", "forcePathStyle"],
+      "secrets": ["accessKeyId", "secretAccessKey"],
+      "nested": {}
+    }
+  }
+}

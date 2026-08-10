@@ -2,25 +2,125 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"testing"
 
-	"github.com/AtomiCloud/diene.go-lib/adapters/kv"
-	"github.com/AtomiCloud/diene.go-lib/lib/note"
-	"github.com/AtomiCloud/diene.go-lib/testhelper"
+	"github.com/AtomiCloud/diene.go-errors-problems/lib/problem"
+	"github.com/AtomiCloud/diene.go-standard-config/lib/standardconfig"
+	"github.com/AtomiCloud/diene.go-standard-config/testhelper"
 )
+
+// This consumer exists so the production deadcode pass sees the library's whole
+// public surface reached from a main package. Every exported symbol is called
+// here; anything added to the API and not added here turns the pass red, which
+// is the point — an export nobody can reach is dead weight in a published
+// module.
 
 func main() {
 	ctx := context.Background()
-	memory := testhelper.NewMemoryStore()
-	value := note.New("Deadcode Consumer", "public surface")
-	service := note.NewService(memory)
-	_ = note.Slug(value.Slug)
-	_ = note.NamespacedKey("notes", value.Slug)
-	_ = service.Save(ctx, value)
-	_, _ = service.Load(ctx, value.Slug)
-	_ = memory.Save(ctx, value.Slug, value.Body)
-	_, _ = memory.Load(ctx, value.Slug)
-	redis := kv.NewRedisStore("127.0.0.1:6379")
-	_ = redis.Save
-	_ = redis.Load
-	_ = redis.Close
+
+	problems, err := standardconfig.NewProblems(problem.LocalErrorPortal(), standardconfig.ProblemTypes()...)
+	if err != nil {
+		panic(err)
+	}
+	_ = problems.Registry()
+	if _, err := problems.Catalog(); err != nil {
+		panic(err)
+	}
+	_ = problems.Raise(standardconfig.ProblemConnectionUnknown, "unreachable", nil)
+	_ = standardconfig.ProblemVersion
+	_ = standardconfig.ProblemConnectionAmbiguous
+	_ = standardconfig.ProblemConnectionKeyInvalid
+	_ = standardconfig.ProblemPresetUnknown
+
+	_ = standardconfig.ValidKey(standardconfig.UppercaseKeyPattern)
+	_ = standardconfig.ValidConnectionName(standardconfig.ConnectionNamePattern)
+	_ = standardconfig.PresetNames()
+	_ = standardconfig.Schemas()
+	_ = standardconfig.PostgresSchema()
+	_ = standardconfig.CacheSchema()
+	_ = standardconfig.KvSchema()
+	_ = standardconfig.StorageSchema()
+	if _, err := standardconfig.SchemaFor(problems, standardconfig.PostgresBlockKey); err != nil {
+		panic(err)
+	}
+
+	postgres := testhelper.FakePostgres(testhelper.DefaultKey)
+	cache := testhelper.FakeCache(testhelper.DefaultKey)
+	kv := testhelper.FakeKv(testhelper.DefaultKey)
+	storage := testhelper.FakeStorage(testhelper.DefaultKey)
+	_ = standardconfig.Keys(postgres)
+	if _, err := standardconfig.Named(problems, cache, testhelper.DefaultKey); err != nil {
+		panic(err)
+	}
+	_ = standardconfig.ValidateKeys(problems, standardconfig.KvBlockKey, kv)
+	_ = standardconfig.PostgresBlock(postgres)
+	_ = standardconfig.CacheBlock(cache)
+	_ = standardconfig.KvBlock(kv)
+	_ = standardconfig.StorageBlock(storage)
+	_ = standardconfig.PoolSizing{}
+	_ = standardconfig.PostgresEntry{}
+	_ = standardconfig.RedisEntry{}
+	_ = standardconfig.CacheEntry{}
+	_ = standardconfig.KvEntry{}
+	_ = standardconfig.StorageEntry{}
+
+	var t testhelper.TestingT = &testing.T{}
+	testhelper.RequireUppercaseKeys(t, postgres)
+	testhelper.RequireConnectionNames(t, cache)
+	_ = testhelper.RequireEntry(t, storage, testhelper.DefaultKey)
+	_ = testhelper.RequireStarted(t, &testhelper.StartedCache{}, nil)
+
+	var runtime testhelper.Runtime = testhelper.DockerRuntime{}
+	fmt.Println(reach(ctx, runtime))
+}
+
+// reach drives the container glue and the bucket helper. It is never run: a
+// deadcode consumer only has to make the surface reachable, and starting four
+// containers to prove that would be absurd.
+func reach(ctx context.Context, runtime testhelper.Runtime) error {
+	startedPostgres, err := testhelper.StartPostgres(ctx, testhelper.PostgresOptions{
+		Image: testhelper.DefaultPostgresImage, Runtime: runtime,
+	})
+	if err != nil {
+		return err
+	}
+	startedCache, err := testhelper.StartCache(ctx, testhelper.RedisOptions{
+		Image: testhelper.DefaultRedisImage, Runtime: runtime,
+	})
+	if err != nil {
+		return err
+	}
+	startedKv, err := testhelper.StartKv(ctx, testhelper.RedisOptions{Runtime: runtime})
+	if err != nil {
+		return err
+	}
+	startedStorage, err := testhelper.StartStorage(ctx, testhelper.StorageOptions{
+		Image: testhelper.DefaultStorageImage, Runtime: runtime,
+	})
+	if err != nil {
+		return err
+	}
+	if err := testhelper.CreateBucket(ctx, startedStorage.Entry); err != nil {
+		return err
+	}
+	var container testhelper.Container = startedPostgres.Container
+	if _, err := container.Host(ctx); err != nil {
+		return err
+	}
+	if _, err := container.Port(ctx, "5432/tcp"); err != nil {
+		return err
+	}
+	if err := container.Terminate(ctx); err != nil {
+		return err
+	}
+	for _, terminate := range []func(context.Context) error{
+		startedPostgres.Terminate, startedCache.Terminate,
+		startedKv.Terminate, startedStorage.Terminate,
+	} {
+		if err := terminate(ctx); err != nil {
+			return err
+		}
+	}
+	return nil
 }

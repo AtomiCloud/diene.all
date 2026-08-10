@@ -1,0 +1,29 @@
+package telemetry_test
+
+import (
+	"context"
+	"testing"
+
+	"github.com/AtomiCloud/diene.go-otel/adapters/otelsdk"
+	"github.com/AtomiCloud/diene.go-otel/lib/otel"
+	"github.com/AtomiCloud/diene.go-otel/testhelper"
+)
+
+func TestOperationEmitsTrace(t *testing.T) {
+	emitter := testhelper.NewInMemoryTraceEmitter()
+	runtime, err := otelsdk.New(
+		context.Background(),
+		otel.DefaultConfig(),
+		testhelper.SampleIdentity(),
+		otelsdk.WithTraceEmitter(emitter),
+	)
+	if err != nil {
+		t.Fatalf("build telemetry runtime: %v", err)
+	}
+
+	want := testhelper.SampleTraceRecord()
+	if emitErr := runtime.TraceEmitter().Emit(want); emitErr != nil {
+		t.Fatalf("emit trace: %v", emitErr)
+	}
+	testhelper.AssertTraceRecords(t, emitter, []otel.TraceRecord{want})
+}
