@@ -1,0 +1,40 @@
+schemaVersion: 1
+checks:
+  action-pins:
+    trustedPattern: ^AtomiCloud/
+    workflowsDir: .github/workflows
+  exec-bits:
+    globs:
+      - '*.sh'
+  ci-wiring:
+    workflowsDir: .github/workflows
+    entrypointPattern: scripts/ci/[A-Za-z0-9._-]+[.]sh
+    orchestrators:
+      - .github/workflows/ci.yaml
+      - .github/workflows/release.yaml
+  toolchain-smoke:
+    shell: default
+    binaries:
+      - actionlint
+      - bash
+      - cyanprint
+      - dlint
+      - git
+      - gomplate
+      - infisical
+      - jq
+      - kubeconform -v
+      - kyverno version
+      - nix
+      - pre-commit
+      - releaser
+      - rg
+      - shellcheck
+      - task
+      - treefmt
+      - yq
+  no-custom-derivations:
+    paths:
+      - nix/packages.nix
+      - nix/env.nix
+      - nix/shells.nix
