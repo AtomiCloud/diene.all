@@ -1,0 +1,23 @@
+{
+  "name": "AtomiCloud.Diene.AuthEngine.TestHelper",
+  "positiveControls": [
+    "T:AtomiCloud.Diene.AuthEngine.TestHelper.Builders.TestTokenIssuer",
+    "M:AtomiCloud.Diene.AuthEngine.TestHelper.Builders.TestTokenIssuer::Mint",
+    "M:AtomiCloud.Diene.AuthEngine.TestHelper.Builders.TestTokenIssuer::MintValidFor"
+  ],
+  "semanticMappings": [],
+  "required": [
+    "T:AtomiCloud.Diene.AuthEngine.TestHelper.Fakes.InMemoryDeferredTokenStore",
+    "M:AtomiCloud.Diene.AuthEngine.TestHelper.Fakes.InMemoryDeferredTokenStore::Put",
+    "M:AtomiCloud.Diene.AuthEngine.TestHelper.Fakes.InMemoryDeferredTokenStore::Consume",
+    "M:AtomiCloud.Diene.AuthEngine.TestHelper.Fakes.InMemoryDeferredTokenStore::Settle",
+    "T:AtomiCloud.Diene.AuthEngine.TestHelper.Fakes.FakeAuthManagement",
+    "M:AtomiCloud.Diene.AuthEngine.TestHelper.Fakes.FakeAuthManagement::GetUser",
+    "M:AtomiCloud.Diene.AuthEngine.TestHelper.Fakes.FakeAuthManagement::MintOneTimeToken",
+    "M:AtomiCloud.Diene.AuthEngine.TestHelper.Fakes.FakeAuthManagement::SetClaim",
+    "M:AtomiCloud.Diene.AuthEngine.TestHelper.Fakes.FakeAuthManagement::RemoveClaim",
+    "M:AtomiCloud.Diene.AuthEngine.TestHelper.Fakes.FakeAuthManagement::AssignRole",
+    "M:AtomiCloud.Diene.AuthEngine.TestHelper.Fakes.FakeAuthManagement::RemoveRole",
+    "M:AtomiCloud.Diene.AuthEngine.TestHelper.Fakes.FakeAuthManagement::DeleteUser"
+  ]
+}
