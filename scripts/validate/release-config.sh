@@ -7,7 +7,7 @@ trap 'rm -f "${tmp}"' EXIT
 
 [ "${mode}" != "schema" ] && [ "${mode}" != "types" ] && [ "${mode}" != "all" ] && echo "❌ mode must be 'schema', 'types', or 'all'" >&2 && exit 1
 
-yq -o=json atomi_release.yaml >"${tmp}"
+yq -o=json release.yaml >"${tmp}"
 if [ "${mode}" = "schema" ] || [ "${mode}" = "all" ]; then
   jq -e '
     .schemaVersion == 2 and
@@ -41,7 +41,7 @@ refactor
 style
 test"
   actual="$(jq -r '.types[].type' "${tmp}" | sort)"
-  [ "${actual}" != "${expected}" ] && echo "❌ release types do not match the D3 vocabulary" >&2 && exit 1
+  [ "${actual}" != "${expected}" ] && echo "❌ release types do not match the configured vocabulary" >&2 && exit 1
 fi
 
 echo "✅ Release config ${mode} validation passed"

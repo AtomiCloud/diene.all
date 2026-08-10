@@ -55,6 +55,11 @@
     "hash": "sha256-bY8RXB3fIsgYIrlLeEuq8dsOfIn8zcbZ0dj2Ra1sFZg="
   },
   {
+    "pname": "JetBrains.ReSharper.GlobalTools",
+    "version": "2026.1.3",
+    "hash": "sha256-rpS2+NAwul94ubUv0nAFpK9ogFnbqSF19DaLRli1R8c="
+  },
+  {
     "pname": "Microsoft.ApplicationInsights",
     "version": "2.23.0",
     "hash": "sha256-5sf3bg7CZZjHseK+F3foOchEhmVeioePxMZVvS6Rjb0="

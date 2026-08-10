@@ -9,7 +9,7 @@ export default {
       description: 'The development run task executes the sample App.',
       kind: 'baseline',
       async run(repo: any) {
-        await runWithRedis(repo, 'dotnet-base-probe-run', 'nix develop .#default -c pls run');
+        await runWithRedis(repo, 'dotnet-base-probe-run', 'nix develop .#default -c task run');
       },
     },
   ],
