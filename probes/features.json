@@ -76,11 +76,6 @@
   },
   {
     "template": "diene/workspace",
-    "name": "hook-helm-docs",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
     "name": "hook-helm-lint",
     "class": "gate"
   },
@@ -126,27 +121,12 @@
   },
   {
     "template": "diene/workspace",
-    "name": "secret-guards",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "secret-scan-command",
+    "name": "secret-login-guard",
     "class": "smoke"
   },
   {
     "template": "diene/workspace",
-    "name": "skills-vendor-directory",
-    "class": "presence"
-  },
-  {
-    "template": "diene/workspace",
     "name": "skills-sync",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "skills-freshness",
     "class": "gate"
   },
   {
@@ -191,19 +171,13 @@
   },
   {
     "template": "diene/workspace",
-    "name": "cache-tag-shape",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
     "name": "many-owner-schema",
     "class": "gate"
   },
   {
     "template": "diene/workspace",
     "name": "releaser-hook-registration",
-    "class": "presence",
-    "deferredUntil": "tools/releaser step 2p publish"
+    "class": "presence"
   },
   {
     "template": "diene/workspace",
@@ -322,7 +296,7 @@
   },
   {
     "template": "diene/dotnet-base",
-    "name": "hook-gitlint",
+    "name": "hook-releaser-commit",
     "class": "gate"
   },
   {

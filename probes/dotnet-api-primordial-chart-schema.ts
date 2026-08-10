@@ -48,7 +48,7 @@ export default defineGate({
       // Stays valid YAML — an ordinary scalar — so the red is the schema rejecting the value,
       // not a parser choking on an unreadable file.
       await repo.write(`${CHART}/values.yaml`, values.replace(line, `${target}: NOT_A_VALID_VALUE!`));
-      await expectRedBecause(repo, GATE, 'dotnet-api-primordial-chart-schema', REASON, 300000);
+      await expectRedBecause(repo, GATE, 'dotnet-api-primordial-chart-schema', [REASON], { timeoutMs: 300000 });
     },
   },
 });

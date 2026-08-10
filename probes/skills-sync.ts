@@ -1,67 +1,74 @@
-import { defineGate } from './lib/definition.ts';
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedBecause } from './lib/helpers.ts';
 
-// The previous version asserted self-cleaning and idempotence and NOTHING ELSE — so an EMPTY
-// vendor tree passed every one of its checks: the planted stale entry is gone, the two copies
-// are identical, and `diff -ru` of nothing against nothing exits 0. It ran, it exited 0, and it
-// never read the artefact it is named for.
-//
-// This asserts the SPECIFIED contract: the resolver-owned vendor tree
-// `.claude/skills/vendor/<package>/**` (goals/workspace.md, goals/shared.md). It does NOT assert
-// `manifest.json` — that is an unspecified consumer-layer addition, and pinning it would assert
-// something the goal never promised.
-//
-// Every assertion prints the VALUE it checked, and each is one an empty run would fail.
-const SYNC = './scripts/local/skills-sync.sh';
+const configPath = 'skills-sync.yaml';
+const vendorDir = '.claude/skills/vendor';
 
-const GATE =
-  `nix develop .#ci -c bash -c 'set -e; ` +
-  // A planted stale entry the synchroniser must remove — kept from the original.
-  `mkdir -p .claude/skills/vendor/stale; echo stale > .claude/skills/vendor/stale/SKILL.md; ` +
-  `first="$(mktemp -d)"; second="$(mktemp -d)"; ` +
-  `trap "rm -rf \\"$first\\" \\"$second\\"" EXIT; ` +
-  `${SYNC}; ` +
-  `test ! -e .claude/skills/vendor/stale || { echo "self-clean FAILED: stale entry survived"; exit 1; }; ` +
-  // THE ASSERTION THE STUB LACKED: the tree must actually carry vendored skills.
-  `pkgs=$(find .claude/skills/vendor -mindepth 1 -maxdepth 1 -type d | wc -l); ` +
-  `skills=$(find .claude/skills/vendor -name SKILL.md | wc -l); ` +
-  `test "$pkgs" -gt 0 || { echo "vendor tree has NO package directories"; exit 1; }; ` +
-  `test "$skills" -gt 0 || { echo "vendor tree has NO SKILL.md files"; exit 1; }; ` +
-  // Every package directory must carry a skill, so a stray empty directory cannot pass.
-  `for d in .claude/skills/vendor/*/; do ` +
-  `n=$(find "$d" -name SKILL.md | wc -l); ` +
-  `test "$n" -gt 0 || { echo "package $d carries no SKILL.md"; exit 1; }; done; ` +
-  // Idempotence, kept from the original.
-  `cp -R .claude/skills/vendor/. "$first"/; ${SYNC}; cp -R .claude/skills/vendor/. "$second"/; ` +
-  `diff -ru "$first" "$second"; ` +
-  `echo "vendored $pkgs package(s), $skills SKILL.md file(s); self-clean ok; idempotent"'`;
+const callPaths = [
+  {
+    name: 'setup',
+    command: 'nix develop .#default -c task setup',
+    declaration: ['Taskfile.yaml', 'skills-sync sync --tier setup'],
+  },
+  {
+    name: 'pre-commit',
+    command: 'nix develop .#ci -c pre-commit run a-skills-sync --all-files',
+    declaration: ['nix/pre-commit.nix', '${packages.skills-sync}/bin/skills-sync sync --tier pre-commit'],
+  },
+  {
+    name: 'ci',
+    command: 'nix develop .#ci -c skills-sync sync --tier ci',
+    declaration: ['.github/workflows/⚡reusable-precommit.yaml', 'skills-sync sync --tier ci'],
+  },
+] as const;
 
-export default defineGate({
+async function assertDeclaredWiring(repo: any): Promise<void> {
+  const config = await repo.read(configPath);
+  if (config !== 'schemaVersion: 1\nruntime: none\n') {
+    throw new Error(`${configPath} must declare the workspace's explicit runtime: none opt-out`);
+  }
+
+  for (const callPath of callPaths) {
+    const [path, invocation] = callPath.declaration;
+    const source = await repo.read(path);
+    if (!source.includes(invocation)) {
+      throw new Error(`${callPath.name} skills-sync wiring is missing from ${path}: ${invocation}`);
+    }
+  }
+}
+
+export default {
+  contractVersion: 1,
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
-  baseline: {
-    name: 'baseline-skills-sync-green',
-    description: 'The synchroniser populates the vendor tree, self-cleans, and is idempotent on a second run.',
-    async run(repo: any) {
-      await expectGreen(repo, GATE, 'skills-sync', 600000);
+  probes: callPaths.flatMap(callPath => [
+    {
+      name: `baseline-skills-sync-${callPath.name}-off-empty`,
+      description: `The ${callPath.name} call path executes skills-sync and accepts the explicit off/empty workspace.`,
+      kind: 'baseline' as const,
+      async run(repo: any) {
+        await assertDeclaredWiring(repo);
+        await expectGreen(repo, callPath.command, 'skills-sync');
+      },
     },
-  },
-  mutation: {
-    name: 'mutation-skills-sync-caught',
-    description: 'A resolver matching no packages leaves the vendor tree EMPTY and turns the gate red.',
-    async run(repo: any) {
-      // Structural target: break the package-id pattern the .NET branch resolves with, so it
-      // matches nothing and the tree comes back empty. That is the realistic shape of this
-      // failure — a package-prefix rename — and it is EXACTLY the case the previous version
-      // passed silently.
-      const path = 'scripts/local/skills-sync.sh';
-      const source = await repo.read(path);
-      const anchor = 'PackageVersion Include="AtomiCloud\\.Diene\\.[^"]+"';
-      if (!source.includes(anchor)) {
-        throw new Error(`${path} no longer resolves .NET packages with the expected pattern`);
-      }
-      await repo.write(path, source.replace(anchor, 'PackageVersion Include="NoSuchPrefix\\.[^"]+"'));
-
-      await expectRed(repo, GATE, 'skills-sync', 600000);
+    {
+      name: `mutation-skills-sync-${callPath.name}-vendored-content-caught`,
+      description: `The ${callPath.name} call path refuses probe-owned vendored content while runtime is none.`,
+      kind: 'mutation' as const,
+      expectedImpact: [],
+      async run(repo: any) {
+        await assertDeclaredWiring(repo);
+        const fixtureName = `probe-skills-sync-${callPath.name}.txt`;
+        const fixturePath = `${vendorDir}/${fixtureName}`;
+        const tracked = await repo.exec(`git ls-files --error-unmatch -- '${fixturePath}'`);
+        if (tracked.exitCode === 0) {
+          throw new Error(`${callPath.name} probe fixture must be owned by this arm, not tracked at ${fixturePath}`);
+        }
+        await repo.write(fixturePath, 'owned by the skills-sync probe\n');
+        await expectRedBecause(repo, callPath.command, 'skills-sync', [
+          'skills-sync names no runtime',
+          `holds 1 vendored file(s): ${fixtureName}`,
+          'A repository that vendors skills has a runtime',
+        ]);
+      },
     },
-  },
-});
+  ]),
+};

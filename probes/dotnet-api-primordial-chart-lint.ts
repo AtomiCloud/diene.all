@@ -30,7 +30,7 @@ export default defineGate({
       // Chart.yaml stays VALID YAML under this edit — `invalid` is an ordinary scalar — so the
       // red is helm rejecting the metadata, not a parser choking on an unreadable file.
       await repo.patch(`${CHART}/Chart.yaml`, { find: 'apiVersion: v2', replace: 'apiVersion: invalid' });
-      await expectRedBecause(repo, GATE, 'dotnet-api-primordial-chart-lint', REASON, 240000);
+      await expectRedBecause(repo, GATE, 'dotnet-api-primordial-chart-lint', [REASON], { timeoutMs: 240000 });
     },
   },
 });

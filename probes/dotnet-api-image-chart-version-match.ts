@@ -36,7 +36,7 @@ export default defineGate({
       if (after === before) throw new Error(`${path} version was already 9.9.9 — sabotage would be a no-op`);
 
       await repo.write(path, after);
-      await expectRedBecause(repo, GATE, 'dotnet-api-image-chart-version-match', REASON, 240000);
+      await expectRedBecause(repo, GATE, 'dotnet-api-image-chart-version-match', [REASON], { timeoutMs: 240000 });
     },
   },
 });

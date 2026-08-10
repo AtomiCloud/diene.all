@@ -66,9 +66,8 @@ healthy deployment.
 | `pls test:watch`                       | Watch the fast unit tier.                                      |
 | `pls deadcode`                         | Emit the broad, non-blocking LLM review.                       |
 | `pls lint`                             | Run every generated pre-commit gate.                           |
-| `pls docker:build` / `pls docker:run`  | Build the local image, or run it and smoke `GET /`.            |
-| `pls docker:clean`                     | Remove the local image.                                        |
-| `pls secret:fetch` / `pls secret:scan` | Fetch the Infisical environment, or scan tracked content.      |
+| `pls docker:build:main` / `pls docker:run:main` | Build the local image, or run it and smoke `GET /`. |
+| `pls docker:clean:main` | Remove the local image. |
 
 ### Tasks this sample adds
 
@@ -98,10 +97,10 @@ Two charts ship, so the helm surface has an each-chart axis and a both-charts ax
 
 | Command                                                  | Purpose                                                              |
 | -------------------------------------------------------- | -------------------------------------------------------------------- |
-| `pls helm:lint` / `pls helm:template` / `pls helm:debug` | The app chart alone.                                                 |
-| `pls helm:primordial:lint` / `:template` / `:debug`      | The primordial chart alone.                                          |
-| `pls helm:lint:all` / `pls helm:template:all`            | Both charts against every landscape values file.                     |
-| `pls helm:deps` / `pls helm:primordial:deps`             | Build each chart's dependencies.                                     |
+| `pls helm:root_chart:lint` / `:template` / `:debug` | The app chart alone. |
+| `pls helm:primordial_chart:lint` / `:template` / `:debug` | The primordial chart alone. |
+| `pls helm:lint:all` / `pls helm:template:all` | Both charts against every landscape values file. |
+| `pls helm:root_chart:deps` / `pls helm:primordial_chart:deps` | Build each chart's dependencies. |
 | `pls helm:vendor` / `pls helm:clean`                     | Add or remove the build-phase vendored copies.                       |
 | `pls helm:versions`                                      | Assert one semver spans the image tag and both chart version fields. |
 

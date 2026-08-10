@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <RootNamespace>AtomiCloud.DotnetBase.App</RootNamespace>
+    <Version>0.0.0</Version>
   </PropertyGroup>
 
   <!-- ### dotnet-api-diene-consumption -->
@@ -35,7 +36,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="StackExchange.Redis" />
+    <PackageReference Include="StackExchange.Redis"/>
   </ItemGroup>
 
   <!-- ### dotnet-api-config-content -->
@@ -47,7 +48,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../Lib/Lib.csproj" />
+    <ProjectReference Include="../Lib/Lib.csproj"/>
   </ItemGroup>
-
 </Project>

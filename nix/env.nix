@@ -7,9 +7,8 @@ with packages;
     git
     go-task
     infisical
+    releaser
     jq
-    pls
-    sg
     skopeo
   ];
 
@@ -17,6 +16,7 @@ with packages;
   # #### source: workspace
   lint = [
     actionlint
+    dlint
     infralint
     kubeconform
     kubernetes-helm
@@ -24,6 +24,7 @@ with packages;
     pre-commit
     ripgrep
     shellcheck
+    skills-sync
     treefmt
     yq-go
 
@@ -31,7 +32,6 @@ with packages;
     # #### source: dotnet-base
     dn-inspect
     dotnetlint
-    gitlint
   ];
 
   # ### workspace-main
@@ -46,7 +46,6 @@ with packages;
     kubeconform
     kubernetes-helm
     kyverno
-    pls
     ripgrep
     shellcheck
     skopeo
@@ -55,6 +54,7 @@ with packages;
     # ### dotnet-base-main
     # #### source: dotnet-base
     dotnet-sdk_10
+    packages.releaser
     xmlstarlet
 
     # ### dotnet-api-main
@@ -63,10 +63,9 @@ with packages;
   ];
 
   # ### workspace-releaser-bootstrap
-  # #### source: workspace
-  # C2: sg is retained only until tools/releaser is published at step 2p.
+  # #### source: dotnet-base
   releaser = [
-    sg
+    packages.releaser
   ];
 
   # ### nix-root-system
@@ -74,5 +73,6 @@ with packages;
   system = [
     atomiutils
     infrautils
+    nix
   ];
 }

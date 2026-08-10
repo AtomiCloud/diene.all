@@ -2,18 +2,23 @@
 # #### source: workspace
 version: '3'
 
-vars:
-  IMAGE: diene-dotnet-api:local
-  SMOKE_CONTAINER: diene-dotnet-api-smoke
-
+# One task set per Dockerfile under infra/. The task key is the Dockerfile's own
+# name: bare `infra/Dockerfile` is `main`, `infra/<name>.Dockerfile` is
+# `<name>`. A new Dockerfile gets its own tasks and its own vars block; never
+# re-point a shared image variable.
 tasks:
-  build:
-    desc: Build the local .NET API image
+  build:main:
+    desc: Build the local .NET API image from infra/Dockerfile
+    vars:
+      IMAGE: diene-dotnet-api:local
     cmds:
       - docker build -f infra/Dockerfile -t {{.IMAGE}}{{if .CLI_ARGS}}-{{.CLI_ARGS}}{{end}} .
 
-  run:
+  run:main:
     desc: Run the local image and smoke GET / (the info endpoint)
+    vars:
+      IMAGE: diene-dotnet-api:local
+      SMOKE_CONTAINER: diene-dotnet-api-smoke
     # The smoke asserts the PAYLOAD, not that a container started. It compares the served
     # document against the identity the base settings layer declares, so a container that
     # boots into the wrong service — or answers 200 with an empty body — fails here. The
@@ -71,7 +76,9 @@ tasks:
         fi
         echo "✅ image serves the info endpoint (${found}/${total} identity fields)"
 
-  clean:
+  clean:main:
     desc: Remove the local .NET API image
+    vars:
+      IMAGE: diene-dotnet-api:local
     cmds:
       - docker image rm {{.IMAGE}}{{if .CLI_ARGS}}-{{.CLI_ARGS}}{{end}} || true

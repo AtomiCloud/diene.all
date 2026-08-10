@@ -2,12 +2,17 @@
 # #### source: workspace
 version: '3'
 
+# One task set per chart under infra/. The task key is the chart directory's own
+# name, so `infra/root_chart` is `root_chart:<verb>` and `infra/primordial_chart`
+# is `primordial_chart:<verb>`. A new chart gets its own tasks; never re-point a
+# chart variable that another chart's tasks read.
 vars:
   CHART: infra/root_chart
   # ### dotnet-api-helm-vars
   # #### source: dotnet-api
-  # R20 ships TWO charts. `CHART` stays the app chart so the inherited task names keep meaning
-  # what they meant; the primordial chart gets its own namespaced tasks.
+  # R20 ships TWO charts. Each chart's verbs are keyed by its own directory name; the vars below
+  # are the SHARED build inputs the two-chart tasks (vendor, clean, lint:all, template:all) read,
+  # not a chart selector any single chart's tasks re-point.
   PRIMORDIAL: infra/primordial_chart
   # The release name is the service's REAL identity (R4), not the base template's name.
   RELEASE: dotnet-api
@@ -19,25 +24,25 @@ vars:
   OBSERVABILITY_DST: infra/primordial_chart/files/observability
 
 tasks:
-  deps:
-    desc: Build chart dependencies
+  root_chart:deps:
+    desc: Build dependencies for infra/root_chart
     cmds:
       - helm dependency build {{.CHART}}
 
-  lint:
-    desc: Lint the root chart
+  root_chart:lint:
+    desc: Lint infra/root_chart
     deps: [vendor]
     cmds:
       - helm lint {{.CHART}}
 
-  template:
-    desc: Render the root chart
+  root_chart:template:
+    desc: Render infra/root_chart
     deps: [vendor]
     cmds:
       - helm template {{.RELEASE}} {{.CHART}} {{.CLI_ARGS}}
 
-  debug:
-    desc: Render the root chart with debug output
+  root_chart:debug:
+    desc: Render infra/root_chart with debug output
     deps: [vendor]
     cmds:
       - helm template {{.RELEASE}} {{.CHART}} --debug {{.CLI_ARGS}}
@@ -70,25 +75,25 @@ tasks:
     cmds:
       - rm -rf {{.CONFIG_DST}} {{.OBSERVABILITY_DST}} {{.CHART}}/uploads {{.PRIMORDIAL}}/uploads
 
-  primordial:deps:
-    desc: Build primordial chart dependencies
+  primordial_chart:deps:
+    desc: Build dependencies for infra/primordial_chart
     cmds:
       - helm dependency build {{.PRIMORDIAL}}
 
-  primordial:lint:
-    desc: Lint the primordial chart
+  primordial_chart:lint:
+    desc: Lint infra/primordial_chart
     deps: [vendor]
     cmds:
       - helm lint {{.PRIMORDIAL}}
 
-  primordial:template:
-    desc: Render the primordial chart
+  primordial_chart:template:
+    desc: Render infra/primordial_chart
     deps: [vendor]
     cmds:
       - helm template {{.RELEASE}} {{.PRIMORDIAL}} {{.CLI_ARGS}}
 
-  primordial:debug:
-    desc: Render the primordial chart with debug output
+  primordial_chart:debug:
+    desc: Render infra/primordial_chart with debug output
     deps: [vendor]
     cmds:
       - helm template {{.RELEASE}} {{.PRIMORDIAL}} --debug {{.CLI_ARGS}}
