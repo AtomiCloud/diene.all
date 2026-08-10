@@ -1,0 +1,9 @@
+# yaml-language-server: $schema=https://schemas.atomicloud.io/diene/standard-config/cache.json
+# cache preset — Dragonfly (RAM-backed, EPHEMERAL); Redis protocol.
+cache:
+  MAIN:
+    host: localhost
+    port: 6379
+    password: '' # secret — blank-in-yaml (R14/M33)
+    db: 0
+    tls: false

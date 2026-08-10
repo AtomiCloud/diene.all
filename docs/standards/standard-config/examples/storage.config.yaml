@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=https://schemas.atomicloud.io/diene/standard-config/storage.json
+# storage preset — S3-compatible (Tigris prod / MinIO local).
+storage:
+  MAIN:
+    endpoint: https://fly.storage.tigris.dev
+    region: auto
+    bucket: app-media
+    accessKeyId: '' # secret — blank-in-yaml (R14/M33)
+    secretAccessKey: '' # secret — blank-in-yaml (R14/M33)
+    forcePathStyle: false

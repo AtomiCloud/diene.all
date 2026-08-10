@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=https://schemas.atomicloud.io/diene/standard-config/kv.json
+# kv preset — Upstash / lapras (PERSISTENT, snapshot durability); Redis protocol.
+# Separate block from cache despite the shared protocol: durability differs.
+kv:
+  SESSION:
+    host: localhost
+    port: 6380
+    password: '' # secret — blank-in-yaml (R14/M33)
+    db: 0
+    tls: true

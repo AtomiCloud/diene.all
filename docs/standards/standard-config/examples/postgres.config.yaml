@@ -1,0 +1,24 @@
+# yaml-language-server: $schema=https://schemas.atomicloud.io/diene/standard-config/postgres.json
+# postgres preset — keyed map of named connections (UPPERCASE, R14).
+# Adding REPLICA is data, not schema: keyed multi-instance by design.
+postgres:
+  MAIN:
+    host: localhost
+    port: 5432
+    database: app
+    username: app
+    password: '' # secret — blank-in-yaml, injected per landscape (R14/M33)
+    ssl: false
+    pool:
+      min: 0
+      max: 10
+  REPLICA:
+    host: replica.internal
+    port: 5432
+    database: app
+    username: app_ro
+    password: ''
+    ssl: true
+    pool:
+      min: 0
+      max: 5
