@@ -8,20 +8,18 @@ with packages;
     go-task
     infisical
     jq
-    pls
+    packages.releaser
   ];
 
   # ### workspace-lint
   # #### source: workspace
   lint = [
     actionlint
-    infralint
-    kubeconform
-    kubernetes-helm
-    kyverno
+    dlint
+    infralint-core
     pre-commit
-    ripgrep
     shellcheck
+    skills-sync
     treefmt
     yq-go
   ];
@@ -32,36 +30,35 @@ with packages;
     # ### bun-base-main
     # #### source: bun-base
     bun
+    nodejs
     git
     go-task
     infisical
     jq
-    kubeconform
-    kubernetes-helm
-    kyverno
-    pls
     packages.releaser
-    ripgrep
     shellcheck
     yq-go
   ];
 
   # ### workspace-releaser-bootstrap
-  # #### source: workspace
+  # #### source: bun-base
   releaser = [
+    # ### bun-cli-release-tools
+    # #### source: bun-cli
     dpkg
     gh
     git
     go
     goreleaser
-    packages.releaser
     rpm
+    packages.releaser
   ];
 
   # ### nix-root-system
   # #### source: main
   system = [
     atomiutils
-    infrautils
+    infrautils-core
+    nix
   ];
 }

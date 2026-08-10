@@ -5,6 +5,6 @@ tasks:
     cmds:
       - ./scripts/release/compile.sh
   smoke:
-    desc: 'Smoke-test a compiled binary (pls compile:smoke -- dist/bin/<binary>)'
+    desc: 'Smoke-test a compiled binary (task compile:smoke -- dist/bin/<binary>)'
     cmds:
       - ./scripts/release/smoke.sh {{.CLI_ARGS}}

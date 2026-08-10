@@ -1,6 +1,5 @@
 {
   atomi,
-  pkgs,
   pkgs-2605,
   pkgs-unstable,
 }:
@@ -13,9 +12,12 @@ let
       {
         inherit
           atomiutils
-          infralint
-          infrautils
-          pls
+          cyanprint
+          dlint
+          infralint-core
+          infrautils-core
+          releaser
+          skills-sync
           ;
       }
     );
@@ -28,6 +30,8 @@ let
         inherit
           actionlint
           bash
+          # ### bun-base-packages
+          # #### source: bun-base
           bun
           dpkg
           gh
@@ -37,9 +41,8 @@ let
           goreleaser
           infisical
           jq
-          kubeconform
-          kubernetes-helm
-          kyverno
+          nix
+          nodejs
           pre-commit
           ripgrep
           rpm
@@ -50,10 +53,16 @@ let
       }
     );
 
-    nix-unstable = (with pkgs-unstable; { });
+    # ### nix-unstable
+    # #### source: main
+    nix-unstable = (
+      with pkgs-unstable;
+      {
+      }
+    );
 
-    # ### releaser-package
-    # #### source: releaser
+    # ### bun-cli-package
+    # #### source: bun-cli
     cli =
       let
         bunPkg = pkgs-2605.bun;
@@ -63,9 +72,9 @@ let
           if builtins.length cliNames == 1 then
             builtins.head cliNames
           else
-            builtins.throw "CLI package requires exactly one package.json bin entry";
+            builtins.throw "bun-cli package requires exactly one package.json bin entry";
         entry = manifest.bin.${cliName};
-        src = pkgs.lib.cleanSourceWith {
+        src = pkgs-2605.lib.cleanSourceWith {
           src = ../.;
           filter =
             path: _type:
@@ -81,7 +90,7 @@ let
               "result"
             ]);
         };
-        deps = pkgs.stdenv.mkDerivation {
+        deps = pkgs-2605.stdenv.mkDerivation {
           pname = "${cliName}-deps";
           version = manifest.version;
           inherit src;
@@ -105,7 +114,7 @@ let
         };
       in
       {
-        releaser = pkgs.stdenv.mkDerivation {
+        releaser = pkgs-2605.stdenv.mkDerivation {
           pname = cliName;
           version = manifest.version;
           inherit src;
@@ -126,4 +135,4 @@ let
   };
 in
 with all;
-atomipkgs // nix-2605 // nix-unstable // cli
+nix-2605 // nix-unstable // atomipkgs // cli

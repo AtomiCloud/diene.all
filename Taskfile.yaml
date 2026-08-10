@@ -33,7 +33,6 @@ tasks:
   setup:
     desc: Set up generated workspace assets
     cmds:
-      - ./scripts/local/skills-sync.sh
       # ### bun-base-setup
       # #### source: bun-base
       - ./scripts/local/setup.sh
@@ -46,7 +45,7 @@ tasks:
   skills:sync:
     desc: Synchronize installed diene package skills
     cmds:
-      - ./scripts/local/skills-sync.sh
+      - skills-sync sync
 
   # ### bun-base-tasks
   # #### source: bun-base
