@@ -5,18 +5,22 @@ title: Taskfile Conventions
 
 # Taskfile Conventions
 
-`pls` is the repository task runner. Root tasks live in `Taskfile.yaml`; grouped
-tasks live under `tasks/` and are included by namespace.
+`task` (go-task) is the repository task runner — the only one. Root tasks live in
+`Taskfile.yaml`; grouped tasks live under `tasks/` and are included by namespace.
 
-## Current surface
+## Reading the task surface
 
-| Command            | Purpose                                  |
-| ------------------ | ---------------------------------------- |
-| `pls setup`        | synchronize generated vendored skills    |
-| `pls lint`         | run all pre-commit gates                 |
-| `pls skills:sync`  | rebuild `.claude/skills/vendor/`         |
-| `pls secret:fetch` | fetch the selected Infisical environment |
-| `pls secret:scan`  | scan tracked content for secrets         |
+`task --list` prints every available task with its description; that output is the
+current surface. To read it from source instead, start at `Taskfile.yaml`: its
+`includes:` block maps each namespace to a file under `tasks/`, so a task shown as
+`<namespace>:<task>` is the `<task>` key in the file that namespace includes.
+Every task carries a `desc:` explaining what it does, and its `cmds:` are the
+literal commands it runs.
+
+The root `setup` task owns generated workspace assets. It runs
+`releaser conventions -c release.yaml` and then the only permitted vendor-tree
+writer, `skills-sync sync --tier setup`. Setup is repair-capable; the pre-commit
+and CI tiers refuse rather than silently staging or repairing a commit.
 
 ## Rules
 
@@ -24,10 +28,10 @@ tasks live under `tasks/` and are included by namespace.
 2. Move conditional or multi-step local logic to `scripts/local/`.
 3. Never call `scripts/ci/*` from a Taskfile; workflows own those entry points.
 4. Use lowercase names and colon-separated namespaces.
-5. Put repository-specific values in Taskfile `vars:` blocks.
+5. Put repository-specific values in Taskfile `vars:` blocks, scoped to the task
+   that uses them rather than shared across tasks.
 6. Do not add progress-only `echo` commands; the runner already displays each
    command.
 
-The root file includes the `secret` task file. Each include
-and many-owner block remains self-contained so downstream strips can remove only
-their own axis.
+Each include remains self-contained so downstream strips can remove only their own
+axis.
