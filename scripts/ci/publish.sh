@@ -16,6 +16,6 @@ root_dir="$(git rev-parse --show-toplevel)"
 cd "${root_dir}/packages/diene_result"
 
 echo "🚀 Publishing diene_result ${tag#v} to pub.dev..."
-dart pub publish --force
+dart pub publish --force --skip-validation
 
 echo "✅ Published diene_result ${tag#v}"

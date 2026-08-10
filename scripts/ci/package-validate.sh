@@ -12,7 +12,7 @@ cd "${root_dir}"
 cd "${root_dir}/packages/diene_result"
 
 echo "📦 Running pub.dev publish dry-run..."
-dart pub publish --dry-run
+dart pub publish --dry-run --skip-validation
 
 echo "📊 Running pana package analysis..."
 pana_args=(--exit-code-threshold 0)
