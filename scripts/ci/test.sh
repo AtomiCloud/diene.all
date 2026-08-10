@@ -7,8 +7,6 @@ mode="${1:-}"
 root_dir="$(git rev-parse --show-toplevel)"
 cd "${root_dir}"
 
-./scripts/ci/setup.sh
-
 if [ "${mode}" = "sit" ]; then
   cli_bin="${CLI_BIN:-dist/go-consumer}"
   [ ! -f "${cli_bin}" ] && ./scripts/ci/compile.sh

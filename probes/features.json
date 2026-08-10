@@ -76,11 +76,6 @@
   },
   {
     "template": "diene/workspace",
-    "name": "hook-helm-docs",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
     "name": "hook-helm-lint",
     "class": "gate"
   },
@@ -126,37 +121,7 @@
   },
   {
     "template": "diene/workspace",
-    "name": "secret-guards",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "secret-scan-command",
-    "class": "smoke"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "skills-vendor-directory",
-    "class": "presence"
-  },
-  {
-    "template": "diene/workspace",
     "name": "skills-sync",
-    "class": "smoke"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "skills-freshness",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "release-config-schema",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "release-type-vocabulary",
     "class": "gate"
   },
   {
@@ -171,32 +136,12 @@
   },
   {
     "template": "diene/workspace",
-    "name": "workflow-names",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "nixpkgs-pin",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
     "name": "trusted-action-pins",
     "class": "gate"
   },
   {
     "template": "diene/workspace",
     "name": "non-trusted-action-pins",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "cache-tag-shape",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "many-owner-schema",
     "class": "gate"
   },
   {
@@ -209,11 +154,6 @@
     "template": "diene/workspace",
     "name": "probe-artifacts",
     "class": "presence"
-  },
-  {
-    "template": "diene/shared",
-    "name": "claude-link-integrity",
-    "class": "gate"
   },
   {
     "template": "diene/shared",
@@ -449,5 +389,35 @@
     "template": "diene/go-consumer",
     "name": "lib-dogfood-artifacts",
     "class": "presence"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "secret-login-guard",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "hook-releaser-commit",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "staticcheck-whole-repo",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "staticcheck-production",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "hook-deadcode-strict",
+    "class": "gate"
+  },
+  {
+    "template": "diene/go-base",
+    "name": "system-integration-tests",
+    "class": "smoke"
   }
 ]
