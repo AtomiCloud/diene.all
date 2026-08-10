@@ -9,6 +9,13 @@ cd "${root_dir}"
 
 ./scripts/ci/setup.sh
 
+if [[ ${mode} == "int" ]]; then
+  adapter_source="$(find src/adapters -type f -name '*.ts' -print -quit 2>/dev/null || true)"
+  integration_test="$(find tests/integration -type f -name '*.test.ts' -print -quit 2>/dev/null || true)"
+  [[ -z ${adapter_source} && -z ${integration_test} ]] && echo "⏭️ No integration tier (this package has no adapters)" && exit 0
+  [[ -z ${adapter_source} || -z ${integration_test} ]] && echo "❌ Adapter source and integration tests must be added together" >&2 && exit 1
+fi
+
 if [[ ${mode} == "sit" ]]; then
   [[ -d dist/bin ]] && chmod -R +x dist/bin
   [[ -n ${CLI_BIN:-} ]] && chmod +x "${CLI_BIN}"

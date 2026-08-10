@@ -1,7 +1,7 @@
 # npm release runbook
 
-`@atomicloud/diene.bun-lib` publishes from the
-[`AtomiCloud/diene.bun-lib`](https://github.com/AtomiCloud/diene.bun-lib)
+`@atomicloud/diene.problems` publishes from the
+[`AtomiCloud/diene.bun-problems`](https://github.com/AtomiCloud/diene.bun-problems)
 mirror repository. The release workflow stamps the version in the release
 commit, creates `vX.Y.Z`, and the tag-triggered CD workflow verifies that the
 manifest version equals the tag before publishing.

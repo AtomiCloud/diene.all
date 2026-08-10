@@ -1,6 +1,8 @@
-// ─── DOMAIN WIRING · the sample export surface (delete through END to replace the sample) ────────
-export type { IKeyValueStore } from './adapters/kv-store';
-export type { RedisConnection } from './lib/redis-config';
-export { withCleanup } from './lib/cleanup';
-export * from './lib/sample';
-// ─── END DOMAIN WIRING ────────────────────────────────────────────────────────────────────────────
+// ─── DOMAIN WIRING · RFC 9457 problems export surface ───────────────────────────────────────────
+export * from './lib/catalog.js';
+export * from './lib/publish.js';
+export * from './lib/registry.js';
+export * from './lib/transformer.js';
+export * from './lib/types.js';
+export * from './lib/uri.js';
+// ─── END DOMAIN WIRING ──────────────────────────────────────────────────────────────────────────
