@@ -1,4 +1,4 @@
-namespace AtomiCloud.DotnetBase.Lib.Note;
+namespace AtomiCloud.Diene.Note;
 
 /// <summary>A persisted note: stable identity paired with its content.</summary>
 public record NotePrincipal

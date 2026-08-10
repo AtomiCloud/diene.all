@@ -28,3 +28,7 @@ desktop.ini
 **/bin/
 **/obj/
 TestResults/
+
+### dotnet-lib
+#### source: dotnet-lib
+artifacts/

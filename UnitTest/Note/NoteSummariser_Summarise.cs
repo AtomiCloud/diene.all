@@ -1,5 +1,6 @@
 using System.Text;
-using AtomiCloud.DotnetBase.Lib.Note;
+using AtomiCloud.Diene.Note;
+using AtomiCloud.Diene.Note.TestHelper.Note;
 using FluentAssertions;
 
 namespace AtomiCloud.DotnetBase.UnitTest.Note;
@@ -18,6 +19,7 @@ public class NoteSummariser_Summarise
 
         // Assert
         actual.Should().Be("Hello — world");
+        subject.AssertSummary(input, 80, "Hello — world");
     }
 
     [Fact]

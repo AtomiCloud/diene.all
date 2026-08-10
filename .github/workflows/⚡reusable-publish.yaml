@@ -1,0 +1,24 @@
+# ### dotnet-lib-reusable-publish
+# #### source: dotnet-lib
+name: ⚡ Reusable Publish
+
+on:
+  workflow_call:
+    secrets:
+      NUGET_API_KEY:
+        required: true
+
+jobs:
+  publish:
+    name: Publish to NuGet
+    runs-on:
+      - nscloud-ubuntu-22.04-amd64-4x8-with-cache
+      - nscloud-cache-size-50gb
+      - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
+    steps:
+      - uses: AtomiCloud/actions.setup-nix@v3
+      - uses: AtomiCloud/actions.cache-nuget@v1
+      - name: Publish library packages
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: nix develop .#cd -c ./scripts/ci/publish.sh

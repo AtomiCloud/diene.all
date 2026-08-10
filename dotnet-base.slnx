@@ -2,5 +2,6 @@
   <Project Path="App/App.csproj" />
   <Project Path="IntTest/IntTest.csproj" />
   <Project Path="Lib/Lib.csproj" />
+  <Project Path="TestHelper/TestHelper.csproj" />
   <Project Path="UnitTest/UnitTest.csproj" />
 </Solution>

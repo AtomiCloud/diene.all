@@ -1,5 +1,7 @@
 <Project>
 
+  <Import Project="Version.props" />
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <LangVersion>latest</LangVersion>
@@ -23,6 +25,24 @@
     <NuGetAudit>true</NuGetAudit>
     <NuGetAuditMode>all</NuGetAuditMode>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <!-- ### dotnet-lib-package-metadata -->
+  <!-- #### source: dotnet-lib -->
+  <PropertyGroup>
+    <Authors>AtomiCloud</Authors>
+    <Company>AtomiCloud</Company>
+    <RepositoryUrl>https://github.com/AtomiCloud/diene.dotnet-lib</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/AtomiCloud/diene.dotnet-lib</PackageProjectUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageIcon>logo.png</PackageIcon>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <EnablePackageValidation>true</EnablePackageValidation>
+    <PackageValidationBaselineVersion Condition="'$(Version)' != '1.0.0'">1.0.0</PackageValidationBaselineVersion>
   </PropertyGroup>
 
 </Project>

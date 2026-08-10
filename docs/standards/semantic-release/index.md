@@ -58,12 +58,15 @@ Two parts of `release:` carry a note worth reading before you edit them:
   `@semantic-release/exec` hook point moved to: a list of
   `{ phase: beforeWrite | afterWrite, command: … }` entries each node fills with a
   command that stamps the version into whatever file that node's ecosystem
-  versions. The parent template versions no manifest and leaves this empty; .NET
-  versions `App/App.csproj`, so this node runs
+  versions. The parent template versions no manifest and leaves this empty; this
+  node versions `Version.props`, so it runs
   `./scripts/release/bump.sh ${version}` at the `afterWrite` phase and lists
-  `App/App.csproj` in `assets`. There is no separate `VERSION` file: the language
-  manifest is the version, and a committed version file that nothing writes goes
-  stale in silence.
+  `Version.props` in `assets`. `Version.props` is imported by
+  `Directory.Build.props`, so one stamp versions every project in the solution —
+  which is what a library node that publishes several packages needs, and it is
+  why this node does not stamp `App/App.csproj` the way the application parent
+  does. There is no separate `VERSION` file: the manifest is the version, and a
+  committed version file that nothing writes goes stale in silence.
 - `release.commit.assets` lists the files a release commits, and it is enforced
   rather than advisory: the releaser aborts if a write lands outside the list, and a
   file listed but never written is dead configuration. So if you add a `prepare`

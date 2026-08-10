@@ -11,6 +11,14 @@ includes:
     taskfile: tasks/Taskfile.test.yaml
     vars:
       MODE: int
+  # This node carries a third tier the parent does not (it holds a TestHelper
+  # project). It is named into the parent's `test:<tier>` include scheme rather
+  # than left as a bare `meta:`, so `test:meta`, `test:meta:coverage` and
+  # `test:meta:watch` derive from the include exactly as the other two tiers do.
+  test:meta:
+    taskfile: tasks/Taskfile.test.yaml
+    vars:
+      MODE: meta
 
 tasks:
   setup:
@@ -73,7 +81,15 @@ tasks:
       - ./scripts/local/dotnet-dead-code.sh --llm
 
   test:
-    desc: Run unit and integration tests
+    desc: Run unit, integration, and TestHelper meta tests
     cmds:
       - task: test:unit
       - task: test:int
+      - task: test:meta
+
+  test:coverage:
+    desc: Run every test tier with merged blocking coverage
+    cmds:
+      - task: test:unit:coverage
+      - task: test:int:coverage
+      - task: test:meta:coverage

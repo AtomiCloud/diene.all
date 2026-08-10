@@ -74,7 +74,8 @@ The command exposes `buildDotnetModule.passthru.fetch-deps`; its output replaces
 
 ## Release
 
-Releaser stamps the version in `App/App.csproj`; its canonical
+Releaser stamps the version in the imported `Version.props` package manifest,
+which `Directory.Build.props` applies to every project; its canonical
 `release.yaml` is the single commit-type vocabulary.
 
 ## Template-maintenance boundary

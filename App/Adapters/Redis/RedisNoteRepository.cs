@@ -1,5 +1,5 @@
 using System.Text.Json;
-using AtomiCloud.DotnetBase.Lib.Note;
+using AtomiCloud.Diene.Note;
 using StackExchange.Redis;
 
 namespace AtomiCloud.DotnetBase.App.Adapters.Redis;

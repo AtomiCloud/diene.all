@@ -1,4 +1,4 @@
-namespace AtomiCloud.DotnetBase.Lib.Note;
+namespace AtomiCloud.Diene.Note;
 
 /// <summary>Persistence boundary owned by the note domain.</summary>
 public interface INoteRepository

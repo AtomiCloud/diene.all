@@ -3,11 +3,9 @@ set -euo pipefail
 
 version="${1:-}"
 [ -z "${version}" ] && echo "❌ version argument not set" >&2 && exit 1
-[ "$(xmlstarlet select --template --value-of 'count(/Project/PropertyGroup/Version)' App/App.csproj)" != "1" ] && echo "❌ App/App.csproj must contain exactly one Version element" >&2 && exit 1
+[ "$(xmlstarlet select --template --value-of 'count(/Project/PropertyGroup/Version)' Version.props)" != "1" ] && echo "❌ Version.props must contain exactly one Version element" >&2 && exit 1
 
-xmlstarlet ed --omit-decl --inplace \
-  --update '/Project/PropertyGroup/Version' \
-  --value "${version#v}" \
-  App/App.csproj
+git restore --source=HEAD -- Version.props
+xmlstarlet ed --inplace -u '/Project/PropertyGroup/Version' -v "${version#v}" Version.props
 
-echo "✅ App/App.csproj stamped to ${version#v}"
+echo "✅ Version.props stamped to ${version#v}"

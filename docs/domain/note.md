@@ -1,6 +1,6 @@
 # Ubiquitous language: Note
 
-The sample bounded context lives in `Lib/Note`; Redis persistence lives in
+The sample bounded context lives in `Lib`; Redis persistence lives in
 `App/Adapters/Redis`.
 
 | Term              | Meaning                                                   |

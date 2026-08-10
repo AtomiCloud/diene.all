@@ -105,7 +105,7 @@ pre-commit --version >/dev/null
 pre-commit validate-config .pre-commit-config.yaml
 
 rg --version >/dev/null
-rg -q 'Diene .NET base template' README.md
+rg -q '^# Diene \.NET (base|library) template$' README.md
 
 printf '%s\n' 'feat: binary smoke' >"${tmp}/commit-message"
 releaser lint-commit -c release.yaml "${tmp}/commit-message"

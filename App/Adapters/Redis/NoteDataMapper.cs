@@ -1,4 +1,4 @@
-using AtomiCloud.DotnetBase.Lib.Note;
+using AtomiCloud.Diene.Note;
 
 namespace AtomiCloud.DotnetBase.App.Adapters.Redis;
 
