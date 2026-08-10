@@ -3,7 +3,13 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { devShellCommand } from './exec';
-import { capturedEnvCommand, DEV_SHELL_CHAIN, expectDevShellsOnce, expectRedBecause } from './helpers';
+import {
+  capturedEnvCommand,
+  DEV_SHELL_CHAIN,
+  expectDevShellsOnce,
+  expectRedBecause,
+  preserveMutationBeforeRestore,
+} from './helpers';
 
 const ENV_DIR = '/captures';
 
@@ -270,6 +276,89 @@ describe('expectRedBecause', () => {
       await expect(expectRedBecause(repo, 'tsc --noEmit', 'typecheck', ['error TS2322'])).rejects.toThrow(
         `exit ${exitCode}`,
       );
+    });
+  }
+});
+
+describe('preserveMutationBeforeRestore', () => {
+  // A sandbox stand-in: exec is scripted per command shape, write records the
+  // restore. cmp is answered from the recorded copy, so the verification step is
+  // exercised for real rather than stubbed to success.
+  function evidenceRepo(overrides: { copyFails?: boolean; copyDiffers?: boolean } = {}) {
+    const written: Array<{ path: string; content: string }> = [];
+    const execs: string[] = [];
+    let copied = false;
+    return {
+      written,
+      execs,
+      async exec(command: string) {
+        execs.push(command);
+        if (command.startsWith('mkdir -p ')) {
+          if (overrides.copyFails) return { exitCode: 1, stdout: '', stderr: 'cp: no such file' };
+          copied = true;
+          return { exitCode: 0, stdout: '', stderr: '' };
+        }
+        if (command.startsWith('cmp -s ')) {
+          return { exitCode: copied && !overrides.copyDiffers ? 0 : 1, stdout: '', stderr: '' };
+        }
+        return { exitCode: 0, stdout: '', stderr: '' };
+      },
+      async write(path: string, content: string) {
+        written.push({ path, content });
+      },
+    };
+  }
+
+  test('preserves the mutated bytes and then restores the original', async () => {
+    const repo = evidenceRepo();
+
+    await preserveMutationBeforeRestore(repo, 'dart-analyze', 'packages/diene_config/lib/src/a.dart', 'ORIGINAL');
+
+    expect(repo.execs[0]).toContain(`mkdir -p '.probe-evidence/dart-analyze'`);
+    expect(repo.execs[0]).toContain(`'.probe-evidence/dart-analyze/packages__diene_config__lib__src__a.dart'`);
+    expect(repo.execs[1]).toStartWith('cmp -s ');
+    expect(repo.written).toEqual([{ path: 'packages/diene_config/lib/src/a.dart', content: 'ORIGINAL' }]);
+  });
+
+  test('a failed copy still restores the original, so no sabotage survives', async () => {
+    const repo = evidenceRepo({ copyFails: true });
+
+    await expect(
+      preserveMutationBeforeRestore(repo, 'dart-format', 'packages/diene_config/lib/src/a.dart', 'ORIGINAL'),
+    ).rejects.toThrow('could not preserve packages/diene_config/lib/src/a.dart');
+    expect(repo.written).toEqual([{ path: 'packages/diene_config/lib/src/a.dart', content: 'ORIGINAL' }]);
+  });
+
+  test('an evidence copy that does not match the mutation is refused', async () => {
+    const repo = evidenceRepo({ copyDiffers: true });
+
+    await expect(
+      preserveMutationBeforeRestore(repo, 'dart-format', 'packages/diene_config/lib/src/a.dart', 'ORIGINAL'),
+    ).rejects.toThrow('does not match the mutation');
+    expect(repo.written).toHaveLength(1);
+  });
+
+  for (const badId of ['../escape', 'has space', '', 'a/b']) {
+    test(`refuses the evidence id ${JSON.stringify(badId)} before touching the sandbox`, async () => {
+      const repo = evidenceRepo();
+
+      await expect(preserveMutationBeforeRestore(repo, badId, 'lib/a.dart', 'ORIGINAL')).rejects.toThrow(
+        'is not a usable evidence id',
+      );
+      expect(repo.execs).toHaveLength(0);
+      expect(repo.written).toHaveLength(0);
+    });
+  }
+
+  for (const badPath of ['/etc/passwd', '../outside/a.dart', '']) {
+    test(`refuses the source path ${JSON.stringify(badPath)} before touching the sandbox`, async () => {
+      const repo = evidenceRepo();
+
+      await expect(preserveMutationBeforeRestore(repo, 'label', badPath, 'ORIGINAL')).rejects.toThrow(
+        'is not a repository-relative path',
+      );
+      expect(repo.execs).toHaveLength(0);
+      expect(repo.written).toHaveLength(0);
     });
   }
 });

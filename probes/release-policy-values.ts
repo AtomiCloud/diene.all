@@ -23,9 +23,13 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        await repo.patch('atomi_release.yaml', {
-          find: '      changelogTitle: |-\n        # Changelog',
-          replace: '      changelogTitle: |-\n        # Broken Changelog',
+        // Schema v2: the title moved from the changelog plugin's changelogTitle
+        // to release.changelog.title, and the file from atomi_release.yaml to
+        // release.yaml. The sabotage is unchanged in kind — drift the declared
+        // title away from the changelog's own opening bytes.
+        await repo.patch('release.yaml', {
+          find: '    title: |-\n      # Changelog',
+          replace: '    title: |-\n      # Broken Changelog',
         });
         await expectRed(repo, VALIDATOR, 'release-policy-values');
       },

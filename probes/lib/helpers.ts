@@ -139,6 +139,61 @@ export async function withCleanProbeState(
   }
 }
 
+const EVIDENCE_ROOT = '.probe-evidence';
+const SAFE_EVIDENCE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
+/**
+ * Restore `source` to `original` from a probe's `finally`, keeping the mutated
+ * bytes as evidence under `.probe-evidence/<evidenceId>/` first.
+ *
+ * Two failure modes this exists for. A mutation probe that throws mid-assertion
+ * leaves the sabotage in the sandbox, which makes every later row in that
+ * sandbox suspect; and a plain restore destroys the only record of what was
+ * actually mutated, so a probe that went red for the wrong reason cannot be
+ * told from one that went red for the right one.
+ *
+ * The restore runs in this function's own `finally`, so a failure to write or
+ * verify the evidence copy never leaves the sabotage in place. `.probe-evidence/`
+ * is gitignored, so the copy is not itself a tree mutation.
+ */
+export async function preserveMutationBeforeRestore(
+  repo: any,
+  evidenceId: string,
+  source: string,
+  original: string,
+): Promise<void> {
+  // The id becomes a directory name and the path becomes a shell argument, so
+  // both are validated before either is used. An id that escaped its directory
+  // would let one probe's evidence overwrite another's, and the failure would
+  // look like a wrong mutation rather than a bad id.
+  if (!SAFE_EVIDENCE_ID.test(evidenceId)) {
+    throw new Error(`preserveMutationBeforeRestore: '${evidenceId}' is not a usable evidence id`);
+  }
+  if (source.length === 0 || source.startsWith('/') || source.split('/').includes('..')) {
+    throw new Error(`preserveMutationBeforeRestore: '${source}' is not a repository-relative path`);
+  }
+
+  const evidenceDir = `${EVIDENCE_ROOT}/${evidenceId}`;
+  const evidence = `${evidenceDir}/${source.replaceAll('/', '__')}`;
+  try {
+    const copied = await repo.exec(
+      `mkdir -p ${shellArgument(evidenceDir)} && cp -- ${shellArgument(source)} ${shellArgument(evidence)}`,
+    );
+    if (copied.exitCode !== 0) {
+      throw new Error(`preserveMutationBeforeRestore: could not preserve ${source}: ${copied.stderr || copied.stdout}`);
+    }
+    // Verify the copy rather than trusting the exit code: an evidence file that
+    // silently holds the wrong bytes is worse than no evidence file, because it
+    // is read later as proof.
+    const verified = await repo.exec(`cmp -s -- ${shellArgument(source)} ${shellArgument(evidence)}`);
+    if (verified.exitCode !== 0) {
+      throw new Error(`preserveMutationBeforeRestore: the preserved copy of ${source} does not match the mutation`);
+    }
+  } finally {
+    await repo.write(source, original);
+  }
+}
+
 const UNEXECUTED_EXIT_CODES = new Map([
   [126, 'not executable'],
   [127, 'not found'],
