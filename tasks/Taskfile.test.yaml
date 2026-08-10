@@ -8,12 +8,22 @@ tasks:
     internal: true
     desc: 'Run {{.MODE}} tests'
     cmds:
-      - bun test --config={{.CONFIG}}
+      - |
+        if [ "{{.MODE}}" = "meta" ]; then
+          ./scripts/local/test-meta.sh "{{.CONFIG}}"
+        else
+          bun test --config={{.CONFIG}}
+        fi
   coverage:
     internal: true
     desc: 'Run {{.MODE}} tests with coverage (lcov + text artifacts)'
     cmds:
-      - bun test --config={{.CONFIG}} --coverage
+      - |
+        if [ "{{.MODE}}" = "meta" ]; then
+          ./scripts/local/test-meta.sh "{{.CONFIG}}" coverage
+        else
+          bun test --config={{.CONFIG}} --coverage
+        fi
   watch:
     internal: true
     desc: 'Run {{.MODE}} tests in watch mode'

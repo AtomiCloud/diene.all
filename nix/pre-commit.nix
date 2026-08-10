@@ -55,6 +55,11 @@ let
     cp -R ${../.}/. "$out/"
     ln -s ${bun-tooling}/node_modules "$out/node_modules"
   '';
+  # bun-lib's publish-policy hooks need the declared toolchain even though
+  # the parent now delegates its general checks to dlint.
+  validator =
+    command:
+    "${packages.atomiutils}/bin/bash -c 'PATH=${envPath}:\$PATH exec ${packages.atomiutils}/bin/bash ${command}'";
   # toolchain-smoke asserts the DECLARED env lists actually provide their binaries.
   envPath = pkgs.lib.makeBinPath (env.system ++ env.main ++ env.lint ++ env.dev);
 in
@@ -163,6 +168,44 @@ pre-commit-lib.run {
       name = "Knip production dead code";
       entry = "${bun-tool "knip"} --config knip.production.json";
       files = "(^package\\.json$|^tsconfig\\.json$|^knip\\.production\\.json$|\\.(ts|tsx)$)";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    # ### bun-lib-hooks
+    # #### source: bun-lib
+    a-publish-tag-policy = {
+      enable = true;
+      name = "Publish tag policy";
+      entry = validator "scripts/validate/publish-policy.sh tag";
+      files = "^\\.github/workflows/cd\\.yaml$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-publish-credential-policy = {
+      enable = true;
+      name = "Publish credential policy";
+      entry = validator "scripts/validate/publish-policy.sh credential";
+      files = "^(\\.github/workflows/.*\\.ya?ml$|scripts/ci/publish\\.sh$)";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-publish-command-policy = {
+      enable = true;
+      name = "Publish command policy";
+      entry = validator "scripts/validate/publish-policy.sh command";
+      files = "^scripts/ci/publish\\.sh$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-package-metadata = {
+      enable = true;
+      name = "Package metadata agreement";
+      entry = validator "scripts/validate/package-metadata.sh";
+      files = "^(package\\.json$|LICENSE$)";
       pass_filenames = false;
       language = "system";
     };
