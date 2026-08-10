@@ -8,21 +8,22 @@ with packages;
     go-task
     infisical
     jq
-    pls
-    skopeo
+    releaser
   ];
 
   # ### workspace-lint
   # #### source: workspace
   lint = [
     actionlint
-    infralint
-    kubeconform
+    dlint
+    infralint-core
+    # ### nextjs-frontend-lint
+    # #### source: nextjs-frontend
     kubernetes-helm
-    kyverno
     pre-commit
     ripgrep
     shellcheck
+    skills-sync
     treefmt
     yq-go
   ];
@@ -33,23 +34,21 @@ with packages;
     # ### nextjs-frontend-main
     # #### source: nextjs-frontend
     nodejs
+    # ### nextjs-frontend-main
+    # #### source: nextjs-frontend
+    kubernetes-helm
+    ripgrep
     # ### bun-base-main
     # #### source: bun-base
     bun
+    nodejs
     cyanprint
-    docker-client
     git
     go-task
     infisical
     jq
-    kubeconform
-    kubernetes-helm
-    kyverno
-    pls
     releaser
-    ripgrep
     shellcheck
-    skopeo
     yq-go
   ];
 
@@ -63,6 +62,7 @@ with packages;
   # #### source: main
   system = [
     atomiutils
-    infrautils
+    infrautils-core
+    nix
   ];
 }

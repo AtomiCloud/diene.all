@@ -3,7 +3,7 @@ root = "tests/integration"
 timeout = 120000
 # Neutralize the RSC marker packages so server and client adapters are both importable
 # under bun; the real boundary is enforced by next build + scripts/validate/pure-renderer.ts.
-preload = ["./tests/integration/preload.ts"]
+preload = ["./tests/integration/preload.ts", "./tests/support/int-ledger.ts"]
 coverageReporter = ["text", "lcov"]
 coverageDir = "coverage/int"
 coverageSkipTestFiles = true
@@ -19,3 +19,6 @@ coveragePathIgnorePatterns = [
   "src/i18n/**",
   "tests/**",
 ]
+
+# Scalar form only: Bun 1.3.13 does not enforce the per-metric object.
+coverageThreshold = 1.0

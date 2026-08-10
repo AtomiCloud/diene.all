@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedBecause } from './lib/helpers.ts';
 
 export default {
   contractVersion: 1,
@@ -29,7 +29,10 @@ export default {
       expectedImpact: ['resize-fluid-i18n'],
       async run(repo: any) {
         await repo.patch('.prettierrc.yaml', { find: 'arrowParens: avoid', replace: 'arrowParens:    avoid' });
-        await expectRed(repo, 'nix fmt --no-write-lock-file -- --ci --formatters prettier', 'fmt-prettier');
+        await expectRedBecause(repo, 'nix fmt --no-write-lock-file -- --ci --formatters prettier', 'fmt-prettier', [
+          '.prettierrc.yaml',
+          'unexpected changes detected',
+        ]);
       },
     },
   ],

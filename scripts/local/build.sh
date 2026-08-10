@@ -6,7 +6,7 @@ cd "${root_dir}"
 
 artifact="dist/index.js"
 
-echo "🔨 Building sample bundle..."
+echo "🔨 Building validation bundle..."
 bun build ./src/index.ts --outdir ./dist --target bun
 
 [[ ! -f ${artifact} ]] && echo "❌ Build artifact missing: ${artifact}" >&2 && exit 1
