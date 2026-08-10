@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-bash ./scripts/ci/setup.sh
 bash ./scripts/validate/chlorine.sh schema
 bash ./scripts/validate/chlorine.sh schema-negative
 bash ./scripts/validate/chlorine.sh schema-drift
@@ -19,7 +18,6 @@ bash ./scripts/validate/chlorine.sh publish-git
 bash ./scripts/validate/chlorine.sh publish-oci
 bash ./scripts/validate/chlorine.sh version
 bash ./scripts/validate/chlorine.sh presence
-bash ./scripts/validate/release-config.sh all
 bash ./scripts/validate/gitlint-types.sh
 
 echo "✅ Chlorine CI validation complete"

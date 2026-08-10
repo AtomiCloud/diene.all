@@ -69,7 +69,7 @@ The vendored dependency is official reloader chart `2.2.14` / app `v1.4.19`,
 pinned pure-passthrough from the recorded source archive hash in
 `chart/upstream-evidence.yaml` (the current official latest).
 `scripts/local/vendor-reloader.sh` verifies the vendored archive is exactly the
-recorded upstream source (no patch). `pls latest` checks the official chart
+recorded upstream source (no patch). `task latest` checks the official chart
 repository and the `ghcr.io/stakater` image registry against the evidence; it
 fails only if upstream has regressed below the pin, treating a genuinely newer
 upstream as an informational note (adopting it is a `dep(reloader)` PR).
