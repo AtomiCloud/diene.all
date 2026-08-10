@@ -28,7 +28,7 @@ done
   exit 1
 }
 
-bash ./scripts/ci/setup.sh
+bash ./scripts/local/setup.sh
 mkdir -p "${output_dir}"
 packages=()
 for chart_path in "${chart_paths[@]}"; do

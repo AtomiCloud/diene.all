@@ -6,7 +6,7 @@ option="${1:-}"
   echo "❌ unsupported Lithium CI option ${option}" >&2
   exit 1
 }
-bash scripts/ci/setup.sh
+bash scripts/local/setup.sh
 bash scripts/validate/lithium.sh all
 if [ "${option}" != --offline ]; then
   bash scripts/validate/lithium.sh filter-runtime

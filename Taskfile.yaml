@@ -4,7 +4,6 @@ version: '3'
 
 includes:
   helm: tasks/Taskfile.helm.yaml
-  secret: tasks/Taskfile.secret.yaml
   example:lapras:
     taskfile: tasks/Taskfile.cluster.yaml
     vars:
@@ -15,9 +14,9 @@ includes:
 
 tasks:
   setup:
-    desc: Set up generated workspace assets
+    desc: Set up the workspace
     cmds:
-      - ./scripts/local/skills-sync.sh
+      - ./scripts/local/setup.sh
 
   lint:
     desc: Run all repository gates
@@ -27,7 +26,23 @@ tasks:
   skills:sync:
     desc: Synchronize installed diene package skills
     cmds:
-      - ./scripts/local/skills-sync.sh
+      - skills-sync sync
+
+  build:
+    desc: Vendor config and build chart dependencies
+    cmds:
+      - ./scripts/local/vendor-chart-config.sh
+      - helm dependency build chart
+
+  update:
+    desc: Refresh the pinned upstream chart dependency
+    cmds:
+      - helm dependency update chart
+
+  latest:
+    desc: Resolve the latest real upstream chart and image tags
+    cmds:
+      - ./scripts/local/latest-chart-upstreams.sh
 
   test:
     desc: Run the Lithium host-safe validation tier
