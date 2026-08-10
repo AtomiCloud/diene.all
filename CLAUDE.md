@@ -131,7 +131,7 @@ this branch.
 <!-- ### dotnet-lib -->
 <!-- #### source: dotnet-lib -->
 
-## .NET library template
+## AtomiCloud.Diene.Problems library
 
 Read [the .NET library baseline](docs/developer/dotnet-lib-baseline.md) before
 changing package identity, release/versioning, package validation, TestHelper,
