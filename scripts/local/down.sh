@@ -2,6 +2,11 @@
 set -euo pipefail
 
 container="${OPERATOR_LEDGER_CONTAINER:-fleet-operator-ledger}"
-docker rm -f "${container}" >/dev/null 2>&1 || true
+
+# Treat only absence of the exact container as a no-op so Docker daemon and permission failures propagate.
+existing="$(docker ps --all --quiet --filter "name=^/${container}$")"
+[ -z "${existing}" ] && echo "✅ Local dependencies already stopped" && exit 0
+
+docker rm --force "${container}" >/dev/null
 
 echo "✅ Local MinIO ledger stopped"

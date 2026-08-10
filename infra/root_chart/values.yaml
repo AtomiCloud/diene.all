@@ -1,5 +1,3 @@
-# ### go-base-values
-# #### source: go-base
 
 # -- Manager container image repository.
 image:

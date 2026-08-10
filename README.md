@@ -5,43 +5,31 @@ plus manager chart, published as `ghcr.io/atomicloud/diene.fleet-operator` and t
 `fleet-operator` chart. The fleet controllers and CRDs land in later lanes; the
 inherited machinery is currently proven on a toy CRD pair.
 
-<!-- ### go-base-badges -->
-<!-- #### source: go-base -->
+Diene's reproducible development environment is managed by Nix. Run `direnv allow` once, then use `task` tasks from the loaded shell.
 
-<!-- ### nix-root -->
-<!-- #### source: main -->
-
-Diene's reproducible development environment is managed by Nix. Run `direnv allow` once, then use `pls` tasks from the loaded shell.
-
-<!-- ### workspace -->
-<!-- #### source: workspace -->
-
-This repository inherits the all-features workspace baseline: split CI/CD, Docker,
-Helm, secrets, release configuration, validators, standards, and vendored agent-skill
-synchronization.
+This repository inherits the all-features workspace baseline: split CI/CD, Docker, Helm, secrets, release configuration, validators, standards, and vendored agent-skill synchronization.
 
 ## Commands
 
-- `pls setup` — synchronize installed diene package skills.
-- `pls lint` — run every pre-commit gate.
-- `pls docker:build` — build the local manager image.
-- `pls helm:lint` / `pls helm:template` — validate or render the root chart.
-- `pls secret:scan` — scan tracked content for secrets.
-- `pls skills:sync` — rebuild `.claude/skills/vendor/` from installed packages.
-
-<!-- ### go-base-commands -->
-<!-- #### source: go-base -->
+Run `task --list` for every available task and its description. The task set is
+declared in [`Taskfile.yaml`](Taskfile.yaml), whose `includes:` block maps each
+namespace to a file under [`tasks/`](tasks); a task shown as `<namespace>:<task>`
+is that key in the included file. Build artifacts — Dockerfiles and Helm charts —
+live under [`infra/`](infra) and may be plural, so their tasks are keyed per
+artifact. See [the Taskfile standard](docs/standards/taskfile/index.md) for the
+conventions.
 
 ## Go commands
 
-- `pls build` — create `dist/manager`.
-- `pls typecheck` — compile every source package without running tests.
-- `pls test` / `pls test:coverage` — run both tiers normally or with scoped ledgers.
-- `pls deadcode` — run strict whole-repository and production passes plus the LLM-lax report.
-- `pls run -- --help` — run the manager from source.
-- `pls preview -- --help` — run the compiled manager artifact.
-- `pls operator:generate` — regenerate CRDs, RBAC, and deepcopy from the Go types.
-- `pls operator:e2e` — run the k3d end-to-end journey.
+- `task build` — create `dist/manager`.
+- `task typecheck` — compile every source package without running tests.
+- `task test` — run the unit and integration tiers.
+- `task test:coverage` — enforce the scoped unit and integration coverage ledgers.
+- `task deadcode` — run strict whole-repository and production passes plus the LLM-lax report.
+- `task run -- --help` — run the manager from source.
+- `task preview -- --help` — run the compiled manager artifact.
+- `task operator:generate` — regenerate CRDs, RBAC, and deepcopy from the Go types.
+- `task operator:e2e` — run the k3d end-to-end journey.
 
 See the [Go baseline](docs/developer/go-baseline.md) for the language contract and
 template-maintenance boundary, and the
@@ -49,42 +37,14 @@ template-maintenance boundary, and the
 
 ## Standards
 
-- [CI/CD workflows](docs/standards/ci-cd/index.md)
-- [conventional commits](docs/standards/conventional-commits/index.md)
-- [Docker build and publishing](docs/standards/docker/index.md)
-- [Helm charts and publishing](docs/standards/helm/index.md)
-- [Infisical and secrets](docs/standards/infisical/index.md)
-- [linting and pre-commit](docs/standards/linting/index.md)
-- [Nix flakes and development shells](docs/standards/nix/index.md)
-- [release automation](docs/standards/semantic-release/index.md)
-- [service-tree identity](docs/standards/service-tree/index.md)
-- [shell scripts](docs/standards/shell-scripts/index.md)
-- [Taskfile conventions](docs/standards/taskfile/index.md)
+The conventions this repository follows live under
+[`docs/standards/`](docs/standards). Read the standard for the surface you are
+changing before you change it. [`CLAUDE.md`](CLAUDE.md) links the ones an agent
+reaches for most often; it is a convenience, not a required index, and nothing
+checks that it names every surface.
 
-<!-- ### shared -->
-<!-- #### source: shared -->
-
-## Shared standards
-
-- [Authorization](docs/standards/authorization/index.md)
-- [Contributor documentation](docs/standards/contributor-docs/index.md)
-- [Date and time](docs/standards/datetime/index.md)
-- [Domain-driven design](docs/standards/domain-driven-design/index.md)
-- [Functional practices](docs/standards/functional-practices/index.md)
-- [Software design philosophy](docs/standards/software-design-philosophy/index.md)
-- [SOLID principles](docs/standards/solid-principles/index.md)
-- [Stateless OOP and dependency injection](docs/standards/stateless-oop-di/index.md)
-- [Testing](docs/standards/testing/index.md)
-- [Three-layer architecture](docs/standards/three-layer-architecture/index.md)
-- [Utility libraries](docs/standards/utilities/index.md)
-- [Data validation](docs/standards/validation/index.md)
-
-Domain-specific documentation belongs under [docs/domain/](docs/domain/README.md).
-The `docs/standards/contracts/` location is reserved for the separately owned C0
-contracts standard.
-
-<!-- ### go-base-language-standards -->
-<!-- #### source: go-base -->
+Domain-specific architecture and behavior belongs under
+[`docs/domain/`](docs/domain/README.md), not under `docs/standards/`.
 
 ## Go language variants
 

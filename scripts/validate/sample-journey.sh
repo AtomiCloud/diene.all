@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-source_help="$(pls run -- --help 2>&1)"
-preview_help="$(pls preview -- --help 2>&1)"
+source_help="$(task run -- --help 2>&1)"
+preview_help="$(task preview -- --help 2>&1)"
 if [[ ! -x dist/manager ]]; then
   echo "❌ preview did not build executable dist/manager" >&2
   exit 1

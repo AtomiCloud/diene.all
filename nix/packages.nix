@@ -1,66 +1,15 @@
 {
   atomi,
-  pkgs,
   pkgs-2605,
   pkgs-unstable,
 }:
 let
-  cyanprintVersion = "4.9.0";
-  cyanprintSystem = pkgs.stdenv.hostPlatform.system;
-  cyanprintPlatform =
-    ({
-      x86_64-linux = "linux_amd64";
-      aarch64-linux = "linux_arm64";
-      x86_64-darwin = "darwin_amd64";
-      aarch64-darwin = "darwin_arm64";
-    }).${cyanprintSystem};
-  cyanprintHash =
-    ({
-      x86_64-linux = "sha256-z5whvbKPJTgyR5qWeYefN7NuTKY1pWaRkYDnyyaNG9k=";
-      aarch64-linux = "sha256-SrhazRJbeK3vJHGvv0TwKHdz/ulqZM04qMtKgX0AJgA=";
-      x86_64-darwin = "sha256-XIolxZN+KVf/Ui5/rQjg+k3OXLrbJuGGxh6iYkki+/k=";
-      aarch64-darwin = "sha256-xugPBTO6CTixUjpq9PPq2WOQySci735gfuOXZSn75Ew=";
-    }).${cyanprintSystem};
-  cyanprint = pkgs.stdenvNoCC.mkDerivation {
-    pname = "cyanprint";
-    version = cyanprintVersion;
-    src = pkgs.fetchurl {
-      url = "https://github.com/AtomiCloud/sulfone.lite/releases/download/v${cyanprintVersion}/cyanprint_${cyanprintVersion}_${cyanprintPlatform}.tar.gz";
-      hash = cyanprintHash;
-    };
-    sourceRoot = ".";
-    strictDeps = true;
-    dontStrip = true;
-    nativeBuildInputs = pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.autoPatchelfHook ];
-    buildInputs = pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.glibc ];
-    installPhase = ''
-      runHook preInstall
-      install -Dm755 cyanprint "$out/bin/cyanprint"
-      runHook postInstall
-    '';
-    doInstallCheck = true;
-    installCheckPhase = ''
-      "$out/bin/cyanprint" --version | grep -Fx "cyanprint ${cyanprintVersion}"
-    '';
-    meta.mainProgram = "cyanprint";
-  };
   all = rec {
-    # ### go-base
-    # #### source: go-base
     go-base = (
       with pkgs-2605;
       {
         deadcode = gotools;
         staticcheck = go-tools;
-        go = pkgs-2605.go.overrideAttrs (
-          finalAttrs: _previousAttrs: {
-            version = "1.26.5";
-            src = pkgs-2605.fetchurl {
-              url = "https://go.dev/dl/go${finalAttrs.version}.src.tar.gz";
-              hash = "sha256-SVvkvIcXasVnOS5bQRar2YRm0z17SdQedkzMaXay3EI=";
-            };
-          }
-        );
         inherit
           gofumpt
           golangci-lint
@@ -89,59 +38,42 @@ let
       }
     );
 
-    # ### nix-root
-    # #### source: main
     atomipkgs = (
       with atomi;
       {
         inherit
           atomiutils
+          cyanprint
+          dlint
+          # GO-2026-5856: crypto/tls, reachable via adapters/kv, fixed in 1.26.5.
+          # The registry exports go 1.26.5 from v5.2.0 onward, so the fix is
+          # inherited declaratively here rather than re-pinned by this node.
+          go
+          go-validator
           infralint
           infrautils
-          pls
-          sg
+          releaser
+          skills-sync
           ;
       }
     );
-
-    # ### workspace
-    # #### source: workspace
+    nix-unstable = (with pkgs-unstable; { });
     nix-2605 = (
       with pkgs-2605;
       {
         inherit
           actionlint
-          bash
-          docker-client
           git
           go-task
           infisical
-          jq
-          kubeconform
-          kubernetes-helm
-          kyverno
+          nix
           pre-commit
-          ripgrep
           shellcheck
-          skopeo
           treefmt
-          yq-go
           ;
       }
     );
-
-    # ### nix-unstable
-    # #### source: main
-    nix-unstable = (
-      with pkgs-unstable;
-      {
-      }
-    );
-
-    root = {
-      inherit cyanprint;
-    };
   };
 in
 with all;
-atomipkgs // nix-2605 // nix-unstable // root // go-base // operator
+nix-2605 // nix-unstable // atomipkgs // go-base // operator

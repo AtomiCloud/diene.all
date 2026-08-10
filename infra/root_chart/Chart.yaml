@@ -1,5 +1,3 @@
-# ### go-base-chart
-# #### source: go-base
 apiVersion: v2
 name: fleet-operator
 description: Manager chart for the AtomiCloud fleet operator (CRDs, RBAC, deployment, observability)
