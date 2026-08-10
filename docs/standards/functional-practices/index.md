@@ -14,7 +14,7 @@ Immutability means never modifying existing data. Instead, every transformation 
 
 Never mutate inputs. Always return new values.
 
-```typescript
+```text
 // WRONG -- mutates the input
 function applyDiscount(order: Order, pct: Float) -> Order:
   order.total = order.total * (1 - pct)   // caller's data is corrupted
@@ -43,7 +43,7 @@ The caller's original `order` is untouched. There are no surprises, no temporal 
 
 A pure function's output depends only on its inputs, and it produces no side effects. It does not read global state, write to a database, log a message, or throw an exception.
 
-```typescript
+```text
 // Pure -- output depends only on inputs
 function calculateTax(amount: Money, rate: Float) -> Money:
   return amount * rate
@@ -72,7 +72,7 @@ A total function returns a valid result for **every valid input**. It never thro
 
 Contrast with a partial function:
 
-```typescript
+```text
 // Partial function -- LIES about its type
 function divide(a: Int, b: Int) -> Int:
   if b == 0:
@@ -106,7 +106,7 @@ Railway oriented programming (ROP) is the composable pattern that makes total fu
 
 At the core is `Result<T, E>` -- a value that is either `Ok(T)` (success) or `Err(E)` (failure).
 
-```typescript
+```text
 Result<User, UserError>
   = Ok(User { id: "1", name: "Alice" })
   | Err(UserError.NotFound("1"))
@@ -127,7 +127,7 @@ ROP provides a small set of combinators that chain operations without manual err
 
 Without ROP, error handling is repetitive and obscures the business logic:
 
-```typescript
+```text
 // Without ROP -- manual error checking at every step
 function processOrder(id: String) -> Result<Invoice, OrderError>:
   orderResult = repo.getOrder(id)
@@ -148,7 +148,7 @@ function processOrder(id: String) -> Result<Invoice, OrderError>:
 
 With ROP, the happy path reads like a straight line:
 
-```typescript
+```text
 // With ROP -- composable chain, errors handled automatically
 function processOrder(id: String) -> Result<Invoice, OrderError>:
   return repo.getOrder(id)
@@ -163,7 +163,7 @@ If any step fails, the error propagates down the error rail automatically. No ma
 
 ROP completes the mapper story from [Three-Layer Architecture](../three-layer-architecture/index.md). In a three-layer system, each layer has its own data models **and its own error types**. Mappers convert data between layers; `.mapErr()` converts errors between layers.
 
-```typescript
+```text
 // Repository returns RepositoryError
 // Domain needs DomainError
 // Controller needs ProblemDetails
