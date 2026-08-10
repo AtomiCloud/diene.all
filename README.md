@@ -13,7 +13,7 @@
 <!-- ### nix-root -->
 <!-- #### source: main -->
 
-Diene's reproducible development environment is managed by Nix. Run `direnv allow` once, then use `pls` tasks from the loaded shell.
+Diene's reproducible development environment is managed by Nix. Run `direnv allow` once, then use `task` tasks from the loaded shell.
 
 <!-- ### workspace -->
 <!-- #### source: workspace -->
@@ -24,10 +24,9 @@ synchronization.
 
 ## Commands
 
-- `pls setup` — synchronize installed diene package skills.
-- `pls lint` — run every pre-commit gate.
-- `pls secret:scan` — scan tracked content for secrets.
-- `pls skills:sync` — rebuild `.claude/skills/vendor/` from installed packages.
+- `task setup` — synchronize installed diene package skills.
+- `task lint` — run every pre-commit gate.
+- `task skills:sync` — rebuild `.claude/skills/vendor/` from installed packages.
 
 <!-- ### go-lib -->
 <!-- #### source: go-lib -->
@@ -52,11 +51,11 @@ value := note.New("Living Documentation", "pkg.go.dev examples stay executable")
 
 ## Go commands
 
-- `pls build` — build every package in the module.
-- `pls typecheck` — compile every source package without running tests.
-- `pls test` / `pls test:coverage` — run unit, integration, and active meta tiers.
-- `pls deadcode` — run strict whole-repository and production passes plus the LLM-lax report.
-- `pls up` / `pls down` — start or stop local Redis.
+- `task build` — build every package in the module.
+- `task typecheck` — compile every source package without running tests.
+- `task test` / `task test:coverage` — run unit, integration, and active meta tiers.
+- `task deadcode` — run strict whole-repository and production passes plus the LLM-lax report.
+- `task up` / `task down` — start or stop local Redis.
 - `./scripts/ci/pkg-validate.sh all` — run module-path, vet, API, docs, and example validators.
 
 See the [Go baseline](docs/developer/go-baseline.md) for the language contract and

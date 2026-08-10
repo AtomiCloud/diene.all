@@ -1,5 +1,6 @@
 package note
 
+// DOMAIN WIRING: replaceable Note sample domain.
 import "strings"
 
 // Note is a stored note identified by its normalized title slug.
@@ -22,3 +23,5 @@ func NamespacedKey(namespace string, key string) string {
 func New(title string, body string) Note {
 	return Note{Slug: Slug(title), Body: body}
 }
+
+// END DOMAIN WIRING
