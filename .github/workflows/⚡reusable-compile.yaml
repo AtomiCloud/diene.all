@@ -18,7 +18,7 @@ jobs:
       - name: Preserve executable modes in an archive
         run: tar -C dist -czf cli-binaries.tar.gz bin
       - name: Upload binary archive
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: cli-binaries
           path: cli-binaries.tar.gz

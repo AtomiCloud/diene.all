@@ -27,7 +27,6 @@ checks:
       - releaser
       - rg
       - shellcheck
-      - skopeo
       - task
       - treefmt
       - yq
