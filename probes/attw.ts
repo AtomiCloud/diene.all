@@ -8,7 +8,7 @@ export default {
   probes: [
     {
       name: 'baseline-attw-green',
-      description: 'attw independently validates import/require type resolution.',
+      description: 'attw Node16 validates root and TestHelper import/require type resolution.',
       kind: 'baseline',
       async run(repo: any) {
         await expectBunGreen(repo, ATTW, 'attw');

@@ -7,13 +7,13 @@ export default {
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
   probes: [
     {
-      name: 'baseline-bun-meta-conditional-noop-green',
-      description: 'The absent TestHelper/meta-test pair is an explicit success with no coverage artifact.',
+      name: 'baseline-bun-meta-testhelper-green',
+      description: 'The packaged TestHelper meta contract passes with its dedicated coverage ledger.',
       kind: 'baseline',
       async run(repo: any) {
         await expectBunGreen(repo, command, 'bun-meta-conditional');
-        if ((await repo.glob('coverage/meta/lcov.info')).length !== 0) {
-          throw new Error('no-op meta tier must not emit a coverage artifact');
+        if ((await repo.glob('coverage/meta/lcov.info')).length !== 1) {
+          throw new Error('TestHelper meta tier must emit its dedicated coverage artifact');
         }
       },
     },

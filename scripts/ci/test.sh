@@ -37,6 +37,13 @@ if [[ ${mode} == "meta" ]]; then
   [[ -z ${helper_source} || -z ${meta_test} ]] && echo "❌ TestHelper source and meta tests must be added together" >&2 && exit 1
 fi
 
+if [[ ${mode} == "int" ]]; then
+  echo "🧪 Running integration contract tests..."
+  bun test --config="${config}"
+  echo "✅ Integration contract tests passed (production coverage is owned by the unit ledger)"
+  exit 0
+fi
+
 echo "🧪 Running ${mode} tests with coverage..."
 
 set +e
