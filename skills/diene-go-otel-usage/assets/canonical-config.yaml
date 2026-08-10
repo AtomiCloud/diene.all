@@ -1,0 +1,38 @@
+otel:
+  logs:
+    enabled: true
+    exporter:
+      console:
+        enabled: false
+      otlp:
+        enabled: false
+        endpoint: ''
+        protocol: http/protobuf
+        headers: {}
+        timeout: PT10S
+  metrics:
+    enabled: true
+    exporter:
+      console:
+        enabled: false
+      otlp:
+        enabled: false
+        endpoint: ''
+        protocol: http/protobuf
+        headers: {}
+        timeout: PT10S
+    interval: PT60S
+  traces:
+    enabled: true
+    sampler:
+      type: parentbased_traceidratio
+      ratio: 1.0
+    exporter:
+      console:
+        enabled: false
+      otlp:
+        enabled: false
+        endpoint: ''
+        protocol: http/protobuf
+        headers: {}
+        timeout: PT10S
