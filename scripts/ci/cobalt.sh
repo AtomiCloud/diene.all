@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-bash ./scripts/ci/setup.sh
 bash ./scripts/validate/cobalt.sh schema
 bash ./scripts/validate/cobalt.sh schema-drift
 bash ./scripts/validate/cobalt.sh lint

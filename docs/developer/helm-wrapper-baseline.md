@@ -12,7 +12,7 @@ Render values in two independent dimensions:
 
 The sample stack is `values.yaml` → `values.example.yaml` → `values.lapras.yaml`. Landscape and cluster vocabularies must remain disjoint. Do not create cross-product filenames.
 
-Run `pls build`, `pls example:lapras:template`, or `pls test:unit`. `pls test:int` creates an ephemeral k3d cluster, installs the local stack, waits for healthy pods, and proves an OCI push/pull against the cluster's local registry.
+Run `task build`, `task example:lapras:template`, or `task test:unit`. `task test:int` creates an ephemeral k3d cluster, installs the local stack, waits for healthy pods, and proves an OCI push/pull against the cluster's local registry.
 
 ## Identity and naming
 
