@@ -1,5 +1,4 @@
 import { expectGreen, expectRed } from './lib/helpers.ts';
-import { flipAssertion } from './lib/mutations.ts';
 
 export default {
   contractVersion: 1,

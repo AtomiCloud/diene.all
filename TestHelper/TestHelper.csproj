@@ -1,16 +1,21 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <RootNamespace>AtomiCloud.Diene.Note.TestHelper</RootNamespace>
-    <AssemblyName>AtomiCloud.Diene.Note.TestHelper</AssemblyName>
-    <PackageId>AtomiCloud.Diene.Note.TestHelper</PackageId>
-    <Description>Consumer test assertions for AtomiCloud.Diene.Note.</Description>
+    <RootNamespace>AtomiCloud.Diene.Interfaces.TestHelper</RootNamespace>
+    <AssemblyName>AtomiCloud.Diene.Interfaces.TestHelper</AssemblyName>
+    <PackageId>AtomiCloud.Diene.Interfaces.TestHelper</PackageId>
+    <Description>In-memory seam mocks, shared contract suites, and FluentAssertions steps for AtomiCloud.Diene.Interfaces.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IsPackable>true</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="../Lib/Lib.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AtomiCloud.Diene.Result.TestHelper" />
+    <PackageReference Include="FluentAssertions" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,13 +1,17 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <RootNamespace>AtomiCloud.Diene.Note</RootNamespace>
-    <AssemblyName>AtomiCloud.Diene.Note</AssemblyName>
-    <PackageId>AtomiCloud.Diene.Note</PackageId>
-    <Description>An illustrative note-domain library and the Diene .NET library template.</Description>
+    <RootNamespace>AtomiCloud.Diene.Interfaces</RootNamespace>
+    <AssemblyName>AtomiCloud.Diene.Interfaces</AssemblyName>
+    <PackageId>AtomiCloud.Diene.Interfaces</PackageId>
+    <Description>Implementation-free system, virtual filesystem, terminal, logging, and metrics seams that return Result instead of throwing.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IsPackable>true</IsPackable>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AtomiCloud.Diene.Result" />
+  </ItemGroup>
 
   <ItemGroup>
     <None Include="../LICENSE" Pack="true" PackagePath="/" />

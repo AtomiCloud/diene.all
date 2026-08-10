@@ -1,13 +1,18 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <RootNamespace>AtomiCloud.DotnetBase.UnitTest</RootNamespace>
+    <RootNamespace>AtomiCloud.Diene.Interfaces.UnitTest</RootNamespace>
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>
 
   <ItemGroup>
+    <None Include="../fixtures/c0/seam-wire-v1.json" Link="fixtures/c0/seam-wire-v1.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AtomiCloud.Diene.Result.TestHelper" />
     <PackageReference Include="coverlet.msbuild" />
     <PackageReference Include="FluentAssertions" />
     <PackageReference Include="GitHubActionsTestLogger" />
