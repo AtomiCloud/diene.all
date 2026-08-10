@@ -3,8 +3,6 @@
 version: '3'
 
 includes:
-  secret: tasks/Taskfile.secret.yaml
-
   # ### go-base-test-includes
   # #### source: go-base
   gotest:
@@ -13,15 +11,9 @@ includes:
 
 tasks:
   setup:
-    desc: Set up generated workspace assets
+    desc: Set up the workspace
     cmds:
-      # ### go-base-setup
-      # #### source: go-base
-      - go mod download
-      # skills-sync regenerates the vendored tree from RESOLVED module
-      # directories, so Go dependencies are downloaded first: on a cold module
-      # cache `go list -m -json all` reports no ".Dir" and it fails closed.
-      - ./scripts/local/skills-sync.sh
+      - ./scripts/local/setup.sh
 
   lint:
     desc: Run all repository gates
@@ -31,10 +23,7 @@ tasks:
   skills:sync:
     desc: Synchronize installed diene package skills
     cmds:
-      # The regenerator reads RESOLVED module directories, so resolve first for
-      # the same reason the setup task does.
-      - go mod download
-      - ./scripts/local/skills-sync.sh
+      - skills-sync sync
 
   # ### go-base
   # #### source: go-base
