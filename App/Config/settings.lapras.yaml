@@ -1,0 +1,6 @@
+# yaml-language-server: $schema=../schema/settings.schema.json
+$schema: ../schema/settings.schema.json
+
+# A landscape overlay is SPARSE: it names only what differs from the base layer.
+error_portal:
+  host: docs.lapras.atomi.cloud

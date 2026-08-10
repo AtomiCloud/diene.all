@@ -9,9 +9,9 @@ This branch turns the `.NET 10` base into a publishable library template. It
 keeps the base `App` as a non-packable consumer and publishes two lockstep
 packages from one solution:
 
-- `AtomiCloud.Diene.Note` contains the illustrative Note domain;
-- `AtomiCloud.Diene.Note.TestHelper` contains consumer assertions and references
-  the main package.
+- `AtomiCloud.Diene.Config` contains the shipped config surface;
+- `AtomiCloud.Diene.Config.TestHelper` contains the fake layers and fixtures
+  consumers test against, and references the main package.
 
 Both package ids and assembly names are consumer-visible, real identities.
 `dotnet-base.slnx`, `.config/dotnet-base.test.yaml`, workflows, and non-shipped
@@ -53,15 +53,15 @@ stays at `1.0.0` in-branch, `probes/dotnet-lib-api-compatibility.ts` packs with
 
 ## Testing tiers
 
-- `pls test:unit` measures the real `AtomiCloud.Diene.Note` assembly plus the
+- `task test:unit` measures the real `AtomiCloud.Diene.Config` assembly plus the
   inherited `[Lib*]*` scaling wildcard at 100%, and explicitly excludes
   `*.TestHelper` assemblies. The scope guard in
   `scripts/local/dotnet-test.sh` reads the allowed assembly names from the
   `AssemblyName` each `Lib*` project declares, so it scales with a renamed
   library instead of naming one.
-- `pls test:int` retains the base Testcontainers-backed adapter boundary and
-  measures only `[App*]*`.
-- `pls test:meta` independently measures `[*.TestHelper]*` at 100%. Its tests
+- `task test:int` exercises the demo consumer against its real layered YAML files
+  on disk and measures only `[App*]*`.
+- `task test:meta` independently measures `[*.TestHelper]*` at 100%. Its tests
   include known-good and known-bad assertion cases.
 
 Codecov uploads the `unit`, `int`, and `meta` ledgers as informational flags;
@@ -89,7 +89,7 @@ A materialized library changes only these owned surfaces:
 - shared author/company/repository URLs in `Directory.Build.props`;
 - README badges, install snippet, icon, and illustrative source/tests;
 - unit/meta thresholds when the shipped surface justifies a stricter value;
-- `skills/diene-dotnet-note-usage/` to the materialized library's namespaced
+- `skills/diene-dotnet-config-usage/` to the materialized library's namespaced
   usage skill.
 
 `scripts/local/dotnet-test.sh`, `scripts/validate/dotnet-package.sh`, and the

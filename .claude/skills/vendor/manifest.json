@@ -1,1 +1,24 @@
-[]
+{
+  "schemaVersion": 1,
+  "generator": "skills-sync",
+  "runtime": "nuget",
+  "packages": [
+    "AtomiCloud.Diene.CoreUtils",
+    "AtomiCloud.Diene.Result",
+    "AtomiCloud.Diene.Result.TestHelper"
+  ],
+  "entries": [
+    {
+      "path": "AtomiCloud.Diene.CoreUtils/diene-dotnet-core-utils-usage/SKILL.md",
+      "sha256": "b4a2081ea154b364a8b0120b48276412136e862eec773ba1f2e9f80a08de9910"
+    },
+    {
+      "path": "AtomiCloud.Diene.Result.TestHelper/diene-dotnet-result-usage/SKILL.md",
+      "sha256": "c3b1fbd01e08714996faeb2a1101e188ea2032fd925e6289be29aee32e5d9368"
+    },
+    {
+      "path": "AtomiCloud.Diene.Result/diene-dotnet-result-usage/SKILL.md",
+      "sha256": "c3b1fbd01e08714996faeb2a1101e188ea2032fd925e6289be29aee32e5d9368"
+    }
+  ]
+}

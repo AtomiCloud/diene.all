@@ -1,32 +1,50 @@
-using AtomiCloud.DotnetBase.App.Adapters.Redis;
-using AtomiCloud.Diene.Note;
-using StackExchange.Redis;
+using AtomiCloud.Diene.Config;
 
 namespace AtomiCloud.DotnetBase.App;
 
-/// <summary>Composition root: explicit wiring of domain interfaces to concrete adapters.</summary>
+/// <summary>
+/// Demo consumer of AtomiCloud.Diene.Config. Not packable — it exists to exercise the
+/// shipped surface the way a real service does, and to own the schema generation task.
+/// </summary>
 public static class Program
 {
-    public static async Task Main()
+    /// <summary>Runs the layering demo, or the schema task when asked.</summary>
+    public static int Main(string[] args)
     {
-        var connectionString = Environment.GetEnvironmentVariable("REDIS_CONNECTION");
-        if (string.IsNullOrWhiteSpace(connectionString)) connectionString = "localhost:6379";
+        ArgumentNullException.ThrowIfNull(args);
 
-        // ── Domain wiring (illustrative sample) — replace this block with your domain ──
-        INoteSummariser summariser = new NoteSummariser();
-        await using var redis = await ConnectionMultiplexer.ConnectAsync(connectionString);
-        INoteRepository notes = new RedisNoteRepository(redis);
-
-        var saved = await notes.Save(new NoteRecord
+        return args switch
         {
-            Title = "Welcome",
-            Body = "The first note stored through the Redis adapter.",
-        });
-        var found = await notes.Find(saved.Id);
+            ["schema", "write", var path] => Schema(ConfigSchemaGen.WriteSchema(ConfigComposition.Registry(), path)),
+            ["schema", "verify", var path] => Schema(ConfigSchemaGen.VerifySchema(ConfigComposition.Registry(), path)),
+            ["schema", ..] => Usage(),
+            [] => Run(),
+            _ => Usage(),
+        };
+    }
 
-        Console.WriteLine(found is null
-            ? $"Note {saved.Id} could not be read back."
-            : summariser.Summarise(found.Record, 80));
-        // ── End domain wiring ──
+    private static int Run()
+    {
+        foreach (var line in Demo.Run()) Console.WriteLine(line);
+        Console.WriteLine("Success: config layered, validated, and schema round-tripped");
+        return 0;
+    }
+
+    private static int Schema(Result<Unit, SchemaGenError> result) => result.Match(
+        _ =>
+        {
+            Console.WriteLine("✅ Config schema is current");
+            return 0;
+        },
+        error =>
+        {
+            Console.Error.WriteLine($"❌ {error.Fault} at {error.Path}: {error.Detail}");
+            return 1;
+        });
+
+    private static int Usage()
+    {
+        Console.Error.WriteLine("usage: App [schema write <path> | schema verify <path>]");
+        return 2;
     }
 }
