@@ -28,8 +28,7 @@ desktop.ini
 ### workspace [helm]
 infra/root_chart/uploads/
 
-### helm-wrapper
-#### source: helm-wrapper
-chart/files/config/
+### zinc
+#### source: zinc
 dist/
 probe-report.json

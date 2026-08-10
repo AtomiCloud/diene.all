@@ -1,0 +1,49 @@
+{{ template "chart.header" . }}
+
+{{ template "chart.versionBadge" . }}{{ template "chart.typeBadge" . }}{{ template "chart.appVersionBadge" . }}
+
+{{ template "chart.description" . }}
+
+## What zinc owns (and does not)
+
+zinc is a **pure own-resources** chart — templates only, no vendored upstream. It
+owns the Let's Encrypt ACME **DNS-01 (Cloudflare)** `ClusterIssuer` set plus the
+`ExternalSecret` that materializes the Cloudflare API token from the platform
+SecretStore created by carbon via the SoS chain.
+
+zinc owns **no `Certificate`**. Registered-fleet wildcard intents stay on the
+registered-fleet platinum rail; on ENTEI, the exposure materializer owns one
+exact-name `Certificate` per approved dotted Garden hostname and selects one of
+zinc's issuer refs. cert-manager itself (the engine) is
+[sulfur](https://github.com/AtomiCloud)'s separate chart — the engine and the
+issuer set are deliberately independent concerns.
+
+## Issuer definition and the LE-directory map
+
+One reusable DNS-01 `ClusterIssuer` definition is rendered once per `issuer.refs`
+entry. `ClusterIssuer` is cluster-scoped, so it is instantiated per cluster; there
+are no per-landscape/zone issuer variants beyond the LE-directory selection the
+overlays carry (Q-I33):
+
+- **LE production** directory on `pikachu`, `raichu`, `amphoros`.
+- **LE staging** directory on `pichu`, `lapras` (rate-limit protection; the
+  staging root installs locally where trust is needed).
+
+The **ENTEI** host-role overlay renders the same definition twice — a staging ref
+and a production ref — restricted to the hosted-development DNS authority zones, so
+hosted instances can select the issuance class they need (CI selects staging;
+trusted interactive exposure selects production). This is an issuance-class split
+on one shared host, not a per-landscape wildcard or a new workload landscape
+(Q-ENV47).
+
+## Identity and labels
+
+Every owned resource carries the LPSM projection through the wrapper helpers:
+platform is the release namespace (never a value), plus the
+service/module/layer/landscape slots and reversible physical-instance annotations.
+The Cloudflare token is referenced from the ExternalSecret-materialized Secret
+only; it is never inlined.
+
+{{ template "chart.requirementsSection" . }}
+
+{{ template "chart.valuesSection" . }}

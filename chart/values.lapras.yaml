@@ -1,13 +1,10 @@
-# Independent local-cluster overlay. It contains no landscape decision.
+# lapras landscape overlay (local dev landscape). LE STAGING directory (Q-I33):
+# the staging root is installed locally where trust is needed, and staging
+# protects the shared production ACME rate limit. Per-cluster deltas are empty —
+# the ClusterIssuer is cluster-scoped and identical across clusters in a landscape.
 serviceTree:
-  cluster: lapras
-
-# The local install proves the ordinary Kubernetes resources only; the CRDs are owned by later nodes.
-secret:
-  enabled: false
-
-webhookRoute:
-  enabled: false
-
-primordial:
-  enabled: false
+  landscape: lapras
+issuer:
+  refs:
+    - name: zinc-letsencrypt
+      directory: staging

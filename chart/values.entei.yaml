@@ -1,0 +1,23 @@
+# ENTEI host-role overlay (Q-ENV47). ENTEI shares only kgateway, cert-manager,
+# DNS/TLS, allocation, and exposure. Zinc renders the SAME reusable DNS-01
+# definition twice on the shared host — one staging ref and one production ref —
+# so hosted instances can select the issuance class they need:
+#   * automated/ephemeral CI issuance -> LE staging
+#   * interactive instances needing trusted browser/device TLS -> LE production
+# This is an issuance-class split on one shared host, NOT a per-landscape wildcard
+# or a new workload landscape. The DNS-01 solver is restricted to the
+# hosted-development authority zones. Zinc still renders NO Certificate; the ENTEI
+# exposure materializer owns one exact-name Certificate per approved dotted
+# hostname and selects one of these refs.
+serviceTree:
+  landscape: entei
+issuer:
+  solver:
+    # Hosted-development DNS authority restriction (Q-ENV47).
+    dnsZones:
+      - dev.atomi.cloud
+  refs:
+    - name: zinc-letsencrypt-staging
+      directory: staging
+    - name: zinc-letsencrypt-production
+      directory: production

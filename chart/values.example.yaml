@@ -1,6 +1,10 @@
-# Independent landscape overlay example.
+# Generic landscape overlay used by the base lint/render gates. Zinc is
+# L1-generic; the overlay contributes landscape identity and selects the LE ACME
+# directory. `example` is not part of the fleet LE-directory map (Q-I33); it
+# defaults to the rate-limit-safe staging directory.
 serviceTree:
   landscape: example
-
-primordial:
-  targetLandscape: example
+issuer:
+  refs:
+    - name: zinc-letsencrypt
+      directory: staging

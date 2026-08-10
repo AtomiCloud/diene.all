@@ -2,227 +2,73 @@
 # -- Prefix used by every service-tree label and annotation helper.
 labelPrefix: atomi.cloud
 
-# @schema pattern:^[a-z0-9]+-[a-z0-9]+$;required:true
-# -- Primary workload fullname. It must be `<service>-<dashless-token>`.
-fullnameOverride: wrapper-api
-
-# -- Stable four-slot service-tree projection. Landscape and cluster are added by independent overlays.
+# -- Stable service-tree projection. Platform is always the release namespace
+# (never a value); landscape is added by independent overlays.
 serviceTree:
   # @schema pattern:^[a-z0-9]+$;required:true
-  platform: sample
+  # -- Service name.
+  service: zinc
   # @schema pattern:^[a-z0-9]+$;required:true
-  service: wrapper
-  # @schema pattern:^[a-z0-9]+$;required:true
-  module: api
+  # -- Module name.
+  module: issuer
   # @schema pattern:^[0-9]+$;required:true
-  layer: '2'
+  # -- Architecture layer.
+  layer: '1'
 
 # -- Optional physical-instance metadata. The instance remains outside LPSM.
 instance:
+  # @schema pattern:^[a-z0-9._:/-]+$;minLength:1
+  # -- Repository-qualified physical instance id.
   physicalId: example-repository:run-001
 
-# -- Wrapper-owned sample workload.
-workload:
-  replicas: 1 # @schema minimum:1
-  image:
-    repository: ghcr.io/stefanprodan/podinfo
-    tag: 6.9.2 # @schema pattern:^[A-Za-z0-9][A-Za-z0-9._-]*$
-    pullPolicy: IfNotPresent # @schema enum:[Always, IfNotPresent, Never]
-  port: 9898 # @schema minimum:1;maximum:65535
-  reloader:
-    enabled: true
-  podSecurityContext:
-    runAsNonRoot: true
-    runAsUser: 10000
-    runAsGroup: 10000
-    fsGroup: 10000
-  securityContext:
-    allowPrivilegeEscalation: false
-    readOnlyRootFilesystem: true
-    runAsNonRoot: true
-    runAsUser: 10000
-    runAsGroup: 10000
-    capabilities:
-      drop: [ALL]
-  resources:
-    requests:
-      cpu: 10m
-      memory: 32Mi
-    limits:
-      cpu: 100m
-      memory: 128Mi
-
-# -- Separate pre-sync migration hook. It never owns or recreates the Deployment.
-migration:
-  enabled: true
-  image:
-    repository: busybox
-    tag: 1.37.0-glibc # @schema pattern:^[A-Za-z0-9][A-Za-z0-9._-]*$
-    pullPolicy: IfNotPresent # @schema enum:[Always, IfNotPresent, Never]
-  command: ['sh', '-c', 'echo migration-ready']
-  reloader:
-    enabled: true
-  resources:
-    requests:
-      cpu: 5m
-      memory: 8Mi
-    limits:
-      cpu: 25m
-      memory: 32Mi
-
-# -- One service-scoped ExternalSecret with folder-prefix rewrites.
+# -- One service-scoped ExternalSecret that materializes the Cloudflare API token
+# from the platform SecretStore created by carbon via the SoS chain. The
+# DNS-01 solver references this Secret only; a token is never inlined.
 secret:
+  # -- Render the ExternalSecret.
   enabled: true
+  # -- ESO refresh cadence.
   refreshInterval: 1h
   store:
-    kind: SecretStore # @schema enum:[SecretStore, ClusterSecretStore]
-    name: sample-store
+    # @schema enum:[SecretStore, ClusterSecretStore]
+    # -- The platform SecretStore is namespace-scoped (created by carbon).
+    kind: SecretStore
+    # -- Platform SecretStore name.
+    name: platform-store
+  # -- Shared-folder path fanned in with a SHARED_ prefix.
   sharedFolder: /shared
-  serviceFolder: /wrapper
+  # -- Service-folder path fanned in with a ZINC_ prefix (holds the CF token).
+  serviceFolder: /zinc
 
-# -- Provider-managed LoadBalancer service for the gateway.
-gateway:
-  enabled: true
-  provider: digitalocean # @schema enum:[aws, oci, digitalocean]
-  port: 80 # @schema minimum:1;maximum:65535
-  aws:
-    subnetIds: [] # @schema item:string;uniqueItems:true
-    eipAllocationIds: [] # @schema item:string;uniqueItems:true
-  oci:
-    reservedPublicIp: ''
-
-# -- Current health and webhook delivery conventions.
-contracts:
-  health:
-    path: /healthz # @schema pattern:^/.*
-    expectedStatus: 2xx
-  webhook:
-    provider: example # @schema pattern:^[a-z0-9-]+$
-    pathPrefix: /internal/webhooks # @schema pattern:^/.*
-  lpsm:
-    landscape: example # @schema pattern:^[a-z0-9-]+$
-    module: api # @schema pattern:^[a-z0-9-]+$
-    service: wrapper # @schema pattern:^[a-z0-9-]+$
-    instance: run001 # @schema pattern:^[a-z0-9-]+$
-    ordinaryZone: cluster.atomi.cloud
-    instanceZone: local.example.invalid
-    parseHostname: ''
-
-# -- Optional Gateway API route scaffold for a webhook receiver.
-webhookRoute:
-  enabled: true
-  parentGateway: sample-gateway
-  parentNamespace: gateway-system
-
-# -- Reusable primordial-chart CR helper inputs against the frozen T3 shapes.
-primordial:
-  enabled: true
-  apiVersions:
-    fleet: fleet.atomi.cloud/v1alpha1
-    identity: identity.atomi.cloud/v1alpha1
-    edge: edge.atomi.cloud/v1alpha1
-  targetLandscape: example
-  vlandscape: example-vlandscape
-  placement:
-    preferredHost: example-host
-  platformDependency:
-    modules:
-      database: # @schema mergeProperties:true
-        maindb:
-          type: neon
-          delivery: external
-          providerAccountRef: example-neon
-          credentialMode: standard
-          rotation: 'on'
-          cpu: 1
-          ram: 1Gi
-          storage: 10Gi
-          version: '16'
-          backup:
-            crossVendor: true
-          engine:
-            neon:
-              tier: example
-      kv: # @schema mergeProperties:true
-        sessions:
-          type: upstash
-          delivery: external
-          providerAccountRef: example-upstash
-          credentialMode: standard
-          rotation: 'on'
-          ram: 128Mi
-          engine:
-            upstash: {}
-      cache: # @schema mergeProperties:true
-        hot:
-          type: dragonfly
-          delivery: replicated
-          credentialMode: standard
-          rotation: 'on'
-          ram: 128Mi
-          engine:
-            dragonfly: {}
-      store: # @schema mergeProperties:true
-        assets:
-          type: tigris
-          delivery: external
-          providerAccountRef: example-tigris
-          credentialMode: standard
-          rotation: 'on'
-          engine:
-            tigris: {}
-  virtualLandscapeService:
-    enabled: true
-    serve: true
-  logtoApp:
-    enabled: true
-    paths: [/auth/callback]
-    extraRedirectUris: [] # @schema item:string;uniqueItems:true
-    resourceRefs: [wrapper-api] # @schema item:string;uniqueItems:true
-  problem:
-    enabled: true
-    version: 0.1.0
-    entries:
-      - id: example
-        type: https://errors.example.invalid/example
-        title: Example problem
-        status: 500
-        recoverable: false
-        schema: {}
-        endpoints:
-          - method: GET
-            path: /
-  cloudflareDeploy:
-    enabled: true
-    scriptName: wrapper-web
-    tag: 0.1.0
-    pin: true
-
-# -- Pinned optional upstream chart. Every instantiated dependency must receive a conforming override.
-upstream:
-  enabled: false
-  fullnameOverride: wrapper-upstream # @schema pattern:^[a-z0-9]+-[a-z0-9]+$
-  image:
-    repository: ghcr.io/stefanprodan/podinfo
-    tag: 6.9.2
-  podAnnotations:
-    reloader.stakater.com/auto: 'true'
-  podSecurityContext:
-    runAsNonRoot: true
-    runAsUser: 10000
-    runAsGroup: 10000
-  securityContext:
-    allowPrivilegeEscalation: false
-    readOnlyRootFilesystem: true
-    runAsNonRoot: true
-    runAsUser: 10000
-    runAsGroup: 10000
-    capabilities:
-      drop: [ALL]
-  resources:
-    requests:
-      cpu: 10m
-      memory: 32Mi
-    limits:
-      cpu: 100m
-      memory: 128Mi
+# -- The reusable Let's Encrypt ACME DNS-01 (Cloudflare) ClusterIssuer definition.
+# Zinc owns NO Certificate: certificate owners reference a stable ClusterIssuer
+# name. ONE definition is rendered once per `refs` entry (cluster-scoped, so it is
+# instantiated per cluster); there are no per-landscape/zone issuer variants beyond
+# the LE-directory selection carried by the overlays.
+issuer:
+  # -- ACME registration contact address.
+  email: platform@atomi.cloud
+  acme:
+    # -- Named Let's Encrypt ACME directory endpoints. A `refs` entry selects one
+    # by name; the five-landscape LE-directory map (Q-I33) is expressed by the
+    # landscape overlays choosing production or staging.
+    directories:
+      production: https://acme-v02.api.letsencrypt.org/directory
+      staging: https://acme-staging-v02.api.letsencrypt.org/directory
+  solver:
+    cloudflare:
+      apiTokenSecretRef:
+        # -- The ExternalSecret-materialized Secret carrying the Cloudflare token.
+        name: zinc
+        # -- Key inside that Secret (folder-prefixed by the ExternalSecret rewrite).
+        key: ZINC_CLOUDFLARE_API_TOKEN
+    # @schema item:string;uniqueItems:true
+    # -- DNS-01 solver zone restriction. Empty = unrestricted (registered fleet);
+    # the ENTEI overlay pins the hosted-development authority zones.
+    dnsZones: []
+  # -- ClusterIssuer instances to materialize from the one definition. Registered
+  # clusters instantiate a single stable ref; the ENTEI host-role overlay
+  # instantiates the staging+production pair concurrently on the shared host.
+  refs:
+    - name: zinc-letsencrypt
+      directory: staging

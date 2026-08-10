@@ -189,10 +189,10 @@ release:
     # Hook point a downstream node fills; a version file enters commit.assets in
     # the same edit as the command that writes it.
     #
-    # This node is the Helm wrapper: the file its ecosystem versions is
-    # `chart/Chart.yaml`, and `chart/README.md` is generated from it, so the
-    # stamp regenerates the docs too or the wrapper's own `a-wrapper-helm-docs`
-    # hook goes red on the next commit. Both files are listed in
+    # This node is Zinc: the file its ecosystem versions is `chart/Chart.yaml`,
+    # and `chart/README.md` is generated from it, so the stamp regenerates the
+    # docs too or Zinc's own `a-zinc-helm-docs` hook goes red on the next
+    # commit. Both files are listed in
     # `release.commit.assets` above.
     prepare:
       - phase: afterWrite

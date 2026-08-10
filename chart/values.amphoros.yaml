@@ -1,0 +1,7 @@
+# amphoros landscape overlay. Registered fleet — LE PRODUCTION directory (Q-I33).
+serviceTree:
+  landscape: amphoros
+issuer:
+  refs:
+    - name: zinc-letsencrypt
+      directory: production

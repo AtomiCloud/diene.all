@@ -97,9 +97,9 @@ See [docs/standards/utilities/index.md](docs/standards/utilities/index.md).
 Domain-specific architecture and behavior belongs under
 [docs/domain/](docs/domain/README.md).
 
-<!-- ### helm-wrapper -->
-<!-- #### source: helm-wrapper -->
+<!-- ### zinc -->
+<!-- #### source: zinc -->
 
-## Helm wrapper sample
+## Zinc chart
 
-Read [docs/developer/helm-wrapper-baseline.md](docs/developer/helm-wrapper-baseline.md) before changing `chart/`, the stacked values, CR/LPSM helpers, provider LoadBalancer annotations, config vendoring, or chart publishing.
+Read [docs/developer/zinc-baseline.md](docs/developer/zinc-baseline.md) before changing `chart/`, the stacked values, the ClusterIssuer/ExternalSecret templates, the LPSM helpers, the LE-directory-map / issuer-cardinality / ENTEI / no-Certificate gates, or chart publishing.

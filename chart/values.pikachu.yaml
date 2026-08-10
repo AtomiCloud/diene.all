@@ -1,0 +1,7 @@
+# pikachu landscape overlay. Registered fleet — LE PRODUCTION directory (Q-I33).
+serviceTree:
+  landscape: pikachu
+issuer:
+  refs:
+    - name: zinc-letsencrypt
+      directory: production
