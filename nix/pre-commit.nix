@@ -12,12 +12,7 @@ let
     pname = "diene-go-base-dependencies";
     version = "0";
     src = ../.;
-    # errors-problems is a zero-dependency module: `go mod download` yields no
-    # modules, so buildGoModule's vendored-deps derivation must be null. A
-    # non-null hash over an empty vendor fails the fresh clean-closure build
-    # ("vendor folder is empty, please set 'vendorHash = null;'") — the T5 RED
-    # bake 20260722t145529z-7ba1be. No deps ⇒ no proxy vendoring needed.
-    vendorHash = null;
+    vendorHash = "sha256-JFjbvPTkOrV4DJeHyk4TJg7Q8PrFSaVzpTd5LoGAel4=";
   };
   go-lint-runtime = pkgs.buildEnv {
     name = "go-base-lint-runtime";
