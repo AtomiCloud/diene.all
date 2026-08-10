@@ -1,0 +1,48 @@
+{
+  "description": "The canonical otel: block key names and default values (C0 §4). Pinned so a rename in the .NET reference binding is a test failure, not a silent cross-language drift.",
+  "section": "Otel",
+  "envPrefix": "ATOMI_",
+  "paths": {
+    "logsEnabled": "Otel:Logs:Enabled",
+    "logsConsoleEnabled": "Otel:Logs:Exporter:Console:Enabled",
+    "logsOtlpEnabled": "Otel:Logs:Exporter:Otlp:Enabled",
+    "logsOtlpEndpoint": "Otel:Logs:Exporter:Otlp:Endpoint",
+    "logsOtlpProtocol": "Otel:Logs:Exporter:Otlp:Protocol",
+    "logsOtlpTimeout": "Otel:Logs:Exporter:Otlp:Timeout",
+    "metricsEnabled": "Otel:Metrics:Enabled",
+    "metricsInterval": "Otel:Metrics:Interval",
+    "metricsOtlpEnabled": "Otel:Metrics:Exporter:Otlp:Enabled",
+    "tracesEnabled": "Otel:Traces:Enabled",
+    "tracesSamplerType": "Otel:Traces:Sampler:Type",
+    "tracesSamplerRatio": "Otel:Traces:Sampler:Ratio",
+    "tracesOtlpEnabled": "Otel:Traces:Exporter:Otlp:Enabled"
+  },
+  "envNames": {
+    "logsOtlpEnabled": "ATOMI_OTEL__LOGS__EXPORTER__OTLP__ENABLED",
+    "metricsInterval": "ATOMI_OTEL__METRICS__INTERVAL",
+    "tracesSamplerType": "ATOMI_OTEL__TRACES__SAMPLER__TYPE"
+  },
+  "defaults": {
+    "signalEnabled": true,
+    "consoleEnabled": false,
+    "otlpEnabled": false,
+    "otlpEndpoint": "",
+    "otlpProtocol": "http/protobuf",
+    "otlpTimeout": "PT10S",
+    "metricsInterval": "PT60S",
+    "samplerType": "parentbased_traceidratio",
+    "samplerRatio": 1.0
+  },
+  "samplerTypes": ["parentbased_traceidratio", "always_on", "always_off"],
+  "resourceKeys": [
+    "atomi.landscape",
+    "atomi.module",
+    "atomi.platform",
+    "atomi.service",
+    "atomi.version",
+    "deployment.environment.name",
+    "service.name",
+    "service.namespace",
+    "service.version"
+  ]
+}

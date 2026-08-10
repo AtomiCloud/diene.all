@@ -1,13 +1,33 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <RootNamespace>AtomiCloud.Diene.Note</RootNamespace>
-    <AssemblyName>AtomiCloud.Diene.Note</AssemblyName>
-    <PackageId>AtomiCloud.Diene.Note</PackageId>
-    <Description>An illustrative note-domain library and the Diene .NET library template.</Description>
+    <RootNamespace>AtomiCloud.Diene.Otel</RootNamespace>
+    <AssemblyName>AtomiCloud.Diene.Otel</AssemblyName>
+    <PackageId>AtomiCloud.Diene.Otel</PackageId>
+    <Description>The AtomiCloud OpenTelemetry engine: the canonical Otel config block, semconv resource mapping, OTEL_* environment precedence, host wiring, and the trace emit seam.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IsPackable>true</IsPackable>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AtomiCloud.Diene.CoreUtils" />
+    <PackageReference Include="AtomiCloud.Diene.Interfaces" />
+    <PackageReference Include="AtomiCloud.Diene.Result" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="OpenTelemetry" />
+    <PackageReference Include="OpenTelemetry.Exporter.Console" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Schema/otel-block.schema.json" LogicalName="AtomiCloud.Diene.Otel.otel-block.schema.json" />
+  </ItemGroup>
 
   <ItemGroup>
     <None Include="../LICENSE" Pack="true" PackagePath="/" />
