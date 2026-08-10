@@ -180,11 +180,15 @@ in
     # docs/standards/ and every first-level skill trigger is linted, so adding a
     # topic needs no edit here. Vendored skills sit deeper than one level and are
     # ignored again by .markdownlint-cli2.jsonc.
+    # The observability alternatives are this node's own: observability/ and
+    # probes/observability-*.md sit outside docs/standards/, and the grafana and
+    # observability-check skills carry templates deeper than SKILL.md. The
+    # directory-shaped selector above does not reach any of them.
     a-markdownlint = {
       enable = true;
       name = "Markdown lint";
       entry = "${pkgs.markdownlint-cli2}/bin/markdownlint-cli2";
-      files = "^(CLAUDE\\.md|README\\.md|docs/standards/.*\\.md|\\.claude/skills/[^/]+/SKILL\\.md)$";
+      files = "^(CLAUDE\\.md|README\\.md|docs/standards/.*\\.md|\\.claude/skills/[^/]+/SKILL\\.md|observability/.*\\.md|probes/observability-.*\\.md|\\.claude/skills/(grafana-alert|grafana-alert-set|grafana-dashboards|grafana-runbook|observability-check)/.*\\.md)$";
       pass_filenames = true;
       language = "system";
     };
