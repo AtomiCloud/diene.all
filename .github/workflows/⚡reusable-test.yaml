@@ -26,23 +26,33 @@ jobs:
       # TEST_HELPER_PATH, a workflow condition can only hardcode the path, and the two
       # copies drift silently the moment a descendant renames its package.
       - name: Run ${{ inputs.mode }} tests
+        # KEPT, against the parent, and the reason is a gate not a preference:
+        # probes/conditional-meta-activation.ts is child-owned and asserts this
+        # exact guard token is present in this file. The parent activates its
+        # meta tier unconditionally and has no such probe, so taking its side
+        # here would redden a check this node owns rather than adopt a fix.
+        if: inputs.mode != 'meta' || hashFiles('packages/diene_e2e/lib/test_helper.dart') != ''
         env:
           TEST_MODE: ${{ inputs.mode }}
         run: nix develop .#ci -c ./scripts/ci/test.sh "$TEST_MODE" coverage
       # Uploads gate on the ARTIFACT rather than on a source file standing in for it.
       - name: Upload ${{ inputs.mode }} coverage artifact
-        if: always() && hashFiles(format('packages/diene_dart_lib/coverage/{0}/lcov.info', inputs.mode)) != ''
+        # Parent condition and parent SHA pin, retokenised to THIS member's
+        # coverage path. Taking the parent's literal line would have pointed at
+        # packages/diene_dart_lib/, which does not exist here, so the upload
+        # would silently no-op on every run while the job stayed green.
+        if: always() && hashFiles(format('packages/diene_e2e/coverage/{0}/lcov.info', inputs.mode)) != ''
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-${{ inputs.mode }}
-          path: packages/diene_dart_lib/coverage/${{ inputs.mode }}
+          path: packages/diene_e2e/coverage/${{ inputs.mode }}
           if-no-files-found: warn
       - name: Upload ${{ inputs.mode }} coverage to Codecov
-        if: always() && hashFiles(format('packages/diene_dart_lib/coverage/{0}/lcov.info', inputs.mode)) != ''
+        if: always() && hashFiles(format('packages/diene_e2e/coverage/{0}/lcov.info', inputs.mode)) != ''
         continue-on-error: true
         uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
-          files: packages/diene_dart_lib/coverage/${{ inputs.mode }}/lcov.info
+          files: packages/diene_e2e/coverage/${{ inputs.mode }}/lcov.info
           flags: ${{ inputs.mode }}
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false

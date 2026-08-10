@@ -174,3 +174,50 @@ export async function expectRedBecause(
   }
   return output;
 }
+
+// The parent imports this from eight node-owned probes and two of its own, and ships no
+// definition (its UPSTREAM-CHANGES record G21-8 describes it as generic parent-owned
+// content that landed unreferenced). Authored here rather than dropped, because the
+// alternative — deleting the try/finally shape from every call site — would restore the
+// exact defect G21-6 records: a probe whose assertion throws leaves the sabotage in the
+// sandbox and loses the only evidence of what was actually mutated.
+//
+// Order matters and is the whole point. The mutated bytes are copied out FIRST and the
+// original is restored in this function's own `finally`, so an unreadable or unwritable
+// evidence directory cannot leave the tree dirty for every later probe in the sandbox.
+const EVIDENCE_ROOT = '.probe-evidence';
+
+export async function preserveMutationBeforeRestore(
+  repo: any,
+  id: string,
+  path: string,
+  original: string,
+): Promise<void> {
+  // Both are load-bearing: an empty id collapses every probe's evidence into one directory,
+  // and an empty path would restore `original` over the repository root. A silent no-op here
+  // would make the helper unable to report that it preserved nothing.
+  if (!id || id.trim().length === 0) {
+    throw new Error('preserveMutationBeforeRestore: an evidence id is required');
+  }
+  if (!path || path.trim().length === 0) {
+    throw new Error(`${id}: preserveMutationBeforeRestore was given no source path`);
+  }
+  if (path.startsWith('/') || path.split('/').includes('..')) {
+    throw new Error(`${id}: refusing to preserve a source path outside the sandbox: ${path}`);
+  }
+  try {
+    // A mutation that made the file unreadable is itself the finding, so a failed read is
+    // reported and not swallowed — but the restore below still runs.
+    const mutated = await repo.read(path);
+    const evidencePath = `${EVIDENCE_ROOT}/${id}/${path}`;
+    await repo.write(evidencePath, mutated);
+    // Verify the COPY, not the intent to copy. A write that silently truncated would
+    // otherwise present as preserved evidence.
+    const readBack = await repo.read(evidencePath);
+    if (readBack !== mutated) {
+      throw new Error(`${id}: mutation evidence at ${evidencePath} does not match the mutated bytes`);
+    }
+  } finally {
+    await repo.write(path, original);
+  }
+}

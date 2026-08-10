@@ -3,21 +3,25 @@ import { expectGreen } from './lib/helpers.ts';
 // Smoke: the offline-safe archive-builder mode completes cleanly, proving the
 // package is packable without advisory or pub.dev network access. Repository
 // validators and the hermetic Pana gate own semantic validation separately.
+// The binary stays `flutter`, not `dart` -- this member declares a flutter
+// SDK constraint, so `dart pub` refuses the manifest outright.
 export default {
   contractVersion: 1,
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
   setup: {
-    post: ['nix develop .#ci --no-write-lock-file -c dart pub get --offline'],
+    post: [
+      'nix develop .#ci --no-write-lock-file -c flutter pub get --offline || nix develop .#ci --no-write-lock-file -c flutter pub get',
+    ],
   },
   probes: [
     {
       name: 'baseline-publish-dry-run-green',
-      description: 'dart pub publish builds the dry-run archive without remote validation',
+      description: 'flutter pub publish builds the dry-run archive without remote validation',
       kind: 'baseline',
       async run(repo: any) {
         await expectGreen(
           repo,
-          "nix develop .#ci --no-write-lock-file -c bash -lc 'cd packages/diene_dart_lib && dart pub publish --dry-run --skip-validation'",
+          "nix develop .#ci --no-write-lock-file -c bash -lc 'cd packages/diene_e2e && flutter pub publish --dry-run --skip-validation'",
           'publish-dry-run',
         );
       },

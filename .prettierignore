@@ -1,0 +1,14 @@
+# Vendored C0 R2 authoritative fixture — kept byte-identical to its upstream
+# release so the SHA-256 recorded in its PROVENANCE.md stays verifiable.
+# Prettier/treefmt must never reformat it (the R2 release's own formatter policy
+# excludes this exact path).
+#
+# THE PATH IS PACKAGE-RELATIVE, and that detail is load bearing. Before the
+# R-E19a transplant this repo carried the package at its ROOT, so the entry read
+# `/test/fixtures/c0/identity.json`. Reshaping into the family's
+# `packages/diene_e2e/` layout moved the fixture without moving its protection,
+# and treefmt immediately rewrote the frozen blob — 11564 bytes to 11476, hash
+# add399f3 to 7bc2445a. The pre-commit hook is what caught it; the bytes were
+# restored from the quarantined ref and re-verified against the recorded digest.
+# Any future move of this fixture must move this line in the SAME commit.
+/packages/diene_e2e/test/fixtures/c0/identity.json

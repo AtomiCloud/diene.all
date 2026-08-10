@@ -1,8 +1,9 @@
 import { expectGreen, expectRed } from './lib/helpers.ts';
 
-// Gate: the real release-policy validator asserts the per-node changelogFile,
-// changelogTitle prefix, and formatter-bearing prepareCmd values. The mechanism
-// cascades; each descendant keeps its own local values and must satisfy it.
+// Gate: the real release-policy validator asserts the per-node
+// release.changelog.path, release.changelog.title prefix, and formatter-bearing
+// release.hooks.prepare values. The mechanism cascades; each descendant keeps
+// its own local values and must satisfy it.
 const VALIDATOR = 'nix develop .#ci --no-write-lock-file -c ./scripts/validate/release-policy.sh';
 
 export default {
@@ -23,9 +24,9 @@ export default {
       kind: 'mutation',
       expectedImpact: [],
       async run(repo: any) {
-        await repo.patch('atomi_release.yaml', {
-          find: '      changelogTitle: |-\n        # Changelog',
-          replace: '      changelogTitle: |-\n        # Broken Changelog',
+        await repo.patch('release.yaml', {
+          find: '    title: |-\n      # Changelog',
+          replace: '    title: |-\n      # Broken Changelog',
         });
         await expectRed(repo, VALIDATOR, 'release-policy-values');
       },

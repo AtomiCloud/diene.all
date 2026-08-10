@@ -1,0 +1,77 @@
+name: diene_e2e
+# pana scores a description outside 60-180 characters as an INVALID pubspec, so
+# this wording is kept inside that window deliberately.
+description: >-
+  L-dart family version train and consumer test harness: bundles member test
+  helpers and ships journey drivers, stub servers, and the shared C0 app-handoff
+  fixture.
+version: 0.0.0
+repository: https://github.com/AtomiCloud/diene.dart_e2e
+issue_tracker: https://github.com/AtomiCloud/diene.dart_e2e/issues
+homepage: https://github.com/AtomiCloud/diene.dart_e2e
+
+topics:
+  - testing
+  - e2e
+  - test-helper
+  - fixtures
+  - atomicloud
+
+resolution: workspace
+
+# This package depends on the Flutter SDK, transitively and unavoidably, because
+# the version train it exists to publish includes diene_auth_engine and
+# diene_api_engine — both of which declare `flutter: '>=3.24.0'`. The same
+# constraint is documented on the api-engine sibling, which hit it first.
+environment:
+  sdk: '>=3.12.0 <4.0.0'
+  flutter: '>=3.24.0'
+
+# THE VERSION TRAIN. This is the node's primary deliverable: a consumer
+# (flutter-base's E4 swap-in) depends on THIS package and gets a coherent set of
+# all seven L-dart members at once, instead of pinning each individually.
+#
+# Every member is pinned to the NEWEST version published at this head, read LIVE
+# from the pub.dev API rather than copied from a sibling's manifest. Under the
+# untracked-lockfile rule (pubspec.lock is gitignored in this repo — verified
+# with `git check-ignore`, plain form, rc=0) a green local run only proves the
+# bytes CI will resolve if the locked version equals the newest satisfying the
+# constraint. That comparison is ALSO the only currently-implementable
+# retraction control: retraction is always declared by something published
+# AFTER the retracted version, so a package resolving the newest release is
+# structurally unretractable-in-the-present. pub.dev's own `retracted` flag is
+# WEAK EVIDENCE and must not be relied on — it reads `false` for
+# diene_problems 0.1.0, which R-E24a and 0.1.1's own changelog both declare was
+# published from rejected content.
+#
+# Versions read from the registry at this head: problems 0.1.1, result 1.0.0,
+# interfaces 1.0.0, core_utils 1.0.1, config 1.0.0, auth_engine 1.0.2,
+# api_engine 1.0.0.
+#
+# diene_problems is pinned ^0.1.1, NOT ^0.1.0, so the solver cannot reach the
+# rejected 0.1.0 that the registry still serves with HTTP 200.
+dependencies:
+  diene_api_engine: ^1.0.0
+  diene_auth_engine: ^1.0.2
+  diene_config: ^1.0.0
+  diene_core_utils: ^1.0.1
+  diene_interfaces: ^1.0.0
+  diene_problems: ^0.1.1
+  diene_result: ^1.0.0
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  dart_code_linter: ^4.1.8
+  # `flutter_test` REPLACES the `test` dev_dependency the pure-Dart siblings
+  # carry, and `pana`/`coverage` are absent — all three for the same measured
+  # reason documented on the api-engine sibling. A Dart pub workspace shares ONE
+  # resolution across every member, so `test >=1.31.2` (which needs test_api
+  # 0.7.13) cannot co-resolve with `flutter_test` from the SDK (which pins
+  # test_api 0.7.11). flutter_test re-exports the test framework, so no tier
+  # loses coverage; `flutter test --coverage` emits LCOV directly, so the
+  # coverage:format_coverage conversion step does not exist here; and pana is
+  # activated into its own isolated resolution by scripts/ci/setup.sh.
+  flutter_test:
+    sdk: flutter
+  lints: ^6.1.0
