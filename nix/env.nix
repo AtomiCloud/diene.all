@@ -7,8 +7,8 @@ with packages;
     git
     go-task
     infisical
+    releaser
     jq
-    pls
     skopeo
   ];
 
@@ -16,6 +16,7 @@ with packages;
   # #### source: workspace
   lint = [
     actionlint
+    dlint
     infralint
     kubeconform
     kubernetes-helm
@@ -23,6 +24,7 @@ with packages;
     pre-commit
     ripgrep
     shellcheck
+    skills-sync
     treefmt
     yq-go
 
@@ -44,7 +46,6 @@ with packages;
     kubeconform
     kubernetes-helm
     kyverno
-    pls
     ripgrep
     shellcheck
     skopeo
@@ -68,5 +69,6 @@ with packages;
   system = [
     atomiutils
     infrautils
+    nix
   ];
 }

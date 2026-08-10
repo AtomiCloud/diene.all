@@ -35,7 +35,7 @@ set -euo pipefail
 
 - Do **not** use flow control (if/else, loops, functions) for simplification or abstraction
 - Prefer parameter/command substitution over `if`/`else` — e.g.
-  `artifact_version="${version:-v0.0.0-${commit}}"` instead of an `if` block, and
+  `HELM_VERSION="${version:-v0.0.0-${commit}}"` instead of an `if` block, and
   `arg="$([[ cond ]] && echo "--flag" || echo "")"` for a conditional flag
 - Use flow control **only when necessary** (e.g. iterating an unknown number of files)
 
@@ -70,21 +70,18 @@ echo "✅ Done"
 
 ## File Location
 
-All shell scripts live in `scripts/` at the project root. GitHub workflows invoke
-`scripts/ci/*` directly; Taskfiles may invoke `scripts/local/*` but never CI
-scripts.
+All shell scripts live in `scripts/` at the project root, in a subdirectory that
+says who is allowed to call them:
 
-```
-scripts/
-├── ci/
-│   ├── setup.sh          # CI setup stub
-│   ├── pre-commit.sh     # Pre-commit hooks
-│   ├── docker.sh         # Image build and publish
-│   └── release.sh        # Release process
-├── local/                # Developer-facing helpers
-├── release/              # Release-time helpers
-└── validate/             # Repository-owned policy checks
-```
+- `scripts/ci/` — CI/CD lane entry points. Only GitHub workflows invoke these; a
+  Taskfile must never call one.
+- `scripts/local/` — developer-facing helpers. Taskfiles invoke these, and a
+  developer may also run one directly.
+- `scripts/validate/` — repository-owned policy checks, invoked by pre-commit
+  hooks.
+
+List a directory to see which scripts it currently holds; each script's callers
+are the workflow, Taskfile, or hook that names it.
 
 ## Summary
 
