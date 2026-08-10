@@ -1,0 +1,26 @@
+meta {
+  name: PWA manifest
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/manifest
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body.display: eq standalone
+  res.body.start_url: eq /
+}
+
+tests {
+  test("manifest carries config-driven branding", function () {
+    const body = res.getBody();
+    expect(body.name.length).to.be.greaterThan(0);
+    expect(body.theme_color.length).to.be.greaterThan(0);
+    expect(body.icons.length).to.be.greaterThan(0);
+  });
+}

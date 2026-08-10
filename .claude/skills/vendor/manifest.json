@@ -3,9 +3,77 @@
   "generator": "skills-sync",
   "runtime": "node",
   "packages": [
-    "@atomicloud/diene.otel"
+    "@atomicloud/diene.api-engine",
+    "@atomicloud/diene.auth-engine",
+    "@atomicloud/diene.config",
+    "@atomicloud/diene.core-utils",
+    "@atomicloud/diene.e2e",
+    "@atomicloud/diene.frontend-utils",
+    "@atomicloud/diene.otel",
+    "@atomicloud/diene.problems",
+    "@atomicloud/diene.result"
   ],
   "entries": [
+    {
+      "path": "diene.api-engine/diene-api-engine-usage/SKILL.md",
+      "sha256": "28c96c2b3f6f207f1f0de128613444c4c96cde2a115b39fe6998e8e58ac69731"
+    },
+    {
+      "path": "diene.api-engine/diene-api-engine-usage/patterns.md",
+      "sha256": "173dc57eab040ee944301c2ad7dc88d68847bd8555a402a5acf82d563def4011"
+    },
+    {
+      "path": "diene.auth-engine/diene-auth-engine-usage/SKILL.md",
+      "sha256": "094a57e93683d33be52d52e12dfe66b27867ca1eee2639f09ddde71691a4236d"
+    },
+    {
+      "path": "diene.auth-engine/diene-auth-engine-usage/patterns.md",
+      "sha256": "8e43f90875f1708ff1d22799e840e89bca7a04e661138e2b8226e53c5d8b42e4"
+    },
+    {
+      "path": "diene.config/diene-config-usage/SKILL.md",
+      "sha256": "8d3803492f5d570e6c8fd41affc8d68b75dfb938a417a83ad10779dfeef71ddc"
+    },
+    {
+      "path": "diene.config/diene-config-usage/assets/consumer.cjs",
+      "sha256": "41799d650bfce9b9a452fafc9105785fd11199c6dc337902766a9fc949f8215d"
+    },
+    {
+      "path": "diene.config/diene-config-usage/assets/consumer.ts",
+      "sha256": "3a727ecad1dfe1d88ef808008ab5eb8b63825123f769d73f85a5cacd739e41a7"
+    },
+    {
+      "path": "diene.config/diene-config-usage/assets/test-helper.md",
+      "sha256": "c9eb274c2f8bf181621b7930bd9cff8e129daba022058b84d1f5ea282cd70dca"
+    },
+    {
+      "path": "diene.core-utils/diene-core-utils-usage/SKILL.md",
+      "sha256": "590a72b493fc1fd2ae40f3e6c5d4283093d443cded7641beeccd6c92bce25eaf"
+    },
+    {
+      "path": "diene.core-utils/diene-core-utils-usage/patterns.md",
+      "sha256": "e4ad6ea21e87ab663263bd154b8b5fc90e90244e99dc871eeebdc0f97e6e5255"
+    },
+    {
+      "path": "diene.e2e/diene-e2e-usage/SKILL.md",
+      "sha256": "3b26ee62439409741e43503d5509c3abdba64341b8fc7ec7e8a7c8142ee214d1"
+    },
+    {
+      "path": "diene.frontend-utils/diene-frontend-utils-usage/SKILL.md",
+      "sha256": "a727cb44a65770d8348bcf7767dba503b501276807b84a1de9fdcd57df02217c"
+    },
+    {
+      "path": "diene.frontend-utils/diene-frontend-utils-usage/agents/openai.yaml",
+      "sha256": "d047f027b8d9ec5dc920eec548bf858370afc01bab6cc8af430d411ff9c29110"
+    },
+    {
+      "path": "diene.frontend-utils/diene-frontend-utils-usage/assets/consumer-test.ts",
+      "sha256": "a6a9b0ecbbe7a1ed1dd3093a4c8134bf684c518de176c1d77080e0a86bb83f44"
+    },
+    {
+      "path": "diene.frontend-utils/diene-frontend-utils-usage/assets/consumer.ts",
+      "sha256": "3be1e04ffcef73138c805ba7a6c1c5b31d57392d52575b3dc09998041f036c2c"
+    },
     {
       "path": "diene.otel/diene-otel-usage/SKILL.md",
       "sha256": "35c94010c6fcbf898e9ddfa08a02127f02684a58e0d54d57beadd7270d5dba27"
@@ -13,6 +81,26 @@
     {
       "path": "diene.otel/diene-otel-usage/patterns.md",
       "sha256": "9890dcd65f8b5943d66d2e5698a2cc3750147615a5f36f7d43bae64629aad283"
+    },
+    {
+      "path": "diene.problems/diene-problems-usage/SKILL.md",
+      "sha256": "2b5bb539072c09a4600dd5863a2becf181f095c48902c5d5f23d390b7013bfe6"
+    },
+    {
+      "path": "diene.result/diene-result-usage/SKILL.md",
+      "sha256": "af8ddb4d54cc7cd278d56e89eb998372024423de2028e64bcde784e70b7f3a71"
+    },
+    {
+      "path": "diene.result/diene-result-usage/assets/consumer.cjs",
+      "sha256": "f18c192482d266ab418dfdce04bb10b019781f552b2a41d9161b8347a0599cd4"
+    },
+    {
+      "path": "diene.result/diene-result-usage/assets/consumer.ts",
+      "sha256": "84e6eab274ab3a6db57477052d5583bf5527c0bf4e71362a69bea76b8f6686c1"
+    },
+    {
+      "path": "diene.result/diene-result-usage/assets/test-helper.md",
+      "sha256": "cac85271d0314f8e417494e7bcdf3622c7e570f9fdb0018426d6e2544306547e"
     }
   ]
 }

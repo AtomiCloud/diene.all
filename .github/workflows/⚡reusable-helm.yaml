@@ -1,0 +1,19 @@
+# ### nextjs-frontend-reusable-helm
+# #### source: nextjs-frontend
+name: ⚡ Reusable Helm
+
+on:
+  workflow_call:
+
+jobs:
+  helm:
+    name: Chart lint + render
+    runs-on:
+      - nscloud-ubuntu-22.04-amd64-4x8-with-cache
+      - nscloud-cache-size-50gb
+      - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
+    steps:
+      - uses: AtomiCloud/actions.setup-nix@v3
+      - uses: AtomiCloud/actions.cache-bun@v2
+      - name: Lint and render the primordial and Garden charts
+        run: nix develop .#ci -c ./scripts/ci/helm.sh

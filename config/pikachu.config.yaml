@@ -1,0 +1,8 @@
+# yaml-language-server: $schema=./schema.json
+app:
+  servicetree:
+    landscape: pikachu
+seo:
+  baseUrl: https://webapp.nextjs-frontend.diene.pikachu.cluster.atomi.cloud
+faro:
+  app: webapp.nextjs-frontend.pikachu

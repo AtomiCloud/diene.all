@@ -71,11 +71,6 @@
   },
   {
     "template": "diene/workspace",
-    "name": "skills-sync",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
     "name": "hook-shellcheck",
     "class": "gate"
   },
@@ -106,8 +101,38 @@
   },
   {
     "template": "diene/workspace",
-    "name": "secret-login-guard",
+    "name": "secret-guards",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "secret-scan-command",
     "class": "smoke"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "skills-vendor-directory",
+    "class": "presence"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "skills-sync",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "skills-freshness",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "release-config-schema",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "release-type-vocabulary",
+    "class": "gate"
   },
   {
     "template": "diene/workspace",
@@ -117,6 +142,16 @@
   {
     "template": "diene/workspace",
     "name": "release-workflow-concurrency",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "workflow-names",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "nixpkgs-pin",
     "class": "gate"
   },
   {
@@ -131,8 +166,13 @@
   },
   {
     "template": "diene/workspace",
-    "name": "probe-artifacts",
-    "class": "presence"
+    "name": "cache-tag-shape",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "many-owner-schema",
+    "class": "gate"
   },
   {
     "template": "diene/workspace",
@@ -141,17 +181,12 @@
   },
   {
     "template": "diene/workspace",
-    "name": "hook-releaser-commit",
-    "class": "gate"
+    "name": "probe-artifacts",
+    "class": "presence"
   },
   {
     "template": "diene/shared",
-    "name": "docs-markdownlint",
-    "class": "gate"
-  },
-  {
-    "template": "diene/shared",
-    "name": "docs-prettier",
+    "name": "claude-link-integrity",
     "class": "gate"
   },
   {
@@ -163,6 +198,16 @@
     "template": "diene/shared",
     "name": "thin-skills",
     "class": "presence"
+  },
+  {
+    "template": "diene/shared",
+    "name": "docs-markdownlint",
+    "class": "gate"
+  },
+  {
+    "template": "diene/shared",
+    "name": "docs-prettier",
+    "class": "gate"
   },
   {
     "template": "diene/bun-base",
@@ -228,5 +273,305 @@
     "template": "diene/bun-base",
     "name": "bun-codecov-config",
     "class": "presence"
+  },
+  {
+    "template": "diene/observability",
+    "name": "observability-standards-present",
+    "class": "presence"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "api-engine-integration",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "app-handoff-legal",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "auth-integration",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "bruno-collection",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "catalog-error-classification",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "click-reaction-journey",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "config-merge",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "config-schema-gen",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "content-state-machine",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "deeplink-route-map",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "deferred-login-sit",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "deploy-policy",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "design-system-render",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "extended-binary-inventory",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "faro-init",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "faro-upload-guard",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "forbidden-edge-runtime",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "form-lifecycle-journey",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "frontend-ux-artifacts",
+    "class": "presence"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "garden-app-chart-install",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "garden-app-chart-lint",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "garden-app-chart-render",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "garden-app-chart-resources",
+    "class": "presence"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "garden-app-chart-schema-profile",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "garden-image",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "i18n-locale-journey",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "i18n-missing-key",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "isr-bindings",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "landscape-binding",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "lib-coverage",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "login-redirect-return",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "lottie-component",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "module-di-unit",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "opennext-dry-run",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "picker-allowlist",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "picker-journey",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "playwright-collection",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "primordial-chart-install",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "primordial-chart-lint",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "primordial-chart-resources",
+    "class": "presence"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "primordial-chart-schema",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "primordial-chart-template",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "problem-boundary",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "problem-contract",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "published-lib-deps",
+    "class": "presence"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "pure-renderer-lint",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "pwa-manifest",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "rebrand-static",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "resize-fluid-i18n",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "ssr-landscape-payload",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "standby-synthetic",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "standby-wiring",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "theme-unit",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "tracker-seo-unit",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "transport-codec",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "url-as-state-journey",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "well-known-schema",
+    "class": "gate"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "workerd-preview",
+    "class": "smoke"
+  },
+  {
+    "template": "diene/nextjs-frontend",
+    "name": "wrangler-config",
+    "class": "gate"
   }
 ]

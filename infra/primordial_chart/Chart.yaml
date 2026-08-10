@@ -1,0 +1,9 @@
+# ### nextjs-frontend-primordial-chart
+# #### source: nextjs-frontend
+apiVersion: v2
+name: diene-nextjs-frontend-primordial
+description: Primordial chart for the diene nextjs-frontend service — the dependency/identity CR set (PlatformDependency, LogtoApp) plus its Grafana Operator folder, dashboards, and alerts. No Kargo promotion machinery — that is centralized on Primordial.
+type: application
+version: 0.1.0
+appVersion: '0.1.0'
+kubeVersion: '>=1.27.0-0'

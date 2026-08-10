@@ -29,3 +29,20 @@ node_modules/
 dist/
 coverage/
 *.tsbuildinfo
+
+### nextjs-frontend
+#### source: nextjs-frontend
+.next/
+.open-next/
+next-env.d.ts
+.wrangler/
+playwright-report/
+test-results/
+
+### nextjs-frontend-charts
+#### source: nextjs-frontend
+# Build-phase chart vendoring. Helm cannot read outside a chart directory, so
+# the build COPIES the authoritative root `observability/` in before
+# lint/template/package/publish — regenerated per build, never committed.
+infra/primordial_chart/files/
+tests/integration/fixtures/config/config.yaml

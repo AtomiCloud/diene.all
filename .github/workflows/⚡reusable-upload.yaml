@@ -1,0 +1,36 @@
+# ### nextjs-frontend-reusable-upload
+# #### source: nextjs-frontend
+name: ⚡ Reusable Upload
+
+on:
+  workflow_call:
+
+jobs:
+  upload:
+    name: Upload ${{ matrix.landscape }}
+    strategy:
+      fail-fast: false
+      matrix:
+        landscape: [pichu, pikachu, raichu]
+    runs-on:
+      - nscloud-ubuntu-22.04-amd64-4x8-with-cache
+      - nscloud-cache-size-50gb
+      - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
+    steps:
+      - uses: AtomiCloud/actions.setup-nix@v3
+      - uses: AtomiCloud/actions.cache-bun@v2
+      # BUILD-TIME SECRET tier (Layer C): the faro source-map key is injected
+      # here, right before the OpenNext build, consumed by the webpack plugin,
+      # and never persisted into the artifact. CI uploads tagged versions only;
+      # CloudflareDeploy promotes pinned versions (never a direct deploy).
+      - name: Upload tagged Worker version
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          ATOMI_CLIENT__FARO__BUILD__ENABLED: 'true'
+          ATOMI_CLIENT__FARO__BUILD__ENDPOINT: ${{ vars.FARO_SOURCEMAP_ENDPOINT }}
+          ATOMI_CLIENT__FARO__BUILD__APP: ${{ vars.FARO_SOURCEMAP_APP }}
+          ATOMI_CLIENT__FARO__BUILD__STACK: ${{ vars.FARO_SOURCEMAP_STACK }}
+          ATOMI_CLIENT__FARO__BUILD__KEY: ${{ secrets.FARO_SOURCEMAP_KEY }}
+          LANDSCAPE: ${{ matrix.landscape }}
+        run: nix develop .#ci -c ./scripts/ci/upload.sh "$LANDSCAPE" "$GITHUB_REF_NAME"

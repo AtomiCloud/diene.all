@@ -1,0 +1,24 @@
+# ### nextjs-frontend-cd
+# #### source: nextjs-frontend
+name: CD
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+jobs:
+  upload:
+    name: Upload Worker Versions
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-upload.yaml
+    secrets: inherit
+
+  standby:
+    name: Standby Deploy Artifact
+    permissions:
+      contents: read
+    uses: ./.github/workflows/⚡reusable-standby.yaml
+    secrets: inherit

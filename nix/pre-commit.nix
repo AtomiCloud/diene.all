@@ -41,7 +41,7 @@ let
     dontFixup = true;
     outputHashMode = "recursive";
     outputHashAlgo = "sha256";
-    outputHash = "sha256-rAk5chYo8iCSowuIrdOc9jX7THNpgFd2kezoVTMWdcw=";
+    outputHash = "sha256-Co2uM7abq8evvoljN72mkGlqUeMq8v6+yvG6mCdTASk=";
   };
   bun-tool = name: "${packages.bun}/bin/bun ${bun-tooling}/node_modules/.bin/${name}";
   biome-platform =
@@ -55,6 +55,27 @@ let
     cp -R ${../.}/. "$out/"
     ln -s ${bun-tooling}/node_modules "$out/node_modules"
   '';
+  validator-runtime = pkgs.buildEnv {
+    name = "workspace-validator-runtime";
+    paths = [
+      packages.bash
+      packages.git
+      packages.jq
+      packages.ripgrep
+      packages.yq-go
+      pkgs.coreutils
+      pkgs.findutils
+      pkgs.gnugrep
+      pkgs.gnused
+      # ### nextjs-frontend-validator-runtime
+      # #### source: nextjs-frontend
+      # The chart-ownership guard renders the Garden app chart per profile.
+      packages.kubernetes-helm
+    ];
+  };
+  validator =
+    command:
+    "${packages.bash}/bin/bash -c 'export PATH=${validator-runtime}/bin; exec ${packages.bash}/bin/bash ${command}'";
   # toolchain-smoke asserts the DECLARED env lists actually provide their binaries.
   envPath = pkgs.lib.makeBinPath (env.system ++ env.main ++ env.lint ++ env.dev);
 in
@@ -172,6 +193,89 @@ pre-commit-lib.run {
       name = "TypeScript typecheck";
       entry = "${bun-tool "tsc"} --noEmit";
       files = "(^package\\.json$|^tsconfig\\.json$|\\.(ts|tsx|mts|cts)$)";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    # ### nextjs-frontend-hooks
+    # #### source: nextjs-frontend
+    a-chart-ownership = {
+      enable = true;
+      name = "Garden app chart ownership";
+      entry = validator "scripts/validate/chart-ownership.sh";
+      files = "^(infra/garden_app_chart/.*|scripts/validate/chart-ownership\\.sh)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-i18n-keys = {
+      enable = true;
+      name = "i18n missing-key lint";
+      entry = "${packages.bun}/bin/bun scripts/validate/i18n-keys.ts";
+      files = "(^messages/.*\\.json$|^scripts/validate/i18n-keys\\.ts$)";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-pure-renderer = {
+      enable = true;
+      name = "Pure-renderer arch lint";
+      entry = "${packages.bun}/bin/bun scripts/validate/pure-renderer.ts";
+      files = "^src/app/.*\\.tsx$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-forbidden-runtime = {
+      enable = true;
+      name = "Forbidden edge runtime";
+      entry = "${packages.bun}/bin/bun scripts/validate/forbidden-runtime.ts";
+      files = "^src/.*\\.(ts|tsx)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-rebrand-static = {
+      enable = true;
+      name = "R21 rebrand static guard";
+      entry = "${packages.bun}/bin/bun scripts/validate/rebrand-static.ts";
+      files = "(^config/config\\.yaml$|^src/.*\\.(ts|tsx)$)";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-wrangler-config = {
+      enable = true;
+      name = "Wrangler config + ISR bindings";
+      entry = "${packages.bun}/bin/bun scripts/validate/wrangler-config.ts";
+      files = "(^wrangler\\.toml$|^scripts/validate/wrangler-config\\.ts$)";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-deploy-policy = {
+      enable = true;
+      name = "CloudflareDeploy promotion policy";
+      entry = "${packages.bun}/bin/bun scripts/validate/deploy-policy.ts";
+      files = "(^scripts/ci/.*\\.sh$|^\\.github/workflows/.*\\.ya?ml$)";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-pwa-manifest = {
+      enable = true;
+      name = "PWA manifest metadata";
+      entry = "${packages.bun}/bin/bun scripts/validate/pwa-manifest.ts";
+      files = "(^config/config\\.yaml$|^src/app/api/manifest/route\\.ts$)";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-config-schema-gen = {
+      enable = true;
+      name = "Config schema gen-check";
+      entry = "${packages.bun}/bin/bun scripts/local/config-schema.ts --check";
+      files = "(^config/schema\\.json$|^src/config/.*\\.ts$)";
       pass_filenames = false;
       language = "system";
     };

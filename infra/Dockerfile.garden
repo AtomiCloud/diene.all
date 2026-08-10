@@ -1,0 +1,53 @@
+# ### nextjs-frontend-garden-image
+# #### source: nextjs-frontend
+# The immutable standalone image for the optional in-cluster Garden rail
+# (Q-ENV14). ONE artifact is built and then SELECTED by each of the seven
+# profiles — landscape is runtime and chart-supplied (R21), so nothing
+# landscape-specific is baked in beyond the build-time client tier.
+#
+# The Workers rail consumes the same `next build` through OpenNext; this recipe
+# packages `output: 'standalone'` for a plain Node server.
+
+FROM oven/bun:1.3.13-alpine AS deps
+WORKDIR /app
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile
+
+FROM oven/bun:1.3.13-alpine AS build
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+# `public/` is optional in a fresh checkout but must exist as a copy source in
+# the runtime stage below; creating it here keeps the recipe honest either way.
+RUN mkdir -p public
+# Build-time config tier (`ATOMI_`-prefixed) is frozen into the artifact here.
+# BUILD-TIME SECRETS such as ATOMI_CLIENT__FARO__BUILD__KEY are passed as
+# `--secret` by CI, consumed by the webpack plugin, and never persisted.
+RUN bun run next build
+
+FROM node:24-alpine AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
+
+# Nonroot from here on. The chart also pins runAsNonRoot/runAsUser, so the image
+# and the pod agree rather than one relying on the other.
+RUN addgroup -g 1001 -S nodejs && adduser -u 1001 -S nextjs -G nodejs
+
+# `output: 'standalone'` traces the server and its dependencies but ships
+# NEITHER `public/` NOR `.next/static/` — both are copied explicitly or the app
+# boots with no assets and no client chunks.
+COPY --from=build --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=build --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=build --chown=nextjs:nodejs /app/public ./public
+# Runtime config layers: the server reads `${cwd}/config` and merges the
+# landscape overlay the chart selects through ATOMI_LANDSCAPE.
+COPY --from=build --chown=nextjs:nodejs /app/config ./config
+
+# The chart mounts an emptyDir here so `readOnlyRootFilesystem: true` holds.
+RUN mkdir -p .next/cache && chown -R nextjs:nodejs .next/cache
+
+USER nextjs
+EXPOSE 3000
+CMD ["node", "server.js"]

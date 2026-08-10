@@ -1,0 +1,23 @@
+meta {
+  name: Deeplink well-known
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/.well-known/assetlinks.json
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+tests {
+  test("assetlinks carries the handle_all_urls relation", function () {
+    const body = res.getBody();
+    expect(body[0].relation).to.include("delegate_permission/common.handle_all_urls");
+    expect(body[0].target.namespace).to.equal("android_app");
+  });
+}

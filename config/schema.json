@@ -1,0 +1,599 @@
+{
+  "$id": "diene:nextjs-frontend:config",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "app": {
+      "type": "object",
+      "properties": {
+        "servicetree": {
+          "type": "object",
+          "properties": {
+            "landscape": {
+              "type": "string",
+              "minLength": 1
+            },
+            "platform": {
+              "type": "string",
+              "minLength": 1
+            },
+            "service": {
+              "type": "string",
+              "minLength": 1
+            },
+            "module": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": ["landscape", "platform", "service", "module"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["servicetree"],
+      "additionalProperties": false
+    },
+    "branding": {
+      "type": "object",
+      "properties": {
+        "appName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "shortName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "themeColor": {
+          "type": "string",
+          "minLength": 1
+        },
+        "backgroundColor": {
+          "type": "string",
+          "minLength": 1
+        },
+        "logo": {
+          "type": "string",
+          "minLength": 1
+        },
+        "favicon": {
+          "type": "string",
+          "minLength": 1
+        },
+        "splash": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["appName", "shortName", "description", "themeColor", "backgroundColor", "logo", "favicon", "splash"],
+      "additionalProperties": false
+    },
+    "seo": {
+      "type": "object",
+      "properties": {
+        "baseUrl": {
+          "type": "string",
+          "format": "uri"
+        },
+        "titleTemplate": {
+          "type": "string",
+          "minLength": 1
+        },
+        "defaultTitle": {
+          "type": "string",
+          "minLength": 1
+        },
+        "defaultDescription": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ogImage": {
+          "type": "string",
+          "minLength": 1
+        },
+        "twitterCard": {
+          "type": "string",
+          "enum": ["summary", "summary_large_image"]
+        },
+        "twitterSite": {
+          "type": "string"
+        },
+        "jsonLdOrganization": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "url": {
+              "type": "string",
+              "format": "uri"
+            },
+            "logo": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": ["name", "url", "logo"],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "baseUrl",
+        "titleTemplate",
+        "defaultTitle",
+        "defaultDescription",
+        "ogImage",
+        "twitterCard",
+        "twitterSite",
+        "jsonLdOrganization"
+      ],
+      "additionalProperties": false
+    },
+    "theme": {
+      "type": "object",
+      "properties": {
+        "default": {
+          "type": "string",
+          "minLength": 1
+        },
+        "darkMode": {
+          "type": "boolean"
+        },
+        "themes": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "enum": ["light", "dark"]
+          }
+        },
+        "storageKey": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["default", "darkMode", "themes", "storageKey"],
+      "additionalProperties": false
+    },
+    "faro": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "endpoint": {
+          "type": "string"
+        },
+        "app": {
+          "type": "string"
+        },
+        "build": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "endpoint": {
+              "type": "string"
+            },
+            "app": {
+              "type": "string"
+            },
+            "stack": {
+              "type": "string"
+            },
+            "key": {
+              "type": "string"
+            },
+            "gzipContents": {
+              "type": "boolean"
+            }
+          },
+          "required": ["enabled", "endpoint", "app", "stack", "key", "gzipContents"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["enabled", "endpoint", "app", "build"],
+      "additionalProperties": false
+    },
+    "picker": {
+      "type": "object",
+      "properties": {
+        "docBUrl": {
+          "type": "string",
+          "format": "uri"
+        },
+        "allowedSuffixes": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "pingTimeoutMs": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": ["docBUrl", "allowedSuffixes", "pingTimeoutMs"],
+      "additionalProperties": false
+    },
+    "deeplink": {
+      "type": "object",
+      "properties": {
+        "appleAppId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "androidPackage": {
+          "type": "string",
+          "minLength": 1
+        },
+        "androidSha256Fingerprints": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "required": ["appleAppId", "androidPackage", "androidSha256Fingerprints"],
+      "additionalProperties": false
+    },
+    "errorCatalog": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "edgeBaseUrl": {
+          "type": "string"
+        },
+        "refreshSeconds": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": ["enabled", "edgeBaseUrl", "refreshSeconds"],
+      "additionalProperties": false
+    },
+    "backends": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "baseUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "platform": {
+            "type": "string",
+            "minLength": 1
+          },
+          "service": {
+            "type": "string",
+            "minLength": 1
+          },
+          "module": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["baseUrl", "platform", "service", "module"],
+        "additionalProperties": false
+      }
+    },
+    "auth": {
+      "type": "object",
+      "properties": {
+        "logto": {
+          "type": "object",
+          "properties": {
+            "endpoint": {
+              "type": "string",
+              "format": "uri"
+            },
+            "appId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "appSecret": {
+              "type": "string"
+            },
+            "management": {
+              "type": "object",
+              "properties": {
+                "endpoint": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "clientId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "clientSecret": {
+                  "type": "string"
+                }
+              },
+              "required": ["endpoint", "clientId", "clientSecret"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["endpoint", "appId", "appSecret", "management"],
+          "additionalProperties": false
+        },
+        "handoff": {
+          "type": "object",
+          "properties": {
+            "mount": {
+              "default": "/app-handoff",
+              "type": "string",
+              "pattern": "^\\/(?!\\/)(?!.*\\/\\/)(?!.*[\\\\%?#\\s]).*$"
+            }
+          },
+          "required": ["mount"],
+          "additionalProperties": false
+        },
+        "store": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "redis"
+            },
+            "host": {
+              "type": "string",
+              "minLength": 1
+            },
+            "port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            }
+          },
+          "required": ["kind", "host", "port"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["logto", "handoff", "store"],
+      "additionalProperties": false
+    },
+    "otel": {
+      "readOnly": true,
+      "type": "object",
+      "properties": {
+        "logs": {
+          "readOnly": true,
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "exporter": {
+              "readOnly": true,
+              "type": "object",
+              "properties": {
+                "console": {
+                  "readOnly": true,
+                  "type": "object",
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": ["enabled"],
+                  "additionalProperties": false
+                },
+                "otlp": {
+                  "readOnly": true,
+                  "type": "object",
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "endpoint": {
+                      "type": "string"
+                    },
+                    "protocol": {
+                      "type": "string",
+                      "const": "http/protobuf"
+                    },
+                    "headers": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "timeout": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["enabled", "endpoint", "protocol", "headers", "timeout"],
+                  "additionalProperties": false
+                }
+              },
+              "required": ["console", "otlp"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["enabled", "exporter"],
+          "additionalProperties": false
+        },
+        "metrics": {
+          "readOnly": true,
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "exporter": {
+              "readOnly": true,
+              "type": "object",
+              "properties": {
+                "console": {
+                  "readOnly": true,
+                  "type": "object",
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": ["enabled"],
+                  "additionalProperties": false
+                },
+                "otlp": {
+                  "readOnly": true,
+                  "type": "object",
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "endpoint": {
+                      "type": "string"
+                    },
+                    "protocol": {
+                      "type": "string",
+                      "const": "http/protobuf"
+                    },
+                    "headers": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "timeout": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["enabled", "endpoint", "protocol", "headers", "timeout"],
+                  "additionalProperties": false
+                }
+              },
+              "required": ["console", "otlp"],
+              "additionalProperties": false
+            },
+            "interval": {
+              "type": "string"
+            }
+          },
+          "required": ["enabled", "exporter", "interval"],
+          "additionalProperties": false
+        },
+        "traces": {
+          "readOnly": true,
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "sampler": {
+              "readOnly": true,
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": ["parentbased_traceidratio", "always_on", "always_off"]
+                },
+                "ratio": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              },
+              "required": ["type", "ratio"],
+              "additionalProperties": false
+            },
+            "exporter": {
+              "readOnly": true,
+              "type": "object",
+              "properties": {
+                "console": {
+                  "readOnly": true,
+                  "type": "object",
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": ["enabled"],
+                  "additionalProperties": false
+                },
+                "otlp": {
+                  "readOnly": true,
+                  "type": "object",
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "endpoint": {
+                      "type": "string"
+                    },
+                    "protocol": {
+                      "type": "string",
+                      "const": "http/protobuf"
+                    },
+                    "headers": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "timeout": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["enabled", "endpoint", "protocol", "headers", "timeout"],
+                  "additionalProperties": false
+                }
+              },
+              "required": ["console", "otlp"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["enabled", "sampler", "exporter"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["logs", "metrics", "traces"],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "app",
+    "branding",
+    "seo",
+    "theme",
+    "faro",
+    "picker",
+    "deeplink",
+    "errorCatalog",
+    "backends",
+    "auth",
+    "otel"
+  ],
+  "additionalProperties": false
+}

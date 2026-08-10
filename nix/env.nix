@@ -17,7 +17,11 @@ with packages;
     actionlint
     dlint
     infralint-core
+    # ### nextjs-frontend-lint
+    # #### source: nextjs-frontend
+    kubernetes-helm
     pre-commit
+    ripgrep
     shellcheck
     skills-sync
     treefmt
@@ -27,6 +31,13 @@ with packages;
   # ### workspace-main
   # #### source: workspace
   main = [
+    # ### nextjs-frontend-main
+    # #### source: nextjs-frontend
+    nodejs
+    # ### nextjs-frontend-main
+    # #### source: nextjs-frontend
+    kubernetes-helm
+    ripgrep
     # ### bun-base-main
     # #### source: bun-base
     bun

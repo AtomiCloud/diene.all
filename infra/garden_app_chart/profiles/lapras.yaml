@@ -1,0 +1,20 @@
+# ### nextjs-frontend-garden-app-profile-lapras
+# #### source: nextjs-frontend
+# LAPRAS — connected local landscape. edge.mode `boron-direct`, secret.mode
+# `infisical-readonly`, callback.mode `none` (ENV-SPEC §2.1). The human rail is
+# Cloudflare Access `[atomi-devs]` in front of the Boron tunnel; the chart still
+# owns nothing but its Deployment and ClusterIP Service.
+profile: lapras
+instance: dev
+zone: admin.atomi.cloud
+serviceTree:
+  landscape: lapras
+exposure:
+  mode: boron-direct
+image:
+  # Garden replaces this with the digest of the image it built or selected. A
+  # non-local profile MUST pin a digest — the schema rejects a bare tag.
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+runtime:
+  env:
+    ATOMI_SEO__BASEURL: https://webapp.nextjs-frontend.diene.dev.lapras.admin.atomi.cloud

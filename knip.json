@@ -1,7 +1,18 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "entry": ["src/index.ts", "tests/**/*.test.ts"],
-  "project": ["src/**/*.ts"],
+  "entry": [
+    "src/index.ts",
+    "src/app/**/{page,layout,error,global-error,not-found,loading}.tsx",
+    "src/app/**/route.ts",
+    "src/middleware.ts",
+    "src/i18n/request.ts",
+    "next.config.ts",
+    "postcss.config.mjs",
+    "scripts/local/*.ts",
+    "tests/**/*.test.ts",
+    "tests/**/*.test.tsx"
+  ],
+  "project": ["src/**/*.{ts,tsx}"],
   "rules": {
     "files": "error",
     "exports": "error",

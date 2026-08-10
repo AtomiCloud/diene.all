@@ -1,0 +1,21 @@
+# ### nextjs-frontend-reusable-opennext
+# #### source: nextjs-frontend
+name: ⚡ Reusable OpenNext
+
+on:
+  workflow_call:
+
+jobs:
+  opennext:
+    name: OpenNext Build + Dry-Run
+    runs-on:
+      - nscloud-ubuntu-22.04-amd64-4x8-with-cache
+      - nscloud-cache-size-50gb
+      - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
+    steps:
+      - uses: AtomiCloud/actions.setup-nix@v3
+      - uses: AtomiCloud/actions.cache-bun@v2
+      - name: Build OpenNext artifact and dry-run every landscape
+        run: nix develop .#ci -c ./scripts/ci/opennext-build.sh
+      - name: workerd preview smoke
+        run: nix develop .#ci -c ./scripts/ci/workerd-preview.sh

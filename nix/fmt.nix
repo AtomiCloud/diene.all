@@ -13,6 +13,11 @@ let
           "Changelog.md"
           "docs/developer/CommitConventions.md"
           "infra/root_chart/**"
+          # ### nextjs-frontend-formatters
+          # #### source: nextjs-frontend
+          # Helm templates carry Go template syntax, not valid YAML.
+          "infra/primordial_chart/templates/**"
+          "infra/garden_app_chart/templates/**"
         ];
       };
       shfmt.enable = true;

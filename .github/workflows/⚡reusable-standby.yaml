@@ -1,0 +1,19 @@
+# ### nextjs-frontend-reusable-standby
+# #### source: nextjs-frontend
+name: ⚡ Reusable Standby
+
+on:
+  workflow_call:
+
+jobs:
+  standby:
+    name: Standby Build
+    runs-on:
+      - nscloud-ubuntu-22.04-amd64-4x8-with-cache
+      - nscloud-cache-size-50gb
+      - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
+    steps:
+      - uses: AtomiCloud/actions.setup-nix@v3
+      - uses: AtomiCloud/actions.cache-bun@v2
+      - name: Build and validate the standby artifact
+        run: nix develop .#ci -c ./scripts/ci/standby-build.sh

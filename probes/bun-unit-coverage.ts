@@ -20,7 +20,17 @@ export default {
       name: 'mutation-bun-unit-coverage-caught',
       description: 'An uncovered library source file turns the unit coverage ledger red.',
       kind: 'mutation',
-      expectedImpact: ['bun-deadcode'],
+      // DELIBERATE DIVERGENCE FROM THE PARENT - do not "restore" byte-identity.
+      // This probe is byte-identical to bun-base upstream, so ownership-by-bytes would
+      // put this declaration there. It CANNOT live there: the control it names does not
+      // exist on bun-base, and declaring it would be a dangling reference inherited by
+      // every descendant. Ruled by noel 2026-07-29 to declare on the leaf and record the
+      // divergence. expectedImpact names FEATURES, features are PER-TEMPLATE, so a static
+      // list in a shared file cannot be correct on all surfaces - the file was never truly
+      // shared, only coincidentally identical. Upstream fix filed: sulfone.lite #23 /
+      // PROBES.md Gap 6 (absent feature should resolve INAPPLICABLE, not dangling).
+      // MEASURED: control output was 'eevee: Service is not ClusterIP' - it ran and failed.
+      expectedImpact: ['garden-app-chart-render'],
       async run(repo: any) {
         await repo.write('src/lib/__probe_uncovered__.ts', 'export const probeUncovered = (): number => 1;\n');
         await repo.write(

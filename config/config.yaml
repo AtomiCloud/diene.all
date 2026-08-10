@@ -1,0 +1,116 @@
+# yaml-language-server: $schema=./schema.json
+app:
+  servicetree:
+    landscape: base
+    platform: diene
+    service: nextjs-frontend
+    module: webapp
+branding:
+  appName: Diene Sample
+  shortName: Diene
+  description: Production-ready Next.js template on the AtomiCloud stack
+  themeColor: '#4a68d8'
+  backgroundColor: '#fbfaf7'
+  logo: /brand/logo.png
+  favicon: /brand/favicon.svg
+  splash: /brand/splash.png
+seo:
+  baseUrl: https://webapp.nextjs-frontend.diene.lapras.cluster.atomi.cloud
+  titleTemplate: '%s · Diene Sample'
+  defaultTitle: Diene Sample
+  defaultDescription: Production-ready Next.js template on the AtomiCloud stack
+  ogImage: /brand/og.png
+  twitterCard: summary_large_image
+  twitterSite: ''
+  jsonLdOrganization:
+    name: AtomiCloud
+    url: https://atomi.cloud
+    logo: /brand/logo.png
+theme:
+  default: system
+  darkMode: true
+  themes:
+    light: light
+    dark: dark
+  storageKey: theme
+faro:
+  enabled: false
+  endpoint: ''
+  app: webapp.nextjs-frontend.base
+  build:
+    enabled: false
+    endpoint: ''
+    app: ''
+    stack: ''
+    key: ''
+    gzipContents: true
+picker:
+  docBUrl: https://edge.atomi.cloud/docs/doc-b.json
+  allowedSuffixes:
+    - .cluster.atomi.cloud
+    # The edge-doc host itself must pass the same use-time allowlist.
+    - .atomi.cloud
+  pingTimeoutMs: 2000
+deeplink:
+  appleAppId: TEAMID0000.cloud.atomi.diene.webapp
+  androidPackage: cloud.atomi.diene.webapp
+  androidSha256Fingerprints:
+    - '00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00'
+errorCatalog:
+  enabled: false
+  edgeBaseUrl: ''
+  refreshSeconds: 300
+backends: {}
+auth:
+  logto:
+    endpoint: https://auth.example.test
+    appId: sample-app-id
+    appSecret: dev-only-not-a-secret
+    management:
+      endpoint: https://auth.example.test
+      clientId: sample-management-client
+      clientSecret: dev-only-not-a-secret
+  handoff:
+    mount: /app-handoff
+  store:
+    kind: redis
+    host: localhost
+    port: 6379
+otel:
+  logs:
+    enabled: false
+    exporter:
+      console:
+        enabled: false
+      otlp:
+        enabled: false
+        endpoint: http://localhost:4318
+        protocol: http/protobuf
+        headers: {}
+        timeout: PT10S
+  traces:
+    enabled: false
+    sampler:
+      type: always_on
+      ratio: 1
+    exporter:
+      console:
+        enabled: false
+      otlp:
+        enabled: false
+        endpoint: http://localhost:4318
+        protocol: http/protobuf
+        headers: {}
+        timeout: PT10S
+  metrics:
+    enabled: false
+    interval: PT60S
+    exporter:
+      console:
+        enabled: false
+      otlp:
+        enabled: false
+        endpoint: http://localhost:4318
+        protocol: http/protobuf
+        headers: {}
+        timeout: PT10S

@@ -1,0 +1,35 @@
+meta {
+  name: Reminder codec round-trip
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/reminders
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "reminder": {
+      "id": "r1",
+      "title": "Stand up",
+      "remindAt": "2020-01-01T09:00:00Z",
+      "leadTime": "PT10M"
+    }
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.due: eq true
+}
+
+tests {
+  test("wire values round-trip through the Temporal domain", function () {
+    const body = res.getBody();
+    expect(body.reminder.id).to.equal("r1");
+    expect(body.reminder.leadTime).to.equal("PT10M");
+  });
+}

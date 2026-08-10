@@ -1,0 +1,62 @@
+{
+  "home": {
+    "title": "Herzlich willkommen",
+    "tagline": "Eine produktionsreife Next.js-Vorlage auf dem AtomiCloud-Stack",
+    "cta": "Jetzt loslegen",
+    "search": "Suchen",
+    "searchPlaceholder": "Tippen zum Suchen — die URL folgt dir überallhin"
+  },
+  "nav": {
+    "home": "Startseite",
+    "profile": "Benutzerprofil",
+    "settings": "Einstellungen",
+    "signIn": "Anmelden",
+    "signOut": "Abmelden"
+  },
+  "theme": {
+    "toggle": "Erscheinungsbild umschalten",
+    "light": "Hell",
+    "dark": "Dunkel",
+    "system": "Systemeinstellung"
+  },
+  "locale": {
+    "switch": "Sprache wechseln",
+    "en": "Englisch",
+    "de": "Deutsch"
+  },
+  "content": {
+    "loading": "Wird geladen",
+    "empty": "Hier gibt es noch nichts zu sehen",
+    "retry": "Erneut versuchen"
+  },
+  "error": {
+    "title": "Etwas ist schiefgelaufen",
+    "recoverableHint": "Das löst sich normalerweise von selbst — bitte erneut versuchen.",
+    "fatalHint": "Wir sind auf ein unerwartetes Problem gestoßen. Unser Team wurde benachrichtigt.",
+    "copy": "Fehlerdetails kopieren",
+    "copied": "Kopiert",
+    "home": "Zurück zur Startseite"
+  },
+  "onboarding": {
+    "title": "Richte dein Benutzerkonto ein",
+    "pending": "Dein Arbeitsbereich wird vorbereitet",
+    "finish": "Alles eingerichtet",
+    "continue": "Weiter"
+  },
+  "picker": {
+    "title": "Wähle deine Heimatregion aus",
+    "explainer": "Dein Benutzerkonto befindet sich in genau einer Region. Wähle die nächstgelegene aus.",
+    "measuring": "Latenz wird gemessen",
+    "confirm": "Diese Region verwenden",
+    "legalTitle": "Bevor du fortfährst",
+    "legalBody": "Indem du fortfährst, stimmst du den Nutzungsbedingungen und der Datenschutzerklärung zu.",
+    "legalAccept": "Ich stimme zu"
+  },
+  "form": {
+    "draftRestored": "Entwurf wiederhergestellt",
+    "clear": "Zurücksetzen",
+    "submit": "Absenden",
+    "required": "Dieses Feld ist ein Pflichtfeld",
+    "invalidEmail": "Bitte eine gültige E-Mail-Adresse eingeben"
+  }
+}

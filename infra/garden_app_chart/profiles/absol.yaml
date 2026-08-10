@@ -1,0 +1,18 @@
+# ### nextjs-frontend-garden-app-profile-absol
+# #### source: nextjs-frontend
+# ABSOL — hermetic local landscape for adversarial runs. edge.mode
+# `local-kgateway`, secret.mode `fake-local`, callback.mode `none`
+# (ENV-SPEC §2.1). Same rail as rotom; the difference lives in what Garden runs
+# against it, not in what this chart owns.
+profile: absol
+instance: ci
+zone: cluster.atomi.cloud
+serviceTree:
+  landscape: absol
+exposure:
+  mode: local-loopback
+image:
+  tag: local
+runtime:
+  env:
+    ATOMI_SEO__BASEURL: http://webapp.nextjs-frontend.diene.ci.absol.cluster.atomi.cloud

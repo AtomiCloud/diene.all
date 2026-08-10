@@ -1,0 +1,23 @@
+# ### nextjs-frontend-garden-app-profile-plusle
+# #### source: nextjs-frontend
+# PLUSLE — hosted vcluster with Mercury callback routing available at the
+# LANDSCAPE level. edge.mode `entei-shared`, secret.mode `infisical-readonly`,
+# callback.mode `mercury-routing` when declared (ENV-SPEC §2.1).
+#
+# That landscape capability is NOT this chart's to use: §11.1 is explicit that
+# the frontend never publishes a per-preview callback endpoint, so
+# `exposure.callbackMode` stays `none` and `public-callback` is absent from the
+# class enum. A Mercury subscription belongs to whichever service actually
+# receives provider callbacks.
+profile: plusle
+instance: preview
+zone: entei.atomi.cloud
+serviceTree:
+  landscape: plusle
+exposure:
+  mode: entei-service-sync
+image:
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+runtime:
+  env:
+    ATOMI_SEO__BASEURL: https://webapp.nextjs-frontend.diene.preview.plusle.entei.atomi.cloud
