@@ -1,0 +1,216 @@
+# ### workspace-release
+# #### source: workspace
+schemaVersion: 2
+
+types:
+  # THIS NODE KEEPS ITS OWN 17 TYPE/SCOPE PAIRS. The parent (`dotnet-base`) carries 34.
+  # Adopting the parent's set wholesale would silently re-tier this node upward, which
+  # is the same defect as a cascade dropping pairs, only in the other direction. So the
+  # 17 pairs the parent adds — `chore/many-owner` `chore/nix` `chore/workspace`
+  # `docs/nix` `feat/nix` `feat/probes` `fix/nix` `fix/probes` `fix/skills`
+  # `fix/workspace` `merge/default` `merge/main` `merge/workspace` `perf/probes`
+  # `refactor/ci` `style/probes` `test/probes` (the whole `merge` TYPE included) — are
+  # removed here, and nothing this node owned was lost. The file's SHAPE is the
+  # parent's: the rename to `release.yaml`, the richer `conventions.template`, the
+  # multi-line release commit message, and `App/App.csproj` as the version asset all
+  # come across unchanged. Only the vocabulary is resolved to this node's own set.
+  #
+  # This is an interim resolution, not a ruling. Whether the fleet's commit vocabulary
+  # is one canonical tier or two by depth is OPEN WITH THE OWNER as coordinator-8
+  # item 19. The standing interim rule is that every node keeps its OWN pre-merge set
+  # in BOTH directions — losses restored, gains removed — with the generated doc
+  # rebuilt in the same commit. A LATER CASCADE MUST NOT READ THIS REMOVAL AS A RULING
+  # on what the vocabulary should be; when item 19 is settled, settle this file with it.
+  #
+  # Why a change here is easy to miss: the two gates that check this file, `Release
+  # config schema` and `Release type vocabulary`, are pinned to `^atomi_release\.yaml$`
+  # and the parent renamed that file to `release.yaml`, so both now match nothing and
+  # report `(no files to check)Skipped` — a clean exit that an aggregate exit code
+  # cannot tell apart from a pass. `.NET release type vocabulary` does match this file,
+  # which is why a lost `amend` TYPE would be caught, but it asserts the type set only
+  # and is structurally blind to lost SCOPES. Do not read a green battery on this file
+  # as coverage until those two patterns are repointed.
+  #
+  # `amend` is a TYPE this node owns and a parent trim once dropped it fleet-wide; that
+  # deletion auto-merges CLEANLY into every child — no conflict, no marker, nothing to
+  # notice. It survives here. Do not remove it as part of a cascade: a parent trim is
+  # not a ruling.
+  - type: amend
+    desc: Small amendments and typo fixes
+    scopes:
+      default:
+        desc: Amend existing work
+        release: false
+  - type: build
+    desc: Build-system changes
+    scopes:
+      default:
+        desc: Update build machinery
+        release: false
+  - type: chore
+    desc: Repository chores
+    scopes:
+      default:
+        desc: Perform a chore
+        release: false
+  - type: ci
+    desc: CI/CD changes
+    scopes:
+      default:
+        desc: Update CI/CD
+        release: false
+  - type: config
+    desc: Configuration changes
+    scopes:
+      default:
+        desc: Update configuration
+        release: false
+  - type: dep
+    desc: Dependency updates
+    section: 🔼 Dependency Upstreams 🔼
+    scopes:
+      default:
+        desc: Update a dependency
+        release: false
+      patch:
+        desc: Patch dependency update
+        release: patch
+      minor:
+        desc: Minor dependency update
+        release: minor
+      major:
+        desc: Major dependency update
+        release: major
+  - type: docs
+    desc: Documentation changes
+    section: 📜 Documentation 📜
+    scopes:
+      default:
+        desc: Update documentation
+        release: false
+  - type: feat
+    desc: New features
+    section: ✨ Features ✨
+    scopes:
+      default:
+        desc: Add a feature
+        release: minor
+      breaking:
+        desc: Add a breaking feature
+        release: major
+  - type: fix
+    desc: Bug fixes
+    section: 🐛 Bug Fixes 🐛
+    scopes:
+      default:
+        desc: Fix a bug
+        release: patch
+  - type: perf
+    desc: Performance improvements
+    section: 🚀 Performance Improvement 🚀
+    scopes:
+      default:
+        desc: Improve performance
+        release: patch
+  - type: refactor
+    desc: Refactors
+    scopes:
+      default:
+        desc: Refactor implementation
+        release: minor
+  - type: style
+    desc: Non-functional style changes
+    scopes:
+      default:
+        desc: Update style
+        release: patch
+  - type: test
+    desc: Test changes
+    section: 🧪 Tests 🧪
+    scopes:
+      default:
+        desc: Add or correct tests
+        release: minor
+
+specialScopes:
+  no-release:
+    desc: Prevent release from happening
+    release: false
+
+keywords:
+  - BREAKING CHANGE
+  - BREAKING CHANGES
+  - BREAKING
+
+lint:
+  header:
+    maxLength: 72
+    minLength: 5
+    forbiddenWords:
+      - WIP
+    forbidTrailingPunctuation: true
+  body:
+    maxLineLength: 80
+    minLengthWhenPresent: 20
+    requireBlankSecondLine: true
+  ignore:
+    - merge
+    - revert
+    - fixup
+    - fixup-amend
+    - squash
+
+conventions:
+  path: docs/developer/CommitConventions.md
+  template: |-
+    # Commit conventions
+
+    This repository follows [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
+
+    - `release.yaml` is the machine-readable source of truth: it owns the
+      commit types, the scopes valid for each one, and the version bump each scope
+      causes.
+    - [The conventional-commits standard](../standards/conventional-commits/index.md)
+      explains how to read that vocabulary and how to mark a breaking change.
+
+    ## Status of this file
+
+    This file is generated. `release.yaml` names this path in its
+    `conventions.path` value, `releaser conventions` writes it, and a release run
+    rewrites it as well. Change `release.yaml` and regenerate rather than
+    editing this file: everything up to here comes from that file's
+    `conventions.template`, and everything from the `type(scope)` line below is
+    generated from the commit vocabulary.
+
+    CONVENTION_DOCS_PLACEHOLDER
+
+release:
+  branches:
+    - main
+  tagFormat: 'v${version}'
+  changelog:
+    path: Changelog.md
+    title: '# Changelog'
+  commit:
+    message: |-
+      release: ${version}
+
+      ${notes}
+    assets:
+      - Changelog.md
+      - App/App.csproj
+      - docs/developer/CommitConventions.md
+  github:
+    enabled: true
+    successComment: 'Released in ${version}.'
+    releasedLabels:
+      - released
+  hooks:
+    # This node fills the hook point the parent template leaves empty. `App/App.csproj`
+    # carries the .NET version, and it is listed in commit.assets above in the same
+    # breath as the command that writes it - a committed version file that nothing
+    # writes goes stale in silence.
+    prepare:
+      - phase: afterWrite
+        command: './scripts/release/bump.sh ${version}'
+    success: []

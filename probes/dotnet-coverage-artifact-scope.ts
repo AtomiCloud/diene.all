@@ -1,7 +1,7 @@
 import { defineGate } from './lib/definition.ts';
 import { addEscapingUnitProject } from './lib/dotnet.ts';
 
-const COVERAGE_COMMAND = 'nix develop .#ci -c pls test:unit:coverage';
+const COVERAGE_COMMAND = 'nix develop .#ci -c task test:unit:coverage';
 const REPORT = 'TestResults/unit/coverage/coverage.cobertura.xml';
 const PARSE_MARKER = 'Parsed unit Cobertura package scope and per-package line rates';
 const ESCAPE_MESSAGE = 'unit coverage escaped its [Lib*]* ledger: Escape';

@@ -1,28 +1,21 @@
-# ### workspace-root
-# #### source: workspace
 version: '3'
 
 includes:
-  secret: tasks/Taskfile.secret.yaml
-
   # ### dotnet-base-test-includes
   # #### source: dotnet-base
-  unit:
+  test:unit:
     taskfile: tasks/Taskfile.test.yaml
     vars:
       MODE: unit
-  int:
+  test:int:
     taskfile: tasks/Taskfile.test.yaml
     vars:
       MODE: int
 
 tasks:
   setup:
-    desc: Set up generated workspace assets
+    desc: Set up the workspace
     cmds:
-      - ./scripts/local/skills-sync.sh
-      # ### dotnet-base-setup
-      # #### source: dotnet-base
       - ./scripts/local/setup.sh
 
   lint:
@@ -31,9 +24,9 @@ tasks:
       - pre-commit run --all-files
 
   skills:sync:
-    desc: Synchronize installed diene package skills
+    desc: Verify the repository's explicit no-runtime skills contract
     cmds:
-      - ./scripts/local/skills-sync.sh
+      - skills-sync sync
 
   # ### dotnet-base-tasks
   # #### source: dotnet-base
@@ -82,36 +75,5 @@ tasks:
   test:
     desc: Run unit and integration tests
     cmds:
-      - task: unit:default
-      - task: int:default
-
-  test:unit:
-    desc: Run unit tests
-    cmds:
-      - task: unit:default
-
-  test:int:
-    desc: Run integration tests
-    cmds:
-      - task: int:default
-
-  test:coverage:
-    desc: Run every test tier with merged blocking coverage
-    cmds:
-      - task: unit:coverage
-      - task: int:coverage
-
-  test:unit:coverage:
-    desc: Run unit tests with merged blocking coverage
-    cmds:
-      - task: unit:coverage
-
-  test:int:coverage:
-    desc: Run integration tests with merged blocking coverage
-    cmds:
-      - task: int:coverage
-
-  test:watch:
-    desc: Watch the fast unit suite
-    cmds:
-      - task: unit:watch
+      - task: test:unit
+      - task: test:int

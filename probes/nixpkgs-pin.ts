@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedBecause } from './lib/helpers.ts';
 
 export default {
   contractVersion: 1,
@@ -6,7 +6,7 @@ export default {
   probes: [
     {
       name: 'baseline-nixpkgs-pin-green',
-      description: 'The flake, channel names, lock, and authoritative S1 snapshot agree.',
+      description: 'The flake, channel names, lock, and the checked-in nixpkgs snapshot agree.',
       kind: 'baseline',
       async run(repo: any) {
         await expectGreen(repo, 'nix develop .#ci -c ./scripts/validate/nixpkgs-pin.sh', 'nixpkgs-pin');
@@ -21,7 +21,9 @@ export default {
         const snapshot = JSON.parse(await repo.read('nix/snapshots/nixpkgs.json'));
         snapshot.rev = '0000000000000000000000000000000000000000';
         await repo.write('nix/snapshots/nixpkgs.json', JSON.stringify(snapshot, null, 2) + '\n');
-        await expectRed(repo, 'nix develop .#ci -c ./scripts/validate/nixpkgs-pin.sh', 'nixpkgs-pin');
+        await expectRedBecause(repo, 'nix develop .#ci -c ./scripts/validate/nixpkgs-pin.sh', 'nixpkgs-pin', [
+          'flake.nix does not use the authoritative nixpkgs SHA',
+        ]);
       },
     },
   ],
