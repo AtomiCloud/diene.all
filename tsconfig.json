@@ -7,6 +7,10 @@
     "allowJs": true,
 
     "moduleResolution": "bundler",
+    "paths": {
+      "@atomicloud/diene.interfaces": ["./src/index.ts"],
+      "@atomicloud/diene.interfaces/test-helper": ["./src/test-helper/index.ts"]
+    },
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "noEmit": true,
