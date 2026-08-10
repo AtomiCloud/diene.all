@@ -1,5 +1,41 @@
+# ### workspace-release
+# #### source: workspace
 schemaVersion: 2
+
 types:
+  # THIS NODE'S OWN PRE-MERGE SET - restored, not chosen.
+  # Ruled by coordinator-8: every node keeps the type/scope set its own
+  # pre-merge tip carried, in BOTH directions. A GAIN from a parent is reverted
+  # exactly as a LOSS from a parent is restored, because either way the node
+  # stops speaking its own vocabulary on the strength of a parent edit alone.
+  #
+  # Measured on THIS node (lib/bun/e2e), not inherited from the parent's note.
+  # The pre-merge tip 9f915491 carried 27 type/scope pairs across 13 types. The
+  # parent bun-lib carries 17 pairs across the same 13 types, so taking the
+  # parent file as-is LOST ten and GAINED none: the whole train-member scope
+  # family under `dep` - api-engine, auth-engine, config, core-utils,
+  # frontend-utils, interfaces, otel, problems, result and standard-config.
+  # Those ten are restored below in the pre-merge tip's own shape, ordering and
+  # descriptions. They are not decoration: this node is the ten-member Bun
+  # version train, and a `dep(result)` commit is how a member bump reaches a
+  # release here. Losing them would silently re-tier the node onto a baseline
+  # vocabulary that cannot describe its own releases.
+  #
+  # A PARENT EDIT IS NOT A RULING. Whether this vocabulary applies fleet-wide
+  # is still the owner's to decide. A later cascade must not read this restore
+  # as a decision in either direction, and must not drop these pairs on the
+  # strength of a parent merge alone.
+  #
+  # RENAME HAZARD, for whoever compares next. This node's pre-merge file was
+  # named atomi_release.yaml and the parent RENAMES it to release.yaml, so a
+  # same-path comparison compares nothing at all and silently reports no
+  # change. Resolve the rename first. And do not compare TYPE counts: the type
+  # count is 13 on both sides of this merge while the PAIR count moved 27 to
+  # 17, so a type-count check sees an identical file and reports nothing. Only
+  # a pair-set diff, run in both directions, sizes it.
+  #
+  # docs/developer/CommitConventions.md is generated from this file: any
+  # change here must regenerate it in the same commit.
   - type: amend
     desc: Small amendments and typo fixes
     scopes:
@@ -126,14 +162,17 @@ types:
       default:
         desc: Add or correct tests
         release: minor
+
 specialScopes:
   no-release:
     desc: Prevent release from happening
     release: false
+
 keywords:
   - BREAKING CHANGE
   - BREAKING CHANGES
   - BREAKING
+
 lint:
   header:
     maxLength: 72
@@ -151,9 +190,31 @@ lint:
     - fixup
     - fixup-amend
     - squash
+
 conventions:
   path: docs/developer/CommitConventions.md
-  template: "# Commit conventions\n\nCONVENTION_DOCS_PLACEHOLDER\n"
+  template: |-
+    # Commit conventions
+
+    This repository follows [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
+
+    - `release.yaml` is the machine-readable source of truth: it owns the
+      commit types, the scopes valid for each one, and the version bump each scope
+      causes.
+    - [The conventional-commits standard](../standards/conventional-commits/index.md)
+      explains how to read that vocabulary and how to mark a breaking change.
+
+    ## Status of this file
+
+    This file is generated. `release.yaml` names this path in its
+    `conventions.path` value, `releaser conventions` writes it, and a release run
+    rewrites it as well. Change `release.yaml` and regenerate rather than
+    editing this file: everything up to here comes from that file's
+    `conventions.template`, and everything from the `type(scope)` line below is
+    generated from the commit vocabulary.
+
+    CONVENTION_DOCS_PLACEHOLDER
+
 release:
   branches:
     - main
@@ -162,11 +223,13 @@ release:
     path: Changelog.md
     title: '# Changelog'
   commit:
-    message: "release: ${version}\n\n${notes}"
+    message: |-
+      release: ${version}
+
+      ${notes}
     assets:
       - Changelog.md
       - package.json
-      - VERSION
       - docs/developer/CommitConventions.md
   github:
     enabled: true
@@ -174,6 +237,11 @@ release:
     releasedLabels:
       - released
   hooks:
+    # The hook point the parent leaves empty, filled here. This node's version
+    # lives in `package.json` rather than in a `VERSION` file, so the manifest
+    # the command below stamps is the same file listed in `commit.assets` above -
+    # written and committed by the same edit, which is what stops a version
+    # record going stale in silence.
     prepare:
       - phase: afterWrite
         command: './scripts/release/bump.sh ${version}'
