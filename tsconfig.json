@@ -7,6 +7,10 @@
     "allowJs": true,
 
     "moduleResolution": "bundler",
+    "paths": {
+      "@atomicloud/diene.otel": ["./src/index.ts"],
+      "@atomicloud/diene.otel/test-helper": ["./src/test-helper/index.ts"]
+    },
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "noEmit": true,
