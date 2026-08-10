@@ -198,7 +198,12 @@ pre-commit-lib.run {
       enable = true;
       name = "Markdown lint";
       entry = "${pkgs.markdownlint-cli2}/bin/markdownlint-cli2";
-      files = "^(CLAUDE\\.md|README\\.md|docs/developer/go-baseline\\.md|docs/standards/.*\\.md|\\.claude/skills/[^/]+/SKILL\\.md|observability/.*\\.md|probes/observability-.*\\.md|\\.claude/skills/(grafana-alert|grafana-alert-set|grafana-dashboards|grafana-runbook|observability-check)/.*\\.md)$";
+      # ### go-consumer-markdownlint-payload
+      # #### source: go-consumer
+      # This node adds two payloads the directory-shaped selector does not reach:
+      # docs/developer/go-consumer.md (its own delta doc) and the primordial chart's
+      # markdown, whose generated README is excluded because helm-docs owns it.
+      files = "^(CLAUDE\\.md|README\\.md|docs/developer/(go-baseline|go-consumer)\\.md|docs/standards/.*\\.md|infra/primordial_chart/(?!README\\.md$).*\\.md|\\.claude/skills/[^/]+/SKILL\\.md|observability/.*\\.md|probes/observability-.*\\.md|\\.claude/skills/(grafana-alert|grafana-alert-set|grafana-dashboards|grafana-runbook|observability-check)/.*\\.md)$";
       pass_filenames = true;
       language = "system";
     };
@@ -299,13 +304,5 @@ pre-commit-lib.run {
       language = "system";
     };
 
-    a-markdownlint = {
-      enable = true;
-      name = "Markdown lint";
-      entry = "${pkgs.markdownlint-cli2}/bin/markdownlint-cli2";
-      files = "^(CLAUDE\\.md|README\\.md|docs/developer/(go-baseline|go-consumer)\\.md|docs/standards/(authorization|contracts|contributor-docs|datetime|domain-driven-design|functional-practices|grafana-dashboards|observability|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/.*\\.md|infra/primordial_chart/(?!README\\.md$).*\\.md|observability/.*\\.md|probes/observability-.*\\.md|\\.claude/skills/(authorization|contributor-docs|datetime|domain-driven-design|functional-practices|go-baseline|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/SKILL\\.md|\\.claude/skills/(grafana-alert|grafana-alert-set|grafana-dashboards|grafana-runbook|observability-check)/.*\\.md)$";
-      pass_filenames = true;
-      language = "system";
-    };
   };
 }
