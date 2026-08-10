@@ -2,25 +2,123 @@ package main
 
 import (
 	"context"
+	"net/http"
 
-	"github.com/AtomiCloud/diene.go-lib/adapters/kv"
-	"github.com/AtomiCloud/diene.go-lib/lib/note"
-	"github.com/AtomiCloud/diene.go-lib/testhelper"
+	"github.com/AtomiCloud/diene.go-api-engine/lib/apiengine"
+	"github.com/AtomiCloud/diene.go-api-engine/lib/wire"
+	"github.com/AtomiCloud/diene.go-api-engine/testhelper"
+	"github.com/AtomiCloud/diene.go-errors-problems/lib/problem"
 )
 
+// This consumer reaches every exported symbol the module publishes, so the
+// production deadcode pass measures the library as a consumer sees it rather
+// than reporting the whole public surface as unreachable.
 func main() {
 	ctx := context.Background()
-	memory := testhelper.NewMemoryStore()
-	value := note.New("Deadcode Consumer", "public surface")
-	service := note.NewService(memory)
-	_ = note.Slug(value.Slug)
-	_ = note.NamespacedKey("notes", value.Slug)
-	_ = service.Save(ctx, value)
-	_, _ = service.Load(ctx, value.Slug)
-	_ = memory.Save(ctx, value.Slug, value.Body)
-	_, _ = memory.Load(ctx, value.Slug)
-	redis := kv.NewRedisStore("127.0.0.1:6379")
-	_ = redis.Save
-	_ = redis.Load
-	_ = redis.Close
+
+	// lib/wire — the C0 section 1 wire codecs.
+	timeout, _ := wire.ParseDuration("PT10S")
+	_ = timeout.Std()
+	_ = timeout.String()
+	_, _ = timeout.MarshalJSON()
+	_ = timeout.UnmarshalJSON([]byte(`"PT10S"`))
+
+	instant, _ := wire.ParseInstant("2026-07-25T19:35:00Z")
+	_ = wire.NewInstant(instant.Std())
+	_ = instant.Std()
+	_ = instant.String()
+	_, _ = instant.MarshalJSON()
+	_ = instant.UnmarshalJSON([]byte(`"2026-07-25T19:35:00Z"`))
+
+	zone, _ := wire.ParseZone("UTC")
+	_ = zone.String()
+	_, _ = zone.Location()
+	_, _ = zone.MarshalJSON()
+	_ = zone.UnmarshalJSON([]byte(`"UTC"`))
+	_ = wire.ErrDuration
+	_ = wire.ErrInstant
+	_ = wire.ErrZone
+
+	// lib/apiengine — problems, config, classification, client, tree.
+	problems, _ := apiengine.NewProblems(problem.LocalErrorPortal())
+	_ = apiengine.ProblemTypes()
+	_ = problems.Registry()
+	_, _ = problems.Catalog()
+	_ = problems.Raise(apiengine.ProblemTransport, "d", nil)
+	_ = problems.RaiseFrom(apiengine.ProblemConfigInvalid, http.ErrNotSupported, "d", nil)
+	_ = apiengine.ProblemVersion
+	_ = apiengine.ProblemResponseUnreadable
+	_ = apiengine.ProblemResponseUndecodable
+	_ = apiengine.ProblemResponseNotProblem
+	_ = apiengine.ProblemBackendUnregistered
+	_ = apiengine.ProblemRequestUnbuildable
+	_ = apiengine.ProblemCredentialsUnavailable
+
+	config := apiengine.DefaultConfig()
+	config.Backends["api"] = apiengine.BackendConfig{BaseURL: "https://example.invalid"}
+	_ = config.Names()
+	_ = config.Resource("api")
+	_ = config.Validate(problems)
+	_, _ = config.Tree(nil)
+	_ = apiengine.ConfigBlockSchema()
+	_ = apiengine.ConfigBlockKey
+	_ = apiengine.DefaultTimeout
+	_ = config.Backends["api"].RequestTimeout()
+	_ = apiengine.RetryConfig{Network: true, Delay: timeout}
+
+	_ = apiengine.Classify(200, nil)
+	_ = apiengine.OutcomeSuccess.String()
+	_ = apiengine.OutcomeProblem
+	_ = apiengine.OutcomeTransport
+	_, _ = apiengine.DecodeProblem([]byte(`{"type":"https://x","title":"t"}`))
+
+	tree, _ := apiengine.NewClientTree(apiengine.TreeOptions{
+		Config: config, Problems: problems, Doer: http.DefaultClient,
+	})
+	_ = tree.Names()
+	_ = tree.Problems()
+	client, _ := tree.Backend("api")
+	_ = client.Backend()
+	_ = client.BaseURL()
+	_, _ = client.Call(ctx, apiengine.Request{Path: "/x"})
+	_, _ = apiengine.Execute[map[string]any](ctx, client, apiengine.Request{Path: "/x"})
+	_ = apiengine.Send(ctx, client, apiengine.Request{Path: "/x"})
+
+	var _ apiengine.Doer = http.DefaultClient
+	_ = apiengine.Response{}
+	_ = apiengine.ClientOptions{}
+	_, _ = apiengine.NewClient(apiengine.ClientOptions{})
+
+	// testhelper — the consumer-facing fakes and assertions.
+	backend := testhelper.NewFakeBackend(testhelper.FakeBackendOptions{})
+	defer backend.Close()
+	_ = backend.URL()
+	_ = backend.Requests()
+	_ = backend.Count()
+	backend.SetRoute("/x", testhelper.Route{Status: 200})
+	_ = backend.Backend()
+	_ = testhelper.RecordedRequest{}.Authorization()
+
+	_ = testhelper.ProblemResponse(testhelper.ProblemOptions{})
+	_ = testhelper.Canned(testhelper.ProblemOptions{})
+	_ = testhelper.SampleErrorPortal()
+	_, _ = testhelper.NewProblems()
+
+	retriever := testhelper.NewFakeRetriever(map[string]string{"api": "token"})
+	retriever.FailResource("other", http.ErrNotSupported)
+	_, _ = retriever.Token(ctx, "api")
+	_ = retriever.Asked()
+
+	fake, _ := testhelper.NewFakeTree(testhelper.FakeTreeOptions{
+		Backends: map[string]*testhelper.FakeBackend{"api": backend},
+	})
+	fake.Close()
+
+	_, _ = testhelper.CheckProblem(nil, testhelper.ProblemOptions{})
+	_ = testhelper.CheckOutcome(apiengine.OutcomeSuccess, apiengine.OutcomeSuccess)
+	_ = testhelper.CheckCount(backend, 0)
+	var recorder testhelper.TestingT
+	_ = testhelper.AssertProblem(recorder, nil, testhelper.ProblemOptions{})
+	testhelper.AssertOutcome(recorder, apiengine.OutcomeSuccess, apiengine.OutcomeSuccess)
+	testhelper.AssertCount(recorder, backend, 0)
 }

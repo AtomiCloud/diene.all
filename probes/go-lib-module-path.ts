@@ -17,8 +17,12 @@ export default defineGate({
     description: 'Changing only the declared module path turns identity validation red.',
     expectedImpact: [],
     async run(repo: any) {
+      // Derive the declared module rather than assuming the template's own path:
+      // every retargeted library declares its own mirror identity in go.mod.
+      const declared = (await repo.read('go.mod')).match(/^module\s+(\S+)$/m);
+      if (!declared) throw new Error('go.mod declares no module path');
       await repo.patch('go.mod', {
-        find: 'module github.com/AtomiCloud/diene.go-lib',
+        find: `module ${declared[1]}`,
         replace: 'module github.com/AtomiCloud/diene.go-wrong',
       });
       await expectRed(repo, gate, 'go-lib-module-path');

@@ -1,0 +1,54 @@
+{
+  "description": "C0 §1 serialization contract: the wire shapes this engine reads and writes.",
+  "datetime": {
+    "shape": "RFC 3339 UTC instant",
+    "canonical": [
+      { "input": "2026-07-25T19:35:00Z", "rendered": "2026-07-25T19:35:00Z" },
+      { "input": "2026-07-25T19:35:00.5Z", "rendered": "2026-07-25T19:35:00.5Z" },
+      { "input": "2026-01-01T00:00:00Z", "rendered": "2026-01-01T00:00:00Z" }
+    ],
+    "normalized": [
+      { "input": "2026-07-26T03:35:00+08:00", "rendered": "2026-07-25T19:35:00Z" },
+      { "input": "2026-07-25T14:35:00-05:00", "rendered": "2026-07-25T19:35:00Z" }
+    ],
+    "rejected": ["2026-07-25 19:35:00", "25-07-2026T19:35:00Z", "2026-07-25T19:35:00", "not-a-timestamp", ""]
+  },
+  "duration": {
+    "shape": "ISO 8601 duration",
+    "canonical": [
+      { "input": "PT0S", "nanoseconds": 0, "rendered": "PT0S" },
+      { "input": "PT10S", "nanoseconds": 10000000000, "rendered": "PT10S" },
+      { "input": "PT60S", "nanoseconds": 60000000000, "rendered": "PT1M" },
+      { "input": "PT1M", "nanoseconds": 60000000000, "rendered": "PT1M" },
+      { "input": "PT1H30M", "nanoseconds": 5400000000000, "rendered": "PT1H30M" },
+      { "input": "P1D", "nanoseconds": 86400000000000, "rendered": "P1D" },
+      { "input": "P1DT2H3M4S", "nanoseconds": 93784000000000, "rendered": "P1DT2H3M4S" },
+      { "input": "PT0.5S", "nanoseconds": 500000000, "rendered": "PT0.5S" },
+      { "input": "-PT30S", "nanoseconds": -30000000000, "rendered": "-PT30S" },
+      { "input": "+PT10S", "nanoseconds": 10000000000, "rendered": "PT10S" }
+    ],
+    "rejected": [
+      "P",
+      "PT",
+      "P1DT",
+      "10S",
+      "P1Y",
+      "P1M",
+      "P-1D",
+      "P1.2.3D",
+      "PT1",
+      "PT1.2.3S",
+      "PT1S1S",
+      "PT1S1H",
+      "PT1X",
+      "PTS",
+      "",
+      "1h30m"
+    ]
+  },
+  "timezone": {
+    "shape": "IANA timezone identifier",
+    "accepted": ["UTC", "Asia/Singapore", "America/New_York", "Europe/London"],
+    "rejected": ["+08:00", "SGT", "EST5EDT-bogus", "Local", "", "Not/AZone"]
+  }
+}
