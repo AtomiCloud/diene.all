@@ -333,7 +333,12 @@ describe('preserveMutationBeforeRestore', () => {
     };
     let caught: Error | null = null;
     try {
-      await preserveMutationBeforeRestore(stuck, 'pub-workspace-metadata-validator', 'pubspec.yaml', 'resolution: workspace');
+      await preserveMutationBeforeRestore(
+        stuck,
+        'pub-workspace-metadata-validator',
+        'pubspec.yaml',
+        'resolution: workspace',
+      );
     } catch (error) {
       caught = error as Error;
     }
