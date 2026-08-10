@@ -1,0 +1,197 @@
+schemaVersion: 2
+
+types:
+  # This node keeps its own pre-merge vocabulary in BOTH directions: `amend` was
+  # restored after the shared-wo-docker cascade dropped it, and the `merge` type
+  # the same cascade added was removed again. The parent renames
+  # atomi_release.yaml to release.yaml, and the rename hid the exchange from a
+  # count check — 17 pairs before, 17 after, one lost and one gained. The set
+  # here is exactly the pre-merge set: nothing added, nothing missing.
+  - type: amend
+    desc: Small amendments and typo fixes
+    scopes:
+      default:
+        desc: Amend existing work
+        release: false
+  - type: build
+    desc: Build-system changes
+    scopes:
+      default:
+        desc: Update build machinery
+        release: false
+  - type: chore
+    desc: Repository chores
+    scopes:
+      default:
+        desc: Perform a chore
+        release: false
+  - type: ci
+    desc: CI/CD changes
+    scopes:
+      default:
+        desc: Update CI/CD
+        release: false
+  - type: config
+    desc: Configuration changes
+    scopes:
+      default:
+        desc: Update configuration
+        release: false
+  - type: dep
+    desc: Dependency updates
+    section: 🔼 Dependency Upstreams 🔼
+    scopes:
+      default:
+        desc: Update a dependency
+        release: false
+      patch:
+        desc: Patch dependency update
+        release: patch
+      minor:
+        desc: Minor dependency update
+        release: minor
+      major:
+        desc: Major dependency update
+        release: major
+  - type: docs
+    desc: Documentation changes
+    section: 📜 Documentation 📜
+    scopes:
+      default:
+        desc: Update documentation
+        release: false
+  - type: feat
+    desc: New features
+    section: ✨ Features ✨
+    scopes:
+      default:
+        desc: Add a feature
+        release: minor
+      breaking:
+        desc: Add a breaking feature
+        release: major
+  - type: fix
+    desc: Bug fixes
+    section: 🐛 Bug Fixes 🐛
+    scopes:
+      default:
+        desc: Fix a bug
+        release: patch
+  - type: perf
+    desc: Performance improvements
+    section: 🚀 Performance Improvement 🚀
+    scopes:
+      default:
+        desc: Improve performance
+        release: patch
+  - type: refactor
+    desc: Refactors
+    scopes:
+      default:
+        desc: Refactor implementation
+        release: minor
+  - type: style
+    desc: Non-functional style changes
+    scopes:
+      default:
+        desc: Update style
+        release: patch
+  - type: test
+    desc: Test changes
+    section: 🧪 Tests 🧪
+    scopes:
+      default:
+        desc: Add or correct tests
+        release: minor
+
+specialScopes:
+  no-release:
+    desc: Prevent release from happening
+    release: false
+
+keywords:
+  - BREAKING CHANGE
+  - BREAKING CHANGES
+  - BREAKING
+
+lint:
+  header:
+    maxLength: 72
+    minLength: 5
+    forbiddenWords:
+      - WIP
+    forbidTrailingPunctuation: true
+  body:
+    maxLineLength: 80
+    minLengthWhenPresent: 20
+    requireBlankSecondLine: true
+  ignore:
+    - merge
+    - revert
+    - fixup
+    - fixup-amend
+    - squash
+
+conventions:
+  path: docs/developer/CommitConventions.md
+  template: |-
+    # Commit conventions
+
+    This repository follows [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
+
+    - `release.yaml` is the machine-readable source of truth: it owns the
+      commit types, the scopes valid for each one, and the version bump each scope
+      causes.
+    - [The conventional-commits standard](../standards/conventional-commits/index.md)
+      explains how to read that vocabulary and how to mark a breaking change.
+
+    ## Status of this file
+
+    This file is generated. `release.yaml` names this path in its
+    `conventions.path` value, `releaser conventions` writes it, and a release run
+    rewrites it as well. Change `release.yaml` and regenerate rather than
+    editing this file: everything up to here comes from that file's
+    `conventions.template`, and everything from the `type(scope)` line below is
+    generated from the commit vocabulary.
+
+    CONVENTION_DOCS_PLACEHOLDER
+
+release:
+  branches:
+    - main
+  tagFormat: 'v${version}'
+  changelog:
+    # This node publishes a pub package, so its changelog is the MEMBER changelog,
+    # not the parent's repo-root Changelog.md. A published package whose shipped
+    # CHANGELOG.md never updates is a consumer-visible regression.
+    path: packages/diene_core_utils/CHANGELOG.md
+    # R-E33: the title must be the file's exact leading bytes, or the generated
+    # entry is prepended ABOVE the heading and the heading is duplicated.
+    title: |-
+      # Changelog
+
+      All notable changes to this package are documented here. Releases are managed
+      from conventional commits by the repository release workflow.
+  commit:
+    message: |-
+      release: ${version}
+
+      ${notes}
+    assets:
+      - packages/diene_core_utils/CHANGELOG.md
+      - packages/diene_core_utils/pubspec.yaml
+      - VERSION
+      - docs/developer/CommitConventions.md
+  github:
+    enabled: true
+    successComment: 'Released in ${version}.'
+    releasedLabels:
+      - released
+  hooks:
+    # Unlike the parent workspace, this node DOES version a manifest: bump.sh
+    # stamps both the root VERSION file and the member pubspec.yaml, so both are
+    # listed in commit.assets above, in the same edit as the command writing them.
+    prepare:
+      - phase: afterWrite
+        command: './scripts/release/bump.sh ${version} && ./scripts/release/format-changelog.sh'
+    success: []
