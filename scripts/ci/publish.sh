@@ -18,7 +18,6 @@ version="${release_version#v}"
 manifest_version="$(yq -r '.version' chart/Chart.yaml)"
 [ "${manifest_version}" != "${version}" ] && echo "❌ Chart version ${manifest_version} does not match tag ${version}" >&2 && exit 1
 
-bash ./scripts/ci/setup.sh
 helm-docs --chart-search-root chart
 mkdir -p "${output_dir}"
 bash ./scripts/local/vendor-metrics-server.sh build
