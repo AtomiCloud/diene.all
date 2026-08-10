@@ -129,9 +129,9 @@ the isolation lanes that carry no cache at all.
 
 The platform and service identify the service in the LPSM tree and appear in published
 artifact names. They are **not** passed as reusable-workflow inputs (the shared cache
-makes that unnecessary); the published artifact names this repository uses are the
-`with:` inputs on the Docker caller jobs in `.github/workflows/ci.yaml` and
-`.github/workflows/cd.yaml`.
+makes that unnecessary). This branch publishes no image artifacts, so it carries no
+caller job that names one; a descendant that adds an image axis passes those names as
+`with:` inputs on its own caller jobs.
 
 ## Trigger Words
 
