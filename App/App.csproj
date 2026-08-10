@@ -1,26 +1,21 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <RootNamespace>AtomiCloud.DotnetBase.App</RootNamespace>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
-
   <ItemGroup>
-    <PackageReference Include="FluentValidation" />
-    <PackageReference Include="Microsoft.Extensions.Configuration" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" />
-    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <PackageReference Include="FluentValidation"/>
+    <PackageReference Include="Microsoft.Extensions.Configuration"/>
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions"/>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions"/>
+    <PackageReference Include="Microsoft.Extensions.Hosting"/>
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions"/>
   </ItemGroup>
-
   <ItemGroup>
-    <ProjectReference Include="../Lib/Lib.csproj" />
+    <ProjectReference Include="../Lib/Lib.csproj"/>
   </ItemGroup>
-
   <ItemGroup>
-    <Content Include="Config/**" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Config/**" CopyToOutputDirectory="PreserveNewest"/>
   </ItemGroup>
-
 </Project>

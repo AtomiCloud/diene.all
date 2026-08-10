@@ -36,7 +36,7 @@ OCP means you can change what the system does without changing the code that alr
 
 ### The Spectrum of Openness
 
-```typescript
+```text
 // Fully closed -- hardcoded behavior
 function addClosed();
 return 3 + 5;
@@ -65,7 +65,7 @@ Class members are **only** one of two things:
 
 No mutable state. No fields that change after construction.
 
-```typescript
+```text
 class Enricher
   constructor(
     client: IClient,          // injected service
@@ -101,7 +101,7 @@ ISP governs **interface design** from the consumer's perspective. Design interfa
 
 Different from SRP: SRP would not separate `push` from `pop` on a stack (same reason to change). But ISP would if a client only pushes:
 
-```typescript
+```text
 interface Pusher
   push(item) -> void
 
@@ -140,7 +140,7 @@ A dependency is **visible** when you can see everything the code needs by lookin
 
 A dependency is **fixed** when it is immutable after construction. The reference never changes. The behavior never changes.
 
-```typescript
+```text
 // WRONG -- not visible, not fixed
 class OrderService
   processOrder(order)
@@ -148,7 +148,7 @@ class OrderService
     return Database.query(...)        // hidden dependency on Database
 ```
 
-```typescript
+```text
 // RIGHT -- visible and fixed
 class OrderService
   constructor(logger: ILogger, db: IDatabase)
@@ -192,7 +192,7 @@ class UserService
 
 Temporal coupling occurs when the order of operations matters, but the code does not enforce it. This is a subtle form of hidden dependency.
 
-```typescript
+```text
 // WRONG -- temporal coupling: must call setTable before build
 class QueryBuilder
   private table: string?
@@ -208,7 +208,7 @@ class QueryBuilder
     // crashes if table or columns not set!
 ```
 
-```typescript
+```text
 // RIGHT -- no temporal coupling: constructor enforces required state
 class QueryBuilder
   constructor(table: string, columns: string[])
@@ -217,7 +217,7 @@ class QueryBuilder
     // always works
 ```
 
-```typescript
+```text
 // WRONG -- stateful service with temporal coupling
 class OrderService
   private items: Item[] = []
@@ -229,7 +229,7 @@ class OrderService
     return sum(this.items)
 ```
 
-```typescript
+```text
 // RIGHT -- all data flows through parameters
 class OrderService
   calculateTotal(items: Item[]) -> Money

@@ -3,34 +3,38 @@
   formatter,
   pkgs,
   pre-commit-lib,
+  env,
 }:
 let
   validator-runtime = pkgs.buildEnv {
     name = "workspace-validator-runtime";
+    # atomiutils supplies bash/jq/yq plus the coreutils/find/grep/sed binaries the
+    # validators call - and, since registry v3.12.0, rg as well - so declaring any
+    # of those separately would duplicate the bundle and collide with it in this
+    # buildEnv. That is not a prediction: while v3.12.0 was landing, a standalone
+    # nixpkgs ripgrep alongside the bundle failed this very buildEnv with
+    # "conflicting subpath ... /bin/rg". git is the only entry left that the
+    # bundle does not already carry.
     paths = [
-      packages.bash
+      packages.atomiutils
       packages.git
-      packages.jq
-      packages.ripgrep
-      packages.yq-go
-      pkgs.coreutils
-      pkgs.findutils
-      pkgs.gnugrep
-      pkgs.gnused
     ];
   };
   validator =
     command:
-    "${packages.bash}/bin/bash -c 'export PATH=${validator-runtime}/bin; exec ${packages.bash}/bin/bash ${command}'";
-  dotnetlint-dependencies =
-    (pkgs.buildDotnetModule {
-      pname = "dotnet-base-dependencies";
-      version = "0";
-      src = ../.;
-      projectFile = "dotnet-base.slnx";
-      nugetDeps = ./dotnet-deps.json;
-      dotnet-sdk = packages.dotnet-sdk_10;
-    }).nugetDeps;
+    "${packages.atomiutils}/bin/bash -c 'export PATH=${validator-runtime}/bin; exec ${packages.atomiutils}/bin/bash ${command}'";
+  dotnetlint-project = pkgs.buildDotnetModule {
+    pname = "dotnet-base-dependencies";
+    version = "0";
+    src = ../.;
+    projectFile = "dotnet-base.slnx";
+    # Generated, never hand-authored: `nix build .#pre-commit.fetch-deps` (exposed at
+    # the bottom of this file) rewrites nix/dotnet-deps.json. It is a pinned NuGet
+    # closure and it stays while nix builds dotnet - see docs/standards/nix/index.md.
+    nugetDeps = ./dotnet-deps.json;
+    dotnet-sdk = packages.dotnet-sdk_10;
+  };
+  dotnetlint-dependencies = dotnetlint-project.nugetDeps;
   dotnetlint-nuget-packages = pkgs.buildEnv {
     name = "dotnetlint-nuget-packages";
     paths = dotnetlint-dependencies;
@@ -39,9 +43,7 @@ let
   dotnetlint-empty-source = pkgs.runCommand "dotnetlint-empty-nuget-source" { } ''
     mkdir -p "$out"
   '';
-  # Upstream dotnetlint executes its source script with /usr/bin/env, which is
-  # unavailable in pure Nix builds. Preserve that script while patching its
-  # shebang until the package does so itself.
+  # Patch dotnetlint's /usr/bin/env shebang for pure Nix builds.
   dotnetlint-pure = pkgs.runCommand "dotnetlint-pure" { } ''
     mkdir -p "$out/bin" "$out/libexec"
     wrapper=${packages.dotnetlint}/bin/dotnetlint
@@ -69,7 +71,7 @@ let
     '';
   };
 in
-pre-commit-lib.run {
+(pre-commit-lib.run {
   src = ../.;
 
   # ### nix-root-format
@@ -88,10 +90,16 @@ pre-commit-lib.run {
 
     # ### workspace-hooks
     # #### source: workspace
+    # The parent retired `config/action-trust.json` for `dlint.yaml`'s
+    # `checks["action-pins"].trustedPattern`, so the rule now lives in the registry
+    # tool and the two modes stay split as two hooks. The absolute store path is a
+    # safety property: a missing package fails at nix evaluation instead of at
+    # runtime with exit 127, which a mutation arm would report as "could not prove
+    # sabotage" rather than as the gate refusing.
     a-action-pins-non-trusted = {
       enable = true;
       name = "Non-trusted action SHA pins";
-      entry = validator "scripts/validate/action-pins.sh non-trusted";
+      entry = "${packages.dlint}/bin/dlint action-pins non-trusted";
       files = "^\\.github/workflows/.*\\.ya?ml$";
       pass_filenames = false;
       language = "system";
@@ -100,21 +108,32 @@ pre-commit-lib.run {
     a-action-pins-trusted = {
       enable = true;
       name = "Trusted action major pins";
-      entry = validator "scripts/validate/action-pins.sh trusted";
+      entry = "${packages.dlint}/bin/dlint action-pins trusted";
       files = "^\\.github/workflows/.*\\.ya?ml$";
       pass_filenames = false;
       language = "system";
     };
 
-    a-cache-tags = {
-      enable = true;
-      name = "nscloud cache-tag shape";
-      entry = validator "scripts/validate/cache-tags.sh";
-      files = "^\\.github/workflows/.*\\.ya?ml$";
-      pass_filenames = false;
-      language = "system";
-    };
-
+    # The parent's blanket `dlint lint` hook is still NOT taken here, but the REASON
+    # has changed, so this comment is rewritten rather than left standing on an expired
+    # one. It used to say the blanket hook runs `no-custom-derivations`, which forbade
+    # exactly the `cyanprint` build recipe nix/packages.nix authored on purpose. That
+    # collision is GONE: the lead ruled it settled by a REGISTRY HOIST, the hoist
+    # landed in nix-registry v5.5.0, this node now inherits `cyanprint` from the
+    # registry, and the check was measured PASSING at this tip - 3 files inspected, so
+    # not a vacuous run.
+    #
+    # What blocks adoption now is a DIFFERENT and larger thing. `dlint lint` is
+    # `--all-configured`: it runs every check dlint ships, and one of them is
+    # `toolchain-smoke`, which ENTERS EACH DECLARED SHELL (`nix develop .#<shell>`).
+    # Entering the dev shell fires the shellHook, which uninstalls and reinstalls
+    # `.git/hooks` - and in this repository that directory is SHARED by every worktree,
+    # so a pre-commit hook that enters the shell would rewrite the gate of every other
+    # working copy mid-commit. That is a hazard, not a preference, and it is not
+    # something a seat may trade away. Adoption is a LIVE QUESTION routed to the
+    # coordinator; the removal of the old blocker is not an instruction to adopt.
+    # Until that ruling, every check this node does want is taken explicitly, by name:
+    # `action-pins` in the two hooks above and `ci-wiring` in `a-workflows` below.
     a-enforce-exec = {
       enable = true;
       name = "Executable shell scripts";
@@ -127,7 +146,7 @@ pre-commit-lib.run {
     a-infisical = {
       enable = true;
       name = "Secrets scan";
-      entry = "${packages.infisical}/bin/infisical scan . -v";
+      entry = "${packages.infisical}/bin/infisical scan . -v --redact";
       pass_filenames = false;
       language = "system";
     };
@@ -135,7 +154,7 @@ pre-commit-lib.run {
     a-infisical-staged = {
       enable = true;
       name = "Staged secrets scan";
-      entry = "${packages.infisical}/bin/infisical scan git-changes --staged -v";
+      entry = "${packages.infisical}/bin/infisical scan git-changes --staged -v --redact";
       pass_filenames = false;
       language = "system";
     };
@@ -145,6 +164,19 @@ pre-commit-lib.run {
       name = "Many-owner keyed blocks";
       entry = validator "scripts/validate/many-owner.sh";
       pass_filenames = false;
+      language = "system";
+    };
+
+    # The selector is directory-shaped on purpose: every standard under
+    # docs/standards/ and every first-level skill trigger is linted, so adding a
+    # topic needs no edit here. Vendored skills sit deeper than one level and are
+    # ignored again by .markdownlint-cli2.jsonc.
+    a-markdownlint = {
+      enable = true;
+      name = "Markdown lint";
+      entry = "${pkgs.markdownlint-cli2}/bin/markdownlint-cli2";
+      files = "^(CLAUDE\\.md|README\\.md|docs/standards/.*\\.md|\\.claude/skills/[^/]+/SKILL\\.md)$";
+      pass_filenames = true;
       language = "system";
     };
 
@@ -161,7 +193,7 @@ pre-commit-lib.run {
       enable = true;
       name = "Release config schema";
       entry = validator "scripts/validate/release-config.sh schema";
-      files = "^atomi_release\\.yaml$";
+      files = "^release\\.yaml$";
       pass_filenames = false;
       language = "system";
     };
@@ -170,29 +202,65 @@ pre-commit-lib.run {
       enable = true;
       name = "Release type vocabulary";
       entry = validator "scripts/validate/release-config.sh types";
-      files = "^atomi_release\\.yaml$";
+      files = "^release\\.yaml$";
       pass_filenames = false;
       language = "system";
     };
 
-    a-release-trigger = {
+    a-releaser-commit = {
       enable = true;
-      name = "Release workflow trigger";
-      entry = validator "scripts/validate/workflows.sh release-trigger";
+      name = "Conventional commit";
+      entry = "${packages.releaser}/bin/releaser lint-commit -c release.yaml";
+      stages = [ "commit-msg" ];
+      pass_filenames = true;
+      language = "system";
+    };
+
+    # Source following belongs to the gate itself, not to an ambient SHELLCHECK_OPTS:
+    # pre-commit partitions the staged files, so a script and the script it sources
+    # routinely land in different batches, and bare ShellCheck then raises SC1091 on
+    # healthy sources. `-x` follows a declared `source=`, and `--source-path=SCRIPTDIR`
+    # adds the checked script's own directory so script-relative directives resolve
+    # too, on top of the repository-root-relative ones the working directory already
+    # covers. Findings from the sourced file stay out of the report (that would need
+    # `-a`), so the gate gains resolution without gaining noise.
+    a-shellcheck = {
+      enable = true;
+      name = "Shellcheck";
+      entry = "${packages.shellcheck}/bin/shellcheck -x --source-path=SCRIPTDIR";
+      files = ".*\\.sh$";
+      pass_filenames = true;
+      language = "system";
+    };
+
+    a-skills-sync = {
+      enable = true;
+      name = "Vendored skills";
+      entry = "${packages.skills-sync}/bin/skills-sync sync --frozen";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    # `dlint ci-wiring` is the successor to the deleted `workflows.sh wiring` mode.
+    # The absolute store path is a safety property, not a style preference: a missing
+    # package fails here at nix evaluation, loudly, and the shell will not build. A
+    # bare `dlint` name would instead fail at runtime with exit 127 - the code
+    # expectRedBecause reports as "could not prove sabotage" - so the mutation arm
+    # would refuse for the wrong reason while the baseline arm merely failed.
+    a-workflows = {
+      enable = true;
+      name = "Workflow wiring and release policy";
+      entry = "${packages.atomiutils}/bin/bash -c '${packages.dlint}/bin/dlint ci-wiring && ( export PATH=${validator-runtime}/bin; ${packages.atomiutils}/bin/bash scripts/validate/workflows.sh release-trigger && ${packages.atomiutils}/bin/bash scripts/validate/workflows.sh release-concurrency )'";
       files = "^\\.github/workflows/.*\\.ya?ml$";
       pass_filenames = false;
       language = "system";
     };
 
-    a-release-concurrency = {
-      enable = true;
-      name = "Release workflow concurrency";
-      entry = validator "scripts/validate/workflows.sh release-concurrency";
-      files = "^\\.github/workflows/.*\\.ya?ml$";
-      pass_filenames = false;
-      language = "system";
-    };
-
+    # Kept on this node under B4's child-ahead clause, and nominated for hoist to the
+    # parent. `.dlint.json` configures no workflow-naming check, so this mode has no
+    # successor to move to; deleting it alongside `wiring` would have dropped the
+    # check in silence, because a battery that no longer runs a check cannot report
+    # that the check is gone.
     a-workflow-names = {
       enable = true;
       name = "CI/CD workflow names";
@@ -202,43 +270,26 @@ pre-commit-lib.run {
       language = "system";
     };
 
-    a-releaser-commit = {
-      enable = true;
-      name = "Conventional commit";
-      entry = "releaser lint-commit -c atomi_release.yaml";
-      stages = [ "commit-msg" ];
-      pass_filenames = true;
-      language = "system";
-    };
-
-    a-shellcheck = {
-      enable = true;
-      name = "Shellcheck";
-      entry = "${packages.shellcheck}/bin/shellcheck";
-      files = ".*\\.sh$";
-      pass_filenames = true;
-      language = "system";
-    };
-
-    a-skills-freshness = {
-      enable = true;
-      name = "Vendored skills freshness";
-      entry = validator "scripts/validate/skills-freshness.sh";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-workflow-wiring = {
-      enable = true;
-      name = "Workflow job-to-script wiring";
-      entry = validator "scripts/validate/workflows.sh wiring";
-      files = "^\\.github/workflows/.*\\.ya?ml$";
-      pass_filenames = false;
-      language = "system";
-    };
-
     # ### dotnet-base-hooks
     # #### source: dotnet-base
+    a-dotnet-typecheck = {
+      enable = true;
+      name = ".NET typecheck";
+      entry = "${packages.dotnet-sdk_10}/bin/dotnet build dotnet-base.slnx -c Release -m:1 /nodeReuse:false /p:UseSharedCompilation=false";
+      files = "^(.*\\.cs|.*\\.csproj|Directory\\.Build\\.props|Directory\\.Packages\\.props|dotnet-base\\.slnx|global\\.json)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    a-dotnet-vulnerability = {
+      enable = true;
+      name = ".NET vulnerability audit";
+      entry = "${packages.dotnet-sdk_10}/bin/dotnet restore dotnet-base.slnx --force-evaluate -p:NuGetAudit=true -p:NuGetAuditMode=all -warnaserror";
+      files = "^(.*\\.csproj|Directory\\.Build\\.props|Directory\\.Packages\\.props|dotnet-base\\.slnx|global\\.json)$";
+      pass_filenames = false;
+      language = "system";
+    };
+
     dotnetlint = {
       enable = true;
       name = ".NET lint";
@@ -252,17 +303,8 @@ pre-commit-lib.run {
       enable = true;
       name = ".NET release type vocabulary";
       entry = validator "scripts/validate/dotnet-release.sh";
-      files = "^(atomi_release\\.yaml|\\.gitlint)$";
+      files = "^release\\.yaml$";
       pass_filenames = false;
-      language = "system";
-    };
-
-    gitlint = {
-      enable = true;
-      name = "Git commit message lint";
-      entry = "${packages.gitlint}/bin/gitlint --staged --msg-filename";
-      stages = [ "commit-msg" ];
-      pass_filenames = true;
       language = "system";
     };
 
@@ -276,14 +318,8 @@ pre-commit-lib.run {
       pass_filenames = false;
       language = "system";
     };
-
-    a-markdownlint = {
-      enable = true;
-      name = "Markdown lint";
-      entry = "${pkgs.markdownlint-cli2}/bin/markdownlint-cli2";
-      files = "^(CLAUDE\\.md|README\\.md|docs/standards/(authorization|contracts|contributor-docs|datetime|domain-driven-design|functional-practices|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/.*\\.md|\\.claude/skills/(authorization|contributor-docs|datetime|domain-driven-design|functional-practices|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/SKILL\\.md)$";
-      pass_filenames = true;
-      language = "system";
-    };
   };
+})
+// {
+  fetch-deps = dotnetlint-project.fetch-deps;
 }

@@ -11,7 +11,7 @@ export default {
       async run(repo: any) {
         await expectGreen(
           repo,
-          'nix develop .#default -c pls preview | rg -F "Success: config layered, validated, and schema round-tripped"',
+          'nix develop .#default -c task preview | rg -F "Success: config layered, validated, and schema round-tripped"',
           'dotnet-base-probe-preview',
         );
       },

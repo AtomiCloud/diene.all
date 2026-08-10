@@ -9,7 +9,7 @@ export default {
       description: 'The demo consumer resolves its real layered YAML files through the whole precedence order.',
       kind: 'baseline',
       async run(repo: any) {
-        await expectGreen(repo, 'nix develop .#ci -c pls test:int', 'dotnet-integration-tests', 600000);
+        await expectGreen(repo, 'nix develop .#ci -c task test:int', 'dotnet-integration-tests', 600000);
       },
     },
     {
@@ -22,7 +22,7 @@ export default {
           find: '  host: docs.lapras.atomi.cloud',
           replace: '  host: docs.drifted.atomi.cloud',
         });
-        await expectRed(repo, 'nix develop .#ci -c pls test:int', 'dotnet-integration-tests', 600000);
+        await expectRed(repo, 'nix develop .#ci -c task test:int', 'dotnet-integration-tests', 600000);
       },
     },
   ],

@@ -9,7 +9,7 @@ export default {
       description: 'The registered unit projects pass through the public task surface.',
       kind: 'baseline',
       async run(repo: any) {
-        await expectGreen(repo, 'nix develop .#ci -c pls test:unit', 'dotnet-unit-tests', 600000);
+        await expectGreen(repo, 'nix develop .#ci -c task test:unit', 'dotnet-unit-tests', 600000);
       },
     },
     {
@@ -22,7 +22,7 @@ export default {
           find: '        ConfigKey.Segment(spelling).Should().Be(canonical);',
           replace: '        ConfigKey.Segment(spelling).Should().NotBe(canonical);',
         });
-        await expectRed(repo, 'nix develop .#ci -c pls test:unit', 'dotnet-unit-tests', 600000);
+        await expectRed(repo, 'nix develop .#ci -c task test:unit', 'dotnet-unit-tests', 600000);
       },
     },
   ],
