@@ -62,34 +62,10 @@ dart run coverage:format_coverage \
 pattern='(^|/)lib/test_helper[.]dart$'
 [[ ${mode} == "unit" ]] && pattern='(^|/)lib/src/.*[.]dart$'
 
-awk -v pattern="${pattern}" '
-  /^SF:/ { keep = substr($0, 4) ~ pattern }
-  keep { print }
-' "${all_ledger}" >"${ledger}"
-rm -f "${all_ledger}"
+# The filter-and-assert half is Dart-free and lives in its own script, so the eight
+# descendants that rewrite this file's member path do not each carry a copy of it.
+"${root_dir}/scripts/ci/coverage-ledger.sh" "${all_ledger}" "${ledger}" "${pattern}" "${mode}"
 rm -rf "${raw_dir}"
-
-awk -v mode="${mode}" '
-  BEGIN { files = 0; lines_found = 0; lines_hit = 0 }
-  /^SF:/ { files++ }
-  /^LF:/ { lines_found += substr($0, 4) + 0 }
-  /^LH:/ { lines_hit += substr($0, 4) + 0 }
-  END {
-    if (files == 0) {
-      printf "❌ %s coverage ledger contains no source files\n", mode > "/dev/stderr"
-      exit 1
-    }
-    if (lines_found == 0) {
-      printf "❌ %s coverage ledger contains no executable lines\n", mode > "/dev/stderr"
-      exit 1
-    }
-    if (lines_hit != lines_found) {
-      printf "❌ %s coverage is not 100%%: %d/%d lines hit\n", mode, lines_hit, lines_found > "/dev/stderr"
-      exit 1
-    }
-    printf "✅ %s coverage is 100%%: %d/%d lines hit\n", mode, lines_hit, lines_found
-  }
-' "${ledger}"
 
 [[ ${test_status} -ne 0 ]] && echo "❌ ${mode} tests failed (exit ${test_status})" >&2 && exit "${test_status}"
 echo "✅ ${mode} coverage artifact: ${member_dir}/${ledger}"
