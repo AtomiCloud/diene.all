@@ -1,6 +1,6 @@
 dependencies:
-- name: podinfo
-  repository: oci://ghcr.io/stefanprodan/charts
-  version: 6.9.2
-digest: sha256:9d1305090db49b16eabe426c36e15bd33cbf53ace496ecdc0e3c8d1ba7b8d57a
-generated: "2026-07-18T01:11:45.928074846Z"
+- name: cert-manager
+  repository: https://charts.jetstack.io
+  version: v1.20.3
+digest: sha256:62033a29065aef0415a482e4b650ce8f519180e65d2bbcddefe6fa6cb6d05835
+generated: "2026-07-24T15:07:27.282574029Z"

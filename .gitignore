@@ -28,8 +28,7 @@ desktop.ini
 ### workspace [helm]
 infra/root_chart/uploads/
 
-### helm-wrapper
-#### source: helm-wrapper
-chart/files/config/
+### sulfur
+#### source: sulfur
 dist/
 probe-report.json

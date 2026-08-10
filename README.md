@@ -24,15 +24,15 @@ checks that it names every surface.
 Domain-specific architecture and behavior belongs under
 [`docs/domain/`](docs/domain/README.md), not under `docs/standards/`.
 
-<!-- ### helm-wrapper -->
-<!-- #### source: helm-wrapper -->
+<!-- ### sulfur -->
+<!-- #### source: sulfur -->
 
-## Helm wrapper sample
+## Sulfur chart
 
-This branch adds the production-grade wrapper chart, stacked values, generated schema, rendered-manifest validation, k3d proof, and dual publish modes.
+This branch materializes the pure-passthrough cert-manager engine wrapper chart, its stacked values, generated schema, Gateway API / sequential-minor / issuer-boundary gates, rendered-manifest validation, and k3d integration proof.
 
-- `task build` — vendor external config and build pinned chart dependencies.
-- `task test:unit` — run schema, lint, render, contracts, VAP, and publish dry-runs.
-- `task test:int` — install on ephemeral k3d and round-trip the chart through a local OCI registry.
+- `task build` — vendor and build the pinned cert-manager dependency.
+- `task test:unit` — run schema, lint, render, labels, Gateway API, CRD, issuer-boundary, sequential-minor, VAP, and publish dry-runs.
+- `task test:int` — install the engine on ephemeral k3d and round-trip a self-signed Certificate to Ready=True.
 - `task example:lapras:template` — render the independent landscape + cluster stack.
-- [Helm wrapper baseline](docs/developer/helm-wrapper-baseline.md)
+- [Sulfur baseline](docs/developer/sulfur-baseline.md)
