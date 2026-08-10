@@ -1,6 +1,10 @@
+# ### workspace-root
+# #### source: workspace
 version: '3'
 
 includes:
+  # ### go-base-test-includes
+  # #### source: go-base
   gotest:
     taskfile: tasks/Taskfile.test.yaml
     internal: true
@@ -16,13 +20,20 @@ tasks:
     cmds:
       - pre-commit run --all-files
 
+  skills:sync:
+    desc: Synchronize installed diene package skills
+    cmds:
+      - skills-sync sync
+
+  # ### go-base
+  # #### source: go-base
   clean:
     desc: Remove Go build, coverage, and report outputs
     cmds:
       - rm -rf dist coverage reports
 
   build:
-    desc: Build the Go binary
+    desc: Build every Go module package
     cmds:
       - ./scripts/local/build.sh
 
@@ -37,8 +48,8 @@ tasks:
       - ./scripts/local/deadcode.sh strict
 
   test:
-    desc: Run unit, integration, and system integration tiers
-    deps: [test:unit, test:int, test:sit]
+    desc: Run unit, integration, and conditional TestHelper meta tiers
+    deps: [test:unit, test:int, test:meta]
 
   test:unit:
     desc: Run black-box unit tests
@@ -52,16 +63,15 @@ tasks:
       - task: gotest:run
         vars: { MODE: int }
 
-  test:sit:
-    desc: Run the compiled-artifact Redis journey
-    deps: [build]
+  test:meta:
+    desc: Run TestHelper meta tests when a testhelper package exists
     cmds:
       - task: gotest:run
-        vars: { MODE: sit }
+        vars: { MODE: meta }
 
   test:coverage:
-    desc: Run every coverage ledger
-    deps: [test:unit:coverage, test:int:coverage]
+    desc: Run every active coverage ledger
+    deps: [test:unit:coverage, test:int:coverage, test:meta:coverage]
 
   test:unit:coverage:
     desc: Enforce the unit coverage ledger
@@ -75,22 +85,17 @@ tasks:
       - task: gotest:run
         vars: { MODE: int, COVERAGE: 'true' }
 
+  test:meta:coverage:
+    desc: Enforce the TestHelper coverage ledger when active
+    cmds:
+      - task: gotest:run
+        vars: { MODE: meta, COVERAGE: 'true' }
+
   test:watch:
     desc: Re-run unit tests when Go files change
     cmds:
       - task: gotest:run
         vars: { MODE: unit, WATCH: 'true' }
-
-  run:
-    desc: Run the Go composition root in development mode
-    cmds:
-      - go run ./cmd/go-base {{.CLI_ARGS}}
-
-  preview:
-    desc: Run the compiled Go artifact
-    deps: [build]
-    cmds:
-      - ./dist/go-base {{.CLI_ARGS}}
 
   up:
     desc: Start every local dependency

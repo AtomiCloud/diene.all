@@ -18,5 +18,5 @@ jobs:
       contents: write
       issues: write
       pull-requests: write
-    uses: ./.github/workflows/⚡reusable-release.yaml
+    uses: ./.github/workflows/reusable-release.yaml
     secrets: inherit

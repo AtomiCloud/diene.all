@@ -23,6 +23,7 @@ export default {
       name: 'mutation-deadcode-production-caught',
       description: 'A symbol reachable only from a test must turn the production deadcode component red.',
       kind: 'mutation',
+      expectedImpact: ['go-lib-export-docs'],
       async run(repo: any) {
         const planted = await plantProductionOnlySymbol(repo);
         try {

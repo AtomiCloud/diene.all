@@ -30,6 +30,11 @@ with packages;
     infisical
     shellcheck
 
+    # ### go-lib-main
+    # #### source: go-lib
+    gorelease
+    zip
+
     go
     gotestsum
     govulncheck

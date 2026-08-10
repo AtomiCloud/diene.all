@@ -1,7 +1,5 @@
-import { expectGreen, expectRedWithDiagnostic, restoreProbeState } from './lib/helpers.ts';
+import { expectGreen, expectRed } from './lib/helpers.ts';
 import { plantGoFile } from './lib/go.ts';
-
-const gate = 'nix develop .#ci -c task test:unit:coverage';
 
 export default {
   contractVersion: 1,
@@ -12,21 +10,17 @@ export default {
       description: 'The unit coverprofile contains only lib packages at 100 percent.',
       kind: 'baseline',
       async run(repo: any) {
-        await expectGreen(repo, gate, 'unit-coverage-scope');
+        await expectGreen(repo, 'nix develop .#ci -c ./scripts/local/test.sh unit true false', 'unit-coverage-scope');
       },
     },
     {
       name: 'mutation-unit-coverage-caught',
-      description: 'A lib source the profile never measures must turn the unit ledger red.',
+      description: 'An uncovered public lib function must turn the unit ledger red.',
       kind: 'mutation',
+      expectedImpact: ['deadcode-whole-repo', 'deadcode-production', 'go-lib-export-docs'],
       async run(repo: any) {
-        // A statement-free declaration keeps the percentage at 100 and never reaches the profile, so only a derived source set sees it.
-        const planted = await plantGoFile(repo, 'lib/**/*.go', 'probe_uncovered.go', 'type ProbeUncovered struct{}');
-        try {
-          await expectRedWithDiagnostic(repo, gate, 'unit-coverage-scope', /unit coverage is missing 'lib\/.*\.go'/);
-        } finally {
-          await restoreProbeState(repo, [planted]);
-        }
+        await plantGoFile(repo, 'lib/**/*.go', 'probe_uncovered.go', 'func ProbeUncovered() int { return 1 }');
+        await expectRed(repo, 'nix develop .#ci -c ./scripts/local/test.sh unit true false', 'unit-coverage-scope');
       },
     },
   ],

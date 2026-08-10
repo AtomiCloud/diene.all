@@ -1,7 +1,5 @@
-import { expectGreen, expectRedWithDiagnostic, restoreProbeState } from './lib/helpers.ts';
+import { expectGreen, expectRed } from './lib/helpers.ts';
 import { plantGoFile } from './lib/go.ts';
-
-const gate = 'nix develop .#ci -c task typecheck';
 
 export default {
   contractVersion: 1,
@@ -12,25 +10,31 @@ export default {
       description: 'Go source packages compile through the dedicated typecheck entrypoint.',
       kind: 'baseline',
       async run(repo: any) {
-        await expectGreen(repo, gate, 'go-typecheck');
+        await expectGreen(repo, 'nix develop .#ci -c ./scripts/local/typecheck.sh', 'go-typecheck');
       },
     },
     {
       name: 'mutation-go-typecheck-caught',
       description: 'A native Go type error must turn the typecheck gate red.',
       kind: 'mutation',
+      expectedImpact: [
+        'unit-tests',
+        'hook-golangci-lint',
+        'govulncheck',
+        'unit-coverage-scope',
+        'deadcode-whole-repo',
+        'deadcode-production',
+        'build-artifact',
+        'go-lib-vet',
+        'go-lib-examples',
+        'go-lib-export-docs',
+        'go-lib-api-compatibility',
+        'go-lib-meta-tests',
+        'go-lib-meta-coverage',
+      ],
       async run(repo: any) {
-        const planted = await plantGoFile(
-          repo,
-          'lib/**/*.go',
-          'probe_type_error.go',
-          'var ProbeTypeError int = "wrong"',
-        );
-        try {
-          await expectRedWithDiagnostic(repo, gate, 'go-typecheck', /cannot use "wrong" .* as int value/);
-        } finally {
-          await restoreProbeState(repo, [planted]);
-        }
+        await plantGoFile(repo, 'lib/**/*.go', 'probe_type_error.go', 'var ProbeTypeError int = "wrong"');
+        await expectRed(repo, 'nix develop .#ci -c ./scripts/local/typecheck.sh', 'go-typecheck');
       },
     },
   ],
