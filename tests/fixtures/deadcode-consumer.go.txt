@@ -2,25 +2,41 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"time"
 
-	"github.com/AtomiCloud/diene.go-lib/adapters/kv"
-	"github.com/AtomiCloud/diene.go-lib/lib/note"
-	"github.com/AtomiCloud/diene.go-lib/testhelper"
+	"github.com/AtomiCloud/diene.go-core-utils/lib/coreutils"
 )
 
 func main() {
-	ctx := context.Background()
-	memory := testhelper.NewMemoryStore()
-	value := note.New("Deadcode Consumer", "public surface")
-	service := note.NewService(memory)
-	_ = note.Slug(value.Slug)
-	_ = note.NamespacedKey("notes", value.Slug)
-	_ = service.Save(ctx, value)
-	_, _ = service.Load(ctx, value.Slug)
-	_ = memory.Save(ctx, value.Slug, value.Body)
-	_, _ = memory.Load(ctx, value.Slug)
-	redis := kv.NewRedisStore("127.0.0.1:6379")
-	_ = redis.Save
-	_ = redis.Load
-	_ = redis.Close
+	codec := coreutils.WireCodec{}
+	key, _ := coreutils.NamespacedKey("core utils", "consumer")
+	date, _ := coreutils.NewWireDate(2026, 7, 21)
+	timeOfDay, _ := coreutils.NewWireTime(1, 2, 3)
+	duration, _ := coreutils.ParseIsoDuration("PT1S")
+	zone, _ := coreutils.ParseIanaTimezone("UTC")
+	_, _ = codec.DecodeDate(codec.EncodeDate(date))
+	_, _ = codec.DecodeTime(codec.EncodeTime(timeOfDay))
+	instant, _ := codec.EncodeInstant(time.Now())
+	_, _ = codec.DecodeInstant(instant)
+	_, _ = codec.DecodeDuration(codec.EncodeDuration(duration))
+	_, _ = codec.DecodeTimezone(codec.EncodeTimezone(zone))
+	_ = coreutils.FormatRFC3339UTC
+	_ = coreutils.IsIanaTimezone("UTC")
+	_ = coreutils.IANATimeZoneRelease
+	_ = coreutils.C0Temporal.DigestPayload()
+	_ = coreutils.DeepClone(map[string]any{"value": []any{"x"}})
+	_ = coreutils.DeepMerge(map[string]any{}, map[string]any{})
+	_ = coreutils.DeepMergeAll(map[string]any{})
+	_ = coreutils.CanonicalConfigKey("client-id")
+	_ = coreutils.ConfigKeysMatch("client_id", "clientId")
+	_ = coreutils.CoerceEnvironmentScalar("true")
+	_, _ = coreutils.EnvironmentToNestedMap(map[string]string{"APP_LIST__0": "one"}, "APP_")
+	_ = coreutils.Sleep(context.Background(), 0)
+	_, _ = coreutils.StableHash(map[string]any{"value": 1})
+	_, _ = coreutils.MapConcurrent(context.Background(), []int{1}, 1,
+		func(_ context.Context, value int) (int, error) { return value, nil })
+	_, _ = coreutils.HashFile(context.Background(), nil, "path")
+	_, _ = coreutils.NowWireInstant(nil)
+	fmt.Println(coreutils.Slugify(key), date.String(), timeOfDay.String(), duration.String(), zone.String())
 }

@@ -69,6 +69,8 @@ linters:
           disabled: true
         - name: package-comments
           disabled: true
+        - name: package-naming
+          disabled: true
   exclusions:
     generated: lax
 

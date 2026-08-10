@@ -4,7 +4,7 @@ set -euo pipefail
 expected_module="$(yq -r '.module' .config/go-lib.yaml)"
 expected_proxy_module="$(yq -r '.proxyModule' .config/go-lib.yaml)"
 expected_mirror="$(yq -r '.mirror' .config/go-lib.yaml)"
-actual_module="$(go list -m -f '{{.Path}}')"
+actual_module="$(go list -m -f '{{.Path}}' "${expected_module}")"
 
 [ "${actual_module}" != "${expected_module}" ] && echo "❌ module path '${actual_module}' must be '${expected_module}'" >&2 && exit 1
 [ "${expected_module}" != "github.com/${expected_mirror}" ] && echo "❌ module path and mirror identity disagree" >&2 && exit 1
