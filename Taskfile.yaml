@@ -3,8 +3,6 @@
 version: '3'
 
 includes:
-  secret: tasks/Taskfile.secret.yaml
-
   # ### go-base-test-includes
   # #### source: go-base
   gotest:
@@ -13,12 +11,9 @@ includes:
 
 tasks:
   setup:
-    desc: Set up generated workspace assets
+    desc: Set up the workspace
     cmds:
-      - ./scripts/local/skills-sync.sh
-      # ### go-base-setup
-      # #### source: go-base
-      - go mod download
+      - ./scripts/local/setup.sh
 
   lint:
     desc: Run all repository gates
@@ -28,7 +23,7 @@ tasks:
   skills:sync:
     desc: Synchronize installed diene package skills
     cmds:
-      - ./scripts/local/skills-sync.sh
+      - skills-sync sync
 
   # ### go-base
   # #### source: go-base

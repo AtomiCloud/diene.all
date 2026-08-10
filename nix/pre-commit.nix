@@ -3,8 +3,11 @@
   formatter,
   pkgs,
   pre-commit-lib,
+  env,
 }:
 let
+  # toolchain-smoke asserts the DECLARED env lists actually provide their binaries.
+  envPath = pkgs.lib.makeBinPath (env.system ++ env.main ++ env.lint ++ env.dev);
   go-deps = pkgs.buildGoModule {
     pname = "diene-go-base-dependencies";
     version = "0";
@@ -19,52 +22,74 @@ let
   go-lint-runtime = pkgs.buildEnv {
     name = "go-base-lint-runtime";
     paths = [
-      packages.bash
+      pkgs.bash
       packages.git
       packages.go
       packages.golangci-lint
       pkgs.coreutils
     ];
   };
-  go-lint = "${packages.bash}/bin/bash -c 'export PATH=${go-lint-runtime}/bin; export CGO_ENABLED=0; export GOPROXY=file://${go-deps.goModules}; export GOSUMDB=off; export GOMODCACHE=\"\${TMPDIR:-/tmp}/go-base-mod-cache\"; exec ${packages.golangci-lint}/bin/golangci-lint run --timeout 5m ./...'";
+  go-lint = "${pkgs.bash}/bin/bash -c 'export PATH=${go-lint-runtime}/bin; export CGO_ENABLED=0; export GOPROXY=file://${go-deps.goModules}; export GOSUMDB=off; export GOMODCACHE=\"\${TMPDIR:-/tmp}/go-base-mod-cache\"; exec ${packages.golangci-lint}/bin/golangci-lint run --timeout 5m ./...'";
+  # Every strict component loads all packages, so they need the lint hook's vendored proxy; jq counts the JSON findings.
+  go-deadcode-runtime = pkgs.buildEnv {
+    name = "go-base-deadcode-runtime";
+    paths = [
+      pkgs.bash
+      packages.deadcode
+      packages.git
+      packages.go
+      packages.staticcheck
+      pkgs.coreutils
+      pkgs.jq
+    ];
+  };
+  # G7, justified rather than reduced: the four are a 2x2 over (tool) x (test
+  # reachability), not four spellings of one check, and each axis catches a class the
+  # other cannot see.
+  #   deadcode -test ./...      vs  deadcode ./...       (-test counts tests as callers)
+  #   staticcheck -tests=true   vs  staticcheck -tests=false
+  # Dropping the production pass loses production code kept alive ONLY by its own test,
+  # which is dead in the shipped binary and invisible to the whole pass. Dropping the
+  # whole pass loses defects inside test files, which the production pass never loads.
+  # The nonblocking lax feed is a report, not a gate, so it stays out of this entry.
+  #
+  # G3: the vendored-GOPROXY plumbing below stays in this template. The registry
+  # (v5) ships the go BINARIES - deadcode, go-validator, dlint - but not this
+  # machinery, and `go-deps` cannot move as-is: it is `buildGoModule` over `src = ../.`
+  # with this repo's own vendorHash, so it is parameterised on this module graph rather
+  # than shared. Left whole rather than half-moved.
+  # The four strict components in CI's order, stopping at the first non-zero exit; the nonblocking lax feed stays out.
+  go-deadcode = "${pkgs.bash}/bin/bash -c 'export PATH=${go-deadcode-runtime}/bin; export CGO_ENABLED=0; export GOPROXY=file://${go-deps.goModules}; export GOSUMDB=off; export GOMODCACHE=\"\${TMPDIR:-/tmp}/go-base-mod-cache\"; ${
+    builtins.concatStringsSep " && " (
+      map (component: "${pkgs.bash}/bin/bash ./scripts/local/${component}.sh") [
+        "staticcheck-whole"
+        "deadcode-whole"
+        "staticcheck-production"
+        "deadcode-production"
+      ]
+    )
+  }'";
   validator-runtime = pkgs.buildEnv {
     name = "workspace-validator-runtime";
+    # atomiutils supplies bash/jq/yq plus the coreutils/find/grep/sed binaries the
+    # validators call - and, since registry v3.12.0, rg as well - so declaring any
+    # of those separately would duplicate the bundle and collide with it in this
+    # buildEnv. That is not a prediction: while v3.12.0 was landing, a standalone
+    # nixpkgs ripgrep alongside the bundle failed this very buildEnv with
+    # "conflicting subpath ... /bin/rg". git is the only entry left that the
+    # bundle does not already carry.
     paths = [
-      packages.bash
+      packages.atomiutils
       packages.git
-      packages.jq
-      packages.ripgrep
-      packages.yq-go
-      pkgs.coreutils
-      pkgs.findutils
-      pkgs.gnugrep
-      pkgs.gnused
     ];
   };
   validator =
     command:
-    "${packages.bash}/bin/bash -c 'export PATH=${validator-runtime}/bin; exec ${packages.bash}/bin/bash ${command}'";
-
-  # ### go-base-skills-validator
-  # #### source: go-base
-  # skills-sync resolves usage skills from the ambient Go module cache. Give its
-  # freshness hook the Go toolchain without redirecting GOMODCACHE to go-deps.
-  go-ambient-validator-runtime = pkgs.buildEnv {
-    name = "go-base-ambient-validator-runtime";
-    paths = [
-      validator-runtime
-      packages.go
-    ];
-  };
-  go-ambient-validator =
-    command:
-    "${packages.bash}/bin/bash -c 'export PATH=${go-ambient-validator-runtime}/bin; exec ${packages.bash}/bin/bash ${command}'";
+    "${packages.atomiutils}/bin/bash -c 'export PATH=${validator-runtime}/bin; exec ${packages.atomiutils}/bin/bash ${command}'";
 in
 pre-commit-lib.run {
   src = ../.;
 
-  # ### nix-root-format
-  # #### source: main
   hooks = {
     treefmt = {
       enable = true;
@@ -73,44 +98,13 @@ pre-commit-lib.run {
         "^\\.claude/skills/vendor/"
         "^Changelog\\.md$"
         "^docs/developer/CommitConventions\\.md$"
-        "^infra/root_chart/"
       ];
     };
 
-    # ### workspace-hooks
-    # #### source: workspace
-    a-action-pins-non-trusted = {
+    a-dlint = {
       enable = true;
-      name = "Non-trusted action SHA pins";
-      entry = validator "scripts/validate/action-pins.sh non-trusted";
-      files = "^\\.github/workflows/.*\\.ya?ml$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-action-pins-trusted = {
-      enable = true;
-      name = "Trusted action major pins";
-      entry = validator "scripts/validate/action-pins.sh trusted";
-      files = "^\\.github/workflows/.*\\.ya?ml$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-cache-tags = {
-      enable = true;
-      name = "nscloud cache-tag shape";
-      entry = validator "scripts/validate/cache-tags.sh";
-      files = "^\\.github/workflows/.*\\.ya?ml$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-enforce-exec = {
-      enable = true;
-      name = "Executable shell scripts";
-      entry = validator "scripts/validate/executable-shells.sh";
-      files = ".*\\.sh$";
+      name = "dlint";
+      entry = "${packages.atomiutils}/bin/bash -c 'PATH=${envPath}:\$PATH ${packages.dlint}/bin/dlint lint'";
       pass_filenames = false;
       language = "system";
     };
@@ -118,7 +112,7 @@ pre-commit-lib.run {
     a-infisical = {
       enable = true;
       name = "Secrets scan";
-      entry = "${packages.infisical}/bin/infisical scan . -v";
+      entry = "${packages.infisical}/bin/infisical scan . -v --redact";
       pass_filenames = false;
       language = "system";
     };
@@ -126,110 +120,62 @@ pre-commit-lib.run {
     a-infisical-staged = {
       enable = true;
       name = "Staged secrets scan";
-      entry = "${packages.infisical}/bin/infisical scan git-changes --staged -v";
+      entry = "${packages.infisical}/bin/infisical scan git-changes --staged -v --redact";
       pass_filenames = false;
       language = "system";
     };
 
-    a-many-owner = {
+    # The selector is directory-shaped on purpose: every standard under
+    # docs/standards/ and every first-level skill trigger is linted, so adding a
+    # topic needs no edit here. Vendored skills sit deeper than one level and are
+    # ignored again by .markdownlint-cli2.jsonc.
+    a-markdownlint = {
       enable = true;
-      name = "Many-owner keyed blocks";
-      entry = validator "scripts/validate/many-owner.sh";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-nixpkgs-pin = {
-      enable = true;
-      name = "Shared nixpkgs pin";
-      entry = validator "scripts/validate/nixpkgs-pin.sh";
-      files = "^(flake\\.nix|flake\\.lock|nix/.*|nix/snapshots/nixpkgs\\.json)$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-release-config = {
-      enable = true;
-      name = "Release config schema";
-      entry = validator "scripts/validate/release-config.sh schema";
-      files = "^atomi_release\\.yaml$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-release-types = {
-      enable = true;
-      name = "Release type vocabulary";
-      entry = validator "scripts/validate/release-config.sh types";
-      files = "^atomi_release\\.yaml$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-release-trigger = {
-      enable = true;
-      name = "Release workflow trigger";
-      entry = validator "scripts/validate/workflows.sh release-trigger";
-      files = "^\\.github/workflows/.*\\.ya?ml$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-release-concurrency = {
-      enable = true;
-      name = "Release workflow concurrency";
-      entry = validator "scripts/validate/workflows.sh release-concurrency";
-      files = "^\\.github/workflows/.*\\.ya?ml$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-workflow-names = {
-      enable = true;
-      name = "CI/CD workflow names";
-      entry = validator "scripts/validate/workflows.sh workflow-names";
-      files = "^\\.github/workflows/.*\\.ya?ml$";
-      pass_filenames = false;
+      name = "Markdown lint";
+      entry = "${pkgs.markdownlint-cli2}/bin/markdownlint-cli2";
+      files = "^(CLAUDE\\.md|README\\.md|docs/developer/go-baseline\\.md|docs/standards/.*\\.md|\\.claude/skills/[^/]+/SKILL\\.md)$";
+      pass_filenames = true;
       language = "system";
     };
 
     a-releaser-commit = {
       enable = true;
       name = "Conventional commit";
-      entry = "releaser lint-commit -c atomi_release.yaml";
+      entry = "${packages.releaser}/bin/releaser lint-commit -c release.yaml";
       stages = [ "commit-msg" ];
       pass_filenames = true;
       language = "system";
     };
 
+    a-skills-sync = {
+      enable = true;
+      name = "Vendored skills";
+      entry = "${packages.skills-sync}/bin/skills-sync sync --frozen";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    # -x + SCRIPTDIR: staged-file batching splits scripts from their sources,
+    # so ShellCheck must follow source= directives itself.
     a-shellcheck = {
       enable = true;
       name = "Shellcheck";
-      entry = "${packages.shellcheck}/bin/shellcheck";
+      entry = "${packages.shellcheck}/bin/shellcheck -x --source-path=SCRIPTDIR";
       files = ".*\\.sh$";
       pass_filenames = true;
       language = "system";
     };
 
-    a-skills-freshness = {
+    # Blocking like the CI deadcode job: the four strict components share one hook, and the hook itself is a proven mechanism.
+    a-deadcode = {
       enable = true;
-      name = "Vendored skills freshness";
-      entry = go-ambient-validator "scripts/validate/skills-freshness.sh";
+      name = "Go deadcode strict passes";
+      entry = go-deadcode;
+      files = "(^|/).*\\.go$|^go\\.(mod|sum)$";
       pass_filenames = false;
       language = "system";
     };
 
-    a-workflow-wiring = {
-      enable = true;
-      name = "Workflow job-to-script wiring";
-      entry = validator "scripts/validate/workflows.sh wiring";
-      files = "^\\.github/workflows/.*\\.ya?ml$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    # ### go-base-hooks
-    # #### source: go-base
     a-go-black-box = {
       enable = true;
       name = "Go black-box tests";
@@ -245,26 +191,6 @@ pre-commit-lib.run {
       entry = go-lint;
       files = "(^|/).*\\.go$|^go\\.(mod|sum)$|^\\.golangci\\.yaml$";
       pass_filenames = false;
-      language = "system";
-    };
-
-    # ### shared-hooks
-    # #### source: shared
-    a-claude-links = {
-      enable = true;
-      name = "CLAUDE link integrity";
-      entry = "${pkgs.coreutils}/bin/env SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt ${pkgs.lychee}/bin/lychee --offline --no-progress CLAUDE.md";
-      files = "^(CLAUDE\\.md|docs/standards/.*\\.md)$";
-      pass_filenames = false;
-      language = "system";
-    };
-
-    a-markdownlint = {
-      enable = true;
-      name = "Markdown lint";
-      entry = "${pkgs.markdownlint-cli2}/bin/markdownlint-cli2";
-      files = "^(CLAUDE\\.md|README\\.md|docs/developer/go-(baseline|lib-baseline)\\.md|skills/diene-go-lib-usage/SKILL\\.md|docs/standards/(authorization|contracts|contributor-docs|datetime|domain-driven-design|functional-practices|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/.*\\.md|\\.claude/skills/(authorization|contributor-docs|datetime|domain-driven-design|functional-practices|go-baseline|software-design-philosophy|solid-principles|stateless-oop-di|testing|three-layer-architecture|utilities|validation)/SKILL\\.md)$";
-      pass_filenames = true;
       language = "system";
     };
   };
