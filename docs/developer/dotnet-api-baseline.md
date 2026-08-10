@@ -51,23 +51,23 @@ healthy deployment.
 
 ## Local commands
 
-| Command                                | Purpose                                                        |
-| -------------------------------------- | -------------------------------------------------------------- |
-| `pls setup`                            | Synchronize vendored skills and restore repo-local .NET tools. |
-| `pls clean`                            | Remove build and test artifacts.                               |
-| `pls build`                            | Build every project in Release.                                |
-| `pls dev`                              | Run the App under `dotnet watch`.                              |
-| `pls run -- <args>`                    | Run the App in development mode.                               |
-| `pls preview -- <args>`                | Build, then run the compiled Release artifact.                 |
-| `pls up` / `pls down`                  | Start or stop the local dependencies.                          |
-| `pls test`                             | Run the unit and integration tiers.                            |
-| `pls test:unit` / `pls test:int`       | Run one tier.                                                  |
-| `pls test:coverage`                    | Enforce both merged coverage ledgers.                          |
-| `pls test:watch`                       | Watch the fast unit tier.                                      |
-| `pls deadcode`                         | Emit the broad, non-blocking LLM review.                       |
-| `pls lint`                             | Run every generated pre-commit gate.                           |
-| `pls docker:build:main` / `pls docker:run:main` | Build the local image, or run it and smoke `GET /`. |
-| `pls docker:clean:main` | Remove the local image. |
+| Command                                         | Purpose                                                        |
+| ----------------------------------------------- | -------------------------------------------------------------- |
+| `pls setup`                                     | Synchronize vendored skills and restore repo-local .NET tools. |
+| `pls clean`                                     | Remove build and test artifacts.                               |
+| `pls build`                                     | Build every project in Release.                                |
+| `pls dev`                                       | Run the App under `dotnet watch`.                              |
+| `pls run -- <args>`                             | Run the App in development mode.                               |
+| `pls preview -- <args>`                         | Build, then run the compiled Release artifact.                 |
+| `pls up` / `pls down`                           | Start or stop the local dependencies.                          |
+| `pls test`                                      | Run the unit and integration tiers.                            |
+| `pls test:unit` / `pls test:int`                | Run one tier.                                                  |
+| `pls test:coverage`                             | Enforce both merged coverage ledgers.                          |
+| `pls test:watch`                                | Watch the fast unit tier.                                      |
+| `pls deadcode`                                  | Emit the broad, non-blocking LLM review.                       |
+| `pls lint`                                      | Run every generated pre-commit gate.                           |
+| `pls docker:build:main` / `pls docker:run:main` | Build the local image, or run it and smoke `GET /`.            |
+| `pls docker:clean:main`                         | Remove the local image.                                        |
 
 ### Tasks this sample adds
 
@@ -95,14 +95,14 @@ same message, that it would fail startup.
 
 Two charts ship, so the helm surface has an each-chart axis and a both-charts axis.
 
-| Command                                                  | Purpose                                                              |
-| -------------------------------------------------------- | -------------------------------------------------------------------- |
-| `pls helm:root_chart:lint` / `:template` / `:debug` | The app chart alone. |
-| `pls helm:primordial_chart:lint` / `:template` / `:debug` | The primordial chart alone. |
-| `pls helm:lint:all` / `pls helm:template:all` | Both charts against every landscape values file. |
-| `pls helm:root_chart:deps` / `pls helm:primordial_chart:deps` | Build each chart's dependencies. |
-| `pls helm:vendor` / `pls helm:clean`                     | Add or remove the build-phase vendored copies.                       |
-| `pls helm:versions`                                      | Assert one semver spans the image tag and both chart version fields. |
+| Command                                                       | Purpose                                                              |
+| ------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `pls helm:root_chart:lint` / `:template` / `:debug`           | The app chart alone.                                                 |
+| `pls helm:primordial_chart:lint` / `:template` / `:debug`     | The primordial chart alone.                                          |
+| `pls helm:lint:all` / `pls helm:template:all`                 | Both charts against every landscape values file.                     |
+| `pls helm:root_chart:deps` / `pls helm:primordial_chart:deps` | Build each chart's dependencies.                                     |
+| `pls helm:vendor` / `pls helm:clean`                          | Add or remove the build-phase vendored copies.                       |
+| `pls helm:versions`                                           | Assert one semver spans the image tag and both chart version fields. |
 
 `pls helm:vendor` exists because helm cannot reference files outside the chart
 directory. In local development the config YAMLs live outside the chart and the app
