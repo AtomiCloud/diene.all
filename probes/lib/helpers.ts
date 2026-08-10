@@ -180,9 +180,7 @@ export async function preserveMutationBeforeRestore(
       `mkdir -p ${shellArgument(evidenceDir)} && cp -- ${shellArgument(source)} ${shellArgument(evidence)}`,
     );
     if (copied.exitCode !== 0) {
-      throw new Error(
-        `preserveMutationBeforeRestore: could not preserve ${source}: ${copied.stderr || copied.stdout}`,
-      );
+      throw new Error(`preserveMutationBeforeRestore: could not preserve ${source}: ${copied.stderr || copied.stdout}`);
     }
     // Verify the copy rather than trusting the exit code: an evidence file that
     // silently holds the wrong bytes is worse than no evidence file, because it
