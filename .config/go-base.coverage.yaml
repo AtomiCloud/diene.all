@@ -10,3 +10,8 @@ tiers:
     pathMarker: /adapters/
     # 85% is sanctioned because healthy envtest/MinIO cannot deterministically schedule residual transport-failure and defensive-marshal branches; all functional paths and injected faults remain covered.
     threshold: 85
+  sit:
+    tests: ./tests/sit/...
+    packages: ''
+    pathMarker: ''
+    threshold: 0

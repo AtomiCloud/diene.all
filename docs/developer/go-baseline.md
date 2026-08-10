@@ -29,20 +29,27 @@ operator-template proves once.
 
 ## Commands
 
-- `pls setup` installs modules and synchronizes vendored skills.
-- `pls build` creates `dist/manager`.
-- `pls typecheck` compiles source packages without running tests.
-- `pls test`, `pls test:unit`, and `pls test:int` run the tiered suites.
-- `pls test:coverage`, `pls test:unit:coverage`, and
-  `pls test:int:coverage` enforce the scoped ledgers.
-- `pls test:watch` watches the unit tier.
-- `pls deadcode` runs whole-repository and production-only strict passes, then
-  writes the nonblocking review feed to `reports/deadcode-llm.txt`.
-- `pls run -- --help` runs the manager from source.
-- `pls preview -- --help` runs the compiled manager artifact.
-- `pls operator:generate` regenerates the CRDs, RBAC, and deepcopy from the Go
+- `task setup` installs modules and synchronizes vendored skills.
+- `task build` creates `dist/manager`.
+- `task typecheck` compiles source packages without running tests.
+- `task test`, `task test:unit`, `task test:int`, and `task test:sit` run the
+  tiered suites; `task test:sit` runs the compiled-manager journey.
+- `task test:coverage`, `task test:unit:coverage`, and
+  `task test:int:coverage` enforce the scoped ledgers.
+- `task test:watch` watches the unit tier.
+- `task deadcode` runs staticcheck and deadcode independently across the
+  whole-repository and production-only scopes, then writes the nonblocking
+  review feed to `reports/deadcode-llm.txt`.
+- `task run -- --help` runs the manager from source.
+- `task preview -- --help` runs the compiled manager artifact.
+- `task operator:generate` regenerates the CRDs, RBAC, and deepcopy from the Go
   types and markers.
-- `pls operator:e2e` runs the k3d end-to-end journey (throwaway cluster).
+- `task operator:e2e` runs the k3d end-to-end journey (throwaway cluster).
+- `task up` and `task down` manage the local MinIO ledger dependency.
+
+There is deliberately no `task dev`: the manager is exercised through its tiers
+and the k3d journey, so an Air hot-reload loop would add machinery without a
+real use case.
 
 ## Test and coverage law
 
@@ -57,12 +64,13 @@ carry forward independently.
 
 ## Deadcode and vulnerability law
 
-The whole-repository pass runs deadcode with tests enabled and staticcheck with
-test analysis. The production pass disables test reachability so a symbol used
-only by tests fails. Neither pass has an exclusion list. Govulncheck is a
-blocking CI-only job; its negative proof routes a pinned vulnerable fixture
-through a deterministic scanner double, while the healthy path uses the real
-vulnerability database.
+Four independently invoked strict components cover unused code: staticcheck and
+deadcode each run once with test analysis/reachability enabled and once against
+production packages only. The production deadcode component therefore rejects
+a symbol reachable only from tests. None of the components has an exclusion
+list. Govulncheck is a blocking CI-only job; its negative proof routes a pinned
+vulnerable fixture through a deterministic scanner double, while the healthy
+path uses the real vulnerability database.
 
 ## Docker and Helm
 
@@ -78,5 +86,6 @@ Grafana dashboard).
 Downstream authors may adapt package/module identity, sample domain code,
 coverage thresholds after adding real surface, the Docker entrypoint, chart
 metadata, and README badges. They must preserve black-box tests, tier scoping,
-both deadcode passes, the CI-only vulnerability gate, one composition root,
-distroless nonroot runtime policy, and generated hook/probe coverage.
+all four staticcheck/deadcode components, the CI-only vulnerability gate, one
+composition root, distroless nonroot runtime policy, and generated hook/probe
+coverage.
