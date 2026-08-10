@@ -8,6 +8,7 @@ mode="${1:-all}"
 
 if [ "${mode}" = "module-path" ] || [ "${mode}" = "all" ]; then
   ./scripts/validate/go-module-path.sh
+  ./scripts/validate/go-lib-workflows.sh all
 fi
 if [ "${mode}" = "vet" ] || [ "${mode}" = "all" ]; then
   ./scripts/validate/go-vet.sh
@@ -17,6 +18,7 @@ if [ "${mode}" = "api-compat" ] || [ "${mode}" = "all" ]; then
 fi
 if [ "${mode}" = "export-docs" ] || [ "${mode}" = "all" ]; then
   ./scripts/validate/go-export-docs.sh
+  ./scripts/validate/config-skill-docs.sh
 fi
 if [ "${mode}" = "examples" ] || [ "${mode}" = "all" ]; then
   ./scripts/validate/go-examples.sh

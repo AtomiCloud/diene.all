@@ -2,25 +2,70 @@ package main
 
 import (
 	"context"
+	"fmt"
 
-	"github.com/AtomiCloud/diene.go-lib/adapters/kv"
-	"github.com/AtomiCloud/diene.go-lib/lib/note"
-	"github.com/AtomiCloud/diene.go-lib/testhelper"
+	"github.com/AtomiCloud/diene.go-config/lib/config"
+	"github.com/AtomiCloud/diene.go-config/testhelper"
+	"github.com/AtomiCloud/diene.go-errors-problems/lib/problem"
 )
 
 func main() {
 	ctx := context.Background()
-	memory := testhelper.NewMemoryStore()
-	value := note.New("Deadcode Consumer", "public surface")
-	service := note.NewService(memory)
-	_ = note.Slug(value.Slug)
-	_ = note.NamespacedKey("notes", value.Slug)
-	_ = service.Save(ctx, value)
-	_, _ = service.Load(ctx, value.Slug)
-	_ = memory.Save(ctx, value.Slug, value.Body)
-	_, _ = memory.Load(ctx, value.Slug)
-	redis := kv.NewRedisStore("127.0.0.1:6379")
-	_ = redis.Save
-	_ = redis.Load
-	_ = redis.Close
+
+	// Schema composition and generation surface.
+	schema := config.ComposeSchema(
+		config.AppBlockSchema(),
+		config.NewBlock(testhelper.DemoBlockKey, true, map[string]any{"type": "object"}),
+	).WithPortal(problem.LocalErrorPortal())
+	_ = schema.Root()
+	artifact, _ := schema.Marshal()
+	reloaded, _ := config.SchemaFromJSON(artifact)
+	_ = reloaded.Validate(map[string]any{})
+	_, _ = config.GenerateSchema(config.AppBlock{})
+	_, _ = config.FragmentFromType(config.AppBlock{})
+
+	// Loader surface with every option and both YAML/env source families.
+	loader := config.NewLoader(
+		config.WithEnvPrefix("ATOMI_"),
+		config.WithBaseSource(config.NewBytesYAMLSource("base", []byte("app:\n  landscape: base\n"))),
+		config.WithOverlaySource("lapras", config.NewBytesYAMLSource("overlay", nil)),
+		config.WithBaseDir("config/app"),
+		config.WithLandscape("lapras"),
+		config.WithEnvSource(config.NewMapEnvSource("env", map[string]string{})),
+		config.WithSchema(schema),
+		config.WithErrorPortal(problem.LocalErrorPortal()),
+	)
+	cfg, err := loader.Load(ctx)
+	if cfg == nil {
+		cfg = config.NewConfig(testhelper.ValidRaw())
+	}
+	_ = cfg.Raw()
+	_ = cfg.Decode("app", new(map[string]any))
+	_, _ = cfg.App()
+	_, _ = config.ValidationIssues(err)
+	_ = config.Issue{Path: "app", Message: "x"}.String()
+
+	// File and process source variants.
+	fileSource := config.NewFileYAMLSource("base", "config/app/settings.yaml")
+	_ = fileSource.Name()
+	_ = fileSource.Path()
+	_, _ = fileSource.Read(ctx)
+	optional := config.NewOptionalFileYAMLSource("overlay", "config/app/settings.lapras.yaml")
+	_, _ = optional.Read(ctx)
+	osEnv := config.NewOSEnvSource()
+	_ = osEnv.Name()
+	_, _ = osEnv.Environ(ctx)
+
+	// TestHelper surface.
+	_ = testhelper.BaseSource(testhelper.BaseDocument())
+	_ = testhelper.OverlaySource("lapras", testhelper.OverlayDocument("lapras"))
+	_ = testhelper.EnvSource(map[string]string{})
+	_ = testhelper.Schema()
+	_ = testhelper.DemoBlock()
+	_ = testhelper.InvalidSchemaBlock()
+	_ = testhelper.InvalidOverlayDocument()
+	_ = testhelper.SchemaPointer
+	_ = testhelper.StubConfig(testhelper.ValidRaw())
+	_ = testhelper.StubApp(config.AppBlock{})
+	fmt.Println(testhelper.RequireConfig, testhelper.RequireLoadError, testhelper.RequireIssue)
 }

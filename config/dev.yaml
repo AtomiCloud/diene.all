@@ -1,0 +1,17 @@
+# yaml-language-server: $schema=./config.schema.json
+app:
+  landscape: base
+  platform: sulfoxide
+  service: config
+  module: lib
+  version: 0.0.0-dev
+service:
+  http:
+    host: 127.0.0.1
+    port: 3000
+  cache:
+    region: local
+    replicas:
+      - 1
+      - 2
+    secret: ''

@@ -1,0 +1,39 @@
+// This is the single tracked scratch-consumer source. Both the tag-only
+// go-proxy-roundtrip.sh (against the published module) and the branch-safe
+// go-consumer-smoke.sh (against the local module via a replace) copy this exact
+// file and substitute __MODULE__ with the module path. It exercises all three
+// real layers — a full base document, a sparse per-landscape overlay selected
+// via WithLandscape, and an indexed env override applied last — against a real
+// composed schema (Load requires one) and asserts a base-only field, an
+// overlay-won field, and an env-won field: "config overlay 9.9.9".
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"__MODULE__/lib/config"
+)
+
+func main() {
+	base := config.NewBytesYAMLSource("base", []byte("app:\n  landscape: proxy\n  platform: sulfoxide\n  service: config\n  module: lib\n  version: 0.0.0\n"))
+	overlay := config.NewBytesYAMLSource("overlay", []byte("app:\n  landscape: proxy\n  platform: overlay\n"))
+	loader := config.NewLoader(
+		config.WithEnvPrefix("ATOMI_"),
+		config.WithBaseSource(base),
+		config.WithLandscape("proxy"),
+		config.WithOverlaySource("proxy", overlay),
+		config.WithEnvSource(config.NewMapEnvSource("env", map[string]string{"ATOMI_APP__VERSION": "9.9.9"})),
+		config.WithSchema(config.ComposeSchema(config.AppBlockSchema())),
+	)
+	cfg, err := loader.Load(context.Background())
+	if err != nil {
+		panic(err)
+	}
+	app, err := cfg.App()
+	if err != nil {
+		panic(err)
+	}
+	// service: base-only, platform: overlay-won, version: env-won.
+	fmt.Printf("%s %s %s\n", app.Service, app.Platform, app.Version)
+}

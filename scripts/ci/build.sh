@@ -2,5 +2,6 @@
 set -euo pipefail
 
 ./scripts/local/build.sh
+./scripts/validate/go-consumer-smoke.sh
 
 echo "✅ CI Go build passed"

@@ -1,0 +1,8 @@
+# yaml-language-server: $schema=../config.schema.json
+app:
+  landscape: lapras
+service:
+  http:
+    host: config.lapras.svc
+  cache:
+    region: ap-southeast-1
