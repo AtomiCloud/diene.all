@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-bash ./scripts/ci/setup.sh
 bash ./scripts/validate/helm-wrapper.sh schema
 bash ./scripts/validate/helm-wrapper.sh schema-drift
 bash ./scripts/validate/helm-wrapper.sh lint
