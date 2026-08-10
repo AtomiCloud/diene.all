@@ -20,7 +20,7 @@ export default {
       name: 'mutation-bun-integration-coverage-caught',
       description: 'An uncovered adapter source file turns the integration coverage ledger red.',
       kind: 'mutation',
-      expectedImpact: [],
+      expectedImpact: ['bun-deadcode'],
       async run(repo: any) {
         await repo.write(
           'src/adapters/__probe_uncovered__.ts',

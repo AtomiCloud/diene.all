@@ -11,7 +11,7 @@ export default {
       async run(repo: any) {
         await expectBunGreen(
           repo,
-          "nix develop .#ci -c bash -lc './scripts/local/setup.sh && pls test:unit'",
+          "nix develop .#ci -c bash -lc './scripts/local/setup.sh && task test:unit'",
           'bun-unit-tests',
         );
       },
@@ -32,7 +32,7 @@ export default {
             );
             await expectBunRed(
               repo,
-              "nix develop .#ci -c bash -lc './scripts/local/setup.sh && pls test:unit'",
+              "nix develop .#ci -c bash -lc './scripts/local/setup.sh && task test:unit'",
               'bun-unit-tests',
             );
             return;

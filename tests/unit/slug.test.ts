@@ -13,8 +13,6 @@ describe('slugify', () => {
     { input: 'résumé café', expected: 'resume-cafe' },
     { input: '!!! ???', expected: '' },
   ])('should slugify "$input" to "$expected"', ({ input, expected }) => {
-    // Arrange
-
     // Act
     const actual = slugify(input);
 
