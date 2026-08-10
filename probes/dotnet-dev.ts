@@ -22,7 +22,7 @@ export default {
           `nix develop .#default -c sh -lc '
             set -eu
             log="$(mktemp)"
-            setsid pls dev >"$log" 2>&1 &
+            setsid task dev >"$log" 2>&1 &
             pid=$!
             cleanup() {
               kill -TERM -"$pid" 2>/dev/null || true
