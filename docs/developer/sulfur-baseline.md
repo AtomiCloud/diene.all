@@ -82,7 +82,7 @@ pinned pure-passthrough from the recorded source archive hash in
 `chart/upstream-evidence.yaml`. The official latest is `v1.21.0` (one sequential
 minor ahead); it is not adopted because the wrapper advances one minor at a time.
 `scripts/local/vendor-cert-manager.sh` verifies the vendored archive is exactly
-the recorded upstream source (no patch). `pls latest` checks the official chart
+the recorded upstream source (no patch). `task latest` checks the official chart
 repository and the `quay.io/jetstack` image registry against the evidence.
 
 ## Testing pyramid

@@ -43,7 +43,7 @@ pinned pure-passthrough from the recorded source archive hash in
 `chart/upstream-evidence.yaml`. The official latest is `v1.21.0` (one sequential
 minor ahead); it is not adopted because the wrapper advances **one minor at a
 time** under the Q-G22 sequential-minor policy in `chart/upgrade-policy.yaml`. The
-CRD upgrade path follows the same rule. `pls latest` checks the official
+CRD upgrade path follows the same rule. `task latest` checks the official
 repository and image registry against the recorded evidence.
 
 {{ template "chart.valuesSection" . }}
