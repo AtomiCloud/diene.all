@@ -83,6 +83,18 @@ let
       # made the check refuse - measured, on this file. If the pin is ever moved BACK
       # below v5.6.0, this paragraph turns into a false positive.
       inherit (atomi) cyanprint;
+
+      # The server engine carries its NuGet closure as an offline lock. Keep the
+      # generator exposed so the lock can be refreshed with the package references.
+      dotnet-deps-fetch =
+        (pkgs.buildDotnetModule {
+          pname = "dotnet-server-engine-dependencies";
+          version = "0";
+          src = ../.;
+          projectFile = "dotnet-base.slnx";
+          nugetDeps = ../nix/dotnet-deps.json;
+          dotnet-sdk = pkgs-2605.dotnet-sdk_10;
+        }).fetch-deps;
     };
   };
 in

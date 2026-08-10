@@ -8,6 +8,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="AtomiCloud.Diene.AuthEngine.TestHelper" />
+    <PackageReference Include="AtomiCloud.Diene.Problems.TestHelper" />
+    <PackageReference Include="AtomiCloud.Diene.Result.TestHelper" />
     <PackageReference Include="coverlet.msbuild" />
     <PackageReference Include="FluentAssertions" />
     <PackageReference Include="GitHubActionsTestLogger" />

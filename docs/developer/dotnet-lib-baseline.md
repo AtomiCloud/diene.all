@@ -9,9 +9,10 @@ This branch turns the `.NET 10` base into a publishable library template. It
 keeps the base `App` as a non-packable consumer and publishes two lockstep
 packages from one solution:
 
-- `AtomiCloud.Diene.Note` contains the illustrative Note domain;
-- `AtomiCloud.Diene.Note.TestHelper` contains consumer assertions and references
-  the main package.
+- `AtomiCloud.Diene.ServerEngine` contains the MVC server wiring;
+- `AtomiCloud.Diene.ServerEngine.TestHelper` contains the in-process controller
+  host, the webhook signer, and the tri-state assertions, and references the main
+  package.
 
 Both package ids and assembly names are consumer-visible, real identities.
 `dotnet-base.slnx`, `.config/dotnet-base.test.yaml`, workflows, and non-shipped
@@ -29,7 +30,13 @@ nix develop .#ci -c ./scripts/ci/pkg-validate.sh
 The validation entrypoint restores dependencies, packs the solution, requires a
 `.nupkg` and a `.snupkg` for every packable project, validates README/icon/
 license/repository metadata and portable PDB contents, then restores both
-package ids into a scratch .NET 10 project.
+package ids into a scratch .NET 10 project and RUNS it. A scratch
+consumer that only compiled would prove the public surface resolves; running it
+proves the shipped assemblies actually compose a host, mount their routes, and
+enforce the webhook signature contract, which is what a consumer installs them
+for. Restore is given both the local artifact folder and nuget.org, because these
+packages depend on published Diene packages and a local-only source cannot
+resolve the transitive graph.
 
 `scripts/validate/dotnet-package.sh` derives every identity it asserts. Package
 ids come from the `IsPackable` projects listed in the root `.slnx`, the expected
@@ -53,14 +60,16 @@ stays at `1.0.0` in-branch, `probes/dotnet-lib-api-compatibility.ts` packs with
 
 ## Testing tiers
 
-- `pls test:unit` measures the real `AtomiCloud.Diene.Note` assembly plus the
+- `pls test:unit` measures the real `AtomiCloud.Diene.ServerEngine` assembly plus the
   inherited `[Lib*]*` scaling wildcard at 100%, and explicitly excludes
   `*.TestHelper` assemblies. The scope guard in
   `scripts/local/dotnet-test.sh` reads the allowed assembly names from the
   `AssemblyName` each `Lib*` project declares, so it scales with a renamed
   library instead of naming one.
-- `pls test:int` retains the base Testcontainers-backed adapter boundary and
-  measures only `[App*]*`.
+- `pls test:int` drives the demo consumer over a real Kestrel socket and measures
+  only `[App*]*`. It replaces the base Testcontainers adapter boundary: this
+  library has no database adapter, and what a TestServer cannot show is the real
+  transport.
 - `pls test:meta` independently measures `[*.TestHelper]*` at 100%. Its tests
   include known-good and known-bad assertion cases.
 
@@ -89,8 +98,8 @@ A materialized library changes only these owned surfaces:
 - shared author/company/repository URLs in `Directory.Build.props`;
 - README badges, install snippet, icon, and illustrative source/tests;
 - unit/meta thresholds when the shipped surface justifies a stricter value;
-- `skills/diene-dotnet-note-usage/` to the materialized library's namespaced
-  usage skill.
+- `skills/diene-dotnet-server-engine-usage/` as the materialized library's
+  namespaced usage skill.
 
 `scripts/local/dotnet-test.sh`, `scripts/validate/dotnet-package.sh`, and the
 package-validation baseline are **not** promotion knobs. They read identity from

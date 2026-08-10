@@ -1,13 +1,31 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <RootNamespace>AtomiCloud.Diene.Note</RootNamespace>
-    <AssemblyName>AtomiCloud.Diene.Note</AssemblyName>
-    <PackageId>AtomiCloud.Diene.Note</PackageId>
-    <Description>An illustrative note-domain library and the Diene .NET library template.</Description>
+    <RootNamespace>AtomiCloud.Diene.ServerEngine</RootNamespace>
+    <AssemblyName>AtomiCloud.Diene.ServerEngine</AssemblyName>
+    <PackageId>AtomiCloud.Diene.ServerEngine</PackageId>
+    <Description>MVC server wiring for Diene services: the AtomiController base, the exception-to-Problem filter, the system controller, OnboardSync endpoints, and the signed /internal/webhooks/{provider} receiver.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IsPackable>true</IsPackable>
   </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The signature header parser stays internal so it is not part of the published API
+         surface, but the unit suite drives its refusal cases directly rather than through the
+         verifier's clock and key set. -->
+    <InternalsVisibleTo Include="UnitTest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AtomiCloud.Diene.AuthEngine" />
+    <PackageReference Include="AtomiCloud.Diene.CoreUtils" />
+    <PackageReference Include="AtomiCloud.Diene.Problems" />
+    <PackageReference Include="AtomiCloud.Diene.Result" />
+  </ItemGroup>
 
   <ItemGroup>
     <None Include="../LICENSE" Pack="true" PackagePath="/" />
