@@ -3,16 +3,33 @@
   "generator": "skills-sync",
   "runtime": "node",
   "packages": [
-    "@atomicloud/diene.otel"
+    "@atomicloud/diene.interfaces",
+    "@atomicloud/diene.result"
   ],
   "entries": [
     {
-      "path": "diene.otel/diene-otel-usage/SKILL.md",
-      "sha256": "35c94010c6fcbf898e9ddfa08a02127f02684a58e0d54d57beadd7270d5dba27"
+      "path": "diene.interfaces/diene-interfaces-usage/SKILL.md",
+      "sha256": "bd99e7a794c49697051039fa31c9ed2209204fb093ba3a676831a39b38133836"
     },
     {
-      "path": "diene.otel/diene-otel-usage/patterns.md",
-      "sha256": "9890dcd65f8b5943d66d2e5698a2cc3750147615a5f36f7d43bae64629aad283"
+      "path": "diene.interfaces/diene-interfaces-usage/patterns.md",
+      "sha256": "cc8dcd5f99c5ca7302ee15951f72703f9c9044e02ae32ae4537ee5773282fbf5"
+    },
+    {
+      "path": "diene.result/diene-result-usage/SKILL.md",
+      "sha256": "af8ddb4d54cc7cd278d56e89eb998372024423de2028e64bcde784e70b7f3a71"
+    },
+    {
+      "path": "diene.result/diene-result-usage/assets/consumer.cjs",
+      "sha256": "f18c192482d266ab418dfdce04bb10b019781f552b2a41d9161b8347a0599cd4"
+    },
+    {
+      "path": "diene.result/diene-result-usage/assets/consumer.ts",
+      "sha256": "84e6eab274ab3a6db57477052d5583bf5527c0bf4e71362a69bea76b8f6686c1"
+    },
+    {
+      "path": "diene.result/diene-result-usage/assets/test-helper.md",
+      "sha256": "cac85271d0314f8e417494e7bcdf3622c7e570f9fdb0018426d6e2544306547e"
     }
   ]
 }

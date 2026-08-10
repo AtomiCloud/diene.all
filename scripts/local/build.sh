@@ -26,7 +26,7 @@ for artifact in dist/index.js dist/index.cjs dist/index.d.ts dist/index.d.cts; d
 done
 
 echo "🏃 Verifying ESM and CJS runtime exports..."
-node --input-type=module -e "import { buildSampleKey } from './dist/index.js'; if (buildSampleKey('Build Proof', 'ESM') !== 'build-proof:esm') process.exit(1)"
-node -e "const { buildSampleKey } = require('./dist/index.cjs'); if (buildSampleKey('Build Proof', 'CJS') !== 'build-proof:cjs') process.exit(1)"
+node --input-type=module -e "import { namespacedKey, slugify } from './dist/index.js'; if (slugify('Build Proof') !== 'build-proof') process.exit(1); const result = namespacedKey('Build Proof', 'ESM'); if (!(await result.isOk()) || (await result.unwrap()) !== 'build-proof:esm') process.exit(1)"
+node -e "const { namespacedKey, slugify } = require('./dist/index.cjs'); if (slugify('Build Proof') !== 'build-proof') process.exit(1); namespacedKey('Build Proof', 'CJS').unwrap().then((value) => { if (value !== 'build-proof:cjs') process.exit(1) }).catch(() => process.exit(1))"
 
 echo "✅ Built dist/index.{js,cjs,d.ts,d.cts}"

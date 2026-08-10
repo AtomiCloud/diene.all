@@ -9,13 +9,12 @@ types:
   # exactly as a LOSS from a parent is restored, because either way the node
   # stops speaking its own vocabulary on the strength of a parent edit alone.
   #
-  # Measured on this node: the pre-merge tip 9dae392a carried 17 type/scope
-  # pairs. The cascade merge landed 34 - it lost nothing and GAINED seventeen:
-  # the scopes chore many-owner/nix/workspace, docs nix, feat nix/probes, fix
-  # nix/probes/skills/workspace, perf probes, refactor ci, style probes, test
-  # probes, and the whole `merge` type. Those seventeen are removed here; the
-  # pairs below are the pre-merge tip's own, in its shape, ordering and
-  # descriptions.
+  # Measured on THIS node (lib/bun/core-utils), not inherited from the parent:
+  # the pre-merge tip 859c75b3 carried 17 type/scope pairs across 13 types, and
+  # the merged parent bun-lib@4c13d357 carries the SAME 17 pairs. A pair-set diff
+  # run in both directions is empty both ways, so this node lost nothing and
+  # gained nothing, and no pair below was restored or removed. The pairs are the
+  # pre-merge tip's own, in its shape, ordering and descriptions.
   #
   # A PARENT EDIT IS NOT A RULING. Whether this vocabulary applies fleet-wide
   # is still the owner's to decide. A later cascade must not read this revert
@@ -25,10 +24,9 @@ types:
   # RENAME HAZARD, for whoever compares next. This node's pre-merge file was
   # named atomi_release.yaml and the parent RENAMES it to release.yaml, so a
   # same-path comparison compares nothing at all and silently reports no
-  # change. Resolve the rename first. And do not compare TYPE counts: across
-  # that rename this node went 13 types to 14 while its PAIR count went 17 to
-  # 34, so the type count understates the move by an order of magnitude. Only a
-  # pair-set diff, run in both directions, sizes it.
+  # change. Resolve the rename first. And do not compare TYPE counts or PAIR
+  # counts: equal counts can still be different SETS, so only a pair-set diff,
+  # run in both directions, establishes agreement.
   #
   # docs/developer/CommitConventions.md is generated from this file: any
   # change here must regenerate it in the same commit.
