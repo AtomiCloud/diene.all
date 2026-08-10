@@ -1,4 +1,4 @@
-// COST CLASS: heavy, SERIALIZED. `pls up` brings the whole local stack up, and it
+// COST CLASS: heavy, SERIALIZED. `task up` brings the whole local stack up, and it
 // binds the FIXED host ports in `config/dev.yaml`, so this row takes the SAME host
 // mkdir spinlock as the SIT rows (PROBES §5 addendum: declared serialization where
 // per-invocation uniqueness is genuinely impractical). Heavy is unavoidable: the
@@ -20,14 +20,14 @@ echo $$ >${LOCK}/pid
 # PROBES §5 addendum: a gate creating named external resources must derive a UNIQUE
 # per-invocation name. Without this the stack falls back to the FIXED compose.project
 # in config/dev.yaml, so a leftover or concurrent stack under that name collides and
-# 'pls up' fails on an already-bound container — which surfaces as a product failure.
+# 'task up' fails on an already-bound container — which surfaces as a product failure.
 # up.sh and down.sh both honour COMPOSE_PROJECT_NAME and enforce the diene-go-consumer
 # prefix, so the suffix keeps the guard satisfied while isolating this invocation.
 COMPOSE_PROJECT_NAME="diene-go-consumer-task-$$"
 export COMPOSE_PROJECT_NAME
 echo "compose project: \${COMPOSE_PROJECT_NAME}"
 cleanup() {
-  pls down >/dev/null 2>&1 || true
+  task down >/dev/null 2>&1 || true
   rm -rf ${LOCK}
 }
 trap cleanup EXIT
@@ -45,29 +45,29 @@ for task in dev run preview up down; do
   [ -x "\${path}" ] || { echo "❌ \${path} is missing or not executable" >&2; exit 1; }
 done
 
-echo "=== pls up ==="
-pls up
+echo "=== task up ==="
+task up
 running="$(docker compose --project-name "\${COMPOSE_PROJECT_NAME}" \\
   --file scripts/local/docker-compose.yaml ps --status running --quiet | wc -l | tr -d ' ')"
 echo "\${running} local dependency containers running"
-[ "\${running}" -eq 0 ] && { echo "❌ pls up started NO containers" >&2; exit 1; }
+[ "\${running}" -eq 0 ] && { echo "❌ task up started NO containers" >&2; exit 1; }
 
-echo "=== pls run ==="
-pls run -- --help
+echo "=== task run ==="
+task run -- --help
 
-echo "=== pls preview ==="
-pls preview -- --help
-test -x dist/go-consumer || { echo "❌ pls preview produced no compiled artifact" >&2; exit 1; }
+echo "=== task preview ==="
+task preview -- --help
+test -x dist/go-consumer || { echo "❌ task preview produced no compiled artifact" >&2; exit 1; }
 
-echo "=== pls down ==="
-pls down
+echo "=== task down ==="
+task down
 remaining="$(docker compose --project-name "\${COMPOSE_PROJECT_NAME}" \\
   --file scripts/local/docker-compose.yaml ps --status running --quiet | wc -l | tr -d ' ')"
 echo "\${remaining} local dependency containers running after teardown"
-[ "\${remaining}" -ne 0 ] && { echo "❌ pls down left \${remaining} containers running" >&2; exit 1; }
+[ "\${remaining}" -ne 0 ] && { echo "❌ task down left \${remaining} containers running" >&2; exit 1; }
 
-echo "=== pls down is error-safe when already down (M32) ==="
-pls down
+echo "=== task down is error-safe when already down (M32) ==="
+task down
 echo "✅ dev/run/preview/up/down executed their intended operations"
 `;
 
@@ -78,7 +78,7 @@ export default {
     {
       name: 'baseline-task-surface-green',
       description:
-        'pls dev/run/preview/up/down resolve to scripts/local and execute their intended local operations; teardown is error-safe.',
+        'task dev/run/preview/up/down resolve to scripts/local and execute their intended local operations; teardown is error-safe.',
       kind: 'baseline',
       async run(repo: any) {
         // Assert on printed VALUES: the container counts before and after teardown

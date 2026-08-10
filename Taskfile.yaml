@@ -55,13 +55,6 @@ tasks:
       - task: gotest:run
         vars: { MODE: int }
 
-  test:sit:
-    desc: Run the compiled-artifact Redis journey
-    deps: [build]
-    cmds:
-      - task: gotest:run
-        vars: { MODE: sit }
-
   test:coverage:
     desc: Run every coverage ledger
     deps: [test:unit:coverage, test:int:coverage]

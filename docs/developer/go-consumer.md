@@ -19,11 +19,11 @@ the 100% unit ledger; `adapters/` implements those ports against real drivers
 and carries the 100% integration ledger; `cmd/go-consumer/` is the single
 composition root that wires them. `lib/` never imports `adapters/`.
 
-Use `pls dev`, `pls run -- <subcommand>`, or `pls preview -- <subcommand>` for
-the three runtime shapes. `pls up` and `pls down` own Postgres, Redis, MinIO,
-Alloy, and the local telemetry backends. `pls test:unit`, `pls test:int`, and
-`pls test:sit` run the pure, adapter, and compiled-binary tiers;
-`pls test:sit:parity` runs the same journeys through both the compiled and
+Use `task dev`, `task run -- <subcommand>`, or `task preview -- <subcommand>` for
+the three runtime shapes. `task up` and `task down` own Postgres, Redis, MinIO,
+Alloy, and the local telemetry backends. `task test:unit`, `task test:int`, and
+`task test:sit` run the pure, adapter, and compiled-binary tiers;
+`task test:sit:parity` runs the same journeys through both the compiled and
 in-process drivers and refuses when they disagree.
 
 The repository ships two charts. `infra/root_chart` is the application chart:

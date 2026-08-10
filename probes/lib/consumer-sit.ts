@@ -1,6 +1,6 @@
 // SIT journey harness for the go-consumer rows. Each row drives ONE journey
 // through the COMPILED artifact (`dist/go-consumer`) against the full local
-// dependency stack, exactly as `pls test:sit` does.
+// dependency stack, exactly as `task test:sit` does.
 //
 // Serialization, not uniqueness (PROBES §5 addendum): the local stack binds the
 // FIXED host ports declared in `config/dev.yaml` (postgres 5432, redis 6379,

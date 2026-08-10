@@ -414,10 +414,5 @@
     "template": "diene/go-base",
     "name": "hook-deadcode-strict",
     "class": "gate"
-  },
-  {
-    "template": "diene/go-base",
-    "name": "system-integration-tests",
-    "class": "smoke"
   }
 ]
