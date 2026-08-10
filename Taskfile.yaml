@@ -1,10 +1,7 @@
-# ### workspace-root
-# #### source: workspace
 version: '3'
 
 includes:
   helm: tasks/Taskfile.helm.yaml
-  secret: tasks/Taskfile.secret.yaml
   example:lapras:
     taskfile: tasks/Taskfile.cluster.yaml
     vars:
@@ -16,17 +13,12 @@ tasks:
   setup:
     desc: Set up generated workspace assets
     cmds:
-      - ./scripts/local/skills-sync.sh
+      - ./scripts/local/setup.sh
 
   lint:
     desc: Run all repository gates
     cmds:
       - pre-commit run --all-files
-
-  skills:sync:
-    desc: Synchronize installed diene package skills
-    cmds:
-      - ./scripts/local/skills-sync.sh
 
   test:
     desc: Run the zinc unit/static tier
