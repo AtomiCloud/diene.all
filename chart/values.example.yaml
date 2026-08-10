@@ -1,6 +1,4 @@
-# Independent landscape overlay example.
-serviceTree:
-  landscape: example
-
-primordial:
-  targetLandscape: example
+# Fleet overlay: the issuer is always derived from platform and vlandscape.
+distributionMode: FLEET
+serviceTree: {platform: diene, landscape: raichu}
+fleet: {vlandscape: mew, issuerZone: cluster.atomi.cloud}

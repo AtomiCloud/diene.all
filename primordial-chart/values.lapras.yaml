@@ -1,0 +1,2 @@
+# Garden never installs this chart; this fixture proves the chart emits nothing.
+distributionMode: GARDEN-LOCAL

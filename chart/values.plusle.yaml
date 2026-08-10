@@ -1,0 +1,4 @@
+distributionMode: GARDEN-LOCAL
+serviceTree: {landscape: plusle}
+namespace: {name: lithium-plusle-001}
+garden: {instance: plusle-001, instanceUID: 00000000-0000-0000-0000-000000000006, allocationGeneration: '7', landscape: plusle, zone: dev.atomi.cloud, issuerScheme: https, issuerPort: 0, databaseSecret: lithium-plusle-db, databaseKey: DB_URL, bootSecret: lithium-plusle-boot, bootClientIdKey: SEED_M2M_CLIENT_ID, bootClientSecretKey: SEED_M2M_CLIENT_SECRET}

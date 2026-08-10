@@ -1,0 +1,28 @@
+labelPrefix: atomi.cloud
+distributionMode: FLEET # @schema enum:[FLEET,GARDEN-LOCAL]
+apiVersion: fleet.atomi.cloud/v1alpha1
+serviceTree: {platform: diene, service: lithium, module: api, layer: '1'}
+
+# Exactly one row is allowed for each platform/vlandscape writer.
+platformDependencies:
+  - vlandscape: mew
+    placement: {preferredHost: raichu}
+    deletionPolicy: {retainSecret: 168h}
+    database:
+      lithium:
+        type: neon
+        delivery: external
+        providerAccountRef: nonprod-neon
+        credentialMode: standard
+        rotation: 'on'
+        cpu: 1
+        ram: 1Gi
+        storage: 10Gi
+        version: '16'
+        engine: {neon: {tier: launch}}
+
+# A fragment is emitted only for a row that declares serve: true.
+servingRows:
+  - vlandscape: mew
+    landscape: raichu
+    serve: true

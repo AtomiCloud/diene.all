@@ -1,0 +1,1 @@
+{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","required":["labelPrefix","distributionMode","apiVersion","serviceTree","platformDependencies","servingRows"],"properties":{"distributionMode":{"enum":["FLEET","GARDEN-LOCAL"]},"serviceTree":{"type":"object","required":["platform","service","module","layer"]}}}

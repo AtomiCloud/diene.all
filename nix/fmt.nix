@@ -14,6 +14,7 @@ let
           "docs/developer/CommitConventions.md"
           "infra/root_chart/**"
           "chart/**"
+          "primordial-chart/**"
         ];
       };
       shfmt.enable = true;

@@ -1,0 +1,18 @@
+# ### lithium-reusable-ci
+# #### source: aldehyde.logto
+name: ⚡ Reusable Lithium
+
+on:
+  workflow_call:
+
+jobs:
+  validate:
+    name: Validate Lithium charts
+    runs-on:
+      - nscloud-ubuntu-22.04-amd64-4x8-with-cache
+      - nscloud-cache-size-50gb
+      - nscloud-cache-tag-atomi-nix-store-cache-linux-amd64
+    steps:
+      - uses: AtomiCloud/actions.setup-nix@v3
+      - name: Run Lithium validation
+        run: nix develop .#ci -c ./scripts/ci/lithium.sh

@@ -1,38 +1,71 @@
 # Diene workspace baseline
 
-Diene's reproducible development environment is managed by Nix. Run `direnv allow` once, then use `task` tasks from the loaded shell.
+<!-- ### nix-root -->
+<!-- #### source: main -->
 
-This branch is the workspace baseline without Docker, inherited by every downstream sample: split CI/CD, Helm, secrets, release configuration, validators, and standards.
+Diene's reproducible development environment is managed by Nix. Run `direnv allow` once, then use `pls` tasks from the loaded shell.
+
+<!-- ### workspace -->
+<!-- #### source: workspace -->
+
+This branch is the workspace baseline inherited by every downstream sample: split CI/CD, Helm, secrets, release configuration, validators, standards, and vendored agent-skill synchronization.
 
 ## Commands
 
-Run `task --list` for every available task and its description. The task set is
-declared in [`Taskfile.yaml`](Taskfile.yaml), whose `includes:` block maps each
-namespace to a file under [`tasks/`](tasks); a task shown as `<namespace>:<task>`
-is that key in the included file. Build artifacts — Helm charts — live under
-[`infra/`](infra) and may be plural, so their tasks are keyed per artifact. See [the Taskfile standard](docs/standards/taskfile/index.md) for the
-conventions.
+- `pls setup` — synchronize installed diene package skills.
+- `pls lint` — run every pre-commit gate.
+- `pls helm:lint` / `pls helm:template` — validate or render the root chart.
+- `pls secret:scan` — scan tracked content for secrets.
+- `pls skills:sync` — rebuild `.claude/skills/vendor/` from installed packages.
 
 ## Standards
 
-The conventions this repository follows live under
-[`docs/standards/`](docs/standards). Read the standard for the surface you are
-changing before you change it. [`CLAUDE.md`](CLAUDE.md) links the ones an agent
-reaches for most often; it is a convenience, not a required index, and nothing
-checks that it names every surface.
+- [CI/CD workflows](docs/standards/ci-cd/index.md)
+- [conventional commits](docs/standards/conventional-commits/index.md)
+- [Helm charts and publishing](docs/standards/helm/index.md)
+- [Infisical and secrets](docs/standards/infisical/index.md)
+- [linting and pre-commit](docs/standards/linting/index.md)
+- [Nix flakes and development shells](docs/standards/nix/index.md)
+- [release automation](docs/standards/semantic-release/index.md)
+- [service-tree identity](docs/standards/service-tree/index.md)
+- [shell scripts](docs/standards/shell-scripts/index.md)
+- [Taskfile conventions](docs/standards/taskfile/index.md)
 
-Domain-specific architecture and behavior belongs under
-[`docs/domain/`](docs/domain/README.md), not under `docs/standards/`.
+<!-- ### shared -->
+<!-- #### source: shared -->
 
-<!-- ### helm-wrapper -->
-<!-- #### source: helm-wrapper -->
+## Shared standards
 
-## Helm wrapper sample
+- [Authorization](docs/standards/authorization/index.md)
+- [Contributor documentation](docs/standards/contributor-docs/index.md)
+- [Date and time](docs/standards/datetime/index.md)
+- [Domain-driven design](docs/standards/domain-driven-design/index.md)
+- [Functional practices](docs/standards/functional-practices/index.md)
+- [Software design philosophy](docs/standards/software-design-philosophy/index.md)
+- [SOLID principles](docs/standards/solid-principles/index.md)
+- [Stateless OOP and dependency injection](docs/standards/stateless-oop-di/index.md)
+- [Testing](docs/standards/testing/index.md)
+- [Three-layer architecture](docs/standards/three-layer-architecture/index.md)
+- [Utility libraries](docs/standards/utilities/index.md)
+- [Data validation](docs/standards/validation/index.md)
 
-This branch adds the production-grade wrapper chart, stacked values, generated schema, rendered-manifest validation, k3d proof, and dual publish modes.
+Domain-specific documentation belongs under [docs/domain/](docs/domain/README.md).
+The `docs/standards/contracts/` location is reserved for the separately owned C0
+contracts standard.
 
-- `task build` — vendor external config and build pinned chart dependencies.
-- `task test:unit` — run schema, lint, render, contracts, VAP, and publish dry-runs.
-- `task test:int` — install on ephemeral k3d and round-trip the chart through a local OCI registry.
-- `task example:lapras:template` — render the independent landscape + cluster stack.
-- [Helm wrapper baseline](docs/developer/helm-wrapper-baseline.md)
+<!-- ### lithium -->
+<!-- #### source: aldehyde.logto -->
+
+## Lithium distribution charts
+
+Lithium distributes the Aldehyde Logto fork. The application chart has explicit
+`FLEET` and `GARDEN-LOCAL` modes; the primordial chart is fleet-only and owns the
+single-vlandscape dependency writer plus serving fragments. Garden-local consumes
+only Garden-owned database and boot Secrets and never emits fleet control-plane or
+secret-provider resources.
+
+- `pls test:unit` — run chart schema/lint/template, mode contracts, all seven Garden
+  fixtures, rendered-manifest validation, and publish dry-runs.
+- `pls test:int` — run the isolated Garden-local k3d install harness.
+- `pls example:lapras:template` — render the Garden branch namespace overlay.
+- [Lithium distribution](docs/developer/lithium-distribution.md)

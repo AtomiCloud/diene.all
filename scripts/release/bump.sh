@@ -5,11 +5,14 @@ version="${1:-}"
 [ -z "${version}" ] && echo "❌ version argument not set" >&2 && exit 1
 
 # The parent removed the workspace-tier `VERSION` file and nothing else in this
-# node reads it, so the chart manifest is the only thing this node versions.
-# `chart/README.md` carries the version badge helm-docs renders out of
-# `chart/Chart.yaml`, so it is regenerated here rather than left to drift and
-# turn `a-wrapper-helm-docs` red on the next commit.
+# node reads it, so the two chart manifests are the version source of truth.
 yq eval -i ".version = \"${version#v}\"" chart/Chart.yaml
-helm-docs --chart-search-root chart
+yq eval -i ".appVersion = \"${version#v}\"" chart/Chart.yaml
+yq eval -i ".image.tag = \"${version#v}\"" chart/values.yaml
+yq eval -i ".version = \"${version#v}\"" primordial-chart/Chart.yaml
+yq eval -i ".appVersion = \"${version#v}\"" primordial-chart/Chart.yaml
 
-echo "✅ chart manifest and generated chart docs stamped to ${version#v}"
+helm-docs --chart-search-root chart
+helm-docs --chart-search-root primordial-chart
+
+echo "✅ both Lithium chart manifests and generated docs stamped to ${version#v}"
