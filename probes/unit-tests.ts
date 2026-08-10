@@ -1,5 +1,7 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedWithDiagnostic, restoreProbeState } from './lib/helpers.ts';
 import { flipGoAssertion } from './lib/go.ts';
+
+const gate = 'nix develop .#ci -c task test:unit';
 
 export default {
   contractVersion: 1,
@@ -10,7 +12,7 @@ export default {
       description: 'Black-box unit tests pass against the public domain surface.',
       kind: 'baseline',
       async run(repo: any) {
-        await expectGreen(repo, 'nix develop .#ci -c ./scripts/local/test.sh unit false false', 'unit-tests');
+        await expectGreen(repo, gate, 'unit-tests');
       },
     },
     {
@@ -18,8 +20,12 @@ export default {
       description: 'Flipping one public-surface assertion must turn the unit tier red.',
       kind: 'mutation',
       async run(repo: any) {
-        await flipGoAssertion(repo);
-        await expectRed(repo, 'nix develop .#ci -c ./scripts/local/test.sh unit false false', 'unit-tests');
+        const mutated = await flipGoAssertion(repo);
+        try {
+          await expectRedWithDiagnostic(repo, gate, 'unit-tests', /probe-wrong/);
+        } finally {
+          await restoreProbeState(repo, [mutated]);
+        }
       },
     },
   ],

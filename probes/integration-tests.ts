@@ -1,5 +1,7 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRedWithDiagnostic, restoreProbeState } from './lib/helpers.ts';
 import { breakAdapter } from './lib/go.ts';
+
+const gate = 'nix develop .#ci -c task test:int';
 
 export default {
   contractVersion: 1,
@@ -10,7 +12,7 @@ export default {
       description: 'Adapter tests pass against a real testcontainers dependency.',
       kind: 'baseline',
       async run(repo: any) {
-        await expectGreen(repo, 'nix develop .#ci -c ./scripts/local/test.sh int false false', 'integration-tests');
+        await expectGreen(repo, gate, 'integration-tests');
       },
     },
     {
@@ -18,8 +20,12 @@ export default {
       description: 'Breaking an adapter write must turn the integration tier red.',
       kind: 'mutation',
       async run(repo: any) {
-        await breakAdapter(repo);
-        await expectRed(repo, 'nix develop .#ci -c ./scripts/local/test.sh int false false', 'integration-tests');
+        const mutated = await breakAdapter(repo);
+        try {
+          await expectRedWithDiagnostic(repo, gate, 'integration-tests', /probe-wrong/);
+        } finally {
+          await restoreProbeState(repo, [mutated]);
+        }
       },
     },
   ],

@@ -11,7 +11,7 @@ export default {
       async run(repo: any) {
         await expectGreen(
           repo,
-          "nix develop .#ci -c bash -lc './scripts/local/build.sh && test -x dist/manager && ./dist/manager --help 2>&1 | rg -q enable-note'",
+          "nix develop .#ci -c bash -lc 'task build && test -x dist/manager && ./dist/manager --help 2>&1 | rg -q enable-note'",
           'build-artifact',
         );
       },
