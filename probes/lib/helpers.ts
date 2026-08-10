@@ -46,17 +46,8 @@ export function capturedEnvCommand(
   );
 }
 
-// This node's operator sources make golangci-lint's shared cache a cross-probe
-// dependency: concurrent arms reading one cache directory answer for whichever
-// arm wrote it last. The per-process directory keeps every arm's verdict its own.
-// It is an environment prefix, so it survives the captured-env rewrite below,
-// which only replaces the `nix develop ... -c ` entry inside the command.
-function withIsolatedGolangciCache(command: string): string {
-  return `GOLANGCI_LINT_CACHE="$PWD/.git/cyanprint-golangci-cache-$$" ${command}`;
-}
-
 export async function expectGreen(repo: any, command: string, label: string, timeoutMs = 240000): Promise<void> {
-  const result = await repo.exec(capturedEnvCommand(withIsolatedGolangciCache(command), label), { timeoutMs });
+  const result = await repo.exec(capturedEnvCommand(command, label), { timeoutMs });
   if (result.exitCode !== 0) {
     // A control can fail with BOTH streams empty (killed by signal, OOM, or a
     // silent non-zero exit). `stderr || stdout` then interpolates the empty
@@ -91,7 +82,7 @@ export async function expectDevShellsOnce(repo: any): Promise<void> {
 }
 
 export async function expectRed(repo: any, command: string, label: string): Promise<void> {
-  const result = await repo.exec(capturedEnvCommand(withIsolatedGolangciCache(command), label), { timeoutMs: 240000 });
+  const result = await repo.exec(capturedEnvCommand(command, label), { timeoutMs: 240000 });
   if (result.exitCode === 0) {
     throw new Error(`${label} stayed green after sabotage`);
   }
