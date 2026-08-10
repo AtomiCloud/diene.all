@@ -69,17 +69,10 @@ list. Govulncheck is a blocking CI-only job; its negative proof routes a pinned
 vulnerable fixture through a deterministic scanner double, while the healthy
 path uses the real vulnerability database.
 
-## Docker
-
-The Dockerfile builds a static binary and runs it from
-`gcr.io/distroless/static-debian12:nonroot` as UID/GID 65532. Separate policy
-checks enforce the runtime base and user.
-
 ## Template-maintenance boundary
 
 Downstream authors may adapt package/module identity, sample domain code,
-coverage thresholds after adding real surface, the Docker entrypoint, and README
+coverage thresholds after adding real surface, and README
 badges. They must preserve black-box tests, tier scoping,
 all four staticcheck/deadcode components, the CI-only vulnerability gate, one
-composition root, distroless nonroot runtime policy, and generated hook/probe
-coverage.
+composition root, and generated hook/probe coverage.

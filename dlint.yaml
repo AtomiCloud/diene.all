@@ -11,7 +11,6 @@ checks:
     entrypointPattern: scripts/ci/[A-Za-z0-9._-]+[.]sh
     orchestrators:
       - .github/workflows/ci.yaml
-      - .github/workflows/cd.yaml
       - .github/workflows/release.yaml
   toolchain-smoke:
     shell: default
@@ -23,7 +22,6 @@ checks:
       - docker
       - git
       - gomplate
-      - hadolint
       - infisical
       - jq
       - k3d
@@ -35,7 +33,6 @@ checks:
       - releaser
       - rg
       - shellcheck
-      - skopeo
       - task
       - treefmt
       - yq

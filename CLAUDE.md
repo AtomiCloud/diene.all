@@ -21,10 +21,6 @@ See [docs/standards/validation/index.md](docs/standards/validation/index.md).
 
 See [docs/standards/datetime/index.md](docs/standards/datetime/index.md).
 
-## Docker build and publishing
-
-See [docs/standards/docker/index.md](docs/standards/docker/index.md).
-
 ## Domain-driven design
 
 See [docs/standards/domain-driven-design/index.md](docs/standards/domain-driven-design/index.md).
@@ -96,7 +92,7 @@ See [docs/standards/utilities/index.md](docs/standards/utilities/index.md).
 ## Go language baseline
 
 Read [docs/developer/go-baseline.md](docs/developer/go-baseline.md) before changing
-Go source, tests, coverage, deadcode, vulnerability scanning, Docker, or Go
+Go source, tests, coverage, deadcode, vulnerability scanning, or Go
 workflow machinery. The language variants live under each standard's
 `languages/go.md` path. Keep every Go test in an external `_test` package and never
 introduce `export_test.go`.

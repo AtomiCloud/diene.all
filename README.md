@@ -7,16 +7,17 @@
 
 Diene's reproducible development environment is managed by Nix. Run `direnv allow` once, then use `task` tasks from the loaded shell.
 
-This repository inherits the all-features workspace baseline: split CI/CD, Docker, secrets, release configuration, validators, standards, and vendored agent-skill synchronization.
+This repository inherits the all-features workspace baseline: split CI/CD, secrets,
+release configuration, validators, standards, and vendored agent-skill
+synchronization.
 
 ## Commands
 
 Run `task --list` for every available task and its description. The task set is
 declared in [`Taskfile.yaml`](Taskfile.yaml), whose `includes:` block maps each
 namespace to a file under [`tasks/`](tasks); a task shown as `<namespace>:<task>`
-is that key in the included file. Build artifacts — Dockerfiles — live under
-[`infra/`](infra) and may be plural, so their tasks are keyed per artifact. See [the Taskfile standard](docs/standards/taskfile/index.md) for the
-conventions.
+is that key in the included file. See [the Taskfile standard](docs/standards/taskfile/index.md)
+for the conventions.
 
 ## Go commands
 

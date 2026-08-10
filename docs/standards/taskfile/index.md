@@ -22,18 +22,14 @@ The root `setup` task owns generated workspace assets. It runs
 writer, `skills-sync sync --tier setup`. Setup is repair-capable; the pre-commit
 and CI tiers refuse rather than silently staging or repairing a commit.
 
-Docker tasks are keyed by the artifact they act on — one task set per
-Dockerfile. See [the Docker standard](../docker/index.md) for that naming
-convention.
-
 ## Rules
 
 1. Keep one- or two-line commands inline in Taskfiles.
 2. Move conditional or multi-step local logic to `scripts/local/`.
 3. Never call `scripts/ci/*` from a Taskfile; workflows own those entry points.
 4. Use lowercase names and colon-separated namespaces.
-5. Put repository-specific image values in Taskfile `vars:` blocks,
-   scoped to the task that uses them rather than shared across artifacts.
+5. Put repository-specific values in Taskfile `vars:` blocks, scoped to the task
+   that uses them rather than shared across tasks.
 6. Do not add progress-only `echo` commands; the runner already displays each
    command.
 

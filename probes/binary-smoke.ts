@@ -53,9 +53,6 @@ git rev-parse --is-inside-work-tree >/dev/null
 gomplate --version >/dev/null
 [ "$(gomplate -i '{{ add 1 1 }}')" != "2" ] && echo "gomplate failed a real template" >&2 && exit 1
 
-hadolint --version >/dev/null
-hadolint infra/Dockerfile
-
 infisical --version >/dev/null
 git -C "$tmp" init -q
 git -C "$tmp" config user.email smoke@example.invalid
@@ -136,10 +133,6 @@ rc=0
 shellcheck "$tmp/shellcheck-finding.sh" >"$tmp/shellcheck-out.txt" 2>&1 || rc=$?
 [ "$rc" = "1" ] || { echo "shellcheck: expected exit 1 (finding), got $rc" >&2; exit 1; }
 rg -q 'SC2086' "$tmp/shellcheck-out.txt" || { echo "shellcheck: exit 1 without the SC2086 finding" >&2; exit 1; }
-
-skopeo --version >/dev/null
-printf '%s\n' '{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{"mediaType":"application/vnd.oci.image.config.v1+json","digest":"sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a","size":2},"layers":[]}' >"$tmp/manifest.json"
-skopeo manifest-digest "$tmp/manifest.json" | rg -q '^sha256:[0-9a-f]{64}$'
 
 task --version >/dev/null
 task --list >/dev/null
