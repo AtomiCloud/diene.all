@@ -1,10 +1,7 @@
-# ### workspace-root
-# #### source: workspace
 version: '3'
 
 includes:
   helm: tasks/Taskfile.helm.yaml
-  secret: tasks/Taskfile.secret.yaml
   example:lapras:
     taskfile: tasks/Taskfile.cluster.yaml
     vars:
@@ -15,19 +12,14 @@ includes:
 
 tasks:
   setup:
-    desc: Set up generated workspace assets
+    desc: Set up the workspace
     cmds:
-      - ./scripts/local/skills-sync.sh
+      - ./scripts/local/setup.sh
 
   lint:
     desc: Run all repository gates
     cmds:
       - pre-commit run --all-files
-
-  skills:sync:
-    desc: Synchronize installed diene package skills
-    cmds:
-      - ./scripts/local/skills-sync.sh
 
   build:
     desc: Build chart dependencies (platinum is config-free; no config vendoring)
