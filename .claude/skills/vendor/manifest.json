@@ -1,21 +1,104 @@
-[
-  "AtomiCloud.Diene.ApiEngine.TestHelper/diene-dotnet-api-engine-usage/SKILL.md",
-  "AtomiCloud.Diene.ApiEngine/diene-dotnet-api-engine-usage/SKILL.md",
-  "AtomiCloud.Diene.AuthEngine.TestHelper/diene-dotnet-auth-engine-usage/SKILL.md",
-  "AtomiCloud.Diene.AuthEngine/diene-dotnet-auth-engine-usage/SKILL.md",
-  "AtomiCloud.Diene.Config.TestHelper/diene-dotnet-config-usage/SKILL.md",
-  "AtomiCloud.Diene.Config/diene-dotnet-config-usage/SKILL.md",
-  "AtomiCloud.Diene.CoreUtils/diene-dotnet-core-utils-usage/SKILL.md",
-  "AtomiCloud.Diene.Interfaces.TestHelper/diene-dotnet-interfaces-usage/SKILL.md",
-  "AtomiCloud.Diene.Interfaces/diene-dotnet-interfaces-usage/SKILL.md",
-  "AtomiCloud.Diene.Otel.TestHelper/diene-dotnet-otel-usage/SKILL.md",
-  "AtomiCloud.Diene.Otel/diene-dotnet-otel-usage/SKILL.md",
-  "AtomiCloud.Diene.Problems.TestHelper/diene-dotnet-problems-usage/SKILL.md",
-  "AtomiCloud.Diene.Problems/diene-dotnet-problems-usage/SKILL.md",
-  "AtomiCloud.Diene.Result.TestHelper/diene-dotnet-result-usage/SKILL.md",
-  "AtomiCloud.Diene.Result/diene-dotnet-result-usage/SKILL.md",
-  "AtomiCloud.Diene.ServerEngine.TestHelper/diene-dotnet-server-engine-usage/SKILL.md",
-  "AtomiCloud.Diene.ServerEngine/diene-dotnet-server-engine-usage/SKILL.md",
-  "AtomiCloud.Diene.StandardConfig.TestHelper/diene-dotnet-standard-config-usage/SKILL.md",
-  "AtomiCloud.Diene.StandardConfig/diene-dotnet-standard-config-usage/SKILL.md"
-]
+{
+  "schemaVersion": 1,
+  "generator": "skills-sync",
+  "runtime": "nuget",
+  "packages": [
+    "AtomiCloud.Diene.ApiEngine",
+    "AtomiCloud.Diene.ApiEngine.TestHelper",
+    "AtomiCloud.Diene.AuthEngine",
+    "AtomiCloud.Diene.AuthEngine.TestHelper",
+    "AtomiCloud.Diene.Config",
+    "AtomiCloud.Diene.Config.TestHelper",
+    "AtomiCloud.Diene.CoreUtils",
+    "AtomiCloud.Diene.Interfaces",
+    "AtomiCloud.Diene.Interfaces.TestHelper",
+    "AtomiCloud.Diene.Otel",
+    "AtomiCloud.Diene.Otel.TestHelper",
+    "AtomiCloud.Diene.Problems",
+    "AtomiCloud.Diene.Problems.TestHelper",
+    "AtomiCloud.Diene.Result",
+    "AtomiCloud.Diene.Result.TestHelper",
+    "AtomiCloud.Diene.ServerEngine",
+    "AtomiCloud.Diene.ServerEngine.TestHelper",
+    "AtomiCloud.Diene.StandardConfig",
+    "AtomiCloud.Diene.StandardConfig.TestHelper"
+  ],
+  "entries": [
+    {
+      "path": "AtomiCloud.Diene.ApiEngine.TestHelper/diene-dotnet-api-engine-usage/SKILL.md",
+      "sha256": "24152810c0690a649573aa11e4a3613020e6147fdcf63edb01cf7bd2c3436621"
+    },
+    {
+      "path": "AtomiCloud.Diene.ApiEngine/diene-dotnet-api-engine-usage/SKILL.md",
+      "sha256": "24152810c0690a649573aa11e4a3613020e6147fdcf63edb01cf7bd2c3436621"
+    },
+    {
+      "path": "AtomiCloud.Diene.AuthEngine.TestHelper/diene-dotnet-auth-engine-usage/SKILL.md",
+      "sha256": "6942240055da583fc3436925b817cbc786b9d9af0566697be4ba392ccfa49cc5"
+    },
+    {
+      "path": "AtomiCloud.Diene.AuthEngine/diene-dotnet-auth-engine-usage/SKILL.md",
+      "sha256": "6942240055da583fc3436925b817cbc786b9d9af0566697be4ba392ccfa49cc5"
+    },
+    {
+      "path": "AtomiCloud.Diene.Config.TestHelper/diene-dotnet-config-usage/SKILL.md",
+      "sha256": "cd319644572e7e1f2aebc4c2da570ad6fdda57528e6e82742cc0581d84a08ac5"
+    },
+    {
+      "path": "AtomiCloud.Diene.Config/diene-dotnet-config-usage/SKILL.md",
+      "sha256": "cd319644572e7e1f2aebc4c2da570ad6fdda57528e6e82742cc0581d84a08ac5"
+    },
+    {
+      "path": "AtomiCloud.Diene.CoreUtils/diene-dotnet-core-utils-usage/SKILL.md",
+      "sha256": "b4a2081ea154b364a8b0120b48276412136e862eec773ba1f2e9f80a08de9910"
+    },
+    {
+      "path": "AtomiCloud.Diene.Interfaces.TestHelper/diene-dotnet-interfaces-usage/SKILL.md",
+      "sha256": "3dbc9ea962abd70c683ac1a4a5965b50b0e3dd92baa4e5aa37d08a270d7938bc"
+    },
+    {
+      "path": "AtomiCloud.Diene.Interfaces/diene-dotnet-interfaces-usage/SKILL.md",
+      "sha256": "3dbc9ea962abd70c683ac1a4a5965b50b0e3dd92baa4e5aa37d08a270d7938bc"
+    },
+    {
+      "path": "AtomiCloud.Diene.Otel.TestHelper/diene-dotnet-otel-usage/SKILL.md",
+      "sha256": "d32a667a34fcd92e786a074f3ecc39f672b3aa5e4238cff9f5f9b4b73cda4c3d"
+    },
+    {
+      "path": "AtomiCloud.Diene.Otel/diene-dotnet-otel-usage/SKILL.md",
+      "sha256": "d32a667a34fcd92e786a074f3ecc39f672b3aa5e4238cff9f5f9b4b73cda4c3d"
+    },
+    {
+      "path": "AtomiCloud.Diene.Problems.TestHelper/diene-dotnet-problems-usage/SKILL.md",
+      "sha256": "2cee031a3129ee71e27ef268962e8d30df6fe34edd887de09e0bbf217b0f4521"
+    },
+    {
+      "path": "AtomiCloud.Diene.Problems/diene-dotnet-problems-usage/SKILL.md",
+      "sha256": "2cee031a3129ee71e27ef268962e8d30df6fe34edd887de09e0bbf217b0f4521"
+    },
+    {
+      "path": "AtomiCloud.Diene.Result.TestHelper/diene-dotnet-result-usage/SKILL.md",
+      "sha256": "c3b1fbd01e08714996faeb2a1101e188ea2032fd925e6289be29aee32e5d9368"
+    },
+    {
+      "path": "AtomiCloud.Diene.Result/diene-dotnet-result-usage/SKILL.md",
+      "sha256": "c3b1fbd01e08714996faeb2a1101e188ea2032fd925e6289be29aee32e5d9368"
+    },
+    {
+      "path": "AtomiCloud.Diene.ServerEngine.TestHelper/diene-dotnet-server-engine-usage/SKILL.md",
+      "sha256": "6163527ecfc6b3ca937e8602c86be4fb728d6b8ac71b4b98a0b3fbf6ca6822e6"
+    },
+    {
+      "path": "AtomiCloud.Diene.ServerEngine/diene-dotnet-server-engine-usage/SKILL.md",
+      "sha256": "6163527ecfc6b3ca937e8602c86be4fb728d6b8ac71b4b98a0b3fbf6ca6822e6"
+    },
+    {
+      "path": "AtomiCloud.Diene.StandardConfig.TestHelper/diene-dotnet-standard-config-usage/SKILL.md",
+      "sha256": "84eedec70ceb023ac4170364bd20d92dd2abdfe0bb88970f9cbc9758229e5837"
+    },
+    {
+      "path": "AtomiCloud.Diene.StandardConfig/diene-dotnet-standard-config-usage/SKILL.md",
+      "sha256": "84eedec70ceb023ac4170364bd20d92dd2abdfe0bb88970f9cbc9758229e5837"
+    }
+  ]
+}
