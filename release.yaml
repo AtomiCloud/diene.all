@@ -22,13 +22,16 @@ types:
   # what the vocabulary should be; when item 19 is settled, settle this file with it.
   #
   # Why the loss was invisible: the two gates that check this file, `Release config
-  # schema` and `Release type vocabulary`, are pinned to `^atomi_release\.yaml$` and
-  # the parent renamed that file to `release.yaml`, so both now match nothing and
-  # report `(no files to check)Skipped` — a clean exit that an aggregate exit code
+  # schema` and `Release type vocabulary`, WERE pinned to `^atomi_release\.yaml$`
+  # while the parent renamed that file to `release.yaml`, so both matched nothing and
+  # reported `(no files to check)Skipped` — a clean exit that an aggregate exit code
   # cannot tell apart from a pass. `.NET release type vocabulary` does match this
   # file, which is why the lost `amend` TYPE below was caught, but it asserts the
-  # type set only and is structurally blind to lost SCOPES. Do not read a green
-  # battery on this file as coverage until those two patterns are repointed.
+  # type set only and is structurally blind to lost SCOPES.
+  #
+  # BOTH PATTERNS ARE NOW REPOINTED to `^release\.yaml$` in `nix/pre-commit.nix`, in the
+  # same commit as this note, so the coverage the rename switched off is back on. That
+  # closes the blind spot; it does not settle item 19.
   #
   # RE-ADDED after the shared@99a297e9 cascade. The parent went from 14 commit types
   # to 13 by dropping `amend`, and that deletion auto-merges CLEANLY into every child:

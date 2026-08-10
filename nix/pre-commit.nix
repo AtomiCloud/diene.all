@@ -206,11 +206,16 @@ in
       language = "system";
     };
 
+    # `files` follows the `atomi_release.yaml` -> `release.yaml` rename this node adopted from its
+    # parent. Both hooks' entry scripts already read `release.yaml`; only these two regexes were
+    # left behind, so the hooks matched ZERO files and reported `(no files to check)Skipped` — a
+    # clean exit an aggregate cannot tell apart from a pass. Repointing restores the coverage the
+    # rename switched off; it does not change what either gate asserts.
     a-release-config = {
       enable = true;
       name = "Release config schema";
       entry = validator "scripts/validate/release-config.sh schema";
-      files = "^atomi_release\\.yaml$";
+      files = "^release\\.yaml$";
       pass_filenames = false;
       language = "system";
     };
@@ -219,7 +224,7 @@ in
       enable = true;
       name = "Release type vocabulary";
       entry = validator "scripts/validate/release-config.sh types";
-      files = "^atomi_release\\.yaml$";
+      files = "^release\\.yaml$";
       pass_filenames = false;
       language = "system";
     };
