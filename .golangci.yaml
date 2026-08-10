@@ -71,6 +71,15 @@ linters:
           disabled: true
   exclusions:
     generated: lax
+    rules:
+      # The publishable seam package is deliberately named "interfaces" to match
+      # the module identity (github.com/AtomiCloud/diene.go-interfaces). Exclude
+      # only that package from revive's package-naming rule; the rule stays
+      # active for every other package.
+      - path: (^|/)lib/interfaces/
+        linters:
+          - revive
+        text: package-naming
 
 issues:
   max-issues-per-linter: 0
