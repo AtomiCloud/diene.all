@@ -1,36 +1,3 @@
-import { expectGreen } from './helpers.ts';
-
-export async function runWithRedis(repo: any, name: string, command: string): Promise<void> {
-  const identity = `slot="\${PWD##*/}"; probe_name="${name}-\${slot}"`;
-
-  await repo.exec(`${identity}; docker rm -f "\${probe_name}" >/dev/null 2>&1 || true`);
-  await expectGreen(
-    repo,
-    `${identity}; docker run -d --rm --name "\${probe_name}" -p 127.0.0.1::6379 redis:8.2.1-alpine`,
-    `${name}-start`,
-  );
-  try {
-    await expectGreen(
-      repo,
-      `${identity}; for attempt in $(seq 1 30); do docker exec "\${probe_name}" redis-cli ping 2>/dev/null | rg -q PONG && exit 0; sleep 1; done; exit 1`,
-      `${name}-ready`,
-      60000,
-    );
-    const result = await repo.exec(
-      `${identity}; probe_port="$(docker port "\${probe_name}" 6379/tcp | tail -n 1 | sed 's/.*://')"; test -n "\${probe_port}"; REDIS_CONNECTION="localhost:\${probe_port}" ${command}`,
-      { timeoutMs: 360000 },
-    );
-    if (result.exitCode !== 0) {
-      throw new Error(`${command} failed: ${result.stderr || result.stdout}`);
-    }
-    if (`${result.stdout}\n${result.stderr}`.trim().length === 0) {
-      throw new Error(`${command} produced no observable App process output`);
-    }
-  } finally {
-    await repo.exec(`${identity}; docker rm -f "\${probe_name}" >/dev/null 2>&1 || true`);
-  }
-}
-
 export async function addSecondUnitProject(repo: any, uncovered: boolean): Promise<void> {
   await repo.write(
     'Lib2/Lib2.csproj',

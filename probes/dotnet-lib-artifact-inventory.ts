@@ -6,7 +6,7 @@ export default defineGate({
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
   baseline: {
     name: 'baseline-dotnet-lib-artifact-inventory-green',
-    description: 'Both lockstep packages and both symbol packages exist at the committed version.',
+    description: 'The package and its symbol package exist at the committed version.',
     async run(repo: any) {
       await packPackages(repo, 'dotnet-lib-artifact-inventory-pack');
       await expectGreen(
@@ -23,7 +23,7 @@ export default defineGate({
     async run(repo: any) {
       await packPackages(repo, 'dotnet-lib-artifact-inventory-mutation-pack');
       await repo.exec(
-        'rm "$(find artifacts/package -maxdepth 1 -name \'AtomiCloud.Diene.Note.TestHelper.*.snupkg\' -print -quit)"',
+        'rm "$(find artifacts/package -maxdepth 1 -name \'AtomiCloud.Diene.CoreUtils.*.snupkg\' -print -quit)"',
       );
       await expectRed(
         repo,

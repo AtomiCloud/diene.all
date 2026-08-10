@@ -5,7 +5,7 @@ export default defineSmoke({
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
   baseline: {
     name: 'baseline-dotnet-lib-scratch-consumption-green',
-    description: 'A scratch .NET 10 project restores and compiles against both package ids.',
+    description: 'A scratch .NET 10 project restores and compiles against the published package id.',
     async run(repo: any) {
       await expectGreen(
         repo,

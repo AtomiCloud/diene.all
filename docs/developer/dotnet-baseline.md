@@ -19,9 +19,9 @@ shared workspace, standards, secret, and release surfaces.
 | `task dev`                         | Run the App through `dotnet watch`.                            |
 | `task run -- <args>`               | Run the App in development mode.                               |
 | `task preview -- <args>`           | Build and run the compiled Release artifact.                   |
-| `task up` / `task down`            | Start or stop the local Redis dependency.                      |
-| `task test`                        | Run unit and integration tiers.                                |
+| `task test`                        | Run every test tier.                                           |
 | `task test:unit` / `task test:int` | Run one tier.                                                  |
+| `task test:coverage`               | Enforce every merged coverage ledger.                          |
 | `task test:unit:coverage`          | Enforce the merged unit coverage ledger.                       |
 | `task test:int:coverage`           | Enforce the merged integration coverage ledger.                |
 | `task test:unit:watch`             | Watch the fast unit tier.                                      |
@@ -36,7 +36,8 @@ registered projects, merges Coverlet JSON, and enforces one final threshold per
 tier:
 
 - unit: every `[Lib*]*` assembly at 100%;
-- integration: every `[App*]*` assembly at 80%.
+- integration: every `[App*]*` assembly at 80% — here, the host-dependent parts
+  of the wire contract.
 
 The runner then parses the merged `coverage.cobertura.xml` with `xmlstarlet`: it
 rejects a report that measured zero lines, rejects any package whose assembly name
@@ -81,9 +82,9 @@ which `Directory.Build.props` applies to every project; its canonical
 ## Template-maintenance boundary
 
 Downstream nodes may adapt package/artifact identity, coverage thresholds,
-badges, and the illustrative Note source/tests. Keep
-`dotnet-base.slnx`, `.config/dotnet-base.test.yaml`, and the
-`AtomiCloud.DotnetBase.*` root namespaces base-named for merge stability.
+badges, and product source/tests. Keep `dotnet-base.slnx`,
+`.config/dotnet-base.test.yaml`, and the project filenames base-named for merge
+stability.
 
 Observability is deliberately absent on this branch and arrives only through the
 separate observability add-back.

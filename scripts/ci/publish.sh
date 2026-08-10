@@ -25,4 +25,4 @@ for package in "${artifacts}"/*.snupkg; do
   dotnet nuget push "${package}" --api-key "${NUGET_API_KEY}" --source https://api.nuget.org/v3/index.json --skip-duplicate
 done
 
-echo "✅ Published both NuGet packages and symbol packages at ${version}"
+echo "✅ Published the NuGet package and symbol package at ${version}"

@@ -1,13 +1,18 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <RootNamespace>AtomiCloud.Diene.Note</RootNamespace>
-    <AssemblyName>AtomiCloud.Diene.Note</AssemblyName>
-    <PackageId>AtomiCloud.Diene.Note</PackageId>
-    <Description>An illustrative note-domain library and the Diene .NET library template.</Description>
+    <RootNamespace>AtomiCloud.Diene.CoreUtils</RootNamespace>
+    <AssemblyName>AtomiCloud.Diene.CoreUtils</AssemblyName>
+    <PackageId>AtomiCloud.Diene.CoreUtils</PackageId>
+    <Description>C0-conformant wire codecs, slug and namespaced-key helpers, and separator-insensitive key normalization for the Diene .NET family.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IsPackable>true</IsPackable>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AtomiCloud.Diene.Interfaces" />
+    <PackageReference Include="AtomiCloud.Diene.Result" />
+  </ItemGroup>
 
   <ItemGroup>
     <None Include="../LICENSE" Pack="true" PackagePath="/" />

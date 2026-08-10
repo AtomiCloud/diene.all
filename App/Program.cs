@@ -1,32 +1,44 @@
-using AtomiCloud.DotnetBase.App.Adapters.Redis;
-using AtomiCloud.Diene.Note;
-using StackExchange.Redis;
+namespace AtomiCloud.Diene.CoreUtils.App;
 
-namespace AtomiCloud.DotnetBase.App;
-
-/// <summary>Composition root: explicit wiring of domain interfaces to concrete adapters.</summary>
+/// <summary>Composition root: the demo round trip a consuming service reproduces.</summary>
 public static class Program
 {
-    public static async Task Main()
+    public static int Main()
     {
-        var connectionString = Environment.GetEnvironmentVariable("REDIS_CONNECTION");
-        if (string.IsNullOrWhiteSpace(connectionString)) connectionString = "localhost:6379";
+        // ── Demo wiring (illustrative sample) — replace this block with your domain ──
+        var built = Samples.Sample();
+        if (built.IsFailure(out var buildError)) return Reject(buildError);
 
-        // ── Domain wiring (illustrative sample) — replace this block with your domain ──
-        INoteSummariser summariser = new NoteSummariser();
-        await using var redis = await ConnectionMultiplexer.ConnectAsync(connectionString);
-        INoteRepository notes = new RedisNoteRepository(redis);
+        var receipt = built.Get();
+        var wire = Samples.ToWire(receipt);
 
-        var saved = await notes.Save(new NoteRecord
-        {
-            Title = "Welcome",
-            Body = "The first note stored through the Redis adapter.",
-        });
-        var found = await notes.Find(saved.Id);
+        var restored = Samples.FromWire(wire);
+        if (restored.IsFailure(out var decodeError)) return Reject(decodeError);
 
-        Console.WriteLine(found is null
-            ? $"Note {saved.Id} could not be read back."
-            : summariser.Summarise(found.Record, 80));
-        // ── End domain wiring ──
+        var telemetry = Samples.Telemetry(receipt);
+        if (telemetry.IsFailure(out var attributeError)) return Reject(attributeError);
+
+        // The emitting service spelled it "tracking_number"; ask for it in Pascal.
+        var tracking = Samples.Lookup(telemetry.Get(), "TrackingNumber");
+        if (tracking.IsFailure(out var lookupError)) return Reject(lookupError);
+
+        var matched = restored.Get() == receipt;
+        Console.WriteLine(wire);
+        Console.WriteLine($"tracking attribute resolved across spellings: {tracking.Get().Wire}");
+        Console.WriteLine($"Success: core-utils round trip {(matched ? "matched" : "drifted")}");
+        return matched ? 0 : 1;
+        // ── End demo wiring ──
+    }
+
+    private static int Reject(WireFormatError error)
+    {
+        Console.Error.WriteLine($"Failure: expected {error.Expected}, received {error.Actual}");
+        return 1;
+    }
+
+    private static int Reject(KeyError error)
+    {
+        Console.Error.WriteLine($"Failure: {error.Reason} (offending: {error.Offending})");
+        return 1;
     }
 }
