@@ -105,7 +105,7 @@ pre-commit-lib.run {
       enable = true;
       name = "Markdown lint";
       entry = "${pkgs.markdownlint-cli2}/bin/markdownlint-cli2";
-      files = "^(CLAUDE\\.md|README\\.md|docs/standards/.*\\.md|\\.claude/skills/[^/]+/SKILL\\.md)$";
+      files = "^(CLAUDE\\.md|README\\.md|docs/standards/.*\\.md|observability/.*\\.md|probes/observability-.*\\.md|\\.claude/skills/[^/]+/SKILL\\.md|\\.claude/skills/(grafana-alert|grafana-alert-set|grafana-dashboards|grafana-runbook|observability-check)/.*\\.md)$";
       pass_filenames = true;
       language = "system";
     };
@@ -172,6 +172,17 @@ pre-commit-lib.run {
       name = "TypeScript typecheck";
       entry = "${bun-tool "tsc"} --noEmit";
       files = "(^package\\.json$|^tsconfig\\.json$|\\.(ts|tsx|mts|cts)$)";
+      pass_filenames = false;
+      language = "system";
+    };
+
+    # ### shared-hooks
+    # #### source: shared
+    a-claude-links = {
+      enable = true;
+      name = "CLAUDE link integrity";
+      entry = "${pkgs.coreutils}/bin/env SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt ${pkgs.lychee}/bin/lychee --offline --no-progress CLAUDE.md";
+      files = "^(CLAUDE\\.md|docs/standards/.*\\.md)$";
       pass_filenames = false;
       language = "system";
     };
