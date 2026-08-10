@@ -147,8 +147,6 @@ fi
 # An exclusion is two claims — this is excluded AND nothing else is. Checking only
 # the first is how a narrow exclusion silently becomes a broad one.
 #
-# ### lib-dart-e2e-must-exclude
-# #### source: lib/dart/e2e
 #
 # THIS LIST IS THIS NODE'S OWN VALUE. Inherited from api-engine it named
 # test/unit/bridge_test.dart, openapi/service.openapi.yaml and

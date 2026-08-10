@@ -33,24 +33,31 @@ PACKAGE_ROOT="${fixture}" bash "${root_dir}/scripts/release/bump.sh" v9.8.7
 [[ $(yq -r '.version' "${fixture}/${member_pubspec}") != "9.8.7" ]] && echo "❌ release bump did not stamp member pubspec.yaml" >&2 && exit 1
 [[ $(tr -d '[:space:]' <"${fixture}/VERSION") != "9.8.7" ]] && echo "❌ release bump did not stamp VERSION" >&2 && exit 1
 
-# semantic-release must carry the member changelog and manifest as commit assets.
-rg -q 'packages/diene_e2e/CHANGELOG.md' atomi_release.yaml || {
-  echo "❌ packages/diene_e2e/CHANGELOG.md is absent from semantic-release assets" >&2
+# The release config must carry the member changelog and manifest as commit assets.
+#
+# SCHEMA v2 THROUGHOUT. The parent renamed atomi_release.yaml to release.yaml AND
+# replaced the semantic-release plugin list with native release.* keys, so every
+# `.plugins[] | select(.module == ...)` query below would have returned null
+# against the new file — and `// ""` would have turned each of those nulls into a
+# clean empty string, i.e. an assertion that silently stops asserting. Neither
+# side of the merge conflicted here, because both carried the same stale text.
+rg -q 'packages/diene_e2e/CHANGELOG.md' release.yaml || {
+  echo "❌ packages/diene_e2e/CHANGELOG.md is absent from release.commit.assets" >&2
   exit 1
 }
-rg -q 'packages/diene_e2e/pubspec.yaml' atomi_release.yaml || {
-  echo "❌ packages/diene_e2e/pubspec.yaml is absent from semantic-release assets" >&2
+rg -q 'packages/diene_e2e/pubspec.yaml' release.yaml || {
+  echo "❌ packages/diene_e2e/pubspec.yaml is absent from release.commit.assets" >&2
   exit 1
 }
 
 # R-E33: the generated changelog must land BELOW the file's own heading, and the
-# release must hand the git plugin formatter-clean bytes. Both are configuration,
+# release must hand the commit step formatter-clean bytes. Both are configuration,
 # so they are asserted here on printed VALUES instead of on a release run.
-changelog_file="$(yq -r '.plugins[] | select(.module == "@semantic-release/changelog") | .config.changelogFile // ""' atomi_release.yaml)"
-changelog_title="$(yq -r '.plugins[] | select(.module == "@semantic-release/changelog") | .config.changelogTitle // ""' atomi_release.yaml)"
-[[ -z ${changelog_file} ]] && echo "❌ the changelog plugin declares no changelogFile" >&2 && exit 1
+changelog_file="$(yq -r '.release.changelog.path // ""' release.yaml)"
+changelog_title="$(yq -r '.release.changelog.title // ""' release.yaml)"
+[[ -z ${changelog_file} ]] && echo "❌ release.changelog.path is not declared" >&2 && exit 1
 [[ ! -f ${changelog_file} ]] && echo "❌ changelog '${changelog_file}' does not exist" >&2 && exit 1
-[[ -z ${changelog_title} ]] && echo "❌ the changelog plugin declares no changelogTitle, so every generated entry would be prepended ABOVE the changelog heading" >&2 && exit 1
+[[ -z ${changelog_title} ]] && echo "❌ release.changelog.title is not declared, so every generated entry would be prepended ABOVE the changelog heading" >&2 && exit 1
 
 # @semantic-release/changelog reuses the title only when the file literally starts
 # with it, and silently duplicates it otherwise, so compare the exact leading bytes.
@@ -62,16 +69,27 @@ cmp -s "${fixture}/changelog-title" "${fixture}/changelog-head" || {
   exit 1
 }
 
-# The exec prepare step must format the generated entry before the git plugin
-# commits it; the plugin chain runs exec after changelog and before git.
-prepare_cmd="$(yq -r '.plugins[] | select(.module == "@semantic-release/exec") | .config.prepareCmd // ""' atomi_release.yaml)"
-[[ ${prepare_cmd} != *"./scripts/release/format-changelog.sh"* ]] && echo "❌ the exec prepareCmd does not run ./scripts/release/format-changelog.sh" >&2 && exit 1
+# The prepare hooks must format the generated entry before the commit step runs;
+# release.hooks.prepare executes after the changelog is written and before assets
+# are committed. Asserted as a joined list because the v2 schema takes an ordered
+# sequence of commands where the v1 schema took one `prepareCmd` string.
+prepare_cmd="$(yq -r '[.release.hooks.prepare // [] | .[]] | join(" && ")' release.yaml)"
+[[ ${prepare_cmd} != *"./scripts/release/format-changelog.sh"* ]] && echo "❌ release.hooks.prepare does not run ./scripts/release/format-changelog.sh" >&2 && exit 1
+[[ ${prepare_cmd} != *"./scripts/release/bump.sh"* ]] && echo "❌ release.hooks.prepare does not run ./scripts/release/bump.sh, so VERSION and the member pubspec would be committed unstamped" >&2 && exit 1
 [[ ! -x scripts/release/format-changelog.sh ]] && echo "❌ scripts/release/format-changelog.sh is missing or not executable" >&2 && exit 1
 
-# The .gitlint conventional-commit vocabulary must match the release types.
-release_types="$(yq -r '[.types[].type] | join(",")' atomi_release.yaml)"
-gitlint_types="$(sed -n 's/^types = //p' .gitlint)"
-[[ ${release_types} != "${gitlint_types}" ]] && echo "❌ .gitlint types do not match atomi_release.yaml" >&2 && exit 1
+# The commit-message vocabulary must come from release.yaml and nowhere else.
+# gitlint is RETIRED on this node: the binary is gone from nix/packages.nix and
+# nix/env.nix, `releaser lint-commit -c release.yaml` owns commit-message
+# validation via the a-releaser-commit hook, and docs/standards/semantic-release
+# states there is no standalone .gitlint file and one must not be added. The old
+# assertion compared release types against `.gitlint`; keeping it would have been
+# a check against a file the merge deletes. It is replaced — not dropped — by an
+# assertion that the retirement actually holds, so a reintroduced .gitlint is
+# caught rather than silently tolerated.
+release_types="$(yq -r '[.types[].type] | join(",")' release.yaml)"
+[[ -z ${release_types} ]] && echo "❌ release.yaml declares no commit types" >&2 && exit 1
+[[ -e .gitlint ]] && echo "❌ .gitlint exists; release.yaml is the only commit vocabulary and gitlint is retired" >&2 && exit 1
 
-echo "✅ changelog title agrees with ${changelog_file} over its first ${title_bytes} bytes; prepareCmd formats it before the git plugin commits"
-echo "✅ release stamping, manifest/tag positive + negative paths, assets, and gitlint vocabulary conform"
+echo "✅ changelog title agrees with ${changelog_file} over its first ${title_bytes} bytes; prepare hooks format it before the commit step"
+echo "✅ release stamping, manifest/tag positive + negative paths, assets, and the single-source commit vocabulary (${release_types}) conform"

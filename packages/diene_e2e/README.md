@@ -45,8 +45,8 @@ own domain, and re-points the barrel exports. See
 
 ## Development
 
-- `pls setup` resolves the workspace dependencies.
-- `pls test` runs the unit, C0 conformance, and TestHelper meta suites.
-- `pls test:coverage` enforces the separate unit and meta ledgers.
-- `pls deadcode` runs the repository and production-only dead-code passes.
-- `pls package:validate` runs the release guard, publish dry-run, and pana.
+- `task setup` resolves the workspace dependencies.
+- `task test` runs the unit, C0 conformance, and TestHelper meta suites.
+- `task test:coverage` enforces the separate unit and meta ledgers.
+- `task deadcode` runs the repository and production-only dead-code passes.
+- `task package:validate` runs the release guard, publish dry-run, and pana.

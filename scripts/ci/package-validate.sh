@@ -7,8 +7,6 @@ cd "${root_dir}"
 ./scripts/ci/setup.sh
 ./scripts/validate/dart-package.sh
 ./scripts/validate/release-policy.sh
-# ### lib-dart-e2e-package-validate
-# #### source: lib/dart/e2e
 # Archive completeness. The dry-run below cannot catch an over-broad .pubignore
 # pattern, because the dry-run validates the WORKING TREE while the omission
 # exists only in the ARCHIVE — that is exactly how both published
@@ -25,18 +23,27 @@ cd "${root_dir}"
 # tree would have been a permanent red that teaches readers to ignore the gate.
 ./scripts/validate/c0-fixture-provenance.sh
 
-# pub.dev dry-run and pana score run against the publishable member.
+# Build the publish archive and run the hermetic Pana categories against the
+# publishable member. Full `pub publish --dry-run` always refreshes the advisory
+# database; `--skip-validation` deliberately limits this step to the offline-safe
+# archive build while the repository validators and Pana retain semantic
+# coverage.
+#
+# The binary is `flutter`, not the parent's `dart`: this member declares a
+# flutter SDK constraint, so `dart pub` refuses the manifest outright. The
+# parent's behavioural improvement is adopted; its toolchain is not.
 cd "${root_dir}/packages/diene_e2e"
 
-echo "📦 Running pub.dev publish dry-run..."
-flutter pub publish --dry-run
+echo "📦 Building pub.dev dry-run archive..."
+flutter pub publish --dry-run --skip-validation
 
-echo "📊 Running pana package analysis..."
-pana_args=(--exit-code-threshold 0)
+echo "📚 Generating Dart API documentation..."
+dart doc --dry-run
+
+echo "📊 Running hermetic pana package analysis..."
+pana_args=(--no-dartdoc --exit-code-threshold 0)
 [[ -n ${PUB_HOSTED_URL:-} ]] && pana_args+=(--hosted-url "${PUB_HOSTED_URL}")
 
-# ### lib-dart-e2e-pana-flutter-sdk
-# #### source: lib/dart/e2e
 # pana must be TOLD where the Flutter SDK is. It shells out to `dart pub` to
 # resolve the package under analysis, and for a Flutter package that fails with
 # "Because diene_e2e requires the Flutter SDK, version solving failed"

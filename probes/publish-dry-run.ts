@@ -1,7 +1,10 @@
 import { expectGreen } from './lib/helpers.ts';
 
-// Smoke: `flutter pub publish --dry-run` completes cleanly, proving the package is
-// packable and passes pub.dev's pre-publish validation.
+// Smoke: the offline-safe archive-builder mode completes cleanly, proving the
+// package is packable without advisory or pub.dev network access. Repository
+// validators and the hermetic Pana gate own semantic validation separately.
+// The binary stays `flutter`, not `dart` -- this member declares a flutter
+// SDK constraint, so `dart pub` refuses the manifest outright.
 export default {
   contractVersion: 1,
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
@@ -13,12 +16,12 @@ export default {
   probes: [
     {
       name: 'baseline-publish-dry-run-green',
-      description: 'flutter pub publish --dry-run succeeds on the pristine template',
+      description: 'flutter pub publish builds the dry-run archive without remote validation',
       kind: 'baseline',
       async run(repo: any) {
         await expectGreen(
           repo,
-          "nix develop .#ci --no-write-lock-file -c bash -lc 'cd packages/diene_e2e && flutter pub publish --dry-run'",
+          "nix develop .#ci --no-write-lock-file -c bash -lc 'cd packages/diene_e2e && flutter pub publish --dry-run --skip-validation'",
           'publish-dry-run',
         );
       },

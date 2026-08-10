@@ -71,6 +71,11 @@
   },
   {
     "template": "diene/workspace",
+    "name": "skills-sync",
+    "class": "gate"
+  },
+  {
+    "template": "diene/workspace",
     "name": "hook-shellcheck",
     "class": "gate"
   },
@@ -101,38 +106,8 @@
   },
   {
     "template": "diene/workspace",
-    "name": "secret-guards",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "secret-scan-command",
+    "name": "secret-login-guard",
     "class": "smoke"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "skills-vendor-directory",
-    "class": "presence"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "skills-sync",
-    "class": "smoke"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "skills-freshness",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "release-config-schema",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "release-type-vocabulary",
-    "class": "gate"
   },
   {
     "template": "diene/workspace",
@@ -142,16 +117,6 @@
   {
     "template": "diene/workspace",
     "name": "release-workflow-concurrency",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "workflow-names",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "nixpkgs-pin",
     "class": "gate"
   },
   {
@@ -166,39 +131,18 @@
   },
   {
     "template": "diene/workspace",
-    "name": "cache-tag-shape",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "many-owner-schema",
-    "class": "gate"
-  },
-  {
-    "template": "diene/workspace",
-    "name": "releaser-hook-registration",
-    "class": "presence",
-    "deferredUntil": "tools/releaser step 2p publish"
-  },
-  {
-    "template": "diene/workspace",
     "name": "probe-artifacts",
     "class": "presence"
   },
   {
-    "template": "diene/shared",
-    "name": "claude-link-integrity",
+    "template": "diene/workspace",
+    "name": "releaser-hook-registration",
+    "class": "presence"
+  },
+  {
+    "template": "diene/workspace",
+    "name": "hook-releaser-commit",
     "class": "gate"
-  },
-  {
-    "template": "diene/shared",
-    "name": "standards-inventory",
-    "class": "presence"
-  },
-  {
-    "template": "diene/shared",
-    "name": "thin-skills",
-    "class": "presence"
   },
   {
     "template": "diene/shared",
@@ -211,133 +155,13 @@
     "class": "gate"
   },
   {
-    "template": "diene/dart-lib",
-    "name": "dart-format",
-    "class": "gate"
-  },
-  {
-    "template": "diene/dart-lib",
-    "name": "dart-analyze",
-    "class": "gate"
-  },
-  {
-    "template": "diene/dart-lib",
-    "name": "unit-tests",
-    "class": "gate"
-  },
-  {
-    "template": "diene/dart-lib",
-    "name": "c0-fixture-harness",
-    "class": "gate"
-  },
-  {
-    "template": "diene/dart-lib",
-    "name": "unit-coverage-ledger",
-    "class": "gate"
-  },
-  {
-    "template": "diene/dart-lib",
-    "name": "testhelper-meta-contract",
-    "class": "gate"
-  },
-  {
-    "template": "diene/dart-lib",
-    "name": "testhelper-meta-coverage-ledger",
-    "class": "gate"
-  },
-  {
-    "template": "diene/dart-lib",
-    "name": "conditional-meta-activation",
-    "class": "gate"
-  },
-  {
-    "template": "diene/dart-lib",
-    "name": "deadcode-whole-package",
-    "class": "gate"
-  },
-  {
-    "template": "diene/dart-lib",
-    "name": "deadcode-production-only",
-    "class": "gate"
-  },
-  {
-    "template": "diene/dart-lib",
-    "name": "pub-workspace-metadata-validator",
-    "class": "gate"
-  },
-  {
-    "template": "diene/dart-lib",
-    "name": "publish-archive-contents",
-    "class": "gate"
-  },
-  {
-    "template": "diene/dart-lib",
-    "name": "pana-score",
-    "class": "gate"
-  },
-  {
-    "template": "diene/dart-lib",
-    "name": "publish-version-guard",
-    "class": "gate"
-  },
-  {
-    "template": "diene/dart-lib",
-    "name": "publish-tag-policy",
-    "class": "gate"
-  },
-  {
-    "template": "diene/dart-lib",
-    "name": "automated-publishing-credential-policy",
-    "class": "gate"
-  },
-  {
-    "template": "diene/dart-lib",
-    "name": "publish-command-policy",
-    "class": "gate"
-  },
-  {
-    "template": "diene/dart-lib",
-    "name": "package-validate-workflow-wiring",
-    "class": "gate"
-  },
-  {
-    "template": "diene/dart-lib",
-    "name": "publish-workflow-wiring",
-    "class": "gate"
-  },
-  {
-    "template": "diene/dart-lib",
-    "name": "dart-tool-inventory",
-    "class": "smoke"
-  },
-  {
-    "template": "diene/dart-lib",
-    "name": "pub-workspace-resolution",
-    "class": "smoke"
-  },
-  {
-    "template": "diene/dart-lib",
-    "name": "sample-execution-consumption",
-    "class": "smoke"
-  },
-  {
-    "template": "diene/dart-lib",
-    "name": "publish-dry-run",
-    "class": "smoke"
-  },
-  {
-    "template": "diene/dart-lib",
-    "name": "usage-skill",
+    "template": "diene/shared",
+    "name": "standards-inventory",
     "class": "presence"
   },
   {
-    "template": "diene/dart-lib",
-    "name": "codecov-configuration",
-    "class": "presence"
-  },
-  {
-    "template": "diene/dart-lib",
-    "name": "probe-inventory",
+    "template": "diene/shared",
+    "name": "thin-skills",
     "class": "presence"
   }
 ]

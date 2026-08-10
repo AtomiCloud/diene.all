@@ -123,8 +123,6 @@ awk -v inc="${include}" -v exc="${exclude}" '
   keep { print }
 ' "${all_ledger}" >"${ledger}"
 
-# ### lib-dart-e2e-partition-totality
-# #### source: lib/dart/e2e
 #
 # ASSERT THE PARTITION IS TOTAL. The comment above CLAIMS that every lib/ source
 # lands in exactly one ledger; a claim in a comment is not a gate. This proves it
@@ -156,8 +154,6 @@ fi
 
 rm -f "${all_ledger}"
 
-# ### lib-dart-e2e-coverage-floor
-# #### source: lib/dart/e2e
 #
 # THIS NODE'S UNIT FLOOR IS A TRUE 100%, and that is a MEASUREMENT, not an
 # aspiration. The inherited value was api-engine's 571/577 — its measured

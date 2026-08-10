@@ -6,9 +6,15 @@
     pre-commit-hooks.url = "github:cachix/pre-commit-hooks.nix";
 
     # registry
-    nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
-    nixpkgs-2605.url = "github:NixOS/nixpkgs/4382ed2b7a6839d4280a9b386db49cbc5907414d";
-    atomipkgs.url = "github:AtomiCloud/nix-registry/v3";
+    #
+    # nixpkgs inputs pin exact commits;
+    # atomipkgs deliberately floats on the v5 major line.
+
+    # nixos-unstable @ 2026-08-06
+    nixpkgs-unstable.url = "github:NixOS/nixpkgs/b7c2ada94fe99c15b0dbcf4d11fd7850b957a436";
+    # nixos-26.05 (Yarara) @ 2026-08-06
+    nixpkgs-2605.url = "github:NixOS/nixpkgs/445d861c6d31b4af0c79d8d4be2331f762a361d7";
+    atomipkgs.url = "github:AtomiCloud/nix-registry/v5";
   };
   outputs =
     {
@@ -43,28 +49,46 @@
             pkgs
             pre-commit-lib
             formatter
+            env
             ;
+        };
+        pre-commit-offline = import ./nix/pre-commit.nix {
+          inherit
+            packages
+            pkgs
+            pre-commit-lib
+            formatter
+            env
+            ;
+          offline = true;
         };
         formatter = import ./nix/fmt.nix {
           inherit treefmt-nix pkgs;
         };
         packages = import ./nix/packages.nix {
-          inherit
-            pkgs
-            pkgs-2605
-            pkgs-unstable
-            atomi
-            ;
+          inherit pkgs-2605 pkgs-unstable atomi;
         };
         env = import ./nix/env.nix {
           inherit pkgs packages;
         };
         devShells = import ./nix/shells.nix {
           inherit pkgs env packages;
-          shellHook = checks.pre-commit-check.shellHook;
+          shellHook = pre-commit.shellHook;
         };
         checks = {
+          # ONLINE, restored: this node bound `pre-commit-check = pre-commit`
+          # before the merge and binds it again after. The parent's
+          # `pre-commit-offline` binding disables `a-dart-analyze`,
+          # `a-dart-test` and `a-dart-package` via `enable = !offline`, so a
+          # green from it is a green from a battery that never ran the three
+          # hooks that actually exercise this package. Taking the parent's
+          # binding here would have been a silent clean-merge loss: flake.nix
+          # did not conflict.
           pre-commit-check = pre-commit;
+          # Kept from the parent so the offline variant is still reachable by
+          # name for anyone who deliberately wants it; it is simply not what
+          # `pre-commit-check` resolves to.
+          pre-commit-check-offline = pre-commit-offline;
           format = formatter;
         };
       };

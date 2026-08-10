@@ -1,21 +1,12 @@
 { pkgs, packages }:
 with packages;
 {
-  # ### workspace-dev
-  # #### source: workspace
   dev = [
+    dart
     git
     go-task
     infisical
-    jq
-    pls
-    sg
-    skopeo
-    # ### dart-lib-dev
-    # #### source: dart-lib
-    dart
-    # ### lib-dart-e2e-dev
-    # #### source: lib/dart/e2e
+    releaser
     # FORK, not inheritance: diene_e2e is the family VERSION TRAIN, so it depends
     # on every member — including diene_auth_engine and diene_api_engine, which
     # both declare `flutter: '>=3.24.0'`. Measured, not reasoned: `dart pub get`
@@ -24,49 +15,30 @@ with packages;
     # inherited dart-only shell fails with "command 'flutter' not found on PATH".
     # So this node's resolve/test/publish gates need `flutter`, not just
     # `flutter.dart`. Same fork api-engine and auth-engine each documented.
+    #
+    # Both `dart` and `flutter` in one list is fine: these are mkShell inputs,
+    # where later entries shadow earlier ones, so flutter's bundled `dart` wins
+    # on PATH exactly as it did pre-merge.
     flutter
   ];
 
-  # ### workspace-lint
-  # #### source: workspace
   lint = [
     actionlint
+    dlint
     infralint
-    kubeconform
-    kubernetes-helm
-    kyverno
     pre-commit
-    ripgrep
     shellcheck
+    skills-sync
     treefmt
-    yq-go
-    # ### dart-lib-lint
-    # #### source: dart-lib
-    gitlint
   ];
 
-  # ### workspace-main
-  # #### source: workspace
   main = [
     cyanprint
-    docker-client
+    dart
     git
     go-task
     infisical
-    jq
-    kubeconform
-    kubernetes-helm
-    kyverno
-    pls
-    ripgrep
     shellcheck
-    skopeo
-    yq-go
-    # ### dart-lib-main
-    # #### source: dart-lib
-    dart
-    # ### lib-dart-e2e-main
-    # #### source: lib/dart/e2e
     # `main` is the only group present in ALL FOUR shells (cd/ci/default/
     # releaser). The pre-commit hooks that run `flutter test` execute in
     # `.#default` while the CI gates run in `.#ci`, so flutter must be here,
@@ -75,17 +47,13 @@ with packages;
     flutter
   ];
 
-  # ### workspace-releaser-bootstrap
-  # #### source: workspace
-  # C2: sg is retained only until tools/releaser is published at step 2p.
   releaser = [
-    sg
+    releaser
   ];
 
-  # ### nix-root-system
-  # #### source: main
   system = [
     atomiutils
     infrautils
+    nix
   ];
 }
