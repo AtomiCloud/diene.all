@@ -1,13 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <RootNamespace>AtomiCloud.Diene.Interfaces.App</RootNamespace>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
-
   <ItemGroup>
     <ProjectReference Include="../Lib/Lib.csproj" />
   </ItemGroup>
-
 </Project>

@@ -137,9 +137,28 @@ public static class AuthRoles
 
 Named policies are configuration-driven combinations of a claim field, an
 `Any`/`All` operator, and target values. The JWT scheme validates issuer, audience,
-signature, and lifetime before any guard reads claims. Every platform uses its own
-configured lithium issuer; the authorization pattern does not assume a shared user
-pool.
+signature, and lifetime before any guard reads claims.
+
+### Identity Topology
+
+Issuer and audience are not configured per platform. The topology is landscape-wide:
+
+- **One issuer and one user pool per landscape.** Every service deployed into a
+  landscape validates tokens against that landscape's single Logto issuer. A
+  subject is the same subject across every service in the landscape, so services
+  do not each own a private user pool.
+- **Audiences separate services, issuers do not.** Each service validates its own
+  audience value and rejects a token minted for a sibling service, even though
+  both tokens carry the same issuer. Scoping a service means adding an audience,
+  never adding an issuer.
+- **Garden is instance-local.** A Garden instance runs its own Logto, so its
+  issuer is that instance's own and is resolved from the instance's configuration
+  rather than from landscape configuration. It is never a shared landscape issuer,
+  and tokens do not cross between a Garden instance and a landscape.
+
+Configuration therefore supplies one issuer per landscape (or the instance-local
+issuer under Garden) plus the per-service audience. Treating the issuer as a
+per-platform value binds validation to the wrong identity topology.
 
 ### Service: Pass Through
 

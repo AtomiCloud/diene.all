@@ -126,13 +126,33 @@ Mappers are pure functions that translate models between layers.
 **Data Mapper:** Domain ↔ Storage
 
 - `data.ToDomain()` — storage format → domain format
-- `domain.ToData()` — domain format → storage format (mutation for ORM compatibility)
+- `domain.ToData()` — domain format → storage format, **returning a new storage model**
 
 **Mapper Rules:**
 
 1. **Composable** — Higher-level mappers reuse lower-level mappers
 2. **SRP grouping** — Update requests target records grouped by update rate
-3. **Mutation for ToData** — Mutates existing data model (preserves ID/PK)
+3. **`ToData` returns a new value** — like every other mapper, it takes input and
+   returns output. It does not mutate the model it was handed.
+
+### Updates Preserve Identity Without Mutating
+
+The reason `ToData` was once described as mutating is real: an update must not
+invent a new primary key, and some ORMs track changes on the instance they loaded.
+Neither requires mutating an input.
+
+- **Identity is carried, not regenerated.** `ToData` copies the existing ID/PK onto
+  the new storage model it returns. Preserving identity is a property of the value
+  produced, not of who was mutated to produce it.
+- **Where an ORM insists on writing through a tracked instance**, that assignment is
+  the _persistence adapter's_ job, in the data layer: the adapter takes the new
+  storage model `ToData` returned and applies it to the tracked entity. The mapper
+  stays pure, and the mutation is confined to the one place the ORM actually
+  requires it — never in domain or API code.
+
+This keeps the standard consistent with the absolute rule in
+[functional practices](../functional-practices/index.md): never mutate inputs, always
+return new values. There is no mapper-level exception to that rule.
 
 ---
 

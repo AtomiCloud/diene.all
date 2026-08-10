@@ -2,8 +2,8 @@
 #### source: main
 .direnv/
 .pre-commit-config.yaml
-result
-result-*
+/result
+/result-*
 
 ### workspace
 #### source: workspace

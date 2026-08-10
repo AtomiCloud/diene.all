@@ -10,7 +10,7 @@ export default {
         'The host-backed seam adapters satisfy the shipped contract suites and the source-owned C0 fixture round-trips.',
       kind: 'baseline',
       async run(repo: any) {
-        await expectGreen(repo, 'nix develop .#ci -c pls test:int', 'dotnet-integration-tests', 600000);
+        await expectGreen(repo, 'nix develop .#ci -c task test:int', 'dotnet-integration-tests', 600000);
       },
     },
     {
@@ -23,7 +23,7 @@ export default {
           find: '  "duration": "PT1M30S",',
           replace: '  "duration": "PT2M30S",',
         });
-        await expectRed(repo, 'nix develop .#ci -c pls test:int', 'dotnet-integration-tests', 600000);
+        await expectRed(repo, 'nix develop .#ci -c task test:int', 'dotnet-integration-tests', 600000);
       },
     },
   ],
