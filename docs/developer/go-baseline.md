@@ -29,19 +29,19 @@ same gates and tier boundaries.
 
 ## Commands
 
-- `pls setup` installs modules and synchronizes vendored skills.
-- `pls build` compiles the repository's Go packages or, in executable
+- `task setup` installs modules and synchronizes vendored skills.
+- `task build` compiles the repository's Go packages or, in executable
   descendants, creates their declared artifact.
-- `pls typecheck` compiles source packages without running tests.
-- `pls test`, `pls test:unit`, and `pls test:int` run the tiered suites.
-- `pls test:coverage`, `pls test:unit:coverage`, and
-  `pls test:int:coverage` enforce the scoped ledgers.
-- `pls test:watch` watches the unit tier.
-- `pls deadcode` runs whole-repository and production-only strict passes, then
+- `task typecheck` compiles source packages without running tests.
+- `task test`, `task test:unit`, and `task test:int` run the tiered suites.
+- `task test:coverage`, `task test:unit:coverage`, and
+  `task test:int:coverage` enforce the scoped ledgers.
+- `task test:watch` watches the unit tier.
+- `task deadcode` runs whole-repository and production-only strict passes, then
   writes the nonblocking review feed to `reports/deadcode-llm.txt`.
-- `pls up` and `pls down` manage the local Redis dependency.
+- `task up` and `task down` manage the local Redis dependency.
 
-There is deliberately no `pls dev`: this base is not a long-running server, so
+There is deliberately no `task dev`: this base is not a long-running server, so
 an Air hot-reload loop would add machinery without a real use case.
 
 ## Test and coverage law
