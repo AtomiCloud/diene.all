@@ -1,4 +1,4 @@
-import { expectGreen } from './lib/helpers.ts';
+import { expectDevShellsOnce } from './lib/helpers.ts';
 
 export default {
   contractVersion: 1,
@@ -9,11 +9,7 @@ export default {
       description: 'Every workspace development shell evaluates and starts.',
       kind: 'baseline',
       async run(repo: any) {
-        await expectGreen(
-          repo,
-          'nix develop --no-write-lock-file .#default -c true && nix develop --no-write-lock-file .#ci -c true && nix develop --no-write-lock-file .#cd -c true && nix develop --no-write-lock-file .#releaser -c true',
-          'dev-shell',
-        );
+        await expectDevShellsOnce(repo);
       },
     },
   ],
