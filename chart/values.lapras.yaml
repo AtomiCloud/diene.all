@@ -1,13 +1,6 @@
-# Independent local-cluster overlay. It contains no landscape decision.
-serviceTree:
-  cluster: lapras
-
-# The local install proves the ordinary Kubernetes resources only; the CRDs are owned by later nodes.
-secret:
-  enabled: false
-
-webhookRoute:
-  enabled: false
-
-primordial:
-  enabled: false
+# Independent cluster overlay for the local lapras/k3d substrate. Thin: it
+# contributes only cluster identity; the landscape overlay owns the landscape
+# label. The reloader engine stays fully enabled — it installs everywhere.
+global:
+  serviceTree:
+    cluster: lapras

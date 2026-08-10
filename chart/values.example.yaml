@@ -1,6 +1,12 @@
-# Independent landscape overlay example.
-serviceTree:
-  landscape: example
-
-primordial:
-  targetLandscape: example
+# Independent landscape overlay (generic). chlorine is L1-generic near-pure
+# passthrough: the reloader engine is identical in every landscape, so this
+# overlay contributes only landscape identity — no landscape/cluster/zone
+# topology or behavior. Final per-profile ENV roster entries stay outside this node.
+global:
+  serviceTree:
+    landscape: example
+reloader:
+  reloader:
+    deployment:
+      labels:
+        atomi.cloud/landscape: example

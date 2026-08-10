@@ -1,0 +1,17 @@
+{{- include "chlorine.validateServiceTree" . -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "chlorine.resourceName" (dict "root" . "token" "lpsm") }}
+  labels:
+    {{- include "chlorine.labels" . | nindent 4 }}
+  annotations:
+    {{- include "chlorine.serviceTreeAnnotations" . | nindent 4 }}
+data:
+  layer: {{ .Values.global.serviceTree.layer | quote }}
+  module: {{ .Values.global.serviceTree.module | quote }}
+  service: {{ .Values.global.serviceTree.service | quote }}
+  engine: 'reloader'
+  purpose: 'secret/configmap rotation restart engine (the SoS last hop)'
+  source: 'stakater/reloader'
+  strategy: 'annotation opt-in (reloader.stakater.com/auto); never auto-reload-all'

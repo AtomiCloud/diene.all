@@ -1,0 +1,24 @@
+# Machine-checkable upstream selection evidence for the vendored reloader engine.
+observedAtUtc: '2026-07-24T16:40:00Z'
+chart:
+  name: reloader
+  repository: https://stakater.github.io/stakater-charts
+  index: https://stakater.github.io/stakater-charts/index.yaml
+  version: 2.2.14
+  appVersion: v1.4.19
+  sourceArchiveSha256: a21154a5b32df7c4d78c575e957ffa2af5afdfdf608415d3eb0a0da1d045dcec
+image:
+  registry: ghcr.io/stakater
+  controllerRepository: ghcr.io/stakater/reloader
+  selectedTag: v1.4.19
+  observedLatestChartVersion: 2.2.14
+  observedLatestImageTag: v1.4.19
+  observedLatestRelease: https://github.com/stakater/Reloader/releases/tag/v1.4.19
+decision: >-
+  stakater/reloader chart 2.2.14 / app v1.4.19 is pinned pure-passthrough — this
+  rebuild bumps the former sulfoxide/chlorine reloader (chart 1.0.121) to the
+  current official latest. reloader has no CRDs, webhook, or cainjector: the
+  chart renders one controller Deployment plus its RBAC, so the wrapper adds only
+  the pinned image, the annotation-opt-in reload stance (never auto-reload-all),
+  resource envelopes, and container hardening. Images are pulled from
+  ghcr.io/stakater and pinned to the chart appVersion.
