@@ -1,12 +1,11 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "entry": ["src/index.ts"],
-  "project": ["src/**/*.ts"],
+  "entry": ["src/index.ts!", "src/entries/*.ts!"],
+  "project": ["src/**/*.ts!", "src/**/*.tsx!"],
   "bun": false,
   "github-actions": false,
   "node": false,
   "taskfile": false,
-  "typescript": false,
   "rules": {
     "files": "error",
     "exports": "off",

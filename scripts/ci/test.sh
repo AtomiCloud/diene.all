@@ -22,8 +22,13 @@ config="bunfig.${mode}.toml"
 coverage_dir="coverage/${mode}"
 coverage_file="${coverage_dir}/lcov.info"
 scope="src/lib/"
-[[ ${mode} == "int" ]] && scope="src/adapters/"
+source_roots=(src/lib)
+if [[ ${mode} == "int" ]]; then
+  scope="src/(adapters|react)/"
+  source_roots=(src/adapters src/react)
+fi
 [[ ${mode} == "meta" ]] && scope="src/test-helper/"
+[[ ${mode} == "meta" ]] && source_roots=(src/test-helper)
 source_list="$(mktemp)"
 coverage_list="$(mktemp)"
 trap 'rm -f "${source_list}" "${coverage_list}"' EXIT
@@ -80,7 +85,11 @@ awk -v scope="${scope}" '
   }
 ' "${coverage_file}"
 
-rg -l --glob '*.ts' '^(export )?(async )?(function|class|const|let|var|enum)\b|^[[:space:]]*(const|let|var)\b' "${scope%/}" | sort -u >"${source_list}"
+existing_roots=()
+for source_root in "${source_roots[@]}"; do
+  [[ -d ${source_root} ]] && existing_roots+=("${source_root}")
+done
+rg -l --glob '*.ts' --glob '*.tsx' '^(export )?(async )?(function|class|const|let|var|enum)\b|^[[:space:]]*(const|let|var)\b' "${existing_roots[@]}" | sort -u >"${source_list}"
 awk '
   /^SF:/ {
     path = substr($0, 4)

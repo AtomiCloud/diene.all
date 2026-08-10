@@ -3,7 +3,8 @@ root = "tests/unit"
 coverageReporter = ["text", "lcov"]
 coverageDir = "coverage/unit"
 coverageSkipTestFiles = true
-coveragePathIgnorePatterns = ["src/adapters/**", "src/index.ts", "tests/**"]
+# Unit ledger = the domain tier only (src/lib, 100% goal); adapters/glue belong to other tiers, tests/** never counts.
+coveragePathIgnorePatterns = ["src/adapters/**", "src/entries/**", "src/index.ts", "src/react/**", "src/test-helper/**", "tests/**"]
 
 # Imports every src/lib module so an untested one is measured at 0% rather than absent.
 preload = ["./tests/support/unit-ledger.ts"]

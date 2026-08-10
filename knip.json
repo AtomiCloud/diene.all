@@ -1,7 +1,7 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "entry": ["src/index.ts", "tests/**/*.test.ts"],
-  "project": ["src/**/*.ts"],
+  "entry": ["src/index.ts", "src/entries/*.ts", "tests/**/*.test.ts", "tests/**/*.test.tsx"],
+  "project": ["src/**/*.ts", "src/**/*.tsx"],
   "rules": {
     "files": "error",
     "exports": "error",
