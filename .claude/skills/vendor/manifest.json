@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "generator": "skills-sync",
+  "runtime": "node",
+  "packages": [
+    "@atomicloud/diene.auth-engine",
+    "@atomicloud/diene.core-utils",
+    "@atomicloud/diene.problems",
+    "@atomicloud/diene.result"
+  ],
+  "entries": [
+    {
+      "path": "diene.auth-engine/diene-auth-engine-usage/SKILL.md",
+      "sha256": "094a57e93683d33be52d52e12dfe66b27867ca1eee2639f09ddde71691a4236d"
+    },
+    {
+      "path": "diene.auth-engine/diene-auth-engine-usage/patterns.md",
+      "sha256": "8e43f90875f1708ff1d22799e840e89bca7a04e661138e2b8226e53c5d8b42e4"
+    },
+    {
+      "path": "diene.core-utils/diene-core-utils-usage/SKILL.md",
+      "sha256": "590a72b493fc1fd2ae40f3e6c5d4283093d443cded7641beeccd6c92bce25eaf"
+    },
+    {
+      "path": "diene.core-utils/diene-core-utils-usage/patterns.md",
+      "sha256": "e4ad6ea21e87ab663263bd154b8b5fc90e90244e99dc871eeebdc0f97e6e5255"
+    },
+    {
+      "path": "diene.problems/diene-problems-usage/SKILL.md",
+      "sha256": "2b5bb539072c09a4600dd5863a2becf181f095c48902c5d5f23d390b7013bfe6"
+    },
+    {
+      "path": "diene.result/diene-result-usage/SKILL.md",
+      "sha256": "af8ddb4d54cc7cd278d56e89eb998372024423de2028e64bcde784e70b7f3a71"
+    },
+    {
+      "path": "diene.result/diene-result-usage/assets/consumer.cjs",
+      "sha256": "f18c192482d266ab418dfdce04bb10b019781f552b2a41d9161b8347a0599cd4"
+    },
+    {
+      "path": "diene.result/diene-result-usage/assets/consumer.ts",
+      "sha256": "84e6eab274ab3a6db57477052d5583bf5527c0bf4e71362a69bea76b8f6686c1"
+    },
+    {
+      "path": "diene.result/diene-result-usage/assets/test-helper.md",
+      "sha256": "cac85271d0314f8e417494e7bcdf3622c7e570f9fdb0018426d6e2544306547e"
+    }
+  ]
+}

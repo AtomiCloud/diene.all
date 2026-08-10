@@ -21,7 +21,7 @@ export default {
       name: 'mutation-bun-integration-coverage-caught',
       description: 'A broken real-server expectation turns the integration contract gate red.',
       kind: 'mutation',
-      expectedImpact: [],
+      expectedImpact: ['bun-deadcode'],
       async run(repo: any) {
         const path = 'tests/integration/http-contract.test.ts';
         const source = await repo.read(path);
