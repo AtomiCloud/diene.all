@@ -1,5 +1,5 @@
-# ### helm-wrapper-reusable-publish
-# #### source: helm-wrapper
+# ### cobalt-reusable-publish
+# #### source: cobalt
 name: ⚡ Reusable Chart Publish
 
 on:

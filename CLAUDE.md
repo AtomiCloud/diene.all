@@ -97,9 +97,9 @@ See [docs/standards/utilities/index.md](docs/standards/utilities/index.md).
 Domain-specific architecture and behavior belongs under
 [docs/domain/](docs/domain/README.md).
 
-<!-- ### helm-wrapper -->
-<!-- #### source: helm-wrapper -->
+<!-- ### cobalt -->
+<!-- #### source: cobalt -->
 
-## Helm wrapper sample
+## Cobalt chart
 
-Read [docs/developer/helm-wrapper-baseline.md](docs/developer/helm-wrapper-baseline.md) before changing `chart/`, the stacked values, CR/LPSM helpers, provider LoadBalancer annotations, config vendoring, or chart publishing.
+Read [docs/developer/cobalt-baseline.md](docs/developer/cobalt-baseline.md) before changing `chart/`, the stacked values, the Infisical ClusterSecretStore, the ESO subchart overrides, or chart validation and publishing.

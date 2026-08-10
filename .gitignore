@@ -28,8 +28,8 @@ desktop.ini
 ### workspace [helm]
 infra/root_chart/uploads/
 
-### helm-wrapper
-#### source: helm-wrapper
+### cobalt
+#### source: cobalt
 chart/files/config/
 dist/
 probe-report.json
