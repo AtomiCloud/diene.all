@@ -14,16 +14,7 @@ let
           atomiutils
           cyanprint
           dlint
-          # The axis-pure slices, not the `infralint`/`infrautils` aggregates.
-          # The aggregates carry the helm axis by CONTENT — infralint ships
-          # helm-docs and helmlint, infrautils ships helm — so a node whose
-          # defining property is the absence of that axis cannot declare them
-          # and still be telling the truth. `infralint-docker` is taken because
-          # hadolint and skopeo are invoked here; `infrautils-docker` is not,
-          # because `docker-client` below already provides the only binary of
-          # it this node uses.
           infralint-core
-          infralint-docker
           infrautils-core
           releaser
           skills-sync
@@ -43,7 +34,6 @@ let
           # #### source: bun-base
           bun
           dpkg
-          docker-client
           gh
           git
           go
@@ -120,11 +110,11 @@ let
           dontFixup = true;
           outputHashMode = "recursive";
           outputHashAlgo = "sha256";
-          outputHash = "sha256-//nzVPVDGPwgvscaKBcyZhmXXlA6hU3Bt3l6jT5AWH8=";
+          outputHash = "sha256-QS0fN9OiIBGKAxxWCsvZBP9hmErPoL5vWN6NG6lbfPc=";
         };
       in
       {
-        bun-cli = pkgs-2605.stdenv.mkDerivation {
+        releaser = pkgs-2605.stdenv.mkDerivation {
           pname = cliName;
           version = manifest.version;
           inherit src;
@@ -132,13 +122,11 @@ let
           dontConfigure = true;
           buildPhase = ''
             export HOME="$TMPDIR"
-            cp -r ${deps}/node_modules ./node_modules
-            chmod -R u+w node_modules
+            cp -r --no-preserve=mode ${deps}/node_modules ./node_modules
             bun build "./${entry}" --compile --outfile "${cliName}"
           '';
           installPhase = ''
-            mkdir -p "$out/bin"
-            cp "${cliName}" "$out/bin/${cliName}"
+            install -Dm755 "${cliName}" "$out/bin/${cliName}"
           '';
           dontFixup = true;
           meta.mainProgram = cliName;

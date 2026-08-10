@@ -2,12 +2,12 @@
 # is Pro-only, mirrors sulfone.iridium); GoReleaser owns archives, deb/rpm, cask, and the release.
 version: 2
 
-project_name: bun-cli
+project_name: releaser
 
 builds:
   - id: bun
     main: ./goreleaser.go
-    binary: bun-cli
+    binary: releaser
     goos: [linux, darwin]
     goarch: [amd64, arm64]
     # Only darwin arm64 ships (no intel mac).
@@ -35,28 +35,28 @@ release:
 nfpms:
   - id: packages
     ids: [bun]
-    package_name: bun-cli
+    package_name: releaser
     formats: [deb, rpm]
     maintainer: AtomiCloud <ops@atomi.cloud>
-    description: Sample CLI baseline over the AtomiCloud Redis key-value library
+    description: Offline-first conventional release and commit-lint automation
     license: MIT
     bindir: /usr/bin
 
 # GoReleaser uses casks (not the deprecated `brews`) for pre-compiled binaries.
 homebrew_casks:
-  - name: bun-cli
+  - name: releaser
     ids: [archive]
-    binaries: [bun-cli]
+    binaries: [releaser]
     repository:
       owner: AtomiCloud
       name: homebrew-tap
       token: '{{ .Env.HOMEBREW_TAP_TOKEN }}'
-    homepage: https://github.com/AtomiCloud/diene.bun-cli
-    description: Sample CLI baseline over the AtomiCloud Redis key-value library
+    homepage: https://github.com/AtomiCloud/releaser
+    description: Offline-first conventional release and commit-lint automation
     # The Bun binary ships unsigned; strip the macOS quarantine attribute on install.
     hooks:
       post:
         install: |
           if OS.mac?
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/bun-cli"]
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/releaser"]
           end

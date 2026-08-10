@@ -1,0 +1,16 @@
+conventionMarkdown:
+  path: CommitConventions.md
+  template: CONVENTION_DOCS_PLACEHOLDER
+branches: [main]
+types:
+  - type: feat
+    desc: Features
+    scopes:
+      default: { desc: Feature, release: minor }
+plugins:
+  - module: '@semantic-release/changelog'
+  - module: '@semantic-release/npm'
+  - module: '@semantic-release/git'
+    config:
+      message: "release: ${nextRelease.version}\n\n${nextRelease.notes}"
+      assets: [Changelog.md]

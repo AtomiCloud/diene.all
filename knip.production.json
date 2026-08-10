@@ -1,6 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "entry": ["bin/bun-cli.ts"],
+  "entry": ["bin/releaser.ts"],
   "project": ["src/**/*.ts"],
   "bun": false,
   "github-actions": false,

@@ -2,9 +2,9 @@
 set -euo pipefail
 
 # One-line installer served from the GitHub release:
-#   curl -fsSL https://github.com/AtomiCloud/diene.bun-cli/releases/latest/download/install.sh | bash
-REPO="AtomiCloud/diene.bun-cli"
-BINARY="bun-cli"
+#   curl -fsSL https://github.com/AtomiCloud/releaser/releases/latest/download/install.sh | bash
+REPO="AtomiCloud/releaser"
+BINARY="releaser"
 
 VERSION="${VERSION:-latest}"
 BIN_DIR="${BIN_DIR:-${HOME}/.local/bin}"

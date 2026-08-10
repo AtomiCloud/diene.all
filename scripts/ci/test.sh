@@ -7,34 +7,78 @@ mode="${1:-}"
 root_dir="$(git rev-parse --show-toplevel)"
 cd "${root_dir}"
 
-# sit runs the compiled binary, so it has no coverage ledger to scope.
+./scripts/ci/setup.sh
+
 if [[ ${mode} == "sit" ]]; then
-  if [[ -d dist/bin ]]; then chmod -R +x dist/bin; fi
-  if [[ -n ${CLI_BIN:-} ]]; then chmod +x "${CLI_BIN}"; fi
+  [[ -z ${CLI_BIN:-} ]] && echo "❌ CLI_BIN must name the transported executable" >&2 && exit 1
+  [[ ! -x ${CLI_BIN} ]] && echo "❌ CLI binary is not executable: ${CLI_BIN}" >&2 && exit 1
   echo "🧪 Running sit tests..."
-  bun test --config=bunfig.sit.toml
+  SIT_DRIVER=binary CLI_BIN="${CLI_BIN}" bun test --config=bunfig.sit.toml
   echo "✅ sit tests passed"
   exit 0
 fi
 
 config="bunfig.${mode}.toml"
-coverage_file="coverage/${mode}/lcov.info"
+coverage_dir="coverage/${mode}"
+coverage_file="${coverage_dir}/lcov.info"
 scope="src/lib/"
 [[ ${mode} == "int" ]] && scope="src/adapters/"
+source_list="$(mktemp)"
+coverage_list="$(mktemp)"
+trap 'rm -f "${source_list}" "${coverage_list}"' EXIT
 
 echo "🧪 Running ${mode} tests with coverage..."
-rm -rf "coverage/${mode}"
+rm -rf "${coverage_dir}"
 
+set +e
 bun test --config="${config}" --coverage
+test_status=$?
+set -e
 
-# rg exits 2 on a missing file, so absence needs its own refusal.
-[[ -f ${coverage_file} ]] || {
-  echo "❌ no coverage artifact at ${coverage_file}" >&2
-  exit 1
-}
-sources="$(rg -N --replace '' '^SF:' "${coverage_file}" || true)"
-[[ -z ${sources} ]] && echo "❌ coverage ledger at ${coverage_file} names no source file" >&2 && exit 1
-outside="$(printf '%s\n' "${sources}" | rg -v "(^|/)${scope}" || true)"
-[[ -n ${outside} ]] && echo "❌ coverage path outside ${scope}: ${outside}" >&2 && exit 1
+[[ ! -f ${coverage_file} ]] && echo "❌ No coverage artifact found at ${coverage_file}" >&2 && exit 1
 
-echo "✅ ${mode} tests passed; coverage is complete and scoped to ${scope}: ${coverage_file}"
+awk -v scope="${scope}" '
+  BEGIN { files = 0; lines_found = 0; lines_hit = 0; bad = 0 }
+  /^SF:/ {
+    path = substr($0, 4)
+    gsub(/\\\\/, "/", path)
+    files++
+    if (path !~ "(^|/)" scope) {
+      printf "❌ coverage path outside %s: %s\n", scope, path > "/dev/stderr"
+      bad = 1
+    }
+  }
+  /^LF:/ { lines_found += substr($0, 4) + 0 }
+  /^LH:/ { lines_hit += substr($0, 4) + 0 }
+  END {
+    if (files == 0) {
+      print "❌ coverage ledger contains no source files" > "/dev/stderr"
+      exit 1
+    }
+    if (lines_found == 0) {
+      print "❌ coverage ledger contains no executable lines" > "/dev/stderr"
+      exit 1
+    }
+    if (lines_hit != lines_found) {
+      printf "❌ coverage is not 100%%: %d/%d lines hit\n", lines_hit, lines_found > "/dev/stderr"
+      exit 1
+    }
+    if (bad != 0) exit 1
+  }
+' "${coverage_file}"
+
+rg -l --glob '*.ts' '^(export )?(async )?(function|class|const|let|var|enum)\b|^[[:space:]]*(const|let|var)\b' "${scope%/}" | sort -u >"${source_list}"
+awk '
+  /^SF:/ {
+    path = substr($0, 4)
+    gsub(/\\\\/, "/", path)
+    sub(/^.*\/src\//, "src/", path)
+    print path
+  }
+' "${coverage_file}" | sort -u >"${coverage_list}"
+missing="$(comm -23 "${source_list}" "${coverage_list}" | head -n 1)"
+[[ -n ${missing} ]] && echo "❌ source file missing from coverage ledger: ${missing}" >&2 && exit 1
+
+echo "✅ Coverage artifact is scoped to ${scope}: ${coverage_file}"
+[[ ${test_status} -ne 0 ]] && echo "❌ ${mode} tests failed (exit ${test_status})" >&2 && exit "${test_status}"
+echo "✅ ${mode} tests passed"

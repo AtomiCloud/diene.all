@@ -1,0 +1,19 @@
+schemaVersion: 2
+types:
+  - type: feat
+    desc: Features
+    scopes:
+      default: { desc: Feature, release: minor }
+conventions:
+  path: CommitConventions.md
+  template: CONVENTION_DOCS_PLACEHOLDER
+release:
+  branches:
+    - name: main
+      prerelease: next
+  tagFormat: 'v${version}-next.1'
+  changelog: { path: Changelog.md, title: '# Changelog' }
+  commit:
+    message: "release: ${version}\n\n${notes}"
+    assets: [Changelog.md]
+  github: false

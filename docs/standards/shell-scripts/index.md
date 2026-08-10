@@ -70,18 +70,22 @@ echo "✅ Done"
 
 ## File Location
 
-All shell scripts live in `scripts/` at the project root, in a subdirectory that
-says who is allowed to call them:
+All shell scripts live in `scripts/` at the project root. GitHub workflows invoke
+`scripts/ci/*` directly; Taskfiles may invoke `scripts/local/*` but never CI
+scripts.
 
-- `scripts/ci/` — CI/CD lane entry points. Only GitHub workflows invoke these; a
-  Taskfile must never call one.
-- `scripts/local/` — developer-facing helpers. Taskfiles invoke these, and a
-  developer may also run one directly.
-- `scripts/validate/` — repository-owned policy checks, invoked by pre-commit
-  hooks.
-
-List a directory to see which scripts it currently holds; each script's callers
-are the workflow, Taskfile, or hook that names it.
+```
+scripts/
+├── ci/
+│   ├── setup.sh          # frozen offline dependency setup
+│   ├── pre-commit.sh     # Pre-commit hooks
+│   ├── test.sh           # unit/int coverage and transported-binary SIT
+│   ├── build.sh          # Bun bundle validation
+│   └── release.sh        # releaser entrypoint
+├── local/                # setup, build, dead-code, and skill helpers
+├── release/              # compile, package, install, and release hooks
+└── validate/             # repository-owned static policy checks
+```
 
 ## Summary
 

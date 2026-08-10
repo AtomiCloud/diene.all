@@ -8,7 +8,7 @@ with packages;
     go-task
     infisical
     jq
-    releaser
+    packages.releaser
   ];
 
   # ### workspace-lint
@@ -17,7 +17,6 @@ with packages;
     actionlint
     dlint
     infralint-core
-    infralint-docker
     pre-commit
     shellcheck
     skills-sync
@@ -32,13 +31,11 @@ with packages;
     # #### source: bun-base
     bun
     nodejs
-    cyanprint
-    docker-client
     git
     go-task
     infisical
     jq
-    releaser
+    packages.releaser
     shellcheck
     yq-go
   ];
@@ -54,7 +51,7 @@ with packages;
     go
     goreleaser
     rpm
-    releaser
+    packages.releaser
   ];
 
   # ### nix-root-system
