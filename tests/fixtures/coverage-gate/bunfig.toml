@@ -1,0 +1,8 @@
+# Isolated ledger driven green and sabotaged by tests/unit/coverage-gate.test.ts.
+[test]
+root = "tests/fixtures/coverage-gate/spec"
+coverageReporter = ["text", "lcov"]
+coverageDir = "coverage/fixture"
+coverageSkipTestFiles = true
+coveragePathIgnorePatterns = ["src/**", "tests/support/**", "tests/unit/**", "tests/integration/**"]
+coverageThreshold = 1.0
