@@ -1,5 +1,3 @@
-# ### dart-lib-reusable-test
-# #### source: dart-lib
 name: ⚡ Reusable Dart Tests
 
 on:
@@ -32,9 +30,10 @@ jobs:
         env:
           TEST_MODE: ${{ inputs.mode }}
         run: nix develop .#ci -c ./scripts/ci/test.sh "$TEST_MODE" coverage
+      # Uploads gate on the ARTIFACT rather than on a source file standing in for it.
       - name: Upload ${{ inputs.mode }} coverage artifact
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-${{ inputs.mode }}
           path: packages/diene_config/coverage/${{ inputs.mode }}
@@ -42,7 +41,7 @@ jobs:
       - name: Upload ${{ inputs.mode }} coverage to Codecov
         if: always()
         continue-on-error: true
-        uses: codecov/codecov-action@v7
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
           files: packages/diene_config/coverage/${{ inputs.mode }}/lcov.info
           flags: ${{ inputs.mode }}

@@ -209,9 +209,10 @@ expect_yq pubspec.yaml '.workspace | join(",")' 'packages/diene_config'
 expect_yq packages/diene_config/pubspec.yaml '.name' 'diene_config'
 expect_yq packages/diene_config/pubspec.yaml '.repository' \
   'https://github.com/AtomiCloud/diene.dart_config'
-expect_yq atomi_release.yaml \
-  '[.plugins[].config.changelogFile | select(. != null)] | join(",")' \
-  'packages/diene_config/CHANGELOG.md'
+# Schema v2: the parent renamed atomi_release.yaml to release.yaml and the
+# changelog target moved from the changelog plugin's changelogFile to
+# release.changelog.path. Same assertion, same expected value, new key.
+expect_yq release.yaml '.release.changelog.path' 'packages/diene_config/CHANGELOG.md'
 expect_yq codecov.yml '.flags.unit.paths | join(",")' 'packages/diene_config/lib/src'
 expect_yq codecov.yml '.flags.meta.paths | join(",")' 'packages/diene_config/lib/test_helper.dart'
 note "  identity assertions made: ${identity_checks}"
@@ -274,11 +275,16 @@ done
 # silently applied.
 note '→ the wrong parent package name as an identifier'
 SELF='scripts/validate/r-e19a-sweep.sh'
+# The parent's own audit document arrives with the cascade and describes its
+# sample package by name throughout. It is PROSE ABOUT the parent, not residue
+# IN this node — no code, config or manifest resolves through it. It is excluded
+# by path, printed rather than silently applied, exactly as SELF is.
+UPSTREAM='UPSTREAM-CHANGES.md'
 mapfile -t sample_hits < <(
   git grep -I -l -E 'diene_dart_lib|diene-dart-lib' "${HEAD_REF}" -- . 2>/dev/null |
-    sed "s|^${HEAD_REF}:||" | grep -v -x "${SELF}" || true
+    sed "s|^${HEAD_REF}:||" | grep -v -x "${SELF}" | grep -v -x "${UPSTREAM}" || true
 )
-note "  files naming diene_dart_lib (excluding ${SELF}): ${#sample_hits[@]}"
+note "  files naming diene_dart_lib (excluding ${SELF}, ${UPSTREAM}): ${#sample_hits[@]}"
 if [ "${#sample_hits[@]}" -ne 0 ]; then
   bad 'the parent sample package name survives as an identifier:'
   printf '     %s\n' "${sample_hits[@]}" >&2

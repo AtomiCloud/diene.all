@@ -23,10 +23,11 @@
 .coderabbit.yaml
 .envrc
 .markdownlint-cli2.jsonc
-.markdownlint.json
 .prettierrc.yaml
-atomi_release.yaml
 codecov.yml
+dlint.yaml
+release.yaml
+skills-sync.yaml
 flake.lock
 flake.nix
 Taskfile.yaml

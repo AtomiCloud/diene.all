@@ -12,9 +12,7 @@ export default {
   contractVersion: 1,
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
   setup: {
-    post: [
-      'nix develop .#ci --no-write-lock-file -c dart pub get --offline || nix develop .#ci --no-write-lock-file -c dart pub get',
-    ],
+    post: ['nix develop .#ci --no-write-lock-file -c dart pub get --offline'],
   },
   probes: [
     {
@@ -29,7 +27,7 @@ export default {
       name: 'mutation-deadcode-whole-package-caught',
       description: 'the whole-package dead-code pass flags an unused private member',
       kind: 'mutation',
-      expectedImpact: [],
+      expectedImpact: ['deadcode-production-only'],
       async run(repo: any) {
         // Drop an orphan source under the member's lib/src that nothing
         // references. dart_code_linter surfaces it as unused code AND an unused

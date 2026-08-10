@@ -1,4 +1,4 @@
-import { expectGreen, expectRed } from './lib/helpers.ts';
+import { expectGreen, expectRed, preserveMutationBeforeRestore } from './lib/helpers.ts';
 
 // Gate: `dart format --set-exit-if-changed` keeps the whole tree canonically
 // formatted. Sabotage appends an intentionally mis-spaced (but valid)
@@ -24,7 +24,7 @@ export default {
       name: 'mutation-dart-format-caught',
       description: 'dart format fails once a library source file drifts from canonical style',
       kind: 'mutation',
-      expectedImpact: [],
+      expectedImpact: ['pana-score'],
       async run(repo: any) {
         const sources = (await repo.glob('packages/*/lib/src/**/*.dart')).sort();
         const target = sources[0];
@@ -32,12 +32,16 @@ export default {
           throw new Error('dart-format: no library source file to sabotage');
         }
         const original = await repo.read(target);
-        await repo.write(target, `${original}\nfinal int probeUnformatted =  1;\n`);
-        await expectRed(
-          repo,
-          'nix develop .#ci --no-write-lock-file -c dart format --output=none --set-exit-if-changed .',
-          'dart-format',
-        );
+        try {
+          await repo.write(target, `${original}\nfinal int probeUnformatted =  1;\n`);
+          await expectRed(
+            repo,
+            'nix develop .#ci --no-write-lock-file -c dart format --output=none --set-exit-if-changed .',
+            'dart-format',
+          );
+        } finally {
+          await preserveMutationBeforeRestore(repo, 'dart-format', target, original);
+        }
       },
     },
   ],

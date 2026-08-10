@@ -1,5 +1,3 @@
-# ### dart-lib-reusable-publish
-# #### source: dart-lib
 # Reusable pub.dev publish job. Called by cd.yaml on a `v[0-9]+.[0-9]+.[0-9]+`
 # tag push, or by workflow_dispatch with an explicit release tag. Materializes
 # the AtomiCloud org pub.dev credential, pins the published member to the
@@ -16,6 +14,13 @@ on:
         description: Release tag whose bytes are published (v*.*.*)
         required: true
         type: string
+    secrets:
+      # Declared so a missing or misnamed org secret fails at workflow-call resolution,
+      # the same way bun-lib declares NPM_API_KEY and dotnet-lib declares NUGET_API_KEY.
+      # The runtime non-empty check below still stands; this only moves the earliest
+      # possible failure earlier.
+      PUB_CREDENTIALS_JSON:
+        required: true
 
 jobs:
   publish:

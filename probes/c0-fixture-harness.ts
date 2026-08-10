@@ -7,9 +7,7 @@ export default {
   contractVersion: 1,
   sandbox: { snapshot: 'git', preserve: ['.direnv'] },
   setup: {
-    post: [
-      'nix develop .#ci --no-write-lock-file -c dart pub get --offline || nix develop .#ci --no-write-lock-file -c dart pub get',
-    ],
+    post: ['nix develop .#ci --no-write-lock-file -c dart pub get --offline'],
   },
   probes: [
     {
@@ -28,7 +26,7 @@ export default {
       name: 'mutation-c0-fixture-harness-caught',
       description: 'the conformance harness fails once a fixture digest is corrupted',
       kind: 'mutation',
-      expectedImpact: [],
+      expectedImpact: ['unit-coverage-ledger'],
       async run(repo: any) {
         const manifests = (await repo.glob('packages/*/test/fixtures/c0/manifest.json')).sort();
         const target = manifests[0];
